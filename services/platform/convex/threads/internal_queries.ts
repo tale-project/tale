@@ -1,15 +1,27 @@
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
-import { internalQuery } from '../_generated/server';
+import type { Doc } from '../_generated/dataModel';
+import { internalQuery, type QueryCtx } from '../_generated/server';
 import { getThreadMessages as getThreadMessagesHelper } from './get_thread_messages';
 import { listThreads as listThreadsHelper } from './list_threads';
 
+/** Look up a thread's metadata row by its public `threadId`. */
+function getThreadMetadataRow(
+  ctx: QueryCtx,
+  threadId: string,
+): Promise<Doc<'threadMetadata'> | null> {
+  return ctx.db
+    .query('threadMetadata')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .first();
+}
+
 /**
  * Read the cross-thread Adaptive Reasoning Governor profile (per org + scope,
- * where scope is the resolved model id) for warm-starting the controller.
- * Returns the stored `ReasoningState` or `null`. Co-located with the per-thread
- * reasoning state so both share an existing function module.
+ * where `scopeKey` is `${model}::${agentType}`; see `reasoning/scope.ts`) for
+ * warm-starting the controller. Returns the stored `ReasoningState` or `null`
+ * (a cold scope simply falls back to the difficulty prior).
  */
 export const getReasoningProfile = internalQuery({
   args: { organizationId: v.string(), scopeKey: v.string() },
@@ -42,10 +54,7 @@ export const getThreadMetadata = internalQuery({
     callerOrgId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const row = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
+    const row = await getThreadMetadataRow(ctx, args.threadId);
     if (!row) return null;
     if (
       args.callerOrgId !== undefined &&
@@ -139,10 +148,7 @@ export const getThreadMessagesInternal = internalQuery({
   },
   handler: async (ctx, args) => {
     if (args.callerOrgId !== undefined) {
-      const meta = await ctx.db
-        .query('threadMetadata')
-        .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-        .first();
+      const meta = await getThreadMetadataRow(ctx, args.threadId);
       if (!meta || meta.organizationId !== args.callerOrgId) {
         return { messages: [] };
       }

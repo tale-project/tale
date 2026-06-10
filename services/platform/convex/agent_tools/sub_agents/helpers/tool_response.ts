@@ -19,6 +19,14 @@ export interface ToolResponse {
   sources?: string[];
   input?: string;
   output?: string;
+  /**
+   * For a streamed delegation: the sub-thread the delegate ran on and the
+   * stream its reasoning/tool deltas were written to. Surfaced in the parent's
+   * `delegate_*` tool-result part so the UI can mount a nested, collapsible
+   * timeline of the sub-agent's work. Absent for non-streamed delegations.
+   */
+  subThreadId?: string;
+  subStreamId?: string;
 }
 
 export interface ToolResponseWithApproval extends ToolResponse {
@@ -37,6 +45,7 @@ export function successResponse(
   provider?: string,
   sources?: string[],
   input?: string,
+  stream?: { subThreadId?: string; subStreamId?: string },
 ): ToolResponse {
   return {
     success: true,
@@ -47,6 +56,8 @@ export function successResponse(
     sources,
     input,
     output: response,
+    subThreadId: stream?.subThreadId,
+    subStreamId: stream?.subStreamId,
   };
 }
 

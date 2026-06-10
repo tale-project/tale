@@ -3,6 +3,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useMemo } from 'react';
+import { Controller } from 'react-hook-form';
 import { z } from 'zod';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -164,15 +165,12 @@ function ConfigurationPage() {
       register,
       handleSubmit,
       formState: { errors },
-      watch,
-      setValue,
+      control,
     },
   } = editor;
 
   // Genuine not-found (resolved, no config): nothing to render.
   if (!isLoading && !config) return null;
-
-  const variables = watch('variables');
 
   // Render the REAL form once, always. While loading, the skeleton-aware form
   // controls (Input/Textarea/JsonInput) mask themselves in place; the static
@@ -258,18 +256,23 @@ function ConfigurationPage() {
                 </Text>
               </FormSection>
 
-              <JsonInput
-                id="variables"
-                label={tAutomations('configuration.variables')}
-                value={variables ?? ''}
-                onChange={(next) =>
-                  setValue('variables', next, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  })
-                }
-                description={tAutomations('configuration.variablesHelp')}
-                errorMessage={errors.variables?.message}
+              {/* Controlled via RHF `Controller`: the field registers itself,
+                  so dirty tracking is automatic and validation runs on change
+                  (mode: 'onChange') — no `setValue(..., { shouldDirty,
+                  shouldValidate })` to forget. */}
+              <Controller
+                control={control}
+                name="variables"
+                render={({ field }) => (
+                  <JsonInput
+                    id="variables"
+                    label={tAutomations('configuration.variables')}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    description={tAutomations('configuration.variablesHelp')}
+                    errorMessage={errors.variables?.message}
+                  />
+                )}
               />
             </Stack>
           </fieldset>

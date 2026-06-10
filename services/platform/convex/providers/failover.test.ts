@@ -160,6 +160,33 @@ describe('resolveLanguageModelWithFallback', () => {
     ).rejects.toThrow('final boss');
   });
 
+  it('throws a structured ALL_FAILOVER_ATTEMPTS_FAILED error with attempt history', async () => {
+    mockedById
+      .mockRejectedValueOnce(new Error('a1'))
+      .mockRejectedValueOnce(new Error('a2'));
+    mockedByTag
+      .mockRejectedValueOnce(new Error('a3'))
+      .mockRejectedValueOnce(new Error('a4'));
+
+    await expect(
+      resolveLanguageModelWithFallback(fakeCtx, {
+        modelId: 'gpt-4',
+        providerName: 'openai',
+        tag: 'chat',
+        fallbackModelId: 'haiku',
+        fallbackProviderName: 'anthropic',
+        organizationId: 'org_test',
+      }),
+    ).rejects.toMatchObject({
+      data: expect.objectContaining({
+        code: 'ALL_FAILOVER_ATTEMPTS_FAILED',
+        attempts: expect.arrayContaining([
+          expect.objectContaining({ reason: expect.any(String) }),
+        ]),
+      }),
+    });
+  });
+
   it('skips primary when circuit breaker is open', async () => {
     // Scope `isOpen` to the primary id only. `pushIfClosed` now also
     // filters fallback model attempts, so a blanket `mockReturnValue(true)`

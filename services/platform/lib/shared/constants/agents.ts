@@ -28,3 +28,14 @@ export const DEFAULT_CHAT_AGENT_SLUG = 'chat-agent';
  * side hard-codes the string. Must never collide with a real agent filename.
  */
 export const AUTO_AGENT_SLUG = 'auto';
+
+/**
+ * Slug of the system "Auto" router agent (`router.json`, `isRouter: true`).
+ * `resolveAutoRoute` loads this agent's config to pick a fast classifier model
+ * and feed it `buildRouterInstructions`. It is `uiConfigurable: false` (not
+ * editable in the UI) and `visibleInChat: false` (the composer's "Auto" entry,
+ * the `AUTO_AGENT_SLUG` sentinel, is its user-facing surface — it never appears
+ * as a separately pickable agent). When absent, routing degrades to the default
+ * chat model.
+ */
+export const ROUTER_AGENT_SLUG = 'router';

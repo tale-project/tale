@@ -8,6 +8,7 @@
     "document_write",
     "pdf",
     "image",
+    "generate_image",
     "docx",
     "excel",
     "request_human_input",
@@ -20,13 +21,13 @@
     "file_delete"
   ],
   "supportedModels": [
+    "openrouter:anthropic/claude-haiku-4.5",
     "openrouter:deepseek/deepseek-v4-flash",
     "openrouter:deepseek/deepseek-v4-pro",
     "openrouter:moonshotai/kimi-k2.6",
     "openrouter:moonshotai/kimi-k2.5",
     "openrouter:anthropic/claude-opus-4.6",
     "openrouter:anthropic/claude-sonnet-4.6",
-    "openrouter:anthropic/claude-haiku-4.5",
     "openrouter:openai/gpt-5.2",
     "openrouter:openai/gpt-5.2-chat",
     "openrouter:openai/gpt-5.2-pro",

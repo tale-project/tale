@@ -41,7 +41,10 @@ import { resolveLanguageModelWithFallback } from '../../providers/failover';
 // Node-only fast-path resolver — in-process, skips the ~340ms runAction hop
 // that resolve_model.ts uses to stay V8-importable.
 import { resolveLanguageModelByIdNode } from '../../providers/resolve_model_node';
+import { autoRouteReasonValidator } from '../../streaming/validators';
 import { generateAgentResponse } from '../agent_response';
+import { routeModelOrder } from '../agent_response/model_routing/route_model';
+import { resolvePromptCaching } from '../agent_response/prompt_caching/strategy';
 import type {
   GenerateResponseHooks,
   BeforeContextResult,
@@ -70,6 +73,76 @@ import { buildCallProviderOptions } from '../provider_options';
 import { buildSkillContext } from './skills_runtime';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
+
+/**
+ * Convex validator mirror of `responseTuningSchema` (lib/shared/schemas/agents).
+ * Kept in lockstep so the serializable config can carry per-agent tuning
+ * through the scheduler arg boundary.
+ */
+const responseTuningValidator = v.object({
+  effort: v.optional(
+    v.union(
+      v.literal('adaptive'),
+      v.literal('low'),
+      v.literal('medium'),
+      v.literal('high'),
+    ),
+  ),
+  creativity: v.optional(
+    v.union(
+      v.literal('adaptive'),
+      v.literal('precise'),
+      v.literal('balanced'),
+      v.literal('creative'),
+    ),
+  ),
+  style: v.optional(
+    v.union(
+      v.literal('adaptive'),
+      v.literal('concise'),
+      v.literal('detailed'),
+      v.literal('formal'),
+      v.literal('friendly'),
+    ),
+  ),
+  effortFloor: v.optional(
+    v.union(
+      v.literal('off'),
+      v.literal('low'),
+      v.literal('medium'),
+      v.literal('high'),
+    ),
+  ),
+  effortCeiling: v.optional(
+    v.union(
+      v.literal('off'),
+      v.literal('low'),
+      v.literal('medium'),
+      v.literal('high'),
+    ),
+  ),
+  budgetCaps: v.optional(
+    v.object({
+      easy: v.optional(v.number()),
+      medium: v.optional(v.number()),
+      hard: v.optional(v.number()),
+    }),
+  ),
+  temperatureRange: v.optional(
+    v.object({ min: v.optional(v.number()), max: v.optional(v.number()) }),
+  ),
+  verbosity: v.optional(
+    v.union(
+      v.literal('adaptive'),
+      v.literal('terse'),
+      v.literal('normal'),
+      v.literal('verbose'),
+    ),
+  ),
+  qualityProfile: v.optional(
+    v.union(v.literal('lenient'), v.literal('balanced'), v.literal('strict')),
+  ),
+});
 
 const serializableAgentConfigValidator = v.object({
   name: v.string(),
@@ -124,6 +197,29 @@ const serializableAgentConfigValidator = v.object({
   outputReserve: v.optional(v.number()),
   fallbackModels: v.optional(v.array(v.string())),
   personalizationMode: v.optional(v.union(v.literal('on'), v.literal('off'))),
+  responseTuning: v.optional(responseTuningValidator),
+  /** Advisory reply-language hint from the Auto router (feeds the language
+   *  directive's fallback only). See `SerializableAgentConfig.replyLocaleHint`. */
+  replyLocaleHint: v.optional(v.string()),
+  routing: v.optional(
+    v.object({
+      modelSelection: v.optional(
+        v.union(v.literal('config'), v.literal('auto')),
+      ),
+      cascade: v.optional(v.boolean()),
+      cascadeDraftModel: v.optional(v.string()),
+      // Orchestration policy lives on the router agent; included here so the
+      // whole `routing` object validates when it rides along on any agent.
+      orchestration: v.optional(
+        v.union(
+          v.literal('single'),
+          v.literal('orchestrate'),
+          v.literal('auto'),
+        ),
+      ),
+      maxOrchestrationSteps: v.optional(v.number()),
+    }),
+  ),
 });
 
 const hooksConfigValidator = v.object({
@@ -144,6 +240,7 @@ const runGenerationArgs = {
   organizationId: v.string(),
   userId: v.optional(v.string()),
   agentSlug: v.optional(v.string()),
+  autoRouteReason: v.optional(autoRouteReasonValidator),
   promptMessage: v.string(),
   /**
    * Un-augmented user text (without the attachment markdown that
@@ -171,7 +268,6 @@ const runGenerationArgs = {
   maxSteps: v.optional(v.number()),
   deadlineMs: v.optional(v.number()),
   generationParams: v.optional(v.any()),
-  reasoningOverride: v.optional(v.any()),
   maxContextTokens: v.optional(v.number()),
   threadTeamId: v.optional(v.string()),
   // Server-stamped turn-start (chatWithAgent entry) for TTFT measurement.
@@ -181,6 +277,9 @@ const runGenerationArgs = {
   // PERF (diagnostic): wall-clock when startAgentChat scheduled this action.
   // Lets us isolate the scheduler dispatch + module-import hop in isolation.
   scheduledAtMs: v.optional(v.number()),
+  /** Cache pre-warm: build the real tools + stable system prefix and issue a
+   * single throwaway priming call, then return — no persistence/streaming. */
+  prewarm: v.optional(v.boolean()),
 };
 type RunGenerationArgs = ObjectType<typeof runGenerationArgs>;
 
@@ -246,7 +345,6 @@ export async function runGenerationCore(
     maxSteps,
     deadlineMs,
     generationParams,
-    reasoningOverride,
     maxContextTokens,
   } = args;
 
@@ -382,12 +480,36 @@ export async function runGenerationCore(
       allExtraTools,
     );
 
-    // Build ordered list of models to try: primary + fallbacks
+    // Build ordered list of models to try: primary + fallbacks.
     const primaryModelId = model === 'default' ? undefined : model;
-    const modelsToTry: Array<string | undefined> = [primaryModelId];
-    if (agentConfig.fallbackModels?.length) {
-      for (const fb of agentConfig.fallbackModels) {
-        modelsToTry.push(fb);
+    let modelsToTry: Array<string | undefined> = [
+      primaryModelId,
+      ...(agentConfig.fallbackModels ?? []),
+    ];
+
+    // Complexity-based model routing (opt-in per agent): reorder the concrete
+    // refs so the tier-appropriate model is tried first. Skips the `default`-tag
+    // entry (undefined) and prewarm; fails safe to config order.
+    if (
+      agentConfig.routing?.modelSelection === 'auto' &&
+      !args.prewarm &&
+      primaryModelId
+    ) {
+      const concreteRefs = modelsToTry.filter(
+        (r): r is string => typeof r === 'string',
+      );
+      if (concreteRefs.length > 1) {
+        modelsToTry = await routeModelOrder(ctx, {
+          organizationId,
+          supportedModels: concreteRefs,
+          promptText: promptMessage,
+          // Only IMAGE attachments require a vision-capable model. A
+          // PDF/CSV/text attachment must not narrow the routing pool to vision
+          // models (and away from the strongest text model) — mirror the
+          // `image/*` filter used for the multimodal branch below.
+          requiresVision:
+            attachments?.some((a) => a.fileType.startsWith('image/')) ?? false,
+        });
       }
     }
 
@@ -396,16 +518,22 @@ export async function runGenerationCore(
     for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
       const currentModelId = modelsToTry[attempt];
 
+      // RESOLUTION (no HTTP). A model/provider that is not configured or
+      // wrongly configured — missing/unknown provider or model, unresolvable
+      // API key, malformed baseURL — throws synchronously here. When that
+      // happens we go straight to the next model in line WITHOUT making (and
+      // waiting on) a doomed request, and without recording a circuit-breaker
+      // failure (it's a config problem, not provider flakiness).
+      // orgSlug was resolved once in the outer Promise.all and is shared across
+      // model lookup + delegation + workflows so multi-org deployments read each
+      // org's own provider/API-key files. Per-entry provider qualifier (e.g.
+      // "openrouter:foo") takes precedence over the agent's.
+      let resolved: Awaited<ReturnType<typeof resolveLanguageModelByIdNode>>;
       try {
-        // orgSlug was resolved once in the outer Promise.all and is shared
-        // across model lookup + delegation + workflows so multi-org
-        // deployments read each org's own provider/API-key files.
-        // Parse provider qualifier from the ref (e.g. "openrouter:foo" → {providerName:"openrouter", modelId:"foo"}).
-        // Per-entry qualifier takes precedence over the agent's top-level provider.
         const parsed = currentModelId
           ? parseModelRef(currentModelId)
           : undefined;
-        const { languageModel, modelData } = parsed
+        resolved = parsed
           ? await resolveLanguageModelByIdNode(ctx, {
               modelId: parsed.modelId,
               providerName: parsed.providerName ?? agentConfig.provider,
@@ -416,8 +544,48 @@ export async function runGenerationCore(
               tag: 'chat',
               organizationId,
             });
+      } catch (resolveError) {
+        lastFallbackError = resolveError;
+        if (attempt < modelsToTry.length - 1) {
+          debugLog('SKIP_UNCONFIGURED_MODEL', {
+            model: currentModelId ?? 'default',
+            nextModel: modelsToTry[attempt + 1] ?? 'default',
+            reason:
+              resolveError instanceof Error
+                ? resolveError.message
+                : String(resolveError),
+          });
+          continue;
+        }
+        throw resolveError;
+      }
+
+      try {
+        const { languageModel, modelData } = resolved;
         const resolvedProvider = modelData.providerName;
         const resolvedModelId = modelData.modelId;
+
+        // Prewarm only pays off when there is a cache to warm. For a model whose
+        // caching strategy resolves to 'none' (unknown family, no operator
+        // override), the priming generation would write nothing and hit nothing
+        // on the real turn — a wasted billed input-token call on every composer
+        // focus. Skip it. 'auto-server' (OpenAI/DeepSeek) and
+        // 'explicit-breakpoints' (Anthropic/Gemini) still warm.
+        if (
+          args.prewarm &&
+          resolvePromptCaching({
+            modelId: resolvedModelId,
+            promptCaching: modelData.promptCaching,
+          }).mode === 'none'
+        ) {
+          debugLog('PREWARM_SKIP_NO_CACHE', { model: resolvedModelId });
+          return {
+            threadId,
+            text: '',
+            finishReason: 'prewarm-skip',
+            durationMs: 0,
+          };
+        }
 
         // Vision branch: when the resolved chat model has the `vision`
         // tag and the turn carries image attachments, inline the images
@@ -469,11 +637,27 @@ export async function runGenerationCore(
           // Read from effectiveConfig so skill-declared convex tools
           // (post-mergeSkillDependencies) actually reach the LLM.
           const baseToolList = effectiveConfig.convexToolNames ?? [];
-          const withPropose: string[] =
-            personalizationActive && !baseToolList.includes('propose_memory')
-              ? [...baseToolList, 'propose_memory']
-              : baseToolList;
-          const filteredToolNames = withPropose.filter((n): n is ToolName => {
+          const autoInjected: string[] = [...baseToolList];
+          // `propose_memory` is offered only while personalization is active.
+          if (
+            personalizationActive &&
+            !autoInjected.includes('propose_memory')
+          ) {
+            autoInjected.push('propose_memory');
+          }
+          // `generate_image` is always available to chat agents so any
+          // assistant — including whichever one the Auto router picks — can
+          // satisfy an explicit "create an image" request. It degrades
+          // gracefully (the tool reports unavailable) when the workspace has no
+          // image-generation model configured. Image-generation agents never
+          // reach this path (they bypass the tool loop), but guard anyway.
+          if (
+            agentConfig.primaryBehavior !== 'image-generation' &&
+            !autoInjected.includes('generate_image')
+          ) {
+            autoInjected.push('generate_image');
+          }
+          const filteredToolNames = autoInjected.filter((n): n is ToolName => {
             if (!(TOOL_NAMES as readonly string[]).includes(n)) return false;
             if (n === 'propose_memory' && !personalizationActive) return false;
             if (
@@ -497,9 +681,7 @@ export async function runGenerationCore(
             languageModel,
             modelMaxOutputTokens: modelData.maxOutputTokens,
             convexToolNames:
-              filteredToolNames && filteredToolNames.length > 0
-                ? filteredToolNames
-                : undefined,
+              filteredToolNames.length > 0 ? filteredToolNames : undefined,
             extraTools: allExtraTools,
             maxSteps: agentConfig.maxSteps,
           });
@@ -542,7 +724,10 @@ export async function runGenerationCore(
             personalizationMode: agentConfig.personalizationMode,
             providerOptions: buildCallProviderOptions(modelData),
             modelMaxOutputTokens: modelData.maxOutputTokens,
+            modelContextWindow: modelData.contextWindow,
             reasoningCapability: modelData.reasoning,
+            responseTuning: agentConfig.responseTuning,
+            replyLocaleHint: agentConfig.replyLocaleHint,
           },
           {
             ctx,
@@ -550,6 +735,7 @@ export async function runGenerationCore(
             organizationId,
             userId,
             agentSlug: args.agentSlug,
+            autoRouteReason: args.autoRouteReason,
             teamIds: args.threadTeamId ? [args.threadTeamId] : undefined,
             providerCost:
               modelData.inputCentsPerMillion != null
@@ -570,14 +756,20 @@ export async function runGenerationCore(
             maxSteps,
             deadlineMs,
             generationParams,
-            reasoningOverride,
             requestStartMs: args.requestStartMs,
             // Suppress error cleanup (stream error, generation status clear,
             // failed message) when there are more fallback models to try.
             // The fallback loop handles cleanup itself.
             suppressErrorCleanup: attempt < modelsToTry.length - 1,
+            prewarm: args.prewarm,
           },
         );
+
+        // Prewarm: the priming call is done (cache written). Return before the
+        // empty-text guard below — a prewarm result is intentionally empty.
+        if (args.prewarm) {
+          return result;
+        }
 
         // User cancelled — cancelGeneration already handled message state
         if (result.finishReason === 'cancelled') {
@@ -768,35 +960,43 @@ export async function runGenerationCore(
       }
     }
 
-    try {
-      const msgs = await listMessages(ctx, components.agent, {
-        threadId,
-        paginationOpts: { cursor: null, numItems: 5 },
-        excludeToolMessages: true,
-      });
-      const newestAssistant = msgs.page.find(
-        (m: MessageDoc) => m.message?.role === 'assistant',
-      );
-      const hasFailedAssistant = newestAssistant?.status === 'failed';
-      if (!hasFailedAssistant) {
-        const providerError = classifyProviderError(error);
-        await saveMessage(ctx, components.agent, {
+    // Prewarm is contractually invisible (no spinner, no saved message). A
+    // failure BEFORE generateAgentResponse runs (model resolution, tool
+    // building) still reaches this catch-all, so the failed-message save must be
+    // skipped for prewarm — otherwise a misconfigured model would inject a
+    // spurious "failed" assistant bubble into the user's real thread on every
+    // composer focus. The error is still logged above and rethrown below.
+    if (!args.prewarm) {
+      try {
+        const msgs = await listMessages(ctx, components.agent, {
           threadId,
-          message: {
-            role: 'assistant',
-            content: providerError.userMessage,
-          },
-          metadata: {
-            status: 'failed',
-            error: `[${providerError.errorType}] ${getString(err, 'message') ?? 'Unknown error'}`,
-          },
+          paginationOpts: { cursor: null, numItems: 5 },
+          excludeToolMessages: true,
         });
+        const newestAssistant = msgs.page.find(
+          (m: MessageDoc) => m.message?.role === 'assistant',
+        );
+        const hasFailedAssistant = newestAssistant?.status === 'failed';
+        if (!hasFailedAssistant) {
+          const providerError = classifyProviderError(error);
+          await saveMessage(ctx, components.agent, {
+            threadId,
+            message: {
+              role: 'assistant',
+              content: providerError.userMessage,
+            },
+            metadata: {
+              status: 'failed',
+              error: `[${providerError.errorType}] ${getString(err, 'message') ?? 'Unknown error'}`,
+            },
+          });
+        }
+      } catch (saveError) {
+        console.error(
+          '[runAgentGeneration] Failed to save failed message:',
+          saveError,
+        );
       }
-    } catch (saveError) {
-      console.error(
-        '[runAgentGeneration] Failed to save failed message:',
-        saveError,
-      );
     }
 
     throw new NonRetryableError(

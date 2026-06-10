@@ -33,6 +33,7 @@ import { useChatLayout } from '../context/chat-layout-context';
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
 import { captureScreenshot } from '../utils/capture-screenshot';
+import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaModelSelector } from './arena/arena-model-selector';
@@ -149,6 +150,12 @@ interface ChatInputProps extends Omit<
   sendBlocked?: boolean;
   /** Tooltip shown on the send button when `sendBlocked` is true. */
   sendBlockedReason?: string;
+  /**
+   * Fired when the composer becomes active (focus). Used to pre-warm the prompt
+   * cache so the next message is served warm. Best-effort and debounced by the
+   * caller; safe to omit.
+   */
+  onComposerActivate?: () => void;
 }
 
 export function ChatInput({
@@ -185,6 +192,7 @@ export function ChatInput({
   projectId,
   sendBlocked = false,
   sendBlockedReason,
+  onComposerActivate,
   ...restProps
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
@@ -243,6 +251,17 @@ export function ChatInput({
   const { quotedText, setQuotedText } = useChatLayout();
 
   const handleSendMessage = () => {
+    // When the user clearly intends to send (there's content) but the send is
+    // blocked for a stated reason, surface it. The disabled send button shows
+    // this as a hover tooltip, but a keyboard Enter would otherwise be a silent
+    // no-op — which reads as "Enter doesn't work" (most often the selected
+    // model's provider has no API key).
+    const hasInput = !!value.trim() || attachments.length > 0;
+    if (hasInput && !isLoading && sendBlocked && sendBlockedReason) {
+      toast({ title: sendBlockedReason, variant: 'destructive' });
+      return;
+    }
+
     if (
       (!value.trim() && attachments.length === 0) ||
       isLoading ||
@@ -416,6 +435,27 @@ export function ChatInput({
         });
       }
     }
+
+    // Normalize the pasted text: collapse the blank-line stacks that copying
+    // rendered chat markdown leaves behind, and trim. Only override the native
+    // paste when normalization actually changes the text, so ordinary pastes
+    // keep their caret + undo behavior. Runs after the video-link ingest above
+    // (which only reads the clipboard); the URL survives the rewrite, so the
+    // strip-on-send path is unaffected.
+    const plainText = e.clipboardData?.getData('text/plain') ?? '';
+    if (plainText && onChange) {
+      const normalized = normalizeCopiedText(plainText);
+      const textarea = textareaRef.current;
+      if (normalized !== plainText && textarea) {
+        e.preventDefault();
+        const start = textarea.selectionStart ?? textarea.value.length;
+        const end = textarea.selectionEnd ?? textarea.value.length;
+        textarea.setRangeText(normalized, start, end, 'end');
+        // setRangeText fires `input` but not `change` on some browsers —
+        // propagate explicitly so the controlled value stays in sync.
+        onChange(textarea.value);
+      }
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -427,7 +467,7 @@ export function ChatInput({
   };
 
   return (
-    <div {...restProps} className={cn('bg-background', restProps.className)}>
+    <div {...restProps} className={cn(restProps.className)}>
       <FileUpload.DropZone
         className="relative flex h-full min-h-0 flex-1 flex-col"
         onFilesSelected={uploadFiles}
@@ -465,7 +505,8 @@ export function ChatInput({
           style={{ display: 'none' }}
         />
 
-        <div className="bg-background border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 sm:rounded-2xl sm:px-5 sm:pt-4">
+        {/* Soft top shadow lifts the composer off the conversation above it. */}
+        <div className="border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.15)] sm:rounded-2xl sm:px-5 sm:pt-4 dark:shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.5)]">
           {videoLinkJobs.length > 0 && (
             <HStack gap={1} wrap className="mb-2">
               {videoLinkJobs.map((job) => (
@@ -804,6 +845,7 @@ export function ChatInput({
               ref={textareaRef}
               value={value}
               onChange={(e) => handleInputChange(e.target.value)}
+              onFocus={onComposerActivate}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               // Track IME composition so the paste handler and the chip
@@ -947,22 +989,34 @@ export function ChatInput({
                 // readers and keyboard activation still observe the
                 // disabled state.
                 const button = (
-                  <Button
-                    type="button"
-                    onClick={isLoading ? onStopGenerating : handleSendMessage}
-                    disabled={sendDisabled}
-                    size="icon"
-                    className="rounded-full"
-                    aria-label={
-                      isLoading ? tChat('stopGenerating') : tChat('send')
-                    }
-                  >
-                    {isLoading ? (
-                      <CircleStop className="size-4" />
-                    ) : (
-                      <ArrowUp className="size-4" />
+                  <span className="relative inline-flex">
+                    {/* Generation in progress: a spinner ring orbits the
+                        (now Stop) button so the composer itself signals the
+                        in-flight turn. Purely decorative — the live status
+                        is announced by the thinking indicator. */}
+                    {isLoading && (
+                      <span
+                        aria-hidden="true"
+                        className="border-primary/30 border-t-primary pointer-events-none absolute -inset-1 animate-spin rounded-full border-2"
+                      />
                     )}
-                  </Button>
+                    <Button
+                      type="button"
+                      onClick={isLoading ? onStopGenerating : handleSendMessage}
+                      disabled={sendDisabled}
+                      size="icon"
+                      className="focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:ring-inset"
+                      aria-label={
+                        isLoading ? tChat('stopGenerating') : tChat('send')
+                      }
+                    >
+                      {isLoading ? (
+                        <CircleStop className="size-4" />
+                      ) : (
+                        <ArrowUp className="size-4" />
+                      )}
+                    </Button>
+                  </span>
                 );
                 return (
                   <Tooltip content={tooltipContent} side="top">

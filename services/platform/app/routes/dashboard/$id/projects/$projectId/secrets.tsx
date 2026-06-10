@@ -28,6 +28,12 @@ const ProjectSecretsTab = lazyComponent(
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/secrets',
 )({
+  // Warm the tab chunk during the loader so it's cached by render time —
+  // removes the Suspense fallback flash on first nav (tab links preload on
+  // render, so this typically fires before the click). Fire-and-forget.
+  loader: () => {
+    void import('@/app/features/projects/components/project-secrets-tab');
+  },
   component: ProjectSecretsPage,
 });
 

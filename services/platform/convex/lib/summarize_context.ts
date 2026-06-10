@@ -15,6 +15,7 @@ import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import type { ResolvedModelData } from '../providers/resolve_model';
 import { createDebugLog } from './debug_log';
+import { renderPrompt } from './prompts/registry';
 import { buildCallProviderOptions } from './provider_options';
 
 const debugLog = createDebugLog('DEBUG_CONTEXT_SUMMARY', '[ContextSummary]');
@@ -37,38 +38,11 @@ export interface MessageForSummary {
 const MAX_CHUNK_TOKENS = 50000;
 const CHARS_PER_TOKEN_ESTIMATE = 4;
 
-const SUMMARIZATION_INSTRUCTIONS = `You are a conversation summarizer. Your task is to create a comprehensive summary of conversation history that preserves important context for an AI assistant.
+const SUMMARIZATION_INSTRUCTIONS = renderPrompt('summarization.full');
 
-Guidelines:
-1. **Preserve key data from tool results** - URLs fetched, search results, API responses, product info, customer details
-2. Capture facts, decisions, and conclusions reached
-3. Keep user preferences, corrections, and requirements
-4. Note unresolved questions or pending topics
-5. Include specific names, numbers, dates, and identifiers mentioned
-6. If an existing summary is provided, incorporate and update it with new information
-
-Format the summary with clear sections:
-- **Key Data & Findings**: Important data retrieved from tools
-- **User Requirements**: What the user wants/needs
-- **Decisions & Conclusions**: What was decided or concluded
-- **Pending Items**: Unresolved questions or next steps
-
-Keep the summary factual and structured. Use bullet points for clarity.`;
-
-const INCREMENTAL_SUMMARIZATION_INSTRUCTIONS = `You are a conversation summarizer. Your task is to UPDATE an existing summary with new conversation information.
-
-You will receive:
-1. An existing summary of older conversation
-2. New messages that occurred after that summary
-
-Guidelines:
-1. **Merge new information** into the existing summary structure
-2. **Preserve key data from tool results** - URLs, search results, API responses
-3. **Update or add** facts, decisions, findings from new messages
-4. **Remove outdated info** if new messages contradict or supersede it
-5. Keep the same format structure as the existing summary
-
-Output ONLY the updated summary, not commentary about changes.`;
+const INCREMENTAL_SUMMARIZATION_INSTRUCTIONS = renderPrompt(
+  'summarization.incremental',
+);
 
 /**
  * Create a lightweight summarizer agent (no tools, just for summarization).
@@ -92,22 +66,52 @@ function createSummarizerAgent(
 }
 
 /**
+ * Run a summarizer agent on a prompt and return its text, throwing if empty.
+ * Messages are never persisted (`saveMessages: 'none'`), so a fresh one-off
+ * userId is generated per call.
+ */
+async function runSummarizer(
+  ctx: ActionCtx,
+  summarizer: Agent,
+  prompt: string,
+  modelData: ResolvedModelData | undefined,
+  errorLabel: string,
+): Promise<string> {
+  const callProviderOptions = modelData
+    ? buildCallProviderOptions(modelData)
+    : undefined;
+  const userId = `summarizer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+  const result = await summarizer.generateText(
+    ctx,
+    { userId },
+    {
+      prompt,
+      ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
+    },
+    { storageOptions: { saveMessages: 'none' } },
+  );
+
+  if (!result.text) {
+    throw new Error(
+      `${errorLabel} Summarizer returned empty text - no summary generated`,
+    );
+  }
+
+  return result.text;
+}
+
+/**
  * Format messages for summarization - NO truncation, preserves all content.
  */
 function formatMessagesForSummary(messages: MessageForSummary[]): string {
-  const formatted: string[] = [];
-
-  for (const m of messages) {
-    let line: string;
-    if (m.role === 'tool' && m.toolName) {
-      line = `TOOL RESULT (${m.toolName}): ${m.content}`;
-    } else {
-      line = `${m.role.toUpperCase()}: ${m.content}`;
-    }
-    formatted.push(line);
-  }
-
-  return formatted.join('\n\n');
+  return messages
+    .map((m) =>
+      m.role === 'tool' && m.toolName
+        ? `TOOL RESULT (${m.toolName}): ${m.content}`
+        : `${m.role.toUpperCase()}: ${m.content}`,
+    )
+    .join('\n\n');
 }
 
 /**
@@ -134,20 +138,17 @@ function splitIntoTokenChunks(
   for (const message of messages) {
     const messageTokens = estimateTokens(message);
 
-    // If single message exceeds limit, it gets its own chunk
+    // A single oversized message gets its own chunk (after flushing any pending).
     if (messageTokens >= MAX_CHUNK_TOKENS) {
-      // Flush current chunk if not empty
       if (currentChunk.length > 0) {
         chunks.push(currentChunk);
         currentChunk = [];
         currentTokens = 0;
       }
-      // Add large message as its own chunk
       chunks.push([message]);
       continue;
     }
 
-    // If adding this message would exceed limit, start new chunk
     if (
       currentTokens + messageTokens > MAX_CHUNK_TOKENS &&
       currentChunk.length > 0
@@ -161,7 +162,6 @@ function splitIntoTokenChunks(
     currentTokens += messageTokens;
   }
 
-  // Don't forget the last chunk
   if (currentChunk.length > 0) {
     chunks.push(currentChunk);
   }
@@ -199,10 +199,8 @@ export async function summarizeMessages(
     return '';
   }
 
-  // Split messages into token-based chunks
   const chunks = splitIntoTokenChunks(messages);
 
-  // If only one chunk, summarize directly
   if (chunks.length === 1) {
     return await summarizeSingleChunk(
       ctx,
@@ -213,7 +211,6 @@ export async function summarizeMessages(
     );
   }
 
-  // CHUNKED SUMMARIZATION: process multiple chunks
   const totalTokensEstimate = messages.reduce(
     (sum, m) => sum + estimateTokens(m),
     0,
@@ -234,7 +231,6 @@ export async function summarizeMessages(
     );
 
     if (chunkIndex === 0) {
-      // First chunk: create initial summary
       rollingSummary = await summarizeSingleChunk(
         ctx,
         chunk,
@@ -243,7 +239,6 @@ export async function summarizeMessages(
         modelData,
       );
     } else {
-      // Subsequent chunks: update existing summary with new messages
       rollingSummary = await updateSummary(
         ctx,
         rollingSummary,
@@ -283,41 +278,22 @@ async function summarizeSingleChunk(
   );
 
   const summarizer = createSummarizerAgent(languageModel, false);
-  const callProviderOptions = modelData
-    ? buildCallProviderOptions(modelData)
-    : undefined;
 
-  let prompt = '';
-  if (currentPrompt) {
-    prompt = `The user is now asking: "${currentPrompt}"
+  const prompt = currentPrompt
+    ? `The user is now asking: "${currentPrompt}"
 
 Summarize the following conversation history, prioritizing information relevant to the user's current question:
 
-${formattedMessages}`;
-  } else {
-    prompt = `Summarize this conversation:\n\n${formattedMessages}`;
-  }
+${formattedMessages}`
+    : `Summarize this conversation:\n\n${formattedMessages}`;
 
-  // Generate unique userId for one-off summarization (messages won't be saved)
-  const userId = `summarizer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-
-  const result = await summarizer.generateText(
+  return runSummarizer(
     ctx,
-    { userId },
-    {
-      prompt,
-      ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
-    },
-    { storageOptions: { saveMessages: 'none' } },
+    summarizer,
+    prompt,
+    modelData,
+    '[summarizeSingleChunk]',
   );
-
-  if (!result.text) {
-    throw new Error(
-      '[summarizeSingleChunk] Summarizer returned empty text - no summary generated',
-    );
-  }
-
-  return result.text;
 }
 
 /**
@@ -344,9 +320,6 @@ export async function updateSummary(
 
   const formattedNewMessages = formatMessagesForSummary(newMessages);
   const summarizer = createSummarizerAgent(languageModel, true);
-  const callProviderOptions = modelData
-    ? buildCallProviderOptions(modelData)
-    : undefined;
 
   let prompt = `## Existing Summary
 
@@ -362,78 +335,5 @@ ${formattedNewMessages}`;
 
   prompt += `\n\nPlease provide the updated summary:`;
 
-  // Generate unique userId for one-off summarization (messages won't be saved)
-  const userId = `summarizer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-
-  const result = await summarizer.generateText(
-    ctx,
-    { userId },
-    {
-      prompt,
-      ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
-    },
-    { storageOptions: { saveMessages: 'none' } },
-  );
-
-  if (!result.text) {
-    throw new Error(
-      '[updateSummary] Summarizer returned empty text - no summary generated',
-    );
-  }
-
-  return result.text;
-}
-
-/**
- * Configuration for context management
- */
-export interface ContextConfig {
-  /** Number of recent messages to keep in full (default: 20) */
-  recentMessageCount: number;
-  /** Threshold after which summarization kicks in (default: 40) */
-  summarizationThreshold: number;
-}
-
-export const DEFAULT_CONTEXT_CONFIG: ContextConfig = {
-  recentMessageCount: 20,
-  summarizationThreshold: 40,
-};
-
-/**
- * Split messages into those to summarize and those to keep in full.
- * Messages are expected to be in chronological order (oldest first).
- *
- * @param messages - All messages in the conversation
- * @param config - Context configuration
- * @returns Object with messagesToSummarize and recentMessages
- */
-export function splitMessagesForContext<T extends MessageForSummary>(
-  messages: T[],
-  config: ContextConfig = DEFAULT_CONTEXT_CONFIG,
-): {
-  messagesToSummarize: T[];
-  recentMessages: T[];
-  needsSummarization: boolean;
-} {
-  const { recentMessageCount, summarizationThreshold } = config;
-
-  // If under threshold, no summarization needed
-  if (messages.length <= summarizationThreshold) {
-    return {
-      messagesToSummarize: [],
-      recentMessages: messages,
-      needsSummarization: false,
-    };
-  }
-
-  // Split: older messages for summarization, recent messages kept in full
-  const splitPoint = messages.length - recentMessageCount;
-  const messagesToSummarize = messages.slice(0, splitPoint);
-  const recentMessages = messages.slice(splitPoint);
-
-  return {
-    messagesToSummarize,
-    recentMessages,
-    needsSummarization: true,
-  };
+  return runSummarizer(ctx, summarizer, prompt, modelData, '[updateSummary]');
 }

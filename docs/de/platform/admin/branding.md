@@ -9,7 +9,9 @@ Nur Admins und Inhaber können Branding bearbeiten. Alle anderen sehen das Ergeb
 
 ## Wo Branding lebt
 
-Öffne **Einstellungen > Branding**. Das Formular hat vier Abschnitte (App-Name und Text-Logo, Logo-Upload, Favicon-Upload, Farben) und eine Live-Vorschau, die die Sidebar und den Login-Screen mit den Werten spiegelt, die du gerade bearbeitest. Speichern setzt die Änderung beim nächsten Seitenaufruf für jedes Mitglied der Organisation um — eine Pro-Benutzer-Überschreibung gibt es nicht.
+Öffne **Einstellungen > Branding**. Das Formular hat vier Abschnitte (App-Name und Text-Logo, Logo-Upload, Favicon-Upload, Farben) und eine Live-Vorschau, die die Sidebar mit den Werten spiegelt, die du gerade bearbeitest. Speichern setzt die Änderung beim nächsten Seitenaufruf für jedes Mitglied _dieser_ Organisation um — eine Pro-Benutzer-Überschreibung gibt es nicht.
+
+Branding ist auf eine Organisation beschränkt. Jede Organisation behält ihr eigenes Logo, Favicon, ihren App-Namen und ihre Farben, sodass ein Wechsel der Organisation die Chrome auf das Branding dieser Organisation umstellt, statt das der vorherigen mitzunehmen. Bearbeitungen hier ändern nur die Organisation, in der du dich gerade befindest.
 
 ## Die vier Assets
 
@@ -29,7 +31,7 @@ Um eine Instanz für `Acme Corp` umzubranden, öffne **Einstellungen > Branding*
 
 ## Der eigene Login-Screen
 
-Der Login-Screen übernimmt Logo und Markenfarbe automatisch. Es gibt keinen separaten Login-Skin — dieselben Assets erscheinen auf der Anmeldeseite, der Registrierungsseite und im Passwort-Reset-Flow. Melde dich ab und lade die Login-URL neu, um das Ergebnis zu prüfen.
+Die Anmelde-, Registrierungs- und Passwort-Reset-Screens werden gerendert, bevor du eine Organisation gewählt hast — es gibt also keine Organisation im Kontext, mit der sie gebrandet werden könnten. Sie zeigen das Standard-Branding der Plattform statt das einer einzelnen Organisation; das Branding pro Organisation übernimmt, sobald du im Arbeitsbereich dieser Organisation landest. Melde dich ab und lade die Login-URL neu, um zu prüfen, welche Assets die Pre-Auth-Screens verwenden.
 
 ## Wo das hingehört
 

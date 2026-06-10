@@ -36,7 +36,12 @@ import { cn } from '@/lib/utils/cn';
 // `pt-(--safe-top)` etc. on their own inner content. The chat-history
 // sidebar and settings drawer panels follow that pattern.
 const sheetVariants = cva(
-  'fixed z-50 gap-4 overflow-y-auto bg-background p-6 pr-[calc(1.5rem+var(--safe-right))] pl-[calc(1.5rem+var(--safe-left))] shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out',
+  // `focus:outline-none`: Radix parks focus on the panel container when it
+  // opens (so keyboard/SR users land inside the dialog). The container is not
+  // an interactive control, so the browser's default focus outline reads as a
+  // stray blue ring around the whole panel — suppress it. Focusable controls
+  // inside the panel keep their own `focus-visible` rings.
+  'fixed z-50 gap-4 overflow-y-auto bg-background p-6 pr-[calc(1.5rem+var(--safe-right))] pl-[calc(1.5rem+var(--safe-left))] shadow-lg transition ease-in-out focus:outline-none data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out',
   {
     variants: {
       side: {
@@ -246,7 +251,7 @@ export function Sheet({
           {!hideClose && (
             <DialogPrimitive.Close
               className={cn(
-                'ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none',
+                'ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed',
                 // Only add safe-area offsets on the edges this side abuts —
                 // matches the per-side padding logic in `sheetVariants`.
                 side === 'bottom'

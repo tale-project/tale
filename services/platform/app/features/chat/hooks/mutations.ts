@@ -22,6 +22,12 @@ export function useSubmitHumanInputResponse() {
   );
 }
 
+export function useEditHumanInputResponse() {
+  return useConvexAction(
+    api.agent_tools.human_input.actions.editHumanInputResponse,
+  );
+}
+
 export function useSubmitLocationResponse() {
   return useConvexAction(
     api.agent_tools.location.actions.submitLocationResponse,
@@ -76,6 +82,16 @@ export function useArchiveThread() {
 
 export function useUnarchiveThread() {
   return useConvexMutation(api.threads.mutations.unarchiveChatThread);
+}
+
+/** Soft-delete (move to Trash) every one of the current user's chats. */
+export function useDeleteAllThreads() {
+  return useConvexMutation(api.threads.mutations.deleteAllChatThreads);
+}
+
+/** Archive every one of the current user's active chats. */
+export function useArchiveAllThreads() {
+  return useConvexMutation(api.threads.mutations.archiveAllChatThreads);
 }
 
 export function useUpdateThread() {

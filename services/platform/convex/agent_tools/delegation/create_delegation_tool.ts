@@ -1,36 +1,23 @@
 /**
- * Delegation Tool Factory
- *
- * Dynamically creates delegation tools for delegate agents at runtime.
- * This generalizes the old hardcoded sub-agent tools (crm_assistant,
- * file_assistant, etc.) into a single factory that works with any agent.
- *
- * Each generated tool:
- * 1. Validates context (orgId, threadId, userId)
- * 2. Checks time budget
- * 3. Optionally checks role access
- * 4. Gets/creates a sub-thread keyed by delegate agentSlug
- * 5. Runs the delegate agent via the generic runAgentGeneration action
- * 6. Returns a structured ToolResponse
+ * Builds a delegation tool for an arbitrary delegate agent at runtime, so any
+ * agent config can be exposed as a `delegate_*` tool without a hardcoded
+ * per-agent implementation.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import { narrowBcp47 } from '../../../lib/shared/utils/narrow-bcp47';
-import { internal } from '../../_generated/api';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+import { renderPrompt } from '../../lib/prompts/registry';
 import { checkBudget } from '../sub_agents/helpers/check_budget';
 import { checkRoleAccess } from '../sub_agents/helpers/check_role_access';
-import { getOrCreateSubThread } from '../sub_agents/helpers/get_or_create_sub_thread';
 import {
   errorResponse,
-  handleToolError,
-  successResponse,
   type ToolResponse,
 } from '../sub_agents/helpers/tool_response';
 import { validateToolContext } from '../sub_agents/helpers/validate_context';
+import { runDelegateStep } from './run_delegate_step';
 
 export interface DelegateAgentMeta {
   agentSlug: string;
@@ -83,94 +70,35 @@ Pass the user's request in natural language. The agent will handle it and return
             return roleCheck.error ?? errorResponse('Access denied');
         }
 
-        try {
-          const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
-            ctx,
-            {
-              parentThreadId: threadId,
-              subAgentType: delegate.agentSlug,
-              userId,
-            },
-          );
-
-          console.log(
-            `[${toolName}] Sub-thread:`,
-            subThreadId,
-            isNew ? '(new)' : '(reused)',
-          );
-
-          const result = await ctx.runAction(
-            internal.lib.agent_chat.internal_actions.runAgentGeneration,
-            {
-              agentType: 'custom',
-              agentConfig: delegate.agentConfig,
-              model: delegate.model,
-              provider: delegate.provider,
-              debugTag: `[Delegate:${delegate.displayName}]`,
-              enableStreaming: false,
-              threadId: subThreadId,
-              organizationId,
-              userId,
-              promptMessage: args.userRequest,
-              parentThreadId: threadId,
-              deadlineMs: budget.deadlineMs,
-              maxSteps: delegate.agentConfig.maxSteps,
-            },
-          );
-
-          return successResponse(
-            result.text,
-            {
-              ...result.usage,
-              durationSeconds:
-                result.durationMs !== undefined
-                  ? result.durationMs / 1000
-                  : undefined,
-            },
-            result.model,
-            result.provider,
-            undefined,
-            args.userRequest,
-          );
-        } catch (error) {
-          return handleToolError(toolName, error);
-        }
+        // Shared executor: sub-thread reuse + generation + ToolResponse. The
+        // same path the router orchestrator uses (execute_plan.ts).
+        return runDelegateStep(
+          ctx,
+          {
+            parentThreadId: threadId,
+            organizationId,
+            userId,
+            delegate,
+            prompt: args.userRequest,
+            deadlineMs: budget.deadlineMs,
+            // Interactive delegation: stream the sub-agent's steps so the user
+            // sees a live nested timeline under this tool row.
+            streamSubAgent: true,
+          },
+          `[${toolName}]`,
+        );
       },
     }),
   };
 }
 
 /**
- * Localized scaffold text wrapping the delegate list. The locale is the
- * org's `defaultLocale`; unknown locales fall through to English.
- */
-const DELEGATION_SCAFFOLD: Record<
-  string,
-  { header: string; intro: string; outro: string }
-> = {
-  en: {
-    header: 'DELEGATION AGENTS',
-    intro: 'You can delegate tasks to these specialized agents:',
-    outro:
-      "Call the appropriate delegation tool with the user's request. Preserve the user's full intent.",
-  },
-  de: {
-    header: 'DELEGATIONS-AGENTEN',
-    intro: 'Du kannst Aufgaben an diese spezialisierten Agenten delegieren:',
-    outro:
-      'Rufe das passende Delegations-Werkzeug mit der Anfrage des Nutzers auf. Bewahre die volle Absicht des Nutzers.',
-  },
-  fr: {
-    header: 'AGENTS DE DÉLÉGATION',
-    intro: 'Vous pouvez déléguer des tâches à ces agents spécialisés :',
-    outro:
-      "Appelez l'outil de délégation approprié avec la requête de l'utilisateur. Préservez l'intention complète de l'utilisateur.",
-  },
-};
-
-/**
  * Build a section to append to an agent's system instructions
  * describing its available delegate agents.
+ *
+ * The localized scaffold (header/intro/outro) lives in the prompt registry
+ * (`delegation.*`). `renderPrompt` applies the same locale fallback the org
+ * uses elsewhere: direct → narrowed base (e.g. de-CH → de) → en.
  */
 export function buildDelegationInstructionsSection(
   delegates: DelegateAgentMeta[],
@@ -178,26 +106,20 @@ export function buildDelegationInstructionsSection(
 ): string {
   if (delegates.length === 0) return '';
 
-  // Same narrowing rule as resolveAgentLocale: direct → narrowed base → en.
-  // Keeps the scaffold header/intro/outro in lockstep with the delegate
-  // chrome text when the org locale is a region-qualified BCP-47 tag
-  // (e.g. de-CH falls back to de, not directly to English).
-  const base = narrowBcp47(locale);
-  const scaffold =
-    (locale ? DELEGATION_SCAFFOLD[locale] : undefined) ??
-    (base ? DELEGATION_SCAFFOLD[base] : undefined) ??
-    DELEGATION_SCAFFOLD.en;
+  const header = renderPrompt('delegation.header', {}, { locale });
+  const intro = renderPrompt('delegation.intro', {}, { locale });
+  const outro = renderPrompt('delegation.outro', {}, { locale });
 
   const delegateLines = delegates
     .map((d) => `- **delegate_${d.name}**: ${d.displayName} — ${d.description}`)
     .join('\n');
 
   return `\n\n====================
-${scaffold.header}
+${header}
 ====================
 
-${scaffold.intro}
+${intro}
 ${delegateLines}
 
-${scaffold.outro}`;
+${outro}`;
 }

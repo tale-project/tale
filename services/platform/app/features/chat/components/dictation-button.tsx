@@ -198,7 +198,7 @@ const DictationButtonComponent = forwardRef<
           aria-busy={isTranscribing}
           aria-pressed={isListening}
           className={cn(
-            'relative rounded-full',
+            'relative rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
             isListening && 'gap-2 px-3',
             transcriptionUnavailable && 'cursor-not-allowed opacity-50',
           )}

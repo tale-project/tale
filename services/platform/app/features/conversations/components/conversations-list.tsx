@@ -384,40 +384,57 @@ export function ConversationsList({
   const placeholderCount = Math.min(skeletonRows, 12);
 
   return (
-    <Skeletonize loading={isLoading}>
+    <Skeletonize
+      loading={isLoading}
+      // When empty, the wrapper fills the panel's remaining height so the
+      // message can sit vertically centered (mirrors the reading pane's
+      // centered empty state). Loading/data keep the natural-height,
+      // top-anchored rows container below.
+      className={cn(isEmpty && 'flex min-h-0 flex-1 flex-col')}
+    >
       {isEmpty ? (
-        <Center className="flex-col px-4 py-16 text-center">
+        // Centered in the available space, no row dividers/border — it's a
+        // message, not a row, so it shouldn't read as a boxed-off list item.
+        <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
           <Inbox className="text-muted-foreground/60 mb-3 size-6" />
           <Text variant="muted">{t('list.empty')}</Text>
-        </Center>
+        </div>
       ) : (
         <div className="divide-border divide-y border-b">
-          {isLoading
-            ? Array.from({ length: placeholderCount }).map((_, i) => (
-                <ConversationRow key={i} placeholder placeholderIndex={i} />
-              ))
-            : conversations.map((conversation) => (
-                <ConversationRow
-                  key={conversation.id}
-                  conversation={conversation}
-                  isSelected={selectedConversationId === conversation.id}
-                  isChecked={isConversationSelected?.(conversation.id) || false}
-                  onSelect={onConversationSelect}
-                  onCheck={onConversationCheck}
-                  formatDateSmart={formatDateSmart}
-                  t={stableT}
-                  tDialogs={stableTDialogs}
+          <>
+            {isLoading
+              ? Array.from({ length: placeholderCount }).map((_, i) => (
+                  <ConversationRow key={i} placeholder placeholderIndex={i} />
+                ))
+              : conversations.map((conversation) => (
+                  <ConversationRow
+                    key={conversation.id}
+                    conversation={conversation}
+                    isSelected={selectedConversationId === conversation.id}
+                    isChecked={
+                      isConversationSelected?.(conversation.id) || false
+                    }
+                    onSelect={onConversationSelect}
+                    onCheck={onConversationCheck}
+                    formatDateSmart={formatDateSmart}
+                    t={stableT}
+                    tDialogs={stableTDialogs}
+                  />
+                ))}
+            {paginationStatus === 'LoadingMore' && (
+              <Center className="py-4">
+                <Loader2
+                  className="text-muted-foreground size-5 animate-spin motion-reduce:animate-none"
+                  role="status"
+                  aria-label={t('history.loadingMore')}
                 />
-              ))}
-          {paginationStatus === 'LoadingMore' && (
-            <Center className="py-4">
-              <Loader2 className="text-muted-foreground size-5 animate-spin" />
-            </Center>
-          )}
-          {(paginationStatus === 'CanLoadMore' ||
-            paginationStatus === 'LoadingMore') && (
-            <div ref={sentinelRef} className="h-1" aria-hidden="true" />
-          )}
+              </Center>
+            )}
+            {(paginationStatus === 'CanLoadMore' ||
+              paginationStatus === 'LoadingMore') && (
+              <div ref={sentinelRef} className="h-1" aria-hidden="true" />
+            )}
+          </>
         </div>
       )}
     </Skeletonize>

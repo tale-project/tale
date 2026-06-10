@@ -13,11 +13,16 @@ import { TIER_RANK, type ReasoningTier } from './types';
  * the algorithm against regressions across rewrites.
  */
 
-const EFFORT_MODEL = { providerName: 'openai', modelId: 'gpt-5' };
+const EFFORT_MODEL = {
+  providerName: 'openai',
+  modelId: 'gpt-5',
+  reasoning: { knob: 'effort' as const, supportsMinimal: true },
+};
 const BUDGET_MODEL = {
   providerName: 'anthropic',
   modelId: 'anthropic/claude-sonnet-4',
   maxOutputTokens: 8192,
+  reasoning: { knob: 'budgetTokens' as const, minBudgetTokens: 1024 },
 };
 const NON_REASONING = { providerName: 'openai', modelId: 'openai/gpt-4o' };
 

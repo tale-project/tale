@@ -9,10 +9,15 @@
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
-import { isExternalOwnerId } from '../../identities/external_identities';
-
-const VARIABLE_PATTERN = /\{\{([^}]+)\}\}/g;
-const VARIABLE_MARKER = '{{';
+// Import from the function-free helper module (NOT `external_identities`, which
+// defines convex functions) — this module is reachable from client code via the
+// agent-instructions route, and importing the function module would ship those
+// internalMutation/internalQuery definitions to the browser bundle.
+import { isExternalOwnerId } from '../../identities/external_identities_helpers';
+import {
+  containsPlaceholder,
+  substituteTemplate,
+} from '../templating/substitute';
 
 export interface TemplateContext {
   organizationId: string;
@@ -103,6 +108,15 @@ function detectNeededData(instructions: string): NeededData {
 export function buildUserProfile(
   context: TemplateContext,
   data: ResolvedData,
+  /**
+   * Whether to append the per-turn `- Current Time:` line. Defaults to `true`
+   * for callers that embed this block in a volatile context (e.g. the workflow
+   * engine). The chat system-prompt path passes `false`: there `{{user_profile}}`
+   * is resolved into the CACHEABLE prefix, and a per-turn timestamp embedded
+   * there would defeat prompt caching — the current time is injected separately
+   * into the system prompt's volatile tail instead (see `buildSystemPrompt`).
+   */
+  includeCurrentTime = true,
 ): string {
   const lines: string[] = ['## Current User'];
 
@@ -128,7 +142,15 @@ export function buildUserProfile(
       `- Browser locale: ${context.language} (for date/number formatting only — do NOT use this to determine response language)`,
     );
   }
-  lines.push(`- Current Time: ${new Date().toISOString()}`);
+  // The current time is per-turn volatile. Callers that place this block in a
+  // volatile context keep it (default); the chat system-prompt path passes
+  // `includeCurrentTime: false` and injects the time into the prompt's volatile
+  // tail instead, so the `{{user_profile}}` block stays byte-stable and the
+  // ~16K-token prefix remains prompt-cacheable. Everything above
+  // (name/email/role/org/timezone/locale) is stable per (user, org).
+  if (includeCurrentTime) {
+    lines.push(`- Current Time: ${new Date().toISOString()}`);
+  }
 
   return lines.join('\n');
 }
@@ -137,7 +159,7 @@ function resolveVariable(
   variable: string,
   context: TemplateContext,
   data: ResolvedData,
-): string {
+): string | undefined {
   const trimmed = variable.trim();
   switch (trimmed) {
     case 'current_time':
@@ -155,7 +177,10 @@ function resolveVariable(
     case 'user.language':
       return context.language ?? '';
     case 'user_profile':
-      return buildUserProfile(context, data);
+      // Chat system prompt: omit the per-turn current time so this block stays
+      // byte-stable in the cacheable prefix (the time is injected into the
+      // system prompt's volatile tail by buildSystemPrompt instead).
+      return buildUserProfile(context, data, false);
     case 'site_url': {
       const siteUrl = process.env.SITE_URL;
       if (!siteUrl)
@@ -163,7 +188,9 @@ function resolveVariable(
       return siteUrl;
     }
     default:
-      return `{{${variable}}}`;
+      // Unknown variable: return undefined so the substitution engine leaves
+      // the original `{{...}}` marker intact byte-for-byte.
+      return undefined;
   }
 }
 
@@ -172,7 +199,7 @@ export async function resolveTemplateVariables(
   instructions: string,
   context: TemplateContext,
 ): Promise<string> {
-  if (!instructions.includes(VARIABLE_MARKER)) {
+  if (!containsPlaceholder(instructions)) {
     return instructions;
   }
 
@@ -194,8 +221,8 @@ export async function resolveTemplateVariables(
     userRole: memberRole ?? undefined,
   };
 
-  return instructions.replace(VARIABLE_PATTERN, (_, variable: string) =>
-    resolveVariable(variable, context, data),
+  return substituteTemplate(instructions, (name) =>
+    resolveVariable(name, context, data),
   );
 }
 

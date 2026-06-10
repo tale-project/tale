@@ -111,6 +111,7 @@ export const ModelSelector = memo(function ModelSelector({
         providerName: string;
         providerDisplayName: string;
         quantizations?: string[];
+        hidden?: boolean;
       }
     >();
     for (const provider of providers) {
@@ -135,6 +136,7 @@ export const ModelSelector = memo(function ModelSelector({
           quantizations: Array.isArray(model.quantizations)
             ? model.quantizations
             : undefined,
+          hidden: model.hidden === true,
         });
       }
     }
@@ -181,9 +183,18 @@ export const ModelSelector = memo(function ModelSelector({
   );
 
   const chatModels = useMemo(() => {
+    // Keep a model the user has already selected even if it's now hidden, so a
+    // deprecation doesn't silently reset their explicit choice mid-session.
+    const activeOverride = effectiveAgent?.name
+      ? selectedModelOverrides[effectiveAgent.name]
+      : undefined;
     const filteredByTag = supportedModels.filter((ref) => {
       const info = modelInfoMap.get(stripModelRefQualifier(ref));
-      return info?.tags.includes(requiredTag);
+      if (!info?.tags.includes(requiredTag)) return false;
+      // Hidden (e.g. superseded older versions) are dropped from the picker but
+      // remain fully resolvable, so agents/workflows referencing them still run.
+      if (info.hidden && ref !== activeOverride) return false;
+      return true;
     });
     // Split each base model that declares quantizations into one selectable
     // entry per variant (e.g. GLM 5.1 → GLM 5.1 fp8 + GLM 5.1 fp4). Models
@@ -192,7 +203,13 @@ export const ModelSelector = memo(function ModelSelector({
       filteredByTag,
       (bareId) => modelInfoMap.get(bareId)?.quantizations,
     );
-  }, [supportedModels, modelInfoMap, requiredTag]);
+  }, [
+    supportedModels,
+    modelInfoMap,
+    requiredTag,
+    effectiveAgent?.name,
+    selectedModelOverrides,
+  ]);
 
   // Governance policies match on plain model ids; strip qualifiers before asking.
   const chatModelPlainIds = useMemo(

@@ -33,6 +33,12 @@ The reference is the file format on disk and the order operations follow when ad
 
 The full set of fields lives in [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers) — `openai.json`, `openrouter.json`, and `vercel-gateway.json` cover the three shapes you are likely to need.
 
+### Model capabilities and auto-sync
+
+Each model may declare optional metadata that complexity-based routing and the Adaptive Reasoning Governor use: `contextWindow`, `maxOutputTokens`, `qualityScore` (0–1), `tier` (`draft`/`standard`/`frontier`), `routingTags` (preferred domains), `reasoning` (the steering knob — `effort` or `budgetTokens`), and `promptCaching` (`auto-server` or `explicit-breakpoints`). Anything you omit is filled from OpenRouter's catalog at runtime; anything you set wins. Set `"hidden": true` to drop a model from the pickers (chat composer, agent creation) while keeping it resolvable for agents that already reference it — the way to retire a superseded version without breaking existing workflows.
+
+These fields also stay current on their own: once a week Tale merges fresh OpenRouter facts into each org's provider config — adding newer flagship versions, hiding superseded ones, and refreshing capability values — touching only the fields you have not customised. Turn it off per-org with the **Weekly auto-sync** toggle on the model-catalog card under **Settings > Providers**.
+
 ## The secrets file
 
 `providers/<name>.secrets.json` is a flat JSON object with the API key under the field name the provider expects:

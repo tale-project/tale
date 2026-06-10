@@ -20,6 +20,18 @@ export interface DropdownMenuActionItem {
   external?: boolean;
   /** Keep the menu open after click. Use for items that swap the menu's content in place. */
   keepOpen?: boolean;
+  /**
+   * Muted text pinned to the right of the row (e.g. "Requires Tavily"). When
+   * combined with `selected`, the trailing text sits to the *left* of the
+   * checkmark so the check always reads as the right-most element.
+   */
+  trailing?: ReactNode;
+  /**
+   * Render a right-aligned check on the row to mark it as the active choice.
+   * Use this instead of baking a "✓" into the label so the mark is pinned to
+   * the far right of the row regardless of label length or any `trailing`.
+   */
+  selected?: boolean;
 }
 
 export interface DropdownMenuLabelItem {
@@ -244,6 +256,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
 
     case 'item': {
       const Icon = item.icon;
+      const hasTrailing = item.trailing != null || item.selected === true;
       const menuItem = (
         <DropdownMenuPrimitive.Item
           className={cn(
@@ -257,9 +270,30 @@ function renderItem(item: DropdownMenuItem, key: number) {
         >
           {Icon && <Icon />}
           {typeof item.label === 'string' ? (
-            <span>{item.label}</span>
+            // When the row carries a trailing slot, let the label flex and
+            // truncate so the trailing text / checkmark stay pinned right.
+            <span className={cn(hasTrailing && 'min-w-0 flex-1 truncate')}>
+              {item.label}
+            </span>
           ) : (
             item.label
+          )}
+          {item.trailing != null && (
+            <span className="text-muted-foreground ml-auto shrink-0 text-xs">
+              {item.trailing}
+            </span>
+          )}
+          {item.selected === true && (
+            <Check
+              aria-hidden
+              className={cn(
+                'text-muted-foreground size-4 shrink-0',
+                // Pin the check to the far right. With no `trailing` text it
+                // claims the free space itself; with trailing text the
+                // trailing span owns `ml-auto` and the check trails it.
+                item.trailing == null && 'ml-auto',
+              )}
+            />
           )}
         </DropdownMenuPrimitive.Item>
       );

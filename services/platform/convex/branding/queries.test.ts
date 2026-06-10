@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { hexToHsl, isLightColor } from '../../lib/utils/color';
 import {
+  buildBrandingImageUrl,
   mimeToExtension,
   parseBrandingJson,
   resolveBrandingDir,
@@ -146,6 +147,40 @@ describe('resolveImagesDir', () => {
     expect(resolveImagesDir('default')).toBe(
       '/tmp/test-data/default/branding/images',
     );
+  });
+});
+
+describe('buildBrandingImageUrl', () => {
+  it('returns null when there is no filename', () => {
+    expect(buildBrandingImageUrl('acme', undefined)).toBeNull();
+    expect(buildBrandingImageUrl('acme', '')).toBeNull();
+  });
+
+  it('segments the org slug into the path (matches the static image route)', () => {
+    // Pin env so the URL is deterministic regardless of the ambient test env.
+    vi.stubEnv('SITE_URL', '');
+    vi.stubEnv('BASE_PATH', '');
+    // The org slug is a path segment so server.ts
+    // `/branding/images/:orgSlug/:filename` resolves the right org bucket.
+    expect(buildBrandingImageUrl('acme', 'logo.png')).toBe(
+      '/branding/images/acme/logo.png',
+    );
+    // Different orgs produce different URLs — no cross-org bleed.
+    expect(buildBrandingImageUrl('default', 'logo.png')).toBe(
+      '/branding/images/default/logo.png',
+    );
+    vi.unstubAllEnvs();
+    vi.stubEnv('TALE_CONFIG_DIR', '/tmp/test-data');
+  });
+
+  it('prefixes SITE_URL (trailing slash trimmed) and BASE_PATH', () => {
+    vi.stubEnv('SITE_URL', 'https://tale.example.com/');
+    vi.stubEnv('BASE_PATH', '/app');
+    expect(buildBrandingImageUrl('acme', 'favicon-light.ico')).toBe(
+      'https://tale.example.com/app/branding/images/acme/favicon-light.ico',
+    );
+    vi.unstubAllEnvs();
+    vi.stubEnv('TALE_CONFIG_DIR', '/tmp/test-data');
   });
 });
 

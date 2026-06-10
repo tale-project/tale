@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MutableRefObject,
@@ -10,12 +11,14 @@ import {
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 
+import { TOP_INSET } from '../scroll-constants';
+
 interface UseChatScrollParams {
-  /** URL thread id — drives the scroll-to-bottom-on-initial-load effect. */
+  /** URL thread id — drives the thread-open scroll (restore or bottom). */
   threadId: string | undefined;
   /** Active data thread id — drives branch-switch scroll preservation. */
   dataThreadId: string | undefined;
-  /** Number of rendered messages (initial-load scroll waits for non-empty). */
+  /** Number of rendered messages (thread-open scroll waits for non-empty). */
   messagesLength: number;
   /** Server/optimistic generating flag — clears scroll intent when streaming ends. */
   isLoading: boolean;
@@ -23,6 +26,8 @@ interface UseChatScrollParams {
   isArenaMode: boolean;
   /** `pendingMessage?.editedMessageId` — edit-and-branch skips scroll preservation. */
   pendingEditedMessageId: string | undefined;
+  /** The last user message row — the send-snap scrolls it to the viewport top. */
+  lastUserMessageRef: RefObject<HTMLDivElement | null>;
   /** Underlying pagination load-more, wrapped with prepend-scroll preservation. */
   loadMore: (count: number) => void;
 }
@@ -34,6 +39,197 @@ interface UseChatScrollParams {
  * auto-follow. A real scroll-up moves far more than this.
  */
 const SCROLL_UP_ESCAPE_THRESHOLD_PX = 4;
+
+/**
+ * How long after a snap the position keeps re-pinning through layout ticks.
+ * The response-slack min-height settles within a frame or two of the snap;
+ * this window only needs to cover that (plus the edit-and-branch swap, whose
+ * release re-arms the snap itself). Content growth outside the window never
+ * scrolls.
+ */
+const SNAP_SETTLE_MS = 700;
+
+/**
+ * How long a POSITION hold (branch switch, thread-open restore) keeps
+ * re-applying its scrollTop through content churn. Switching the message
+ * subscription empties and refills the list over ~1s (and history bubbles
+ * re-measure from their content-visibility estimates), so this window must
+ * outlive that settling.
+ */
+const POSITION_HOLD_MS = 2000;
+
+/** Cap on remembered per-thread scroll positions (LRU). */
+const MAX_SAVED_THREAD_POSITIONS = 50;
+
+// ============================================================================
+// PER-THREAD SCROLL POSITION MEMORY
+// ============================================================================
+// Module-level Map, write-through to sessionStorage so positions survive
+// ChatInterface remounts, route round-trips AND page reloads — but stay
+// scoped to the tab (sessionStorage), so a stale position from last week or
+// another tab never leaks in. Loaded lazily (SSR-safe) on first access.
+
+const SCROLL_POSITIONS_STORAGE_KEY = 'tale_chat_scroll_positions';
+
+let savedThreadScrollTopsCache: Map<string, number> | null = null;
+
+function readPersistedScrollTops(): Map<string, number> {
+  const map = new Map<string, number>();
+  if (typeof window === 'undefined') return map;
+  try {
+    const raw = window.sessionStorage.getItem(SCROLL_POSITIONS_STORAGE_KEY);
+    if (!raw) return map;
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+          map.set(key, value);
+        }
+      }
+    }
+  } catch (error) {
+    // Corrupt entry or storage unavailable (e.g. privacy mode) — start fresh.
+    console.warn('Failed to read persisted chat scroll positions:', error);
+  }
+  return map;
+}
+
+function getSavedThreadScrollTops(): Map<string, number> {
+  savedThreadScrollTopsCache ??= readPersistedScrollTops();
+  return savedThreadScrollTopsCache;
+}
+
+function persistScrollTops(map: Map<string, number>) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(
+      SCROLL_POSITIONS_STORAGE_KEY,
+      JSON.stringify(Object.fromEntries(map)),
+    );
+  } catch (error) {
+    // Storage full or unavailable — the in-memory map still works for the
+    // session; only reload survival is lost.
+    console.warn('Failed to persist chat scroll positions:', error);
+  }
+}
+
+function saveThreadScrollTop(threadId: string, top: number) {
+  if (!Number.isFinite(top) || top < 0) return;
+  const map = getSavedThreadScrollTops();
+  map.delete(threadId);
+  map.set(threadId, top);
+  while (map.size > MAX_SAVED_THREAD_POSITIONS) {
+    const oldest = map.keys().next().value;
+    if (oldest !== undefined) map.delete(oldest);
+  }
+  persistScrollTops(map);
+}
+
+function getSavedThreadScrollTop(threadId: string): number | undefined {
+  return getSavedThreadScrollTops().get(threadId);
+}
+
+/** Test helper — mirrors clearDisplayPositionCache in use-stream-buffer. */
+export function clearSavedThreadScrollTops() {
+  getSavedThreadScrollTops().clear();
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(SCROLL_POSITIONS_STORAGE_KEY);
+  } catch (error) {
+    console.warn('Failed to clear persisted chat scroll positions:', error);
+  }
+}
+
+// ============================================================================
+// SCROLL HOLD
+// ============================================================================
+
+/**
+ * The ONE primitive that moves the chat view. A hold pins the viewport to a
+ * target through content-churn layout ticks until it expires or the user
+ * takes over:
+ *  - 'position'      → an absolute scrollTop (branch switch, thread-open
+ *                       restore). The raw saved top is kept and re-clamped
+ *                       per tick, so late-resolving history heights converge
+ *                       on the true position.
+ *  - 'bottom'        → the live bottom.
+ *  - 'last-user-top' → the last user message's top at TOP_INSET (send/edit
+ *                       snap, thread first-open). Re-resolved per tick
+ *                       against the live element, so response-slack
+ *                       corrections and late-settling content keep the
+ *                       message exactly anchored; degrades to the bottom
+ *                       when the anchor is missing or can't reach the top.
+ */
+export type ScrollHoldKind = 'position' | 'bottom' | 'last-user-top';
+
+export interface ScrollHold {
+  kind: ScrollHoldKind;
+  /** Absolute target scrollTop — only for kind 'position'. */
+  top?: number;
+  /** Expiry deadline (epoch ms). After it, content growth never scrolls. */
+  until: number;
+  /** Release the content min-height freeze when this hold ends. */
+  releaseMinHeight?: boolean;
+}
+
+/**
+ * Pure target resolution for a hold against live container geometry.
+ * Exported for unit testing.
+ */
+export function resolveSnapTargetTop(opts: {
+  kind: ScrollHoldKind;
+  top?: number;
+  scrollHeight: number;
+  clientHeight: number;
+  lastUserTop?: number;
+  topInset: number;
+}): number {
+  const maxTop = Math.max(0, opts.scrollHeight - opts.clientHeight);
+  if (opts.kind === 'position') {
+    return Math.min(Math.max(opts.top ?? 0, 0), maxTop);
+  }
+  if (opts.kind === 'last-user-top' && opts.lastUserTop !== undefined) {
+    return Math.min(Math.max(opts.lastUserTop - opts.topInset, 0), maxTop);
+  }
+  // 'bottom' — and the 'last-user-top' fallback when the anchor element is
+  // missing (e.g. the optimistic bubble hasn't committed): with the response
+  // slack in place the bottom lands at (nearly) the same position for short
+  // messages.
+  return maxTop;
+}
+
+/**
+ * Pure decision for where a thread opens: a remembered position when the
+ * thread was visited before (this tab), otherwise the last user message
+ * anchored at the viewport top — which the clamp degrades to the bottom when
+ * the reply after it is shorter than the viewport or the thread has no user
+ * message at all. Exported for unit testing.
+ */
+export function resolveThreadOpenTarget(opts: {
+  savedTop: number | undefined;
+  scrollHeight: number;
+  clientHeight: number;
+  lastUserTop: number | undefined;
+  topInset: number;
+}): { kind: 'position' | 'last-user-top'; top: number } {
+  const maxTop = Math.max(0, opts.scrollHeight - opts.clientHeight);
+  if (opts.savedTop !== undefined) {
+    return {
+      kind: 'position',
+      top: Math.min(Math.max(opts.savedTop, 0), maxTop),
+    };
+  }
+  return {
+    kind: 'last-user-top',
+    top: resolveSnapTargetTop({
+      kind: 'last-user-top',
+      scrollHeight: opts.scrollHeight,
+      clientHeight: opts.clientHeight,
+      lastUserTop: opts.lastUserTop,
+      topInset: opts.topInset,
+    }),
+  };
+}
 
 /**
  * Whether the scroll-to-bottom button should ANIMATE (smooth) or JUMP
@@ -81,44 +277,49 @@ export interface ChatScroll {
   scrollToBottom: () => void;
   showScrollButton: boolean;
   /**
-   * Force-snap signal: set to `true` to force a scroll-to-bottom (re-engaging
-   * the follow latch) on the next content settle, REGARDLESS of whether the
-   * user had scrolled away. A plain boolean, not a `ScrollBehavior`, on
-   * purpose: the snap is ALWAYS instant, so there is no motion to choose — it
-   * must not animate against the still-settling response slack / streaming
-   * growth (which previously left a `'smooth'` send-scroll stranded part-way
-   * down). Returned (not private) because `useSendMessage` writes it via its
+   * Force-snap signal: scrolls the just-sent user message to the viewport
+   * top (TOP_INSET) on the next content settle, REGARDLESS of whether the
+   * user had scrolled away. This is the ONLY thing that scrolls the chat
+   * besides explicit user actions — AI generation growth never does.
+   *
+   *  - `true`  → INSTANT snap (the FIRST message of a chat — it must render
+   *    at its position without any visible scrolling).
+   *  - `'smooth'` → animated snap for follow-up sends and edits: a
+   *    retargeting rAF loop that re-reads the live anchor position every
+   *    frame, easing toward it. A one-shot `behavior: 'smooth'` would
+   *    animate against the still-settling response slack and stall
+   *    part-way; the retargeting loop lands exactly, smoothly. Cancelled by
+   *    any user scroll intent.
+   *
+   * Returned (not private) because `useSendMessage` writes it via its
    * `scrollIntentRef` prop RIGHT BEFORE each `setPendingMessage`, and the
-   * edit-and-branch handler sets it too. Smooth motion is reserved for the
-   * explicit scroll-to-bottom button (`scrollToBottom`).
+   * edit-and-branch handler sets it too.
    */
-  scrollIntentRef: MutableRefObject<boolean>;
+  scrollIntentRef: MutableRefObject<boolean | 'smooth'>;
   handleLoadMore: (count: number) => void;
 }
 
 /**
  * Chat scroll state machine.
  *
- * Implements the ChatGPT/Claude-style behavior: the view follows content
- * growth ONLY while pinned to the bottom; the user escapes the pin by
- * scrolling up and re-engages by returning to the bottom. Sending a message
- * (and thread-init / edit-branch) force-snaps back to the bottom.
+ * Implements the Gemini-style behavior: scrolling happens ONLY in response
+ * to user actions — submitting a message (snap the new user message to the
+ * viewport top: instant for the first message of a chat, a smooth glide for
+ * follow-ups), opening a thread (restore its remembered position, or the
+ * bottom on first open), switching branches, or pressing the
+ * scroll-to-bottom button. AI text generation NEVER scrolls the view; the
+ * response streams into the slack below the user message and past the fold
+ * when it outgrows the viewport.
  *
- * Design notes:
- *  - The auto-follow pin is ALWAYS an instant `scrollTo` — never a smooth
- *    animation. The response area carries a dynamic min-height "slack" (see
- *    ChatMessages) that settles across a couple of layout frames while tokens
- *    stream in, so a smooth animation would chase a moving target and settle
- *    short. Instant pinning re-evaluates every content tick and lands exactly.
- *  - Our programmatic scrolls only ever move DOWN, so an upward `onScroll`
- *    delta is unambiguously the user — no fragile programmatic-vs-user flag.
- *  - Smooth motion is opt-in and one-shot: the floating scroll-to-bottom
- *    button. While its animation runs we suppress the instant pin so we don't
- *    interrupt it, then re-pin when it lands.
+ * Every programmatic movement is a ScrollHold (see type above): one
+ * mechanism for the send-snap settle window, branch-switch preservation,
+ * and thread-open restore. Holds re-pin through content-churn layout ticks
+ * until they expire; any user scroll intent (wheel, touch, an upward
+ * scroll) cancels the hold, the glide, and any pending snap — the user
+ * always wins.
  *
- * Plus: thread-init scroll, streaming-end intent clear, branch-switch scroll
- * preservation (captured DURING render — see below), and load-more prepend
- * preservation.
+ * Plus: per-thread scroll position memory (session-only), streaming-end
+ * intent clear, and load-more prepend preservation.
  */
 export function useChatScroll({
   threadId,
@@ -127,6 +328,7 @@ export function useChatScroll({
   isLoading,
   isArenaMode,
   pendingEditedMessageId,
+  lastUserMessageRef,
   loadMore,
 }: UseChatScrollParams): ChatScroll {
   // Scroll utility — refs + isAtBottom. We own the follow logic below.
@@ -137,72 +339,190 @@ export function useChatScroll({
 
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Force-snap signal: true ⇒ snap to bottom (instant) on the next content
-  // settle and re-engage the pin, overriding a prior user scroll-up. Written
+  // Force-snap signal: truthy ⇒ snap the last user message to the viewport
+  // top on the next content settle, overriding a prior user scroll-up
+  // ('smooth' animates, true jumps — see ChatScroll.scrollIntentRef). Written
   // externally by useSendMessage / edit-branch right before each
   // setPendingMessage; consumed by the scroll machine once the snap lands.
-  const forceScrollRef = useRef(false);
-  // Stick-to-bottom latch: we auto-follow content growth only while this is
-  // true. The user escapes by scrolling UP and re-engages by returning to the
-  // bottom (see resolveStickToBottom).
+  const forceScrollRef = useRef<boolean | 'smooth'>(false);
+  // "User hasn't taken over" latch: true while the view is under snap
+  // control. The user escapes via wheel/touch or an upward scroll (see
+  // resolveStickToBottom) — escaping cancels the snap animation and any
+  // active hold. NOTE: this no longer drives any auto-follow; generation
+  // growth never scrolls.
   const pinnedRef = useRef(true);
+  // The single active hold (or none). See ScrollHold.
+  const holdRef = useRef<ScrollHold | null>(null);
+  // Timed release for POSITION holds (branch switch / thread restore):
+  // reconciles the follow latch to where the view actually ended up and
+  // releases the min-height freeze.
+  const holdReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   // Track scrollTop + scrollHeight across scroll events so a scrollTop drop
   // caused by content SHRINKING (browser clamps scrollTop) isn't misread as a
   // user scroll-up (which would falsely escape the lock).
   const lastScrollTopRef = useRef(0);
   const lastScrollHeightRef = useRef(0);
 
-  // Branch-switch scroll preservation refs. Declared before the observer
-  // effect because `onContentChange` closes over `branchScrollSaveRef`.
-  const branchScrollSaveRef = useRef<number | null>(null);
-  const branchScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
+  /** Reseed the scroll trackers so the next onScroll diff is correct. */
+  const reseedScrollTrackers = useCallback(() => {
+    const c = containerRef.current;
+    if (!c) return;
+    lastScrollTopRef.current = c.scrollTop;
+    lastScrollHeightRef.current = c.scrollHeight;
+  }, [containerRef]);
+
+  /**
+   * Drop the active hold WITHOUT touching the follow latch — used when the
+   * user takes over (their escape already resolved the latch) and when a
+   * thread navigation invalidates a stale hold.
+   */
+  const cancelHold = useCallback(() => {
+    if (holdReleaseTimerRef.current) {
+      clearTimeout(holdReleaseTimerRef.current);
+      holdReleaseTimerRef.current = null;
+    }
+    if (holdRef.current?.releaseMinHeight && contentRef.current) {
+      contentRef.current.style.minHeight = '';
+    }
+    holdRef.current = null;
+  }, [contentRef]);
+
+  /**
+   * Timed release for position holds: the hold held scrollTop at a (often
+   * non-bottom) position, so the follow latch could still read `true` from
+   * before — without reconciling, the next content tick of a still-streaming
+   * thread would snap to the bottom.
+   */
+  const releaseHoldAndReconcile = useCallback(() => {
+    cancelHold();
+    pinnedRef.current = isAtBottom();
+    reseedScrollTrackers();
+  }, [cancelHold, isAtBottom, reseedScrollTrackers]);
+
+  /** Arm a hold (replacing any current one). Position holds get a timed
+   *  release; settle holds simply expire. */
+  const beginHold = useCallback(
+    (hold: ScrollHold, releaseAfterMs?: number) => {
+      cancelHold();
+      holdRef.current = hold;
+      if (releaseAfterMs !== undefined) {
+        holdReleaseTimerRef.current = setTimeout(
+          releaseHoldAndReconcile,
+          releaseAfterMs,
+        );
+      }
+    },
+    [cancelHold, releaseHoldAndReconcile],
   );
 
-  // Scroll + resize handler — handles intentional scrolls and scroll button visibility.
+  // Scroll + resize handler — applies holds, consumes the force-snap signal,
+  // and keeps the scroll-button visibility current.
   useEffect(() => {
     const container = containerRef.current;
     const content = contentRef.current;
     if (!container || !content) return undefined;
 
-    const pinToBottom = () => {
-      // Explicit 'instant' — the auto-follow must never animate (it would
+    // Live anchor read: the last user message's top in scroll coordinates.
+    const getLastUserTop = (): number | undefined => {
+      const el = lastUserMessageRef.current;
+      if (!el || !container.contains(el)) return undefined;
+      return (
+        el.getBoundingClientRect().top -
+        container.getBoundingClientRect().top +
+        container.scrollTop
+      );
+    };
+
+    const resolveHoldTarget = (hold: ScrollHold): number =>
+      resolveSnapTargetTop({
+        kind: hold.kind,
+        top: hold.top,
+        scrollHeight: container.scrollHeight,
+        clientHeight: container.clientHeight,
+        lastUserTop:
+          hold.kind === 'last-user-top' ? getLastUserTop() : undefined,
+        topInset: TOP_INSET,
+      });
+
+    const applyHold = (hold: ScrollHold) => {
+      // Explicit 'instant' — a hold re-pin must never animate (it would
       // chase the still-settling slack / streaming growth and land short).
-      container.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
+      container.scrollTo({ top: resolveHoldTarget(hold), behavior: 'instant' });
+    };
+
+    // Send-snap animation: ease toward the hold target while RE-READING the
+    // live anchor every frame, so the still-settling response slack /
+    // streaming growth is followed rather than raced (a one-shot smooth
+    // scroll stalls part-way). Cancels itself if the user escapes the pin.
+    let smoothSnapRafId: number | null = null;
+    const smoothSnapToTarget = () => {
+      if (prefersReducedMotion) {
+        if (holdRef.current) applyHold(holdRef.current);
+        return;
+      }
+      if (smoothSnapRafId !== null) return; // already gliding; it retargets
+      const step = () => {
+        smoothSnapRafId = null;
+        if (!pinnedRef.current) return; // user scrolled away — stop
+        const hold = holdRef.current;
+        const target = hold
+          ? resolveHoldTarget(hold)
+          : container.scrollHeight - container.clientHeight;
+        const remaining = target - container.scrollTop;
+        if (Math.abs(remaining) <= 1) {
+          if (remaining !== 0) container.scrollTop = target;
+          return;
+        }
+        // Exponential ease-out toward the (possibly moving) target.
+        container.scrollTop +=
+          Math.sign(remaining) * Math.max(1, Math.abs(remaining) * 0.18);
+        smoothSnapRafId = requestAnimationFrame(step);
+      };
+      smoothSnapRafId = requestAnimationFrame(step);
     };
 
     const updateButton = () => {
-      // Show whenever we're NOT actively following — including the dead zone
-      // where the user escaped with a small scroll-up but is still within the
-      // 100px "at bottom" band (otherwise follow is off with no affordance to
-      // get back).
-      setShowScrollButton(!pinnedRef.current || !isAtBottom());
+      setShowScrollButton(!isAtBottom());
     };
 
     const onContentChange = () => {
-      // During branch switch: override all scroll behavior with saved position.
-      if (branchScrollSaveRef.current !== null) {
-        // Explicit 'instant' — the container would otherwise animate toward the
-        // saved position on every ResizeObserver tick → a visible wobble.
-        container.scrollTo({
-          top: branchScrollSaveRef.current,
-          behavior: 'instant',
-        });
-        setShowScrollButton(!isAtBottom());
-        return;
+      // Active hold: keep the viewport pinned to its (re-resolved) target
+      // through this layout tick — instantly, unless the smooth glide is
+      // still in flight (it retargets on its own).
+      const hold = holdRef.current;
+      if (hold) {
+        if (Date.now() < hold.until) {
+          if (smoothSnapRafId === null) applyHold(hold);
+          updateButton();
+          return;
+        }
+        // Expired settle hold (position holds release via their timer) —
+        // drop it and fall through. OUTSIDE any hold, content growth never
+        // scrolls: AI generation streams below the fold and only explicit
+        // user actions move the view.
+        cancelHold();
       }
-      // Forced snap (send / thread-init / edit-branch): re-engage the pin and
-      // jump to the bottom even if the user had scrolled away. Always instant;
-      // consumed once it lands (the pin then carries subsequent growth).
+      // Forced snap (user action: send / edit-branch): anchor the last user
+      // message at the viewport top even if the user had scrolled away.
+      // Sends ('smooth') glide via the retargeting animation; the first
+      // message of a chat (true) jumps instantly. Consumed once; the settle
+      // hold carries the slack-correction ticks that follow.
       if (forceScrollRef.current) {
         pinnedRef.current = true;
-        pinToBottom();
+        const smooth = forceScrollRef.current === 'smooth';
         forceScrollRef.current = false;
+        const snapHold: ScrollHold = {
+          kind: 'last-user-top',
+          until: Date.now() + SNAP_SETTLE_MS,
+        };
+        beginHold(snapHold);
+        if (smooth) smoothSnapToTarget();
+        else applyHold(snapHold);
         updateButton();
         return;
       }
-      // Normal content growth while following: pin to bottom instantly.
-      if (pinnedRef.current) pinToBottom();
       updateButton();
     };
 
@@ -226,12 +546,33 @@ export function useChatScroll({
       });
       pinnedRef.current = nextPinned;
 
-      // Just escaped → cancel any pending forced (send/init) snap so we don't
-      // yank the user back to the bottom after they deliberately scrolled up.
+      // Just escaped → cancel any pending forced snap and the active hold so
+      // we don't yank the user back after they deliberately scrolled away.
       if (!nextPinned && wasPinned) {
         forceScrollRef.current = false;
+        cancelHold();
       }
-      setShowScrollButton(!nextPinned || !atBottom);
+      setShowScrollButton(!atBottom);
+    };
+
+    // Direct user scroll intent (wheel / touch) interrupts everything: the
+    // smooth glide, the active hold, and any pending snap. These events
+    // only ever come from the user (our programmatic scrolls don't fire
+    // them), so they're an unambiguous "I'm taking over".
+    const onUserScrollIntent = () => {
+      if (
+        smoothSnapRafId !== null ||
+        holdRef.current !== null ||
+        forceScrollRef.current
+      ) {
+        pinnedRef.current = false;
+        forceScrollRef.current = false;
+        cancelHold();
+        if (smoothSnapRafId !== null) {
+          cancelAnimationFrame(smoothSnapRafId);
+          smoothSnapRafId = null;
+        }
+      }
     };
 
     const resizeObserver = new ResizeObserver(onContentChange);
@@ -250,6 +591,10 @@ export function useChatScroll({
     });
 
     container.addEventListener('scroll', onScroll, { passive: true });
+    container.addEventListener('wheel', onUserScrollIntent, { passive: true });
+    container.addEventListener('touchmove', onUserScrollIntent, {
+      passive: true,
+    });
     // Seed scroll tracking so the first real scroll event compares against the
     // current position/height, not 0 (which would spuriously read as growth).
     lastScrollTopRef.current = container.scrollTop;
@@ -260,8 +605,20 @@ export function useChatScroll({
       resizeObserver.disconnect();
       mutationObserver.disconnect();
       container.removeEventListener('scroll', onScroll);
+      container.removeEventListener('wheel', onUserScrollIntent);
+      container.removeEventListener('touchmove', onUserScrollIntent);
+      if (smoothSnapRafId !== null) cancelAnimationFrame(smoothSnapRafId);
     };
-  }, [containerRef, contentRef, isAtBottom, isArenaMode]);
+  }, [
+    containerRef,
+    contentRef,
+    isAtBottom,
+    isArenaMode,
+    prefersReducedMotion,
+    lastUserMessageRef,
+    beginHold,
+    cancelHold,
+  ]);
 
   // Clear the force-snap intent when streaming ends — covers the case where
   // the ref stayed set throughout the entire streaming session.
@@ -273,45 +630,100 @@ export function useChatScroll({
     prevIsLoadingRef.current = isLoading;
   }, [isLoading]);
 
-  // Scroll to bottom on thread initial load.
+  // Thread-open scroll: restore the thread's remembered position, or anchor
+  // the LAST USER MESSAGE at the viewport top on its first open (falling back
+  // to the bottom when the thread has no user message or the anchor can't
+  // reach the top yet — the clamp degrades naturally). A LAYOUT effect
+  // (pre-paint) on the first non-empty messages render, so the user never
+  // sees the list at a wrong position followed by a delayed jump. The hold
+  // then carries the correction ticks while the subscription settles and
+  // history bubbles resolve their content-visibility height estimates — the
+  // 'last-user-top' kind re-resolves the live element each tick, so it
+  // self-heals even when this first measurement ran against stale content.
+  //
+  // The open is keyed on (threadId, container NODE): a Suspense fallback swap
+  // (a lazy child suspending mid-session) or StrictMode replay remounts the
+  // scroller at scrollTop 0 while this component instance — and the
+  // once-per-thread guard ref — survive. Without the node check the view
+  // would silently stay reset to the top. On a same-thread node swap the
+  // LIVE tracker position (where the user actually was) wins over the
+  // persisted save.
   const scrolledForThreadRef = useRef<string | null>(null);
-  useEffect(() => {
+  const openedContainerNodeRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
     if (!threadId) {
       // Left a thread (→ new chat). Clear the guard so returning to the same
-      // thread re-runs the initial scroll-to-bottom even if this hook instance
+      // thread re-runs the thread-open scroll even if this hook instance
       // survives the round trip (it isn't always remounted).
       scrolledForThreadRef.current = null;
       return;
     }
     if (messagesLength === 0) return;
-    if (scrolledForThreadRef.current === threadId) return;
-
-    scrolledForThreadRef.current = threadId;
-    forceScrollRef.current = true;
-    pinnedRef.current = true;
-
     const c = containerRef.current;
-    if (c) {
-      c.scrollTo({ top: c.scrollHeight, behavior: 'instant' });
-      // Re-seed the scroll trackers to THIS thread's geometry. The hook
-      // persists across thread→thread switches, so a leftover prev-thread
-      // scrollTop/scrollHeight could make the next onScroll misread the switch
-      // as a user scroll-up and clear the forced snap before the new thread
-      // settles at the bottom.
-      lastScrollTopRef.current = c.scrollTop;
-      lastScrollHeightRef.current = c.scrollHeight;
-    }
-  }, [threadId, messagesLength, containerRef]);
+    if (!c) return; // e.g. arena mode owns the viewport — retry on next render
+    const sameThread = scrolledForThreadRef.current === threadId;
+    // A Suspense round-trip can keep the NODE but zero its scrollTop (hidden
+    // via display:none). If the tracker says the user was somewhere else and
+    // the container reads 0, the reset came from outside — re-apply. A user
+    // actually scrolling to the top updates the tracker first, so this never
+    // fights a deliberate scroll.
+    const externallyReset =
+      sameThread && c.scrollTop === 0 && lastScrollTopRef.current > 0;
+    if (sameThread && openedContainerNodeRef.current === c && !externallyReset)
+      return;
+    scrolledForThreadRef.current = threadId;
+    openedContainerNodeRef.current = c;
 
-  // Preserve scroll position during branch switches.
-  // Save scrollTop synchronously during render when dataThreadId changes.
-  // The saved value is kept and restored on every onContentChange call
-  // until cleared by a timeout (to handle multiple ResizeObserver fires).
+    const savedTop = sameThread
+      ? lastScrollTopRef.current
+      : getSavedThreadScrollTop(threadId);
+    const lastUserEl = lastUserMessageRef.current;
+    const lastUserTop =
+      lastUserEl && c.contains(lastUserEl)
+        ? lastUserEl.getBoundingClientRect().top -
+          c.getBoundingClientRect().top +
+          c.scrollTop
+        : undefined;
+    const decision = resolveThreadOpenTarget({
+      savedTop,
+      scrollHeight: c.scrollHeight,
+      clientHeight: c.clientHeight,
+      lastUserTop,
+      topInset: TOP_INSET,
+    });
+    // Keep the RAW saved top in a position hold (not the clamped first
+    // target): content below the estimate-based fold grows as real heights
+    // resolve, and each tick re-clamps toward the true position.
+    beginHold(
+      decision.kind === 'position'
+        ? {
+            kind: 'position',
+            top: savedTop,
+            until: Date.now() + POSITION_HOLD_MS,
+          }
+        : { kind: 'last-user-top', until: Date.now() + POSITION_HOLD_MS },
+      POSITION_HOLD_MS,
+    );
+    // The timed release reconciles the follow latch to where the view
+    // actually settled (isAtBottom); until then the open is hold-controlled.
+    pinnedRef.current = false;
+    c.scrollTo({ top: decision.top, behavior: 'instant' });
+    reseedScrollTrackers();
+  }, [
+    threadId,
+    messagesLength,
+    containerRef,
+    lastUserMessageRef,
+    beginHold,
+    reseedScrollTrackers,
+  ]);
+
+  // Branch-switch scroll preservation + thread-nav position save.
   //
   // NOTE: this runs in the hook's render body (NOT an effect) on purpose — the
   // scrollTop snapshot must be captured before the browser paints the new
-  // branch's content; an effect would run after paint and capture the
-  // already-scrolled position.
+  // branch's/thread's content; an effect would run after paint and capture the
+  // already-clamped position.
   const prevDataThreadIdRef = useRef(dataThreadId);
   const prevThreadIdRef = useRef(threadId);
   if (
@@ -322,46 +734,94 @@ export function useChatScroll({
     // changes `dataThreadId` (activeBranchThreadId). Ordinary thread→thread
     // navigation (clicking another chat) changes BOTH — and ChatInterface is
     // NOT remounted on that transition (keyed `chat-${newChatCount}`, only
-    // bumped thread→new), so this hook persists. Preserving thread A's
-    // scrollTop onto thread B would pin B at the wrong offset and defeat the
-    // thread-init scroll-to-bottom below. Only preserve for a real branch
-    // switch; on thread nav fall through to the clear path.
+    // bumped thread→new), so this hook persists.
     const threadChanged = prevThreadIdRef.current !== threadId;
-    // Skip scroll preservation for edit-and-branch — we want scroll-to-bottom
-    // so the edited message and incoming AI response are visible.
+    // Skip scroll preservation for edit-and-branch — we want the snap so the
+    // edited message and incoming AI response are visible.
     if (!pendingEditedMessageId && !threadChanged) {
-      branchScrollSaveRef.current = containerRef.current?.scrollTop ?? null;
-      // Clear after content settles
-      if (branchScrollTimerRef.current)
-        clearTimeout(branchScrollTimerRef.current);
-      branchScrollTimerRef.current = setTimeout(() => {
-        branchScrollSaveRef.current = null;
-        branchScrollTimerRef.current = null;
-        // Reconcile the follow latch to where the view actually ended up. The
-        // override held scrollTop at the saved (often non-bottom) position, so
-        // the latch could still read `true` from before the switch — without
-        // this, the next content tick (e.g. a still-streaming branch) would
-        // snap to the bottom. Re-seed the scroll trackers too so the next
-        // onScroll diff is correct.
-        const c = containerRef.current;
-        if (c) {
-          pinnedRef.current = isAtBottom();
-          lastScrollTopRef.current = c.scrollTop;
-          lastScrollHeightRef.current = c.scrollHeight;
-        }
-      }, 2000);
-    } else {
-      // edit-and-branch OR thread navigation: clear any stale saved position
-      // so onContentChange doesn't override the intended scroll-to-bottom.
-      branchScrollSaveRef.current = null;
-      if (branchScrollTimerRef.current) {
-        clearTimeout(branchScrollTimerRef.current);
-        branchScrollTimerRef.current = null;
+      const top = containerRef.current?.scrollTop;
+      if (top !== undefined) {
+        // Freeze the content height for the switch window. Switching branches
+        // re-subscribes the message query to the other branch thread, so the
+        // list briefly EMPTIES (observed: height 3574→668→4247 over ~1s)
+        // before the new branch's messages arrive — that collapse-then-expand
+        // is the visible "jump" (the fork message reflows out and back).
+        // Pinning min-height to the pre-switch height keeps the list from
+        // collapsing; the position hold then lands the fork message exactly
+        // where it was. Both set in the render body — like the scrollTop
+        // capture — so they land BEFORE the browser paints the emptied list.
+        beginHold(
+          {
+            kind: 'position',
+            top,
+            until: Date.now() + POSITION_HOLD_MS,
+            releaseMinHeight: true,
+          },
+          POSITION_HOLD_MS,
+        );
+        const contentEl = contentRef.current;
+        if (contentEl)
+          contentEl.style.minHeight = `${contentEl.offsetHeight}px`;
       }
+    } else {
+      // Edit-and-branch OR thread navigation: remember the outgoing thread's
+      // position (thread nav only, and only when this instance actually
+      // OPENED it — otherwise the reading is meaningless and would clobber
+      // the persisted value) and clear any stale hold so onContentChange
+      // doesn't override the intended snap/restore, releasing any frozen
+      // height so the new thread isn't pinned tall.
+      if (
+        threadChanged &&
+        prevThreadIdRef.current &&
+        scrolledForThreadRef.current === prevThreadIdRef.current &&
+        containerRef.current
+      ) {
+        saveThreadScrollTop(
+          prevThreadIdRef.current,
+          containerRef.current.scrollTop,
+        );
+      }
+      cancelHold();
     }
   }
   prevDataThreadIdRef.current = dataThreadId;
   prevThreadIdRef.current = threadId;
+
+  // Save the open thread's position when this hook unmounts entirely
+  // (navigating away from the chat route) — the render-body capture above
+  // only sees in-chat transitions. Uses the tracker ref (kept current by the
+  // scroll listener) instead of reading the DOM node, which may already be
+  // detached when this cleanup runs.
+  //
+  // BOTH implicit saves are gated on "this instance actually OPENED the
+  // thread" (the thread-open effect ran). Without the gate, a StrictMode
+  // double-mount or a Suspense effect replay fires this cleanup while the
+  // tracker still reads its initial 0 — clobbering the real persisted
+  // position with 0, which then "restores" the thread to its very top.
+  const liveThreadIdRef = useRef(threadId);
+  liveThreadIdRef.current = threadId;
+  useEffect(() => {
+    return () => {
+      const id = liveThreadIdRef.current;
+      if (id && scrolledForThreadRef.current === id) {
+        saveThreadScrollTop(id, lastScrollTopRef.current);
+      }
+    };
+  }, []);
+
+  // Page reload / tab close: React cleanups never run, so capture the live
+  // position on `pagehide` (more reliable than beforeunload — it also fires
+  // on bfcache navigations) and write it through to sessionStorage.
+  useEffect(() => {
+    const onPageHide = () => {
+      const id = liveThreadIdRef.current;
+      if (id && scrolledForThreadRef.current === id) {
+        saveThreadScrollTop(id, lastScrollTopRef.current);
+      }
+    };
+    window.addEventListener('pagehide', onPageHide);
+    return () => window.removeEventListener('pagehide', onPageHide);
+  }, []);
 
   // Load-more scroll preservation: keep the viewport visually stable when older
   // messages prepend. We anchor to the topmost currently-VISIBLE message and
@@ -464,13 +924,13 @@ export function useChatScroll({
   // (a smooth animation would lag behind it). Either way the pin is
   // re-engaged, so from here resolveStickToBottom drives follow/escape on the
   // next scroll/content event — no separate "animation in progress" state is
-  // needed (and a content change mid-animation just instant-pins to the
-  // bottom, the intended destination).
+  // needed. Any active hold is dropped: the button is an explicit override.
   const scrollToBottom = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     pinnedRef.current = true;
     forceScrollRef.current = false;
+    cancelHold();
     const animate = shouldAnimateScrollToBottom({
       isStreaming: isLoading,
       prefersReducedMotion,
@@ -479,7 +939,7 @@ export function useChatScroll({
       top: container.scrollHeight,
       behavior: animate ? 'smooth' : 'instant',
     });
-  }, [containerRef, isLoading, prefersReducedMotion]);
+  }, [containerRef, isLoading, prefersReducedMotion, cancelHold]);
 
   return {
     containerRef,

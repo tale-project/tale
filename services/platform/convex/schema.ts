@@ -4,7 +4,7 @@ import {
   customAgentsTable,
   customAgentWebhooksTable,
 } from './agents/legacy_schema';
-import { agentBindingsTable } from './agents/schema';
+import { agentBindingsTable, autoRouteCacheTable } from './agents/schema';
 import {
   agentWebhooksTable,
   agentWebhookUserThreadsTable,
@@ -61,6 +61,11 @@ import {
   loginBlockCountersTable,
 } from './login_attempts/schema';
 import { mcpServersTable } from './mcp_servers/schema';
+import {
+  modelCapabilityCacheTable,
+  modelCatalogSyncTable,
+  modelSyncSettingsTable,
+} from './model_catalog/schema';
 import { notificationsTable } from './notifications/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
@@ -144,6 +149,7 @@ export default defineSchema({
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
   agentBindings: agentBindingsTable,
+  autoRouteCache: autoRouteCacheTable,
   agentWebhooks: agentWebhooksTable,
   agentWebhookUserThreads: agentWebhookUserThreadsTable,
   /** @deprecated Retained for backward compatibility with existing data. */
@@ -194,6 +200,9 @@ export default defineSchema({
   taskSubscriptions: taskSubscriptionsTable,
   notificationPreferences: notificationPreferencesTable,
   reasoningProfiles: reasoningProfilesTable,
+  modelCapabilityCache: modelCapabilityCacheTable,
+  modelCatalogSync: modelCatalogSyncTable,
+  modelSyncSettings: modelSyncSettingsTable,
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,
   sandboxExecutions: sandboxExecutionsTable,

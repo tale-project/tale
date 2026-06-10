@@ -814,12 +814,24 @@
     },
     "thoughtProcess": {
       "thinking": "Denkt nach",
+      "routingPhase": "Wählt Agent",
       "seconds": "{seconds} s",
       "durationLabel": "{seconds} s nachgedacht",
       "toolsCount": "{count, plural, one {# Werkzeug} other {# Werkzeuge}}",
       "skillsCount": "{count, plural, one {# Skill} other {# Skills}}",
       "tokensCount": "{count, plural, one {# Token} other {# Tokens}}",
-      "summaryReasoningOnly": "Hat den Gedankengang gezeigt"
+      "summaryReasoningOnly": "Hat den Gedankengang gezeigt",
+      "responding": "Antwortet"
+    },
+    "routing": {
+      "routedTo": "An {agent} weitergeleitet",
+      "reason": {
+        "single-candidate": "Einziger passender Assistent",
+        "trivial": "Einfache Nachricht — Standard-Assistent verwendet",
+        "cached": "Frühere Routing-Entscheidung wiederverwendet",
+        "classified": "Beste Übereinstimmung für diese Anfrage",
+        "fallback": "Standard gewählt, da das Routing nicht eindeutig war"
+      }
     },
     "tools": {
       "customerRead": "Kundendaten",
@@ -838,7 +850,7 @@
     },
     "agentSelector": {
       "label": "Agent auswählen",
-      "auto": "Automatisch",
+      "auto": "Auto",
       "autoDescription": "Tale wählt für jede Nachricht den passenden Agent basierend auf deiner Anfrage.",
       "viewDetails": "Agentdetails anzeigen",
       "noAgents": "Keine Agents",
@@ -1062,6 +1074,7 @@
       "timestamp": "Zeitstempel",
       "messageId": "Nachrichten-ID",
       "model": "Modell",
+      "routing": "Routing",
       "tokenUsage": "Token-Verbrauch",
       "input": "Eingabe",
       "output": "Ausgabe",
@@ -1546,22 +1559,7 @@
     "capabilityDisable": "{name} deaktivieren",
     "requiresIntegration": "Benötigt {name}",
     "takeScreenshot": "Screenshot aufnehmen",
-    "screenshotFailed": "Screenshot konnte nicht aufgenommen werden",
-    "tuningHeader": "Antwort-Feinabstimmung",
-    "adaptive": "Adaptiv",
-    "effort": "Aufwand",
-    "effortLow": "Niedrig",
-    "effortMedium": "Mittel",
-    "effortHigh": "Hoch",
-    "creativity": "Kreativität",
-    "creativityPrecise": "Präzise",
-    "creativityBalanced": "Ausgewogen",
-    "creativityCreative": "Kreativ",
-    "style": "Stil",
-    "styleConcise": "Prägnant",
-    "styleDetailed": "Ausführlich",
-    "styleFormal": "Formell",
-    "styleFriendly": "Freundlich"
+    "screenshotFailed": "Screenshot konnte nicht aufgenommen werden"
   },
   "connectivity": {
     "tabTitle": "Verbindung wird wiederhergestellt",
@@ -3371,7 +3369,12 @@
     "pushback": "Anders antworten",
     "pushbackPlaceholder": "Sag der KI, was du stattdessen möchtest...",
     "sendFeedback": "Feedback senden",
-    "backToForm": "Zurück zum Formular"
+    "backToForm": "Zurück zum Formular",
+    "editResponse": "Antwort bearbeiten",
+    "updateResponse": "Antwort aktualisieren",
+    "cancelEdit": "Abbrechen",
+    "versionPrevious": "Vorherige Antwortversion",
+    "versionNext": "Nächste Antwortversion"
   },
   "integrationApproval": {
     "approve": "Genehmigen",
@@ -3626,6 +3629,10 @@
     "agentDelegation": {
       "title": "Agent-Delegation",
       "description": "Agent-Delegation an andere Agents konfigurieren."
+    },
+    "agentResponseTuning": {
+      "title": "Antwort-Feinabstimmung",
+      "description": "Stelle ein, wie dieser Agent denkt und schreibt."
     },
     "automationTriggers": {
       "title": "Trigger",
@@ -4228,6 +4235,20 @@
       "security": {
         "title": "Sicherheit",
         "description": "Passwort und Zwei-Faktor-Authentifizierung."
+      },
+      "chats": {
+        "title": "Deine Chats",
+        "description": "Archiviere oder lösche alle deine Chat-Unterhaltungen auf einmal.",
+        "archiveAll": "Alle Chats archivieren",
+        "deleteAll": "Alle Chats löschen",
+        "archiveConfirmTitle": "Alle Chats archivieren?",
+        "archiveConfirmDescription": "Damit werden alle {count} deiner aktiven Chats archiviert. Du findest und stellst sie weiterhin im Bereich „Archiviert“ wieder her.",
+        "deleteConfirmTitle": "Alle Chats löschen?",
+        "deleteConfirmDescription": "Damit werden alle {count} deiner Chats, einschließlich der archivierten, in den Papierkorb verschoben.",
+        "deletePermanentMessage": "Chats werden in den Papierkorb verschoben. Du kannst sie während der Schonfrist der Org wiederherstellen; danach löscht die Aufbewahrungsrichtlinie sie und ihre Nachrichten endgültig.",
+        "archiveStarted": "{count} Chats werden archiviert",
+        "deleteStarted": "{count} Chats werden gelöscht",
+        "actionFailed": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
       }
     },
     "organization": {
@@ -4358,6 +4379,7 @@
         "knowledge": "Wissen",
         "webhook": "Webhook",
         "delegation": "Delegation",
+        "responseTuning": "Antwort-Feinabstimmung",
         "conversationStarters": "Gesprächseinstiege",
         "history": "Verlauf"
       },
@@ -4512,6 +4534,46 @@
         "uploadStarted": "Datei wird hochgeladen...",
         "fileTooLarge": "Datei zu groß",
         "removeFailed": "Datei konnte nicht entfernt werden"
+      },
+      "responseTuning": {
+        "title": "Antwort-Feinabstimmung",
+        "description": "Steuere, wie dieser Agent denkt und schreibt. Jede Option steht standardmäßig auf Automatisch — die Plattform wählt dann pro Nachricht die beste Einstellung. Wähle einen festen Wert, um sie zu überschreiben.",
+        "autoNote": "Der Auto-Router und der adaptive Reasoning-Governor stimmen jede Antwort automatisch ab — Sprache, Stil, Länge und Aufwand. Normalerweise musst du hier nichts ändern. Öffne die Überschreibungen unten nur, um für jede Nachricht dieses Agenten eine feste Einstellung zu erzwingen.",
+        "overridesSummary": "Manuelle Überschreibungen",
+        "adaptive": "Automatisch",
+        "effort": "Denkaufwand",
+        "effortHelp": "Wie gründlich das Modell nachdenkt. Automatisch skaliert den Aufwand pro Nachricht — mehr bei schweren, weniger bei einfachen Fragen. Ein fester Wert nutzt immer denselben Aufwand.",
+        "effortLow": "Niedrig",
+        "effortMedium": "Mittel",
+        "effortHigh": "Hoch",
+        "creativity": "Kreativität",
+        "creativityHelp": "Wie abwechslungsreich die Formulierung ist. Präzise liefert fokussierte, wiederholbare Antworten; Kreativ liefert vielfältigere. Automatisch entscheidet pro Nachricht.",
+        "creativityPrecise": "Präzise",
+        "creativityBalanced": "Ausgewogen",
+        "creativityCreative": "Kreativ",
+        "style": "Stil",
+        "styleHelp": "Gibt Antworten einen festen Ton. Automatisch fügt keinen hinzu.",
+        "styleConcise": "Prägnant",
+        "styleDetailed": "Ausführlich",
+        "styleFormal": "Formell",
+        "styleFriendly": "Freundlich",
+        "verbosity": "Antwortlänge",
+        "verbosityHelp": "Wie lang Antworten tendenziell sind, unabhängig vom Ton. Automatisch entscheidet pro Nachricht.",
+        "verbosityTerse": "Kurz",
+        "verbosityNormal": "Mittel",
+        "verbosityVerbose": "Lang",
+        "advancedTitle": "Erweitert",
+        "advancedHelp": "Diese überschreiben Automatisch nicht — sie setzen Grenzen, in denen es bleibt, und gelten nur für oben auf Automatisch belassene Einstellungen.",
+        "qualityProfile": "Qualität vs. Tempo",
+        "qualityProfileHelp": "Wie bereitwillig der Agent zusätzliches Nachdenken einsetzt, wenn eine Antwort schwach wirkt. Streng bevorzugt Qualität; Nachsichtig bevorzugt Tempo und Kosten.",
+        "qualityLenient": "Nachsichtig",
+        "qualityBalanced": "Ausgewogen",
+        "qualityStrict": "Streng",
+        "effortFloor": "Mindestaufwand",
+        "effortFloorHelp": "Niemals weniger nachdenken als dies, auch bei einfachen Nachrichten.",
+        "effortCeiling": "Maximalaufwand",
+        "effortCeilingHelp": "Niemals mehr nachdenken als dies — begrenzt die Kosten bei schweren Nachrichten.",
+        "boundNone": "Kein Limit"
       },
       "tools": {
         "webSearchMode": "Websuche",
@@ -4904,6 +4966,55 @@
     "providers": {
       "title": "Anbieter",
       "entityLabel": "Anbieter",
+      "modelCatalog": {
+        "title": "Modellkatalog",
+        "description": "Modell-Fähigkeiten (Preise, Kontextfenster, Reasoning, Tools, Vision) werden aus dem öffentlichen OpenRouter-Katalog aktuell gehalten und dienen als Standardwerte unter deiner Anbieter-Konfiguration. Aktualisiert sich täglich.",
+        "refresh": "Jetzt aktualisieren",
+        "synced": "{count} Modelle synchronisiert.",
+        "syncFailed": "Synchronisierung fehlgeschlagen: {error}",
+        "lastSynced": "Zuletzt synchronisiert {when} · {count} Modelle.",
+        "lastFailed": "Letzter Versuch fehlgeschlagen um {when}.",
+        "neverSynced": "Noch nicht synchronisiert — aktualisiert sich täglich automatisch.",
+        "autoSync": "Wöchentliche Auto-Synchronisierung der Anbieter-Konfiguration",
+        "autoSyncHelp": "Einmal pro Woche neu veröffentlichte Flaggschiff-Modellversionen und aktualisierte Fähigkeiten von OpenRouter in die Anbieter-Konfiguration dieser Organisation übernehmen und abgelöste Versionen ausblenden. Nur Felder, die du nicht angepasst hast, werden verändert.",
+        "autoSyncFailed": "Einstellung konnte nicht aktualisiert werden: {error}"
+      },
+      "modelCapabilities": {
+        "routingTitle": "Routing & Fähigkeiten",
+        "routingHelp": "Optionale Metadaten, die Modell-Routing, Reasoning und Prompt-Caching steuern. Alles, was du leer lässt, fällt zur Laufzeit auf den OpenRouter-Katalog zurück.",
+        "fillFromCatalog": "Aus Katalog befüllen",
+        "syncAll": "Aus Katalog synchronisieren",
+        "tier": "Stärke-Stufe",
+        "tierHelp": "Überschreibt die kostenbasierte Stufe, die das Komplexitäts-Routing verwendet.",
+        "tierAuto": "Automatisch (aus Kosten ableiten)",
+        "qualityScore": "Qualitäts-Score",
+        "contextWindow": "Kontextfenster (Tokens)",
+        "maxOutputTokens": "Max. Ausgabe-Tokens",
+        "reasoning": "Reasoning-Steuerung",
+        "reasoningHelp": "Wie dieses Modell zum Reasoning angewiesen wird. Lass es leer, damit der Katalog entscheidet.",
+        "notSet": "Nicht gesetzt",
+        "reasoningNone": "Keine (nicht steuern)",
+        "reasoningEffort": "Aufwand (reasoning_effort)",
+        "reasoningBudget": "Token-Budget (Thinking)",
+        "supportsMinimal": "Unterstützt die minimale Aufwandsstufe (gpt-5-Familie)",
+        "minBudgetTokens": "Min. Budget-Tokens",
+        "maxBudgetTokens": "Max. Budget-Tokens",
+        "optional": "optional",
+        "promptCaching": "Prompt-Caching",
+        "promptCachingHelp": "Wie ein stabiles Prompt-Präfix für günstigere Folge-Turns zwischengespeichert wird.",
+        "cachingNone": "Keins",
+        "cachingAuto": "Automatisch (serverseitig)",
+        "cachingExplicit": "Explizite Breakpoints",
+        "maxBreakpoints": "Max. Cache-Breakpoints",
+        "routingTags": "Bevorzugte Domänen",
+        "routingTagsHelp": "Routing für die ausgewählten Domänen zu diesem Modell hin verschieben.",
+        "noCatalogData": "Noch keine Katalogdaten für dieses Modell — aktualisiere den Modellkatalog.",
+        "filledFromCatalog": "Fähigkeitsfelder aus dem Katalog befüllt.",
+        "syncAllNoop": "Alle Modelle haben ihre Katalog-Fähigkeiten bereits gesetzt.",
+        "syncAllDone": "Katalog-Fähigkeiten für {count} Modelle befüllt."
+      },
+      "modelHidden": "In Modell-Auswahl ausgeblendet",
+      "modelHiddenHelp": "Blendet dieses Modell im Chat-Eingabefeld und in der Agenten-Modellauswahl aus. Agenten und Workflows, die es bereits referenzieren, können es weiterhin nutzen — praktisch für abgelöste oder veraltete Versionen.",
       "addProvider": "Anbieter hinzufügen",
       "editProvider": "Anbieter bearbeiten",
       "deleteProvider": "Anbieter löschen",
@@ -5014,6 +5125,7 @@
       "testRerun": "Erneut ausführen",
       "testLatency": "{latencyMs} ms",
       "testKeyFailed": "Verbindung fehlgeschlagen",
+      "testSystemError": "Der Verbindungstest konnte nicht ausgeführt werden. Überprüfe die Basis-URL und den API-Schlüssel des Anbieters und versuche es erneut.",
       "addKey": "API-Schlüssel hinzufügen",
       "apiKeyEnter": "API-Schlüssel eingeben",
       "searchProvider": "Anbieter suchen...",
@@ -5523,14 +5635,18 @@
       },
       "knowledge": {
         "title": "Wissensdatenbank (RAG)",
+        "description": "Die Postgres-Datenbank hinter Wissenssuche und -abruf. Standardmäßig die mit diesem Deployment gelieferte Datenbank.",
         "paradeDbNote": "Die externe Wissensdatenbank muss ParadeDB (pgvector + pg_search) verwenden, damit die volle Hybrid-Suche funktioniert; reines pgvector fällt auf reine Vektor-Suche zurück."
       },
       "storage": {
         "title": "Dateispeicher (hochgeladene Dokumente)",
+        "description": "Wo hochgeladene Dokumente und erzeugte Exporte gespeichert werden. Standardmäßig das lokale Convex-Volume.",
         "externalS3": "Externes S3",
         "region": "Region",
         "endpoint": "Endpunkt (MinIO/R2; leer für AWS)",
         "forcePathStyle": "Path-Style erzwingen (MinIO/R2)",
+        "bucketsLabel": "Buckets",
+        "credentialsLabel": "Zugangsdaten",
         "bucket": {
           "files": "Files-Bucket",
           "exports": "Exports-Bucket",
@@ -5549,7 +5665,7 @@
       },
       "appDb": {
         "summary": "Anwendungsdatenbank (erweitert)",
-        "title": "Convex-Metadaten-Datenbank",
+        "description": "Convex' interner Metadatenspeicher. Die meisten Deployments sollten hier die mitgelieferte Datenbank belassen.",
         "databaseNameNote": "Das Convex-Backend leitet seinen Datenbanknamen aus der Instanzkonfiguration ab, daher muss das externe Postgres diese Datenbank bereits enthalten. Das Feld „Datenbank“ oben wird nur für den Verbindungstest verwendet.",
         "sslModeNote": "Der TLS-Modus für diese Datenbank wird vom Convex-Treiber vorgegeben und kann hier nicht konfiguriert werden."
       },

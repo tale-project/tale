@@ -4,16 +4,17 @@
  * Decides, for a concrete model, *whether* it can be told how hard to reason
  * and *which* control surface it exposes. Resolution order:
  *
- *   1. operator config  (`modelData.reasoning`) — explicit, always wins
- *   2. built-in curated table (by model id) — makes the feature work
- *      out-of-the-box for the common reasoning families
- *   3. null — unknown model: emit nothing, never risk a provider rejecting a
- *      reasoning parameter it doesn't understand
+ *   1. `modelData.reasoning` — the resolved capability (operator provider JSON,
+ *      with the OpenRouter catalog cache layered under it in
+ *      `providers/file_actions.ts`). Explicit, always wins.
+ *   2. null — no declared capability: emit nothing, never risk a provider
+ *      rejecting a reasoning parameter it doesn't understand
  *
  * The knob distinguishes the two real-world shapes the openai-compatible
  * adapter can carry:
  *   - 'effort'       → body `reasoning_effort: 'minimal'|'low'|'medium'|'high'`
- *                      (OpenAI o-series / gpt-5; the SDK maps `reasoningEffort`)
+ *                      (OpenAI o-series / gpt-5 / gpt-oss / Grok / Gemini via
+ *                      OpenRouter; the SDK maps `reasoningEffort`)
  *   - 'budgetTokens' → body `thinking: { type:'enabled', budget_tokens }`
  *                      (Anthropic extended thinking; the model self-truncates)
  */
@@ -24,7 +25,7 @@ import type { ReasoningTier } from './types';
 /** Re-exported so call sites can import config + governor types from one place. */
 export type { ReasoningCapabilityConfig };
 
-export type ReasoningKnob = 'effort' | 'budgetTokens';
+type ReasoningKnob = 'effort' | 'budgetTokens';
 
 export interface ReasoningCapability {
   knob: ReasoningKnob;
@@ -46,16 +47,10 @@ export interface ReasoningCapability {
 }
 
 /** Shape this layer needs from a resolved model. */
-export interface ReasoningModelData {
+interface ReasoningModelData {
   modelId: string;
   /** Operator-declared capability (highest precedence). */
   reasoning?: ReasoningCapabilityConfig;
-}
-
-interface CuratedEntry {
-  test: RegExp;
-  /** `selfTruncates` is derived from the knob, so entries omit it. */
-  capability: Omit<ReasoningCapability, 'selfTruncates'>;
 }
 
 /** Budget-token (Anthropic-style) models self-truncate; effort tiers fill up. */
@@ -65,61 +60,30 @@ function withSelfTruncates(
   return { ...capability, selfTruncates: capability.knob === 'budgetTokens' };
 }
 
-/**
- * Curated families where a known knob actually controls reasoning. Kept
- * deliberately conservative: a model only belongs here if sending the mapped
- * parameter is known-safe. Anything else falls through to `null`.
- *
- * Matches the bare model id; provider prefixes (e.g. `openai/`, `anthropic/`
- * from OpenRouter-style ids) are stripped before matching.
- */
-const CURATED: CuratedEntry[] = [
-  // OpenAI reasoning models — `reasoning_effort`. gpt-5* adds the 'minimal' floor.
-  { test: /^gpt-5/, capability: { knob: 'effort', supportsMinimal: true } },
-  { test: /^o[1345](-|$|\b)/, capability: { knob: 'effort' } },
-  { test: /^o4-mini/, capability: { knob: 'effort' } },
-  // Anthropic extended-thinking models — `thinking.budget_tokens`.
-  {
-    test: /^claude-(3-7|sonnet-4|opus-4|haiku-4|3\.7|opus-4|sonnet-4)/,
-    capability: { knob: 'budgetTokens', minBudgetTokens: 1024 },
-  },
-  // Explicit opt-in suffix some gateways expose.
-  {
-    test: /(:thinking|-thinking)$/,
-    capability: { knob: 'budgetTokens', minBudgetTokens: 1024 },
-  },
-];
-
-function stripProviderPrefix(modelId: string): string {
-  // OpenRouter-style ids look like `anthropic/claude-sonnet-4`; the family
-  // signal is the segment after the last slash.
-  const slash = modelId.lastIndexOf('/');
-  const bare = slash >= 0 ? modelId.slice(slash + 1) : modelId;
-  return bare.toLowerCase();
+function fromConfig(
+  cfg: ReasoningCapabilityConfig,
+): ReasoningCapability | null {
+  if (cfg.knob === 'none') return null;
+  return withSelfTruncates({
+    knob: cfg.knob,
+    supportsMinimal: cfg.supportsMinimal,
+    minBudgetTokens: cfg.minBudgetTokens,
+    maxBudgetTokens: cfg.maxBudgetTokens,
+  });
 }
 
 /**
  * Resolve the reasoning capability for a model, or `null` when reasoning
- * should not be steered (unknown model, or operator-disabled via `'none'`).
+ * should not be steered (no declared capability, or operator-disabled via
+ * `'none'`). The capability arrives already resolved on `modelData.reasoning`
+ * (operator provider JSON, catalog cache layered under it); there is no
+ * built-in family fallback here any more.
  */
 export function resolveReasoningCapability(
   modelData: ReasoningModelData,
 ): ReasoningCapability | null {
   const cfg = modelData.reasoning;
-  if (cfg) {
-    if (cfg.knob === 'none') return null;
-    return withSelfTruncates({
-      knob: cfg.knob,
-      supportsMinimal: cfg.supportsMinimal,
-      minBudgetTokens: cfg.minBudgetTokens,
-      maxBudgetTokens: cfg.maxBudgetTokens,
-    });
-  }
-
-  const bare = stripProviderPrefix(modelData.modelId);
-  for (const entry of CURATED) {
-    if (entry.test.test(bare)) return withSelfTruncates(entry.capability);
-  }
+  if (cfg) return fromConfig(cfg);
   return null;
 }
 

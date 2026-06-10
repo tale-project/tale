@@ -22,6 +22,7 @@ export const TOOL_NAMES = [
   'web',
   'pdf',
   'image',
+  'generate_image',
   'docx',
   'text',
   'workflow_read',

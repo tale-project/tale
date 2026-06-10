@@ -202,56 +202,60 @@ export function SharedChatView({
           </SkeletonBox>
         </div>
 
-        <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth">
-          <div className="flex flex-col overflow-y-visible p-4 sm:p-6">
-            <div
-              className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-3 pt-6"
-              role="log"
-              aria-live="polite"
-              aria-labelledby={messageHistoryLabelId}
-            >
-              <h2 id={messageHistoryLabelId} className="sr-only">
-                {t('aria.messageHistory')}
-              </h2>
-              {sharedThread
-                ? sharedThread.messages.map(
-                    (message: {
-                      _id: string;
-                      role: 'user' | 'assistant';
-                      content: string;
-                      _creationTime: number;
-                    }) => (
-                      <MessageBubble
-                        key={message._id}
-                        message={{
-                          id: message._id,
-                          role: message.role,
-                          content: message.content,
-                          timestamp: new Date(message._creationTime),
-                        }}
-                        hideFeedback
-                      />
-                    ),
-                  )
-                : PLACEHOLDER_SHARED_ROWS.map((row, i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        'flex flex-col gap-2',
-                        row.align === 'end' ? 'items-end' : 'items-start',
-                      )}
-                    >
-                      {row.widths.map((w, j) => (
-                        <SkeletonBox key={j} fullWidth>
-                          <div className={cn('h-4', w)} />
-                        </SkeletonBox>
-                      ))}
-                    </div>
-                  ))}
+        {/* The input footer is a flex SIBLING of the scroller — never inside
+            the scroll container — so it cannot move with content. */}
+        <div className="flex h-full min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth">
+            <div className="flex flex-col overflow-y-visible p-4 sm:p-6">
+              <div
+                className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-3 pt-6"
+                role="log"
+                aria-live="polite"
+                aria-labelledby={messageHistoryLabelId}
+              >
+                <h2 id={messageHistoryLabelId} className="sr-only">
+                  {t('aria.messageHistory')}
+                </h2>
+                {sharedThread
+                  ? sharedThread.messages.map(
+                      (message: {
+                        _id: string;
+                        role: 'user' | 'assistant';
+                        content: string;
+                        _creationTime: number;
+                      }) => (
+                        <MessageBubble
+                          key={message._id}
+                          message={{
+                            id: message._id,
+                            role: message.role,
+                            content: message.content,
+                            timestamp: new Date(message._creationTime),
+                          }}
+                          hideFeedback
+                        />
+                      ),
+                    )
+                  : PLACEHOLDER_SHARED_ROWS.map((row, i) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          'flex flex-col gap-2',
+                          row.align === 'end' ? 'items-end' : 'items-start',
+                        )}
+                      >
+                        {row.widths.map((w, j) => (
+                          <SkeletonBox key={j} fullWidth>
+                            <div className={cn('h-4', w)} />
+                          </SkeletonBox>
+                        ))}
+                      </div>
+                    ))}
+              </div>
             </div>
           </div>
 
-          <PanelFooter className="mt-auto">
+          <PanelFooter>
             <FileUpload.Root>
               <ChatInput
                 className="mx-auto w-full max-w-(--chat-max-width)"

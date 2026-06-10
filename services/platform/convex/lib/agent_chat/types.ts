@@ -5,6 +5,10 @@
  * enabling lib/ to be completely decoupled from agents/.
  */
 
+import type {
+  AgentRoutingConfig,
+  ResponseTuningConfig,
+} from '../../../lib/shared/schemas/agents';
 import type { ToolName } from '../../agent_tools/tool_registry';
 import type { AgentType } from '../context_management/constants';
 
@@ -70,6 +74,26 @@ export interface SerializableAgentConfig {
   outputReserve?: number;
   /** Ordered fallback model IDs (tried in sequence when primary fails) */
   fallbackModels?: string[];
+  /**
+   * Per-agent response tuning (effort/creativity/style + governor bounds).
+   * Consumed by `buildReasoningOptions` and the style/verbosity prompt
+   * fragments. Mirrors `responseTuningSchema` in
+   * `lib/shared/schemas/agents.ts`.
+   */
+  responseTuning?: ResponseTuningConfig;
+  /**
+   * Advisory reply-language hint set by the Auto router for this turn (BCP-47
+   * code or language name). Feeds ONLY the response-language directive's
+   * fallback (rule 3) for ambiguous input — the directive's explicit-request
+   * (rule 1) and message-language (rule 2) rules still take precedence.
+   * Unset for pinned agents and ambiguous messages.
+   */
+  replyLocaleHint?: string;
+  /**
+   * Per-agent routing / cascade behaviour. Mirrors `agentRoutingSchema`.
+   * Consumed by the model-tier router and the speculative cascade.
+   */
+  routing?: AgentRoutingConfig;
 }
 
 /**
@@ -107,10 +131,6 @@ export interface AgentRuntimeConfig {
 }
 
 /**
- * Arguments for runAgentGeneration action.
- * These are the serialized arguments passed through scheduler.
- */
-/**
  * Optional LLM generation parameters (temperature, etc.).
  * Only set fields that are explicitly provided; omit to use model defaults.
  */
@@ -121,18 +141,6 @@ export interface GenerationParams {
   frequencyPenalty?: number;
   presencePenalty?: number;
   stopSequences?: string[];
-}
-
-/**
- * Per-turn override of the Adaptive Reasoning Governor, sourced from the
- * composer "response tuning" profiles. Each field is independent and
- * `undefined` means "adaptive" (leave that lever to the governor).
- */
-export interface ReasoningOverride {
-  /** Forced reasoning tier — skips the adaptive tier selection. */
-  effort?: 'low' | 'medium' | 'high';
-  /** Forced creativity score in [0, 1] — overrides the difficulty-scaled value. */
-  creativity?: number;
 }
 
 export interface RunAgentGenerationArgs {
@@ -164,8 +172,6 @@ export interface RunAgentGenerationArgs {
   generationParams?: GenerationParams;
   /** Governance-enforced max context tokens (overrides agent config) */
   maxContextTokens?: number;
-  /** Composer-sourced override of the reasoning governor (effort/creativity). */
-  reasoningOverride?: ReasoningOverride;
 }
 
 /**

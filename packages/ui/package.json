@@ -105,6 +105,7 @@
     "./markdown/components/mermaid": "./src/markdown/components/mermaid.tsx",
     "./markdown/components/registry": "./src/markdown/components/registry.tsx",
     "./markdown/streaming/incremental-markdown": "./src/markdown/streaming/incremental-markdown.tsx",
+    "./markdown/streaming/clause-boundaries": "./src/markdown/streaming/clause-boundaries.ts",
     "./markdown/streaming/remend-markdown": "./src/markdown/streaming/remend-markdown.ts",
     "./markdown/streaming/normalize-html-blocks": "./src/markdown/streaming/normalize-html-blocks.ts",
     "./markdown/streaming/find-block-split": "./src/markdown/streaming/find-block-split.ts",

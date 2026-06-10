@@ -1,39 +1,18 @@
 import { v } from 'convex/values';
 
 import { internalMutation, internalQuery } from '../_generated/server';
+import { buildExternalOwnerId } from './external_identities_helpers';
 
-const EXTERNAL_OWNER_SEPARATOR = ':';
-
-/**
- * Build a namespaced, org-scoped thread-owner id for an external author, e.g.
- * `buildExternalOwnerId('slack', 'U07ABC123', 'org_42') === 'slack:org_42:U07ABC123'`.
- *
- * The organization is part of the key on purpose: the same Slack user id can
- * appear in two workspaces connected to two different orgs (Enterprise Grid /
- * shared members). Scoping the owner id per org keeps each org's identity row
- * and display name isolated, so one org's name can never bleed into another's
- * prompts or member lists.
- */
-export function buildExternalOwnerId(
-  source: string,
-  externalUserId: string,
-  organizationId: string,
-): string {
-  return [source, organizationId, externalUserId].join(
-    EXTERNAL_OWNER_SEPARATOR,
-  );
-}
-
-/**
- * True when a thread-owner `userId` is NOT a Better Auth user id and therefore
- * must not be passed to the Better Auth adapter (its `_id` lookups route
- * through `ctx.db.get`, which throws on non-Convex-id strings). Covers the
- * `'system'` sentinel and namespaced external owners like `slack:org_42:U123`.
- * Real Better Auth ids never contain the separator.
- */
-export function isExternalOwnerId(userId: string): boolean {
-  return userId === 'system' || userId.includes(EXTERNAL_OWNER_SEPARATOR);
-}
+// The pure owner-id helpers now live in `external_identities_helpers.ts` (a
+// function-free module) so client code can import them WITHOUT dragging these
+// `internalMutation`/`internalQuery` definitions into the browser bundle (a
+// convex function builder runs `assertNotBrowser()` at module-init). They are
+// re-exported here so existing server importers and the test suite keep
+// resolving them from this module unchanged.
+export {
+  buildExternalOwnerId,
+  isExternalOwnerId,
+} from './external_identities_helpers';
 
 /**
  * Upsert an external author identity, keyed by the org-scoped owner id.

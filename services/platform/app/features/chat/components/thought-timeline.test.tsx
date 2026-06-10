@@ -14,6 +14,7 @@ vi.mock('@/lib/i18n/client', () => ({
         `${p(k)} ${n(k) === 1 ? one : other}`;
       const map: Record<string, string> = {
         'thoughtProcess.thinking': 'Thinking',
+        'thoughtProcess.routingPhase': 'Routing',
         'thoughtProcess.seconds': `${p('seconds')}s`,
         'thoughtProcess.durationLabel': `Thought for ${p('seconds')}s`,
         'thoughtProcess.toolsCount': plural('count', 'tool', 'tools'),
@@ -25,6 +26,8 @@ vi.mock('@/lib/i18n/client', () => ({
         'thinking.searchingKnowledgeBase': `Searching knowledge base for "${p('query')}"`,
         'tools.web': 'Web',
         'tools.ragSearch': 'Knowledge Base Search',
+        'routing.routedTo': `Routed to ${p('agent')}`,
+        'routing.reason.classified': 'Best match for this request',
       };
       return map[key] ?? key;
     },
@@ -92,7 +95,7 @@ describe('ThoughtTimeline', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('shows a live "Thinking" header (collapsed by default) while streaming', () => {
+  it('shows a live "Thinking" header (collapsed) while streaming', async () => {
     render(
       <ThoughtTimeline
         parts={[
@@ -106,18 +109,84 @@ describe('ThoughtTimeline', () => {
     );
 
     const toggle = screen.getByRole('button');
+    // Collapsed by default — the user opens it to watch the live progress.
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     // Live header leads with "Thinking" and surfaces the in-flight tool count.
     expect(toggle).toHaveTextContent(/Thinking/);
     expect(toggle).toHaveTextContent(/1 tool/);
-    // Steps stay hidden until the user expands — no mid-stream layout growth.
-    expect(screen.queryByText('let me look this up')).not.toBeInTheDocument();
+    // Steps are hidden until the user expands.
     expect(
       screen.queryByText('Searching knowledge base for "pricing"'),
     ).not.toBeInTheDocument();
+    await clickToggle();
+    expect(
+      screen.getByText('Searching knowledge base for "pricing"'),
+    ).toBeInTheDocument();
   });
 
-  it('expands to reveal the live steps on click while streaming', async () => {
+  it('reveals the optimistic synthetic pending row when expanded', async () => {
+    // The gap affordance: no message/parts yet, streaming, optimistic.
+    render(
+      <ThoughtTimeline
+        parts={undefined}
+        isStreaming
+        optimistic
+        phase="routing"
+      />,
+    );
+    const toggle = screen.getByRole('button');
+    // Collapsed by default; the header is the generic "Thinking" status+timer.
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveTextContent(/Thinking/);
+    // The synthetic "Routing" pending row is revealed on expand.
+    expect(screen.queryByText('Routing')).not.toBeInTheDocument();
+    await clickToggle();
+    expect(screen.getByText('Routing')).toBeInTheDocument();
+  });
+
+  it('shows no synthetic routing row in the thinking phase (pinned agent)', () => {
+    // A pinned-agent / resume shell: optimistic but phase 'thinking' — the header
+    // timer is enough, so there is no synthetic row and nothing to expand into.
+    render(
+      <ThoughtTimeline
+        parts={undefined}
+        isStreaming
+        optimistic
+        phase="thinking"
+      />,
+    );
+    expect(screen.queryByText('Routing')).not.toBeInTheDocument();
+    // Nothing to reveal in this phase → no expand affordance at all (the
+    // chevron is hidden and the header isn't a toggle, so aria-expanded is
+    // omitted rather than set to a misleading "false").
+    expect(screen.getByRole('button')).not.toHaveAttribute('aria-expanded');
+  });
+
+  it('renders nothing when NOT optimistic and there are zero steps', () => {
+    const { container } = render(
+      <ThoughtTimeline parts={undefined} isStreaming={false} />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('shows the resolved route step in the optimistic shell once it lands', async () => {
+    render(
+      <ThoughtTimeline
+        parts={undefined}
+        isStreaming
+        optimistic
+        phase="routing"
+        routedAgentName="Researcher"
+        routeReason="classified"
+      />,
+    );
+    // The synthetic pending row is replaced by the concrete routed-to step,
+    // revealed when the (collapsed-by-default) timeline is expanded.
+    await clickToggle();
+    expect(screen.getByText('Routed to Researcher')).toBeInTheDocument();
+  });
+
+  it('reveals the live steps when the user expands', async () => {
     render(
       <ThoughtTimeline
         parts={[
@@ -129,8 +198,11 @@ describe('ThoughtTimeline', () => {
         isStreaming
       />,
     );
+    // Collapsed by default: steps hidden until the user opens the timeline.
+    expect(
+      screen.queryByText('Searching knowledge base for "pricing"'),
+    ).not.toBeInTheDocument();
     await clickToggle();
-    expect(screen.getByText('let me look this up')).toBeInTheDocument();
     expect(
       screen.getByText('Searching knowledge base for "pricing"'),
     ).toBeInTheDocument();
@@ -166,6 +238,33 @@ describe('ThoughtTimeline', () => {
       screen.getByRole('button', { name: /Thought for 4s/ }),
     ).toBeInTheDocument();
     expect(screen.queryByText('my reasoning')).not.toBeInTheDocument();
+  });
+
+  it('leads the collapsed header with the routed agent for an Auto-routed turn', () => {
+    render(
+      <ThoughtTimeline
+        parts={[reasoning('my reasoning'), tool('web', 'output-available')]}
+        isStreaming={false}
+        durationMs={2000}
+        routedAgentName="Translator"
+        routeReason="classified"
+      />,
+    );
+    // Visible WITHOUT expanding the timeline — the routing decision is never hidden.
+    expect(
+      screen.getByRole('button', { name: /Routed to Translator/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('omits the routed-agent header when the agent was pinned (no routeReason)', () => {
+    render(
+      <ThoughtTimeline
+        parts={[reasoning('my reasoning')]}
+        isStreaming={false}
+        durationMs={2000}
+      />,
+    );
+    expect(screen.queryByText(/Routed to/)).not.toBeInTheDocument();
   });
 
   it('expands the finished summary on click', async () => {
@@ -276,14 +375,17 @@ describe('ThoughtTimeline', () => {
     ).toBeInTheDocument();
   });
 
-  it('keeps the same DOM node as reasoning text grows (no remount)', async () => {
+  it('keeps the same step node as reasoning text grows (no remount)', async () => {
     const { rerender, container } = render(
       <ThoughtTimeline parts={[reasoning('abc', 'streaming')]} isStreaming />,
     );
-    // Expand so the reasoning <p> is mounted, then grow the text.
+    // Expand to mount the step list (collapsed by default), then grow the
+    // reasoning text and assert the step <li> mutates in place rather than
+    // remounting — it is keyed by a stable step id, which is the fix for the
+    // old ThinkingAnimation's jumping.
     await clickToggle();
-    const before = container.querySelector('p');
-    expect(before).toHaveTextContent('abc');
+    const before = container.querySelector('ul li');
+    expect(before).not.toBeNull();
 
     rerender(
       <ThoughtTimeline
@@ -291,10 +393,9 @@ describe('ThoughtTimeline', () => {
         isStreaming
       />,
     );
-    const after = container.querySelector('p');
-    expect(after).toHaveTextContent('abcdef');
-    // Same element instance — text mutated in place, not remounted.
-    expect(before).toBe(after);
+    const after = container.querySelector('ul li');
+    // Same element instance — the node persisted across the text growth.
+    expect(after).toBe(before);
   });
 
   it('passes an accessibility audit while streaming and when collapsed', async () => {

@@ -1,10 +1,9 @@
 'use node';
 
 /**
- * Load Delegate Agent Configurations
- *
- * Reads delegate agent JSON files from the filesystem
- * and converts them to DelegateAgentMeta for tool creation.
+ * Reads delegate agent JSON files from the filesystem and converts them to
+ * `DelegateAgentMeta`. A single bad/missing delegate is skipped rather than
+ * failing the whole load, so the rest of the delegation tools stay available.
  */
 
 import { readFile, stat } from 'node:fs/promises';
@@ -34,7 +33,12 @@ export async function loadDelegateAgents(
     try {
       const filePath = resolveAgentFilePath(orgSlug, name);
       const fileStat = await stat(filePath);
-      if (fileStat.size > MAX_FILE_SIZE_BYTES) continue;
+      if (fileStat.size > MAX_FILE_SIZE_BYTES) {
+        console.warn(
+          `Delegate agent "${name}" skipped: file exceeds ${MAX_FILE_SIZE_BYTES} bytes.`,
+        );
+        continue;
+      }
 
       const content = await readFile(filePath, 'utf-8');
       const config = parseAgentJson(content);
@@ -52,15 +56,30 @@ export async function loadDelegateAgents(
         displayName: resolved.displayName,
         description: resolved.description ?? '',
         agentConfig,
-        model: agentConfig.model ?? '',
+        // `toSerializableConfig` guarantees a non-empty model (supportedModels[0]);
+        // its `fallbackModels` (supportedModels[1:]) ride along on `agentConfig`
+        // and drive the SAME primary→fallback failover a top-level agent gets
+        // (internal_actions builds modelsToTry from agentConfig.fallbackModels).
+        // The old `?? ''` could pass an empty model id — drop it.
+        model: agentConfig.model ?? config.supportedModels[0],
         provider: agentConfig.provider,
         roleRestriction: config.roleRestriction,
       });
     } catch (err) {
-      console.warn(
-        `Delegate agent "${name}" unavailable, skipping.`,
-        err instanceof Error ? err.message : err,
-      );
+      // ENOENT = the delegate file was removed (expected; quiet). Anything else
+      // (parse / validation error) is a config bug the operator must see.
+      const code =
+        err != null && typeof err === 'object'
+          ? Reflect.get(err, 'code')
+          : undefined;
+      if (code === 'ENOENT') {
+        console.warn(`Delegate agent "${name}" not found; skipping.`);
+      } else {
+        console.error(
+          `Delegate agent "${name}" is misconfigured; skipping. Fix its JSON so the delegation tool is available.`,
+          err instanceof Error ? err.message : err,
+        );
+      }
     }
   }
 

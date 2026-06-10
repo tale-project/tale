@@ -108,7 +108,10 @@ function createMockCtx(
       return Promise.resolve({ userId: 'user_1' });
     }),
     scheduler: {
-      runAfter: vi.fn(),
+      // Real Convex `scheduler.runAfter` returns a Promise<Id>; mirror that so
+      // fire-and-forget callers (e.g. the thread-title schedule) can chain
+      // `.catch(...)` without tripping on an undefined return.
+      runAfter: vi.fn().mockResolvedValue('scheduled-fn-id'),
     },
     storage: {
       getUrl: vi.fn(),

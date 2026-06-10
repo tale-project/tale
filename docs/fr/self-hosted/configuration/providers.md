@@ -33,6 +33,12 @@ La référence est le format de fichier sur disque et l'ordre des opérations à
 
 L'ensemble complet des champs vit dans [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers) — `openai.json`, `openrouter.json` et `vercel-gateway.json` couvrent les trois formes dont tu auras probablement besoin.
 
+### Capacités des modèles et synchronisation auto
+
+Chaque modèle peut déclarer des métadonnées optionnelles utilisées par le routage par complexité et l'Adaptive Reasoning Governor : `contextWindow`, `maxOutputTokens`, `qualityScore` (0–1), `tier` (`draft`/`standard`/`frontier`), `routingTags` (domaines préférés), `reasoning` (le bouton de pilotage — `effort` ou `budgetTokens`) et `promptCaching` (`auto-server` ou `explicit-breakpoints`). Tout ce que tu omets est rempli depuis le catalogue OpenRouter à l'exécution ; tout ce que tu définis l'emporte. Mets `"hidden": true` pour retirer un modèle des sélecteurs (composeur de chat, création d'agent) tout en le gardant résoluble pour les agents qui le référencent déjà — la façon de retirer une version remplacée sans casser les workflows existants.
+
+Ces champs restent aussi à jour tout seuls : une fois par semaine, Tale fusionne les nouvelles données OpenRouter dans la config fournisseur de chaque organisation — ajoutant les nouvelles versions phares, masquant celles remplacées et actualisant les valeurs de capacités — en ne touchant que les champs que tu n'as pas personnalisés. Désactive-le par organisation avec l'interrupteur **Synchronisation auto hebdomadaire** sur la carte du catalogue de modèles dans **Paramètres > Fournisseurs**.
+
 ## Le fichier de secrets
 
 `providers/<name>.secrets.json` est un objet JSON plat avec la clé API sous le nom de champ que le fournisseur attend :

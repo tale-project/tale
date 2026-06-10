@@ -66,7 +66,7 @@ const listVariants = cva(
 );
 
 const triggerVariants = cva(
-  'focus-visible:ring-ring inline-flex items-center justify-center text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
+  'focus-visible:ring-ring inline-flex items-center justify-center text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       variant: {

@@ -102,6 +102,7 @@ import { Route as DashboardIdAutomationsAmIdConfigurationRouteImport } from './r
 import { Route as DashboardIdAgentsAgentIdWebhookRouteImport } from './routes/dashboard/$id/agents/$agentId/webhook';
 import { Route as DashboardIdAgentsAgentIdToolsRouteImport } from './routes/dashboard/$id/agents/$agentId/tools';
 import { Route as DashboardIdAgentsAgentIdSkillsRouteImport } from './routes/dashboard/$id/agents/$agentId/skills';
+import { Route as DashboardIdAgentsAgentIdResponseTuningRouteImport } from './routes/dashboard/$id/agents/$agentId/response-tuning';
 import { Route as DashboardIdAgentsAgentIdKnowledgeRouteImport } from './routes/dashboard/$id/agents/$agentId/knowledge';
 import { Route as DashboardIdAgentsAgentIdInstructionsRouteImport } from './routes/dashboard/$id/agents/$agentId/instructions';
 import { Route as DashboardIdAgentsAgentIdDelegationRouteImport } from './routes/dashboard/$id/agents/$agentId/delegation';
@@ -638,6 +639,12 @@ const DashboardIdAgentsAgentIdSkillsRoute =
     path: '/skills',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
   } as any);
+const DashboardIdAgentsAgentIdResponseTuningRoute =
+  DashboardIdAgentsAgentIdResponseTuningRouteImport.update({
+    id: '/response-tuning',
+    path: '/response-tuning',
+    getParentRoute: () => DashboardIdAgentsAgentIdRoute,
+  } as any);
 const DashboardIdAgentsAgentIdKnowledgeRoute =
   DashboardIdAgentsAgentIdKnowledgeRouteImport.update({
     id: '/knowledge',
@@ -739,6 +746,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
   '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
+  '/dashboard/$id/agents/$agentId/response-tuning': typeof DashboardIdAgentsAgentIdResponseTuningRoute;
   '/dashboard/$id/agents/$agentId/skills': typeof DashboardIdAgentsAgentIdSkillsRoute;
   '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute;
   '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute;
@@ -826,6 +834,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
   '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
+  '/dashboard/$id/agents/$agentId/response-tuning': typeof DashboardIdAgentsAgentIdResponseTuningRoute;
   '/dashboard/$id/agents/$agentId/skills': typeof DashboardIdAgentsAgentIdSkillsRoute;
   '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute;
   '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute;
@@ -928,6 +937,7 @@ export interface FileRoutesById {
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
   '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
+  '/dashboard/$id/agents/$agentId/response-tuning': typeof DashboardIdAgentsAgentIdResponseTuningRoute;
   '/dashboard/$id/agents/$agentId/skills': typeof DashboardIdAgentsAgentIdSkillsRoute;
   '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute;
   '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute;
@@ -1029,6 +1039,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId/delegation'
     | '/dashboard/$id/agents/$agentId/instructions'
     | '/dashboard/$id/agents/$agentId/knowledge'
+    | '/dashboard/$id/agents/$agentId/response-tuning'
     | '/dashboard/$id/agents/$agentId/skills'
     | '/dashboard/$id/agents/$agentId/tools'
     | '/dashboard/$id/agents/$agentId/webhook'
@@ -1116,6 +1127,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId/delegation'
     | '/dashboard/$id/agents/$agentId/instructions'
     | '/dashboard/$id/agents/$agentId/knowledge'
+    | '/dashboard/$id/agents/$agentId/response-tuning'
     | '/dashboard/$id/agents/$agentId/skills'
     | '/dashboard/$id/agents/$agentId/tools'
     | '/dashboard/$id/agents/$agentId/webhook'
@@ -1217,6 +1229,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId/delegation'
     | '/dashboard/$id/agents/$agentId/instructions'
     | '/dashboard/$id/agents/$agentId/knowledge'
+    | '/dashboard/$id/agents/$agentId/response-tuning'
     | '/dashboard/$id/agents/$agentId/skills'
     | '/dashboard/$id/agents/$agentId/tools'
     | '/dashboard/$id/agents/$agentId/webhook'
@@ -1917,6 +1930,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAgentsAgentIdSkillsRouteImport;
       parentRoute: typeof DashboardIdAgentsAgentIdRoute;
     };
+    '/dashboard/$id/agents/$agentId/response-tuning': {
+      id: '/dashboard/$id/agents/$agentId/response-tuning';
+      path: '/response-tuning';
+      fullPath: '/dashboard/$id/agents/$agentId/response-tuning';
+      preLoaderRoute: typeof DashboardIdAgentsAgentIdResponseTuningRouteImport;
+      parentRoute: typeof DashboardIdAgentsAgentIdRoute;
+    };
     '/dashboard/$id/agents/$agentId/knowledge': {
       id: '/dashboard/$id/agents/$agentId/knowledge';
       path: '/knowledge';
@@ -2000,6 +2020,7 @@ interface DashboardIdAgentsAgentIdRouteChildren {
   DashboardIdAgentsAgentIdDelegationRoute: typeof DashboardIdAgentsAgentIdDelegationRoute;
   DashboardIdAgentsAgentIdInstructionsRoute: typeof DashboardIdAgentsAgentIdInstructionsRoute;
   DashboardIdAgentsAgentIdKnowledgeRoute: typeof DashboardIdAgentsAgentIdKnowledgeRoute;
+  DashboardIdAgentsAgentIdResponseTuningRoute: typeof DashboardIdAgentsAgentIdResponseTuningRoute;
   DashboardIdAgentsAgentIdSkillsRoute: typeof DashboardIdAgentsAgentIdSkillsRoute;
   DashboardIdAgentsAgentIdToolsRoute: typeof DashboardIdAgentsAgentIdToolsRoute;
   DashboardIdAgentsAgentIdWebhookRoute: typeof DashboardIdAgentsAgentIdWebhookRoute;
@@ -2016,6 +2037,8 @@ const DashboardIdAgentsAgentIdRouteChildren: DashboardIdAgentsAgentIdRouteChildr
       DashboardIdAgentsAgentIdInstructionsRoute,
     DashboardIdAgentsAgentIdKnowledgeRoute:
       DashboardIdAgentsAgentIdKnowledgeRoute,
+    DashboardIdAgentsAgentIdResponseTuningRoute:
+      DashboardIdAgentsAgentIdResponseTuningRoute,
     DashboardIdAgentsAgentIdSkillsRoute: DashboardIdAgentsAgentIdSkillsRoute,
     DashboardIdAgentsAgentIdToolsRoute: DashboardIdAgentsAgentIdToolsRoute,
     DashboardIdAgentsAgentIdWebhookRoute: DashboardIdAgentsAgentIdWebhookRoute,

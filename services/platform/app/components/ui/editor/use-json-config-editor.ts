@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { changedKeys, structuralEqual } from '@/lib/utils/structural-equal';
+
 import type { EditorController } from './types';
 import { useRegisterDirtySource } from './use-dirty-source';
 
@@ -20,7 +22,7 @@ interface UseJsonConfigEditorArgs<T> {
    * `normalizeAgentConfig` in the agent flow.
    */
   normalize?: (config: T) => T;
-  /** Structural compare. Defaults to JSON.stringify. */
+  /** Structural compare. Defaults to {@link structuralEqual}. */
   equals?: (a: T, b: T) => boolean;
   /**
    * Best-effort history snapshot. Runs **after** the save succeeds with the
@@ -38,9 +40,6 @@ interface JsonConfigEditor<T> extends EditorController {
   markSaved: (persisted: T) => void;
 }
 
-const defaultEquals = <T>(a: T, b: T) =>
-  JSON.stringify(a) === JSON.stringify(b);
-
 /**
  * Imperative editor for nested JSON configs that don't fit react-hook-form
  * cleanly (agent tools, workflow steps, provider options). Wraps the
@@ -51,7 +50,7 @@ export function useJsonConfigEditor<T>({
   initial,
   save,
   normalize,
-  equals = defaultEquals,
+  equals = structuralEqual,
   snapshotPriorBaseline,
 }: UseJsonConfigEditorArgs<T>): JsonConfigEditor<T> {
   const [config, setConfig] = useState(initial);
@@ -64,21 +63,34 @@ export function useJsonConfigEditor<T>({
   configRef.current = config;
   const isSavingRef = useRef(isSaving);
   isSavingRef.current = isSaving;
+  // Latest closures behind stable refs so `save` keeps a stable identity for
+  // the active-editor registry (see the same pattern in `useFormEditor`).
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const normalizeRef = useRef(normalize);
+  normalizeRef.current = normalize;
+  const snapshotRef = useRef(snapshotPriorBaseline);
+  snapshotRef.current = snapshotPriorBaseline;
 
   // Sync external updates: when the parent re-fetches and the user has no
   // unsaved edits, silently advance both working copy and baseline. When
   // dirty, leave the working copy alone — clobbering live edits is the
-  // exact data-loss path we're fixing.
+  // exact data-loss path we're fixing. The `equals(saved, initial)` guard
+  // makes a parent that rebuilds `initial` by reference each render (same
+  // content) a no-op instead of an infinite `setConfig → re-render → effect`
+  // loop.
   useEffect(() => {
     if (initial === undefined) return;
     const hasUnsavedEdits =
       configRef.current !== undefined &&
       savedRef.current !== undefined &&
       !equals(configRef.current, savedRef.current);
-    if (!hasUnsavedEdits) {
-      setConfig(initial);
-      setSavedConfig(initial);
+    if (hasUnsavedEdits) return;
+    if (savedRef.current !== undefined && equals(savedRef.current, initial)) {
+      return;
     }
+    setConfig(initial);
+    setSavedConfig(initial);
   }, [initial, equals]);
 
   const isDirty = useMemo(() => {
@@ -98,18 +110,11 @@ export function useJsonConfigEditor<T>({
     ) {
       return new Set<string>(['root']);
     }
-    const keys = new Set<string>();
     // oxlint-disable typescript/no-unsafe-type-assertion -- record reflection
     const cfgRec = config as unknown as Record<string, unknown>;
     const savedRec = savedConfig as unknown as Record<string, unknown>;
     // oxlint-enable typescript/no-unsafe-type-assertion
-    const allKeys = new Set([...Object.keys(cfgRec), ...Object.keys(savedRec)]);
-    for (const k of allKeys) {
-      if (JSON.stringify(cfgRec[k]) !== JSON.stringify(savedRec[k])) {
-        keys.add(k);
-      }
-    }
-    return keys;
+    return changedKeys(cfgRec, savedRec);
   }, [config, savedConfig, isDirty]);
 
   useRegisterDirtySource(isDirty);
@@ -143,14 +148,16 @@ export function useJsonConfigEditor<T>({
     setIsSaving(true);
     const priorBaseline = savedRef.current;
     try {
-      const result = await save(configRef.current);
-      const next = normalize
-        ? normalize(result ?? configRef.current)
+      const result = await saveRef.current(configRef.current);
+      const normalizeFn = normalizeRef.current;
+      const next = normalizeFn
+        ? normalizeFn(result ?? configRef.current)
         : (result ?? configRef.current);
       setConfig(next);
       setSavedConfig(next);
-      if (snapshotPriorBaseline && priorBaseline !== undefined) {
-        snapshotPriorBaseline(priorBaseline).catch((err) => {
+      const snapshotFn = snapshotRef.current;
+      if (snapshotFn && priorBaseline !== undefined) {
+        snapshotFn(priorBaseline).catch((err) => {
           // History snapshots are best-effort; log but don't fail save.
           console.warn('[editor] history snapshot failed', err);
         });
@@ -159,7 +166,7 @@ export function useJsonConfigEditor<T>({
       setIsSaving(false);
       inFlightRef.current = false;
     }
-  }, [save, normalize, snapshotPriorBaseline]);
+  }, []);
 
   return {
     config,

@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
+import { useActiveOrganizationId } from '@/app/lib/active-organization';
 import { hexToHsl, isLightColor } from '@/lib/utils/color';
 
 interface BrandingState {
@@ -47,7 +48,11 @@ const DEFAULT_TITLE_SUFFIX = 'Tale';
 const CSS_OVERRIDES = ['primary', 'primary-foreground'] as const;
 
 export function BrandingProvider({ children }: BrandingProviderProps) {
-  const { data, refetch } = useBranding();
+  // Theme to the dashboard's active org (set by the dashboard layout). Outside
+  // the dashboard this is `undefined`, so branding falls back to the platform
+  // default — keeping the login/shell branding intact.
+  const activeOrganizationId = useActiveOrganizationId();
+  const { data, refetch } = useBranding(activeOrganizationId);
 
   const branding = useMemo<BrandingState | undefined>(() => {
     if (!data) return undefined;

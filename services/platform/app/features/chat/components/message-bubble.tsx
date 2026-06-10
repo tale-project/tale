@@ -38,6 +38,9 @@ import {
   useChatAgents,
   useMessageMetadata,
   useFileUrls,
+  useThreadLiveRoute,
+  useThreadGenerationStart,
+  type ThreadLiveRoute,
 } from '../hooks/queries';
 import { useCitations } from '../hooks/use-citations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
@@ -46,10 +49,13 @@ import {
   useVoiceModeEffective,
   useVoiceOutputChunker,
 } from '../hooks/use-voice-output';
+import {
+  buildMessageSegments,
+  deriveActivity,
+} from '../utils/build-message-segments';
 import { hasThoughtSteps } from '../utils/build-thought-timeline';
-import { injectCitationTags } from '../utils/inject-citation-tags';
+import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
-import { AssistantMessageContent } from './assistant-message-content';
 import { BlockedNotice } from './blocked-notice';
 import {
   FileAttachmentDisplay,
@@ -62,8 +68,9 @@ import {
 import type { Message } from './message-bubble/types';
 import { MessageFeedback } from './message-feedback';
 import { MessageInfoDialog } from './message-info-dialog';
+import { MessageSegments } from './message-segments';
 import { SourceCards } from './source-cards';
-import { ThoughtTimeline } from './thought-timeline';
+import { MessageThoughtHeader } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
@@ -89,6 +96,12 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   isSavedPrompt?: boolean;
   /** Extra content rendered in the user message toolbar (e.g. BranchNavigator). */
   toolbarExtra?: React.ReactNode;
+  /**
+   * True only for the thread's LAST assistant message. Its toolbar stays
+   * always visible; every other message (assistant and user alike) reveals
+   * its toolbar on hover/focus only, keeping history calm.
+   */
+  isLastAssistantMessage?: boolean;
   /**
    * True if this message's id was NOT in the chat-list's first-render
    * snapshot — i.e. it arrived via subscription during this mount, not
@@ -177,6 +190,7 @@ function MessageBubbleComponent({
   onUnsavePrompt,
   isSavedPrompt,
   toolbarExtra,
+  isLastAssistantMessage = false,
   isFreshSinceMount = false,
   ...restProps
 }: MessageBubbleProps) {
@@ -267,6 +281,39 @@ function MessageBubbleComponent({
   const isImageGenAgent =
     agentsForEdit?.find((a) => a.name === effectiveAgentForEdit?.name)
       ?.primaryBehavior === 'image-generation';
+  // When this turn came from Auto routing, resolve the routed agent's display
+  // name for the routing chip / info dialog. Falls back to the raw slug — the
+  // fallback default agent may not be in the chat-visible list.
+  const routedAgentName = metadata?.agentSlug
+    ? (agentsForEdit?.find((a) => a.name === metadata.agentSlug)?.displayName ??
+      metadata.agentSlug)
+    : undefined;
+  const autoRouteReason = metadata?.autoRouteReason;
+  // Live Auto-route for the IN-FLIGHT turn (from the thread-level provider). The
+  // persisted `metadata.autoRouteReason` only lands at turn completion, so
+  // without this the routing step would vanish from send → completion. Gated to
+  // the CURRENT turn's bubble — `threadLiveRoute` is itself null outside
+  // generation (the query gates it on isGenerating + it's cleared at turn
+  // start/end), so the only bubble that should adopt it is the one still
+  // streaming OR not-yet-finalized (no metadata row yet). Every prior turn's
+  // bubble already has a metadata row, so it keeps its own `autoRouteReason`.
+  // This also closes the brief window where a short answer has finished
+  // streaming (isStreaming flipped false) but its metadata hasn't propagated.
+  const threadLiveRoute = useThreadLiveRoute();
+  // The in-flight turn's server start, shared with the gap shell so the
+  // in-bubble timeline's live timer continues the SAME clock (no reset at the
+  // handoff). Null on idle threads / history bubbles — those read the persisted
+  // thinkingDurationMs instead.
+  const turnStartMs = useThreadGenerationStart() ?? undefined;
+  const liveRouteForBubble =
+    isAssistantStreaming || !metadata ? threadLiveRoute : null;
+  // Latch the live route per-bubble: at turn-end the live route is cleared (its
+  // query gates on isGenerating) a beat BEFORE the persisted metadata.autoRouteReason
+  // propagates — without latching, a short answer's timeline would blink empty
+  // in that window. Hold the last-seen live route until metadata takes over.
+  const latchedLiveRouteRef = useRef<ThreadLiveRoute | null>(null);
+  if (liveRouteForBubble) latchedLiveRouteRef.current = liveRouteForBubble;
+  const effectiveLiveRoute = liveRouteForBubble ?? latchedLiveRouteRef.current;
   const { setEditingImageRef, setDismissedImageKey } = useChatLayout();
   const handleEditImagePart = useCallback(
     (part: { url: string; mediaType: string; filename?: string }) => {
@@ -290,6 +337,22 @@ function MessageBubbleComponent({
   const citationsContextValue = useMemo(() => ({ citations }), [citations]);
   const galleryImages = useMessageGallery(message);
 
+  // Referentially-stable `parts`: the message list rebuilds `parts` with a fresh
+  // array identity on EVERY streamed token (use-message-processing re-maps the
+  // whole list), so even when the timeline-relevant structure is unchanged the
+  // reference churns and re-renders `ThoughtTimeline` (which is not memoized) per
+  // token. Collapse that churn to the SAME granularity the bubble's own memo
+  // comparator uses (`sameParts`: length + per-part type/state/toolCallId/text-
+  // length): hold the previous reference whenever `sameParts` holds, so the
+  // timeline only re-renders on a genuine structural change. Identical render
+  // output — `sameParts` is exactly the bubble-level "did anything renderable
+  // change" predicate, applied one level deeper.
+  const stablePartsRef = useRef(message.parts);
+  if (!sameParts(stablePartsRef.current, message.parts)) {
+    stablePartsRef.current = message.parts;
+  }
+  const stableParts = stablePartsRef.current;
+
   const displayContent = message.content ?? '';
   // Thought-process timeline (assistant only): reasoning + tool activity from
   // the message parts. Drives bubble padding so an empty-but-thinking bubble
@@ -309,21 +372,15 @@ function MessageBubbleComponent({
   // blink (the `stream:<id>` row swaps to the persisted `_id`, recreating a
   // cold metadata query) and any latch bridging that swap reopened the leak, so
   // we accept the live window and rely on collapse-by-default for history.
-  const showTimeline = !isUser && !isBlocked && hasThoughtSteps(message.parts);
-  // Normalize pipes (markdown table rendering) + inject citation tags so [N]
-  // renders as interactive components. Folded into one memo keyed on the raw
-  // content so the regex passes don't re-run on render churn that doesn't
-  // change the text (e.g. parts/streaming-flag updates). User messages are
-  // rendered verbatim elsewhere to preserve content integrity.
-  const assistantContent = useMemo(
-    () =>
-      injectCitationTags(
-        displayContent.replace(/\|\|+/g, '|'),
-        citationNumbers,
-      ),
-    [displayContent, citationNumbers],
-  );
-
+  // Render the timeline for: turns with reasoning/tool steps, AND Auto-routed
+  // turns (so the "Routed to X" step persists, COLLAPSED, alongside the answer
+  // instead of vanishing when output starts) — sourced live while streaming
+  // (`liveRouteForBubble`) and from persisted metadata once the turn completes
+  // (`autoRouteReason`). A plain pinned turn with neither still renders nothing.
+  const showTimeline =
+    !isUser &&
+    !isBlocked &&
+    (hasThoughtSteps(stableParts) || !!autoRouteReason || !!effectiveLiveRoute);
   // Map each filePart/attachment to its gallery index (-1 for non-images)
   const { filePartGalleryIndices, attachmentGalleryIndices } = useMemo(() => {
     let idx = 0;
@@ -345,6 +402,145 @@ function MessageBubbleComponent({
     setGalleryIndex(index);
     setIsGalleryOpen(true);
   }, []);
+
+  // The ordered, interleaved render plan (text / reasoning / tool segments).
+  // Memoized on the stabilized parts ref so it recomputes only on a genuine
+  // structural change, not on every streamed token.
+  const messageSegments = useMemo(
+    () => buildMessageSegments(stableParts),
+    [stableParts],
+  );
+  // The current live activity (drives the header's state-based label).
+  const activity = useMemo(
+    () => deriveActivity(messageSegments.segments),
+    [messageSegments.segments],
+  );
+  // `hasAnswerStarted` is the boolean `!!displayContent`, which flips once
+  // (empty → non-empty) and then stays stable through the answer stream.
+  const hasAnswerStarted = !!displayContent;
+
+  // Post-answer toolbar gating: the toolbar appears only after the typewriter
+  // has fully REVEALED the answer, not merely when the server stream ends —
+  // the drain phase keeps typing for a while after `isStreaming` flips false,
+  // and a toolbar popping in mid-drain gets pushed down by every revealed
+  // segment (a visible layout shift). The completion signal travels
+  // MessageSegments → AssistantMessageContent → the last TypewriterText's
+  // `onComplete`. History bubbles (never observed streaming) start done.
+  //
+  // The toolbar is its OWN reveal step: it fades in one segment-beat AFTER
+  // the last text segment, never in the same instant — so the answer's final
+  // clause finishes its fade before the controls appear.
+  const TOOLBAR_REVEAL_DELAY_MS = 450;
+  const [revealDone, setRevealDone] = useState(!isAssistantStreaming);
+  // Whether THIS mount observed the live reveal. A remounted completed
+  // message (chat or branch/version switch) starts done — its toolbar must
+  // render visible WITHOUT replaying the entrance animation, or every switch
+  // re-fades the toolbar block.
+  const sawLiveRevealRef = useRef(isAssistantStreaming);
+  if (isAssistantStreaming) sawLiveRevealRef.current = true;
+  const revealDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const handleRevealComplete = useCallback(() => {
+    if (revealDelayTimerRef.current) clearTimeout(revealDelayTimerRef.current);
+    revealDelayTimerRef.current = setTimeout(
+      () => setRevealDone(true),
+      TOOLBAR_REVEAL_DELAY_MS,
+    );
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (revealDelayTimerRef.current) {
+        clearTimeout(revealDelayTimerRef.current);
+      }
+    };
+  }, []);
+  useEffect(() => {
+    if (isAssistantStreaming) {
+      setRevealDone(false);
+      return undefined;
+    }
+    const lastSegment =
+      messageSegments.segments[messageSegments.segments.length - 1];
+    // Terminal states and turns with no trailing text reveal have no
+    // typewriter completion to wait for.
+    if (
+      message.isAborted ||
+      message.isFailed ||
+      !lastSegment ||
+      lastSegment.kind !== 'text'
+    ) {
+      setRevealDone(true);
+      return undefined;
+    }
+    // Safety net: the drain is bounded (drainMaxTotalMs ≈ 8s). If the
+    // completion callback never fires (e.g. voice-first reveal kept the text
+    // hidden), surface the toolbar anyway.
+    const timer = setTimeout(() => setRevealDone(true), 10_000);
+    return () => clearTimeout(timer);
+  }, [
+    isAssistantStreaming,
+    message.isAborted,
+    message.isFailed,
+    messageSegments,
+  ]);
+  const timeToFirstTokenMs = metadata?.timeToFirstTokenMs;
+  // Pre-answer wall-clock the user waited, INCLUDING Auto-routing (server-
+  // anchored, same origin as the live timer) — preferred for the "Thought for
+  // Ns" summary. `timeToFirstTokenMs` is the legacy fallback for messages
+  // persisted before `thinkingDurationMs` existed.
+  const thinkingDurationMs = metadata?.thinkingDurationMs;
+  const outputTokens = metadata?.outputTokens;
+  // Which agent handled an Auto-routed turn (and why). Sourced live while
+  // streaming (shows the instant routing resolves) and from persisted metadata
+  // once the turn lands. Rendered as the "Routed to X" chip inline at the top
+  // of the segment stream (routing precedes any part, so it isn't a segment).
+  const resolvedRoutedAgentName =
+    (autoRouteReason ? routedAgentName : undefined) ??
+    effectiveLiveRoute?.agentName;
+  const resolvedRouteReason = autoRouteReason ?? effectiveLiveRoute?.reason;
+  // Show the thought HEADER only when the turn has a GENUINE thought process —
+  // reasoning, tools, or skills. A plain answer (incl. a plain Auto turn that
+  // merely routed) must NOT flash a "Thinking…/Responding…" header for the ~1s
+  // before its first token: that empty header cycling Thinking→Responding→gone
+  // is the "thought process flashes for a second" artifact. The pre-answer wait
+  // is already conveyed by the gap-shell ThinkingIndicator (before the bubble);
+  // the "Routed to X" chip is rendered separately inside MessageSegments.
+  const hasActualThought =
+    messageSegments.hasReasoning ||
+    messageSegments.toolCount > 0 ||
+    messageSegments.skillCount > 0;
+  // Memoize the header strip element so it re-renders only when its inputs
+  // genuinely change, not on every streamed answer token.
+  const thoughtHeader = useMemo(
+    () =>
+      hasActualThought ? (
+        <MessageThoughtHeader
+          isStreaming={!!isAssistantStreaming}
+          hasAnswerStarted={hasAnswerStarted}
+          // markGenerating → first answer token, routing INCLUDED; falls back to
+          // the legacy timeToFirstTokenMs for old messages. When NEITHER exists
+          // (a reasoning/tool-only or aborted turn) the header shows the honest
+          // duration-less "Showed its reasoning" summary.
+          durationMs={thinkingDurationMs ?? timeToFirstTokenMs}
+          tokenCount={outputTokens}
+          toolCount={messageSegments.toolCount}
+          skillCount={messageSegments.skillCount}
+          hasReasoning={messageSegments.hasReasoning}
+          turnStartMs={turnStartMs}
+          activity={activity}
+        />
+      ) : null,
+    [
+      hasActualThought,
+      isAssistantStreaming,
+      hasAnswerStarted,
+      thinkingDurationMs,
+      timeToFirstTokenMs,
+      outputTokens,
+      messageSegments,
+      turnStartMs,
+      activity,
+    ],
+  );
 
   // Synchronous initial overflow check — runs before paint so the "Show More"
   // button is included in the first layout commit (no two-frame cascade).
@@ -381,9 +577,26 @@ function MessageBubbleComponent({
     };
   }, []);
 
+  // Rendered markdown serializes to text/plain with a line break at every block
+  // boundary, so a manual select-and-copy of an assistant reply pastes with
+  // stacks of blank lines. Rewrite the clipboard with a normalized copy — but
+  // only when it actually differs, so an already-clean selection keeps the
+  // browser's native (rich) copy untouched.
+  const handleCopySelection = useCallback((e: React.ClipboardEvent) => {
+    const selected = window.getSelection()?.toString() ?? '';
+    if (!selected) return;
+    const normalized = normalizeCopiedText(selected);
+    if (normalized === selected) return;
+    e.clipboardData.setData('text/plain', normalized);
+    e.preventDefault();
+  }, []);
+
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(message.content);
+      // Normalize before writing so the copy button never pastes the stray
+      // trailing newlines a streamed/persisted reply can carry — matching the
+      // manual-selection path (`handleCopySelection`) which already normalizes.
+      await navigator.clipboard.writeText(normalizeCopiedText(message.content));
       setIsCopied(true);
       if (copyTimeoutRef.current) {
         clearTimeout(copyTimeoutRef.current);
@@ -466,6 +679,7 @@ function MessageBubbleComponent({
   return (
     <div
       className={cn(
+        'group/message',
         isUser ? 'flex flex-col items-end' : 'flex justify-start',
         className,
       )}
@@ -481,33 +695,31 @@ function MessageBubbleComponent({
             'px-4 py-3',
         )}
       >
-        {/* Thought process (reasoning + tools): above the answer, persists
-            collapsed in history. Hidden for guardrails-blocked messages. */}
-        {showTimeline && (
-          <ThoughtTimeline
-            parts={message.parts}
-            isStreaming={!!isAssistantStreaming}
-            hasAnswerStarted={!!displayContent}
-            // Only timeToFirstTokenMs (pre-answer "thinking" time), never
-            // durationMs (the FULL turn): a reasoning/tool-only or
-            // aborted/truncated turn leaves TTFT undefined, and falling back to
-            // the whole-turn duration would over-report "Thought for Ns". When
-            // TTFT is absent ThoughtTimeline shows the honest duration-less
-            // summary ("Showed its reasoning") instead.
-            durationMs={metadata?.timeToFirstTokenMs}
-            // Token total lands with the metadata at turn completion; the
-            // header shows it only once known (omitted during the live stream).
-            tokenCount={metadata?.totalTokens ?? metadata?.outputTokens}
-          />
-        )}
+        {/* Thought-process HEADER strip (state-based label + timing summary):
+            above the answer, persists collapsed in history. Hidden for
+            guardrails-blocked messages. The reasoning/tool DETAIL renders
+            interleaved within the body below. Memoized so it doesn't re-render
+            on every streamed token. */}
+        {thoughtHeader}
         {isBlocked && blockedReason ? (
           <BlockedNotice
             code={blockedReason.code}
             direction={blockedReason.direction}
             categoryIds={blockedReason.categoryIds}
           />
-        ) : displayContent ? (
-          <div className="text-sm leading-5">
+        ) : (
+            isUser
+              ? !!displayContent
+              : displayContent || messageSegments.segments.length > 0
+          ) ? (
+          <div
+            className="text-sm leading-5"
+            // Assistant replies are rendered markdown — normalize the copied
+            // text/plain so it doesn't paste with stacks of blank lines. User
+            // messages are plain pre-wrapped text, so their copy is left intact
+            // (collapsing the user's own blank lines would be wrong).
+            onCopy={isUser ? undefined : handleCopySelection}
+          >
             <div
               ref={isUser ? contentRef : undefined}
               className={cn(
@@ -546,14 +758,18 @@ function MessageBubbleComponent({
                       />
                     </div>
                   )}
-                  <AssistantMessageContent
-                    text={assistantContent}
-                    isStreaming={!!isAssistantStreaming}
+                  <MessageSegments
+                    segments={messageSegments.segments}
+                    active={!!isAssistantStreaming}
+                    citationNumbers={citationNumbers}
                     onSendFollowUp={onSendFollowUp}
                     messageId={message.id}
                     threadId={message.threadId}
                     voiceModeEnabled={voiceMode.enabled}
                     isFreshSinceMount={isFreshSinceMount}
+                    routedAgentName={resolvedRoutedAgentName}
+                    routeReason={resolvedRouteReason}
+                    onRevealComplete={handleRevealComplete}
                   />
                   {organizationId && message.threadId && (
                     <MessageArtifactPills
@@ -708,21 +924,46 @@ function MessageBubbleComponent({
             })}
           </div>
         )}
-        {/* Errored turn: only Show Info is useful — collapse the toolbar. */}
+        {/* Errored turn: only Show Info is useful — collapse the toolbar.
+            Entrance animation only on a live transition, not on remount. */}
         {!isUser && !isAssistantStreaming && isErrored && (
-          <div className="animate-content-in flex items-start gap-1 pt-2">
+          <div
+            className={cn(
+              'flex items-start gap-1 pt-2',
+              sawLiveRevealRef.current && 'animate-content-in',
+            )}
+          >
             {infoButton}
           </div>
         )}
 
         {!isUser &&
           !isAssistantStreaming &&
+          revealDone &&
           !isErrored &&
           (!!displayContent ||
             (message.fileParts && message.fileParts.length > 0)) && (
             // Fade the post-answer toolbar in (opacity-only, no layout shift)
-            // so it doesn't snap into existence the instant streaming ends.
-            <div className="animate-content-in">
+            // once the typewriter has fully revealed the answer. Only the
+            // LAST assistant message keeps its toolbar always visible —
+            // history toolbars reveal on hover/focus to keep the thread calm.
+            // The toolbar enters like a stream segment (fade + lift via
+            // `animate-toolbar-in`), one beat after the last text segment.
+            // Its fill-mode pins opacity at 1, which would defeat the
+            // hover-hide — so the entrance applies only to the always-visible
+            // last-message toolbar. Touch devices have no hover: keep history
+            // toolbars visible there (pointer-coarse) so actions stay
+            // reachable.
+            <div
+              className={cn(
+                isLastAssistantMessage
+                  ? // Entrance animation only when the answer was revealed live
+                    // in this mount — a remounted completed message renders its
+                    // toolbar statically (no re-fade on chat/version switch).
+                    sawLiveRevealRef.current && 'animate-toolbar-in'
+                  : 'opacity-0 transition-opacity duration-200 focus-within:opacity-100 pointer-coarse:opacity-100 group-hover/message:opacity-100',
+              )}
+            >
               {!hideFeedback && organizationId && message.threadId ? (
                 <MessageFeedback
                   messageId={message.id}
@@ -833,10 +1074,14 @@ function MessageBubbleComponent({
           metadata={metadata}
           organizationId={organizationId}
           precedingUserText={precedingUserText}
+          routedAgentName={routedAgentName}
         />
       </div>
       {isUser && (onEdit || onSavePrompt || toolbarExtra) && (
-        <div className="flex items-center justify-end gap-0.5 pt-0.5">
+        // Own-message toolbar: hover/focus-revealed (opacity-only, so no
+        // layout shift) — matches the calmer history-toolbar behavior. Touch
+        // devices have no hover, so it stays visible there (pointer-coarse).
+        <div className="flex items-center justify-end gap-0.5 pt-0.5 opacity-0 transition-opacity duration-200 group-hover/message:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
           {(onSavePrompt || isSavedPrompt) && !!displayContent && (
             <Tooltip
               content={
@@ -993,6 +1238,7 @@ export const MessageBubble = memo(
       prevProps.onFork === nextProps.onFork &&
       prevProps.isSavedPrompt === nextProps.isSavedPrompt &&
       prevProps.toolbarExtra === nextProps.toolbarExtra &&
+      prevProps.isLastAssistantMessage === nextProps.isLastAssistantMessage &&
       prevProps.isFreshSinceMount === nextProps.isFreshSinceMount
     );
   },

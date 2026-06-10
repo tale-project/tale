@@ -21,6 +21,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import { getStepIcon, getStepTypeColor } from '../utils/step-icons';
 import { AutomationTester } from './automation-tester';
@@ -206,20 +207,20 @@ export function AutomationSidePanel({
   // TODO: Replace with file-based workflow save
   const isSaving = false;
 
-  const originalNextStepsJson = useMemo(
-    () => (step?.nextSteps ? JSON.stringify(step.nextSteps) : '{}'),
-    [step?.nextSteps],
-  );
-
   const originalConfigJson = useMemo(
     () => (step?.config ? JSON.stringify(step.config, null, 2) : ''),
     [step?.config],
   );
 
+  // `config` is a free-form JSON textarea, so it's compared as raw text
+  // (whitespace counts). `nextSteps` is a structured object, compared
+  // structurally so key-order shuffles from the server don't read as dirty.
   const isConfigDirty = editState.config !== originalConfigJson;
 
-  const isNextStepsDirty =
-    JSON.stringify(editState.nextSteps) !== originalNextStepsJson;
+  const isNextStepsDirty = !structuralEqual(
+    editState.nextSteps,
+    step?.nextSteps ?? {},
+  );
 
   const isDirty = isConfigDirty || isNextStepsDirty;
 

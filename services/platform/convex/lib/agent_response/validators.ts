@@ -64,6 +64,7 @@ export const agentResponseReturnsValidator = v.object({
   finishReason: v.optional(v.string()),
   durationMs: v.number(),
   timeToFirstTokenMs: v.optional(v.number()),
+  thinkingDurationMs: v.optional(v.number()),
   toolCalls: v.optional(v.array(toolCallValidator)),
   toolsUsage: v.optional(v.array(toolUsageValidator)),
   contextWindow: v.optional(v.string()),

@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
@@ -9,6 +10,7 @@ import {
   checkModelAccess,
   getAccessibleModels,
 } from './model_access_enforcement';
+import { readGuardrailsPolicies } from './read_guardrails_policies';
 import { resolveBudgetContext } from './resolve_budget_context';
 import { resolveDefaultModel } from './resolve_default_model';
 import { shouldDeferProjectSharedExpiry } from './retention_project_shared';
@@ -49,32 +51,10 @@ export const getGuardrailsConfigsInternal = internalQuery({
     moderation: v.any(),
   }),
   handler: async (ctx, args) => {
-    const [chatFilter, pii, moderation] = await Promise.all([
-      ctx.db
-        .query('governancePolicies')
-        .withIndex('by_org_policyType', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('policyType', 'chat_filter'),
-        )
-        .first(),
-      ctx.db
-        .query('governancePolicies')
-        .withIndex('by_org_policyType', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('policyType', 'pii_config'),
-        )
-        .first(),
-      ctx.db
-        .query('governancePolicies')
-        .withIndex('by_org_policyType', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('policyType', 'moderation_provider'),
-        )
-        .first(),
-    ]);
+    const [chatFilter, pii, moderation] = await readGuardrailsPolicies(
+      ctx,
+      args.organizationId,
+    );
     return { chatFilter, pii, moderation };
   },
 });
@@ -1192,6 +1172,130 @@ export const resolveGenerationGovernance = internalQuery({
       explicitAccess: null,
       role: member.role,
       teamIds,
+    };
+  },
+});
+
+/**
+ * Batched per-turn model-governance resolver.
+ *
+ * `chatWithAgent` previously fired up to THREE separate internalQueries per
+ * chat turn — `resolveDefaultModelInternal`, `getAccessibleModelsInternal`,
+ * and `checkModelAccessInternal` — each of which independently re-resolved the
+ * SAME org-member + team context. Those lookups make cross-component
+ * Better-Auth `findMany` calls (the dominant backend cost), so re-resolving
+ * them per query multiplied the latency.
+ *
+ * This query resolves the member + team context ONCE and runs every governance
+ * decision the chat turn needs against that single context:
+ *
+ * - `defaultModel`: governance default-model override (no-model path). Mirrors
+ *   `resolveDefaultModelInternal` — null when no override applies OR the
+ *   override is denied by the model_access policy.
+ * - `accessibleModelRefs`: `supportedModels` filtered by the model_access
+ *   policy (no-model path). Mirrors `getAccessibleModelsInternal` — the input
+ *   list passed through `getAccessibleModels` with plain (qualifier-stripped)
+ *   ids, but the RETURNED refs are the ORIGINAL (possibly qualified)
+ *   `supportedModels` entries whose plain id survived the filter, so the
+ *   caller keeps provider qualifiers.
+ * - `explicitAllowed`: RBAC decision for an explicitly-requested model
+ *   (explicit-modelId path). Mirrors `checkModelAccessInternal`. Only computed
+ *   when `explicitModelId` is provided.
+ *
+ * Behavior is identical to the three originals; the only change is that the
+ * member/team lookup happens once instead of two-or-three times. The three
+ * originals are retained because they have other callers (openai-compat +
+ * workflow LLM nodes).
+ */
+export const resolveModelGovernanceInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    userEmail: v.optional(v.string()),
+    userName: v.optional(v.string()),
+    supportedModels: v.array(v.string()),
+    explicitModelId: v.optional(v.string()),
+  },
+  returns: v.object({
+    defaultModel: v.optional(
+      v.object({
+        providerName: v.string(),
+        modelId: v.string(),
+      }),
+    ),
+    accessibleModelRefs: v.array(v.string()),
+    explicitAllowed: v.optional(
+      v.object({
+        allowed: v.boolean(),
+        reason: v.optional(v.string()),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    // Resolve the member + team context ONCE. `getOrganizationMember` accepts
+    // the optional email/name (used by the default-model path's email-fallback
+    // lookup); passing them through is a superset of the userId-only resolution
+    // the access-policy paths used, so it yields the same member row.
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: args.userId,
+      ...(args.userEmail !== undefined ? { email: args.userEmail } : {}),
+      ...(args.userName !== undefined ? { name: args.userName } : {}),
+    });
+    // `getUserTeamIds` is the authoritative team resolver (trusted-headers JWT
+    // claims first, then full paginated teamMember scan) — the same one the
+    // access-policy queries used. Reusing it keeps the model_access filtering
+    // (the security-critical allowlist) identical.
+    const teamIds = await getUserTeamIds(ctx, args.userId);
+
+    const explicitAllowed =
+      args.explicitModelId !== undefined
+        ? await checkModelAccess(
+            ctx,
+            args.organizationId,
+            args.userId,
+            teamIds,
+            member.role,
+            args.explicitModelId,
+          )
+        : undefined;
+
+    // The explicit-modelId path never consults the governance default or the
+    // accessible-fallback list (the caller short-circuits to the RBAC check),
+    // so skip those lookups when an explicit model was requested — preserving
+    // the original per-path query semantics while avoiding wasted policy reads.
+    if (args.explicitModelId !== undefined) {
+      return {
+        defaultModel: undefined,
+        accessibleModelRefs: [],
+        explicitAllowed,
+      };
+    }
+
+    const defaultModel = await resolveDefaultModel(
+      ctx,
+      args.organizationId,
+      args.userId,
+      teamIds,
+      member.role,
+    );
+
+    const accessiblePlain = await getAccessibleModels(
+      ctx,
+      args.organizationId,
+      args.userId,
+      teamIds,
+      member.role,
+      args.supportedModels.map(stripModelRefQualifier),
+    );
+    const accessibleSet = new Set(accessiblePlain);
+    const accessibleModelRefs = args.supportedModels.filter((ref) =>
+      accessibleSet.has(stripModelRefQualifier(ref)),
+    );
+
+    return {
+      defaultModel: defaultModel ?? undefined,
+      accessibleModelRefs,
+      explicitAllowed: undefined,
     };
   },
 });

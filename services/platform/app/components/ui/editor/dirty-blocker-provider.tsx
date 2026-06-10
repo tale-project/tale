@@ -76,7 +76,18 @@ export function DirtyBlockerProvider({
       return next;
     });
   }, []);
-  const sourceRegistry = useMemo(() => ({ register }), [register]);
+  const unregister = useCallback((id: string) => {
+    setSources((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+  const sourceRegistry = useMemo(
+    () => ({ register, unregister }),
+    [register, unregister],
+  );
 
   const blocker = useBlocker({
     shouldBlockFn: () => {

@@ -7,30 +7,10 @@ import {
   type DropdownMenuItem,
 } from '@tale/ui/dropdown-menu';
 import { useNavigate } from '@tanstack/react-router';
-import {
-  Camera,
-  Check,
-  Gauge,
-  Paperclip,
-  Plus,
-  Sparkles,
-  Swords,
-  Type,
-} from 'lucide-react';
-import { type ReactNode, useCallback, useMemo } from 'react';
+import { Camera, Paperclip, Plus, Swords } from 'lucide-react';
+import { useCallback, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import {
-  type CreativityProfile,
-  type EffortProfile,
-  type StyleProfile,
-  CREATIVITY_PROFILES,
-  EFFORT_PROFILES,
-  STYLE_PROFILES,
-  isCreativityProfile,
-  isEffortProfile,
-  isStyleProfile,
-} from '@/lib/shared/composer-profiles';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
@@ -52,36 +32,6 @@ interface ComposerModeMenuProps {
   disabled?: boolean;
 }
 
-// Map each profile value to its `composer` i18n key.
-const EFFORT_LABEL_KEYS: Record<EffortProfile, string> = {
-  adaptive: 'adaptive',
-  low: 'effortLow',
-  medium: 'effortMedium',
-  high: 'effortHigh',
-};
-const CREATIVITY_LABEL_KEYS: Record<CreativityProfile, string> = {
-  adaptive: 'adaptive',
-  precise: 'creativityPrecise',
-  balanced: 'creativityBalanced',
-  creative: 'creativityCreative',
-};
-const STYLE_LABEL_KEYS: Record<StyleProfile, string> = {
-  adaptive: 'adaptive',
-  concise: 'styleConcise',
-  detailed: 'styleDetailed',
-  formal: 'styleFormal',
-  friendly: 'styleFriendly',
-};
-
-function labelWithHint(label: string, hint: string): ReactNode {
-  return (
-    <span className="flex flex-1 items-center justify-between gap-3">
-      <span className="truncate">{label}</span>
-      <span className="text-muted-foreground shrink-0 text-xs">{hint}</span>
-    </span>
-  );
-}
-
 export function ComposerModeMenu({
   organizationId,
   onAttachFile,
@@ -92,13 +42,8 @@ export function ComposerModeMenu({
   const { t } = useT('composer');
   const { t: tChat } = useT('chat');
   const navigate = useNavigate();
-  const {
-    setSelectedAgent,
-    enabledCapabilities,
-    setCapabilityEnabled,
-    composerProfiles,
-    setComposerProfile,
-  } = useChatLayout();
+  const { setSelectedAgent, enabledCapabilities, setCapabilityEnabled } =
+    useChatLayout();
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents } = useChatAgents(organizationId);
   const capabilities = useComposerCapabilities(organizationId);
@@ -183,7 +128,8 @@ export function ComposerModeMenu({
         const item: DropdownMenuItem = modeReady
           ? {
               type: 'item',
-              label: isActive ? `${modeLabel} ✓` : modeLabel,
+              label: modeLabel,
+              selected: isActive,
               icon: resolveCapabilityIcon(agent.composerMode?.icon),
               onClick: () => {
                 if (isActive) {
@@ -196,12 +142,10 @@ export function ComposerModeMenu({
             }
           : {
               type: 'item',
-              label: labelWithHint(
-                modeLabel,
-                t('requiresIntegration', {
-                  name: readiness.titleBySlug.get(missing[0]) ?? missing[0],
-                }),
-              ),
+              label: modeLabel,
+              trailing: t('requiresIntegration', {
+                name: readiness.titleBySlug.get(missing[0]) ?? missing[0],
+              }),
               icon: resolveCapabilityIcon(agent.composerMode?.icon),
               onClick: () => openIntegrations(missing[0]),
             };
@@ -210,9 +154,8 @@ export function ComposerModeMenu({
       if (hasArena) {
         modeGroup.push({
           type: 'item',
-          label: isArenaActive
-            ? `${tChat('arena.label')} ✓`
-            : tChat('arena.label'),
+          label: tChat('arena.label'),
+          selected: isArenaActive,
           icon: Swords,
           onClick: () => {
             if (isArenaActive) {
@@ -232,89 +175,6 @@ export function ComposerModeMenu({
       groups.push(modeGroup);
     }
 
-    // Response tuning: effort / creativity / style. Default `adaptive` keeps
-    // the platform's algorithms in charge; any other value is a fixed
-    // override applied for that lever only (see composer-profiles.ts).
-    groups.push([
-      { type: 'label', content: t('tuningHeader') },
-      {
-        type: 'sub',
-        label: t('effort'),
-        icon: Gauge,
-        trailing: (
-          <span className="text-muted-foreground text-xs">
-            {t(EFFORT_LABEL_KEYS[composerProfiles.effort])}
-          </span>
-        ),
-        items: [
-          [
-            {
-              type: 'radio-group',
-              value: composerProfiles.effort,
-              onValueChange: (value) => {
-                if (isEffortProfile(value)) setComposerProfile('effort', value);
-              },
-              options: EFFORT_PROFILES.map((p) => ({
-                value: p,
-                label: t(EFFORT_LABEL_KEYS[p]),
-              })),
-            },
-          ],
-        ],
-      },
-      {
-        type: 'sub',
-        label: t('creativity'),
-        icon: Sparkles,
-        trailing: (
-          <span className="text-muted-foreground text-xs">
-            {t(CREATIVITY_LABEL_KEYS[composerProfiles.creativity])}
-          </span>
-        ),
-        items: [
-          [
-            {
-              type: 'radio-group',
-              value: composerProfiles.creativity,
-              onValueChange: (value) => {
-                if (isCreativityProfile(value))
-                  setComposerProfile('creativity', value);
-              },
-              options: CREATIVITY_PROFILES.map((p) => ({
-                value: p,
-                label: t(CREATIVITY_LABEL_KEYS[p]),
-              })),
-            },
-          ],
-        ],
-      },
-      {
-        type: 'sub',
-        label: t('style'),
-        icon: Type,
-        trailing: (
-          <span className="text-muted-foreground text-xs">
-            {t(STYLE_LABEL_KEYS[composerProfiles.style])}
-          </span>
-        ),
-        items: [
-          [
-            {
-              type: 'radio-group',
-              value: composerProfiles.style,
-              onValueChange: (value) => {
-                if (isStyleProfile(value)) setComposerProfile('style', value);
-              },
-              options: STYLE_PROFILES.map((p) => ({
-                value: p,
-                label: t(STYLE_LABEL_KEYS[p]),
-              })),
-            },
-          ],
-        ],
-      },
-    ]);
-
     if (capabilities.length > 0) {
       const capabilityGroup: DropdownMenuGroup = [
         { type: 'label', content: t('capabilityHeader') },
@@ -327,10 +187,8 @@ export function ComposerModeMenu({
             readiness.titleBySlug.get(capability.slug) ?? capability.slug;
           capabilityGroup.push({
             type: 'item',
-            label: labelWithHint(
-              capability.label,
-              t('requiresIntegration', { name: title }),
-            ),
+            label: capability.label,
+            trailing: t('requiresIntegration', { name: title }),
             icon: capability.icon,
             onClick: () => openIntegrations(capability.slug),
           });
@@ -339,7 +197,8 @@ export function ComposerModeMenu({
         capabilityGroup.push({
           type: 'item',
           label: capability.label,
-          icon: isOn ? Check : capability.icon,
+          icon: capability.icon,
+          selected: isOn,
           onClick: () => setCapabilityEnabled(capability.slug, !isOn),
         });
       }
@@ -351,8 +210,6 @@ export function ComposerModeMenu({
     fileUploadDisabled,
     onAttachFile,
     onTakeScreenshot,
-    composerProfiles,
-    setComposerProfile,
     modeAgents,
     chatAgent,
     effectiveAgent?.name,
@@ -382,6 +239,7 @@ export function ComposerModeMenu({
           aria-label={t('openMenu')}
           aria-haspopup="menu"
           disabled={disabled}
+          className="focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset"
         >
           <Plus className="size-4" aria-hidden="true" />
         </Button>

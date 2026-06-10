@@ -7,10 +7,11 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from 'react';
 
+import { useConfigDirtyState } from '@/app/components/ui/editor/use-config-dirty-state';
 import type { ProviderJson } from '@/lib/shared/schemas/providers';
+import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import { useSaveProvider } from './mutations';
 
@@ -66,52 +67,41 @@ export function ProviderConfigProvider({
   initialHash,
   children,
 }: ProviderConfigProviderProps) {
-  const [config, setConfig] = useState(initialConfig);
-  const [isSaving, setIsSaving] = useState(false);
-  const initialRef = useRef(initialConfig);
-  const configRef = useRef(config);
+  const {
+    config,
+    savedConfig,
+    isDirty,
+    isSaving,
+    configRef,
+    savedConfigRef,
+    updateConfig,
+    resetConfig,
+    overrideConfig,
+    markSaved,
+    setIsSaving,
+  } = useConfigDirtyState<ProviderJson>({ initial: initialConfig });
+
+  // Optimistic-concurrency token. Refreshed whenever the upstream hash changes
+  // while the user has no live edits — without this a sibling mutation
+  // (saveSecret) or SSE refetch leaves `hashRef` stale and the next save trips
+  // a spurious `PROVIDER_VERSION_CONFLICT` against ourselves. Gated on clean
+  // (not on `isDirty` flipping) so the fresh hash `saveConfig` just stored is
+  // never clobbered by a stale prop.
   const hashRef = useRef(initialHash);
-  configRef.current = config;
-
   useEffect(() => {
-    const hasUnsavedEdits =
-      JSON.stringify(configRef.current) !== JSON.stringify(initialRef.current);
-    if (!hasUnsavedEdits) {
-      setConfig(initialConfig);
-      initialRef.current = initialConfig;
-      // Refresh the optimistic-concurrency token alongside the config.
-      // Without this, a sibling mutation (saveSecret) or SSE-driven refetch
-      // gives us a fresh hash on the read query but `hashRef` keeps the
-      // stale one — the next save then trips a spurious
-      // `PROVIDER_VERSION_CONFLICT` against ourselves.
-      hashRef.current = initialHash;
-    }
-  }, [initialConfig, initialHash]);
+    if (!structuralEqual(configRef.current, savedConfigRef.current)) return;
+    hashRef.current = initialHash;
+  }, [initialHash, configRef, savedConfigRef]);
 
-  const isDirty = useMemo(
-    () => JSON.stringify(config) !== JSON.stringify(initialRef.current),
-    [config],
+  const markSaving = useCallback(
+    (saving: boolean) => {
+      setIsSaving(saving);
+      // Legacy semantics: leaving the in-flight state commits the working copy
+      // as the new baseline.
+      if (!saving) markSaved(configRef.current);
+    },
+    [configRef, markSaved, setIsSaving],
   );
-
-  const updateConfig = useCallback((partial: Partial<ProviderJson>) => {
-    setConfig((prev) => ({ ...prev, ...partial }));
-  }, []);
-
-  const resetConfig = useCallback(() => {
-    setConfig(initialRef.current);
-  }, []);
-
-  const markSaving = useCallback((saving: boolean) => {
-    setIsSaving(saving);
-    if (!saving) {
-      initialRef.current = configRef.current;
-    }
-  }, []);
-
-  const overrideConfig = useCallback((next: ProviderJson) => {
-    setConfig(next);
-    initialRef.current = next;
-  }, []);
 
   const saveProvider = useSaveProvider();
 
@@ -120,9 +110,6 @@ export function ProviderConfigProvider({
       const toSave = partial
         ? { ...configRef.current, ...partial }
         : configRef.current;
-      if (partial) {
-        setConfig(toSave);
-      }
       setIsSaving(true);
       try {
         const result = await saveProvider.mutateAsync({
@@ -131,20 +118,29 @@ export function ProviderConfigProvider({
           config: toSave,
           ...(hashRef.current ? { expectedHash: hashRef.current } : {}),
         });
-        initialRef.current = toSave;
+        // Adopt the saved shape as both working copy and baseline so `isDirty`
+        // flips false immediately (no dependence on a follow-up refetch).
+        overrideConfig(toSave);
         hashRef.current = result.hash;
       } finally {
         setIsSaving(false);
       }
     },
-    [organizationId, providerName, saveProvider],
+    [
+      configRef,
+      organizationId,
+      overrideConfig,
+      providerName,
+      saveProvider,
+      setIsSaving,
+    ],
   );
 
   const value = useMemo<ProviderConfigContextValue>(
     () => ({
       providerName,
       config,
-      initialConfig: initialRef.current,
+      initialConfig: savedConfig,
       isDirty,
       isSaving,
       updateConfig,
@@ -156,6 +152,7 @@ export function ProviderConfigProvider({
     [
       providerName,
       config,
+      savedConfig,
       isDirty,
       isSaving,
       updateConfig,

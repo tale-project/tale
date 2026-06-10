@@ -34,6 +34,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
 
@@ -49,6 +50,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
 
@@ -62,6 +64,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
 
@@ -75,6 +78,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
 
@@ -88,6 +92,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
         content={content}
         revealPosition={content.length}
         showCursor={false}
+        aria-busy
       />,
     );
 
@@ -101,6 +106,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
 
@@ -114,6 +120,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
 
@@ -127,6 +134,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
 
@@ -140,6 +148,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
 
@@ -153,6 +162,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
 
@@ -168,7 +178,12 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
   it('renders cursor when reveal is mid-paragraph', () => {
     const content = 'Hello world, this is streaming text.';
     const { container } = render(
-      <IncrementalMarkdown content={content} revealPosition={10} showCursor />,
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={10}
+        showCursor
+        aria-busy
+      />,
     );
 
     expect(countCursors(container)).toBe(1);
@@ -178,7 +193,12 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
     const content = 'First paragraph.\n\nSecond paragraph being typed.';
 
     const { container } = render(
-      <IncrementalMarkdown content={content} revealPosition={28} showCursor />,
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={28}
+        showCursor
+        aria-busy
+      />,
     );
 
     expect(countCursors(container)).toBe(1);
@@ -187,7 +207,12 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
   it('renders cursor mid-list item', () => {
     const content = '- First item\n- Second item being typed';
     const { container } = render(
-      <IncrementalMarkdown content={content} revealPosition={20} showCursor />,
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={20}
+        showCursor
+        aria-busy
+      />,
     );
 
     expect(countCursors(container)).toBe(1);
@@ -196,7 +221,12 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
   it('renders cursor mid-heading', () => {
     const content = '## This heading is still being typ';
     const { container } = render(
-      <IncrementalMarkdown content={content} revealPosition={20} showCursor />,
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={20}
+        showCursor
+        aria-busy
+      />,
     );
 
     expect(countCursors(container)).toBe(1);
@@ -206,12 +236,22 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
     const content = 'Streaming paragraph content here.';
 
     const { container, rerender } = render(
-      <IncrementalMarkdown content={content} revealPosition={5} showCursor />,
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={5}
+        showCursor
+        aria-busy
+      />,
     );
     expect(countCursors(container)).toBe(1);
 
     rerender(
-      <IncrementalMarkdown content={content} revealPosition={15} showCursor />,
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={15}
+        showCursor
+        aria-busy
+      />,
     );
     expect(countCursors(container)).toBe(1);
 
@@ -220,6 +260,7 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
     expect(countCursors(container)).toBe(1);
@@ -239,6 +280,7 @@ describe('IncrementalMarkdown — DOM stability on cursor toggle', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
 
@@ -250,6 +292,7 @@ describe('IncrementalMarkdown — DOM stability on cursor toggle', () => {
         content={content}
         revealPosition={content.length}
         showCursor={false}
+        aria-busy
       />,
     );
 
@@ -276,6 +319,7 @@ describe('IncrementalMarkdown — cursor not in empty marker elements', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
     const items = container.querySelectorAll('li');
@@ -293,6 +337,7 @@ describe('IncrementalMarkdown — cursor not in empty marker elements', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
     const bq = container.querySelector('blockquote');
@@ -308,6 +353,7 @@ describe('IncrementalMarkdown — cursor not in empty marker elements', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
     const h2 = container.querySelector('h2');
@@ -327,6 +373,7 @@ describe('IncrementalMarkdown — cursor not in empty marker elements', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
     expect(countCursors(container)).toBe(1);
@@ -343,11 +390,65 @@ describe('IncrementalMarkdown — cursor not in empty marker elements', () => {
         content={content}
         revealPosition={content.length}
         showCursor
+        aria-busy
       />,
     );
     expect(countCursors(container)).toBe(1);
     const items = container.querySelectorAll('li');
     expect(items[1]?.querySelector('.animate-cursor-blink')).not.toBeNull();
     expect(items[2]?.querySelector('.animate-cursor-blink')).toBeNull();
+  });
+});
+
+// ============================================================================
+// SETTLED CONTENT RENDERS STABLE (no animation markup)
+// ============================================================================
+
+describe('IncrementalMarkdown — fully revealed and settled', () => {
+  const content =
+    'Paragraph one, with a clause.\n\nParagraph two, the last block.';
+
+  it('renders no animation markup when fully revealed and not busy', () => {
+    const { container } = render(
+      <IncrementalMarkdown content={content} revealPosition={content.length} />,
+    );
+
+    expect(container.querySelector('.stream-reveal')).toBeNull();
+    expect(container.querySelector('.stream-seg')).toBeNull();
+    expect(screen.getByText(/Paragraph two/)).toBeInTheDocument();
+  });
+
+  it('keeps the streaming wrapper while busy, even at full reveal', () => {
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        aria-busy
+      />,
+    );
+
+    expect(container.querySelector('.stream-reveal')).not.toBeNull();
+  });
+
+  it('renders identical text across the busy → settled swap', () => {
+    const { container, rerender } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        aria-busy
+      />,
+    );
+    // Compare whitespace-stripped: a single Markdown parse emits "\n" text
+    // nodes between block elements, the split (stable+streaming) parse emits
+    // none — block layout renders identically either way.
+    const normalize = (s: string | null) => (s ?? '').replace(/\s+/g, '');
+    const busyText = normalize(container.textContent);
+
+    rerender(
+      <IncrementalMarkdown content={content} revealPosition={content.length} />,
+    );
+
+    expect(container.querySelector('.stream-reveal')).toBeNull();
+    expect(normalize(container.textContent)).toBe(busyText);
   });
 });

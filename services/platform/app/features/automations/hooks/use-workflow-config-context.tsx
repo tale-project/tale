@@ -1,15 +1,8 @@
 'use client';
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { createContext, useCallback, useContext, useMemo } from 'react';
 
+import { useConfigDirtyState } from '@/app/components/ui/editor/use-config-dirty-state';
 import type {
   WorkflowJsonConfig,
   WorkflowStep,
@@ -54,30 +47,18 @@ export function WorkflowConfigProvider({
   initialConfig,
   children,
 }: WorkflowConfigProviderProps) {
-  const [config, setConfig] = useState(initialConfig);
-  const [isSaving, setIsSaving] = useState(false);
-  const initialRef = useRef(initialConfig);
-  const configRef = useRef(config);
-  configRef.current = config;
-
-  // Fix stale-ref bug: sync internal state when initialConfig prop changes
-  // (e.g. after a refetch from the server)
-  useEffect(() => {
-    const serialized = JSON.stringify(initialConfig);
-    if (serialized !== JSON.stringify(initialRef.current)) {
-      initialRef.current = initialConfig;
-      setConfig(initialConfig);
-    }
-  }, [initialConfig]);
-
-  const isDirty = useMemo(
-    () => JSON.stringify(config) !== JSON.stringify(initialRef.current),
-    [config],
-  );
-
-  const updateConfig = useCallback((partial: Partial<WorkflowJsonConfig>) => {
-    setConfig((prev) => ({ ...prev, ...partial }));
-  }, []);
+  const {
+    config,
+    savedConfig,
+    isDirty,
+    isSaving,
+    configRef,
+    setConfig,
+    updateConfig,
+    resetConfig,
+    markSaved,
+    setIsSaving,
+  } = useConfigDirtyState<WorkflowJsonConfig>({ initial: initialConfig });
 
   const updateStep = useCallback(
     (stepSlug: string, updates: Partial<WorkflowStep>) => {
@@ -88,52 +69,57 @@ export function WorkflowConfigProvider({
         ),
       }));
     },
-    [],
+    [setConfig],
   );
 
-  const addStep = useCallback((step: WorkflowStep) => {
-    setConfig((prev) => ({
-      ...prev,
-      steps: [...prev.steps, step],
-    }));
-  }, []);
+  const addStep = useCallback(
+    (step: WorkflowStep) => {
+      setConfig((prev) => ({
+        ...prev,
+        steps: [...prev.steps, step],
+      }));
+    },
+    [setConfig],
+  );
 
-  const deleteStep = useCallback((stepSlug: string) => {
-    setConfig((prev) => ({
-      ...prev,
-      steps: prev.steps
-        .filter((s) => s.stepSlug !== stepSlug)
-        // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
-        .map((s) => {
-          const nextSteps = s.nextSteps;
-          const hasRef = Object.values(nextSteps).some((v) => v === stepSlug);
-          if (!hasRef) return s;
+  const deleteStep = useCallback(
+    (stepSlug: string) => {
+      setConfig((prev) => ({
+        ...prev,
+        steps: prev.steps
+          .filter((s) => s.stepSlug !== stepSlug)
+          // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
+          .map((s) => {
+            const nextSteps = s.nextSteps;
+            const hasRef = Object.values(nextSteps).some((v) => v === stepSlug);
+            if (!hasRef) return s;
 
-          const cleaned: Record<string, string> = {};
-          for (const [key, value] of Object.entries(nextSteps)) {
-            cleaned[key] = value === stepSlug ? '' : value;
-          }
-          return { ...s, nextSteps: cleaned };
-        }),
-    }));
-  }, []);
+            const cleaned: Record<string, string> = {};
+            for (const [key, value] of Object.entries(nextSteps)) {
+              cleaned[key] = value === stepSlug ? '' : value;
+            }
+            return { ...s, nextSteps: cleaned };
+          }),
+      }));
+    },
+    [setConfig],
+  );
 
-  const resetConfig = useCallback(() => {
-    setConfig(initialRef.current);
-  }, []);
-
-  const markSaving = useCallback((saving: boolean) => {
-    setIsSaving(saving);
-    if (!saving) {
-      initialRef.current = configRef.current;
-    }
-  }, []);
+  const markSaving = useCallback(
+    (saving: boolean) => {
+      setIsSaving(saving);
+      // Legacy semantics: leaving the in-flight state commits the working copy
+      // as the new baseline.
+      if (!saving) markSaved(configRef.current);
+    },
+    [configRef, markSaved, setIsSaving],
+  );
 
   const value = useMemo<WorkflowConfigContextValue>(
     () => ({
       workflowSlug,
       config,
-      initialConfig: initialRef.current,
+      initialConfig: savedConfig,
       isDirty,
       isSaving,
       updateConfig,
@@ -146,6 +132,7 @@ export function WorkflowConfigProvider({
     [
       workflowSlug,
       config,
+      savedConfig,
       isDirty,
       isSaving,
       updateConfig,

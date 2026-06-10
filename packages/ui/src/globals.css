@@ -425,6 +425,82 @@
   }
 }
 
+/* Streaming markdown reveal (Gemini-style): content arrives in SEGMENTS
+   (prose clauses, code lines, table rows) and each newly mounted node fades
+   from 0% → 100% opacity. CSS animations only run when an element is
+   INSERTED into the DOM, and React preserves prior nodes across re-renders,
+   so already-revealed segments never re-fade. Scoped to `.stream-reveal`
+   (the streaming half of IncrementalMarkdown) so completed/stable markdown
+   renders without any animation. */
+/* Text clauses: a plain opacity fade with a fast attack (mostly visible by
+   mid-animation) and a soft landing. No `filter: blur` — filters force
+   per-frame repaints of the inline boxes and visibly jank long streams;
+   opacity composites on the GPU. */
+@keyframes stream-segment-in {
+  0% {
+    opacity: 0;
+  }
+  55% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Block-level units (list items, code blocks, quotes, images): fade + a
+   gentle lift that settles. */
+@keyframes stream-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Table rows / rules: plain fade — transforms and filters on table-internal
+   boxes render inconsistently across engines. */
+@keyframes stream-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* easeOutQuint-style curve: fast attack, long soft landing. */
+.stream-reveal .stream-seg {
+  animation: stream-segment-in 600ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.stream-reveal li,
+.stream-reveal pre,
+.stream-reveal blockquote,
+.stream-reveal img {
+  animation: stream-block-in 560ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.stream-reveal tr,
+.stream-reveal hr {
+  animation: stream-fade-in 520ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-reveal .stream-seg,
+  .stream-reveal li,
+  .stream-reveal tr,
+  .stream-reveal pre,
+  .stream-reveal blockquote,
+  .stream-reveal hr,
+  .stream-reveal img {
+    animation: none;
+  }
+}
+
 @keyframes shake {
   0%,
   100% {

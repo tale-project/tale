@@ -12,6 +12,7 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import { isValidOrgSlug } from './lib/shared/constants/org-slug';
 import { parseSessionIdleTimeoutMinutes } from './lib/shared/session-idle';
 import { fetchAdapter as webdavFetchAdapter } from './lib/webdav/adapters/fetch';
 import { makeWebdavCtx } from './lib/webdav/ctx';
@@ -175,12 +176,16 @@ const port = process.env.PORT || 3000;
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const distDir = join(moduleDir, 'dist');
 const distSeoDir = join(moduleDir, 'dist-seo');
-// Branding is default-only on the read side (see branding/file_actions.ts —
-// every reader passes the literal 'default'). On-disk location follows the
-// uniform org-first layout: `${TALE_CONFIG_DIR}/default/branding/images/`.
-const brandingImagesDir = process.env.TALE_CONFIG_DIR
-  ? join(process.env.TALE_CONFIG_DIR, 'default', 'branding', 'images')
-  : null;
+// Branding is per-org: images live at
+// `${TALE_CONFIG_DIR}/<orgSlug>/branding/images/<filename>`. The org slug is a
+// path segment in the request (`/branding/images/:orgSlug/:filename`) and is
+// validated against the slug allowlist before being joined, so it can't be
+// used for traversal. The `default` slug backs the pre-auth shell.
+const brandingConfigRoot = process.env.TALE_CONFIG_DIR ?? null;
+function resolveBrandingImagesDir(orgSlug: string): string | null {
+  if (!brandingConfigRoot || !isValidOrgSlug(orgSlug)) return null;
+  return join(brandingConfigRoot, orgSlug, 'branding', 'images');
+}
 
 // Lazily loaded once per process. The manifest is read on the first
 // artifact request — defer it so the module load does not fail in test
@@ -517,17 +522,15 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     webp: 'image/webp',
     ico: 'image/x-icon',
   };
-  app.get('/branding/images/:filename', async (c) => {
-    if (!brandingImagesDir) return c.notFound();
+  app.get('/branding/images/:orgSlug/:filename', async (c) => {
+    const imagesDir = resolveBrandingImagesDir(c.req.param('orgSlug'));
+    if (!imagesDir) return c.notFound();
     const filename = c.req.param('filename');
     if (!filename || filename.includes('/') || filename.includes('..')) {
       return c.notFound();
     }
-    const filePath = resolve(brandingImagesDir, filename);
-    if (
-      !filePath.startsWith(brandingImagesDir + sep) &&
-      filePath !== brandingImagesDir
-    ) {
+    const filePath = resolve(imagesDir, filename);
+    if (!filePath.startsWith(imagesDir + sep) && filePath !== imagesDir) {
       return c.notFound();
     }
     const file = Bun.file(filePath);

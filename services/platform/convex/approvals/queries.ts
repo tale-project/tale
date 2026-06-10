@@ -164,6 +164,52 @@ export const listActiveApprovalsByOrganization = query({
   },
 });
 
+/**
+ * Resolved (completed/rejected) human-input requests for one thread. The
+ * active-approvals subscription only carries pending/executing rows, so the
+ * chat needs this to render answered request cards inline in the history —
+ * including the "edit response" affordance on completed ones. Thread-bounded
+ * and index-backed, so it stays cheap on long-lived orgs.
+ */
+export const listResolvedHumanInputRequestsByThread = query({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+  },
+  returns: v.array(approvalItemValidator),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return [];
+    }
+
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return [];
+      throw error;
+    }
+
+    const approvals = [];
+    for (const status of ['completed', 'rejected'] as const) {
+      for await (const approval of ctx.db
+        .query('approvals')
+        .withIndex('by_threadId_status_resourceType', (q) =>
+          q
+            .eq('threadId', args.threadId)
+            .eq('status', status)
+            .eq('resourceType', 'human_input_request'),
+        )) {
+        // Membership was verified against args.organizationId — drop rows
+        // from any other org so a guessed threadId can't leak them.
+        if (approval.organizationId !== args.organizationId) continue;
+        approvals.push(approval);
+      }
+    }
+    return approvals;
+  },
+});
+
 export const getPendingIntegrationApprovalsForThread = query({
   args: {
     threadId: v.string(),

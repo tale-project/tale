@@ -68,6 +68,10 @@ describe('useSendMessage — error handling', () => {
       messageAlreadyExists: false,
       streamId: 'stream_1',
     });
+    // The hook fire-and-forgets the title update with `.catch(...)` — the
+    // mock must return a promise or the success path throws on `.catch`.
+    mockUpdateThread.mockResolvedValue(undefined);
+    mockCreateThread.mockResolvedValue('thread_new');
     mockConvexAction.mockResolvedValue({ blocked: false });
     // Default: no-op bind / unbind. Tests that exercise the snapshot
     // path override `mockConvexMutation` per-case.

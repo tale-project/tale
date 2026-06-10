@@ -15,9 +15,19 @@ import type {
 } from '@ai-sdk/provider';
 import { wrapLanguageModel } from 'ai';
 
-import type { ReasoningCapabilityConfig } from '../../lib/shared/schemas/providers';
+import type { Domain } from '../../lib/shared/constants/domains';
+import type {
+  ModelTier,
+  PromptCachingCapabilityConfig,
+  ReasoningCapabilityConfig,
+} from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import { createCacheControlMiddleware } from '../lib/agent_response/prompt_caching/middleware';
+import {
+  interleavedThinkingHeaders,
+  providerAttributionHeaders,
+} from './provider_attribution';
 
 export interface ResolvedModelData {
   providerName: string;
@@ -62,11 +72,27 @@ export interface ResolvedModelData {
    */
   providerOptions?: Record<string, unknown>;
   /**
-   * Operator-declared reasoning capability for the Adaptive Reasoning Governor.
-   * Optional override; the governor falls back to a built-in curated model-id
-   * table when absent. See `lib/agent_response/reasoning/capability.ts`.
+   * Resolved reasoning capability for the Adaptive Reasoning Governor (operator
+   * provider JSON, with the OpenRouter catalog cache layered under it). Absent
+   * ⇒ reasoning is not steered. See `lib/agent_response/reasoning/capability.ts`.
    */
   reasoning?: ReasoningCapabilityConfig;
+  /**
+   * Resolved prompt-caching capability for the generic cache layer (operator
+   * provider JSON, catalog cache layered under it). Absent ⇒ 'none'. See
+   * `lib/agent_response/prompt_caching/strategy.ts`.
+   */
+  promptCaching?: PromptCachingCapabilityConfig;
+  /**
+   * Operator-declared routing/cascade metadata (provider JSON). All optional;
+   * consumed by complexity-based model routing and the speculative cascade.
+   * `tier` falls back to cost-inference, `qualityScore` to 0, `routingTags` to
+   * none. Vision capability is read from the `'vision'` tag, not a flag here.
+   */
+  tier?: ModelTier;
+  qualityScore?: number;
+  routingTags?: Domain[];
+  contextWindow?: number;
 }
 
 interface ResolvedLanguageModel {
@@ -302,22 +328,84 @@ function createDebugFetch(providerName: string): FetchFn | undefined {
   };
 }
 
-export function createLanguageModel(
+/**
+ * Build the openai-compatible provider client shared by chat and image
+ * resolution. `supportsStructuredOutputs` is only meaningful for chat models,
+ * so it's threaded through as an optional flag.
+ */
+function createCompatibleProvider(
   modelData: ResolvedModelData,
-): LanguageModelV3 {
+  opts?: { supportsStructuredOutputs?: boolean },
+) {
   const debugFetch = createDebugFetch(modelData.providerName);
-  const provider = createOpenAICompatible({
+  return createOpenAICompatible({
     name: modelData.providerName,
     baseURL: modelData.baseUrl,
     apiKey: modelData.apiKey,
-    supportsStructuredOutputs: modelData.supportsStructuredOutputs,
+    headers: {
+      ...providerAttributionHeaders(modelData),
+      ...interleavedThinkingHeaders(modelData),
+    },
+    ...(opts?.supportsStructuredOutputs !== undefined
+      ? { supportsStructuredOutputs: opts.supportsStructuredOutputs }
+      : {}),
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- @ai-sdk/openai-compatible types `fetch` as `typeof fetch` which carries an irrelevant `preconnect` static; the wrapped function is structurally compatible for runtime fetch calls
     ...(debugFetch ? { fetch: debugFetch as typeof fetch } : {}),
   });
+}
+
+export function createLanguageModel(
+  modelData: ResolvedModelData,
+): LanguageModelV3 {
+  // Reject a malformed/missing baseURL at resolution time so a wrongly
+  // configured provider is skipped to the next fallback model WITHOUT a doomed
+  // network request (see the fallback loop in agent_chat/internal_actions.ts).
+  try {
+    void new URL(modelData.baseUrl);
+  } catch {
+    throw new Error(
+      `Invalid baseURL for provider '${modelData.providerName}': ${modelData.baseUrl || '(empty)'}`,
+    );
+  }
+  const provider = createCompatibleProvider(modelData, {
+    supportsStructuredOutputs: modelData.supportsStructuredOutputs,
+  });
   return wrapLanguageModel({
     model: provider.chatModel(modelData.modelId),
-    middleware: toolSchemaFixMiddleware,
+    // Order matters: the tool-schema fix normalizes tools first, then the
+    // cache-control layer splits/normalizes the system prompt and (for
+    // auto-server models) attaches a prompt_cache_key.
+    middleware: [
+      toolSchemaFixMiddleware,
+      createCacheControlMiddleware({
+        providerName: modelData.providerName,
+        modelId: modelData.modelId,
+        promptCaching: modelData.promptCaching,
+      }),
+    ],
   });
+}
+
+// The resolve actions return a structural validator whose inferred type is
+// looser than `ResolvedModelData` (e.g. `Record<string, any>` providerOptions,
+// un-branded routing fields), so both helpers below assert the exact contract
+// shape — guaranteed by the file_actions validator.
+async function runResolveByTag(
+  ctx: ActionCtx,
+  args: { tag: string; providerName?: string; organizationId: string },
+): Promise<ResolvedModelData> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action validator type is structurally compatible but looser than ResolvedModelData
+  return (await ctx.runAction(
+    internal.providers.file_actions.resolveModelByTag,
+    args,
+  )) as ResolvedModelData;
+}
+
+async function runResolveById(
+  ctx: ActionCtx,
+  args: { modelId: string; providerName?: string; organizationId: string },
+): Promise<ResolvedModelData> {
+  return ctx.runAction(internal.providers.file_actions.resolveModelData, args);
 }
 
 /**
@@ -332,16 +420,11 @@ export async function resolveTranscriptionModel(
   ctx: ActionCtx,
   opts: { organizationId: string; providerName?: string },
 ): Promise<ResolvedModelData> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
-  const modelData = (await ctx.runAction(
-    internal.providers.file_actions.resolveModelByTag,
-    {
-      tag: 'transcription',
-      providerName: opts.providerName,
-      organizationId: opts.organizationId,
-    },
-  )) as ResolvedModelData;
-  return modelData;
+  return runResolveByTag(ctx, {
+    tag: 'transcription',
+    providerName: opts.providerName,
+    organizationId: opts.organizationId,
+  });
 }
 
 export interface ResolvedTtsModel extends ResolvedModelData {
@@ -372,15 +455,11 @@ export async function resolveTtsModel(
   ctx: ActionCtx,
   opts: { organizationId: string; locale: string; providerName?: string },
 ): Promise<ResolvedTtsModel> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
-  const modelData = (await ctx.runAction(
-    internal.providers.file_actions.resolveModelByTag,
-    {
-      tag: 'text-to-speech',
-      providerName: opts.providerName,
-      organizationId: opts.organizationId,
-    },
-  )) as ResolvedModelData;
+  const modelData = await runResolveByTag(ctx, {
+    tag: 'text-to-speech',
+    providerName: opts.providerName,
+    organizationId: opts.organizationId,
+  });
 
   const baseLocale = opts.locale.split('-')[0];
 
@@ -416,15 +495,11 @@ export async function resolveLanguageModel(
   ctx: ActionCtx,
   opts: { tag: string; providerName?: string; organizationId: string },
 ): Promise<ResolvedLanguageModel> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
-  const modelData = (await ctx.runAction(
-    internal.providers.file_actions.resolveModelByTag,
-    {
-      tag: opts.tag,
-      providerName: opts.providerName,
-      organizationId: opts.organizationId,
-    },
-  )) as ResolvedModelData;
+  const modelData = await runResolveByTag(ctx, {
+    tag: opts.tag,
+    providerName: opts.providerName,
+    organizationId: opts.organizationId,
+  });
   return { languageModel: createLanguageModel(modelData), modelData };
 }
 
@@ -437,14 +512,11 @@ export async function resolveLanguageModelById(
   ctx: ActionCtx,
   opts: { modelId: string; providerName?: string; organizationId: string },
 ): Promise<ResolvedLanguageModel> {
-  const modelData = await ctx.runAction(
-    internal.providers.file_actions.resolveModelData,
-    {
-      modelId: opts.modelId,
-      providerName: opts.providerName,
-      organizationId: opts.organizationId,
-    },
-  );
+  const modelData = await runResolveById(ctx, {
+    modelId: opts.modelId,
+    providerName: opts.providerName,
+    organizationId: opts.organizationId,
+  });
   return { languageModel: createLanguageModel(modelData), modelData };
 }
 
@@ -460,14 +532,7 @@ export async function resolveLanguageModelById(
 function buildImageResolution(
   modelData: ResolvedModelData,
 ): ResolvedImageModel {
-  const debugFetch = createDebugFetch(modelData.providerName);
-  const provider = createOpenAICompatible({
-    name: modelData.providerName,
-    baseURL: modelData.baseUrl,
-    apiKey: modelData.apiKey,
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- @ai-sdk/openai-compatible types `fetch` as `typeof fetch` which carries an irrelevant `preconnect` static; the wrapped function is structurally compatible for runtime fetch calls
-    ...(debugFetch ? { fetch: debugFetch as typeof fetch } : {}),
-  });
+  const provider = createCompatibleProvider(modelData);
   if (modelData.imageGenerationMode === 'chat-multimodal') {
     return {
       kind: 'chat-multimodal',
@@ -490,14 +555,11 @@ export async function resolveImageModelById(
   ctx: ActionCtx,
   opts: { modelId: string; providerName?: string; organizationId: string },
 ): Promise<ResolvedImageModel> {
-  const modelData = await ctx.runAction(
-    internal.providers.file_actions.resolveModelData,
-    {
-      modelId: opts.modelId,
-      providerName: opts.providerName,
-      organizationId: opts.organizationId,
-    },
-  );
+  const modelData = await runResolveById(ctx, {
+    modelId: opts.modelId,
+    providerName: opts.providerName,
+    organizationId: opts.organizationId,
+  });
   if (!modelData.tags.includes('image-generation')) {
     throw new Error(
       `Model "${modelData.modelId}" lacks the "image-generation" tag.`,
@@ -515,14 +577,10 @@ export async function resolveImageModelByTag(
   ctx: ActionCtx,
   opts: { providerName?: string; organizationId: string },
 ): Promise<ResolvedImageModel> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
-  const modelData = (await ctx.runAction(
-    internal.providers.file_actions.resolveModelByTag,
-    {
-      tag: 'image-generation',
-      providerName: opts.providerName,
-      organizationId: opts.organizationId,
-    },
-  )) as ResolvedModelData;
+  const modelData = await runResolveByTag(ctx, {
+    tag: 'image-generation',
+    providerName: opts.providerName,
+    organizationId: opts.organizationId,
+  });
   return buildImageResolution(modelData);
 }

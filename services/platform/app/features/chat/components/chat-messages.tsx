@@ -23,7 +23,9 @@ import { useBranchContext } from '../context/branch-context';
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { usePersonalizationActiveForThread } from '../hooks/use-personalization-active';
 import { VoiceOutputProvider } from '../hooks/voice-output-context';
+import { TOP_INSET } from '../scroll-constants';
 import { hasThoughtSteps } from '../utils/build-thought-timeline';
+import type { RouteReason } from '../utils/route-reason';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
@@ -53,25 +55,8 @@ function useVirtualizedMessagesFlag(): boolean {
   return enabled;
 }
 
-/**
- * Compute the response area min-height so that scrolling to bottom
- * positions the last user message at the viewport top.
- *
- * Formula: viewport - footer - userMsg - gap - contentPadding - topInset
- *
- * This matches assistant-ui's ViewportSlack pattern.
- * The topInset ensures the user message has breathing room from the
- * viewport top edge (not flush against the toolbar).
- */
-const TOP_INSET = 16;
-
-/**
- * For short user messages (≤ CLAMP_THRESHOLD): compute min-height so
- * the user message anchors at the viewport top.
- * For tall user messages (> CLAMP_THRESHOLD): return 0 — content flows
- * naturally, no artificial white gap below the message.
- */
-const CLAMP_THRESHOLD = 160; // ~10em
+// TOP_INSET imported from ../scroll-constants — shared with use-chat-scroll
+// so the slack formula and the send-snap target always agree.
 
 /**
  * Native "virtualization-lite": history messages (everything before the
@@ -86,6 +71,27 @@ const CLAMP_THRESHOLD = 160; // ~10em
 const HISTORY_CONTENT_VISIBILITY =
   '[content-visibility:auto] [contain-intrinsic-size:auto_200px]';
 
+/**
+ * Pure slack formula: how tall the response area must be so that scrolling
+ * to the bottom positions the last user message at the viewport top (with
+ * TOP_INSET breathing room). Matches assistant-ui's ViewportSlack pattern.
+ * A user message taller than the viewport naturally yields 0 — its top still
+ * anchors at the viewport top via the send-snap scroll target.
+ * Exported for unit testing.
+ */
+export function computeSlackPx(opts: {
+  viewportH: number;
+  userMsgH: number;
+  gap: number;
+  padBottom: number;
+  topInset: number;
+}): number {
+  return Math.max(
+    0,
+    opts.viewportH - opts.userMsgH - opts.gap - opts.padBottom - opts.topInset,
+  );
+}
+
 function computeResponseMinHeight(
   container: HTMLElement,
   responseArea: HTMLElement,
@@ -93,14 +99,9 @@ function computeResponseMinHeight(
 ): number {
   if (!userMsg) return 0;
 
+  // `container` is the dedicated scroller (the chat input footer is a flex
+  // SIBLING outside it), so clientHeight is exactly the visible viewport.
   const userMsgH = userMsg.getBoundingClientRect().height;
-
-  // Tall user messages: skip min-height — just scroll to bottom naturally.
-  if (userMsgH > CLAMP_THRESHOLD) return 0;
-
-  const footer = container.querySelector('[class*="sticky"]');
-  const footerH =
-    footer instanceof HTMLElement ? footer.getBoundingClientRect().height : 0;
   const flexParent = responseArea.parentElement;
   const gap = flexParent
     ? parseFloat(getComputedStyle(flexParent).gap) || 0
@@ -117,10 +118,13 @@ function computeResponseMinHeight(
     ? parseFloat(getComputedStyle(contentWrapper).paddingBottom) || 0
     : 0;
 
-  return Math.max(
-    0,
-    container.clientHeight - footerH - userMsgH - gap - padBottom - TOP_INSET,
-  );
+  return computeSlackPx({
+    viewportH: container.clientHeight,
+    userMsgH,
+    gap,
+    padBottom,
+    topInset: TOP_INSET,
+  });
 }
 
 /**
@@ -162,9 +166,28 @@ interface ChatMessagesProps {
   isLoadingMore: boolean;
   loadMore: (numItems: number) => void;
   isLoading: boolean;
+  /** Optimistic "send/submit in flight" flag (pre server-confirm). Lets the gap
+   *  affordance stay up right after a human-input submit even though a completed
+   *  request bubble is on screen — see `responseFooterLive`. */
+  isSendPending?: boolean;
+  /** True when the in-flight turn used the Auto sentinel (no pinned agent), so
+   *  the optimistic gap shell opens in the 'routing' phase. */
+  isAutoRoute?: boolean;
+  /** The live Auto-route decision for the in-flight turn (surfaced mid-turn via
+   *  the thread's transient `liveRoute`), so the gap shell can show "Routed to X"
+   *  as soon as the router decides instead of waiting for turn completion. */
+  liveRoute?: { agentName: string; reason: RouteReason };
+  /** The in-flight turn's server start (`generationStartTime`), anchoring the
+   *  gap-shell "Thinking · Ns" timer to the same clock the in-bubble timeline
+   *  uses — so it neither resets at the handoff nor across the new-chat remount. */
+  generationStartMs?: number | null;
   lastUserMessageRef: RefObject<HTMLDivElement | null>;
   containerRef: RefObject<HTMLDivElement | null>;
   activeApproval: ChatItem | null;
+  /** True when the active approval already renders INLINE in `items` (human
+   *  input anchored to its source message) — the footer card is skipped so
+   *  the request doesn't show twice. */
+  activeApprovalInline?: boolean;
   forkedMessageCount?: number;
   lastForkedMessageOrder?: number;
   forkedAt?: number;
@@ -211,9 +234,14 @@ export const ChatMessages = memo(function ChatMessages({
   isLoadingMore,
   loadMore,
   isLoading,
+  isSendPending,
+  isAutoRoute,
+  liveRoute,
+  generationStartMs,
   lastUserMessageRef,
   containerRef,
   activeApproval,
+  activeApprovalInline,
   forkedMessageCount,
   lastForkedMessageOrder,
   forkedAt,
@@ -303,6 +331,18 @@ export const ChatMessages = memo(function ChatMessages({
     const item = items[lastUserIdx];
     return item.type === 'message' ? item.data.key : null;
   }, [items, lastUserIdx]);
+
+  // The thread's last ASSISTANT message keeps an always-visible toolbar;
+  // every other bubble reveals its toolbar on hover/focus only.
+  const lastAssistantMessageKey = useMemo(() => {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.type === 'message' && item.data.role === 'assistant') {
+        return item.data.key;
+      }
+    }
+    return null;
+  }, [items]);
 
   // Map each assistant message key → the text of the user message that produced
   // it (the nearest preceding user turn). Powers the dev-only Direct TTFT probe,
@@ -423,9 +463,10 @@ export const ChatMessages = memo(function ChatMessages({
     };
 
     const ro = new ResizeObserver(update);
+    // The chat input footer is a flex sibling OUTSIDE the scroller, so footer
+    // growth (multiline input) shrinks the scroller itself — observing the
+    // container covers it.
     ro.observe(container);
-    const footer = container.querySelector('[class*="sticky"]');
-    if (footer instanceof HTMLElement) ro.observe(footer);
 
     return () => {
       ro.disconnect();
@@ -498,7 +539,26 @@ export const ChatMessages = memo(function ChatMessages({
   }, [branches, activeBranchThreadId]);
 
   const renderMessage = (item: ChatItem, isHistory: boolean) => {
-    if (item.type !== 'message') return null;
+    if (item.type !== 'message') {
+      // Inline approval card (resolved human-input requests, merged into the
+      // flow by useMergedChatItems). The data-message-key keeps load-more
+      // prepend anchoring working across these rows.
+      const approvalKey = `approval-${item.data._id}`;
+      return (
+        <div
+          key={approvalKey}
+          data-message-key={approvalKey}
+          className={cn(isHistory && HISTORY_CONTENT_VISIBILITY)}
+        >
+          <ApprovalCardRenderer
+            item={item}
+            organizationId={organizationId}
+            onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+            onSendMessage={onSendMessage}
+          />
+        </div>
+      );
+    }
 
     const message = item.data;
 
@@ -648,6 +708,9 @@ export const ChatMessages = memo(function ChatMessages({
                   ? savedMessageMap.has(message.id)
                   : false
               }
+              isLastAssistantMessage={
+                !isUserMessage && message.key === lastAssistantMessageKey
+              }
               toolbarExtra={
                 !hideBranchNavigator &&
                 hasBranches &&
@@ -749,19 +812,37 @@ export const ChatMessages = memo(function ChatMessages({
   const lastUserItem = lastUserIdx >= 0 ? items[lastUserIdx] : null;
   const afterItems = lastUserIdx >= 0 ? items.slice(lastUserIdx + 1) : [];
 
-  // True once an assistant bubble for this turn renders something (answer text,
-  // attachments, an abort/fail notice, or a thought-process timeline). Gates
-  // the post-send "Thinking…" fallback so it only fills the gap between send
-  // and the assistant message appearing — the in-bubble timeline takes over
-  // the moment reasoning or tools arrive.
+  // True once the CURRENT turn's assistant bubble is rendering — which gates the
+  // post-send "Thinking…" affordance off. A bubble counts when it's actively
+  // streaming (its in-bubble timeline + typewriter own the indicator), has hit a
+  // terminal abort/fail notice, or shows a completed answer.
+  //
+  // The completed-answer case has one exception: right after the user answers a
+  // `request_human_input` card (`isSendPending`, set optimistically on submit),
+  // the completed bubble is the resolved *request* — its text and/or tool call —
+  // and a brand-new turn is now pending. Don't treat it as "the response
+  // arrived": keep the optimistic Thinking line up until the new turn streams.
+  // Without this the gap stays blank through the whole submit→resume round-trip
+  // (the lag the user saw). The `isSendPending` guard is what keeps a *normal*
+  // finished answer from flashing a stray Thinking line ~1–2s later when a
+  // fire-and-forget follow-up (e.g. the title write) briefly flips the thread's
+  // generation status.
   const hasRenderableAssistantResponse = afterItems.some(
     (it) =>
       it.type === 'message' &&
       it.data.role === 'assistant' &&
-      (!!it.data.content ||
+      // A streaming assistant bubble counts as "the response arrived" only once
+      // it has SOMETHING to paint — answer text or a reasoning/tool step. A bare
+      // empty streaming shell (isStreaming true, no content, no parts yet)
+      // renders nothing (`shouldShow` is false), so treating it as renderable
+      // would hide the "Thinking…" line into a blank gap until the first token.
+      // Gating on content/steps hands the indicator off to the bubble in the
+      // SAME commit the bubble first paints — no gap.
+      ((it.data.isStreaming === true &&
+        (!!it.data.content || hasThoughtSteps(it.data.parts))) ||
         it.data.isAborted ||
         it.data.isFailed ||
-        hasThoughtSteps(it.data.parts)),
+        (!!it.data.content && !isSendPending)),
   );
 
   // Shared between the virtualized and non-virtualized paths.
@@ -791,9 +872,25 @@ export const ChatMessages = memo(function ChatMessages({
   // with its in-bubble thought-process timeline. The ThinkingIndicator has no
   // live region of its own (to avoid nested-live-region double-announce), so it
   // must sit inside an aria-live wrapper to be announced.
+  // The optimistic user bubble (key `pending-…`) is set in the same commit as
+  // the send; on a brand-new thread `isLoading` only flips true a few hundred ms
+  // later (after the createThread/bind round-trips let `markSendPending` key the
+  // real threadId), so keying the indicator solely on `isLoading` renders the
+  // message first and the timeline a beat later. Drive it off the optimistic
+  // bubble too so both paint together. Once the real user message replaces the
+  // pending one, `isLoading` is already true, so the indicator never flickers.
+  const lastUserIsPendingOptimistic =
+    lastUserMessageKey?.startsWith('pending-') ?? false;
   const responseFooterLive =
-    isLoading && !hasRenderableAssistantResponse ? (
-      <ThinkingIndicator className="px-4 py-3" />
+    (isLoading || lastUserIsPendingOptimistic) &&
+    !hasRenderableAssistantResponse ? (
+      <ThinkingIndicator
+        className="px-4 py-3"
+        phase={isAutoRoute && !liveRoute ? 'routing' : 'thinking'}
+        routedAgentName={liveRoute?.agentName}
+        routeReason={liveRoute?.reason}
+        turnStartMs={generationStartMs ?? undefined}
+      />
     ) : null;
   // Approval cards own internal live regions for their executing/error
   // sub-states (e.g. workflow-run-approval-card's role=status, the role=alert
@@ -804,14 +901,15 @@ export const ChatMessages = memo(function ChatMessages({
   // the card's initial pending body is announced. In the virtualized path the
   // card renders bare (root log has no aria-live), so its pending body is not
   // auto-announced; an accepted limitation of the experimental windowed path.
-  const responseFooterStatic = activeApproval ? (
-    <ApprovalCardRenderer
-      item={activeApproval}
-      organizationId={organizationId}
-      onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
-      onSendMessage={onSendMessage}
-    />
-  ) : null;
+  const responseFooterStatic =
+    activeApproval && !activeApprovalInline ? (
+      <ApprovalCardRenderer
+        item={activeApproval}
+        organizationId={organizationId}
+        onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+        onSendMessage={onSendMessage}
+      />
+    ) : null;
 
   // Single VoiceOutputProvider wraps BOTH render paths (below) so voice-output
   // state has one lifecycle per ChatMessages instance — previously each branch

@@ -125,4 +125,20 @@ export function resolveImagePath(orgSlug: string, filename: string): string {
   return safeJoinWithinDir(resolveImagesDir(orgSlug), filename);
 }
 
+/**
+ * Public URL for a branding image, segmented by org slug so the static image
+ * route (server.ts + serve-branding-images.ts) resolves the right org's
+ * bucket: `<SITE_URL><BASE_PATH>/branding/images/<orgSlug>/<filename>`. Returns
+ * `null` when there's no filename so callers can pass through "no image".
+ */
+export function buildBrandingImageUrl(
+  orgSlug: string,
+  filename: string | undefined,
+): string | null {
+  if (!filename) return null;
+  const siteUrl = (process.env.SITE_URL ?? '').replace(/\/$/, '');
+  const basePath = process.env.BASE_PATH ?? '';
+  return `${siteUrl}${basePath}/branding/images/${orgSlug}/${filename}`;
+}
+
 export { ALLOWED_IMAGE_EXTENSIONS, MAX_FILE_SIZE_BYTES, MAX_HISTORY_ENTRIES };

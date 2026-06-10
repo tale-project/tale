@@ -28,8 +28,8 @@ import {
 } from '@/app/features/chat/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCopyButton } from '@/app/hooks/use-copy';
-import { Id } from '@/convex/_generated/dataModel';
-import { WorkflowCreationMetadata } from '@/convex/approvals/types';
+import type { Id } from '@/convex/_generated/dataModel';
+import type { WorkflowCreationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';

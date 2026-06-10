@@ -80,6 +80,21 @@ interface ExtractedToolCall {
 }
 
 /**
+ * Tool result extracted from message content
+ */
+interface ExtractedToolResult {
+  toolName?: string;
+  toolCallId?: string;
+  result: unknown;
+  isError?: boolean;
+}
+
+/** Chronological ordering: by `order`, then `stepOrder` within the same turn. */
+function byChronologicalOrder(a: MessageDoc, b: MessageDoc): number {
+  return a.order !== b.order ? a.order - b.order : a.stepOrder - b.stepOrder;
+}
+
+/**
  * Result from building structured context
  */
 export interface StructuredContextResult {
@@ -117,16 +132,17 @@ export interface BuildStructuredContextParams {
    *  can drop context when the prompt is actually a system message (e.g. location
    *  response). */
   promptMessageId?: string;
+  /** Auto-compaction rolling summary (from `threadMetadata.contextSummary`).
+   *  When present, messages with `order <= coversThroughOrder` are represented
+   *  by `text` instead of being loaded verbatim, and `text` is injected as an
+   *  "earlier conversation, condensed" block ahead of the recent turns. */
+  contextSummary?: { text: string; coversThroughOrder: number };
 }
 
 /**
- * Build a fully structured context window
- *
- * This function:
- * 1. Queries message history from the thread
- * 2. Queries related approvals
- * 3. Formats everything into collapsible <details> sections
- * 4. Returns both the ModelMessage array and the raw text for logging
+ * Build a fully structured context window: thread message history and related
+ * approvals formatted into collapsible <details> sections, returned as a single
+ * context string plus token/count stats.
  */
 export async function buildStructuredContext(
   params: BuildStructuredContextParams,
@@ -141,17 +157,24 @@ export async function buildStructuredContext(
     additionalContext,
     parentThreadId,
     promptMessageId,
+    contextSummary,
   } = params;
 
-  // 1. Load message history and approvals in parallel (independent queries)
+  // Load message history and approvals in parallel (independent queries).
+  // Messages already folded into the rolling summary are excluded here so they
+  // aren't double-counted against the budget (the summary stands in).
   const [{ messages, toolMessageAges }, approvals] = await Promise.all([
-    loadPrioritizedMessages(ctx, threadId, maxHistoryTokens),
+    loadPrioritizedMessages(
+      ctx,
+      threadId,
+      maxHistoryTokens,
+      contextSummary?.coversThroughOrder,
+    ),
     ctx.runQuery(internal.approvals.internal_queries.getApprovalsForThread, {
       threadId,
     }),
   ]);
 
-  // 3. Build structured context parts
   const contextParts: string[] = [];
 
   if (parentThreadId) {
@@ -178,7 +201,14 @@ export async function buildStructuredContext(
     contextParts.push(fmt.formatArtifactsContext(artifactsContext));
   }
 
-  // 4. Format messages with approvals interleaved
+  // Inject the rolling summary (compacted earlier conversation) just before the
+  // recent verbatim turns, so the model treats it as established context.
+  if (contextSummary?.text.trim()) {
+    contextParts.push(
+      `<conversation_summary>\nThe earlier part of this conversation has been condensed to stay within the context window. Treat the following as established, factual context from earlier turns:\n${contextSummary.text}\n</conversation_summary>`,
+    );
+  }
+
   const { historyMessages } = formatMessagesWithApprovals(
     messages,
     approvals ?? [],
@@ -189,7 +219,6 @@ export async function buildStructuredContext(
     contextParts.push(fmt.formatHistorySection(historyMessages.join('\n\n')));
   }
 
-  // 5. Join all parts
   const contextText = contextParts.join('\n\n');
 
   const stats = {
@@ -259,8 +288,10 @@ async function loadPrioritizedMessages(
   ctx: ActionCtx,
   threadId: string,
   maxTokens: number,
+  /** Exclude messages with `order <= this` — they are represented by the
+   *  rolling compaction summary and must not be reloaded verbatim. */
+  summarizedThroughOrder?: number,
 ): Promise<PrioritizedMessagesResult> {
-  // Load all messages in a single paginated pass
   const allMessages: MessageDoc[] = [];
   let cursor: string | null = null;
   let isDone = false;
@@ -271,12 +302,17 @@ async function loadPrioritizedMessages(
       paginationOpts: { cursor, numItems: MESSAGE_PAGE_SIZE },
       excludeToolMessages: false,
     });
-    allMessages.push(...result.page);
+    for (const m of result.page) {
+      // Drop messages already folded into the rolling summary.
+      if (summarizedThroughOrder == null || m.order > summarizedThroughOrder) {
+        allMessages.push(m);
+      }
+    }
     cursor = result.continueCursor;
     isDone = result.isDone;
 
-    // Early exit: if we've loaded enough raw tokens to exceed 2x budget,
-    // no need to paginate further (messages are newest-first)
+    // Stop paginating once we hold > 2x the budget in raw tokens; messages are
+    // newest-first, so anything beyond that can't fit and isn't worth loading.
     const rawTokens = allMessages.reduce(
       (sum, m) => sum + estimateMessageDocTokens(m),
       0,
@@ -284,7 +320,7 @@ async function loadPrioritizedMessages(
     if (rawTokens > maxTokens * 2) break;
   }
 
-  // Partition into conversational vs tool messages (preserving newest-first order)
+  // Partition into conversational vs tool messages, preserving newest-first order.
   const conversational: MessageDoc[] = [];
   const toolMessages: MessageDoc[] = [];
   for (const msg of allMessages) {
@@ -303,13 +339,10 @@ async function loadPrioritizedMessages(
   );
 
   for (const msg of conversational) {
-    let tokens = estimateMessageDocTokens(msg);
-    // Cap oversized individual messages
-    if (tokens > maxSingleMessage) {
-      tokens = maxSingleMessage;
-    }
+    // Cap an oversized single message so it can't starve the whole history.
+    const tokens = Math.min(estimateMessageDocTokens(msg), maxSingleMessage);
+    // Always include at least one conversational message before budget cutoff.
     if (usedTokens + tokens > maxTokens && accepted.size > 0) break;
-    // Always include at least one conversational message
     accepted.add(msg._id);
     usedTokens += tokens;
   }
@@ -329,16 +362,11 @@ async function loadPrioritizedMessages(
     }
   }
 
-  // Assign age tiers to accepted tool messages
   const toolMessageAges = assignToolAges(acceptedToolMessages);
 
-  // Merge and sort chronologically by (order, stepOrder)
   const result = allMessages
     .filter((m) => accepted.has(m._id))
-    .sort((a, b) => {
-      if (a.order !== b.order) return a.order - b.order;
-      return a.stepOrder - b.stepOrder;
-    });
+    .sort(byChronologicalOrder);
 
   return { messages: result, toolMessageAges };
 }
@@ -362,7 +390,6 @@ function formatMessagesWithApprovals(
 ): FormattedMessagesResult {
   const result: string[] = [];
 
-  // Create approval lookup by messageId
   const approvalsByMessageId = new Map<string, ApprovalItem[]>();
   for (const approval of approvals) {
     if (approval.messageId) {
@@ -372,21 +399,17 @@ function formatMessagesWithApprovals(
     }
   }
 
-  // Track tool calls to match with results
+  // Pending tool calls, matched against later tool-result messages by id.
   const pendingToolCalls = new Map<string, ExtractedToolCall>();
 
-  // Sort messages by order and stepOrder for correct sequencing
-  const sortedMessages = [...messages].sort((a, b) => {
-    if (a.order !== b.order) return a.order - b.order;
-    return a.stepOrder - b.stepOrder;
-  });
+  const sortedMessages = [...messages].sort(byChronologicalOrder);
 
   // Determine which user message to skip (it's passed via `prompt` parameter,
   // not in context). When `promptMessageId` is provided we skip only the exact
   // message being used as the prompt — this avoids dropping the original user
   // question when the prompt is actually a system message (e.g. location
   // response). Without an explicit ID we fall back to the last user message.
-  const skipMessageId: string | undefined = promptMessageId;
+  const skipMessageId = promptMessageId;
   let lastUserMsgIndex = -1;
   if (!skipMessageId) {
     for (let i = sortedMessages.length - 1; i >= 0; i--) {
@@ -409,29 +432,24 @@ function formatMessagesWithApprovals(
 
     if (message.role === 'user') {
       const content = extractTextContent(message.content);
-      if (content) {
-        // Fallback: when no explicit promptMessageId, skip the last user message
-        // (assumed to be passed via `prompt` parameter)
-        if (!skipMessageId && i === lastUserMsgIndex) {
-          // skip — already sent as prompt
-        } else {
-          result.push(fmt.formatUserMessage(content, timestamp));
-        }
+      // Fallback when no explicit promptMessageId: skip the last user message,
+      // which is assumed to be passed via the `prompt` parameter.
+      const isFallbackPrompt = !skipMessageId && i === lastUserMsgIndex;
+      if (content && !isFallbackPrompt) {
+        result.push(fmt.formatUserMessage(content, timestamp));
       }
     } else if (message.role === 'assistant') {
-      // Assistant message - may contain text and/or tool calls
       const textContent = extractTextContent(message.content);
       if (textContent) {
         result.push(fmt.formatAssistantMessage(textContent, timestamp));
       }
 
-      // Extract tool calls
       const toolCalls = extractToolCalls(message.content);
       for (const tc of toolCalls) {
         if (tc.toolCallId) {
           pendingToolCalls.set(tc.toolCallId, tc);
         }
-        // If we have output (inline result), format as summary (non-mimicable format)
+        // Inline result present: format as a non-mimicable summary.
         if (tc.output !== undefined) {
           const age = toolMessageAges?.get(msg._id);
           result.push(
@@ -446,7 +464,6 @@ function formatMessagesWithApprovals(
         }
       }
 
-      // Check for human_input_request approvals linked to this message
       const linkedApprovals = approvalsByMessageId.get(msg._id);
       if (linkedApprovals) {
         for (const approval of linkedApprovals) {
@@ -480,11 +497,9 @@ function formatMessagesWithApprovals(
         }
       }
     } else if (message.role === 'tool') {
-      // Tool result message
       const toolResults = extractToolResults(message.content);
       const age = toolMessageAges?.get(msg._id);
       for (const tr of toolResults) {
-        // Find matching pending tool call
         const pendingCall = tr.toolCallId
           ? pendingToolCalls.get(tr.toolCallId)
           : undefined;
@@ -500,13 +515,11 @@ function formatMessagesWithApprovals(
           ),
         );
 
-        // Remove from pending
         if (tr.toolCallId) {
           pendingToolCalls.delete(tr.toolCallId);
         }
       }
     } else if (message.role === 'system') {
-      // System message (internal notification)
       const content = extractTextContent(message.content);
       if (content) {
         result.push(fmt.formatSystemMessage(content, timestamp));
@@ -534,10 +547,12 @@ function extractTextContent(
     for (const part of content) {
       if (typeof part === 'string') {
         textParts.push(part);
-      } else if (isRecord(part)) {
-        if (part.type === 'text' && typeof part.text === 'string') {
-          textParts.push(part.text);
-        }
+      } else if (
+        isRecord(part) &&
+        part.type === 'text' &&
+        typeof part.text === 'string'
+      ) {
+        textParts.push(part.text);
       }
     }
     return textParts.length > 0 ? textParts.join('\n') : undefined;
@@ -555,17 +570,18 @@ function extractToolCalls(
   if (!content || !Array.isArray(content)) return [];
 
   const toolCalls: ExtractedToolCall[] = [];
-
   for (const part of content) {
-    if (isRecord(part)) {
-      if (part.type === 'tool-call' && typeof part.toolName === 'string') {
-        toolCalls.push({
-          toolName: part.toolName,
-          toolCallId:
-            typeof part.toolCallId === 'string' ? part.toolCallId : undefined,
-          input: part.args ?? part.input,
-        });
-      }
+    if (
+      isRecord(part) &&
+      part.type === 'tool-call' &&
+      typeof part.toolName === 'string'
+    ) {
+      toolCalls.push({
+        toolName: part.toolName,
+        toolCallId:
+          typeof part.toolCallId === 'string' ? part.toolCallId : undefined,
+        input: part.args ?? part.input,
+      });
     }
   }
 
@@ -577,33 +593,19 @@ function extractToolCalls(
  */
 function extractToolResults(
   content: string | Array<unknown> | undefined,
-): Array<{
-  toolName?: string;
-  toolCallId?: string;
-  result: unknown;
-  isError?: boolean;
-}> {
+): ExtractedToolResult[] {
   if (!content || !Array.isArray(content)) return [];
 
-  const results: Array<{
-    toolName?: string;
-    toolCallId?: string;
-    result: unknown;
-    isError?: boolean;
-  }> = [];
-
+  const results: ExtractedToolResult[] = [];
   for (const part of content) {
-    if (isRecord(part)) {
-      if (part.type === 'tool-result') {
-        results.push({
-          toolName:
-            typeof part.toolName === 'string' ? part.toolName : undefined,
-          toolCallId:
-            typeof part.toolCallId === 'string' ? part.toolCallId : undefined,
-          result: part.result ?? part.output,
-          isError: part.isError === true,
-        });
-      }
+    if (isRecord(part) && part.type === 'tool-result') {
+      results.push({
+        toolName: typeof part.toolName === 'string' ? part.toolName : undefined,
+        toolCallId:
+          typeof part.toolCallId === 'string' ? part.toolCallId : undefined,
+        result: part.result ?? part.output,
+        isError: part.isError === true,
+      });
     }
   }
 

@@ -152,7 +152,11 @@ function ArenaColumn({
     threadId,
   );
 
-  const { messages: mergedMessages, activeApproval } = useMergedChatItems({
+  const {
+    messages: mergedMessages,
+    activeApproval,
+    activeApprovalInline,
+  } = useMergedChatItems({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
@@ -236,6 +240,7 @@ function ArenaColumn({
             lastUserMessageRef={lastUserMessageRef}
             containerRef={containerRef}
             activeApproval={activeApproval}
+            activeApprovalInline={activeApprovalInline}
             forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
             lastForkedMessageOrder={
               forkInfo?.lastForkedMessageOrder ?? undefined

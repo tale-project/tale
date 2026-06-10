@@ -4,9 +4,16 @@ vi.mock('../_generated/server', () => ({
   internalMutation: vi.fn((config) => config),
 }));
 
-vi.mock('./schema', () => ({
-  knowledgeFileRagStatusValidator: 'mock-validator',
-}));
+vi.mock('./schema', async () => {
+  // `routeTuningValidator` is wrapped in `v.optional(...)` at import time, so it
+  // must be a real validator — a string placeholder throws. `knowledgeFile...`
+  // is used directly as a field value, so a stub string is fine there.
+  const { v } = await import('convex/values');
+  return {
+    knowledgeFileRagStatusValidator: 'mock-validator',
+    routeTuningValidator: v.object({}),
+  };
+});
 
 const { updateKnowledgeFileRagInfo } = await import('./internal_mutations');
 

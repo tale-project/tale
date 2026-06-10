@@ -88,3 +88,33 @@ export function isValidModelRef(ref: string): boolean {
     return false;
   }
 }
+
+/**
+ * Normalize a bare model id to its lowercased *family* segment for capability
+ * matching. OpenRouter-style ids look like `anthropic/claude-sonnet-4`; the
+ * family signal is the segment after the last slash. This strips the vendor
+ * slash-prefix (NOT the `provider:` colon prefix — use `parseModelRef` first
+ * for that) and lowercases, so `Anthropic/Claude-Sonnet-4` → `claude-sonnet-4`.
+ *
+ * Shared by the reasoning-capability resolver, the prompt-caching strategy, and
+ * the built-in model registry so they all key off the same normalized family.
+ */
+export function stripProviderPrefix(modelId: string): string {
+  let id = modelId;
+  // Defensively strip a clean single `provider:` qualifier (e.g. `openai:gpt-5`)
+  // so this family key is correct even if a caller skipped `parseModelRef`.
+  // Bedrock-style ids carry internal colons (`bedrock:anthropic.claude-...:0`);
+  // a remaining colon in the tail signals that this is NOT a clean single
+  // qualifier, so leave such ids untouched.
+  const colon = id.indexOf(':');
+  if (
+    colon > 0 &&
+    PROVIDER_PREFIX_RE.test(id.slice(0, colon).toLowerCase()) &&
+    !id.slice(colon + 1).includes(':')
+  ) {
+    id = id.slice(colon + 1);
+  }
+  const slash = id.lastIndexOf('/');
+  const bare = slash >= 0 ? id.slice(slash + 1) : id;
+  return bare.toLowerCase();
+}

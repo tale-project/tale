@@ -21,7 +21,14 @@
  * typically ~10x faster for long responses.
  */
 
-import { memo, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
+import {
+  Fragment,
+  memo,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from 'react';
 import type { Components, Options as MarkdownOptions } from 'react-markdown';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
@@ -34,6 +41,7 @@ import { rehypeNumericColumns } from '../plugins/rehype-numeric-columns';
 import type { MarkdownComponentMap, MarkdownComponentType } from '../types';
 import { findBlockSplitPoint } from './find-block-split';
 import { normalizeHtmlBlocks } from './normalize-html-blocks';
+import { rehypeRevealSegments } from './rehype-reveal-segments';
 import { remendMarkdown } from './remend-markdown';
 
 /**
@@ -96,6 +104,15 @@ const REHYPE_PLUGINS: PluginList = [
   // class flows through (className survives the default sanitize schema).
   rehypeNumericColumns,
   [rehypeSanitize, chatSanitizeSchema],
+];
+// Streaming-only chain: additionally wraps prose in clause-sized
+// `.stream-seg` spans (AFTER sanitize, so the spans survive) so newly
+// revealed chunks fade in via the `.stream-reveal` mount animation. The
+// stable half renders without segment spans — completed content carries no
+// animation markup.
+const REHYPE_PLUGINS_STREAMING: PluginList = [
+  ...REHYPE_PLUGINS,
+  rehypeRevealSegments,
 ];
 
 // ============================================================================
@@ -279,10 +296,17 @@ const StreamingMarkdown = memo(
     const componentsWithCursor = useMemo(() => {
       if (!showCursor) return components;
 
-      const withCursor = (children: React.ReactNode) => (
+      // The content slot MUST be a keyed Fragment: react-markdown passes a
+      // SINGLE element when an element has one child and an ARRAY once it has
+      // several. Inlining `{children}` next to the cursor makes that slot
+      // flip element→array between renders — a key/type mismatch that
+      // remounts every child (each reveal step re-ran the whole segment
+      // fade from 0%). A keyed Fragment keeps the slot's identity stable;
+      // React then reconciles the inner children by their own keys.
+      const withCursor = (children: ReactNode) => (
         <>
-          {children}
-          <TypewriterCursor />
+          <Fragment key="stream-content">{children}</Fragment>
+          <TypewriterCursor key="stream-cursor" />
         </>
       );
 
@@ -377,10 +401,10 @@ const StreamingMarkdown = memo(
     if (!revealedContent) return null;
 
     return (
-      <div ref={containerRef}>
+      <div ref={containerRef} className="stream-reveal">
         <Markdown
           remarkPlugins={REMARK_PLUGINS}
-          rehypePlugins={REHYPE_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS_STREAMING}
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
           components={componentsWithCursor as Components}
         >
@@ -469,6 +493,24 @@ export function IncrementalMarkdown({
     [components],
   );
 
+  // Fully revealed AND settled (not streaming/draining): render EVERYTHING
+  // through StableMarkdown — no `.stream-reveal` wrapper, no `.stream-seg`
+  // spans. Without this, the last block always sat in StreamingMarkdown with
+  // its animation markup, so every remount of a completed message (chat
+  // switch, branch/version switch) replayed the mount fade. Gate on the
+  // `aria-busy` prop (isStreaming || isDraining from the caller), not
+  // internal drain state, so the streaming half keeps rendering until the
+  // final reveal tick lands.
+  if (revealPosition >= content.length && ariaBusy !== true) {
+    return (
+      <div className={className} aria-busy={false}>
+        {content && (
+          <StableMarkdown content={content} components={stableMerged} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={className} aria-busy={ariaBusy}>
       {stableContent && (
@@ -476,6 +518,11 @@ export function IncrementalMarkdown({
       )}
       {streamContent && (
         <StreamingMarkdown
+          // Remount when a block graduates (splitIndex jumps): without this,
+          // React reuses the previous block's element/span DOM for the next
+          // block's first chunk — that chunk then appears without its mount
+          // fade and stale animation state can bleed across blocks.
+          key={splitIndex}
           content={streamContent}
           revealedLength={streamRevealLength}
           components={streamingMerged}

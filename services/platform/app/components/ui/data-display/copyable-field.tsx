@@ -127,8 +127,10 @@ export const CopyableField = React.memo(function CopyableField(
 ) {
   const loading = useSkeleton();
   if (loading) {
+    // `fullWidth` so the mask is block-level and stacks under sibling fields
+    // (matches Input/Select) instead of collapsing to an inline-block box.
     return (
-      <SkeletonBox>
+      <SkeletonBox fullWidth>
         <CopyableFieldBase {...props} />
       </SkeletonBox>
     );

@@ -125,18 +125,21 @@ const contextField = {
 };
 
 const requestHumanInputArgs = z.object({
-  ...contextField,
+  // `question` is declared FIRST and described as REQUIRED so the model never
+  // omits it. Previously the optional `context` came first and `question` read
+  // as auxiliary, producing calls with no `question` that failed validation.
   question: z
     .string()
     .describe(
-      'A heading or instruction shown above the form fields (e.g., "Please provide the following details for the purchase contract").',
+      'REQUIRED. The primary question or heading shown above the form fields — ALWAYS include this string (e.g., "Please provide the following details for the purchase contract"). It is the main prompt; `context` is only optional supporting detail and is NOT a substitute for `question`.',
     ),
   fields: z
     .array(fieldSchema)
     .min(1)
     .describe(
-      'Form fields to display. Each field gets its own labeled input. Use unique labels — they serve as keys in the response.',
+      'REQUIRED. Form fields to display (at least one). Each field gets its own labeled input. Use unique labels — they serve as keys in the response.',
     ),
+  ...contextField,
 });
 
 export const requestHumanInputTool = {
@@ -173,7 +176,7 @@ When searching for a specific record and you find MULTIPLE candidates:
 Example: user asks for "John's email" and you find 3 Johns → call this tool with 3 options, then stop and say you found 3 customers named John and are waiting for their selection.
 
 **HOW IT WORKS:**
-Every request is a form with one or more fields. Each field has a type that determines how it renders:
+Every call MUST include a top-level **\`question\`** (string — the heading/prompt shown above the inputs) AND **\`fields\`** (at least one). \`context\` is optional supporting detail and never replaces \`question\`. Each field has a type that determines how it renders:
 
 **FIELD TYPES:**
 • text: Short single-line text input

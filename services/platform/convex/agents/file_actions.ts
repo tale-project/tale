@@ -198,6 +198,8 @@ export const listAgents = action({
             roleRestriction: result.config.roleRestriction,
             conversationStarters: result.config.conversationStarters,
             composerMode: result.config.composerMode,
+            isRouter: result.config.isRouter,
+            uiConfigurable: result.config.uiConfigurable,
             i18n: result.config.i18n,
           };
         }
@@ -270,6 +272,22 @@ export const saveAgent = action({
       orgSlug,
       args.oldAgentName ?? args.agentName,
     );
+
+    // System-managed agents (e.g. the Auto router, `uiConfigurable: false`) are
+    // not editable through the UI, and the UI may not mint new ones.
+    if (prevAgent.ok && prevAgent.config.uiConfigurable === false) {
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'This agent is system-managed and cannot be edited.',
+      });
+    }
+    if (config.isRouter === true || config.uiConfigurable === false) {
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'System-managed agent flags cannot be set through the UI.',
+      });
+    }
+
     const isCapabilityChange =
       args.isNew === true ||
       !prevAgent.ok ||
@@ -610,7 +628,7 @@ export const deleteAgent = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    if ((PROTECTED_AGENT_NAMES as readonly string[]).includes(args.agentName)) {
+    if (PROTECTED_AGENT_NAMES.some((name) => name === args.agentName)) {
       throw new Error(`Agent '${args.agentName}' cannot be deleted`);
     }
 
@@ -638,6 +656,17 @@ export const deleteAgent = action({
         err,
       );
       preDelete = undefined;
+    }
+
+    // System-managed agents (e.g. the Auto router, `uiConfigurable: false`)
+    // cannot be deleted via the UI. Reuses the best-effort snapshot above; an
+    // unreadable agent (snapshot undefined) isn't blocked — the router is
+    // always readable in practice.
+    if (preDelete?.ok && preDelete.config.uiConfigurable === false) {
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'This agent is system-managed and cannot be deleted.',
+      });
     }
 
     await unlink(filePath).catch((err) => {

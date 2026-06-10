@@ -1,15 +1,17 @@
 ---
 title: Image generation
-description: Image generation as an agent capability — picking an image-tagged model, costing, and how generated images surface in the reply.
+description: Image generation as an agent capability — any assistant can create an image inline when the workspace has an image model, how generated images surface, and what they cost.
 ---
 
-Image generation is a capability an agent gets by picking an image-tagged model. The agent's reply can include generated images alongside text; the user sees the image inline in the chat the way an attachment renders. This page covers the wiring.
+Any assistant in Tale can generate images. Ask it to create, draw, or design something and it produces the image inline, the way an attachment renders in the reply — there's no separate mode to switch into first. This works whenever the workspace has an image-generation model configured; this page covers the wiring.
 
 The mechanics depend on the underlying provider — quality, cost, and speed vary widely. Tale's job is to expose the capability to the agent and the user; the provider's job is to make the image.
 
-## Picking the model
+## Asking any assistant for an image
 
-In the agent's **Instructions & model** tab, the model picker exposes models tagged **Image generation**. Pick one as a secondary model and the agent's tool list gains an image-generation tool; the agent can invoke it during a reply when the model decides the user wants an image. Some providers expose **Image editing** as a separate tag — pick that one to let the agent edit an attached image rather than create one from scratch.
+Every assistant carries an image tool it reaches for when you ask it to create a picture, logo, or illustration. The assistant calls the tool, the image renders inline, and its text wraps around the result the way it would around an uploaded attachment. Because the tool ships with every assistant, the **Auto** assistant handles an image request too — you don't have to pick a specialised agent first.
+
+The image comes from the workspace's image-generation model — the one an admin set up under [Providers](/platform/admin/providers) and tagged **Image generation**. There's nothing to configure per agent. When the workspace has no such model, the assistant tells you image generation is unavailable instead of guessing, so an admin knows to add one.
 
 ## How it surfaces
 
@@ -21,4 +23,4 @@ Image models cost more per call than text models — sometimes ten times more. T
 
 ## Where this fits
 
-Image generation is one extra tag on the model picker — the rest of the agent's shape stays the same. The drift candidate here is provider and model names; pair this page with the running models list in [Providers](/platform/admin/providers) rather than memorising specific model strings.
+Image generation rides on one thing — a model tagged **Image generation** in the workspace — and from there every assistant can produce a picture inline, the **Auto** assistant included. The drift candidate here is provider and model names; pair this page with the running models list in [Providers](/platform/admin/providers) rather than memorising specific model strings.

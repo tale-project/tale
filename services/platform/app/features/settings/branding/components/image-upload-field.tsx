@@ -14,6 +14,7 @@ import { useSaveImage } from '../hooks/mutations';
 const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp,.ico';
 
 interface ImageUploadFieldProps {
+  organizationId: string;
   currentUrl?: string | null;
   imageType: 'logo' | 'favicon-light' | 'favicon-dark';
   onUpload: (filename: string) => void;
@@ -25,6 +26,7 @@ interface ImageUploadFieldProps {
 }
 
 export function ImageUploadField({
+  organizationId,
   currentUrl,
   imageType,
   onUpload,
@@ -88,6 +90,7 @@ export function ImageUploadField({
         }
         const base64 = btoa(binary);
         const result = await saveImage.mutateAsync({
+          organizationId,
           type: imageType,
           base64,
           mimeType: file.type,
@@ -107,7 +110,7 @@ export function ImageUploadField({
         }
       }
     },
-    [saveImage, imageType, onUpload, onPreviewUrlChange],
+    [organizationId, saveImage, imageType, onUpload, onPreviewUrlChange],
   );
 
   const handleRemove = useCallback(() => {

@@ -234,8 +234,12 @@ InputBase.displayName = 'InputBase';
 export const Input = forwardRef<HTMLInputElement, BaseProps>((props, ref) => {
   const loading = useSkeleton();
   if (loading) {
+    // `fullWidth` so the mask is block-level: a form field is a block that
+    // stacks under its siblings. A bare (inline-block) `SkeletonBox` let
+    // stacked fields flow side-by-side while loading, then snap to a column
+    // once the real controls mounted — a visible reflow.
     return (
-      <SkeletonBox>
+      <SkeletonBox fullWidth>
         <InputBase {...props} ref={ref} />
       </SkeletonBox>
     );

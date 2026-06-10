@@ -21,14 +21,17 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import { composerProfilesValidator } from '../../lib/shared/composer-profiles';
-import { AUTO_AGENT_SLUG } from '../../lib/shared/constants/agents';
+import {
+  AUTO_AGENT_SLUG,
+  DEFAULT_CHAT_AGENT_SLUG,
+} from '../../lib/shared/constants/agents';
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { persistentStreaming } from '../streaming/helpers';
 import { cancelGeneration } from '../threads/cancel_generation';
+import { normalizeMessageKey } from './auto_route_helpers';
 
 export const chatWithAgentTurn = mutation({
   args: {
@@ -52,7 +55,14 @@ export const chatWithAgentTurn = mutation({
     additionalContext: v.optional(v.record(v.string(), v.string())),
     userContext: v.optional(userContextValidator),
     projectId: v.optional(v.id('projects')),
-    composerProfiles: v.optional(composerProfilesValidator),
+    /**
+     * Cache pre-warm. Fired on composer focus/typing: resolves the agent +
+     * config exactly as a real turn would and primes the prompt cache with one
+     * throwaway generation — NO markGenerating, NO stream, NO saved message, NO
+     * title, NO supersede. Routed to the default chat agent for Auto (skip the
+     * classifier — the real turn may route elsewhere anyway). Best-effort.
+     */
+    prewarm: v.optional(v.boolean()),
     // Arena: when this turn is the ROOT side (thread A) of an A/B comparison,
     // the branch-thread id (thread B). The branch link is created from the
     // node action AFTER this thread's user message is saved — creating it
@@ -69,6 +79,42 @@ export const chatWithAgentTurn = mutation({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    }
+
+    // Cache pre-warm: invisible. Skip markGenerating / stream / supersede /
+    // project persist entirely — just schedule the throwaway priming
+    // generation. Don't spend a routing classifier on a prewarm (the real turn
+    // may route elsewhere); prime the default agent's prefix (the common case).
+    if (args.prewarm) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.agents.chat_turn_generate.runChatTurnGeneration,
+        {
+          agentSlug:
+            args.agentSlug === AUTO_AGENT_SLUG
+              ? DEFAULT_CHAT_AGENT_SLUG
+              : args.agentSlug,
+          organizationId: args.organizationId,
+          message: args.message,
+          modelId: args.modelId,
+          attachments: args.attachments,
+          capabilityBindings: args.capabilityBindings,
+          additionalContext: args.additionalContext,
+          userContext: args.userContext,
+          maxSteps: args.maxSteps,
+          projectId: args.projectId,
+          threadId: args.threadId,
+          // No stream for a prewarm — the generation runs in prewarm mode and
+          // persists nothing.
+          streamId: '',
+          userId: authUser.userId,
+          userEmail: authUser.email ?? '',
+          userName: authUser.name ?? '',
+          requestStartMs,
+          prewarm: true,
+        },
+      );
+      return { messageAlreadyExists: false, streamId: '' };
     }
 
     // Projects: validate access here (DB query) so a denial throws
@@ -141,8 +187,33 @@ export const chatWithAgentTurn = mutation({
       updatedAt: Date.now(),
       cancelledAt: undefined,
       cancelledMessageId: undefined,
+      // Clear any prior turn's live route so the UI never flashes a stale
+      // "Routed to X" while this turn is still routing (mirrors
+      // threads/internal_mutations:markGenerating).
+      liveRoute: undefined,
       ...(isAuto ? {} : { agentSlug: args.agentSlug }),
     });
+
+    // Route-quality feedback: the user explicitly pinned an agent. If this is
+    // the SAME message a prior Auto turn routed elsewhere, that's a sound
+    // misroute correction — fold it into the auto-route cache (off-path,
+    // best-effort).
+    if (!isAuto) {
+      void ctx
+        .runMutation(internal.agents.internal_mutations.recordRouteOverride, {
+          threadId: args.threadId,
+          organizationId: args.organizationId,
+          explicitSlug: args.agentSlug,
+          messageKey: normalizeMessageKey(args.message),
+          nowMs: Date.now(),
+        })
+        .catch((err: unknown) =>
+          console.warn(
+            '[chatWithAgentTurn] recordRouteOverride failed:',
+            err instanceof Error ? err.message : err,
+          ),
+        );
+    }
 
     await ctx.scheduler.runAfter(
       0,
@@ -158,7 +229,6 @@ export const chatWithAgentTurn = mutation({
         userContext: args.userContext,
         maxSteps: args.maxSteps,
         projectId: args.projectId,
-        composerProfiles: args.composerProfiles,
         threadId: args.threadId,
         streamId,
         userId: authUser.userId,

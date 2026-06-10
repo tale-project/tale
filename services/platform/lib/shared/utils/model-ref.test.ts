@@ -5,6 +5,7 @@ import {
   isValidModelRef,
   parseModelRef,
   stripModelRefQualifier,
+  stripProviderPrefix,
 } from './model-ref';
 
 describe('parseModelRef', () => {
@@ -268,5 +269,31 @@ describe('isValidModelRef', () => {
   it('returns true for variant-qualified refs', () => {
     expect(isValidModelRef('openrouter:z-ai/glm-5.1@fp8')).toBe(true);
     expect(isValidModelRef('z-ai/glm-5.1@fp4')).toBe(true);
+  });
+});
+
+describe('stripProviderPrefix (capability family key)', () => {
+  it('strips the vendor slash segment and lowercases', () => {
+    expect(stripProviderPrefix('Anthropic/Claude-Sonnet-4')).toBe(
+      'claude-sonnet-4',
+    );
+    expect(stripProviderPrefix('claude-opus-4')).toBe('claude-opus-4');
+  });
+
+  it('strips a clean single `provider:` qualifier (slashless)', () => {
+    // Latent footgun guard: a colon-qualified slashless ref must still key to
+    // the bare family, not the whole `provider:model` string.
+    expect(stripProviderPrefix('openai:gpt-5')).toBe('gpt-5');
+    expect(stripProviderPrefix('openrouter:anthropic/claude-opus-4')).toBe(
+      'claude-opus-4',
+    );
+  });
+
+  it('leaves bedrock-style multi-colon ids intact (not a clean qualifier)', () => {
+    // The internal `:0` means this is NOT a clean single qualifier, so the
+    // leading segment is preserved rather than mis-stripped.
+    expect(stripProviderPrefix('bedrock:anthropic.claude-v2:0')).toBe(
+      'bedrock:anthropic.claude-v2:0',
+    );
   });
 });

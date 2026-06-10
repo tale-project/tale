@@ -66,6 +66,9 @@ export function CreateAgentDialog({
       )
         continue;
       for (const model of provider.models) {
+        // Don't offer hidden/deprecated models when configuring a NEW agent —
+        // they stay resolvable for agents that already reference them.
+        if (model.hidden === true) continue;
         const resolved = resolveModelLocale(model, provider.i18n, locale);
         all.push({
           // Qualified form pins routing to this exact provider.

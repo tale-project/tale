@@ -6,6 +6,7 @@ import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
+import { autoRouteReasonValidator } from '../streaming/validators';
 import { getThreadMessages as getThreadMessagesHelper } from './get_thread_messages';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
 import { listArchivedThreads as listArchivedThreadsHelper } from './list_archived_threads';
@@ -297,6 +298,20 @@ export const getThreadMeta = query({
         isOpen: v.boolean(),
         activeFilePath: v.union(v.string(), v.null()),
       }),
+      // The in-flight turn's resolved Auto route, for the live "Routed to X"
+      // thinking-timeline step. Null unless this thread is actively generating
+      // (the stale guard below also fences it), so a stale field never renders
+      // on an idle thread.
+      liveRoute: v.union(
+        v.null(),
+        v.object({ agentSlug: v.string(), reason: autoRouteReasonValidator }),
+      ),
+      // Turn start (markGenerating, BEFORE Auto routing) — the authoritative
+      // anchor for the live "Thinking · Ns" timer, so it's identical across the
+      // gap-shell→bubble handoff AND the new-chat remount (no reset). Only while
+      // generating (mirrors liveRoute), so an idle thread never carries a stale
+      // start; `null` otherwise.
+      generationStartTime: v.union(v.number(), v.null()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -347,7 +362,56 @@ export const getThreadMeta = query({
         isOpen: metadata.canvasOpen ?? false,
         activeFilePath: metadata.canvasActiveFilePath ?? null,
       },
+      // Only while actively generating — `isGenerating` already carries the
+      // stale-generation guard, so a leftover liveRoute can't surface on an idle
+      // thread.
+      liveRoute:
+        isGenerating && metadata.liveRoute
+          ? {
+              agentSlug: metadata.liveRoute.agentSlug,
+              reason: metadata.liveRoute.reason,
+            }
+          : null,
+      generationStartTime:
+        isGenerating && metadata.generationStartTime
+          ? metadata.generationStartTime
+          : null,
     };
+  },
+});
+
+/**
+ * Count the caller's own `general` chats by lifecycle state, scoped to the
+ * given org. Powers the "manage all my chats" settings section so it can show
+ * how many chats a bulk archive/delete would touch and disable the actions
+ * when there's nothing to sweep. Branches and other chat types are excluded
+ * to match what the chat history sidebar shows.
+ */
+export const countMyChats = query({
+  args: { organizationId: v.optional(v.string()) },
+  returns: v.object({ active: v.number(), archived: v.number() }),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return { active: 0, archived: 0 };
+
+    const rows = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_userId_chatType_status', (q) =>
+        q.eq('userId', authUser.userId).eq('chatType', 'general'),
+      )
+      .collect();
+
+    let active = 0;
+    let archived = 0;
+    for (const row of rows) {
+      if (row.isBranch === true) continue;
+      if (args.organizationId && row.organizationId !== args.organizationId) {
+        continue;
+      }
+      if (row.status === 'active') active += 1;
+      else if (row.status === 'archived') archived += 1;
+    }
+    return { active, archived };
   },
 });
 

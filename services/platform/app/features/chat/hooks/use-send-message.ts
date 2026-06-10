@@ -13,8 +13,24 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import type { ComposerProfiles } from '@/lib/shared/composer-profiles';
 import { AUTO_AGENT_SLUG } from '@/lib/shared/constants/agents';
+
+import type {
+  PendingMessage,
+  SelectedAgent,
+} from '../context/chat-layout-context';
+import type { FileAttachment } from '../types';
+import {
+  useArenaChat,
+  useCreateThread,
+  useUnifiedChatWithAgent,
+  useUpdateThread,
+} from './mutations';
+import type { VideoLinkJob } from './use-chat-video-links';
+import type { ChatMessage } from './use-message-processing';
+import { clearSendPending, markSendPending } from './use-pending-send';
+import { resetGlobalFreeze } from './use-stream-buffer';
+import type { UserContext } from './use-user-context';
 
 type GuardrailsBlockedCode =
   | 'pii.blocked'
@@ -73,22 +89,10 @@ function extractProjectErrorCode(error: unknown): ProjectErrorCode | null {
   return null;
 }
 
-import type {
-  PendingMessage,
-  SelectedAgent,
-} from '../context/chat-layout-context';
-import type { FileAttachment } from '../types';
-import {
-  useUnifiedChatWithAgent,
-  useArenaChat,
-  useCreateThread,
-  useUpdateThread,
-} from './mutations';
-import type { VideoLinkJob } from './use-chat-video-links';
-import type { ChatMessage } from './use-message-processing';
-import { clearSendPending, markSendPending } from './use-pending-send';
-import { resetGlobalFreeze } from './use-stream-buffer';
-import type { UserContext } from './use-user-context';
+/** Derive a thread title from the first message, truncating long input. */
+function buildThreadTitle(message: string): string {
+  return message.length > 50 ? message.slice(0, 50) + '...' : message;
+}
 
 interface ArenaParams {
   isArenaMode: boolean;
@@ -110,12 +114,20 @@ interface UseSendMessageParams {
   onBeforeSend?: () => void;
   selectedAgent: SelectedAgent | null;
   modelId?: string;
-  /** Per-message response-tuning profiles from the composer "+" menu. */
-  composerProfiles?: ComposerProfiles;
   enabledCapabilities?: string[];
   userContext?: UserContext;
   arena?: ArenaParams;
   teamId?: string;
+  /**
+   * Whether the org has any enabled input guardrail (chat-filter / PII /
+   * moderation). When explicitly `false`, the per-send `precheckInput` action
+   * round-trip is skipped so the optimistic bubble renders and `chatWithAgent`
+   * dispatches immediately (the common no-guardrails case). The server always
+   * re-sanitizes authoritatively, so skipping the client precheck only drops the
+   * pre-send block toast / optimistic mask — never a real block or mask.
+   * Defaults to running precheck when `undefined` (flags still loading).
+   */
+  inputGuardrailsActive?: boolean;
   /**
    * Projects feature: when the chat originated from a project page
    * (via `/dashboard/$id/chat?projectId=...` or by opening a thread
@@ -142,7 +154,7 @@ interface UseSendMessageParams {
    * text / images work (those paths skip the bind round-trip). Re-marking
    * adjacent to every `setPendingMessage` keeps the snap armed.
    */
-  scrollIntentRef?: MutableRefObject<boolean>;
+  scrollIntentRef?: MutableRefObject<boolean | 'smooth'>;
   /**
    * Restore the composer chips for the given videoLinkJob ids. Called from
    * inside `sendMessage` when bind or downstream `chatWithAgent` throws so
@@ -173,10 +185,10 @@ export function useSendMessage({
   selectedAgent,
   modelId,
   enabledCapabilities = [],
-  composerProfiles,
   userContext,
   arena,
   teamId,
+  inputGuardrailsActive,
   projectId,
   scrollIntentRef,
   unmarkJobsSent,
@@ -195,6 +207,10 @@ export function useSendMessage({
   arenaRef.current = arena;
   const arenaChatRef = useRef(arenaChatAction);
   arenaChatRef.current = arenaChatAction;
+  // Ref so the reactive guardrails flag doesn't destabilize the sendMessage
+  // callback (matches the arena-param pattern above).
+  const inputGuardrailsActiveRef = useRef(inputGuardrailsActive);
+  inputGuardrailsActiveRef.current = inputGuardrailsActive;
 
   // Simple ref guard to prevent double-send during the async gap
   const sendingRef = useRef(false);
@@ -214,6 +230,16 @@ export function useSendMessage({
       // agent, so it still requires an explicit selection (enforced below).
       const agentSlugToSend = selectedAgent?.name ?? AUTO_AGENT_SLUG;
 
+      // Explicit projection so only the agent-template fields ride along,
+      // independent of any future widening of `UserContext`.
+      const userContextPayload = userContext
+        ? {
+            timezone: userContext.timezone,
+            language: userContext.language,
+            uiLanguage: userContext.uiLanguage,
+          }
+        : undefined;
+
       sendingRef.current = true;
 
       // Set the auto-scroll-to-bottom intent IMMEDIATELY before any
@@ -224,14 +250,15 @@ export function useSendMessage({
       // moment the user escapes the pin, e.g. during the video-link
       // `bindCompletedJobsToMessage` round-trip), so by the time the
       // optimistic bubble lands, the snap wouldn't fire.
+      // The FIRST message of a chat snaps INSTANTLY — the conversation is
+      // empty, so the message must simply render at its position with no
+      // visible scrolling. Follow-up messages glide smoothly to the new
+      // user message via the retargeting rAF snap (see
+      // ChatScroll.scrollIntentRef).
+      const isEmptyChat = !threadId || (messages?.length ?? 0) === 0;
       const markScrollIntent = () => {
         if (scrollIntentRef) {
-          // Force-snap to the bottom on the next content settle. The snap is
-          // always INSTANT (the send reposition is a jump — the new user
-          // message lands at the viewport top via the response slack — and a
-          // smooth animation would chase the still-settling slack + streaming
-          // growth and stall part-way down). See ChatScroll.scrollIntentRef.
-          scrollIntentRef.current = true;
+          scrollIntentRef.current = isEmptyChat ? true : 'smooth';
         }
       };
 
@@ -338,52 +365,61 @@ export function useSendMessage({
         }
         messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
       }
-      try {
-        const precheck = await convexClient.action(
-          api.governance.precheck.precheckInput,
-          // Send the URL-stripped variant. The raw pasted video URL can
-          // carry `?si=…` / `?utm_*` tokens that PII heuristics flag as
-          // credentials; precheck on the about-to-be-sent message text
-          // matches what the agent will actually receive.
-          { organizationId, text: messageToSend },
-        );
-        if (precheck.blocked) {
-          clearChatState();
-          // Restore the chips the caller hid synchronously on click —
-          // the block branch never reaches the bg-bind path, so without
-          // this the chips stay invisible (they were filtered out of
-          // `useChatVideoLinks` by the client-side hide set, not by
-          // `messageBoundAt`) and the user loses both their typed text
-          // and every transcript attachment on a guardrails block.
-          if (unmarkJobsSent && snapshotJobIds.length > 0) {
-            unmarkJobsSent(snapshotJobIds);
+      // Skip the precheck action round-trip when the org has NO enabled input
+      // guardrail (the common case) so the optimistic bubble renders and
+      // chatWithAgent dispatches immediately. The server re-sanitizes
+      // authoritatively on the real send regardless, so skipping here only drops
+      // the pre-send block toast / optimistic mask — never a real block or mask.
+      // When the flag is undefined (feature flags still loading) we run precheck
+      // to stay safe.
+      if (inputGuardrailsActiveRef.current !== false) {
+        try {
+          const precheck = await convexClient.action(
+            api.governance.precheck.precheckInput,
+            // Send the URL-stripped variant. The raw pasted video URL can
+            // carry `?si=…` / `?utm_*` tokens that PII heuristics flag as
+            // credentials; precheck on the about-to-be-sent message text
+            // matches what the agent will actually receive.
+            { organizationId, text: messageToSend },
+          );
+          if (precheck.blocked) {
+            clearChatState();
+            // Restore the chips the caller hid synchronously on click —
+            // the block branch never reaches the bg-bind path, so without
+            // this the chips stay invisible (they were filtered out of
+            // `useChatVideoLinks` by the client-side hide set, not by
+            // `messageBoundAt`) and the user loses both their typed text
+            // and every transcript attachment on a guardrails block.
+            if (unmarkJobsSent && snapshotJobIds.length > 0) {
+              unmarkJobsSent(snapshotJobIds);
+            }
+            const title =
+              precheck.code === 'pii.blocked'
+                ? t('toast.piiBlocked')
+                : t('toast.policyViolation');
+            // Prefer admin-edited labels resolved server-side; fall back to
+            // internal slugs only when the policy was mid-edit and a category
+            // got removed between detection and render.
+            const labels =
+              precheck.categoryLabels && precheck.categoryLabels.length > 0
+                ? precheck.categoryLabels
+                : precheck.categoryIds;
+            const description =
+              labels && labels.length > 0 ? labels.join(', ') : undefined;
+            toast({ title, description, variant: 'destructive' });
+            sendingRef.current = false;
+            return;
           }
-          const title =
-            precheck.code === 'pii.blocked'
-              ? t('toast.piiBlocked')
-              : t('toast.policyViolation');
-          // Prefer admin-edited labels resolved server-side; fall back to
-          // internal slugs only when the policy was mid-edit and a category
-          // got removed between detection and render.
-          const labels =
-            precheck.categoryLabels && precheck.categoryLabels.length > 0
-              ? precheck.categoryLabels
-              : precheck.categoryIds;
-          const description =
-            labels && labels.length > 0 ? labels.join(', ') : undefined;
-          toast({ title, description, variant: 'destructive' });
-          sendingRef.current = false;
-          return;
+          if (precheck.maskedText !== undefined) {
+            messageToSend = precheck.maskedText;
+          }
+        } catch (error) {
+          console.warn(
+            `[use-send-message] guardrails precheck failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
         }
-        if (precheck.maskedText !== undefined) {
-          messageToSend = precheck.maskedText;
-        }
-      } catch (error) {
-        console.warn(
-          `[use-send-message] guardrails precheck failed: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
       }
 
       // Show optimistic message AFTER precheck so it reflects any mask
@@ -540,10 +576,7 @@ export function useSendMessage({
       try {
         if (isArena) {
           // --- Arena mode: Thread A = root, Thread B = branch ---
-          const title =
-            messageToSend.length > 50
-              ? messageToSend.slice(0, 50) + '...'
-              : messageToSend;
+          const title = buildThreadTitle(messageToSend);
           const arenaGroupId = crypto.randomUUID();
 
           let tIdA: string;
@@ -619,33 +652,50 @@ export function useSendMessage({
           // their attachment silently — the early bind at top of the
           // callback gates on `if (threadId)`, and the standard-mode late
           // bind never fires in arena. R2 review B4.
-          try {
-            const bound = await convexClient.mutation(
-              api.video_links.mutations.bindCompletedJobsToMessage,
-              { organizationId, threadId: tIdA },
-            );
-            for (const att of bound) {
-              if (mutationAttachments.some((a) => a.fileId === att.fileId))
-                continue;
-              mutationAttachments.push({
-                fileId: att.fileId,
-                fileName: att.fileName,
-                fileType: att.fileType,
-                fileSize: att.fileSize,
-              });
-              if (att.pastedToken && messageToSend.includes(att.pastedToken)) {
-                messageToSend = messageToSend.replace(att.pastedToken, '');
+          //
+          // Bind when this is a NEW-thread send (`!threadId`) OR there are
+          // completed jobs in the click-time snapshot. The `!threadId` clause is
+          // load-bearing: pre-thread jobs only exist when there was no thread at
+          // click time, and a job still transcribing at click time is absent
+          // from the (completed-only) snapshot — so gating purely on the
+          // snapshot would drop a job that finishes during the createThread
+          // round-trip. An existing-thread send with an empty snapshot (the
+          // common plain-text case) still skips the zero-row round-trip.
+          if (
+            !threadId ||
+            (videoLinkSnapshot && videoLinkSnapshot.length > 0)
+          ) {
+            try {
+              const bound = await convexClient.mutation(
+                api.video_links.mutations.bindCompletedJobsToMessage,
+                { organizationId, threadId: tIdA },
+              );
+              for (const att of bound) {
+                if (mutationAttachments.some((a) => a.fileId === att.fileId))
+                  continue;
+                mutationAttachments.push({
+                  fileId: att.fileId,
+                  fileName: att.fileName,
+                  fileType: att.fileType,
+                  fileSize: att.fileSize,
+                });
+                if (
+                  att.pastedToken &&
+                  messageToSend.includes(att.pastedToken)
+                ) {
+                  messageToSend = messageToSend.replace(att.pastedToken, '');
+                }
+                boundJobIdsLocal.push(att.jobId);
               }
-              boundJobIdsLocal.push(att.jobId);
+              if (bound.length > 0) {
+                messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
+              }
+            } catch (err) {
+              console.error(
+                '[use-send-message] arena video-link bind failed:',
+                err instanceof Error ? err.message : err,
+              );
             }
-            if (bound.length > 0) {
-              messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
-            }
-          } catch (err) {
-            console.error(
-              '[use-send-message] arena video-link bind failed:',
-              err instanceof Error ? err.message : err,
-            );
           }
 
           // Flip per-thread optimistic spinner IMMEDIATELY so both columns
@@ -666,13 +716,7 @@ export function useSendMessage({
             modelIdA: modelA,
             modelIdB: modelB,
             attachments: mutationAttachments,
-            userContext: userContext
-              ? {
-                  timezone: userContext.timezone,
-                  language: userContext.language,
-                  uiLanguage: userContext.uiLanguage,
-                }
-              : undefined,
+            userContext: userContextPayload,
             // History is copied when Thread B is created (arena enable),
             // not at send time — no need to copy again.
           });
@@ -693,10 +737,7 @@ export function useSendMessage({
               lastMessageKey,
             });
 
-            const title =
-              messageToSend.length > 50
-                ? messageToSend.slice(0, 50) + '...'
-                : messageToSend;
+            const title = buildThreadTitle(messageToSend);
             const newThreadId = await createThread({
               organizationId,
               title,
@@ -734,11 +775,17 @@ export function useSendMessage({
           }
 
           if (isFirstMessage && currentThreadId) {
-            const title =
-              messageToSend.length > 50
-                ? messageToSend.slice(0, 50) + '...'
-                : messageToSend;
-            await updateThread({ threadId: currentThreadId, title });
+            const title = buildThreadTitle(messageToSend);
+            // Fire-and-forget: the thread title is a cosmetic sidebar label and
+            // generation does not depend on it, so awaiting it here would only
+            // add a serial mutation round-trip before chatWithAgent dispatches.
+            void updateThread({ threadId: currentThreadId, title }).catch(
+              (err: unknown) =>
+                console.warn(
+                  '[use-send-message] first-message title update failed:',
+                  err instanceof Error ? err.message : err,
+                ),
+            );
           }
 
           // Bind pre-thread video-link jobs to the just-created (or
@@ -748,36 +795,54 @@ export function useSendMessage({
           // way, which is the moment to pull pre-thread chips in. Without
           // this second bind, welcome-page video-link pastes lose their
           // attachment and the LLM only sees the raw URL.
-          try {
-            const bound = await convexClient.mutation(
-              api.video_links.mutations.bindCompletedJobsToMessage,
-              { organizationId, threadId: currentThreadId },
-            );
-            for (const att of bound) {
-              // Skip duplicates if the earlier in-thread bind already added it.
-              if (mutationAttachments.some((a) => a.fileId === att.fileId))
-                continue;
-              mutationAttachments.push({
-                fileId: att.fileId,
-                fileName: att.fileName,
-                fileType: att.fileType,
-                fileSize: att.fileSize,
-              });
-              if (att.pastedToken && messageToSend.includes(att.pastedToken)) {
-                messageToSend = messageToSend.replace(att.pastedToken, '');
+          //
+          // Bind when this is a NEW-thread send (`!threadId`) OR there are
+          // completed jobs in the click-time snapshot. The `!threadId` clause is
+          // load-bearing: this bind's whole purpose is to pull in PRE-thread jobs
+          // (which only exist when there was no thread at click time), and a job
+          // still transcribing at click time is absent from the completed-only
+          // snapshot — so gating purely on snapshot length would drop a job that
+          // finishes during the awaited createThread round-trip. An
+          // existing-thread send with an empty snapshot (the overwhelming
+          // plain-text majority) still skips this zero-row round-trip.
+          if (
+            !threadId ||
+            (videoLinkSnapshot && videoLinkSnapshot.length > 0)
+          ) {
+            try {
+              const bound = await convexClient.mutation(
+                api.video_links.mutations.bindCompletedJobsToMessage,
+                { organizationId, threadId: currentThreadId },
+              );
+              for (const att of bound) {
+                // Skip duplicates if the earlier in-thread bind already added it.
+                if (mutationAttachments.some((a) => a.fileId === att.fileId))
+                  continue;
+                mutationAttachments.push({
+                  fileId: att.fileId,
+                  fileName: att.fileName,
+                  fileType: att.fileType,
+                  fileSize: att.fileSize,
+                });
+                if (
+                  att.pastedToken &&
+                  messageToSend.includes(att.pastedToken)
+                ) {
+                  messageToSend = messageToSend.replace(att.pastedToken, '');
+                }
+                boundJobIdsLocal.push(att.jobId);
               }
-              boundJobIdsLocal.push(att.jobId);
+              // Re-tidy the message text once after stripping any newly-bound
+              // pasted URLs. Cheap; only matters if we actually struck a token.
+              if (bound.length > 0) {
+                messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
+              }
+            } catch (err) {
+              console.error(
+                '[use-send-message] post-thread video-link bind failed:',
+                err instanceof Error ? err.message : err,
+              );
             }
-            // Re-tidy the message text once after stripping any newly-bound
-            // pasted URLs. Cheap; only matters if we actually struck a token.
-            if (bound.length > 0) {
-              messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
-            }
-          } catch (err) {
-            console.error(
-              '[use-send-message] post-thread video-link bind failed:',
-              err instanceof Error ? err.message : err,
-            );
           }
 
           // Flip the optimistic spinner IMMEDIATELY — the Node action cold
@@ -793,23 +858,8 @@ export function useSendMessage({
             modelId: modelId || undefined,
             capabilityBindings:
               enabledCapabilities.length > 0 ? enabledCapabilities : undefined,
-            // Only send profiles when at least one lever is a fixed override;
-            // all-adaptive means "no override" so we omit it entirely.
-            composerProfiles:
-              composerProfiles &&
-              (composerProfiles.effort !== 'adaptive' ||
-                composerProfiles.creativity !== 'adaptive' ||
-                composerProfiles.style !== 'adaptive')
-                ? composerProfiles
-                : undefined,
             attachments: mutationAttachments,
-            userContext: userContext
-              ? {
-                  timezone: userContext.timezone,
-                  language: userContext.language,
-                  uiLanguage: userContext.uiLanguage,
-                }
-              : undefined,
+            userContext: userContextPayload,
             // projectId from URL query is a string; chatWithAgent expects
             // an Id<'projects'>. The branding is structural-only TS; server
             // validates it via assertProjectAccessForChat. We use the
@@ -924,7 +974,6 @@ export function useSendMessage({
       selectedAgent,
       modelId,
       enabledCapabilities,
-      composerProfiles,
       userContext,
       navigate,
       t,

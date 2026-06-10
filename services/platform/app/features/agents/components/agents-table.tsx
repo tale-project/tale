@@ -55,6 +55,8 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
       // Skip read errors surfaced by listAgents (they have `status`/`message`
       // instead of config fields).
       if (!a || typeof a.name !== 'string' || 'status' in a) continue;
+      // System-managed agents (e.g. the Auto router) are not editable here.
+      if (a.uiConfigurable === false) continue;
       const resolved = resolveAgentLocale(a, locale);
       if (!resolved.displayName) continue;
       validAgents.push({

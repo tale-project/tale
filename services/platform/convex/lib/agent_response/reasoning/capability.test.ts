@@ -3,9 +3,28 @@ import { describe, expect, it } from 'vitest';
 import { resolveReasoningCapability, tierToEffort } from './capability';
 
 describe('resolveReasoningCapability', () => {
-  it('honors an explicit operator config over the curated table', () => {
+  // The capability arrives already resolved on `modelData.reasoning` (operator
+  // provider JSON, with the OpenRouter catalog cache layered under it). There
+  // is no built-in family inference here — that lives in the catalog
+  // normalizer (`model_capabilities/infer.ts`), covered by normalize.test.ts.
+
+  it('maps an effort config (with the minimal floor) to a tier-filling knob', () => {
     const cap = resolveReasoningCapability({
       modelId: 'gpt-5',
+      reasoning: { knob: 'effort', supportsMinimal: true },
+    });
+    expect(cap).toEqual({
+      knob: 'effort',
+      selfTruncates: false,
+      supportsMinimal: true,
+      minBudgetTokens: undefined,
+      maxBudgetTokens: undefined,
+    });
+  });
+
+  it('maps a budgetTokens config to a self-truncating knob', () => {
+    const cap = resolveReasoningCapability({
+      modelId: 'anthropic/claude-sonnet-4',
       reasoning: { knob: 'budgetTokens', minBudgetTokens: 2048 },
     });
     expect(cap).toEqual({
@@ -26,50 +45,11 @@ describe('resolveReasoningCapability', () => {
     ).toBeNull();
   });
 
-  it('maps OpenAI reasoning families to the effort knob', () => {
-    expect(resolveReasoningCapability({ modelId: 'gpt-5' })).toEqual({
-      knob: 'effort',
-      selfTruncates: false,
-      supportsMinimal: true,
-    });
-    expect(resolveReasoningCapability({ modelId: 'gpt-5.1' })?.knob).toBe(
-      'effort',
-    );
-    expect(resolveReasoningCapability({ modelId: 'o1' })?.knob).toBe('effort');
-    expect(resolveReasoningCapability({ modelId: 'o3-mini' })?.knob).toBe(
-      'effort',
-    );
-    expect(
-      resolveReasoningCapability({ modelId: 'openai/o4-mini' })?.knob,
-    ).toBe('effort');
-  });
-
-  it('maps Anthropic thinking families to the budget knob (with prefix)', () => {
-    expect(
-      resolveReasoningCapability({ modelId: 'anthropic/claude-sonnet-4' }),
-    ).toEqual({
-      knob: 'budgetTokens',
-      selfTruncates: true,
-      minBudgetTokens: 1024,
-    });
-    expect(
-      resolveReasoningCapability({ modelId: 'anthropic/claude-3-7-sonnet' })
-        ?.knob,
-    ).toBe('budgetTokens');
-  });
-
-  it('matches an explicit :thinking / -thinking suffix', () => {
-    expect(
-      resolveReasoningCapability({ modelId: 'qwen/qwq-32b:thinking' })?.knob,
-    ).toBe('budgetTokens');
-  });
-
-  it('returns null for non-reasoning models', () => {
+  it('returns null when no reasoning capability is declared', () => {
     expect(resolveReasoningCapability({ modelId: 'openai/gpt-4o' })).toBeNull();
     expect(
-      resolveReasoningCapability({ modelId: 'deepseek/deepseek-chat' }),
+      resolveReasoningCapability({ modelId: 'anthropic/claude-sonnet-4' }),
     ).toBeNull();
-    expect(resolveReasoningCapability({ modelId: 'mistral-large' })).toBeNull();
   });
 });
 

@@ -65,4 +65,37 @@ describe('scoreDifficulty', () => {
     });
     expect(['off', 'low']).toContain(result.target.tier);
   });
+
+  it('detects code from inline backticks and stack traces, not just fences (A4)', () => {
+    const stackTrace = scoreDifficulty({
+      kind: 'chat',
+      promptText:
+        'TypeError: Cannot read properties of undefined (reading "x")\n    at foo (/app/index.js:10:5)',
+    });
+    // A raw stack trace (no fences) now clears the code floor.
+    expect(stackTrace.floorTier).toBe('medium');
+  });
+
+  it('scores two hard verbs strictly higher than one (A4 graded intent)', () => {
+    const one = scoreDifficulty({
+      kind: 'chat',
+      promptText: 'Please analyze this situation.',
+    });
+    const two = scoreDifficulty({
+      kind: 'chat',
+      promptText: 'Please analyze and evaluate this situation rigorously.',
+    });
+    expect(two.intensity).toBeGreaterThan(one.intensity);
+  });
+
+  it('handles a borderline follow-up smoothly without a 6/30 cliff (A4)', () => {
+    // Just below the old hard threshold (count 5, ~35 chars): should not jump.
+    const borderline = scoreDifficulty({
+      kind: 'chat',
+      promptText: 'can you expand on that a little more',
+      historyMessageCount: 5,
+    });
+    expect(['off', 'low', 'medium']).toContain(borderline.target.tier);
+    expect(borderline.intensity).toBeLessThan(1);
+  });
 });

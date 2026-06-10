@@ -33,6 +33,12 @@ Die Referenz ist das Dateiformat auf Platte und die Reihenfolge der Operationen,
 
 Die vollständige Menge der Felder lebt in [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers) — `openai.json`, `openrouter.json` und `vercel-gateway.json` decken die drei Formen ab, die du wahrscheinlich brauchst.
 
+### Modell-Capabilities und Auto-Sync
+
+Jedes Modell kann optionale Metadaten deklarieren, die das komplexitätsbasierte Routing und der Adaptive Reasoning Governor nutzen: `contextWindow`, `maxOutputTokens`, `qualityScore` (0–1), `tier` (`draft`/`standard`/`frontier`), `routingTags` (bevorzugte Domänen), `reasoning` (der Steuer-Knopf — `effort` oder `budgetTokens`) und `promptCaching` (`auto-server` oder `explicit-breakpoints`). Was du weglässt, wird zur Laufzeit aus dem OpenRouter-Katalog ergänzt; was du setzt, gewinnt. Setze `"hidden": true`, um ein Modell aus den Auswahllisten (Chat-Eingabe, Agenten-Erstellung) zu entfernen, es aber für Agents auflösbar zu halten, die es bereits referenzieren — so ziehst du eine abgelöste Version zurück, ohne bestehende Workflows zu brechen.
+
+Diese Felder bleiben auch von selbst aktuell: Einmal pro Woche führt Tale frische OpenRouter-Fakten in die Anbieter-Config jeder Organisation zusammen — fügt neuere Flaggschiff-Versionen hinzu, blendet abgelöste aus und aktualisiert Capability-Werte — und verändert dabei nur die Felder, die du nicht angepasst hast. Schalte das pro Organisation mit dem **Wöchentliche Auto-Synchronisierung**-Schalter auf der Modellkatalog-Karte unter **Einstellungen > Anbieter** aus.
+
 ## Die Secrets-Datei
 
 `providers/<name>.secrets.json` ist ein flaches JSON-Objekt mit dem API-Schlüssel unter dem Feldnamen, den der Anbieter erwartet:

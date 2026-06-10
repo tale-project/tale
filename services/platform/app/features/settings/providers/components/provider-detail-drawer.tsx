@@ -6,17 +6,19 @@ import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
 import { IconButton } from '@tale/ui/icon-button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import {
   AlertTriangle,
+  DownloadCloud,
   Layers,
   Loader2,
   Pencil,
   Plus,
   RefreshCw,
+  Sparkles,
   Trash2,
   X,
   Zap,
@@ -32,16 +34,21 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { domainLiterals } from '@/lib/shared/constants/domains';
 import {
   type EnvSecretStatus,
   modelTagLiterals,
+  modelTierLiterals,
   type ProviderJson,
   SECRETS_ENV_PREFIX,
   SECRETS_ENV_REGEX,
 } from '@/lib/shared/schemas/providers';
 import { cn } from '@/lib/utils/cn';
+import { structuralEqual } from '@/lib/utils/structural-equal';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import {
@@ -925,6 +932,21 @@ interface ModelFormState {
   secretsEnv: string;
   apiKey: string;
   providerOptionsJson: string;
+  /** Hidden from model pickers (still resolvable). Set on superseded models. */
+  hidden: boolean;
+  // Routing & capabilities (chat models). Strings mirror the input controls;
+  // `''`/empty means "unset" → the field is omitted from the saved config.
+  tier: '' | 'draft' | 'standard' | 'frontier';
+  qualityScore: string;
+  contextWindow: string;
+  maxOutputTokens: string;
+  routingTags: Array<(typeof domainLiterals)[number]>;
+  reasoningKnob: '' | 'effort' | 'budgetTokens' | 'none';
+  reasoningSupportsMinimal: boolean;
+  reasoningMinBudgetTokens: string;
+  reasoningMaxBudgetTokens: string;
+  promptCachingMode: '' | 'explicit-breakpoints' | 'auto-server' | 'none';
+  promptCachingMaxBreakpoints: string;
 }
 
 const EMPTY_MODEL_FORM: ModelFormState = {
@@ -941,6 +963,18 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   secretsEnv: '',
   apiKey: '',
   providerOptionsJson: '',
+  hidden: false,
+  tier: '',
+  qualityScore: '',
+  contextWindow: '',
+  maxOutputTokens: '',
+  routingTags: [],
+  reasoningKnob: '',
+  reasoningSupportsMinimal: false,
+  reasoningMinBudgetTokens: '',
+  reasoningMaxBudgetTokens: '',
+  promptCachingMode: '',
+  promptCachingMaxBreakpoints: '',
 };
 
 function ModelsSection({
@@ -1042,6 +1076,139 @@ function ModelsSection({
     [config.models, saveConfig, t, tAccessDenied],
   );
 
+  // Cached OpenRouter capabilities for the configured models (+ the model
+  // currently being edited). Powers "Fill from catalog" (per model) and
+  // "Sync all from catalog" (bulk). The daily cron keeps this fresh;
+  // ModelCatalogCard offers a manual refresh.
+  const catalogModelIds = useMemo(() => {
+    const ids = new Set(config.models.map((m) => m.id));
+    if (dialogOpen && form.id.trim()) ids.add(form.id.trim());
+    return [...ids];
+  }, [config.models, dialogOpen, form.id]);
+  const { data: catalogCaps } = useConvexQuery(
+    api.model_catalog.queries.getModelCapabilities,
+    { organizationId, modelIds: catalogModelIds },
+  );
+  const capsByModelId = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof catalogCaps>[number]>();
+    for (const c of catalogCaps ?? []) map.set(c.modelId, c);
+    return map;
+  }, [catalogCaps]);
+
+  // Pull the live catalog facts (cost, context, reasoning, caching) for the
+  // model open in the editor into the form so the operator can review + save.
+  // Operator judgment fields (tier, qualityScore) are left untouched — the
+  // catalog doesn't carry them.
+  const fillFromCatalog = useCallback(() => {
+    const cap = capsByModelId.get(form.id.trim());
+    if (!cap) {
+      toast({ title: t('providers.modelCapabilities.noCatalogData') });
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      contextWindow:
+        cap.contextWindow != null ? String(cap.contextWindow) : f.contextWindow,
+      maxOutputTokens:
+        cap.maxOutputTokens != null
+          ? String(cap.maxOutputTokens)
+          : f.maxOutputTokens,
+      inputCostPerMillion:
+        cap.inputCentsPerMillion != null
+          ? String(cap.inputCentsPerMillion / 100)
+          : f.inputCostPerMillion,
+      outputCostPerMillion:
+        cap.outputCentsPerMillion != null
+          ? String(cap.outputCentsPerMillion / 100)
+          : f.outputCostPerMillion,
+      reasoningKnob: cap.reasoning?.knob ?? f.reasoningKnob,
+      reasoningSupportsMinimal:
+        cap.reasoning?.supportsMinimal ?? f.reasoningSupportsMinimal,
+      reasoningMinBudgetTokens:
+        cap.reasoning?.minBudgetTokens != null
+          ? String(cap.reasoning.minBudgetTokens)
+          : f.reasoningMinBudgetTokens,
+      reasoningMaxBudgetTokens:
+        cap.reasoning?.maxBudgetTokens != null
+          ? String(cap.reasoning.maxBudgetTokens)
+          : f.reasoningMaxBudgetTokens,
+      promptCachingMode: cap.promptCaching?.mode ?? f.promptCachingMode,
+      promptCachingMaxBreakpoints:
+        cap.promptCaching?.maxBreakpoints != null
+          ? String(cap.promptCaching.maxBreakpoints)
+          : f.promptCachingMaxBreakpoints,
+    }));
+    toast({ title: t('providers.modelCapabilities.filledFromCatalog') });
+  }, [capsByModelId, form.id, t]);
+
+  // Bulk variant: merge cached catalog facts into every configured model,
+  // filling ONLY fields the operator hasn't already set (config wins), then
+  // save once. Mirrors the runtime layering (operator JSON over catalog cache).
+  const [syncingAll, setSyncingAll] = useState(false);
+  const syncAllFromCatalog = useCallback(async () => {
+    let changedModels = 0;
+    const updated = config.models.map((m) => {
+      const cap = capsByModelId.get(m.id);
+      if (!cap) return m;
+      const next = { ...m };
+      let touched = false;
+      if (next.contextWindow == null && cap.contextWindow != null) {
+        next.contextWindow = cap.contextWindow;
+        touched = true;
+      }
+      if (next.maxOutputTokens == null && cap.maxOutputTokens != null) {
+        next.maxOutputTokens = cap.maxOutputTokens;
+        touched = true;
+      }
+      if (next.reasoning == null && cap.reasoning != null) {
+        next.reasoning = cap.reasoning;
+        touched = true;
+      }
+      if (next.promptCaching == null && cap.promptCaching != null) {
+        next.promptCaching = cap.promptCaching;
+        touched = true;
+      }
+      const cost = { ...next.cost };
+      if (
+        cost.inputCentsPerMillion == null &&
+        cap.inputCentsPerMillion != null
+      ) {
+        cost.inputCentsPerMillion = cap.inputCentsPerMillion;
+        touched = true;
+      }
+      if (
+        cost.outputCentsPerMillion == null &&
+        cap.outputCentsPerMillion != null
+      ) {
+        cost.outputCentsPerMillion = cap.outputCentsPerMillion;
+        touched = true;
+      }
+      if (Object.keys(cost).length > 0) next.cost = cost;
+      if (touched) changedModels++;
+      return next;
+    });
+    if (changedModels === 0) {
+      toast({ title: t('providers.modelCapabilities.syncAllNoop') });
+      return;
+    }
+    setSyncingAll(true);
+    try {
+      await saveConfig({ models: updated });
+      toast({
+        title: t('providers.modelCapabilities.syncAllDone', {
+          count: changedModels,
+        }),
+      });
+    } catch (err) {
+      if (dispatchOrgAccessError(err, tAccessDenied)) return;
+      if (dispatchForbiddenDeveloperSettings(err, t)) return;
+      if (dispatchVersionConflict(err, t)) return;
+      toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+    } finally {
+      setSyncingAll(false);
+    }
+  }, [config.models, capsByModelId, saveConfig, t, tAccessDenied]);
+
   const openAddDialog = useCallback(() => {
     setEditingIndex(null);
     setForm(EMPTY_MODEL_FORM);
@@ -1080,6 +1247,30 @@ function ModelsSection({
         secretsEnv: model.secretsEnv ?? '',
         apiKey: '',
         providerOptionsJson: providerOptionsToJsonString(model.providerOptions),
+        hidden: model.hidden ?? false,
+        tier: model.tier ?? '',
+        qualityScore:
+          model.qualityScore != null ? String(model.qualityScore) : '',
+        contextWindow:
+          model.contextWindow != null ? String(model.contextWindow) : '',
+        maxOutputTokens:
+          model.maxOutputTokens != null ? String(model.maxOutputTokens) : '',
+        routingTags: [...(model.routingTags ?? [])],
+        reasoningKnob: model.reasoning?.knob ?? '',
+        reasoningSupportsMinimal: model.reasoning?.supportsMinimal ?? false,
+        reasoningMinBudgetTokens:
+          model.reasoning?.minBudgetTokens != null
+            ? String(model.reasoning.minBudgetTokens)
+            : '',
+        reasoningMaxBudgetTokens:
+          model.reasoning?.maxBudgetTokens != null
+            ? String(model.reasoning.maxBudgetTokens)
+            : '',
+        promptCachingMode: model.promptCaching?.mode ?? '',
+        promptCachingMaxBreakpoints:
+          model.promptCaching?.maxBreakpoints != null
+            ? String(model.promptCaching.maxBreakpoints)
+            : '',
       };
       setForm(formData);
       setInitialForm(formData);
@@ -1138,7 +1329,50 @@ function ModelsSection({
           return;
         }
       }
+      const reasoning = form.reasoningKnob
+        ? {
+            knob: form.reasoningKnob,
+            ...(form.reasoningKnob === 'effort' && form.reasoningSupportsMinimal
+              ? { supportsMinimal: true }
+              : {}),
+            ...(form.reasoningKnob === 'budgetTokens' &&
+            form.reasoningMinBudgetTokens.trim()
+              ? {
+                  minBudgetTokens: Math.round(
+                    Number(form.reasoningMinBudgetTokens),
+                  ),
+                }
+              : {}),
+            ...(form.reasoningKnob === 'budgetTokens' &&
+            form.reasoningMaxBudgetTokens.trim()
+              ? {
+                  maxBudgetTokens: Math.round(
+                    Number(form.reasoningMaxBudgetTokens),
+                  ),
+                }
+              : {}),
+          }
+        : undefined;
+      const promptCaching = form.promptCachingMode
+        ? {
+            mode: form.promptCachingMode,
+            ...(form.promptCachingMode === 'explicit-breakpoints' &&
+            form.promptCachingMaxBreakpoints.trim()
+              ? {
+                  maxBreakpoints: Math.round(
+                    Number(form.promptCachingMaxBreakpoints),
+                  ),
+                }
+              : {}),
+          }
+        : undefined;
+      // Spread the EXISTING definition first so fields the form doesn't manage
+      // (TTS voices/instructions, fallbackModelId, supportsStructuredOutputs …)
+      // survive an edit instead of being silently dropped, then override every
+      // form-managed field — including clearing capabilities back to undefined.
+      const base = editingIndex != null ? config.models[editingIndex] : {};
       const model = {
+        ...base,
         id: form.id,
         displayName: form.displayName,
         description: form.description || undefined,
@@ -1151,8 +1385,22 @@ function ModelsSection({
             : undefined,
         baseUrl: form.baseUrl.trim() || undefined,
         secretsEnv: form.secretsEnv.trim() || undefined,
+        hidden: form.hidden || undefined,
         cost,
         providerOptions,
+        tier: form.tier || undefined,
+        qualityScore: form.qualityScore.trim()
+          ? Number(form.qualityScore)
+          : undefined,
+        contextWindow: form.contextWindow.trim()
+          ? Math.round(Number(form.contextWindow))
+          : undefined,
+        maxOutputTokens: form.maxOutputTokens.trim()
+          ? Math.round(Number(form.maxOutputTokens))
+          : undefined,
+        routingTags: form.routingTags.length > 0 ? form.routingTags : undefined,
+        reasoning,
+        promptCaching,
       };
       const updatedModels =
         editingIndex != null
@@ -1353,6 +1601,22 @@ function ModelsSection({
               )}
               {t('providers.fetchModels')}
             </Button>
+            {capsByModelId.size > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => void syncAllFromCatalog()}
+                disabled={syncingAll || isSaving}
+              >
+                {syncingAll ? (
+                  <Loader2 className="mr-1 size-3.5 animate-spin" />
+                ) : (
+                  <DownloadCloud className="mr-1 size-3.5" />
+                )}
+                {t('providers.modelCapabilities.syncAll')}
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"
@@ -1627,27 +1891,23 @@ function ModelsSection({
                 <Text className="text-sm font-medium">
                   {t('providers.capabilities')}
                 </Text>
-                <HStack gap={4} align="center" className="flex-wrap">
+                <Grid cols={2} className="gap-x-4 gap-y-1.5">
                   {modelTagLiterals.map((tag) => (
-                    <label
+                    <Checkbox
                       key={tag}
-                      className="flex items-center gap-1.5 text-sm"
-                    >
-                      <Checkbox
-                        checked={form.tags.includes(tag)}
-                        onCheckedChange={(checked) => {
-                          setForm((f) => ({
-                            ...f,
-                            tags: checked
-                              ? [...f.tags, tag]
-                              : f.tags.filter((v) => v !== tag),
-                          }));
-                        }}
-                      />
-                      {modelTagLabel(tag, t)}
-                    </label>
+                      label={modelTagLabel(tag, t)}
+                      checked={form.tags.includes(tag)}
+                      onCheckedChange={(checked) => {
+                        setForm((f) => ({
+                          ...f,
+                          tags: checked
+                            ? [...f.tags, tag]
+                            : f.tags.filter((v) => v !== tag),
+                        }));
+                      }}
+                    />
                   ))}
-                </HStack>
+                </Grid>
               </Stack>
               {form.tags.includes('embedding') && (
                 <Input
@@ -1733,6 +1993,20 @@ function ModelsSection({
               <Text className="text-muted-foreground text-xs">
                 {t('providers.costHelp')}
               </Text>
+              <Stack gap={1}>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={form.hidden}
+                    onCheckedChange={(checked) =>
+                      setForm((f) => ({ ...f, hidden: checked === true }))
+                    }
+                  />
+                  {t('providers.modelHidden')}
+                </label>
+                <Text className="text-muted-foreground text-xs">
+                  {t('providers.modelHiddenHelp')}
+                </Text>
+              </Stack>
               <Input
                 label={t('providers.modelBaseUrl')}
                 value={form.baseUrl}
@@ -1824,6 +2098,265 @@ function ModelsSection({
                   </Text>
                 </>
               )}
+              {(form.tags.includes('chat') || form.tags.includes('vision')) && (
+                <Stack
+                  gap={3}
+                  className="border-border mt-1 rounded-lg border p-3 sm:p-4"
+                >
+                  <HStack
+                    justify="between"
+                    align="start"
+                    wrap
+                    className="gap-2"
+                  >
+                    <Stack gap={1} className="min-w-0">
+                      <Text className="text-sm font-medium">
+                        {t('providers.modelCapabilities.routingTitle')}
+                      </Text>
+                      <Text className="text-muted-foreground text-xs">
+                        {t('providers.modelCapabilities.routingHelp')}
+                      </Text>
+                    </Stack>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={fillFromCatalog}
+                      disabled={!capsByModelId.has(form.id.trim())}
+                    >
+                      <Sparkles className="mr-1 size-3.5" />
+                      {t('providers.modelCapabilities.fillFromCatalog')}
+                    </Button>
+                  </HStack>
+
+                  <HStack gap={3} align="start" className="flex-wrap">
+                    <Select
+                      label={t('providers.modelCapabilities.tier')}
+                      description={t('providers.modelCapabilities.tierHelp')}
+                      value={form.tier || 'auto'}
+                      onValueChange={(value) =>
+                        setForm((f) => ({
+                          ...f,
+                          tier:
+                            value === 'draft' ||
+                            value === 'standard' ||
+                            value === 'frontier'
+                              ? value
+                              : '',
+                        }))
+                      }
+                      options={[
+                        {
+                          value: 'auto',
+                          label: t('providers.modelCapabilities.tierAuto'),
+                        },
+                        ...modelTierLiterals.map((tierValue) => ({
+                          value: tierValue,
+                          label: tierValue,
+                        })),
+                      ]}
+                    />
+                    <Input
+                      label={t('providers.modelCapabilities.qualityScore')}
+                      type="number"
+                      value={form.qualityScore}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, qualityScore: e.target.value }))
+                      }
+                      placeholder="0.0 – 1.0"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                    />
+                  </HStack>
+
+                  <HStack gap={3} align="start" className="flex-wrap">
+                    <Input
+                      label={t('providers.modelCapabilities.contextWindow')}
+                      type="number"
+                      value={form.contextWindow}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          contextWindow: e.target.value,
+                        }))
+                      }
+                      placeholder="e.g., 200000"
+                      min={1}
+                    />
+                    <Input
+                      label={t('providers.modelCapabilities.maxOutputTokens')}
+                      type="number"
+                      value={form.maxOutputTokens}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          maxOutputTokens: e.target.value,
+                        }))
+                      }
+                      placeholder="e.g., 32768"
+                      min={1}
+                    />
+                  </HStack>
+
+                  <Select
+                    label={t('providers.modelCapabilities.reasoning')}
+                    description={t('providers.modelCapabilities.reasoningHelp')}
+                    value={form.reasoningKnob || 'unset'}
+                    onValueChange={(value) =>
+                      setForm((f) => ({
+                        ...f,
+                        reasoningKnob:
+                          value === 'effort' ||
+                          value === 'budgetTokens' ||
+                          value === 'none'
+                            ? value
+                            : '',
+                      }))
+                    }
+                    options={[
+                      {
+                        value: 'unset',
+                        label: t('providers.modelCapabilities.notSet'),
+                      },
+                      {
+                        value: 'none',
+                        label: t('providers.modelCapabilities.reasoningNone'),
+                      },
+                      {
+                        value: 'effort',
+                        label: t('providers.modelCapabilities.reasoningEffort'),
+                      },
+                      {
+                        value: 'budgetTokens',
+                        label: t('providers.modelCapabilities.reasoningBudget'),
+                      },
+                    ]}
+                  />
+                  {form.reasoningKnob === 'effort' && (
+                    <label className="flex items-center gap-1.5 text-sm">
+                      <Checkbox
+                        checked={form.reasoningSupportsMinimal}
+                        onCheckedChange={(checked) =>
+                          setForm((f) => ({
+                            ...f,
+                            reasoningSupportsMinimal: checked === true,
+                          }))
+                        }
+                      />
+                      {t('providers.modelCapabilities.supportsMinimal')}
+                    </label>
+                  )}
+                  {form.reasoningKnob === 'budgetTokens' && (
+                    <HStack gap={3} align="start" className="flex-wrap">
+                      <Input
+                        label={t('providers.modelCapabilities.minBudgetTokens')}
+                        type="number"
+                        value={form.reasoningMinBudgetTokens}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            reasoningMinBudgetTokens: e.target.value,
+                          }))
+                        }
+                        placeholder="e.g., 1024"
+                        min={1}
+                      />
+                      <Input
+                        label={t('providers.modelCapabilities.maxBudgetTokens')}
+                        type="number"
+                        value={form.reasoningMaxBudgetTokens}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            reasoningMaxBudgetTokens: e.target.value,
+                          }))
+                        }
+                        placeholder={t('providers.modelCapabilities.optional')}
+                        min={1}
+                      />
+                    </HStack>
+                  )}
+
+                  <Select
+                    label={t('providers.modelCapabilities.promptCaching')}
+                    description={t(
+                      'providers.modelCapabilities.promptCachingHelp',
+                    )}
+                    value={form.promptCachingMode || 'unset'}
+                    onValueChange={(value) =>
+                      setForm((f) => ({
+                        ...f,
+                        promptCachingMode:
+                          value === 'explicit-breakpoints' ||
+                          value === 'auto-server' ||
+                          value === 'none'
+                            ? value
+                            : '',
+                      }))
+                    }
+                    options={[
+                      {
+                        value: 'unset',
+                        label: t('providers.modelCapabilities.notSet'),
+                      },
+                      {
+                        value: 'none',
+                        label: t('providers.modelCapabilities.cachingNone'),
+                      },
+                      {
+                        value: 'auto-server',
+                        label: t('providers.modelCapabilities.cachingAuto'),
+                      },
+                      {
+                        value: 'explicit-breakpoints',
+                        label: t('providers.modelCapabilities.cachingExplicit'),
+                      },
+                    ]}
+                  />
+                  {form.promptCachingMode === 'explicit-breakpoints' && (
+                    <Input
+                      label={t('providers.modelCapabilities.maxBreakpoints')}
+                      type="number"
+                      value={form.promptCachingMaxBreakpoints}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          promptCachingMaxBreakpoints: e.target.value,
+                        }))
+                      }
+                      placeholder="e.g., 4"
+                      min={1}
+                    />
+                  )}
+
+                  <Stack gap={2}>
+                    <Text className="text-sm font-medium">
+                      {t('providers.modelCapabilities.routingTags')}
+                    </Text>
+                    <Text className="text-muted-foreground text-xs">
+                      {t('providers.modelCapabilities.routingTagsHelp')}
+                    </Text>
+                    <Grid cols={2} className="gap-x-4 gap-y-1.5">
+                      {domainLiterals.map((domain) => (
+                        <Checkbox
+                          key={domain}
+                          label={domain}
+                          checked={form.routingTags.includes(domain)}
+                          onCheckedChange={(checked) =>
+                            setForm((f) => ({
+                              ...f,
+                              routingTags: checked
+                                ? [...f.routingTags, domain]
+                                : f.routingTags.filter((d) => d !== domain),
+                            }))
+                          }
+                        />
+                      ))}
+                    </Grid>
+                  </Stack>
+                </Stack>
+              )}
               <ModelProviderOptionsField
                 value={form.providerOptionsJson}
                 onChange={(next) =>
@@ -1865,7 +2398,7 @@ function ModelsSection({
                     form.displayName.trim().length > 0 &&
                     (editingIndex == null ||
                       modelKeyAction === 'remove' ||
-                      JSON.stringify(form) !== JSON.stringify(initialForm))
+                      !structuralEqual(form, initialForm))
                   )
                 }
               >

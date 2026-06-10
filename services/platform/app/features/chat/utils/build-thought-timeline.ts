@@ -160,7 +160,13 @@ export function buildThoughtTimeline(
       steps.push({
         kind: 'reasoning',
         id: `reasoning-${reasoningSeq++}`,
-        text,
+        // Strip LEADING whitespace so a model that prefixes its reasoning with a
+        // newline doesn't render an empty markdown paragraph above the step (the
+        // "bullet starts with a blank line" artifact). Leading whitespace is
+        // stable as the block streams, so the typewriter reveal is unaffected;
+        // trailing whitespace is kept mid-stream so a space the model just
+        // emitted isn't chopped.
+        text: text.replace(/^\s+/, ''),
         state,
         redacted,
       });

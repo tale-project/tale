@@ -25,6 +25,11 @@ import type { StreamMessage } from '@convex-dev/agent/validators';
 import type { ModelMessage } from 'ai';
 import { ConvexError } from 'convex/values';
 
+import {
+  creativityToScoreOverride,
+  effortToTierOverride,
+  tuningInstructionSuffix,
+} from '../../../lib/shared/response-tuning';
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
@@ -53,29 +58,42 @@ import {
   AGENT_CONTEXT_CONFIGS,
   RECOVERY_TIMEOUT_MS,
   estimateTokens,
+  type StructuredContextResult,
 } from '../context_management';
-import { orgSlugFromId } from '../helpers/org_slug';
-// Artifacts module removed — workspace context is discoverable via the
-// `file_list` tool. We keep the call sites but route them through this
-// no-op shim so the prompt-builder API surface stays intact.
-const buildArtifactsContext = async (
-  _ctx: unknown,
-  _organizationId: string,
-  _threadId: string | undefined,
-): Promise<string> => '';
+import {
+  resolveContextBudget,
+  resolveEffectiveContextWindow,
+  shouldCompact,
+} from '../context_management/compaction/budget';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
+import { orgSlugFromId } from '../helpers/org_slug';
 import { summarizeForLog } from '../log_redact';
 import {
   buildProjectInstructions,
   type ProjectInstructionsBlock,
 } from './build_project_instructions';
-import { buildSystemPrompt } from './build_system_prompt';
+import {
+  buildSystemPrompt,
+  instructionsAreCacheable,
+} from './build_system_prompt';
 import {
   buildUserPersonalization,
   type UserPersonalization,
 } from './build_user_personalization';
+import { analyzeResponseQuality } from './quality/analyze';
+import { thresholdsFor } from './quality/thresholds';
 import { buildReasoningOptions } from './reasoning/build_reasoning_options';
+import { reasoningScopeKey } from './reasoning/scope';
+import { resolveTemplateVariables } from './resolve_template_variables';
+import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
+import type {
+  BeforeContextResult,
+  GenerateResponseArgs,
+  GenerateResponseConfig,
+  GenerateResponseResult,
+} from './types';
+import { AgentTimeoutError, withTimeout } from './with_timeout';
 
 const OUTPUT_BLOCKED_SENTINEL = '[blocked by content policy]';
 
@@ -181,15 +199,6 @@ function buildBlockedReturn(
     durationMs: Date.now() - startTime,
   };
 }
-import { resolveTemplateVariables } from './resolve_template_variables';
-import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
-import type {
-  GenerateResponseConfig,
-  GenerateResponseArgs,
-  GenerateResponseResult,
-  BeforeContextResult,
-} from './types';
-import { AgentTimeoutError, withTimeout } from './with_timeout';
 
 /**
  * Fallback timeout ceiling when no explicit deadline is provided.
@@ -279,6 +288,34 @@ function startAbortWatcher(
       return cancelledByWatcher;
     },
   };
+}
+
+/**
+ * The TURN's wall-clock start — `threadMetadata.generationStartTime`, stamped by
+ * `markGenerating` BEFORE Auto routing. Used to report the pre-answer "thinking"
+ * time the user actually waited (router-classifier latency included). Falls back
+ * to `fallbackMs` (this action's start) for resume / sub-agent turns that carry
+ * no thread generationStartTime, or if the read fails. Called post-stream only,
+ * so it never sits on the time-to-first-token critical path.
+ */
+async function resolveTurnStartMs(
+  ctx: GenerateResponseArgs['ctx'],
+  threadId: string,
+  fallbackMs: number,
+): Promise<number> {
+  try {
+    const meta = await ctx.runQuery(
+      internal.threads.internal_queries.getThreadMetadata,
+      { threadId },
+    );
+    return meta?.generationStartTime ?? fallbackMs;
+  } catch (err) {
+    console.warn(
+      '[generateAgentResponse] resolveTurnStartMs failed; using action start',
+      err instanceof Error ? err.message : err,
+    );
+    return fallbackMs;
+  }
 }
 
 /**
@@ -418,7 +455,10 @@ export async function generateAgentResponse(
     providerOptions,
     convexToolNames,
     modelMaxOutputTokens,
+    modelContextWindow,
     reasoningCapability,
+    responseTuning,
+    replyLocaleHint,
   } = config;
   const {
     ctx,
@@ -429,6 +469,7 @@ export async function generateAgentResponse(
     additionalContext,
     userContext,
     agentSlug,
+    autoRouteReason,
     teamIds,
     providerCost,
     parentThreadId,
@@ -437,8 +478,8 @@ export async function generateAgentResponse(
     promptMessageId,
     maxSteps: _maxSteps,
     generationParams,
-    reasoningOverride,
     suppressErrorCleanup,
+    prewarm,
   } = args;
 
   const debugLog = createDebugLog(
@@ -453,18 +494,7 @@ export async function generateAgentResponse(
   let baselineAbortedIds = new Set<string>();
 
   // Hoisted so partial data is available in the catch block for error metadata
-  let structuredThreadContext:
-    | {
-        threadContext: string;
-        stats: {
-          totalTokens: number;
-          messageCount: number;
-          approvalCount: number;
-          hasRag: boolean;
-          hasWebContext: boolean;
-        };
-      }
-    | undefined;
+  let structuredThreadContext: StructuredContextResult | undefined;
   let agentInstructions: string | undefined;
   let retrySystemMessageId: string | undefined;
   let firstTokenTime: number | null = null;
@@ -511,6 +541,11 @@ export async function generateAgentResponse(
   let guardrailsSnapshot: GuardrailsSnapshot | null = null;
   const guardrailsState: GuardrailsTransformState = makeInitialState();
   let resolvedOrgSlug: string | null = null;
+  // The guardrails snapshot + orgSlug fetch is hoisted into the context
+  // Promise.all below (parallel with RAG/history) so it overlaps the context
+  // build instead of being a serial step before `streamText`. These only feed
+  // the OUTPUT transform (and end-of-stream sanitize), which don't run until
+  // after the first token. Skipped for prewarm (no output to sanitize).
   let result: {
     text?: string;
     steps?: unknown[];
@@ -519,6 +554,24 @@ export async function generateAgentResponse(
     response?: { modelId?: string };
     reasoning?: string;
   } = {};
+
+  // Assemble the collapsible <details> context-window blocks for metadata:
+  // system prompt, tools, then the thread context (when available). Shared by
+  // the cancel / success / error metadata paths. Declared outside the try so
+  // the catch block's error-metadata path can reuse it.
+  const buildContextWindowParts = (
+    threadContext: string | undefined,
+  ): string[] => {
+    const parts: string[] = [];
+    if (agentInstructions) {
+      parts.push(wrapInDetails('📋 System Prompt', agentInstructions));
+    }
+    if (toolsSummary) {
+      parts.push(wrapInDetails('🔧 Tools', toolsSummary));
+    }
+    if (threadContext !== undefined) parts.push(threadContext);
+    return parts;
+  };
 
   try {
     debugLog(`generate${capitalize(agentType)}Response called`, {
@@ -639,24 +692,12 @@ export async function generateAgentResponse(
       if (savedMessageId) {
         try {
           let cancelContextWindow: string | undefined;
-          let cancelContextStats: typeof structuredThreadContext extends undefined
-            ? undefined
-            :
-                | (NonNullable<typeof structuredThreadContext>['stats'] & {
-                    totalTokens: number;
-                  })
-                | undefined;
+          let cancelContextStats: StructuredContextResult['stats'] | undefined;
 
           if (structuredThreadContext) {
-            const parts = [];
-            if (agentInstructions) {
-              parts.push(wrapInDetails('📋 System Prompt', agentInstructions));
-            }
-            if (toolsSummary) {
-              parts.push(wrapInDetails('🔧 Tools', toolsSummary));
-            }
-            parts.push(structuredThreadContext.threadContext);
-            cancelContextWindow = parts.join('\n\n');
+            cancelContextWindow = buildContextWindowParts(
+              structuredThreadContext.threadContext,
+            ).join('\n\n');
 
             const sysTokens = instructions ? estimateTokens(instructions) : 0;
             const toolTokens = toolsSummary ? estimateTokens(toolsSummary) : 0;
@@ -692,6 +733,7 @@ export async function generateAgentResponse(
             userId,
             teamIds,
             agentSlug,
+            autoRouteReason,
             providerCost,
           });
         } catch (metaError) {
@@ -768,10 +810,15 @@ export async function generateAgentResponse(
     // Determine retrieval modes
     const knowledgeMode = configKnowledgeMode ?? 'off';
     const webSearchMode = configWebSearchMode ?? 'off';
+    // Prewarm skips volatile RAG/web retrieval: those land AFTER the cache
+    // breakpoint, so omitting them keeps the cached prefix identical to the
+    // real first turn while making the priming call cheap and fast. Thread
+    // history is also volatile (post-breakpoint) but isn't gated here — prewarm
+    // primes a fresh thread, so it's empty in practice either way.
     const needsKnowledgeContext =
-      knowledgeMode === 'context' || knowledgeMode === 'both';
+      !prewarm && (knowledgeMode === 'context' || knowledgeMode === 'both');
     const needsWebContext =
-      webSearchMode === 'context' || webSearchMode === 'both';
+      !prewarm && (webSearchMode === 'context' || webSearchMode === 'both');
 
     // Start context injection queries (non-blocking) for context/both modes
     let knowledgeContextPromise:
@@ -936,7 +983,7 @@ export async function generateAgentResponse(
         ? ctx
             .runQuery(internal.threads.internal_queries.getReasoningProfile, {
               organizationId,
-              scopeKey: model,
+              scopeKey: reasoningScopeKey(model, agentType),
             })
             .catch((err: unknown) => {
               console.warn(
@@ -951,7 +998,7 @@ export async function generateAgentResponse(
       // Wrapped as ONE self-catching tuple so a transient load failure degrades
       // BOTH to null (stream without output guardrails) — exactly the prior
       // behavior — instead of turning a transient failure into a failed turn.
-      organizationId
+      organizationId && !prewarm
         ? Promise.all([
             loadGuardrailsSnapshot(ctx, organizationId),
             resolveOrgSlug(ctx, organizationId),
@@ -973,6 +1020,9 @@ export async function generateAgentResponse(
     const reasoningState = reasoningStateRow?.reasoningState ?? undefined;
     // Assign the hoisted guardrails state from the parallel resolve above.
     [guardrailsSnapshot, resolvedOrgSlug] = guardrailsPair;
+    // Auto-compaction rolling summary (compacted earlier turns). Injected into
+    // the context and used to exclude already-summarized messages.
+    const contextSummary = reasoningStateRow?.contextSummary;
 
     if (knowledgeContextResult) {
       debugLog('Knowledge context injected', {
@@ -994,27 +1044,36 @@ export async function generateAgentResponse(
     const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
     const governanceMaxContext =
       config.maxContextTokens ?? args.maxContextTokens;
-    const effectiveMaxHistoryTokens =
-      governanceMaxContext != null &&
-      Number.isFinite(governanceMaxContext) &&
-      governanceMaxContext > 0
-        ? Math.floor(
-            Math.min(governanceMaxContext, agentConfig.maxHistoryTokens),
-          )
-        : agentConfig.maxHistoryTokens;
+    // History budget scales with the model's real context window (capped), so a
+    // long chat actually fills the window and auto-compaction can kick in at
+    // ~90%. Never dips below the per-agent default; governance still caps it.
+    // An unknown context window falls back to a sensible default inside
+    // `resolveContextBudget`.
+    const historyBudget = resolveContextBudget({
+      contextWindow: modelContextWindow,
+      governanceMaxContext:
+        governanceMaxContext != null &&
+        Number.isFinite(governanceMaxContext) &&
+        governanceMaxContext > 0
+          ? governanceMaxContext
+          : undefined,
+      agentDefault: agentConfig.maxHistoryTokens,
+    });
+    const effectiveMaxHistoryTokens = historyBudget;
 
-    if (governanceMaxContext) {
-      debugLog('Governance context limit applied', {
-        governanceLimit: governanceMaxContext,
-        agentDefault: agentConfig.maxHistoryTokens,
-        effective: effectiveMaxHistoryTokens,
-      });
-    }
+    debugLog('History budget resolved', {
+      modelContextWindow,
+      governanceLimit: governanceMaxContext,
+      agentDefault: agentConfig.maxHistoryTokens,
+      effective: effectiveMaxHistoryTokens,
+    });
 
     const contextBuildStart = Date.now();
-    const artifactsContext = organizationId
-      ? await buildArtifactsContext(ctx, organizationId, threadId)
-      : undefined;
+    // Artifacts module removed — workspace context is now discoverable via the
+    // `file_list` tool, so there is no artifacts block to build. This was a
+    // no-op async shim (always resolved to '') awaited on the critical path
+    // right before context build; `buildStructuredContext` treats an absent
+    // artifactsContext identically (gated by `if (artifactsContext)`).
     structuredThreadContext = await buildStructuredContext({
       ctx,
       threadId,
@@ -1023,8 +1082,9 @@ export async function generateAgentResponse(
       maxHistoryTokens: effectiveMaxHistoryTokens,
       ragContext: knowledgeContextResult?.text ?? hookData?.ragContext,
       webContext: webContextResult?.text,
-      artifactsContext,
+      artifactsContext: undefined,
       promptMessageId,
+      contextSummary,
     });
     const contextBuildMs = Date.now() - contextBuildStart;
 
@@ -1126,8 +1186,15 @@ export async function generateAgentResponse(
           },
           state: reasoningState,
           profile: reasoningProfile ?? undefined,
-          effortOverride: reasoningOverride?.effort,
-          creativityOverride: reasoningOverride?.creativity,
+          effortOverride: effortToTierOverride(responseTuning?.effort),
+          creativityOverride: creativityToScoreOverride(
+            responseTuning?.creativity,
+          ),
+          effortFloorTier: responseTuning?.effortFloor,
+          effortCeilingTier: responseTuning?.effortCeiling,
+          budgetCaps: responseTuning?.budgetCaps,
+          temperatureRange: responseTuning?.temperatureRange,
+          qualityProfile: responseTuning?.qualityProfile,
         })
       : undefined;
     const reasoningProviderOptions =
@@ -1137,9 +1204,25 @@ export async function generateAgentResponse(
     const effectiveTemperature =
       generationParams?.temperature ?? reasoningDecision?.temperature;
 
+    // Per-agent response-tuning style/verbosity fragment, appended to the
+    // agent's instructions for this turn (replaces the old per-message composer
+    // style application in start_chat).
+    const tuningSuffix = tuningInstructionSuffix(responseTuning);
+    const tunedInstructions = tuningSuffix
+      ? instructions
+        ? `${instructions}\n\n${tuningSuffix}`
+        : tuningSuffix
+      : instructions;
+
+    // Is the stable prefix genuinely cacheable? Checked on the RAW instructions
+    // (before template resolution) — once `{{current_time}}` & friends are
+    // resolved they become opaque timestamps. When present, suppress the cache
+    // breakpoint so we don't cache a prefix that changes every turn.
+    const instructionsCacheable = instructionsAreCacheable(tunedInstructions);
+
     // Resolve template variables (e.g. {{organization.name}}, {{current_time}})
-    const resolvedInstructions = instructions
-      ? await resolveTemplateVariables(ctx, instructions, {
+    const resolvedInstructions = tunedInstructions
+      ? await resolveTemplateVariables(ctx, tunedInstructions, {
           organizationId,
           userId,
           timezone: userContext?.timezone,
@@ -1170,7 +1253,15 @@ export async function generateAgentResponse(
     // one language.
     // First non-blank client locale wins; `??` alone would let an empty
     // string short-circuit the chain past a usable next candidate.
-    const clientLocale = [userContext?.uiLanguage, userContext?.language]
+    // Priority: explicit client locale (the user's own UI/browser language) →
+    // the Auto router's per-message language hint → org default. The router
+    // hint sits below the user's explicit locale (their standing preference)
+    // but above the org default, and only ever feeds rule 3 of the directive.
+    const clientLocale = [
+      userContext?.uiLanguage,
+      userContext?.language,
+      replyLocaleHint,
+    ]
       .map((locale) => locale?.trim())
       .find((locale) => locale);
     const fallbackLocale =
@@ -1194,7 +1285,91 @@ export async function generateAgentResponse(
       structuredThreadContext.threadContext,
       projectInstructionsBlock,
       fallbackLocale,
+      instructionsCacheable,
+      new Date().toISOString(),
     );
+
+    // Cache pre-warm: we now have the exact tools (via `agent`) + stable system
+    // prefix the real first turn will use. Issue one throwaway 1-token
+    // generation to prime the provider's prompt cache, then return — no
+    // persistence, no streaming, no outcome recording. Best-effort: a failed
+    // prime must never surface to the user.
+    if (prewarm) {
+      const prewarmResult = await agent
+        .generateText(
+          contextWithOrg,
+          { threadId, userId },
+          {
+            system: systemPrompt,
+            prompt: '.',
+            // Cap the throwaway answer to the minimum; the priming cost is the
+            // cache WRITE (input prefix), not the output.
+            maxOutputTokens: 1,
+            abortSignal: abortController.signal,
+            // Use the BASE provider options, NOT the reasoning overlay: a
+            // budget-knob (Anthropic-style) model would otherwise carry
+            // `thinking.budget_tokens >= 1024`, which the provider rejects when
+            // `max_tokens` is 1 (it requires `budget_tokens < max_tokens`) —
+            // failing the prime for the very models prompt caching targets.
+            // Reasoning knobs don't affect the cached prefix, so dropping them
+            // here is safe.
+            ...(providerOptions ? { providerOptions } : {}),
+          },
+          { storageOptions: { saveMessages: 'none' } },
+        )
+        .catch((err: unknown) => {
+          console.warn(
+            '[prewarm] priming call failed:',
+            err instanceof Error ? err.message : err,
+          );
+          return undefined;
+        });
+      debugLog('PREWARM_DONE', {
+        threadId,
+        model,
+        cachedInputTokens: prewarmResult?.usage?.cachedInputTokens,
+        inputTokens: prewarmResult?.usage?.inputTokens,
+        elapsedMs: Date.now() - startTime,
+      });
+      // Meter the priming spend on the usage ledger (cache WRITE = input tokens)
+      // so prewarm is NOT free, untracked, ungoverned billed spend. Skip message
+      // metadata (no saved message exists for a prewarm). Best-effort.
+      if (prewarmResult?.usage && (prewarmResult.usage.inputTokens ?? 0) > 0) {
+        await onAgentComplete(ctx, {
+          threadId,
+          agentType,
+          result: {
+            threadId,
+            text: '',
+            // The shared `result` accumulator is still empty here (we return
+            // before generation populates it), so use the configured model id
+            // directly — that's the model the prime actually billed against.
+            model,
+            provider,
+            usage: prewarmResult.usage,
+            durationMs: Date.now() - startTime,
+          },
+          organizationId,
+          userId,
+          teamIds,
+          agentSlug,
+          providerCost,
+          options: { skipMetadata: true },
+        }).catch((meterErr: unknown) =>
+          console.warn(
+            '[prewarm] usage metering failed:',
+            meterErr instanceof Error ? meterErr.message : meterErr,
+          ),
+        );
+      }
+      return {
+        threadId,
+        text: '',
+        finishReason: 'prewarm',
+        durationMs: Date.now() - startTime,
+        usage: prewarmResult?.usage,
+      };
+    }
 
     // Record the injection (one row per turn, with the IDs that were
     // folded into systemPrompt) so the data subject can later trace which
@@ -1205,21 +1380,32 @@ export async function generateAgentResponse(
       organizationId &&
       userId
     ) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.user_memory_audit_log.internal_mutations.appendAudit,
-        {
-          organizationId,
-          actorUserId: userId,
-          subjectUserId: userId,
-          action: 'inject',
-          outcome: 'ok',
-          injectedMemoryIds: userPersonalization.injectedMemoryIds,
-          threadId,
-          messageId: promptMessageId ?? undefined,
-          agentSlug: agentSlug ?? undefined,
-        },
-      );
+      // Genuinely fire-and-forget (the comment above was previously belied by
+      // an `await`): enqueueing the audit is a DB write whose latency sat
+      // directly between system-prompt assembly and the streamText call. The
+      // audit is non-critical, so let it run after dispatch.
+      void ctx.scheduler
+        .runAfter(
+          0,
+          internal.user_memory_audit_log.internal_mutations.appendAudit,
+          {
+            organizationId,
+            actorUserId: userId,
+            subjectUserId: userId,
+            action: 'inject',
+            outcome: 'ok',
+            injectedMemoryIds: userPersonalization.injectedMemoryIds,
+            threadId,
+            messageId: promptMessageId ?? undefined,
+            agentSlug: agentSlug ?? undefined,
+          },
+        )
+        .catch((err: unknown) =>
+          console.warn(
+            '[generate_response] memory-audit schedule failed:',
+            err instanceof Error ? err.message : err,
+          ),
+        );
     }
 
     debugLog('PRE_LLM_CALL', {
@@ -1537,21 +1723,11 @@ export async function generateAgentResponse(
           return cancelledReturn(cancelCheck.cancelledMessageId);
         }
       } else {
-        // Non-streaming mode (sub-agents)
-        // Extend context with all fields from contextWithOrg for consistency
-        const subAgentContext = {
-          ...ctx,
-          organizationId,
-          threadId,
-          variables: { actionDeadlineMs: String(actionDeadline) },
-          agentTeamId,
-          agentTeamIds,
-          includeTeamKnowledge,
-          includeOrgKnowledge,
-          knowledgeFileIds,
-          agentProjectIds,
-          ...(parentThreadId ? { parentThreadId } : {}),
-        };
+        // Non-streaming mode (sub-agents): same context as contextWithOrg,
+        // plus parentThreadId when this is a delegated sub-thread.
+        const subAgentContext = parentThreadId
+          ? { ...contextWithOrg, parentThreadId }
+          : contextWithOrg;
 
         const generateResult = await withTimeout(
           agent.generateText(
@@ -1648,9 +1824,8 @@ export async function generateAgentResponse(
             stepsCount: result.steps?.length ?? 0,
           });
 
-          const continueArtifactsContext = organizationId
-            ? await buildArtifactsContext(ctx, organizationId, threadId)
-            : undefined;
+          // Artifacts module removed (see context-build above) — no artifacts
+          // block to build on the continuation pass either.
           const continueContext = await buildStructuredContext({
             ctx,
             threadId,
@@ -1658,8 +1833,9 @@ export async function generateAgentResponse(
             parentThreadId,
             maxHistoryTokens: effectiveMaxHistoryTokens,
             ragContext: hookData?.ragContext,
-            artifactsContext: continueArtifactsContext,
+            artifactsContext: undefined,
             promptMessageId,
+            contextSummary,
           });
 
           const continueAgent = createAgent(agentOptions);
@@ -1670,6 +1846,8 @@ export async function generateAgentResponse(
             continueContext.threadContext,
             projectInstructionsBlock,
             fallbackLocale,
+            instructionsCacheable,
+            new Date().toISOString(),
           );
 
           const continuePrompt = hasToolResults
@@ -1709,22 +1887,14 @@ export async function generateAgentResponse(
             );
           }
 
-          // Build the appropriate context object for the continue call
+          // Build the appropriate context object for the continue call.
+          // Non-streaming mirrors the sub-agent context (parentThreadId when
+          // this is a delegated sub-thread); streaming reuses contextWithOrg.
           const continueCtx = enableStreaming
             ? contextWithOrg
-            : {
-                ...ctx,
-                organizationId,
-                threadId,
-                variables: { actionDeadlineMs: String(actionDeadline) },
-                agentTeamId,
-                agentTeamIds,
-                includeTeamKnowledge,
-                includeOrgKnowledge,
-                knowledgeFileIds,
-                agentProjectIds,
-                ...(parentThreadId ? { parentThreadId } : {}),
-              };
+            : parentThreadId
+              ? { ...contextWithOrg, parentThreadId }
+              : contextWithOrg;
 
           // Check for cancellation before starting continue (catches cancels during context building)
           {
@@ -1903,6 +2073,7 @@ export async function generateAgentResponse(
             maxHistoryTokens: effectiveMaxHistoryTokens,
             ragContext: hookData?.ragContext,
             promptMessageId,
+            contextSummary,
           });
 
           const recoveryAgent = createAgent(agentOptions);
@@ -1913,6 +2084,8 @@ export async function generateAgentResponse(
             recoveryContext.threadContext,
             projectInstructionsBlock,
             fallbackLocale,
+            instructionsCacheable,
+            new Date().toISOString(),
           );
 
           // Cap recovery timeout by action deadline
@@ -2079,6 +2252,13 @@ export async function generateAgentResponse(
       : undefined;
     const { timeToFirstReasoningMs, timeFromSendMs } =
       computeReasoningTimings();
+    // Pre-answer wall-clock the user actually waited, anchored to the TURN start
+    // (markGenerating, before routing) so it includes the Auto-router classifier
+    // — what the chat "Thought for Ns" summary should show. Resolved here
+    // (post-stream) so the extra read never delays first token.
+    const thinkingDurationMs = firstTokenTime
+      ? firstTokenTime - (await resolveTurnStartMs(ctx, threadId, startTime))
+      : undefined;
 
     debugLog('Response generated', {
       durationMs,
@@ -2113,6 +2293,21 @@ export async function generateAgentResponse(
       messageCount: structuredThreadContext.stats.messageCount,
       inputTokens: result.usage?.inputTokens,
       outputTokens: result.usage?.outputTokens,
+      // Prompt-cache effectiveness. `cachedInputTokens` is reported by the
+      // openai-compatible adapter from `prompt_tokens_details.cached_tokens`
+      // (cache READS); cache-write/creation tokens are not surfaced by this
+      // adapter, so a low ratio on a thread's first turn is expected.
+      cachedInputTokens: result.usage?.cachedInputTokens,
+      cacheHitRatio:
+        result.usage?.cachedInputTokens != null &&
+        result.usage.inputTokens != null &&
+        result.usage.inputTokens > 0
+          ? Number(
+              (
+                result.usage.cachedInputTokens / result.usage.inputTokens
+              ).toFixed(3),
+            )
+          : undefined,
     });
 
     // Resolve `propose_memory` proposals to their assistant message id.
@@ -2163,17 +2358,9 @@ export async function generateAgentResponse(
       toolCitations.length > 0 ? toolCitations : contextCitations;
 
     // Build complete context window for metadata (uses <details> for collapsible display)
-    const contextWindowParts = [];
-    if (agentInstructions) {
-      contextWindowParts.push(
-        wrapInDetails('📋 System Prompt', agentInstructions),
-      );
-    }
-    if (toolsSummary) {
-      contextWindowParts.push(wrapInDetails('🔧 Tools', toolsSummary));
-    }
-    contextWindowParts.push(structuredThreadContext.threadContext);
-    const completeContextWindow = contextWindowParts.join('\n\n');
+    const completeContextWindow = buildContextWindowParts(
+      structuredThreadContext.threadContext,
+    ).join('\n\n');
 
     // Get actual model from response (no fallback to config)
     const actualModel = result.response?.modelId;
@@ -2199,6 +2386,7 @@ export async function generateAgentResponse(
       timeToFirstTokenMs,
       timeToFirstReasoningMs,
       timeFromSendMs,
+      thinkingDurationMs,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       toolsUsage: toolsUsage.length > 0 ? toolsUsage : undefined,
       citations: citations.length > 0 ? citations : undefined,
@@ -2233,6 +2421,22 @@ export async function generateAgentResponse(
 
     const cancelled = await checkCancelled();
 
+    // Score the final answer's quality (hedging / specificity / hallucination /
+    // length) so the governor's online controller learns from whether the
+    // budget produced GOOD answers, not just token counts. Only when the model
+    // was actually steered this turn and produced text.
+    const reasoningQualityScore =
+      reasoningDecision?.applied && responseResult.text
+        ? analyzeResponseQuality({
+            text: responseResult.text,
+            complexity: reasoningDecision.difficultyClass,
+            thresholds: thresholdsFor(
+              responseTuning?.qualityProfile ?? 'balanced',
+            ),
+            isMathLike: /\d\s*[+\-*/×÷=]\s*\d/.test(responseResult.text),
+          }).score
+        : undefined;
+
     // Run the remaining post-processing in parallel — clearGenerationStatus
     // (the only operation the user perceives), onAgentComplete (metadata +
     // ledger + audit), and persistent stream finalization are all
@@ -2262,6 +2466,7 @@ export async function generateAgentResponse(
             timeToFirstTokenMs,
             timeToFirstReasoningMs,
             timeFromSendMs,
+            thinkingDurationMs,
             toolCalls: responseResult.toolCalls,
             toolsUsage: responseResult.toolsUsage,
             citations: responseResult.citations,
@@ -2272,6 +2477,7 @@ export async function generateAgentResponse(
           userId,
           teamIds,
           agentSlug,
+          autoRouteReason,
           providerCost,
         }),
         streamId
@@ -2295,8 +2501,11 @@ export async function generateAgentResponse(
                   budgetTokens: reasoningDecision.budgetTokens,
                   selfTruncates: reasoningDecision.selfTruncates ?? false,
                   reasoningTokens: responseResult.usage?.reasoningTokens,
+                  outputTokens: responseResult.usage?.outputTokens,
+                  intensity: reasoningDecision.intensity,
                   finishReason: responseResult.finishReason,
                   retried: didRetry,
+                  qualityScore: reasoningQualityScore,
                 },
               )
               .catch((reasoningErr: unknown) =>
@@ -2316,19 +2525,59 @@ export async function generateAgentResponse(
                 internal.threads.internal_mutations.updateReasoningProfile,
                 {
                   organizationId,
-                  scopeKey: model,
+                  scopeKey: reasoningScopeKey(model, agentType),
                   difficultyClass: reasoningDecision.difficultyClass,
                   budgetTokens: reasoningDecision.budgetTokens,
                   selfTruncates: reasoningDecision.selfTruncates ?? false,
                   reasoningTokens: responseResult.usage?.reasoningTokens,
+                  outputTokens: responseResult.usage?.outputTokens,
+                  intensity: reasoningDecision.intensity,
                   finishReason: responseResult.finishReason,
                   retried: didRetry,
+                  qualityScore: reasoningQualityScore,
                 },
               )
               .catch((profileErr: unknown) =>
                 console.warn(
                   '[reasoning] profile update failed:',
                   profileErr instanceof Error ? profileErr.message : profileErr,
+                ),
+              )
+          : Promise.resolve(),
+        // Auto-compaction: when this turn's REAL prompt input crossed ~90% of
+        // the model's effective CONTEXT WINDOW (not the smaller history budget —
+        // that fired far too early since the prompt also holds the system
+        // prompt, tools, and RAG/web), schedule a background summarization of the
+        // oldest turns so future turns stay within the window without dropping
+        // context. Top-level threads only (sub-agent delegate threads, which
+        // carry a `parentThreadId`, are ephemeral) — this covers streaming chat
+        // AND non-streaming API/Slack/webhook turns. Runs as a separate
+        // scheduled action (no added latency); best-effort, drop-oldest is the
+        // safety net.
+        !parentThreadId &&
+        organizationId &&
+        shouldCompact(
+          responseResult.usage?.inputTokens,
+          resolveEffectiveContextWindow({
+            contextWindow: modelContextWindow,
+            governanceMaxContext:
+              governanceMaxContext && governanceMaxContext > 0
+                ? governanceMaxContext
+                : undefined,
+          }),
+        )
+          ? ctx.scheduler
+              .runAfter(
+                0,
+                internal.lib.context_management.compaction.summarize
+                  .compactThreadHistory,
+                { threadId, organizationId, budget: historyBudget },
+              )
+              .then(() => undefined)
+              .catch((compactErr: unknown) =>
+                console.warn(
+                  '[compaction] schedule failed:',
+                  compactErr instanceof Error ? compactErr.message : compactErr,
                 ),
               )
           : Promise.resolve(),
@@ -2596,21 +2845,16 @@ export async function generateAgentResponse(
     if (metadataMessageId) {
       try {
         const durationMs = Date.now() - startTime;
+        const thinkingDurationMs = firstTokenTime
+          ? firstTokenTime -
+            (await resolveTurnStartMs(ctx, threadId, startTime))
+          : undefined;
         const { toolCalls, toolsUsage, citations } = extractToolCallsFromSteps(
           result.steps ?? [],
         );
-        const contextWindowParts: string[] = [];
-        if (agentInstructions) {
-          contextWindowParts.push(
-            wrapInDetails('📋 System Prompt', agentInstructions),
-          );
-        }
-        if (toolsSummary) {
-          contextWindowParts.push(wrapInDetails('🔧 Tools', toolsSummary));
-        }
-        if (structuredThreadContext) {
-          contextWindowParts.push(structuredThreadContext.threadContext);
-        }
+        const contextWindowParts = buildContextWindowParts(
+          structuredThreadContext?.threadContext,
+        );
 
         await onAgentComplete(ctx, {
           threadId,
@@ -2628,6 +2872,7 @@ export async function generateAgentResponse(
               ? firstTokenTime - startTime
               : undefined,
             ...computeReasoningTimings(),
+            thinkingDurationMs,
             toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
             toolsUsage: toolsUsage.length > 0 ? toolsUsage : undefined,
             citations: citations.length > 0 ? citations : undefined,
@@ -2642,6 +2887,7 @@ export async function generateAgentResponse(
           userId,
           teamIds,
           agentSlug,
+          autoRouteReason,
         });
       } catch (metadataError) {
         console.error(
@@ -3095,7 +3341,7 @@ function extractToolNamesFromSteps(steps: unknown[]): string[] {
  * has been persisted (the convex-agent SDK does not surface the
  * assistant message id at tool-execute time).
  */
-export function extractToolCallMessageMapping(
+function extractToolCallMessageMapping(
   savedMessages: unknown,
   toolName: string,
 ): Array<{ toolCallId: string; messageId: string }> {

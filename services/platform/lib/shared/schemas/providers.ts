@@ -1,5 +1,7 @@
 import { z } from 'zod/v4';
 
+import { domainLiterals } from '../constants/domains';
+
 export const modelTagLiterals = [
   'chat',
   'vision',
@@ -94,6 +96,18 @@ const SDK_RESERVED_SET = new Set<string>(SDK_RESERVED_KEYS);
 const BODY_OVERWRITE_SET = new Set<string>(BODY_OVERWRITE_KEYS);
 const PROTOTYPE_POLLUTION_SET = new Set<string>(PROTOTYPE_POLLUTION_KEYS);
 
+function addPrototypePollutionIssue(
+  ctx: z.RefinementCtx,
+  path: readonly (string | number)[],
+  key: string,
+): void {
+  ctx.addIssue({
+    code: 'custom',
+    message: `'${key}' is a reserved object-prototype key and is not allowed in providerOptions.`,
+    path: [...path, key],
+  });
+}
+
 function denyListRefine(
   value: Record<string, unknown>,
   ctx: z.RefinementCtx,
@@ -101,11 +115,7 @@ function denyListRefine(
 ): void {
   for (const [key, sub] of Object.entries(value)) {
     if (PROTOTYPE_POLLUTION_SET.has(key)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: `'${key}' is a reserved object-prototype key and is not allowed in providerOptions.`,
-        path: [...pathPrefix, key],
-      });
+      addPrototypePollutionIssue(ctx, pathPrefix, key);
       continue;
     }
     if (SDK_RESERVED_SET.has(key)) {
@@ -167,11 +177,7 @@ function deepCheckPrototypePollution(
   }
   for (const [key, sub] of Object.entries(value as Record<string, unknown>)) {
     if (PROTOTYPE_POLLUTION_SET.has(key)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: `'${key}' is a reserved object-prototype key and is not allowed in providerOptions.`,
-        path: [...pathPrefix, key],
-      });
+      addPrototypePollutionIssue(ctx, pathPrefix, key);
     }
     if (sub !== null && typeof sub === 'object') {
       deepCheckPrototypePollution(sub, ctx, [...pathPrefix, key]);
@@ -242,6 +248,70 @@ export type ReasoningCapabilityConfig = z.infer<
 >;
 
 /**
+ * Per-model prompt-caching capability for the generic cache layer
+ * (`convex/lib/agent_response/prompt_caching/`). Declares how a model caches a
+ * stable prompt prefix so repeat turns are cheaper and lower-latency. Operators
+ * only need this for models outside the built-in curated table, or to pin a
+ * mode for a specific deployment/gateway.
+ *
+ *  - `explicit-breakpoints` → inject `cache_control` markers (Anthropic / Gemini
+ *    via OpenRouter); the gateway caches the prefix up to each breakpoint.
+ *  - `auto-server`          → provider caches a stable prefix automatically
+ *    (OpenAI / DeepSeek); we only set a `prompt_cache_key` routing hint.
+ *  - `none`                 → emit nothing (unknown model; never risk a reject).
+ */
+export const promptCachingCapabilitySchema = z.object({
+  mode: z.enum(['explicit-breakpoints', 'auto-server', 'none']),
+  /** explicit-breakpoints-only: max cache_control markers (Anthropic caps at 4). */
+  maxBreakpoints: z.number().int().positive().optional(),
+});
+
+export type PromptCachingCapabilityConfig = z.infer<
+  typeof promptCachingCapabilitySchema
+>;
+
+/**
+ * Coarse strength class used by complexity-based model routing and the
+ * speculative cascade (`convex/lib/agent_response/model_routing/`).
+ *
+ *  - `draft`    → cheapest / fastest; the cascade's first attempt.
+ *  - `standard` → the everyday workhorse.
+ *  - `frontier` → strongest / most expensive; the escalation target and the
+ *                 forced choice for high-stakes domains (see `HIGH_STAKES_DOMAINS`).
+ *
+ * Operator-authored. When omitted, routing infers a tier from the model's
+ * relative `cost.outputCentsPerMillion` within the agent's `supportedModels`.
+ */
+export const modelTierLiterals = ['draft', 'standard', 'frontier'] as const;
+export const modelTierSchema = z.enum(modelTierLiterals);
+export type ModelTier = z.infer<typeof modelTierSchema>;
+
+const routingTagSchema = z.enum(domainLiterals);
+
+/**
+ * Optional capability/routing metadata an operator can declare per model.
+ * Every field is optional and additive; `model_metadata.ts` reads them when
+ * building routing candidates. Existing provider JSONs without these fields
+ * keep working — routing infers a `tier` from relative cost, treats an absent
+ * `qualityScore` as 0, and an absent `routingTags` as no domain preference.
+ *
+ * Deliberately NOT included here (redundant with signals the config already
+ * carries): `supportsVision` (use the `'vision'` tag), `supportsTools`
+ * (assumed for every chat model — nothing gates on it), and `speedMs` (never
+ * read by any routing decision).
+ */
+const modelRoutingMetadataFields = {
+  /** Coarse strength class; see `modelTierSchema`. */
+  tier: modelTierSchema.optional(),
+  /** Fine-grained quality ordering within a tier (0–1); a tie-break for routing. */
+  qualityScore: z.number().min(0).max(1).optional(),
+  /** Domains this model is preferred for; biases `selectModelTier`. */
+  routingTags: z.array(routingTagSchema).optional(),
+  /** Total context window in tokens (input + output). */
+  contextWindow: z.number().int().positive().optional(),
+} as const;
+
+/**
  * Reserved prefix every `secretsEnv` name must carry (issue #1711). The
  * env-var key source is gated by this prefix rather than an operator allowlist:
  * a Convex Node action can read ALL deployment secrets via `process.env`
@@ -281,11 +351,23 @@ const modelDefinitionSchema = z.object({
   displayName: z.string().min(1).max(200),
   description: z.string().max(1000).optional(),
   tags: z.array(modelTagSchema).min(1),
+  /**
+   * When true, the model is hidden from model-PICKER surfaces (chat composer,
+   * agent model selection) but stays fully resolvable, so an agent/workflow
+   * that already references it keeps working. The model-sync bot sets this on
+   * superseded older model versions; operators can toggle it per model. Absent
+   * ⇒ visible.
+   */
+  hidden: z.boolean().optional(),
   dimensions: z.number().int().positive().optional(),
   maxOutputTokens: z.number().int().positive().optional(),
   supportsStructuredOutputs: z.boolean().optional(),
   /** Reasoning-control capability override; see `reasoningCapabilitySchema`. */
   reasoning: reasoningCapabilitySchema.optional(),
+  /** Prompt-caching capability override; see `promptCachingCapabilitySchema`. */
+  promptCaching: promptCachingCapabilitySchema.optional(),
+  // Optional routing/cascade metadata; see `modelRoutingMetadataFields`.
+  ...modelRoutingMetadataFields,
   fallbackModelId: z.string().min(1).max(200).optional(),
   baseUrl: z.string().url().optional(),
   /** Per-model override of the provider-level `secretsEnv`; see `secretsEnvSchema`. */
@@ -377,7 +459,7 @@ const modelDefinitionSchema = z.object({
   providerOptions: providerOptionsSchema,
 });
 
-type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
+export type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
 
 const providerDefaultsSchema = z.object({
   chat: z.string().min(1).max(200).optional(),
@@ -389,8 +471,6 @@ const providerDefaultsSchema = z.object({
   fallbackProviderName: z.string().min(1).max(200).optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
 });
-
-type ProviderDefaults = z.infer<typeof providerDefaultsSchema>;
 
 const translatableModelFieldsSchema = z.object({
   displayName: z.string().min(1).max(200).optional(),
@@ -449,7 +529,7 @@ export const providerJsonSchema = z
             message: `defaults.${tag} references unknown model "${modelId}"`,
             path: ['defaults', tag],
           });
-        } else if (!(model.tags as readonly string[]).includes(tag)) {
+        } else if (!model.tags.some((modelTag) => modelTag === tag)) {
           ctx.addIssue({
             code: 'custom',
             message: `defaults.${tag} references model "${modelId}" which lacks the "${tag}" tag`,
@@ -458,24 +538,18 @@ export const providerJsonSchema = z
         }
       }
     }
-    // Cross-field check (M5): every model tagged `'text-to-speech'` must
-    // declare at least one voice — `defaultVoice` OR a non-empty
-    // `voicesByLocale` — otherwise `resolveTtsModel` throws `UNKNOWN_VOICE`
-    // at first synthesis and the config bug surfaces only after a user
-    // action. Catching it at config-load time gives operators an
-    // immediate, actionable error. Runs regardless of whether `defaults`
-    // is present — the previous early-return on `!data.defaults`
-    // bypassed this check for providers that don't pin a default
-    // text-to-speech model.
+    // Every model tagged `'text-to-speech'` must declare at least one voice
+    // — `defaultVoice` OR a non-empty `voicesByLocale` — otherwise
+    // `resolveTtsModel` throws `UNKNOWN_VOICE` at first synthesis and the
+    // config bug surfaces only after a user action. Catching it at
+    // config-load time gives operators an immediate, actionable error. Runs
+    // regardless of whether `defaults` is present.
     //
-    // Path attribution: `data.models.indexOf(model)` is O(n²) over the
-    // model array, and previously the path was hard-coded to
-    // `defaultVoice` even when the operator only authored an empty
-    // `voicesByLocale: {}`. Use the `forEach` index and point at the
-    // first concretely-missing field so the operator's editor jumps to
-    // the right line.
+    // The path points at the first concretely-missing field (using the
+    // `forEach` index, not an O(n²) `indexOf`) so the operator's editor jumps
+    // to the right line.
     data.models.forEach((model, modelIndex) => {
-      if (!(model.tags as readonly string[]).includes('text-to-speech')) {
+      if (!model.tags.includes('text-to-speech')) {
         return;
       }
       const hasDefault =

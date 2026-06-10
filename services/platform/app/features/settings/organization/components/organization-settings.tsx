@@ -3,6 +3,7 @@
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
+import { Controller } from 'react-hook-form';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
@@ -17,6 +18,7 @@ import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { MembersSettings } from '@/app/features/settings/organization/components/members-settings';
+import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useToast } from '@/app/hooks/use-toast';
@@ -89,8 +91,7 @@ export function OrganizationSettingsView({
   const { t: tGlobal } = useT('global');
 
   const { form, isLoading, isSaving } = controller;
-  const { handleSubmit, register, setValue, watch } = form;
-  const defaultLocale = watch('defaultLocale');
+  const { handleSubmit, register, control } = form;
 
   const localeOptions = useMemo(
     () =>
@@ -111,36 +112,42 @@ export function OrganizationSettingsView({
           id="organization-form"
           onSubmit={handleSubmit((values) => onSave(values))}
         >
-          <fieldset disabled={isLoading} className="contents space-y-4">
+          {/* `max-w-sm` lives on the field column (not each control) so the
+              full-width skeleton masks resolve to the same width as the loaded
+              `max-w-sm` controls — no horizontal shrink when data lands. */}
+          <fieldset
+            disabled={isLoading}
+            className="flex max-w-sm flex-col gap-4"
+          >
             <Input
               id="org-name"
               label={tSettings('organization.title')}
               {...register('name')}
-              wrapperClassName="max-w-sm"
             />
-            <Select
-              id="default-locale"
-              label={tSettings('organization.defaultLocale')}
-              // Default to '' so the Radix Select is controlled from the first
-              // render — `watch('defaultLocale')` is `undefined` until the form
-              // resets to server data, and `value={undefined}` makes Radix
-              // uncontrolled (empty trigger + "uncontrolled to controlled"
-              // warning when the real value lands).
-              value={defaultLocale ?? ''}
-              onValueChange={(value) => {
-                // Ignore empty / no-op changes. Radix Select emits a spurious
-                // `onValueChange('')` while its controlled value and options
-                // are still settling during the cold-load window; without this
-                // guard that turns into `setValue('defaultLocale', '', {
-                // shouldDirty })`, falsely marking the form dirty (Save
-                // enabled + blocker) on a page the user only opened. `''` is
-                // never a valid locale, so dropping it is always correct.
-                if (!value || value === defaultLocale) return;
-                setValue('defaultLocale', value, { shouldDirty: true });
-              }}
-              disabled={isSaving || isLoading}
-              options={localeOptions}
-              wrapperClassName="max-w-sm"
+            {/* Controlled via RHF `Controller`: the field registers itself so
+                dirty tracking is automatic (no `setValue(..., { shouldDirty })`
+                to forget). `field.value ?? ''` keeps Radix controlled from the
+                first render before the form resets to server data. */}
+            <Controller
+              control={control}
+              name="defaultLocale"
+              render={({ field }) => (
+                <Select
+                  id="default-locale"
+                  label={tSettings('organization.defaultLocale')}
+                  value={field.value ?? ''}
+                  onValueChange={(value) => {
+                    // Radix emits a spurious `onValueChange('')` while its value
+                    // and options settle during cold load; drop it (`''` is
+                    // never a valid locale) so it can't false-dirty the form on
+                    // a page the user only opened.
+                    if (!value) return;
+                    field.onChange(value);
+                  }}
+                  disabled={isSaving || isLoading}
+                  options={localeOptions}
+                />
+              )}
             />
           </fieldset>
         </Form>
@@ -150,13 +157,16 @@ export function OrganizationSettingsView({
         title={tSettings('organization.identifiersTitle')}
         description={tSettings('organization.identifiersDescription')}
       >
-        <CopyableField
-          label={tSettings('organization.organizationId')}
-          description={tSettings('organization.organizationIdDescription')}
-          value={organization?._id ?? ''}
-          copyAriaLabel={tSettings('organization.copyOrganizationId')}
-          className="max-w-sm"
-        />
+        {/* `max-w-sm` on the wrapper (not the field) so the full-width
+            skeleton mask matches the loaded field width — no shrink on load. */}
+        <div className="max-w-sm">
+          <CopyableField
+            label={tSettings('organization.organizationId')}
+            description={tSettings('organization.organizationIdDescription')}
+            value={organization?._id ?? ''}
+            copyAriaLabel={tSettings('organization.copyOrganizationId')}
+          />
+        </div>
       </SettingsSection>
 
       <SettingsSection
@@ -193,6 +203,14 @@ export function OrganizationSettings({
   const { data: organization, isLoading: isOrgLoading } =
     useOrganization(organizationId);
   const { data: memberContext } = useCurrentMemberContext(organizationId);
+  // Fold the members list into the page-level loading gate so the whole page
+  // reveals in a single pass. Without this the org details resolve first and
+  // unmask the top sections while the embedded members table is still showing
+  // its own DataTable skeleton — the user sees one skeleton swap to a second
+  // before the real content lands. Same query key as `MembersSettings`'
+  // `useMembers`, so this dedupes in the query cache (no extra request) and is
+  // already warmed by the route loader for an instant table on warm entry.
+  const { isLoading: isMembersLoading } = useMembers(organizationId);
 
   const existingMetadata = useMemo(
     () => parseMetadata(organization?.metadata),
@@ -253,7 +271,7 @@ export function OrganizationSettings({
   }
 
   return (
-    <Skeletonize loading={abilityLoading || isOrgLoading}>
+    <Skeletonize loading={abilityLoading || isOrgLoading || isMembersLoading}>
       <OrganizationSettingsView
         controller={editor}
         organization={organization ?? null}

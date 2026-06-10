@@ -4,6 +4,7 @@ import { Agent } from '@convex-dev/agent';
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { reasoningProviderOptionsFor } from '../lib/agent_response/reasoning/build_reasoning_options';
+import { renderPrompt } from '../lib/prompts/registry';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import type { ResolvedModelData } from '../providers/resolve_model';
 
@@ -14,16 +15,11 @@ function createImproveMessageAgent(
   return new Agent(components.agent, {
     name: 'message-improver',
     languageModel,
-    instructions: `You are a helpful assistant that improves written messages for clarity, professionalism, and tone.
-Your task is to improve the given message while keeping its core meaning intact.
-${instruction ? `Additional instruction: ${instruction}` : ''}
-
-Guidelines:
-- Maintain the original intent and key points
-- Improve grammar, spelling, and punctuation
-- Make the tone professional yet friendly
-- Keep the message concise but complete
-- Return only the improved message without any explanation`,
+    instructions: renderPrompt('improve_message.base', {
+      instructionLine: instruction
+        ? `Additional instruction: ${instruction}`
+        : '',
+    }),
   });
 }
 

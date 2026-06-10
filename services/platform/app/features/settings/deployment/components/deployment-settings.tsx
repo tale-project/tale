@@ -8,21 +8,33 @@
  * stores panel.
  * `api.deployment.*` resolves after `convex codegen` (runs on dev/deploy).
  *
+ * Built on the shared settings UI (`PageSection`, app `Input`/`Select`/
+ * `Switch`, `Alert`, `Stack`/`HStack`) so it matches every other settings page
+ * instead of carrying bespoke banner / label / card chrome.
+ *
  * Strings live in `settings.dataResidency.*` / `navigation.dataResidency` /
  * `accessDenied.deployment` across en/de/fr (de-CH inherits de). Code tokens
  * (env vars, shell commands, bucket names) stay English in every locale.
  */
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { Input } from '@tale/ui/input';
+import { HStack, Stack } from '@tale/ui/layout';
+import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { FormSection } from '@/app/components/ui/forms/form-section';
+import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
+import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import { mapDeploymentError } from '../deployment-errors';
 import {
@@ -152,46 +164,29 @@ function storageFromConfig(cs: StorageConfigJson | undefined): StorageForm {
   };
 }
 
-function Banner({
-  tone,
-  children,
+/** Compact inline pass/fail line shown next to a Test button. */
+function TestResultLine({
+  result,
+  okLabel,
 }: {
-  tone: 'info' | 'warning';
-  children: React.ReactNode;
+  result?: { ok: boolean; message?: string };
+  okLabel: string;
 }) {
-  const cls =
-    tone === 'warning'
-      ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
-      : 'border-border bg-muted/40 text-foreground';
+  const { t } = useT('settings');
+  if (!result) return null;
   return (
-    <div className={`rounded-md border px-3 py-2 text-sm ${cls}`}>
-      {children}
-    </div>
-  );
-}
-
-function Labeled({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="font-medium">{label}</span>
-      {children}
-      {hint ? (
-        <span className="text-muted-foreground text-xs">{hint}</span>
-      ) : null}
-    </label>
+    <span
+      className={cn('text-sm', result.ok ? 'text-success' : 'text-destructive')}
+    >
+      {result.ok ? okLabel : t('dataResidency.result.failed')}
+      {result.message ? ` — ${result.message}` : ''}
+    </span>
   );
 }
 
 function PgSection({
   title,
+  description,
   state,
   setState,
   secretMasked,
@@ -200,9 +195,11 @@ function PgSection({
   testing,
   testResult,
   disabled,
+  note,
   showSslMode = true,
 }: {
   title: string;
+  description?: string;
   state: PgForm;
   setState: (next: PgForm) => void;
   secretMasked?: string;
@@ -212,6 +209,8 @@ function PgSection({
   testing: boolean;
   testResult?: { ok: boolean; message?: string };
   disabled: boolean;
+  /** Contextual footnote shown below the fields while the section is enabled. */
+  note?: React.ReactNode;
   /**
    * Whether to render the SSL-mode control. Off for the app (Convex metadata)
    * DB: its postgres-v5 driver derives the database from INSTANCE_NAME and
@@ -222,90 +221,79 @@ function PgSection({
 }) {
   const { t } = useT('settings');
   return (
-    <section className="flex flex-col gap-3 rounded-lg border p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">{title}</h3>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={state.enabled}
-            disabled={disabled}
-            onChange={(e) => setState({ ...state, enabled: e.target.checked })}
-          />
-          {t('dataResidency.externalPostgres')}
-        </label>
-      </div>
+    <PageSection
+      title={title}
+      description={description}
+      action={
+        <Switch
+          label={t('dataResidency.externalPostgres')}
+          hideLabelOnMobile
+          checked={state.enabled}
+          disabled={disabled}
+          onCheckedChange={(checked) =>
+            setState({ ...state, enabled: checked })
+          }
+        />
+      }
+    >
       {state.enabled ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Labeled label={t('dataResidency.field.host')}>
+        <Stack gap={4}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
+              label={t('dataResidency.field.host')}
               value={state.host}
               disabled={disabled}
               onChange={(e) => setState({ ...state, host: e.target.value })}
             />
-          </Labeled>
-          <Labeled label={t('dataResidency.field.port')}>
             <Input
+              label={t('dataResidency.field.port')}
               type="number"
               value={state.port}
               disabled={disabled}
               onChange={(e) => setState({ ...state, port: e.target.value })}
             />
-          </Labeled>
-          <Labeled label={t('dataResidency.field.database')}>
             <Input
+              label={t('dataResidency.field.database')}
               value={state.database}
               disabled={disabled}
               onChange={(e) => setState({ ...state, database: e.target.value })}
             />
-          </Labeled>
-          <Labeled label={t('dataResidency.field.user')}>
             <Input
+              label={t('dataResidency.field.user')}
               value={state.user}
               disabled={disabled}
               onChange={(e) => setState({ ...state, user: e.target.value })}
             />
-          </Labeled>
-          {showSslMode ? (
-            <Labeled label={t('dataResidency.field.sslMode')}>
-              <select
-                className="border-input bg-background h-9 rounded-md border px-2 text-sm"
+            {showSslMode ? (
+              <Select
+                label={t('dataResidency.field.sslMode')}
                 value={state.sslmode}
                 disabled={disabled}
-                onChange={(e) =>
-                  setState({ ...state, sslmode: e.target.value })
-                }
-              >
-                {SSL_MODES.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </Labeled>
-          ) : null}
-          <Labeled
-            label={t('dataResidency.field.password')}
-            hint={
-              secretMasked
-                ? t('dataResidency.password.storedHint', {
-                    masked: secretMasked,
-                  })
-                : secretPresent
-                  ? t('dataResidency.password.storedNoPreviewHint')
-                  : t('dataResidency.password.writeOnlyHint')
-            }
-          >
+                onValueChange={(v) => setState({ ...state, sslmode: v })}
+                options={SSL_MODES.map((m) => ({ value: m, label: m }))}
+              />
+            ) : null}
             <Input
+              label={t('dataResidency.field.password')}
               type="password"
               value={state.password}
               disabled={disabled}
               onChange={(e) => setState({ ...state, password: e.target.value })}
+              description={
+                secretMasked
+                  ? t('dataResidency.password.storedHint', {
+                      masked: secretMasked,
+                    })
+                  : secretPresent
+                    ? t('dataResidency.password.storedNoPreviewHint')
+                    : t('dataResidency.password.writeOnlyHint')
+              }
             />
-          </Labeled>
-          <div className="flex items-center gap-3 sm:col-span-2">
+          </div>
+          <HStack gap={3} align="center" className="flex-wrap">
             <Button
               variant="secondary"
+              size="sm"
               onClick={onTest}
               disabled={disabled || testing}
             >
@@ -313,28 +301,19 @@ function PgSection({
                 ? t('dataResidency.testing')
                 : t('dataResidency.testConnection')}
             </Button>
-            {testResult ? (
-              <span
-                className={
-                  testResult.ok
-                    ? 'text-sm text-green-600'
-                    : 'text-destructive text-sm'
-                }
-              >
-                {testResult.ok
-                  ? t('dataResidency.result.ok')
-                  : t('dataResidency.result.failed')}
-                {testResult.message ? ` — ${testResult.message}` : ''}
-              </span>
-            ) : null}
-          </div>
-        </div>
+            <TestResultLine
+              result={testResult}
+              okLabel={t('dataResidency.result.ok')}
+            />
+          </HStack>
+          {note}
+        </Stack>
       ) : (
         <p className="text-muted-foreground text-sm">
           {t('dataResidency.usingSharedDatabase')}
         </p>
       )}
-    </section>
+    </PageSection>
   );
 }
 
@@ -456,11 +435,9 @@ function DeploymentSettingsView({
   // field was entered (secret fields are blank in the baseline, so a non-empty
   // value naturally shows up as a diff). Drives whether Save is enabled.
   const isDirty =
-    JSON.stringify(knowledge) !==
-      JSON.stringify(pgFromConfig(ds.knowledgePostgres)) ||
-    JSON.stringify(appPg) !== JSON.stringify(pgFromConfig(ds.appPostgres)) ||
-    JSON.stringify(storage) !==
-      JSON.stringify(storageFromConfig(ds.convexStorage));
+    !structuralEqual(knowledge, pgFromConfig(ds.knowledgePostgres)) ||
+    !structuralEqual(appPg, pgFromConfig(ds.appPostgres)) ||
+    !structuralEqual(storage, storageFromConfig(ds.convexStorage));
 
   function buildPg(form: PgForm) {
     return {
@@ -639,156 +616,159 @@ function DeploymentSettingsView({
       title={tNav('dataResidency')}
       description={t('dataResidency.pageDescription')}
     >
-      <div className="flex max-w-3xl flex-col gap-4">
-        {readOnly ? (
-          <Banner tone="info">
-            {t('dataResidency.readOnly.before')}{' '}
-            <code>TALE_DEPLOYMENT_CONFIG_ADMINS</code>{' '}
-            {t('dataResidency.readOnly.after')}
-            {data?.email ? (
-              <>
-                {' '}
-                {t('dataResidency.readOnly.yourEmail', { email: data.email })}
-              </>
-            ) : null}
-          </Banner>
-        ) : null}
-        {data?.secretsError === 'encrypted_no_key' ? (
-          <Banner tone="warning">
-            {t('dataResidency.secretsEncryptedNoKey')}
-          </Banner>
-        ) : null}
-        {data?.secretsError === 'unreadable' ? (
-          <Banner tone="warning">{t('dataResidency.secretsUnreadable')}</Banner>
-        ) : null}
+      {readOnly ||
+      data?.secretsError === 'encrypted_no_key' ||
+      data?.secretsError === 'unreadable' ? (
+        <Stack gap={3}>
+          {readOnly ? (
+            <Alert
+              description={
+                <>
+                  {t('dataResidency.readOnly.before')}{' '}
+                  <code>TALE_DEPLOYMENT_CONFIG_ADMINS</code>{' '}
+                  {t('dataResidency.readOnly.after')}
+                  {data?.email ? (
+                    <>
+                      {' '}
+                      {t('dataResidency.readOnly.yourEmail', {
+                        email: data.email,
+                      })}
+                    </>
+                  ) : null}
+                </>
+              }
+            />
+          ) : null}
+          {data?.secretsError === 'encrypted_no_key' ? (
+            <Alert
+              variant="warning"
+              description={t('dataResidency.secretsEncryptedNoKey')}
+            />
+          ) : null}
+          {data?.secretsError === 'unreadable' ? (
+            <Alert
+              variant="warning"
+              description={t('dataResidency.secretsUnreadable')}
+            />
+          ) : null}
+        </Stack>
+      ) : null}
 
-        <PgSection
-          title={t('dataResidency.knowledge.title')}
-          state={knowledge}
-          setState={setKnowledge}
-          secretMasked={
-            secretState['dataStores.knowledgePostgres.password']?.masked
-          }
-          secretPresent={
-            secretState['dataStores.knowledgePostgres.password']?.present
-          }
-          onTest={() => void runTest('knowledgePostgres')}
-          testing={testing === 'knowledgePostgres'}
-          testResult={testResults.knowledgePostgres}
-          disabled={readOnly}
-        />
-        {knowledge.enabled ? (
-          <Banner tone="info">
-            {t('dataResidency.knowledge.paradeDbNote')}
-          </Banner>
-        ) : null}
+      <PgSection
+        title={t('dataResidency.knowledge.title')}
+        description={t('dataResidency.knowledge.description')}
+        state={knowledge}
+        setState={setKnowledge}
+        secretMasked={
+          secretState['dataStores.knowledgePostgres.password']?.masked
+        }
+        secretPresent={
+          secretState['dataStores.knowledgePostgres.password']?.present
+        }
+        onTest={() => void runTest('knowledgePostgres')}
+        testing={testing === 'knowledgePostgres'}
+        testResult={testResults.knowledgePostgres}
+        disabled={readOnly}
+        note={<Alert description={t('dataResidency.knowledge.paradeDbNote')} />}
+      />
 
-        <section className="flex flex-col gap-3 rounded-lg border p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">
-              {t('dataResidency.storage.title')}
-            </h3>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={storage.s3}
+      <PageSection
+        title={t('dataResidency.storage.title')}
+        description={t('dataResidency.storage.description')}
+        action={
+          <Switch
+            label={t('dataResidency.storage.externalS3')}
+            hideLabelOnMobile
+            checked={storage.s3}
+            disabled={readOnly}
+            onCheckedChange={(checked) =>
+              setStorage({ ...storage, s3: checked })
+            }
+          />
+        }
+      >
+        {storage.s3 ? (
+          <Stack gap={5}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label={t('dataResidency.storage.region')}
+                value={storage.region}
                 disabled={readOnly}
                 onChange={(e) =>
-                  setStorage({ ...storage, s3: e.target.checked })
+                  setStorage({ ...storage, region: e.target.value })
                 }
               />
-              {t('dataResidency.storage.externalS3')}
-            </label>
-          </div>
-          {storage.s3 ? (
-            <>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Labeled label={t('dataResidency.storage.region')}>
-                  <Input
-                    value={storage.region}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      setStorage({ ...storage, region: e.target.value })
-                    }
-                  />
-                </Labeled>
-                <Labeled label={t('dataResidency.storage.endpoint')}>
-                  <Input
-                    value={storage.endpoint}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      setStorage({ ...storage, endpoint: e.target.value })
-                    }
-                  />
-                </Labeled>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={storage.forcePathStyle}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      setStorage({
-                        ...storage,
-                        forcePathStyle: e.target.checked,
-                      })
-                    }
-                  />
-                  {t('dataResidency.storage.forcePathStyle')}
-                </label>
-                <div />
-                <Labeled label={t('dataResidency.storage.bucket.files')}>
-                  <Input
-                    value={storage.files}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      setStorage({ ...storage, files: e.target.value })
-                    }
-                  />
-                </Labeled>
-                <Labeled label={t('dataResidency.storage.bucket.exports')}>
-                  <Input
-                    value={storage.exports}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      setStorage({ ...storage, exports: e.target.value })
-                    }
-                  />
-                </Labeled>
-                <Labeled
+              <Input
+                label={t('dataResidency.storage.endpoint')}
+                value={storage.endpoint}
+                disabled={readOnly}
+                onChange={(e) =>
+                  setStorage({ ...storage, endpoint: e.target.value })
+                }
+              />
+            </div>
+            <Switch
+              label={t('dataResidency.storage.forcePathStyle')}
+              checked={storage.forcePathStyle}
+              disabled={readOnly}
+              onCheckedChange={(checked) =>
+                setStorage({ ...storage, forcePathStyle: checked })
+              }
+            />
+            <FormSection label={t('dataResidency.storage.bucketsLabel')}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
+                  label={t('dataResidency.storage.bucket.files')}
+                  value={storage.files}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    setStorage({ ...storage, files: e.target.value })
+                  }
+                />
+                <Input
+                  label={t('dataResidency.storage.bucket.exports')}
+                  value={storage.exports}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    setStorage({ ...storage, exports: e.target.value })
+                  }
+                />
+                <Input
                   label={t('dataResidency.storage.bucket.snapshotImports')}
-                >
-                  <Input
-                    value={storage.snapshotImports}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      setStorage({
-                        ...storage,
-                        snapshotImports: e.target.value,
-                      })
-                    }
-                  />
-                </Labeled>
-                <Labeled label={t('dataResidency.storage.bucket.modules')}>
-                  <Input
-                    value={storage.modules}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      setStorage({ ...storage, modules: e.target.value })
-                    }
-                  />
-                </Labeled>
-                <Labeled label={t('dataResidency.storage.bucket.search')}>
-                  <Input
-                    value={storage.search}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      setStorage({ ...storage, search: e.target.value })
-                    }
-                  />
-                </Labeled>
-                <Labeled
+                  value={storage.snapshotImports}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    setStorage({ ...storage, snapshotImports: e.target.value })
+                  }
+                />
+                <Input
+                  label={t('dataResidency.storage.bucket.modules')}
+                  value={storage.modules}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    setStorage({ ...storage, modules: e.target.value })
+                  }
+                />
+                <Input
+                  label={t('dataResidency.storage.bucket.search')}
+                  value={storage.search}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    setStorage({ ...storage, search: e.target.value })
+                  }
+                />
+              </div>
+            </FormSection>
+            <FormSection label={t('dataResidency.storage.credentialsLabel')}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
                   label={t('dataResidency.storage.accessKeyId')}
-                  hint={
+                  value={storage.accessKeyId}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    setStorage({ ...storage, accessKeyId: e.target.value })
+                  }
+                  description={
                     secretState['dataStores.convexStorage.accessKeyId']?.masked
                       ? t('dataResidency.storage.accessKeyIdStoredHint', {
                           masked:
@@ -797,113 +777,89 @@ function DeploymentSettingsView({
                         })
                       : t('dataResidency.storage.writeOnly')
                   }
-                >
-                  <Input
-                    value={storage.accessKeyId}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      setStorage({ ...storage, accessKeyId: e.target.value })
-                    }
-                  />
-                </Labeled>
-                <Labeled
+                />
+                <Input
                   label={t('dataResidency.storage.secretAccessKey')}
-                  hint={t('dataResidency.storage.writeOnly')}
-                >
-                  <Input
-                    type="password"
-                    value={storage.secretAccessKey}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      setStorage({
-                        ...storage,
-                        secretAccessKey: e.target.value,
-                      })
-                    }
-                  />
-                </Labeled>
+                  type="password"
+                  value={storage.secretAccessKey}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    setStorage({ ...storage, secretAccessKey: e.target.value })
+                  }
+                  description={t('dataResidency.storage.writeOnly')}
+                />
               </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={() => void runTest('convexStorage')}
-                  disabled={readOnly || testing === 'convexStorage'}
-                >
-                  {testing === 'convexStorage'
-                    ? t('dataResidency.testing')
-                    : t('dataResidency.storage.testReachability')}
-                </Button>
-                {testResults.convexStorage ? (
-                  <span
-                    className={
-                      testResults.convexStorage.ok
-                        ? 'text-sm text-green-600'
-                        : 'text-destructive text-sm'
-                    }
-                  >
-                    {testResults.convexStorage.ok
-                      ? t('dataResidency.storage.reachable')
-                      : t('dataResidency.result.failed')}
-                    {testResults.convexStorage.message
-                      ? ` — ${testResults.convexStorage.message}`
-                      : ''}
-                  </span>
-                ) : null}
-              </div>
-              <Banner tone="warning">
-                {t('dataResidency.storage.greenfieldWarning')}
-              </Banner>
-            </>
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              {t('dataResidency.storage.localStorageNote')}
-            </p>
-          )}
-        </section>
-
-        <details className="rounded-lg border p-4">
-          <summary className="cursor-pointer font-semibold">
-            {t('dataResidency.appDb.summary')}
-          </summary>
-          <div className="mt-3">
-            <PgSection
-              title={t('dataResidency.appDb.title')}
-              state={appPg}
-              setState={setAppPg}
-              secretMasked={
-                secretState['dataStores.appPostgres.password']?.masked
-              }
-              secretPresent={
-                secretState['dataStores.appPostgres.password']?.present
-              }
-              onTest={() => void runTest('appPostgres')}
-              testing={testing === 'appPostgres'}
-              testResult={testResults.appPostgres}
-              disabled={readOnly}
-              showSslMode={false}
+            </FormSection>
+            <HStack gap={3} align="center" className="flex-wrap">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void runTest('convexStorage')}
+                disabled={readOnly || testing === 'convexStorage'}
+              >
+                {testing === 'convexStorage'
+                  ? t('dataResidency.testing')
+                  : t('dataResidency.storage.testReachability')}
+              </Button>
+              <TestResultLine
+                result={testResults.convexStorage}
+                okLabel={t('dataResidency.storage.reachable')}
+              />
+            </HStack>
+            <Alert
+              variant="warning"
+              description={t('dataResidency.storage.greenfieldWarning')}
             />
-            {appPg.enabled ? (
-              <p className="text-muted-foreground mt-2 text-xs">
-                {t('dataResidency.appDb.databaseNameNote')}{' '}
-                {t('dataResidency.appDb.sslModeNote')}
-              </p>
-            ) : null}
-          </div>
-        </details>
+          </Stack>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            {t('dataResidency.storage.localStorageNote')}
+          </p>
+        )}
+      </PageSection>
 
-        {error ? <Banner tone="warning">{error}</Banner> : null}
+      {/* Advanced Convex metadata DB — reuses the Postgres section chrome; its
+          own header switch toggles `enabled`. Titled "(advanced)" rather than
+          hidden behind a disclosure so it shares the rhythm of the sections
+          above. */}
+      <PgSection
+        title={t('dataResidency.appDb.summary')}
+        description={t('dataResidency.appDb.description')}
+        state={appPg}
+        setState={setAppPg}
+        secretMasked={secretState['dataStores.appPostgres.password']?.masked}
+        secretPresent={secretState['dataStores.appPostgres.password']?.present}
+        onTest={() => void runTest('appPostgres')}
+        testing={testing === 'appPostgres'}
+        testResult={testResults.appPostgres}
+        disabled={readOnly}
+        showSslMode={false}
+        note={
+          <p className="text-muted-foreground text-xs">
+            {t('dataResidency.appDb.databaseNameNote')}{' '}
+            {t('dataResidency.appDb.sslModeNote')}
+          </p>
+        }
+      />
+
+      <Stack gap={4}>
+        {error ? <Alert variant="destructive" description={error} /> : null}
         {savedOk && !isDirty ? (
-          <Banner tone="info">
-            <strong>{t('dataResidency.saved.title')}</strong>{' '}
-            {t('dataResidency.saved.runPrefix')}{' '}
-            <code>docker compose restart rag convex</code>{' '}
-            {t('dataResidency.saved.orPrefix')}{' '}
-            <code>tale deploy --services rag</code>{' '}
-            {t('dataResidency.saved.tail')}
-          </Banner>
+          <Alert
+            description={
+              <>
+                <strong>{t('dataResidency.saved.title')}</strong>{' '}
+                {t('dataResidency.saved.runPrefix')}{' '}
+                <code>docker compose restart rag convex</code>{' '}
+                {t('dataResidency.saved.orPrefix')}{' '}
+                <code>tale deploy --services rag</code>{' '}
+                {t('dataResidency.saved.tail')}
+              </>
+            }
+          />
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
+        <HStack gap={3} align="center" className="flex-wrap">
           <Button
             onClick={() => void onSave()}
             disabled={readOnly || saving || !isDirty}
@@ -930,8 +886,8 @@ function DeploymentSettingsView({
           ) : restartMsg ? (
             <span className="text-muted-foreground text-sm">{restartMsg}</span>
           ) : null}
-        </div>
-      </div>
+        </HStack>
+      </Stack>
 
       <ConfirmDialog
         open={restartConfirmOpen}
@@ -978,11 +934,12 @@ export function DeploymentSettings() {
         title={tNav('dataResidency')}
         description={t('dataResidency.pageDescription')}
       >
-        <Banner tone="warning">
-          {t('dataResidency.errors.readFailed', {
+        <Alert
+          variant="warning"
+          description={t('dataResidency.errors.readFailed', {
             error: mapDeploymentError(query.error, t).message,
           })}
-        </Banner>
+        />
       </SettingsPage>
     );
   }

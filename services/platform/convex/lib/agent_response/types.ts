@@ -6,7 +6,9 @@ import type { SharedV3ProviderOptions } from '@ai-sdk/provider';
 import type { Agent } from '@convex-dev/agent';
 import type { ModelMessage } from 'ai';
 
+import type { ResponseTuningConfig } from '../../../lib/shared/schemas/agents';
 import type { ActionCtx } from '../../_generated/server';
+import type { AutoRouteReason } from '../../streaming/validators';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management';
 import type { StructuredContextResult } from '../context_management';
@@ -68,11 +70,33 @@ export interface GenerateResponseConfig {
    */
   modelMaxOutputTokens?: number;
   /**
+   * Per-model context window (`modelData.contextWindow`) — drives the
+   * model-aware history budget and the auto-compaction trigger. Falls back to a
+   * sensible default when the model declares none (unknown family).
+   */
+  modelContextWindow?: number;
+  /**
    * Operator-declared reasoning capability (`modelData.reasoning`) for the
-   * Adaptive Reasoning Governor. Optional — the governor falls back to a
-   * built-in curated model-id table when absent.
+   * Adaptive Reasoning Governor. Optional — when absent the governor falls back
+   * to family-based inference of the reasoning knob (see
+   * `reasoning/capability.ts`).
    */
   reasoningCapability?: ReasoningCapabilityConfig;
+  /**
+   * Per-agent response tuning (`agentConfig.responseTuning`). Drives the
+   * governor's fixed-effort / floor / ceiling / budget-cap / temperature-range
+   * / quality-profile inputs and the style/verbosity prompt fragments. Replaces
+   * the old per-message `reasoningOverride` path. Optional — absence = today's
+   * fully-adaptive behaviour.
+   */
+  responseTuning?: ResponseTuningConfig;
+  /**
+   * Advisory reply-language hint from the Auto router (BCP-47 code or language
+   * name). Inserted into the response-language directive's fallback chain just
+   * above the org default — the directive's explicit-request and
+   * message-language rules still take precedence. Optional.
+   */
+  replyLocaleHint?: string;
 }
 
 /**
@@ -153,6 +177,8 @@ export interface GenerateResponseArgs {
     location?: string;
   };
   agentSlug?: string;
+  /** Set ONLY when this turn came from Auto routing; absent for a pinned agent. */
+  autoRouteReason?: AutoRouteReason;
   teamIds?: string[];
   providerCost?: {
     inputCentsPerMillion: number;
@@ -193,23 +219,20 @@ export interface GenerateResponseArgs {
   /** Governance-resolved max context tokens (overrides agent default) */
   maxContextTokens?: number;
   /**
-   * Composer-sourced override of the Adaptive Reasoning Governor. Each field
-   * is independent; `undefined` leaves that lever adaptive.
-   *   - `effort` → forced reasoning tier (skips adaptive tier selection)
-   *   - `creativity` → forced creativity score in [0, 1] (overrides the
-   *     difficulty-scaled value fed to `decideTemperature`)
-   */
-  reasoningOverride?: {
-    effort?: 'low' | 'medium' | 'high';
-    creativity?: number;
-  };
-  /**
    * When true, the error path skips saving a failed message, marking the
    * stream as error, and clearing the generation status. Used by the
    * fallback retry loop so the caller can handle cleanup itself without
    * causing UI flicker (loading disappearing, error message flashing).
    */
   suppressErrorCleanup?: boolean;
+  /**
+   * Cache pre-warm mode. When true, the pipeline builds the EXACT same tools +
+   * stable system prefix a real first turn would, then issues one throwaway
+   * 1-token generation (no persistence, no RAG/web, no streaming, no outcome
+   * recording) purely to prime the provider's prompt cache so the user's first
+   * real message is served warm. Returns immediately after the priming call.
+   */
+  prewarm?: boolean;
 }
 
 /**
@@ -237,6 +260,9 @@ export interface GenerateResponseResult {
    * the local `startTime`. This is the number that reflects the real wait.
    */
   timeFromSendMs?: number;
+  /** Pre-answer wall-clock the user waited, INCLUDING Auto-routing latency
+   *  (markGenerating → first answer token). See streaming/schema.ts. */
+  thinkingDurationMs?: number;
   toolCalls?: Array<{ toolName: string; status: string }>;
   toolsUsage?: Array<{
     toolName: string;

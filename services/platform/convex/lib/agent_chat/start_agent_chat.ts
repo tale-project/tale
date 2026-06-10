@@ -24,6 +24,7 @@ import { checkBudget } from '../../governance/budget_enforcement';
 import { resolveFeatureFlags } from '../../governance/feature_enforcement';
 import { resolveBudgetContext } from '../../governance/resolve_budget_context';
 import { persistentStreaming } from '../../streaming/helpers';
+import type { AutoRouteReason } from '../../streaming/validators';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
 import { AGENT_CONTEXT_CONFIGS } from '../context_management/constants';
@@ -36,7 +37,6 @@ import type {
   SerializableAgentConfig,
   AgentHooksConfig,
   GenerationParams,
-  ReasoningOverride,
 } from './types';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[startAgentChat]');
@@ -93,6 +93,9 @@ export interface StartAgentChatArgs {
   hooks?: AgentHooksConfig;
   /** Agent slug (file name without extension), persisted on thread metadata */
   agentSlug?: string;
+  /** Auto-route reason; forwarded to message metadata. Set only by the Auto
+   *  branch in `chatWithAgent`. Absent for a pinned agent. */
+  autoRouteReason?: AutoRouteReason;
   /** @deprecated Use agentSlug instead */
   agentId?: Id<'agentBindings'>;
   /**
@@ -110,8 +113,6 @@ export interface StartAgentChatArgs {
   preResolvedTeamIds?: string[];
   /** Optional per-request generation parameters (temperature, etc.) */
   generationParams?: GenerationParams;
-  /** Composer-sourced reasoning override (effort/creativity). */
-  reasoningOverride?: ReasoningOverride;
   /**
    * Server-stamped turn-start (chatWithAgent entry, ms epoch) for TTFT
    * measurement. Threaded into the scheduled generation so `timeFromSendMs`
@@ -141,6 +142,15 @@ export interface StartAgentChatArgs {
    * — the ~800ms pre-stream gap. Omit/false preserves the legacy schedule path.
    */
   deferGeneration?: boolean;
+  /**
+   * Cache pre-warm. Skips all user-visible side effects (stream, generating
+   * status, saving the user message, title generation) and schedules a single
+   * throwaway priming generation that primes the prompt cache so the user's
+   * first real message is served warm. The resolved agent config (incl.
+   * feature-flag tool enforcement) is reused so the cached prefix matches the
+   * real turn exactly. An over-budget prewarm is skipped silently.
+   */
+  prewarm?: boolean;
 }
 
 export interface StartAgentChatResult {
@@ -207,6 +217,7 @@ export async function startAgentChat(
     enableStreaming,
     hooks,
   } = args;
+  const prewarm = args.prewarm === true;
 
   // Use caller's maxSteps if provided, otherwise use agent config's maxSteps
   const maxSteps = args.maxSteps ?? agentConfig.maxSteps ?? 20;
@@ -221,7 +232,10 @@ export async function startAgentChat(
     .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
     .first();
 
-  if (args.preAllocatedStreamId) {
+  if (prewarm) {
+    // No stream, no generating status — a prewarm is invisible.
+    streamId = '';
+  } else if (args.preAllocatedStreamId) {
     streamId = args.preAllocatedStreamId;
     // Track B: markGenerating ran in the V8 entry mutation BEFORE auto-route
     // resolved the concrete agent, so persist the (now-resolved) slug here for
@@ -279,7 +293,11 @@ export async function startAgentChat(
   let promptMessageId: string;
   const isFirstMessage =
     !messageAlreadyExists && existingMessages.page.length === 0;
-  if (!messageAlreadyExists) {
+  if (prewarm) {
+    // Prewarm never persists a user message; the throwaway prompt is supplied
+    // directly to the generation action below.
+    promptMessageId = '';
+  } else if (!messageAlreadyExists) {
     const { messageId } = await saveMessage(ctx, components.agent, {
       threadId,
       message: { role: 'user', content: messageContent },
@@ -332,6 +350,10 @@ export async function startAgentChat(
       resolveFeatureFlags(ctx, organizationId, userId, userTeamIds, userRole),
     ]);
     if (!budgetResult.allowed) {
+      if (prewarm) {
+        // Don't spend a priming call when over budget; nothing user-visible.
+        return { messageAlreadyExists, streamId };
+      }
       const budgetMessage =
         budgetResult.reason ??
         'Your usage limit has been reached for this period. Please contact your administrator.';
@@ -406,16 +428,29 @@ export async function startAgentChat(
 
   // Fire-and-forget AI-generated title for the thread's first message.
   // If this fails or times out, the thread keeps its default "New Chat" title.
-  if (isFirstMessage) {
-    await ctx.scheduler.runAfter(
-      0,
-      internal.threads.generate_thread_title.generateThreadTitle,
-      {
+  // Genuinely non-awaited: the title enqueue is a DB write that sat ahead of
+  // the generation schedule below, so awaiting it delayed time-to-generation on
+  // every first turn. The title is cosmetic and the generation does not depend
+  // on it. Skipped for prewarm (no user-visible thread yet).
+  if (isFirstMessage && !prewarm) {
+    void ctx.scheduler
+      .runAfter(0, internal.threads.generate_thread_title.generateThreadTitle, {
         threadId,
         firstMessage: buildTitleSource(trimmedMessage, attachments),
         organizationId,
-      },
-    );
+      })
+      .catch((err: unknown) =>
+        console.warn(
+          '[start_agent_chat] thread-title schedule failed:',
+          err instanceof Error ? err.message : err,
+        ),
+      );
+  }
+
+  // Image-generation agents don't use the cached chat-completion prefix, so
+  // there's nothing to prewarm — bail out cleanly.
+  if (prewarm && enforcedConfig.primaryBehavior === 'image-generation') {
+    return { messageAlreadyExists, streamId };
   }
 
   // Direct-mode image-generation agents skip the tool-loop pipeline — the
@@ -474,25 +509,27 @@ export async function startAgentChat(
     model,
     provider,
     debugTag,
-    enableStreaming,
+    // Prewarm issues a single, non-streamed throwaway generation.
+    enableStreaming: prewarm ? false : enableStreaming,
     hooks,
     threadId,
     organizationId,
     userId,
     agentSlug: args.agentSlug,
-    promptMessage: messageContent,
-    originalUserText: trimmedMessage,
-    attachments: actionAttachments,
+    autoRouteReason: args.autoRouteReason,
+    promptMessage: prewarm ? '.' : messageContent,
+    originalUserText: prewarm ? '.' : trimmedMessage,
+    attachments: prewarm ? undefined : actionAttachments,
     streamId: streamId || undefined,
-    promptMessageId,
+    promptMessageId: prewarm ? undefined : promptMessageId,
     maxSteps,
     additionalContext,
     userContext,
     deadlineMs,
     generationParams: args.generationParams,
-    reasoningOverride: args.reasoningOverride,
     maxContextTokens: governanceMaxContextTokens,
     threadTeamId: threadMeta?.teamId,
+    prewarm,
     requestStartMs: args.requestStartMs,
     // PERF: wall-clock at schedule time so the action can measure the
     // scheduler dispatch + module-import hop. Diagnostic.

@@ -88,6 +88,15 @@ interface ColumnMeta {
   };
   align?: 'left' | 'center' | 'right';
   /**
+   * Opt this column in as the table's flex column (the one whose width is
+   * left `auto` so it absorbs the container slack). Without it the FIRST
+   * non-utility column flexes — right for name-first tables, wrong when a
+   * long prose column (e.g. a description) should soak up the space instead.
+   * Its declared `size` still counts toward the table's min-width floor, so
+   * keep that size at the column's readable minimum.
+   */
+  flex?: boolean;
+  /**
    * Extra classes applied to this column's header AND body cells (and the
    * matching skeleton cell). Use responsive utilities like `hidden md:table-cell`
    * to drop low-priority columns on small screens.
@@ -366,12 +375,14 @@ export function DataTable<TData, TValue = unknown>({
   const searchDisabled =
     !isDataLoading && data.length === 0 && !hasActiveFilters;
 
-  // Multi-column tables get a proportional minimum width so they scroll
-  // horizontally on narrow viewports (inside the surrounding overflow-x-auto)
-  // instead of squashing columns to unreadable widths. Few-column tables keep
-  // their natural full width.
-  const tableMinWidth =
-    columns.length > 3 ? `${columns.length * 8}rem` : undefined;
+  // Floor the table at the sum of the columns' declared widths (+ the expand
+  // column when present) so a narrow viewport scrolls horizontally instead of
+  // squashing columns below their sizes. `getTotalSize()` is the real content
+  // width; the previous `columns.length * 8rem` heuristic under-counted tables
+  // with wide columns (e.g. a 240px Action column), so the auto/flex columns
+  // (Timestamp here) collapsed before the scrollbar appeared. On a wide
+  // viewport `max(100%, …)` still lets the table fill the container.
+  const tableMinWidth = `${table.getTotalSize() + (enableExpanding ? 48 : 0)}px`;
 
   // ---------------------------------------------------------------------------
   // Table body state machine
@@ -477,32 +488,58 @@ export function DataTable<TData, TValue = unknown>({
 
   const rows = table.getRowModel().rows;
 
-  // The table renders with `table-layout: auto`, where a column's `width` is
-  // only a hint: when the columns' natural widths don't fill the container the
-  // browser distributes the slack across *all* columns. That inflated the
-  // fixed-size select / actions columns and shifted the checkbox + 3-dot
-  // trigger to a different x on every table (the slack varies with column
-  // count + content). To keep those utility columns pinned, they render with a
-  // 1px width so auto-layout can't grow them, and their content sits in a
-  // fixed-size box (`utilityCellBox`) that sets the column's real width.
-  // The remaining slack then flows only to the content columns, which grow
-  // proportionally to their declared sizes — no single runaway column.
   const isUtilityCol = (id: string, isAction?: boolean) =>
     id === 'select' || id === 'actions' || !!isAction;
-  // Utility columns render at 1px so auto-layout can't grow them; their content
-  // box (below) dictates the real, pinned width. Content columns take their
-  // declared size and share the leftover space proportionally.
+
+  // The table renders with `table-layout: fixed`, where the slack between the
+  // declared column widths and the container is handed to columns whose width
+  // is `auto` — fixed-width columns keep their exact size. So we flex *one*
+  // column (the first non-utility/content column, i.e. the primary
+  // name/title) and pin every other column. That:
+  //   • keeps the select checkbox + actions trigger at the exact same x on
+  //     every table (utility columns never absorb slack → constant width), and
+  //   • makes the table fill the container without a runaway column or
+  //     trailing columns scrolling off-screen (the primary column soaks up the
+  //     leftover instead of every column inflating).
+  const visibleLeafColumns = table.getVisibleLeafColumns();
+  const flexColumnId = (
+    visibleLeafColumns.find(
+      (column) =>
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+        (column.columnDef.meta as ColumnMeta | undefined)?.flex,
+    ) ??
+    visibleLeafColumns.find(
+      (column) =>
+        !isUtilityCol(
+          column.id,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+          (column.columnDef.meta as ColumnMeta | undefined)?.isAction,
+        ),
+    )
+  )?.id;
+
   const cellWidthStyle = (
     id: string,
     size: number | undefined,
     isAction?: boolean,
   ): CSSProperties =>
     isUtilityCol(id, isAction)
-      ? // A *percentage* width (not px) is what makes auto-layout leave this
-        // column at its content size instead of handing it a share of the
-        // slack — px widths still grow. 1% always loses to the fixed-size box.
-        { width: '1%' }
-      : { width: size !== undefined && size !== 150 ? size : undefined };
+      ? // Under `table-fixed` the declared px width *is* the column width, so
+        // pin utility columns to their exact size (a `1%` here would collapse
+        // them below the checkbox/trigger box). Matches `utilityCellBox`.
+        {
+          width:
+            size !== undefined && size !== 150
+              ? size
+              : id === 'actions'
+                ? ACTIONS_COLUMN_SIZE
+                : SELECT_COLUMN_SIZE,
+        }
+      : id === flexColumnId
+        ? // The flex column: `auto` so it absorbs the container slack instead
+          // of every column (incl. the pinned utility ones) inflating.
+          { width: undefined }
+        : { width: size !== undefined && size !== 150 ? size : undefined };
   // Wrap a utility cell's content in a fixed-width box so the column shrinks to
   // exactly its declared size (the select checkbox centered, the row-actions
   // trigger right-aligned) — identical on every table. `p-0` on the cell hands
@@ -541,19 +578,26 @@ export function DataTable<TData, TValue = unknown>({
         // border wraps the full table width and scrolls with the content
         // instead of being pinned to the visible viewport.
         stickyLayout
+        // `table-fixed w-full`: columns share the available width by their
+        // declared `size` (used as ratios) instead of `auto` layout growing
+        // each column to fit its widest non-wrapping cell — which let long
+        // values balloon the first column and pushed trailing columns off
+        // screen. With `min-w-full` + the `max(100%, …)` floor below, a wide
+        // container fits exactly (no horizontal scroll) while a narrow one
+        // still scrolls at the content floor instead of squashing.
+        className="w-full table-fixed"
         // `max(100%, …)` so the table still fills a wide container (preserving
         // the primitive's `min-w-full`) while gaining a content-based floor that
         // forces horizontal scroll on narrow viewports instead of squashing.
-        style={
-          tableMinWidth
-            ? { minWidth: `max(100%, ${tableMinWidth})` }
-            : undefined
-        }
+        style={{ minWidth: `max(100%, ${tableMinWidth})` }}
       >
         {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
         <TableHeader sticky={stickyLayout}>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} className="bg-muted">
+            // No `bg-muted` here — `TableHeader` paints the fill on the header
+            // cells so the wrapper's rounded corners aren't squared off by a
+            // full-width row background.
+            <TableRow key={headerGroup.id}>
               {enableExpanding && <TableHead className="w-[3rem]" />}
               {headerGroup.headers.map((headerCell) => {
                 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table

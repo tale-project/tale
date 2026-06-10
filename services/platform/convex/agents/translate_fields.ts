@@ -1,11 +1,13 @@
 'use node';
 
+import type { LanguageModelV3 } from '@ai-sdk/provider';
 import { Agent } from '@convex-dev/agent';
 import { z } from 'zod';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { reasoningProviderOptionsFor } from '../lib/agent_response/reasoning/build_reasoning_options';
+import { renderPrompt } from '../lib/prompts/registry';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 
@@ -17,27 +19,21 @@ const MAX_RETRIES = 3;
  * any combination of fields in one call (e.g. displayName, description,
  * conversationStarters).
  */
-export type TranslateInput = Record<string, string | string[]>;
+type TranslateInput = Record<string, string | string[]>;
 
 /**
  * Output mirrors the input shape — same keys, same value types.
  */
-export type TranslateOutput = Record<string, string | string[]>;
+type TranslateOutput = Record<string, string | string[]>;
 
 function createTranslationAgent(
   targetLocale: string,
-  languageModel: import('@ai-sdk/provider').LanguageModelV3,
+  languageModel: LanguageModelV3,
 ) {
   return new Agent(components.agent, {
     name: 'field-translator',
     languageModel,
-    instructions: `You are a translation assistant. Translate the given texts to the locale "${targetLocale}".
-
-Rules:
-- Maintain the original meaning and tone
-- Keep translations concise and natural
-- Translate every item in the input array
-- The output array must have the same number of items as the input`,
+    instructions: renderPrompt('translation.field', { targetLocale }),
   });
 }
 
@@ -102,6 +98,13 @@ export async function translateFields(
 
   if (flat.length === 0) {
     return { translated: reconstruct([]) };
+  }
+
+  // No target locale → nothing to translate. Degrade gracefully (return the
+  // input unchanged) instead of letting renderPrompt throw on an empty
+  // `{{targetLocale}}` — a missing locale must never fail the caller.
+  if (!args.targetLocale.trim()) {
+    return { translated: args.fields };
   }
 
   const schema = z.object({

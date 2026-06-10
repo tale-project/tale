@@ -814,12 +814,24 @@
     },
     "thoughtProcess": {
       "thinking": "Thinking",
+      "routingPhase": "Routing",
       "seconds": "{seconds}s",
       "durationLabel": "Thought for {seconds}s",
       "toolsCount": "{count, plural, one {# tool} other {# tools}}",
       "skillsCount": "{count, plural, one {# skill} other {# skills}}",
       "tokensCount": "{count, plural, one {# token} other {# tokens}}",
-      "summaryReasoningOnly": "Showed its reasoning"
+      "summaryReasoningOnly": "Showed its reasoning",
+      "responding": "Responding"
+    },
+    "routing": {
+      "routedTo": "Routed to {agent}",
+      "reason": {
+        "single-candidate": "Only matching assistant",
+        "trivial": "Simple message — used the default assistant",
+        "cached": "Reused a recent routing decision",
+        "classified": "Best match for this request",
+        "fallback": "Defaulted after routing was inconclusive"
+      }
     },
     "tools": {
       "customerRead": "Customer data",
@@ -1062,6 +1074,7 @@
       "timestamp": "Timestamp",
       "messageId": "Message ID",
       "model": "Model",
+      "routing": "Routing",
       "tokenUsage": "Token usage",
       "input": "Input",
       "output": "Output",
@@ -1546,22 +1559,7 @@
     "modeHeader": "Modes",
     "capabilityHeader": "Capabilities",
     "capabilityDisable": "Disable {name}",
-    "requiresIntegration": "Requires {name}",
-    "tuningHeader": "Response tuning",
-    "adaptive": "Adaptive",
-    "effort": "Effort",
-    "effortLow": "Low",
-    "effortMedium": "Medium",
-    "effortHigh": "High",
-    "creativity": "Creativity",
-    "creativityPrecise": "Precise",
-    "creativityBalanced": "Balanced",
-    "creativityCreative": "Creative",
-    "style": "Style",
-    "styleConcise": "Concise",
-    "styleDetailed": "Detailed",
-    "styleFormal": "Formal",
-    "styleFriendly": "Friendly"
+    "requiresIntegration": "Requires {name}"
   },
   "connectivity": {
     "tabTitle": "Reconnecting",
@@ -3371,7 +3369,12 @@
     "pushback": "Reply differently",
     "pushbackPlaceholder": "Tell the AI what you'd like instead...",
     "sendFeedback": "Send feedback",
-    "backToForm": "Back to form"
+    "backToForm": "Back to form",
+    "editResponse": "Edit response",
+    "updateResponse": "Update response",
+    "cancelEdit": "Cancel",
+    "versionPrevious": "Previous response version",
+    "versionNext": "Next response version"
   },
   "integrationApproval": {
     "approve": "Approve",
@@ -3626,6 +3629,10 @@
     "agentDelegation": {
       "title": "Agent delegation",
       "description": "Configure agent delegation to other agents."
+    },
+    "agentResponseTuning": {
+      "title": "Response tuning",
+      "description": "Tune how this agent reasons and writes."
     },
     "automationTriggers": {
       "title": "Triggers",
@@ -4489,6 +4496,20 @@
       "security": {
         "title": "Security",
         "description": "Password and two-factor authentication."
+      },
+      "chats": {
+        "title": "Your chats",
+        "description": "Archive or permanently delete all of your chat conversations at once.",
+        "archiveAll": "Archive all chats",
+        "deleteAll": "Delete all chats",
+        "archiveConfirmTitle": "Archive all chats?",
+        "archiveConfirmDescription": "This will archive all {count} of your active chats. You can still find and restore them from the Archived section.",
+        "deleteConfirmTitle": "Delete all chats?",
+        "deleteConfirmDescription": "This will move all {count} of your chats, including archived ones, to Trash.",
+        "deletePermanentMessage": "Chats are moved to Trash. You can restore them for the org's grace period; after that retention permanently deletes them and their messages.",
+        "archiveStarted": "Archiving {count} chats",
+        "deleteStarted": "Deleting {count} chats",
+        "actionFailed": "Something went wrong. Please try again."
       }
     },
     "organization": {
@@ -4619,6 +4640,7 @@
         "knowledge": "Knowledge",
         "webhook": "Webhooks",
         "delegation": "Delegation",
+        "responseTuning": "Response tuning",
         "conversationStarters": "Starters",
         "history": "History"
       },
@@ -4773,6 +4795,46 @@
         "uploadStarted": "Uploading file...",
         "fileTooLarge": "File too large",
         "removeFailed": "Failed to remove file"
+      },
+      "responseTuning": {
+        "title": "Response tuning",
+        "description": "Control how this agent reasons and writes. Every option defaults to Automatic, where the platform picks the best setting for each message. Choose a fixed value to override it.",
+        "autoNote": "The Auto router and adaptive reasoning governor tune every reply automatically — language, style, length, and effort. You normally don't need to change anything here. Expand the overrides below only to force a fixed setting for every message this agent sends.",
+        "overridesSummary": "Manual overrides",
+        "adaptive": "Automatic",
+        "effort": "Reasoning effort",
+        "effortHelp": "How much the model thinks before answering. Automatic scales effort to each message — more for hard questions, less for simple ones. A fixed level applies the same effort every time.",
+        "effortLow": "Low",
+        "effortMedium": "Medium",
+        "effortHigh": "High",
+        "creativity": "Creativity",
+        "creativityHelp": "How varied the wording is. Precise gives focused, repeatable answers; Creative gives more exploratory ones. Automatic decides per message.",
+        "creativityPrecise": "Precise",
+        "creativityBalanced": "Balanced",
+        "creativityCreative": "Creative",
+        "style": "Style",
+        "styleHelp": "Gives replies a consistent tone. Automatic adds none.",
+        "styleConcise": "Concise",
+        "styleDetailed": "Detailed",
+        "styleFormal": "Formal",
+        "styleFriendly": "Friendly",
+        "verbosity": "Answer length",
+        "verbosityHelp": "How long answers tend to be, independent of tone. Automatic decides per message.",
+        "verbosityTerse": "Short",
+        "verbosityNormal": "Medium",
+        "verbosityVerbose": "Long",
+        "advancedTitle": "Advanced",
+        "advancedHelp": "These don't override Automatic — they set limits it stays within, and only apply to settings left on Automatic above.",
+        "qualityProfile": "Quality vs. speed",
+        "qualityProfileHelp": "How readily the agent spends extra reasoning when an answer looks weak. Strict favors quality; Lenient favors speed and cost.",
+        "qualityLenient": "Lenient",
+        "qualityBalanced": "Balanced",
+        "qualityStrict": "Strict",
+        "effortFloor": "Minimum effort",
+        "effortFloorHelp": "Never think less than this, even on simple messages.",
+        "effortCeiling": "Maximum effort",
+        "effortCeilingHelp": "Never think more than this — caps cost on hard messages.",
+        "boundNone": "No limit"
       },
       "tools": {
         "webSearchMode": "Web search",
@@ -5165,6 +5227,55 @@
     "providers": {
       "title": "Providers",
       "entityLabel": "providers",
+      "modelCatalog": {
+        "title": "Model catalog",
+        "description": "Model capabilities (pricing, context window, reasoning, tools, vision) are kept fresh from OpenRouter's public catalog and used as defaults under your provider config. Refreshes daily.",
+        "refresh": "Refresh now",
+        "synced": "Synced {count} models.",
+        "syncFailed": "Sync failed: {error}",
+        "lastSynced": "Last synced {when} · {count} models.",
+        "lastFailed": "Last attempt failed at {when}.",
+        "neverSynced": "Not synced yet — refreshes automatically each day.",
+        "autoSync": "Weekly auto-sync of provider config",
+        "autoSyncHelp": "Once a week, merge newly-released flagship model versions and refreshed capabilities from OpenRouter into this org's provider config, hiding superseded versions. Only fields you haven't customized are touched.",
+        "autoSyncFailed": "Could not update the setting: {error}"
+      },
+      "modelCapabilities": {
+        "routingTitle": "Routing & capabilities",
+        "routingHelp": "Optional metadata that steers model routing, reasoning, and prompt caching. Anything you leave blank falls back to the OpenRouter catalog at runtime.",
+        "fillFromCatalog": "Fill from catalog",
+        "syncAll": "Sync from catalog",
+        "tier": "Strength tier",
+        "tierHelp": "Overrides the cost-based tier used by complexity routing.",
+        "tierAuto": "Auto (infer from cost)",
+        "qualityScore": "Quality score",
+        "contextWindow": "Context window (tokens)",
+        "maxOutputTokens": "Max output tokens",
+        "reasoning": "Reasoning control",
+        "reasoningHelp": "How this model is told to reason. Leave unset to let the catalog decide.",
+        "notSet": "Not set",
+        "reasoningNone": "None (don't steer)",
+        "reasoningEffort": "Effort (reasoning_effort)",
+        "reasoningBudget": "Token budget (thinking)",
+        "supportsMinimal": "Supports the 'minimal' effort floor (gpt-5 family)",
+        "minBudgetTokens": "Min budget tokens",
+        "maxBudgetTokens": "Max budget tokens",
+        "optional": "optional",
+        "promptCaching": "Prompt caching",
+        "promptCachingHelp": "How a stable prompt prefix is cached for cheaper repeat turns.",
+        "cachingNone": "None",
+        "cachingAuto": "Automatic (server-side)",
+        "cachingExplicit": "Explicit breakpoints",
+        "maxBreakpoints": "Max cache breakpoints",
+        "routingTags": "Preferred domains",
+        "routingTagsHelp": "Bias routing toward this model for the selected domains.",
+        "noCatalogData": "No catalog data for this model yet — try refreshing the model catalog.",
+        "filledFromCatalog": "Filled capability fields from the catalog.",
+        "syncAllNoop": "Every model already has its catalog capabilities set.",
+        "syncAllDone": "Filled catalog capabilities for {count} models."
+      },
+      "modelHidden": "Hidden from model pickers",
+      "modelHiddenHelp": "Hide this model from the chat composer and agent model selection. It stays fully usable by agents and workflows that already reference it — useful for superseded or deprecated versions.",
       "addProvider": "Add provider",
       "editProvider": "Edit provider",
       "deleteProvider": "Delete provider",
@@ -5275,6 +5386,7 @@
       "testRerun": "Re-run",
       "testLatency": "{latencyMs} ms",
       "testKeyFailed": "Connection failed",
+      "testSystemError": "The connection test couldn't run. Check the provider's base URL and API key, then try again.",
       "addKey": "Add API key",
       "apiKeyEnter": "Enter API key",
       "searchProvider": "Search providers...",
@@ -5784,14 +5896,18 @@
       },
       "knowledge": {
         "title": "Knowledge database (RAG)",
+        "description": "The Postgres database backing knowledge search and retrieval. Defaults to the database bundled with this deployment.",
         "paradeDbNote": "The external knowledge database must run ParadeDB (pgvector + pg_search) for full hybrid search; plain pgvector degrades to vector-only."
       },
       "storage": {
         "title": "File storage (uploaded documents)",
+        "description": "Where uploaded documents and generated exports are kept. Defaults to the local Convex volume.",
         "externalS3": "External S3",
         "region": "Region",
         "endpoint": "Endpoint (MinIO/R2; blank for AWS)",
         "forcePathStyle": "Force path-style (MinIO/R2)",
+        "bucketsLabel": "Buckets",
+        "credentialsLabel": "Credentials",
         "bucket": {
           "files": "Files bucket",
           "exports": "Exports bucket",
@@ -5810,7 +5926,7 @@
       },
       "appDb": {
         "summary": "Application database (advanced)",
-        "title": "Convex metadata database",
+        "description": "Convex's internal metadata store. Most deployments should leave this on the bundled database.",
         "databaseNameNote": "The Convex backend derives its database name from the instance configuration, so the external Postgres must already contain that database. The Database field above is used only for the connection test.",
         "sslModeNote": "TLS mode for this database is fixed by the Convex driver and cannot be configured here."
       },

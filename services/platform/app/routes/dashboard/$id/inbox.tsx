@@ -9,6 +9,12 @@ const InboxPanel = lazyComponent(() =>
 );
 
 export const Route = createFileRoute('/dashboard/$id/inbox')({
+  // Warm the InboxPanel chunk during the loader so it's cached by the time the
+  // component renders — removes the Suspense fallback flash on first nav.
+  // Fire-and-forget; the lazy boundary still covers a cold cache.
+  loader: () => {
+    void import('@/app/features/inbox/components/inbox-panel');
+  },
   component: InboxPage,
 });
 

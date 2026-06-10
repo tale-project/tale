@@ -140,7 +140,7 @@ export function VoiceModeToggle({
         aria-pressed={enabled}
         aria-label={t('voice.voiceModeLabel')}
         className={cn(
-          'rounded-full',
+          'rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
           enabled && 'bg-primary/10 text-primary hover:bg-primary/15',
           ttsUnavailable && 'cursor-not-allowed opacity-50',
         )}
