@@ -173,6 +173,90 @@ Operations: find_unprocessed, record_processed
 }
 \`\`\`
 
+### integration_processing_records
+Operations: find_unprocessed, record_processed
+Incremental, deduplicated processing of EXTERNAL data sources (SQL/REST integrations). Use workflow_processing_records for Convex tables; use this for integration data.
+
+**find_unprocessed** fetches via the integration and atomically claims ONE unprocessed record. Output data is an envelope: { record, recordId, incrementalValue, tableName } or null when everything is processed.
+
+Incremental strategies (incrementalConfig.strategy):
+| Strategy | Use case | Resume mechanism |
+|----------|----------|------------------|
+| timestamp_based | SQL with modified_date, APIs with updated_at | highest processed timestamp injected as fetchParams[resumeParamKey], formatted per timestampFormat ('iso' \\| 'epoch_ms' \\| 'epoch_s' \\| 'date') |
+| id_based | monotonically increasing ids | highest processed id injected as fetchParams[resumeParamKey] (e.g. since_id) |
+| cursor_based | Shopify-style pagination | opaque cursor read from cursorPath on the fetch result; up to maxPages (default 5) pages per run |
+| full_scan | no incremental support | dedupe only — always set fetchParams.limit |
+
+SQL example (timestamp_based):
+\`\`\`json
+{
+  "type": "integration_processing_records",
+  "parameters": {
+    "operation": "find_unprocessed",
+    "dataSource": {
+      "integrationName": "protel",
+      "fetchOperation": "list_guests",
+      "fetchParams": { "status": "active", "limit": 100 },
+      "recordIdField": "guest_id",
+      "sourceIdentifier": "guests",
+      "localFilterExpression": "daysAgo(modified_date) < 30",
+      "incrementalConfig": {
+        "strategy": "timestamp_based",
+        "timestampField": "modified_date",
+        "resumeParamKey": "fromDate",
+        "timestampFormat": "iso"
+      }
+    },
+    "backoffHours": -1
+  }
+}
+\`\`\`
+
+REST example (cursor_based):
+\`\`\`json
+{
+  "type": "integration_processing_records",
+  "parameters": {
+    "operation": "find_unprocessed",
+    "dataSource": {
+      "integrationName": "shopify",
+      "fetchOperation": "list_orders",
+      "fetchParams": { "status": "any", "limit": 50 },
+      "recordIdField": "id",
+      "sourceIdentifier": "orders",
+      "recordsPath": "result.orders",
+      "localFilterExpression": "financial_status == \\"paid\\" && fulfillment_status == null",
+      "incrementalConfig": {
+        "strategy": "cursor_based",
+        "resumeParamKey": "page_info",
+        "cursorPath": "result.page_info.next",
+        "maxPages": 5
+      }
+    },
+    "backoffHours": 24
+  }
+}
+\`\`\`
+- backoffHours: minimum hours before reprocessing the same record (-1 = never reprocess)
+- The fetch operation must be read-only (approval-gated operations are rejected)
+- localFilterExpression: JEXL post-filter applied to each fetched record
+- recordsPath: where the record array lives on the integration result (defaults: "data" for SQL, "result" for REST)
+
+**record_processed** marks the claimed record processed and advances the watermark:
+\`\`\`json
+{
+  "type": "integration_processing_records",
+  "parameters": {
+    "operation": "record_processed",
+    "integrationName": "protel",
+    "sourceIdentifier": "guests",
+    "recordId": "{{steps.find_guest.output.data.recordId}}",
+    "incrementalValue": "{{steps.find_guest.output.data.incrementalValue}}"
+  }
+}
+\`\`\`
+The watermark only advances on record_processed (never on claim), so a failed run cannot skip records.
+
 ### customer
 Operations: create, query, filter, update
 \`\`\`json
@@ -672,7 +756,7 @@ const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
     'Start step configuration (workflow entry point with optional inputSchema)',
   llm: 'LLM step configuration (AI agent with tools)',
   action:
-    'Action step types and parameters (workflow_processing_records, customer, conversation, approval, set_variables, integration, document)',
+    'Action step types and parameters (workflow_processing_records, integration_processing_records, customer, conversation, approval, set_variables, integration, document)',
   condition: 'Condition step with JEXL expressions',
   loop: 'Loop step for iteration',
   output: 'Output step configuration (workflow output via outputMapping)',

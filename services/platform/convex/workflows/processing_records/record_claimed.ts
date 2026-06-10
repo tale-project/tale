@@ -8,11 +8,11 @@
 import { Id } from '../../_generated/dataModel';
 import { MutationCtx } from '../../_generated/server';
 import type { ConvexJsonRecord } from '../../lib/validators/json';
-import { TableName } from './types';
+import { ExtendedTableName } from './types';
 
 export interface RecordClaimedArgs {
   organizationId: string;
-  tableName: TableName;
+  tableName: ExtendedTableName;
   recordId: string;
   wfDefinitionId: string;
   recordCreationTime: number;

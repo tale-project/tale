@@ -15,3 +15,7 @@ export * from './record_processed';
 export * from './is_record_processed';
 export * from './get_latest_processed_creation_time';
 export * from './get_processing_record_by_id';
+export * from './integration_table_name';
+export * from './integration_sync_state';
+export * from './claim_first_unprocessed_integration';
+export * from './record_integration_processed';

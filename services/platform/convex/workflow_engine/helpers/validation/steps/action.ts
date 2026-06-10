@@ -20,7 +20,7 @@ export function validateActionStep(
   // Action type is required
   if (!('type' in config)) {
     errors.push(
-      'Action step requires "type" field in config. FIX: Add config.type = "customer" | "product" | "approval" | "workflow_processing_records" | "set_variables" | "integration" | "conversation"',
+      'Action step requires "type" field in config. FIX: Add config.type = "customer" | "product" | "approval" | "workflow_processing_records" | "integration_processing_records" | "set_variables" | "integration" | "conversation"',
     );
     return { valid: false, errors, warnings };
   }

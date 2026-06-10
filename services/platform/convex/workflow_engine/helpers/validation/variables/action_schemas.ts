@@ -287,6 +287,44 @@ const workflowProcessingRecordsSchemas: Record<string, OutputSchema> = {
 };
 
 // =============================================================================
+// INTEGRATION PROCESSING RECORDS ACTION SCHEMAS
+// =============================================================================
+
+const integrationProcessingRecordsSchemas: Record<string, OutputSchema> = {
+  find_unprocessed: {
+    description:
+      'Claimed external record envelope { record, recordId, incrementalValue, tableName }, or null when nothing is unprocessed',
+    nullable: true,
+    fields: {
+      record: {
+        type: 'any',
+        description:
+          'Full external record fetched from the integration (shape depends on the data source)',
+      },
+      recordId: {
+        type: 'string',
+        description: 'Stable external record id (from recordIdField)',
+      },
+      incrementalValue: {
+        type: 'any',
+        nullable: true,
+        description:
+          'Watermark value for record_processed (epoch ms for timestamp_based, id for id_based, null otherwise)',
+      },
+      tableName: {
+        type: 'string',
+        description: 'Dedupe key "integration:<name>:<source>"',
+      },
+    },
+  },
+  record_processed: {
+    description: 'Processing record or null',
+    nullable: true,
+    fields: processingRecordFields,
+  },
+};
+
+// =============================================================================
 // SET VARIABLES ACTION SCHEMA
 // =============================================================================
 
@@ -601,6 +639,7 @@ const websiteSchemas: Record<string, OutputSchema> = {
  * - set_variables: Workflow variable operations
  * - rag: RAG document upload
  * - workflow_processing_records: Processing record tracking
+ * - integration_processing_records: Incremental processing of external integration data sources
  * - approval: Approval workflow operations
  * - integration: Dynamic integration connectors
  * - onedrive: OneDrive file operations
@@ -612,6 +651,7 @@ export const actionOutputSchemaRegistry: ActionOutputSchemaRegistry = {
   approval: approvalSchemas,
   customer: customerSchemas,
   workflow_processing_records: workflowProcessingRecordsSchemas,
+  integration_processing_records: integrationProcessingRecordsSchemas,
   set_variables: setVariablesSchemas,
   conversation: conversationSchemas,
   document: documentSchemas,

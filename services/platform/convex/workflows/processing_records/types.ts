@@ -2,6 +2,8 @@
  * Types and validators for workflow processing records
  */
 
+import type { IntegrationTableName } from './integration_table_name';
+
 /**
  * Supported table names for workflow processing
  */
@@ -13,6 +15,15 @@ export type TableName =
   | 'conversationMessages'
   | 'approvals'
   | 'onedriveSyncConfigs';
+
+/**
+ * Table names accepted by the record-level helpers (claim/processed checks).
+ * Integration data sources use the synthetic `integration:<name>:<source>`
+ * form — the DB field is a plain string, so no schema change is involved.
+ * The query_building/ and index_selection/ layers stay on the Convex-table
+ * union because they build queries against real tables.
+ */
+export type ExtendedTableName = TableName | IntegrationTableName;
 
 /**
  * Arguments for finding and claiming a single unprocessed document with custom query
