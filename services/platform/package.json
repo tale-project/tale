@@ -21,7 +21,9 @@
     "test": "bunx vitest --run --project server --project pii",
     "test:watch": "bunx vitest --project server --project pii",
     "test:coverage": "bunx vitest --coverage --project server --project pii",
-    "test:browser-e2e": "bunx vitest --run --project browser-e2e",
+    "test:browser": "bunx vitest --run --project browser",
+    "test:e2e": "bunx playwright test",
+    "test:e2e:ui": "bunx playwright test --ui",
     "test:ui": "bunx vitest --run --config vitest.ui.config.ts",
     "test:ui:watch": "bunx vitest --config vitest.ui.config.ts",
     "storybook": "bunx --bun storybook dev -p 6009",
@@ -145,6 +147,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "1.58.2",
     "@tanstack/router-plugin": "1.167.12",
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "6.9.1",

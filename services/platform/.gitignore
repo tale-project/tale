@@ -50,6 +50,15 @@ compose.yml
 # Convex local
 .convex/
 
+# Playwright E2E
+e2e/.auth/
+playwright-report/
+test-results/
+# The org scaffold creates a sibling config dir per organization an E2E run
+# creates; only the seed template (default/) is source-controlled.
+e2e/fixtures/config/*/
+!e2e/fixtures/config/default/
+
 # Storybook
 storybook-static/
 
