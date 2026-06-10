@@ -79,6 +79,21 @@ describe('defineAbilityFor', () => {
     );
   });
 
+  describe('auditLogs', () => {
+    it.each(['owner', 'admin'])('grants auditLogs read to %s role', (role) => {
+      const ability = defineAbilityFor(role);
+      expect(ability.can('read', 'auditLogs')).toBe(true);
+    });
+
+    it.each(['developer', 'editor', 'member', 'disabled'])(
+      'denies auditLogs read for %s role',
+      (role) => {
+        const ability = defineAbilityFor(role);
+        expect(ability.can('read', 'auditLogs')).toBe(false);
+      },
+    );
+  });
+
   describe('members', () => {
     it.each(['owner', 'admin'])('grants members write to %s role', (role) => {
       const ability = defineAbilityFor(role);

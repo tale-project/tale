@@ -43,7 +43,7 @@ Der JSON-Export (`audit-logs-<timestamp>.json`) trägt dieselben Zeilen als voll
 
 ## Aufbewahrung und Integrität
 
-Audit-Zeilen sind unveränderlich: Bearbeitungen und Löschungen werden selbst auditiert, und das Zeilenschema trägt einen Integritäts-Hash, den du gegen den Export prüfen kannst. Eine täglich geplante Prüfung verifiziert die Hash-Kette serverseitig erneut und schreibt einen `security`-Audit-Eintrag, wenn die Verifikation fehlschlägt — sodass Manipulation oder eine Löschung außer der Reihe auch dann auffällt, wenn niemand die manuelle Prüfung ausführt. Die Aufbewahrung steht standardmäßig auf 90 Tagen und ist auf der Seite zur Aufbewahrungsrichtlinie konfigurierbar (30 bis 365 Tage). Zeilen, die altern, werden vom nächsten Cleanup-Lauf entfernt — es gibt kein Soft-Delete-Fenster für Audit-Daten.
+Audit-Zeilen sind unveränderlich: Bearbeitungen und Löschungen werden selbst auditiert, und das Zeilenschema trägt einen Integritäts-Hash, den du gegen den Export prüfen kannst. Eine täglich geplante Prüfung verifiziert die Hash-Kette serverseitig erneut und schreibt einen `security`-Audit-Eintrag, wenn die Verifikation fehlschlägt — sodass Manipulation oder eine Löschung außer der Reihe auch dann auffällt, wenn niemand die manuelle Prüfung ausführt. Eine fehlgeschlagene Prüfung löst zusätzlich eine kritische In-App-Benachrichtigung an die Admins der Organisation aus und geht an Slack, wenn ein Slack-Benachrichtigungskanal konfiguriert ist. Die Aufbewahrung steht standardmäßig auf 90 Tagen und ist auf der Seite zur Aufbewahrungsrichtlinie konfigurierbar (30 bis 365 Tage). Zeilen, die altern, werden vom nächsten Cleanup-Lauf entfernt — es gibt kein Soft-Delete-Fenster für Audit-Daten.
 
 ## Wo das hingehört
 

@@ -49,8 +49,9 @@ describe('authorizeRls', () => {
   });
 
   describe('developer role', () => {
-    it('has full read/write access to all tables', () => {
+    it('has full read/write access to all tables except auditLogs', () => {
       for (const table of ALL_TABLES) {
+        if (table === 'auditLogs') continue;
         expect(authorizeRls('developer', table, 'read')).toBe(true);
         expect(authorizeRls('developer', table, 'write')).toBe(true);
       }
@@ -68,7 +69,6 @@ describe('authorizeRls', () => {
       'conversationMessages',
       'approvals',
       'websites',
-      'auditLogs',
     ];
     const readOnly: Table[] = [
       'integrations',
@@ -96,11 +96,32 @@ describe('authorizeRls', () => {
   });
 
   describe('member role', () => {
-    it('has read-only access to all tables', () => {
+    it('has read-only access to all tables except auditLogs', () => {
       for (const table of ALL_TABLES) {
+        if (table === 'auditLogs') continue;
         expect(authorizeRls('member', table, 'read')).toBe(true);
         expect(authorizeRls('member', table, 'write')).toBe(false);
       }
+    });
+  });
+
+  describe('auditLogs table (#1505 read-side hardening)', () => {
+    it('grants read only to admin and owner', () => {
+      expect(authorizeRls('admin', 'auditLogs', 'read')).toBe(true);
+      expect(authorizeRls('owner', 'auditLogs', 'read')).toBe(true);
+      expect(authorizeRls('developer', 'auditLogs', 'read')).toBe(false);
+      expect(authorizeRls('editor', 'auditLogs', 'read')).toBe(false);
+      expect(authorizeRls('member', 'auditLogs', 'read')).toBe(false);
+      expect(authorizeRls('disabled', 'auditLogs', 'read')).toBe(false);
+    });
+
+    it('keeps write for roles whose RLS-wrapped mutations insert audit rows', () => {
+      expect(authorizeRls('admin', 'auditLogs', 'write')).toBe(true);
+      expect(authorizeRls('owner', 'auditLogs', 'write')).toBe(true);
+      expect(authorizeRls('developer', 'auditLogs', 'write')).toBe(true);
+      expect(authorizeRls('editor', 'auditLogs', 'write')).toBe(true);
+      expect(authorizeRls('member', 'auditLogs', 'write')).toBe(false);
+      expect(authorizeRls('disabled', 'auditLogs', 'write')).toBe(false);
     });
   });
 

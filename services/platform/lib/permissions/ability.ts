@@ -73,6 +73,8 @@ export function defineAbilityFor(role: string | null): AppAbility {
       // developers cannot manage org settings or members
       cannot('read', 'orgSettings');
       cannot('write', 'members');
+      // audit-log reads are admin-only (#1505)
+      cannot('read', 'auditLogs');
       break;
     }
     case 'editor': {
@@ -93,9 +95,9 @@ export function defineAbilityFor(role: string | null): AppAbility {
         can('read', resource);
         can('write', resource);
       }
-      // read-only on workflow/integration resources
+      // read-only on workflow/integration resources;
+      // audit-log reads are admin-only (#1505)
       const readOnlyResources: PlatformResource[] = [
-        'auditLogs',
         'integrations',
         'onedriveSyncConfigs',
         'wfDefinitions',
@@ -116,6 +118,8 @@ export function defineAbilityFor(role: string | null): AppAbility {
       can('read', 'knowledgeRead');
       cannot('read', 'orgSettings');
       cannot('read', 'developerSettings');
+      // audit-log reads are admin-only (#1505)
+      cannot('read', 'auditLogs');
       break;
     }
     default: {
