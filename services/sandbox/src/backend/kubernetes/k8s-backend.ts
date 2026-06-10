@@ -292,18 +292,25 @@ export class KubernetesBackend implements ExecutionBackend {
         });
       }
 
-      // Read the harvest container's logs once and extract its result line.
+      // Read the harvest container's logs and extract its result line. The
+      // harvest flushes the line then exits; the container can read as
+      // terminated a beat before the kubelet→API log propagation completes, so
+      // retry a couple times on a missing line before giving up.
       let harvest: K8sHarvestResult | null = null;
-      try {
-        const logs = await readPodLog(this.client, podName, 'harvest');
-        harvest = parseResultLine(logs);
-        if (harvest === null) {
-          console.warn(
-            `[sandbox.k8s] no result line in harvest logs for ${req.executionId}`,
-          );
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const logs = await readPodLog(this.client, podName, 'harvest');
+          harvest = parseResultLine(logs);
+        } catch (err) {
+          console.warn('[sandbox.k8s] failed to read harvest logs:', err);
         }
-      } catch (err) {
-        console.warn('[sandbox.k8s] failed to read harvest logs:', err);
+        if (harvest !== null) break;
+        if (attempt < 2) await sleep(400);
+      }
+      if (harvest === null) {
+        console.warn(
+          `[sandbox.k8s] no result line in harvest logs for ${req.executionId}`,
+        );
       }
 
       return this.assemble(req, cfg, opts, {

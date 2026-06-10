@@ -181,10 +181,14 @@ export function buildSandboxPod(
 
   // The trusted helper containers (stage/harvest) run the spawner image as the
   // same non-root uid, sharing /workspace via fsGroup, with the per-exec Secret
-  // mounted read-only + a writable HOME for Bun. They hold the token but run no
-  // user code, so they don't need gVisor containment (the Pod-level
-  // RuntimeClass still covers them when runsc is on — harmless overhead).
-  const helperEnv: V1EnvVar[] = [{ name: 'HOME', value: '/helper-tmp' }];
+  // mounted read-only + a writable HOME/TMPDIR for Bun (the root fs is
+  // read-only). They hold the token but run no user code, so they don't need
+  // gVisor containment (the Pod-level RuntimeClass still covers them when runsc
+  // is on — harmless overhead).
+  const helperEnv: V1EnvVar[] = [
+    { name: 'HOME', value: '/helper-tmp' },
+    { name: 'TMPDIR', value: '/helper-tmp' },
+  ];
   const helperMounts: V1VolumeMount[] = [
     { name: 'workspace', mountPath: WORKSPACE_MOUNT },
     { name: 'exec-spec', mountPath: EXEC_SPEC_MOUNT_DIR, readOnly: true },
