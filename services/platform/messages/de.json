@@ -1545,7 +1545,9 @@
     "sessionIdle": {
       "warningTitle": "Du wirst bald abgemeldet",
       "warningDescription": "Deine Sitzung endet nach einer Phase der Inaktivität. Interagiere mit der Seite oder nutze die Schaltfläche, um weiterzuarbeiten.",
-      "staySignedIn": "Angemeldet bleiben"
+      "staySignedIn": "Angemeldet bleiben",
+      "signedOutNotice": "Du wurdest abgemeldet, weil deine Sitzung zu lange inaktiv war.",
+      "continueToSignIn": "Weiter zur Anmeldung"
     },
     "dataTable": {
       "dateFilterUnavailable": "Datumsfilter nicht verfügbar"

@@ -1546,7 +1546,9 @@
     "sessionIdle": {
       "warningTitle": "Tu vas bientôt être déconnecté",
       "warningDescription": "Ta session prend fin après une période d'inactivité. Interagis avec la page ou utilise le bouton pour continuer.",
-      "staySignedIn": "Rester connecté"
+      "staySignedIn": "Rester connecté",
+      "signedOutNotice": "Tu as été déconnecté parce que ta session est restée inactive trop longtemps.",
+      "continueToSignIn": "Continuer vers la connexion"
     },
     "dataTable": {
       "dateFilterUnavailable": "Filtre de date indisponible"

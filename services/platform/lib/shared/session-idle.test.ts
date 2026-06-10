@@ -18,8 +18,15 @@ describe('session idle timeout config (#1502)', () => {
   it('is disabled when unset — call sites keep their default lifetime', () => {
     delete process.env[KEY];
     expect(parseSessionIdleTimeoutMinutes()).toBeNull();
-    expect(sessionIdleWindowSeconds()).toBeNull();
     expect(sessionExpiryMs(1_000, 5_000)).toBe(6_000); // now + fallback
+  });
+
+  it('keeps the default lifetime but tightens updateAge when unset, so updatedAt tracks activity for the idle sweep', () => {
+    delete process.env[KEY];
+    expect(sessionIdleWindowSeconds()).toEqual({
+      expiresIn: 7 * 24 * 60 * 60, // Better Auth default, pinned
+      updateAge: 60,
+    });
   });
 
   it('parses a valid window and builds a sliding Better Auth session config', () => {
