@@ -127,4 +127,22 @@ export async function updateDocumentInternal(
       },
     );
   }
+
+  // Folder move on an indexed doc: RAG keeps a denormalized folder_path
+  // for folder-scoped search, and a move alone never re-uploads — sync
+  // it explicitly. Skipped when a re-index is scheduled (the re-upload
+  // carries the new folder path itself).
+  const folderMoved =
+    updateData.folderId !== undefined &&
+    updateData.folderId !== document.folderId;
+  if (folderMoved && wasIndexed && currentFileId && !needsReindex) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.documents.internal_actions.syncRagFolderPaths,
+      {
+        organizationId: document.organizationId,
+        updates: [{ fileId: currentFileId, folderPath: updateData.folderPath }],
+      },
+    );
+  }
 }

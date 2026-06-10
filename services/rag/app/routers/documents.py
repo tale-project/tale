@@ -31,11 +31,14 @@ from ..models import (
     DocumentStatusInfo,
     DocumentStatusRequest,
     DocumentStatusResponse,
+    FolderPathUpdateRequest,
+    FolderPathUpdateResponse,
 )
 from ..secret_scanner import scan_file_for_secrets
 from ..services.database import SCHEMA, get_pool
 from ..services.rag_service import rag_service
 from ..utils import cleanup_memory
+from ..utils.folder_path import MAX_FOLDER_PATH_LENGTH, normalize_folder_path
 
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
 
@@ -135,22 +138,31 @@ async def _insert_processing_row(
     org_slug: str,
     file_id: str,
     filename: str,
+    folder_path: str | None = None,
 ) -> None:
-    """Insert a processing status row at ingestion start (scoped to org)."""
+    """Insert a processing status row at ingestion start (scoped to org).
+
+    `folder_path` is written here (insert AND conflict-update) because this
+    upsert runs unconditionally per upload — the later `_do_store` /
+    `_do_clone` upserts never touch the column, and `_do_store` skips its
+    UPDATE entirely when content is unchanged.
+    """
     pool = await get_pool()
     async with acquire_with_retry(pool) as conn:
         await conn.execute(
             f"""
-            INSERT INTO {SCHEMA}.documents (org_slug, file_id, filename, status)
-            VALUES ($1, $2, $3, 'processing')
+            INSERT INTO {SCHEMA}.documents (org_slug, file_id, filename, status, folder_path)
+            VALUES ($1, $2, $3, 'processing', $4)
             ON CONFLICT (org_slug, file_id)
             DO UPDATE SET status = 'processing', error = NULL, chunks_count = 0,
                          progress_phase = NULL, progress_detail = NULL,
+                         folder_path = EXCLUDED.folder_path,
                          updated_at = NOW()
             """,
             org_slug,
             file_id,
             filename,
+            folder_path,
         )
 
 
@@ -382,10 +394,18 @@ async def upload_document(
         parsed_metadata = _parse_metadata(metadata)
         source_created_at = _ms_timestamp_to_datetime(parsed_metadata.get("source_created_at"))
         source_modified_at = _ms_timestamp_to_datetime(parsed_metadata.get("source_modified_at"))
+        folder_path = normalize_folder_path(parsed_metadata.get("folder_path"))
+        if folder_path and len(folder_path) > MAX_FOLDER_PATH_LENGTH:
+            logger.warning(
+                "Ignoring over-long folder_path metadata ({} chars) | filename={}",
+                len(folder_path),
+                file.filename,
+            )
+            folder_path = None
 
         doc_id = file_id or f"file-{uuid4().hex}"
 
-        await _insert_processing_row(org_slug, doc_id, file.filename)
+        await _insert_processing_row(org_slug, doc_id, file.filename, folder_path)
 
         if sync:
             try:
@@ -442,6 +462,56 @@ async def upload_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload file. Please try again.",
         ) from e
+
+
+@router.patch("/documents/folder-paths", response_model=FolderPathUpdateResponse)
+async def update_folder_paths(
+    request: FolderPathUpdateRequest,
+    org_slug: str = Depends(require_org_slug),
+):
+    """Batch-update the denormalized folder_path on indexed documents.
+
+    Keeps the folder-scoped search filter fresh when the platform moves or
+    renames folders — no re-extraction or re-embedding. Scoped to the
+    caller's org; foreign-org file_ids update zero rows. folder_path is a
+    narrowing filter only, so a missed update degrades filter precision but
+    never authorization.
+    """
+    # Last occurrence wins for duplicate file_ids so the UPDATE ... FROM
+    # join below stays deterministic.
+    deduped: dict[str, str | None] = {u.file_id: u.folder_path for u in request.updates}
+    file_ids = list(deduped.keys())
+    folder_paths = list(deduped.values())
+
+    try:
+        pool = await get_pool()
+        async with acquire_with_retry(pool) as conn:
+            tag = await conn.execute(
+                f"""
+                UPDATE {SCHEMA}.documents d
+                SET folder_path = u.folder_path, updated_at = NOW()
+                FROM unnest($2::text[], $3::text[]) AS u(file_id, folder_path)
+                WHERE d.org_slug = $1 AND d.file_id = u.file_id
+                """,
+                org_slug,
+                file_ids,
+                folder_paths,
+            )
+    except Exception as e:
+        logger.error("Failed to update folder paths: {}", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update folder paths. Please try again.",
+        ) from e
+
+    # asyncpg returns a command tag like "UPDATE 3".
+    try:
+        updated_count = int(tag.rsplit(" ", 1)[-1])
+    except (ValueError, AttributeError):
+        logger.warning("Unexpected command tag from folder-path update: {!r}", tag)
+        updated_count = 0
+
+    return FolderPathUpdateResponse(success=True, updated_count=updated_count)
 
 
 @router.delete("/documents/{file_id}", response_model=DocumentDeleteResponse)

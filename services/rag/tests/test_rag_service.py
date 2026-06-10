@@ -223,6 +223,7 @@ class TestSearch:
             TEST_ORG,
             "test query",
             file_ids=["doc-1"],
+            folder_path=None,
             top_k=10,
             similarity_threshold=0.0,
         )
@@ -241,6 +242,7 @@ class TestSearch:
             TEST_ORG,
             "query",
             file_ids=None,
+            folder_path=None,
             top_k=10,
             similarity_threshold=0.7,
         )
@@ -258,6 +260,7 @@ class TestSearch:
             TEST_ORG,
             "query",
             file_ids=None,
+            folder_path=None,
             top_k=20,
             similarity_threshold=0.0,
         )
@@ -308,6 +311,7 @@ class TestSearch:
             TEST_ORG,
             "q",
             file_ids=["doc-1", "doc-2"],
+            folder_path=None,
             top_k=10,
             similarity_threshold=0.0,
         )

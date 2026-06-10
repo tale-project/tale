@@ -665,6 +665,7 @@ export const uploadDocumentToRag = internalAction({
           fileId: document.fileId,
           fileName: document.title,
           contentType: document.mimeType,
+          folderPath: document.folderPath,
         },
         { organizationId: document.organizationId },
       );
@@ -799,6 +800,7 @@ export const reindexDocumentInRag = internalAction({
           fileId: document.fileId,
           fileName: document.title,
           contentType: document.mimeType,
+          folderPath: document.folderPath,
         },
         { organizationId: document.organizationId },
       );
@@ -864,6 +866,74 @@ export const reindexDocumentInRag = internalAction({
       } else {
         console.warn(
           `[reindexDocumentInRag] No org context for old RAG delete; oldFileId ${args.oldFileId} may leak chunks (documentId=${args.documentId})`,
+        );
+      }
+    }
+
+    return null;
+  },
+});
+
+const FOLDER_PATH_SYNC_BATCH_SIZE = 200;
+
+/**
+ * Best-effort sync of denormalized folder paths to the RAG service via
+ * `PATCH /api/v1/documents/folder-paths` (no re-extraction/re-embedding).
+ * Scheduled on folder moves/renames so the folder-scoped search filter
+ * stays fresh.
+ *
+ * folder_path on the RAG side is a narrowing filter only — `file_ids`
+ * stays the authorization boundary — so a failed sync degrades folder
+ * filter precision but never leaks anything. Warn-and-skip on failure.
+ */
+export const syncRagFolderPaths = internalAction({
+  args: {
+    organizationId: v.string(),
+    updates: v.array(
+      v.object({
+        fileId: v.id('_storage'),
+        /** New folder path; omitted clears it (document moved to the root). */
+        folderPath: v.optional(v.string()),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    if (args.updates.length === 0) return null;
+
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[syncRagFolderPaths] org ${args.organizationId} unresolvable; skipping folder-path sync for ${args.updates.length} file(s)`,
+      );
+      return null;
+    }
+
+    for (let i = 0; i < args.updates.length; i += FOLDER_PATH_SYNC_BATCH_SIZE) {
+      const batch = args.updates.slice(i, i + FOLDER_PATH_SYNC_BATCH_SIZE);
+      try {
+        const response = await ragFetch('/api/v1/documents/folder-paths', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            updates: batch.map((u) => ({
+              file_id: u.fileId,
+              folder_path: u.folderPath ?? null,
+            })),
+          }),
+          timeoutMs: 30_000,
+          orgSlug,
+        });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          console.warn(
+            `[syncRagFolderPaths] RAG folder-path sync failed (${response.status}) for ${batch.length} file(s): ${errorText.slice(0, 200)}`,
+          );
+        }
+      } catch (error) {
+        console.warn(
+          '[syncRagFolderPaths] Error syncing folder paths to RAG:',
+          error,
         );
       }
     }

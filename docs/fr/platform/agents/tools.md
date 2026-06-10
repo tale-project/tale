@@ -15,7 +15,7 @@ L'utilisateur demande « quel temps fait-il à Zurich aujourd'hui ». L'agent a 
 
 - **Web** — récupère et lit les URL que le modèle juge utiles.
 - **Fichiers** — lit les pièces jointes et fichiers du Projet actif.
-- **RAG** — cherche dans les sources de connaissances liées à l'agent et retourne des chunks avec citations.
+- **RAG** — cherche dans les sources de connaissances liées à l'agent et retourne des chunks avec citations. Nomme un dossier dans ta demande (« cherche seulement dans Contracts/2024 ») et l'agent limite la recherche à ce dossier et à ses sous-dossiers.
 - **Run code** — exécute Python, Node ou des scripts shell dans une sandbox. Gouverné par la [politique run-code](/fr/platform/admin/governance/run-code-policy) de l'organisation.
 - **Sous-agents** — délègue à un autre agent que l'organisation a marqué appelable comme sous-agent. La prévention des boucles vit sur [Délégation](/fr/platform/agents/delegation).
 - **Workflows** — invoque un workflow Tale comme un outil. Les sorties du workflow reviennent comme résultat d'outil.

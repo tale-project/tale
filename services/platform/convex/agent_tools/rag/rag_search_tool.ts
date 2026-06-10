@@ -27,6 +27,10 @@ import {
 } from '../../lib/errors/upstream_http_error';
 import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
 import { ragFetch } from '../../lib/helpers/rag_config';
+import {
+  MAX_FOLDER_PATH_LENGTH,
+  normalizeFolderPath,
+} from '../../lib/helpers/rag_folder_path';
 import { toId } from '../../lib/type_cast_helpers';
 import { wrapUntrusted } from '../../lib/untrusted_content';
 import { getThreadAncestorChain } from '../../threads/get_thread_ancestor_chain';
@@ -141,6 +145,13 @@ const ragToolArgs = z.discriminatedUnion('operation', [
       .describe(
         'Specific file IDs to search within. When provided, only these files are searched (skips automatic file resolution). IMPORTANT: If the user message contains file IDs (from uploaded attachments), pass them here first to prioritize those files. Retry without fileIds for a broader search if no relevant results are found.',
       ),
+    folderPath: z
+      .string()
+      .max(MAX_FOLDER_PATH_LENGTH)
+      .optional()
+      .describe(
+        'Restrict search to one Document Hub folder and ALL of its subfolders (e.g. "contracts/2024" also matches "contracts/2024/q1"). Use "/" separators, no leading slash. Exact, hierarchical matching — unlike document_find\'s fuzzy, non-recursive folderPath filter. Retry without folderPath for a broader search if no relevant results are found.',
+      ),
     topK: z
       .number()
       .int()
@@ -204,6 +215,9 @@ WHEN TO USE 'search':
 
 SEARCH STRATEGY — file ID priority:
 When the user's message contains file IDs (e.g. from uploaded attachments), ALWAYS pass those IDs in the 'fileIds' parameter first to search within those specific files. If that returns no relevant results, retry WITHOUT fileIds to perform a broader knowledge base search. This ensures uploaded/referenced files are prioritized while still falling back to the full knowledge base when needed.
+
+SEARCH SCOPING — folder filter:
+When the user asks to search within a specific folder ("search the contracts folder", "only look in Reports/2024"), pass 'folderPath'. It matches that Document Hub folder and all of its subfolders. If the folder-scoped search returns nothing relevant, retry without folderPath.
 
 WHEN TO USE 'retrieve':
 • Reading content of a specific uploaded file (paginated, 10 chunks per call by default)
@@ -476,17 +490,21 @@ RESPONSE (list_indexed):
         };
       }
 
+      const folderPath = normalizeFolderPath(args.folderPath);
+
       const payload = {
         query: args.query,
         file_ids: fileIds,
         top_k: args.topK ?? DEFAULT_TOP_K,
         similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
         include_metadata: true,
+        ...(folderPath ? { folder_path: folderPath } : {}),
       };
 
       debugLog('tool:rag_search requesting search', {
         fileCount: fileIds.length,
         fileIds,
+        folderPath,
       });
 
       try {

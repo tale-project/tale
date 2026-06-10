@@ -250,6 +250,110 @@ class TestScopeFiltering:
         assert vec_args[0][2] == ["doc-1", "doc-2"]
 
 
+class TestFolderPathScope:
+    """Folder-path prefix filtering in the scope clause and search()."""
+
+    def _service(self):
+        from app.services.search_service import RagSearchService
+
+        return RagSearchService(MagicMock(), MagicMock())
+
+    def test_scope_clause_with_folder_path_only(self):
+        service = self._service()
+
+        clause, params = service._build_scope_clause(TEST_ORG, None, 1, folder_path="data-room")
+
+        # Folder filter alone still requires the org-scoped documents subquery.
+        assert "org_slug" in clause
+        assert "SELECT id FROM" in clause
+        assert "file_id" not in clause
+        # Boundary-safe prefix: exact match OR prefix followed by '/'.
+        assert "folder_path = $3" in clause
+        assert "left(folder_path, char_length($3) + 1) = $3 || '/'" in clause
+        assert params == [TEST_ORG, "data-room"]
+
+    def test_scope_clause_with_folder_path_and_file_ids(self):
+        service = self._service()
+
+        clause, params = service._build_scope_clause(TEST_ORG, ["doc-a"], 1, folder_path="data-room")
+
+        assert "ANY($3)" in clause
+        assert "folder_path = $4" in clause
+        assert params == [TEST_ORG, ["doc-a"], "data-room"]
+
+    def test_scope_clause_folder_path_respects_param_offset(self):
+        service = self._service()
+
+        clause, params = service._build_scope_clause(TEST_ORG, ["doc-a"], 3, folder_path="x")
+
+        # org at $4, file_ids at $5, folder_path at $6.
+        assert "$4" in clause
+        assert "ANY($5)" in clause
+        assert "folder_path = $6" in clause
+        assert params == [TEST_ORG, ["doc-a"], "x"]
+
+    def test_scope_clause_without_folder_path_unchanged(self):
+        service = self._service()
+
+        clause, params = service._build_scope_clause(TEST_ORG, None, 1)
+
+        assert "folder_path" not in clause
+        assert params == [TEST_ORG]
+
+    async def test_search_passes_folder_path_to_fts_and_vector(self):
+        service, *_ = _build_service()
+        service._fts_search = AsyncMock(return_value=[])
+        service._vector_search = AsyncMock(return_value=[])
+
+        await service.search(TEST_ORG, "query", file_ids=["doc-1"], folder_path="contracts/2024")
+
+        assert service._fts_search.call_args.kwargs["folder_path"] == "contracts/2024"
+        assert service._vector_search.call_args.kwargs["folder_path"] == "contracts/2024"
+
+    async def test_semantic_cache_bypassed_when_folder_path_set(self):
+        service, *_ = _build_service()
+        service._fts_search = AsyncMock(return_value=[_make_row(1, "hit", "doc-1", 5.0)])
+        service._vector_search = AsyncMock(return_value=[])
+        cache = AsyncMock()
+        cache.lookup = AsyncMock(return_value=None)
+        cache.store = AsyncMock()
+        service._semantic_cache = cache
+
+        results, _usage = await service.search(TEST_ORG, "query", folder_path="contracts")
+
+        assert len(results) == 1
+        cache.lookup.assert_not_awaited()
+        cache.store.assert_not_awaited()
+
+    async def test_semantic_cache_used_without_folder_path(self):
+        service, *_ = _build_service()
+        service._fts_search = AsyncMock(return_value=[_make_row(1, "hit", "doc-1", 5.0)])
+        service._vector_search = AsyncMock(return_value=[])
+        cache = AsyncMock()
+        cache.lookup = AsyncMock(return_value=None)
+        cache.store = AsyncMock()
+        service._semantic_cache = cache
+
+        results, _usage = await service.search(TEST_ORG, "query")
+
+        assert len(results) == 1
+        cache.lookup.assert_awaited_once()
+        cache.store.assert_awaited_once()
+
+    async def test_bm25_fallback_keeps_folder_path(self):
+        vector_rows = [_make_row(1, "vec result", "doc-1", 0.9)]
+        service, *_ = _build_service()
+
+        with patch.object(service, "_fts_search", side_effect=asyncpg.InternalServerError("bm25 index not found")):
+            with patch.object(service, "_vector_search", new_callable=AsyncMock) as mock_vec:
+                mock_vec.return_value = vector_rows
+                with patch.object(service._embedding, "embed_query", return_value=[0.1]):
+                    results, _usage = await service.search(TEST_ORG, "query", folder_path="contracts")
+
+        assert len(results) == 1
+        assert mock_vec.call_args.kwargs["folder_path"] == "contracts"
+
+
 class TestGracefulFallback:
     """Error handling: BM25 not ready, missing tables/columns."""
 

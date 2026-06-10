@@ -2,8 +2,8 @@
 
 BM25 full-text (pg_search) + pgvector similarity with RRF fusion.
 Per-tenant scoping by `org_slug` (always applied), optional further
-restriction by `file_ids`. Optional semantic caching and cross-encoder
-re-ranking.
+restriction by `file_ids` and a hierarchical `folder_path` prefix.
+Optional semantic caching and cross-encoder re-ranking.
 """
 
 from __future__ import annotations
@@ -56,6 +56,7 @@ class RagSearchService:
         query: str,
         *,
         file_ids: list[str] | None = None,
+        folder_path: str | None = None,
         top_k: int = 10,
         similarity_threshold: float = 0.0,
     ) -> tuple[list[dict[str, Any]], EmbeddingUsage]:
@@ -68,6 +69,10 @@ class RagSearchService:
             file_ids: Optional file IDs to further restrict search to. The
                 org filter is independent — file_ids only narrows within
                 the org.
+            folder_path: Optional hierarchical folder prefix filter
+                (normalized, no surrounding slashes). Pure narrowing within
+                the already-authorized file_ids scope — never an
+                authorization boundary.
             top_k: Maximum number of results to return.
             similarity_threshold: Minimum cosine similarity for vector results.
                 Results below this threshold are discarded before RRF merge.
@@ -83,15 +88,21 @@ class RagSearchService:
             t0 = time.time()
             query_result, fts_results = await asyncio.gather(
                 _timed("embed", self._embedding.embed_query_with_usage(query)),
-                _timed("fts", self._fts_search(query, org_slug, file_ids, top_k * 3)),
+                _timed(
+                    "fts",
+                    self._fts_search(query, org_slug, file_ids, top_k * 3, folder_path=folder_path),
+                ),
             )
             query_embedding = query_result.embedding
             usage = query_result.usage
             logger.debug("PERF embed+FTS total: {:.1f}ms", (time.time() - t0) * 1000)
 
             # Semantic cache: check for a cached result before vector search.
-            # Cache is org-scoped — see SemanticCache.lookup.
-            if self._semantic_cache and query_embedding:
+            # Cache is org-scoped — see SemanticCache.lookup. Bypassed (both
+            # lookup and store) for folder-filtered queries: the cache key is
+            # (org_slug, embedding) only, so a folder-scoped query would hit
+            # unfiltered cached results and vice versa.
+            if self._semantic_cache and query_embedding and not folder_path:
                 cache_t0 = time.time()
                 cached = await self._semantic_cache.lookup(
                     org_slug,
@@ -110,7 +121,9 @@ class RagSearchService:
                         logger.warning("Invalid cached response format, performing fresh search")
 
             vec_t0 = time.time()
-            vector_results = await self._vector_search(query_embedding, org_slug, file_ids, top_k * 3)
+            vector_results = await self._vector_search(
+                query_embedding, org_slug, file_ids, top_k * 3, folder_path=folder_path
+            )
             vec_ms = (time.time() - vec_t0) * 1000
             logger.debug("PERF vector search: {:.1f}ms", vec_ms)
 
@@ -177,7 +190,8 @@ class RagSearchService:
             ]
 
             # Semantic cache: store results for future lookups (org-scoped).
-            if self._semantic_cache and query_embedding and results:
+            # Folder-filtered results are never stored — see the lookup bypass.
+            if self._semantic_cache and query_embedding and results and not folder_path:
                 result_file_ids = [r["file_id"] for r in results if r.get("file_id")]
                 await self._semantic_cache.store(
                     org_slug,
@@ -210,7 +224,9 @@ class RagSearchService:
 
                 if query_embedding is None:
                     query_embedding = await self._embedding.embed_query(query)
-                vector_results = await self._vector_search(query_embedding, org_slug, file_ids, top_k)
+                vector_results = await self._vector_search(
+                    query_embedding, org_slug, file_ids, top_k, folder_path=folder_path
+                )
                 results = [
                     {
                         "content": item.get("core_content") or item.get("chunk_content") or "",
@@ -230,27 +246,47 @@ class RagSearchService:
         org_slug: str,
         file_ids: list[str] | None,
         param_offset: int,
+        folder_path: str | None = None,
     ) -> tuple[str, list[Any]]:
-        """Build WHERE clause for per-tenant + optional file scoping.
+        """Build WHERE clause for per-tenant + optional per-document scoping.
 
-        `org_slug` is ALWAYS added as `AND c.org_slug = $N`. When `file_ids`
-        is non-empty, a secondary clause restricts the documents subquery
-        AND is itself org-scoped (defense in depth — even if the outer
-        chunks filter were ever bypassed by a code mistake, the inner
-        documents lookup also has org filter).
+        `org_slug` is ALWAYS added as `AND c.org_slug = $N`. Document-level
+        filters (`file_ids`, `folder_path`) are collected into a condition
+        list applied through a single documents subquery that is itself
+        org-scoped (defense in depth — even if the outer chunks filter were
+        ever bypassed by a code mistake, the inner documents lookup also has
+        the org filter). #1517's generic metadata filters extend the same
+        condition list.
+
+        `folder_path` is a boundary-safe hierarchical prefix: it matches the
+        folder itself and any descendant ('data-room' matches
+        'data-room/contracts' but NOT the sibling 'data-room-x'). The
+        `left()` comparison avoids LIKE-pattern escaping for user-supplied
+        paths; it is not index-sargable, which is acceptable because the
+        subquery is already org- and file_ids-bounded.
         """
         org_param = param_offset + 1
         clause = f" AND c.org_slug = ${org_param}"
         params: list[Any] = [org_slug]
 
+        doc_conditions: list[str] = []
         if file_ids:
-            file_param = param_offset + 2
+            params.append(file_ids)
+            doc_conditions.append(f"file_id = ANY(${param_offset + len(params)})")
+        if folder_path:
+            params.append(folder_path)
+            folder_param = f"${param_offset + len(params)}"
+            doc_conditions.append(
+                f"(folder_path = {folder_param} "
+                f"OR left(folder_path, char_length({folder_param}) + 1) = {folder_param} || '/')"
+            )
+
+        if doc_conditions:
             clause += (
                 f" AND c.document_id IN ("
                 f"SELECT id FROM {SCHEMA}.documents "
-                f"WHERE org_slug = ${org_param} AND file_id = ANY(${file_param}))"
+                f"WHERE org_slug = ${org_param} AND {' AND '.join(doc_conditions)})"
             )
-            params.append(file_ids)
 
         return clause, params
 
@@ -270,8 +306,9 @@ class RagSearchService:
         org_slug: str,
         file_ids: list[str] | None,
         limit: int,
+        folder_path: str | None = None,
     ) -> list[dict[str, Any]]:
-        tenant_clause, tenant_params = self._build_scope_clause(org_slug, file_ids, 1)
+        tenant_clause, tenant_params = self._build_scope_clause(org_slug, file_ids, 1, folder_path=folder_path)
 
         sql = f"""
             SELECT c.id, c.chunk_content, c.core_content, c.chunk_index, c.document_id,
@@ -304,9 +341,10 @@ class RagSearchService:
         org_slug: str,
         file_ids: list[str] | None,
         limit: int,
+        folder_path: str | None = None,
     ) -> list[dict[str, Any]]:
         vec_str = json.dumps(embedding)
-        tenant_clause, tenant_params = self._build_scope_clause(org_slug, file_ids, 1)
+        tenant_clause, tenant_params = self._build_scope_clause(org_slug, file_ids, 1, folder_path=folder_path)
 
         sql = f"""
             SELECT c.id, c.chunk_content, c.core_content, c.chunk_index, c.document_id,
