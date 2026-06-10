@@ -1,6 +1,9 @@
 import { v } from 'convex/values';
 
-import { extractExtension } from '../../lib/shared/file-types';
+import {
+  extractExtension,
+  isRagIndexableFile,
+} from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { checkUploadPolicy } from '../governance/upload_enforcement';
@@ -74,6 +77,14 @@ export const saveFileMetadata = mutation({
       args.contentType.startsWith('audio/') ||
       args.contentType.startsWith('video/');
 
+    // Only queue formats the RAG service can actually index. Force-queueing
+    // anything else (legacy Office .doc/.xls/.ppt, misc text extensions)
+    // earns a deterministic HTTP 400 from RAG and a permanent "Index
+    // failed" badge. Non-indexable files keep ragStatus undefined — the
+    // audio pattern — and stay usable inline in chat.
+    const shouldIndex =
+      !isAudio && isRagIndexableFile(args.fileName, args.contentType);
+
     const now = Date.now();
 
     const existing = await ctx.db
@@ -101,7 +112,7 @@ export const saveFileMetadata = mutation({
       // left at `queued` by a silently-dropped scheduled action would
       // stay stuck forever.
       const needsRagRetry =
-        !isAudio &&
+        shouldIndex &&
         (existing.ragStatus === undefined || existing.ragStatus === 'failed');
       const needsTranscribeRetry =
         isAudio &&
@@ -113,6 +124,20 @@ export const saveFileMetadata = mutation({
         patchData.ragError = undefined;
         patchData.ragProgress = undefined;
         patchData.ragQueuedAt = now;
+      }
+      // A non-indexable re-upload clears RAG state left over from the
+      // pre-allowlist era (rows deterministically failed by RAG's 400),
+      // so the composer stops showing a stale "Index failed" for formats
+      // that were never indexable.
+      if (
+        !isAudio &&
+        !shouldIndex &&
+        (existing.ragStatus === 'failed' || existing.ragStatus === 'queued')
+      ) {
+        patchData.ragStatus = undefined;
+        patchData.ragError = undefined;
+        patchData.ragProgress = undefined;
+        patchData.ragQueuedAt = undefined;
       }
       if (needsTranscribeRetry) {
         patchData.transcriptionStatus = 'queued';
@@ -156,10 +181,12 @@ export const saveFileMetadata = mutation({
       fileName: args.fileName,
       contentType: args.contentType,
       size: args.size,
-      // RAG runs on the primary upload for non-audio; audio's transcript
-      // is indexed to RAG separately after transcription succeeds.
-      ragStatus: isAudio ? undefined : 'queued',
-      ragQueuedAt: isAudio ? undefined : now,
+      // RAG runs on the primary upload for indexable non-audio files;
+      // audio's transcript is indexed to RAG separately after
+      // transcription succeeds, and non-indexable formats are never
+      // queued (RAG would reject them with HTTP 400).
+      ragStatus: shouldIndex ? 'queued' : undefined,
+      ragQueuedAt: shouldIndex ? now : undefined,
       transcriptionStatus: isAudio ? 'queued' : undefined,
       uploadedBy: userId,
       ...(args.documentId !== undefined && { documentId: args.documentId }),
@@ -167,7 +194,7 @@ export const saveFileMetadata = mutation({
       ...(args.threadId !== undefined && { threadId: args.threadId }),
     });
 
-    if (!isAudio) {
+    if (shouldIndex) {
       await ctx.scheduler.runAfter(
         0,
         internal.file_metadata.internal_actions.uploadFileToRag,

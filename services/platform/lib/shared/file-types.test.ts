@@ -4,6 +4,7 @@ import {
   detectMediaMime,
   extractExtension,
   isAllowedDocumentUpload,
+  isRagIndexableFile,
   mimeToExtension,
   resolveFileType,
 } from './file-types';
@@ -374,5 +375,55 @@ describe('mimeToExtension', () => {
   it('handles uppercase MIME types', () => {
     expect(mimeToExtension('IMAGE/JPEG')).toBe('jpg');
     expect(mimeToExtension('Application/PDF')).toBe('pdf');
+  });
+});
+
+describe('isRagIndexableFile', () => {
+  it.each([
+    ['report.pdf', 'application/pdf'],
+    [
+      'report.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    [
+      'sheet.xlsx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ],
+    ['notes.md', 'text/markdown'],
+    ['data.csv', 'text/csv'],
+    ['photo.png', 'image/png'],
+  ])('accepts indexable file %s', (fileName, contentType) => {
+    expect(isRagIndexableFile(fileName, contentType)).toBe(true);
+  });
+
+  it.each([
+    ['legacy.doc', 'application/msword'],
+    ['legacy.xls', 'application/vnd.ms-excel'],
+    ['legacy.ppt', 'application/vnd.ms-powerpoint'],
+    ['.env', 'application/octet-stream'],
+    ['.gitignore', 'text/plain'],
+    ['archive.zip', 'application/zip'],
+  ])('rejects non-indexable file %s', (fileName, contentType) => {
+    expect(isRagIndexableFile(fileName, contentType)).toBe(false);
+  });
+
+  it('falls back to the MIME type when the filename has no extension', () => {
+    // Mirrors ensureExtension in the RAG upload helper, which appends
+    // the canonical extension for the MIME before RAG's gate sees it.
+    expect(isRagIndexableFile('README', 'text/plain')).toBe(true);
+    expect(isRagIndexableFile('export', 'application/pdf')).toBe(true);
+  });
+
+  it('rejects extension-less files with unknown MIME', () => {
+    expect(isRagIndexableFile('README', 'application/octet-stream')).toBe(
+      false,
+    );
+    expect(isRagIndexableFile('blob', '')).toBe(false);
+  });
+
+  it('does not fall back to MIME when the extension is non-indexable', () => {
+    // Extension wins over MIME — a .doc reported as text/plain is still
+    // a .doc to RAG's extension gate.
+    expect(isRagIndexableFile('legacy.doc', 'text/plain')).toBe(false);
   });
 });

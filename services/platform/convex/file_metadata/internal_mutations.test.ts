@@ -147,6 +147,30 @@ describe('saveFileMetadata (internal)', () => {
     expect(ctx.db.insert).not.toHaveBeenCalled();
   });
 
+  it('does not queue RAG for formats the RAG service cannot index', async () => {
+    const { ctx } = createMockCtx(null);
+    const handler = await getSaveHandler();
+
+    await handler(ctx, {
+      ...baseArgs,
+      fileName: 'legacy.xls',
+      contentType: 'application/vnd.ms-excel',
+    });
+
+    expect(ctx.db.insert).toHaveBeenCalledWith(
+      'fileMetadata',
+      expect.objectContaining({
+        ragStatus: undefined,
+        ragQueuedAt: undefined,
+      }),
+    );
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
+      0,
+      'mock',
+      expect.objectContaining({ storageId: 'storage_1' }),
+    );
+  });
+
   it('queries by storageId index', async () => {
     const { ctx, builder } = createMockCtx(null);
     const handler = await getSaveHandler();

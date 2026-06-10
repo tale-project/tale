@@ -296,11 +296,15 @@ export function ChatInput({
                           );
                         }
                         if (ragStatus === 'failed') {
+                          // Surface the stored failure reason (ragError) so
+                          // the user can tell a transient outage from a
+                          // rejected file without digging into logs.
                           return (
                             <Text
                               as="span"
                               variant="caption"
                               className="text-destructive"
+                              title={info?.error}
                             >
                               {tChat('indexingFailed')}
                             </Text>

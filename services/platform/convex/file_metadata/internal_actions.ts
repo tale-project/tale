@@ -65,15 +65,25 @@ export const uploadFileToRag = internalAction({
         },
       );
     } catch (error) {
+      // For upstream HTTP errors, keep the response detail (e.g. FastAPI's
+      // "Unsupported file type: .xls …" or a secret-scanner rejection) —
+      // `bodySnippet` is already truncated and secret-scrubbed by
+      // `sanitizeError`. Without it, a RAG 4xx stores an unactionable
+      // "returned HTTP 400." as the failure reason.
+      const ragError = isUpstreamHttpError(error)
+        ? [error.safeMessage, error.bodySnippet].filter(Boolean).join(' ')
+        : error instanceof Error
+          ? error.message
+          : String(error);
       console.error(
-        `[uploadFileToRag] Failed to upload file ${args.storageId}: ${error instanceof Error ? error.message : String(error)}`,
+        `[uploadFileToRag] Failed to upload file ${args.storageId}: ${ragError}`,
       );
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.updateFileRagStatus,
         {
           storageId: args.storageId,
           ragStatus: 'failed',
-          ragError: error instanceof Error ? error.message : String(error),
+          ragError,
         },
       );
     }

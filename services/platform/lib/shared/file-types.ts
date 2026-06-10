@@ -688,3 +688,124 @@ export function mimeToExtension(mime: string): string | undefined {
   const base = mime.split(';')[0].trim().toLowerCase();
   return MIME_TO_EXTENSION[base];
 }
+
+// ---------------------------------------------------------------------------
+// RAG indexability
+// ---------------------------------------------------------------------------
+
+/**
+ * Extensions (lowercase, no dot) the RAG service can index.
+ *
+ * MUST stay in sync with `SUPPORTED_EXTENSIONS` in
+ * `services/rag/app/routers/documents.py` (which derives from
+ * `tale_knowledge.extraction.router.ALL_SUPPORTED_EXTENSIONS` minus the
+ * deliberately-unindexed `SENSITIVE_EXTENSIONS` like `.log`). Parity is
+ * enforced by `services/rag/tests/test_extension_sync.py` — update both
+ * sides in the same commit.
+ *
+ * The platform accepts more formats than RAG can index (legacy Office
+ * `.doc`/`.xls`/`.ppt`, audio/video, misc text extensions). Those stay
+ * usable inline in chat but must not be queued for indexing — RAG rejects
+ * them with HTTP 400, which used to surface as a permanent "Index failed".
+ */
+export const RAG_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set([
+  // Documents
+  'pdf',
+  'docx',
+  'pptx',
+  'xlsx',
+  // Images
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'bmp',
+  'tiff',
+  'tif',
+  'webp',
+  // Text / markup
+  'txt',
+  'md',
+  'mdx',
+  'rst',
+  'tex',
+  'csv',
+  'tsv',
+  'html',
+  'htm',
+  'css',
+  'scss',
+  'sass',
+  'less',
+  // Data / config
+  'json',
+  'yaml',
+  'yml',
+  'toml',
+  'xml',
+  'ini',
+  'cfg',
+  'conf',
+  'properties',
+  // Code
+  'js',
+  'jsx',
+  'ts',
+  'tsx',
+  'mjs',
+  'cjs',
+  'py',
+  'pyi',
+  'c',
+  'h',
+  'cpp',
+  'hpp',
+  'cc',
+  'cxx',
+  'rs',
+  'go',
+  'swift',
+  'kt',
+  'java',
+  'rb',
+  'php',
+  'pl',
+  'lua',
+  'r',
+  'scala',
+  'groovy',
+  'dart',
+  'ex',
+  'exs',
+  // Shell / scripts
+  'sh',
+  'bash',
+  'zsh',
+  'ps1',
+  'bat',
+  'cmd',
+  // Query / schema
+  'sql',
+  'graphql',
+  'gql',
+  'proto',
+  // Build / project
+  'gradle',
+  'cmake',
+  'lock',
+]);
+
+/**
+ * Whether the RAG service can index this file. Keyed on the filename
+ * extension, falling back to the canonical extension for the MIME type
+ * when the filename has none (mirrors `ensureExtension` in the RAG
+ * upload helper, which applies the same fallback before the service's
+ * extension gate).
+ */
+export function isRagIndexableFile(
+  fileName: string,
+  contentType: string,
+): boolean {
+  const ext = extractExtension(fileName) ?? mimeToExtension(contentType);
+  return ext !== undefined && RAG_INDEXABLE_EXTENSIONS.has(ext);
+}

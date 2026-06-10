@@ -34,7 +34,12 @@ vi.mock('../lib/rate_limiter/helpers', () => ({
 vi.mock('../_generated/api', () => ({
   internal: {
     governance: { retention_cleanup: { runRetentionCleanup: 'mock' } },
-    file_metadata: { internal_actions: { uploadFileToRag: 'mock' } },
+    file_metadata: {
+      internal_actions: {
+        uploadFileToRag: 'mock',
+        extractFileMetadata: 'extract_mock',
+      },
+    },
   },
 }));
 
@@ -220,6 +225,121 @@ describe('saveFileMetadata (public)', () => {
       ragQueuedAt: expect.any(Number),
     });
     expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'mock',
+      expect.objectContaining({ storageId: 'storage_1' }),
+    );
+  });
+
+  it('does not queue RAG for formats the RAG service cannot index', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx(null);
+    const handler = await getHandler();
+
+    await handler(ctx, {
+      ...baseArgs,
+      fileName: 'legacy.doc',
+      contentType: 'application/msword',
+    });
+
+    expect(ctx.db.insert).toHaveBeenCalledWith(
+      'fileMetadata',
+      expect.objectContaining({
+        ragStatus: undefined,
+        ragQueuedAt: undefined,
+      }),
+    );
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
+      0,
+      'mock',
+      expect.objectContaining({ storageId: 'storage_1' }),
+    );
+  });
+
+  it('does not queue RAG for extension-less files with unknown MIME', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx(null);
+    const handler = await getHandler();
+
+    await handler(ctx, {
+      ...baseArgs,
+      fileName: 'README',
+      contentType: 'application/octet-stream',
+    });
+
+    expect(ctx.db.insert).toHaveBeenCalledWith(
+      'fileMetadata',
+      expect.objectContaining({ ragStatus: undefined }),
+    );
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
+      0,
+      'mock',
+      expect.objectContaining({ storageId: 'storage_1' }),
+    );
+  });
+
+  it.each([
+    [
+      'report.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    [
+      'sheet.xlsx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ],
+  ])('queues RAG for indexable office format %s', async (fileName, mime) => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx(null);
+    const handler = await getHandler();
+
+    await handler(ctx, { ...baseArgs, fileName, contentType: mime });
+
+    expect(ctx.db.insert).toHaveBeenCalledWith(
+      'fileMetadata',
+      expect.objectContaining({
+        ragStatus: 'queued',
+        ragQueuedAt: expect.any(Number),
+      }),
+    );
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'mock',
+      expect.objectContaining({ storageId: 'storage_1' }),
+    );
+  });
+
+  it('clears stale failed RAG state on non-indexable re-upload without re-queueing', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const existing = {
+      _id: 'fm_existing',
+      organizationId: 'org_1',
+      storageId: 'storage_1',
+      fileName: 'legacy.doc',
+      contentType: 'application/msword',
+      size: 512,
+      ragStatus: 'failed',
+      ragError: 'RAG /api/v1/documents/upload returned HTTP 400.',
+    };
+    const { ctx } = createMockCtx(existing);
+    const handler = await getHandler();
+
+    await handler(ctx, {
+      ...baseArgs,
+      fileName: 'legacy.doc',
+      contentType: 'application/msword',
+    });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_existing', {
+      fileName: 'legacy.doc',
+      contentType: 'application/msword',
+      size: 1024,
+      uploadedBy: 'user_1',
+      ragStatus: undefined,
+      ragError: undefined,
+      ragProgress: undefined,
+      ragQueuedAt: undefined,
+    });
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
       0,
       'mock',
       expect.objectContaining({ storageId: 'storage_1' }),
