@@ -432,6 +432,12 @@ function MessageBubbleComponent({
   // clause finishes its fade before the controls appear.
   const TOOLBAR_REVEAL_DELAY_MS = 450;
   const [revealDone, setRevealDone] = useState(!isAssistantStreaming);
+  // Whether THIS mount observed the live reveal. A remounted completed
+  // message (chat or branch/version switch) starts done — its toolbar must
+  // render visible WITHOUT replaying the entrance animation, or every switch
+  // re-fades the toolbar block.
+  const sawLiveRevealRef = useRef(isAssistantStreaming);
+  if (isAssistantStreaming) sawLiveRevealRef.current = true;
   const revealDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const handleRevealComplete = useCallback(() => {
     if (revealDelayTimerRef.current) clearTimeout(revealDelayTimerRef.current);
@@ -918,9 +924,15 @@ function MessageBubbleComponent({
             })}
           </div>
         )}
-        {/* Errored turn: only Show Info is useful — collapse the toolbar. */}
+        {/* Errored turn: only Show Info is useful — collapse the toolbar.
+            Entrance animation only on a live transition, not on remount. */}
         {!isUser && !isAssistantStreaming && isErrored && (
-          <div className="animate-content-in flex items-start gap-1 pt-2">
+          <div
+            className={cn(
+              'flex items-start gap-1 pt-2',
+              sawLiveRevealRef.current && 'animate-content-in',
+            )}
+          >
             {infoButton}
           </div>
         )}
@@ -945,7 +957,10 @@ function MessageBubbleComponent({
             <div
               className={cn(
                 isLastAssistantMessage
-                  ? 'animate-toolbar-in'
+                  ? // Entrance animation only when the answer was revealed live
+                    // in this mount — a remounted completed message renders its
+                    // toolbar statically (no re-fade on chat/version switch).
+                    sawLiveRevealRef.current && 'animate-toolbar-in'
                   : 'opacity-0 transition-opacity duration-200 focus-within:opacity-100 pointer-coarse:opacity-100 group-hover/message:opacity-100',
               )}
             >

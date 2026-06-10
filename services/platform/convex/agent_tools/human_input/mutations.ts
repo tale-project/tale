@@ -100,6 +100,16 @@ async function handleSubmission({
       respondedBy,
       timestamp: Date.now(),
     },
+    // An edit supersedes the stored answer — append it to the history so the
+    // card can flip through response versions.
+    ...(isEdit && existingMetadata.response
+      ? {
+          responseHistory: [
+            ...(existingMetadata.responseHistory ?? []),
+            existingMetadata.response,
+          ],
+        }
+      : {}),
   };
 
   await ctx.db.patch(approvalId, {

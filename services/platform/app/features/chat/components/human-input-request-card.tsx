@@ -7,6 +7,8 @@ import { Text } from '@tale/ui/text';
 import {
   ArrowLeft,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   XCircle,
   Loader2,
@@ -16,7 +18,15 @@ import {
   Send,
   Square,
 } from 'lucide-react';
-import { memo, useCallback, useMemo, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -24,9 +34,13 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
+import type {
+  HumanInputRequestMetadata,
+  HumanInputResponse,
+} from '@/lib/shared/schemas/approvals';
 import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/text';
@@ -98,6 +112,66 @@ function HumanInputRequestCardComponent({
     !isWorkflowContext &&
     !wfExecutionId &&
     !!metadata.response;
+
+  // Response versions: every edit appends the superseded answer to
+  // `responseHistory`, so the card can flip through them like message
+  // branches. The current response is always the LAST version; only it can
+  // be edited (older ones are a read-only record).
+  const versions = useMemo<HumanInputResponse[]>(() => {
+    if (!metadata.response) return [];
+    return [...(metadata.responseHistory ?? []), metadata.response];
+  }, [metadata.responseHistory, metadata.response]);
+  // null = latest. Reset when a new version lands (an edit was submitted).
+  const [viewedVersionIdx, setViewedVersionIdx] = useState<number | null>(null);
+  const latestResponseTimestamp = metadata.response?.timestamp;
+  useEffect(() => {
+    setViewedVersionIdx(null);
+  }, [latestResponseTimestamp]);
+  const versionCount = versions.length;
+  const displayedVersionIdx = Math.min(
+    viewedVersionIdx ?? versionCount - 1,
+    versionCount - 1,
+  );
+  const displayedResponse =
+    displayedVersionIdx >= 0 ? versions[displayedVersionIdx] : undefined;
+  const isViewingLatestVersion = displayedVersionIdx === versionCount - 1;
+
+  // Smooth the form ↔ response swap: a hard swap changes the card's height
+  // in one frame and the content below jumps. FLIP the height instead —
+  // capture the outgoing height during render (DOM still shows the old
+  // state), then transition to the new height after commit.
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const swapRef = useRef<HTMLDivElement>(null);
+  const preSwapHeightRef = useRef<number | null>(null);
+  const showForm = status === 'pending' || isEditing;
+  const prevShowFormRef = useRef(showForm);
+  if (prevShowFormRef.current !== showForm) {
+    prevShowFormRef.current = showForm;
+    preSwapHeightRef.current = swapRef.current?.offsetHeight ?? null;
+  }
+  useLayoutEffect(() => {
+    const el = swapRef.current;
+    const from = preSwapHeightRef.current;
+    preSwapHeightRef.current = null;
+    if (!el || from === null || prefersReducedMotion) return undefined;
+    const to = el.offsetHeight;
+    if (from === to) return undefined;
+    el.style.height = `${from}px`;
+    el.style.overflow = 'hidden';
+    el.getBoundingClientRect(); // flush layout so the transition has a start value
+    el.style.transition = 'height 250ms ease';
+    el.style.height = `${to}px`;
+    const finish = () => {
+      el.style.height = '';
+      el.style.overflow = '';
+      el.style.transition = '';
+    };
+    const timer = setTimeout(finish, 300);
+    return () => {
+      clearTimeout(timer);
+      finish();
+    };
+  }, [showForm, prefersReducedMotion]);
 
   const handleCancel = useCallback(async () => {
     if (!wfExecutionId) return;
@@ -295,9 +369,9 @@ function HumanInputRequestCardComponent({
   ]);
 
   const renderResponse = () => {
-    if (!metadata.response) return null;
+    if (!displayedResponse) return null;
 
-    const { value, respondedBy, timestamp } = metadata.response;
+    const { value, respondedBy, timestamp } = displayedResponse;
 
     let displayContent: React.ReactNode;
     if (typeof value === 'string') {
@@ -313,13 +387,13 @@ function HumanInputRequestCardComponent({
             );
           } else {
             displayContent = (
-              <Stack gap={1}>
+              <Stack gap={2}>
                 {Object.entries(parsed).map(([key, val]) => (
-                  <div key={key} className="flex gap-2 text-sm">
-                    <Text as="span" className="text-muted-foreground shrink-0">
+                  <div key={key} className="text-sm">
+                    <Text as="div" className="text-muted-foreground">
                       {key}:
                     </Text>
-                    <Text as="span">
+                    <Text as="div" className="whitespace-pre-wrap">
                       {Array.isArray(val) ? val.join(', ') : String(val)}
                     </Text>
                   </div>
@@ -359,15 +433,56 @@ function HumanInputRequestCardComponent({
             date: formatDate(new Date(timestamp), 'long'),
           })}
         </Text>
-        {canEditResponse && (
-          <button
-            type="button"
-            onClick={handleStartEdit}
-            className="text-muted-foreground hover:text-foreground flex w-fit cursor-pointer items-center gap-1.5 text-xs transition-colors"
-          >
-            <Pencil className="size-3" aria-hidden="true" />
-            {t('editResponse')}
-          </button>
+        {(canEditResponse || versionCount > 1) && (
+          <HStack gap={2} align="center" justify="between">
+            {canEditResponse && isViewingLatestVersion ? (
+              <button
+                type="button"
+                onClick={handleStartEdit}
+                className="text-muted-foreground hover:text-foreground flex w-fit cursor-pointer items-center gap-1.5 text-xs transition-colors"
+              >
+                <Pencil className="size-3" aria-hidden="true" />
+                {t('editResponse')}
+              </button>
+            ) : (
+              <span />
+            )}
+            {versionCount > 1 && (
+              <div className="flex items-center gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  onClick={() =>
+                    setViewedVersionIdx(Math.max(0, displayedVersionIdx - 1))
+                  }
+                  disabled={displayedVersionIdx <= 0}
+                  aria-label={t('versionPrevious')}
+                >
+                  <ChevronLeft className="size-3.5" />
+                </Button>
+                <span className="text-muted-foreground min-w-[3ch] text-center text-xs tabular-nums">
+                  {displayedVersionIdx + 1} / {versionCount}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  onClick={() =>
+                    setViewedVersionIdx(
+                      displayedVersionIdx + 1 >= versionCount - 1
+                        ? null
+                        : displayedVersionIdx + 1,
+                    )
+                  }
+                  disabled={isViewingLatestVersion}
+                  aria-label={t('versionNext')}
+                >
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
+            )}
+          </HStack>
         )}
       </Stack>
     );
@@ -428,67 +543,38 @@ function HumanInputRequestCardComponent({
         )}
       </div>
 
-      {/* Input or Response (editing re-opens the form prefilled) */}
-      {isPending || isEditing ? (
-        <Stack gap={4}>
-          {showFeedback ? (
-            <>
-              <Textarea
-                value={feedbackText}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setFeedbackText(e.target.value)
-                }
-                placeholder={t('pushbackPlaceholder')}
-                aria-label={t('pushback')}
-                className="min-h-[80px] text-sm"
-                disabled={isSubmitting}
-                autoFocus
-              />
-              <HStack gap={2}>
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowFeedback(false)}
+      {/* Input or Response (editing re-opens the form prefilled). The
+          wrapper FLIP-animates the height across the swap — see the layout
+          effect above. */}
+      <div ref={swapRef}>
+        {showForm ? (
+          <Stack gap={4}>
+            {showFeedback ? (
+              <>
+                <Textarea
+                  value={feedbackText}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                    setFeedbackText(e.target.value)
+                  }
+                  placeholder={t('pushbackPlaceholder')}
+                  aria-label={t('pushback')}
+                  className="min-h-[80px] text-sm"
                   disabled={isSubmitting}
-                  className="flex-1"
-                >
-                  <ArrowLeft className="mr-2 size-4" />
-                  {t('backToForm')}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={handleSubmitFeedback}
-                  disabled={isSubmitting || isCancelling}
-                  className="flex-1"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  ) : (
-                    <Send className="mr-2 size-4" />
-                  )}
-                  {t('sendFeedback')}
-                </Button>
-              </HStack>
-            </>
-          ) : (
-            <>
-              <HumanInputFields
-                fields={metadata.fields ?? []}
-                disabled={isSubmitting}
-                formValues={formValues}
-                onFormValuesChange={setFormValues}
-              />
-              {isEditing ? (
+                  autoFocus
+                />
                 <HStack gap={2}>
                   <Button
                     variant="secondary"
-                    onClick={handleCancelEdit}
+                    onClick={() => setShowFeedback(false)}
                     disabled={isSubmitting}
                     className="flex-1"
                   >
-                    {t('cancelEdit')}
+                    <ArrowLeft className="mr-2 size-4" />
+                    {t('backToForm')}
                   </Button>
                   <Button
-                    onClick={handleSubmit}
+                    variant="secondary"
+                    onClick={handleSubmitFeedback}
                     disabled={isSubmitting || isCancelling}
                     className="flex-1"
                   >
@@ -497,47 +583,80 @@ function HumanInputRequestCardComponent({
                     ) : (
                       <Send className="mr-2 size-4" />
                     )}
-                    {t('updateResponse')}
+                    {t('sendFeedback')}
                   </Button>
                 </HStack>
-              ) : (
-                <Button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || isCancelling}
-                  className="w-full"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  ) : (
-                    <Send className="mr-2 size-4" />
-                  )}
-                  {t('submit')}
-                </Button>
-              )}
-              {!isEditing && (
-                <button
-                  type="button"
-                  onClick={() => setShowFeedback(true)}
-                  className="text-muted-foreground hover:text-foreground mt-2 flex cursor-pointer items-center justify-center gap-1.5 text-xs transition-colors"
-                >
-                  <MessageSquareText className="size-3.5" />
-                  {t('pushback')}
-                </button>
-              )}
-            </>
-          )}
+              </>
+            ) : (
+              <>
+                <HumanInputFields
+                  fields={metadata.fields ?? []}
+                  disabled={isSubmitting}
+                  formValues={formValues}
+                  onFormValuesChange={setFormValues}
+                />
+                {isEditing ? (
+                  <HStack gap={2}>
+                    <Button
+                      variant="secondary"
+                      onClick={handleCancelEdit}
+                      disabled={isSubmitting}
+                      className="flex-1"
+                    >
+                      {t('cancelEdit')}
+                    </Button>
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={isSubmitting || isCancelling}
+                      className="flex-1"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                      ) : (
+                        <Send className="mr-2 size-4" />
+                      )}
+                      {t('updateResponse')}
+                    </Button>
+                  </HStack>
+                ) : (
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || isCancelling}
+                    className="w-full"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                    ) : (
+                      <Send className="mr-2 size-4" />
+                    )}
+                    {t('submit')}
+                  </Button>
+                )}
+                {!isEditing && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFeedback(true)}
+                    className="text-muted-foreground hover:text-foreground mt-2 flex cursor-pointer items-center justify-center gap-1.5 text-xs transition-colors"
+                  >
+                    <MessageSquareText className="size-3.5" />
+                    {t('pushback')}
+                  </button>
+                )}
+              </>
+            )}
 
-          {/* Error Message */}
-          {error && (
-            <HStack role="alert" className="text-destructive gap-1.5 text-xs">
-              <XCircle className="size-3.5" aria-hidden="true" />
-              {error}
-            </HStack>
-          )}
-        </Stack>
-      ) : (
-        renderResponse()
-      )}
+            {/* Error Message */}
+            {error && (
+              <HStack role="alert" className="text-destructive gap-1.5 text-xs">
+                <XCircle className="size-3.5" aria-hidden="true" />
+                {error}
+              </HStack>
+            )}
+          </Stack>
+        ) : (
+          renderResponse()
+        )}
+      </div>
 
       {/* Footer: stop workflow link + status badge */}
       {(wfExecutionId && isPending) || !isPending ? (

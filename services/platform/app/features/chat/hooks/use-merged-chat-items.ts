@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 
+import { SYSTEM_MSG_TAG } from '@/lib/shared/constants/system-message-tags';
+
 import type {
   DocumentWriteApproval,
   HumanInputRequest,
@@ -30,6 +32,10 @@ interface UseMergedChatItemsParams {
   workflowUpdateApprovals: WorkflowUpdateApproval[] | undefined;
   workflowRunApprovals: WorkflowRunApproval[] | undefined;
   humanInputRequests: HumanInputRequest[] | undefined;
+  /** Completed/rejected human-input requests — rendered INLINE at their
+   *  chronological slot (after their source message) so an answered request
+   *  stays visible and editable in the history. */
+  resolvedHumanInputRequests?: HumanInputRequest[];
   locationRequests: LocationRequest[] | undefined;
   documentWriteApprovals: DocumentWriteApproval[] | undefined;
 }
@@ -37,6 +43,12 @@ interface UseMergedChatItemsParams {
 export interface MergedChatItemsResult {
   messages: ChatItem[];
   activeApproval: ChatItem | null;
+  /** True when `activeApproval` already renders INLINE in `messages` (human
+   *  input anchored to its source message) — the footer card must then be
+   *  skipped, or the request would show twice. Keeping the active card
+   *  inline gives it ONE stable DOM slot through pending → executing →
+   *  completed, instead of hopping from the footer into the history. */
+  activeApprovalInline: boolean;
 }
 
 function isActiveStatus(status: string) {
@@ -44,9 +56,70 @@ function isActiveStatus(status: string) {
 }
 
 /**
+ * Splice human-input requests (active AND resolved) into the chronologically
+ * sorted message items, each immediately AFTER the message whose id matches
+ * its `messageId` (anchor-to-source: the request must appear under the
+ * assistant turn that asked it, even when later messages carry earlier
+ * client clocks). When at least one card is inserted, the duplicate
+ * `[HUMAN_INPUT_RESPONSE]` pill system messages are dropped — the card shows
+ * the (latest) response itself. Requests whose source message isn't loaded
+ * (pagination) are skipped; they appear once load-more brings the message
+ * in. Pure + exported for unit testing.
+ */
+export function mergeHumanInputItems(
+  messageItems: ChatItem[],
+  requests: HumanInputRequest[],
+  /** Whether the resolved-requests subscription has loaded. Pills are only
+   *  suppressed once it has — suppressing while it's still in flight would
+   *  briefly hide previously answered Q&As (their cards aren't in yet). */
+  suppressPills: boolean,
+): ChatItem[] {
+  if (requests.length === 0) return messageItems;
+
+  const byMessageId = new Map<string, HumanInputRequest[]>();
+  for (const request of requests) {
+    if (!request.messageId) continue;
+    const bucket = byMessageId.get(request.messageId);
+    if (bucket) bucket.push(request);
+    else byMessageId.set(request.messageId, [request]);
+  }
+  for (const bucket of byMessageId.values()) {
+    bucket.sort((a, b) => a._creationTime - b._creationTime);
+  }
+
+  const merged: ChatItem[] = [];
+  let insertedAny = false;
+  for (const item of messageItems) {
+    merged.push(item);
+    if (item.type !== 'message') continue;
+    const bucket = byMessageId.get(item.data.id);
+    if (!bucket) continue;
+    for (const request of bucket) {
+      merged.push({ type: 'human_input_request', data: request });
+      insertedAny = true;
+    }
+  }
+  if (!insertedAny) return messageItems;
+  if (!suppressPills) return merged;
+
+  // The inline card displays the response — the pill would repeat it (and
+  // every edit appends ANOTHER "corrected answer supersedes" pill). Only
+  // suppressed when a card actually rendered, so the pill survives as a
+  // fallback when approval data is missing.
+  return merged.filter(
+    (item) =>
+      item.type !== 'message' ||
+      item.data.role !== 'system' ||
+      !item.data.content.startsWith(SYSTEM_MSG_TAG.HUMAN_INPUT_RESPONSE),
+  );
+}
+
+/**
  * Hook to merge messages with approvals.
  * Messages are returned chronologically.
- * Only the latest active (pending/executing) approval is returned separately — completed/rejected are hidden.
+ * The latest active (pending/executing) approval is returned separately;
+ * resolved human-input requests are merged INLINE after their source message
+ * (other completed/rejected approvals stay hidden).
  */
 export function useMergedChatItems({
   messages,
@@ -55,6 +128,7 @@ export function useMergedChatItems({
   workflowUpdateApprovals,
   workflowRunApprovals,
   humanInputRequests,
+  resolvedHumanInputRequests,
   locationRequests,
   documentWriteApprovals,
 }: UseMergedChatItemsParams): MergedChatItemsResult {
@@ -77,6 +151,26 @@ export function useMergedChatItems({
       const bTime = b.data._creationTime ?? b.data.timestamp.getTime();
       return aTime - bTime;
     });
+
+    // Inline human-input cards — ACTIVE ones too, so the card occupies one
+    // stable DOM slot through pending → executing → completed instead of
+    // hopping from the footer into the history at completion. Resolved rows
+    // whose id is still in the ACTIVE set are skipped (status-flip race
+    // between the two subscriptions) so a request never renders two cards.
+    const activeHumanInputIds = new Set(
+      (humanInputRequests ?? []).map((a) => a._id),
+    );
+    const humanInputToInline = [
+      ...(humanInputRequests ?? []),
+      ...(resolvedHumanInputRequests ?? []).filter(
+        (a) => !activeHumanInputIds.has(a._id),
+      ),
+    ];
+    const itemsWithHumanInput = mergeHumanInputItems(
+      messageItems,
+      humanInputToInline,
+      resolvedHumanInputRequests !== undefined,
+    );
 
     // Collect active approvals (pending/executing only, linked to loaded messages)
     const activeApprovals: ApprovalChatItem[] = [];
@@ -154,7 +248,19 @@ export function useMergedChatItems({
       activeApproval = activeApprovals[0];
     }
 
-    return { messages: messageItems, activeApproval };
+    // Human-input requests anchored to a loaded message render inline (see
+    // above) — the footer must skip them or the card shows twice.
+    const activeApprovalInline =
+      activeApproval !== null &&
+      activeApproval.type === 'human_input_request' &&
+      activeApproval.data.messageId !== undefined &&
+      loadedMessageIds.has(activeApproval.data.messageId);
+
+    return {
+      messages: itemsWithHumanInput,
+      activeApproval,
+      activeApprovalInline,
+    };
   }, [
     messages,
     integrationApprovals,
@@ -162,6 +268,7 @@ export function useMergedChatItems({
     workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
+    resolvedHumanInputRequests,
     locationRequests,
     documentWriteApprovals,
   ]);

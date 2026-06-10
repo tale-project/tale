@@ -432,22 +432,19 @@
    so already-revealed segments never re-fade. Scoped to `.stream-reveal`
    (the streaming half of IncrementalMarkdown) so completed/stable markdown
    renders without any animation. */
-/* Text clauses: a soft de-blur fade, Gemini-style. The opacity leads (mostly
-   visible by mid-animation) while the blur trails off, which reads as the
-   text "condensing" into place rather than blinking in. `filter` (unlike
-   `transform`) applies to inline boxes, so clause spans wrap normally. */
+/* Text clauses: a plain opacity fade with a fast attack (mostly visible by
+   mid-animation) and a soft landing. No `filter: blur` — filters force
+   per-frame repaints of the inline boxes and visibly jank long streams;
+   opacity composites on the GPU. */
 @keyframes stream-segment-in {
   0% {
     opacity: 0;
-    filter: blur(4px);
   }
   55% {
     opacity: 0.85;
-    filter: blur(1.5px);
   }
   100% {
     opacity: 1;
-    filter: blur(0);
   }
 }
 

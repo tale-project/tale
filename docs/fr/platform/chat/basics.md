@@ -23,6 +23,10 @@ Le sélecteur de modèles liste les modèles que l'agent (ou l'organisation, qua
 
 La réponse arrive en streaming token par token. Les appels d'outils s'affichent comme des boîtes pliées que l'utilisateur peut déplier pour lire ce que l'agent a fait ; les sorties de **Run code** atterrissent dans le Canvas à droite. Quand l'agent récupère du savoir, des citations s'attachent aux phrases qu'elles soutiennent — survoler une citation montre le titre de la source ; cliquer ouvre la source. Les instructions de l'agent n'apparaissent jamais dans la réponse rendue ; elles sont une couche en dessous, façonnant le comportement plutôt que le texte.
 
+## Questions de l'agent
+
+Un agent doté de l'outil human input peut s'interrompre en pleine tâche pour te poser une question — une carte **Question** apparaît dans le chat avec les champs dont l'agent a besoin, et la génération attend ta réponse. Remplis le formulaire et clique sur **Soumettre la réponse**, ou clique sur **Répondre différemment** pour répondre en texte libre. La carte répondue reste dans la transcription à l'endroit où la question a été posée, pour que l'échange se relise dans l'ordre. Si ta réponse était fausse ou incomplète, clique sur **Modifier la réponse** sur la carte répondue — le formulaire se rouvre prérempli, et **Mettre à jour la réponse** relance l'agent, la réponse corrigée remplaçant l'ancienne. La carte garde chaque réponse précédente : feuillette les versions avec les flèches à côté de la réponse, comme pour les messages modifiés.
+
 ## Conversations versus chats
 
 À l'intérieur du Chat, l'unité est un **chat** — c'est le mot que chaque bouton et chaque toast utilise. Le modèle de données derrière s'appelle `threads`, et l'URL est `threads/$threadId` ; la doc suit l'UI et dit « chat » dans la prose. L'onglet **Conversations** séparé (un cran plus loin dans la sidebar) est la boîte de réception des canaux clients, pas une liste de chats. Deux sens de « conversation », deux surfaces — voir [Aperçu des conversations](/fr/platform/conversations/overview) pour le sens de boîte de réception.

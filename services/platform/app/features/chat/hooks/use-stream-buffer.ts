@@ -324,9 +324,13 @@ export function useStreamBuffer({
 }: UseStreamBufferOptions): UseStreamBufferResult {
   const prefersReducedMotion = usePrefersReducedMotion();
 
-  // Recover display position from cache on mount (survives remounts)
+  // Initial position: streaming mounts recover from the cache (survives
+  // remounts mid-reveal); non-streaming mounts start FULLY revealed. A
+  // completed message remounting (chat switch, branch/version switch) must
+  // paint whole on its first frame — initializing to 0 and catching up in the
+  // post-paint effect produced a blank frame + pop-in on every remount.
   const [cachedPosition] = useState(() =>
-    isStreaming ? findCachedPosition(text) : 0,
+    isStreaming ? findCachedPosition(text) : text.length,
   );
 
   const [displayLength, setDisplayLength] = useState(cachedPosition);

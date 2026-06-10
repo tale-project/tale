@@ -39,7 +39,11 @@ import {
   useMarkThreadRead,
   useUnarchiveThread,
 } from '../hooks/mutations';
-import { ThreadMessageMetadataProvider, useChatAgents } from '../hooks/queries';
+import {
+  ThreadMessageMetadataProvider,
+  useChatAgents,
+  useResolvedHumanInputRequests,
+} from '../hooks/queries';
 import { useArenaThreadSetup } from '../hooks/use-arena-thread-setup';
 import { useChatScroll } from '../hooks/use-chat-scroll';
 import { useChatVideoLinks } from '../hooks/use-chat-video-links';
@@ -355,14 +359,25 @@ export function ChatInterface({
     documentWriteApprovals,
   } = useThreadApprovals(organizationId, dataThreadId);
 
+  // Resolved human-input requests — rendered inline in the history with the
+  // response + edit affordance (the active subscription above only carries
+  // pending/executing rows).
+  const { requests: resolvedHumanInputRequests } =
+    useResolvedHumanInputRequests(organizationId, dataThreadId);
+
   // Merge messages with approvals and human input requests
-  const { messages: mergedMessages, activeApproval } = useMergedChatItems({
+  const {
+    messages: mergedMessages,
+    activeApproval,
+    activeApprovalInline,
+  } = useMergedChatItems({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
     workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
+    resolvedHumanInputRequests,
     locationRequests,
     documentWriteApprovals,
   });
@@ -469,10 +484,10 @@ export function ChatInterface({
 
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
-  // Scroll state machine: auto-follow (ChatGPT-style), branch-switch
-  // preservation, thread-init scroll, streaming-end intent clear, and
-  // load-more prepend preservation. `scrollIntentRef` is shared with
-  // `useSendMessage` and the edit-and-branch handler below. See hook.
+  // Scroll state machine: send-snap (last user message to the viewport top),
+  // branch-switch preservation, thread-open restore/bottom, streaming-end
+  // intent clear, and load-more prepend preservation. `scrollIntentRef` is
+  // shared with `useSendMessage` and the edit-and-branch handler below.
   const {
     containerRef,
     contentRef,
@@ -487,6 +502,7 @@ export function ChatInterface({
     isLoading,
     isArenaMode,
     pendingEditedMessageId: pendingMessage?.editedMessageId,
+    lastUserMessageRef,
     loadMore,
   });
 
@@ -941,17 +957,9 @@ export function ChatInterface({
 
   return (
     <div
-      ref={containerRef}
       role="region"
       aria-labelledby={chatRegionLabelId}
-      className={cn(
-        'flex h-full min-h-0 flex-1 flex-col',
-        // No `scroll-smooth`: the auto-follow pins to the bottom with explicit
-        // instant scrolls (see useChatScroll). A CSS smooth-behavior would make
-        // every pin animate against the still-settling response slack and land
-        // short. The scroll-to-bottom button opts into smooth explicitly.
-        !showArena && 'overflow-y-auto will-change-transform',
-      )}
+      className="flex h-full min-h-0 flex-1 flex-col"
     >
       <h2 id={chatRegionLabelId} className="sr-only">
         {t('aria.chatRegion')}
@@ -959,104 +967,126 @@ export function ChatInterface({
       {showArena ? (
         <ArenaSplitView organizationId={organizationId} />
       ) : (
+        // Dedicated scroller. The chat input footer is a flex SIBLING below —
+        // never inside the scroll container — so it cannot move with content
+        // (a sticky footer inside the scroller jittered during fast scrolling
+        // and programmatic re-pins).
+        // No `scroll-smooth`: the auto-follow pins to the bottom with explicit
+        // instant scrolls (see useChatScroll). A CSS smooth-behavior would make
+        // every pin animate against the still-settling response slack and land
+        // short. The scroll-to-bottom button opts into smooth explicitly.
         <div
-          ref={contentRef}
-          className={cn(
-            'flex flex-col overflow-y-visible p-4 sm:p-6',
-            showWelcome && 'flex-1 justify-center',
-          )}
+          ref={containerRef}
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto will-change-transform"
         >
-          {showWelcome && (
-            <WelcomeView
-              isAgentLoading={isAgentLoading}
-              agentName={effectiveAgent?.displayName}
-              conversationStarters={effectiveAgent?.conversationStarters}
-              onSuggestionClick={setInputValue}
-            />
-          )}
+          <div
+            ref={contentRef}
+            className={cn(
+              'flex flex-col overflow-y-visible p-4 sm:p-6',
+              showWelcome && 'flex-1 justify-center',
+            )}
+          >
+            {showWelcome && (
+              <WelcomeView
+                isAgentLoading={isAgentLoading}
+                agentName={effectiveAgent?.displayName}
+                conversationStarters={effectiveAgent?.conversationStarters}
+                onSuggestionClick={setInputValue}
+              />
+            )}
 
-          {showExitingSkeleton && (
-            // Arena-exit window: the underlying messages are being rewritten
-            // (verdict='b_better' wipes Thread A and copies B's in), so no real
-            // bubbles exist yet. Reuse the shared message-column skeleton so the
-            // swap into real content doesn't shift the viewport.
-            <ChatMessagesSkeleton />
-          )}
+            {showExitingSkeleton && (
+              // Arena-exit window: the underlying messages are being rewritten
+              // (verdict='b_better' wipes Thread A and copies B's in), so no real
+              // bubbles exist yet. Reuse the shared message-column skeleton so the
+              // swap into real content doesn't shift the viewport.
+              <ChatMessagesSkeleton />
+            )}
 
-          {showMessages && (
-            <ChatMessagesErrorBoundary
-              organizationId={organizationId}
-              threadId={dataThreadId}
-            >
-              {/* One thread-level metadata subscription shared by every bubble
+            {showMessages && (
+              <ChatMessagesErrorBoundary
+                organizationId={organizationId}
+                threadId={dataThreadId}
+              >
+                {/* One thread-level metadata subscription shared by every bubble
                   (collapses N per-message subscriptions into 1). MessageBubble's
                   useMessageMetadata reads from this map, falling back to a
                   per-message query for rows not yet in the batch. */}
-              <ThreadMessageMetadataProvider
-                threadId={dataThreadId ?? null}
-                liveRoute={liveRoute ?? null}
-                generationStartMs={generationStartMs}
-              >
-                <ChatMessages
-                  items={itemsForRender}
-                  threadId={dataThreadId}
-                  organizationId={organizationId}
-                  canLoadMore={canLoadMore}
-                  isLoadingMore={isLoadingMore}
-                  loadMore={handleLoadMore}
-                  isLoading={isLoading}
-                  isSendPending={isSendPending}
-                  isAutoRoute={isAutoRoute}
-                  liveRoute={liveRoute}
+                <ThreadMessageMetadataProvider
+                  threadId={dataThreadId ?? null}
+                  liveRoute={liveRoute ?? null}
                   generationStartMs={generationStartMs}
-                  lastUserMessageRef={lastUserMessageRef}
-                  containerRef={containerRef}
-                  activeApproval={activeApproval}
-                  forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
-                  lastForkedMessageOrder={
-                    forkInfo?.lastForkedMessageOrder ?? undefined
-                  }
-                  forkedAt={forkInfo?.forkedAt ?? undefined}
-                  forkedFromShare={forkInfo?.forkedFromShare}
-                  onHumanInputResponseSubmitted={
-                    handleHumanInputResponseSubmitted
-                  }
-                  onSendFollowUp={
-                    isArchived || readOnly ? undefined : handleSendFollowUp
-                  }
-                  onSendMessage={
-                    isArchived || readOnly ? undefined : handleSendMessageDirect
-                  }
-                  onEditMessage={
-                    isArchived || readOnly ? undefined : handleEditClick
-                  }
-                  onForkAtMessage={
-                    isArchived || readOnly ? undefined : handleForkAtMessage
-                  }
-                  onSavePrompt={handleSavePromptFromMessage}
-                  onUnsavePrompt={handleUnsavePrompt}
-                  savedMessageMap={savedMessageMap}
-                  onRetry={isArchived || readOnly ? undefined : handleRetry}
-                  onRegenerate={
-                    isArchived || readOnly ? undefined : handleRegenerateMessage
-                  }
-                  editingMessageId={
-                    isArchived || readOnly ? undefined : editingMessage?.id
-                  }
-                  editingMessageContent={
-                    isArchived || readOnly ? undefined : editingMessage?.content
-                  }
-                  onEditSubmit={
-                    isArchived || readOnly ? undefined : handleEditSubmit
-                  }
-                  onEditCancel={
-                    isArchived || readOnly ? undefined : handleEditCancel
-                  }
-                  hideFeedback={isArchived}
-                />
-              </ThreadMessageMetadataProvider>
-            </ChatMessagesErrorBoundary>
-          )}
+                >
+                  <ChatMessages
+                    items={itemsForRender}
+                    threadId={dataThreadId}
+                    organizationId={organizationId}
+                    canLoadMore={canLoadMore}
+                    isLoadingMore={isLoadingMore}
+                    loadMore={handleLoadMore}
+                    isLoading={isLoading}
+                    isSendPending={isSendPending}
+                    isAutoRoute={isAutoRoute}
+                    liveRoute={liveRoute}
+                    generationStartMs={generationStartMs}
+                    lastUserMessageRef={lastUserMessageRef}
+                    containerRef={containerRef}
+                    activeApproval={activeApproval}
+                    activeApprovalInline={activeApprovalInline}
+                    forkedMessageCount={
+                      forkInfo?.forkedMessageCount ?? undefined
+                    }
+                    lastForkedMessageOrder={
+                      forkInfo?.lastForkedMessageOrder ?? undefined
+                    }
+                    forkedAt={forkInfo?.forkedAt ?? undefined}
+                    forkedFromShare={forkInfo?.forkedFromShare}
+                    onHumanInputResponseSubmitted={
+                      handleHumanInputResponseSubmitted
+                    }
+                    onSendFollowUp={
+                      isArchived || readOnly ? undefined : handleSendFollowUp
+                    }
+                    onSendMessage={
+                      isArchived || readOnly
+                        ? undefined
+                        : handleSendMessageDirect
+                    }
+                    onEditMessage={
+                      isArchived || readOnly ? undefined : handleEditClick
+                    }
+                    onForkAtMessage={
+                      isArchived || readOnly ? undefined : handleForkAtMessage
+                    }
+                    onSavePrompt={handleSavePromptFromMessage}
+                    onUnsavePrompt={handleUnsavePrompt}
+                    savedMessageMap={savedMessageMap}
+                    onRetry={isArchived || readOnly ? undefined : handleRetry}
+                    onRegenerate={
+                      isArchived || readOnly
+                        ? undefined
+                        : handleRegenerateMessage
+                    }
+                    editingMessageId={
+                      isArchived || readOnly ? undefined : editingMessage?.id
+                    }
+                    editingMessageContent={
+                      isArchived || readOnly
+                        ? undefined
+                        : editingMessage?.content
+                    }
+                    onEditSubmit={
+                      isArchived || readOnly ? undefined : handleEditSubmit
+                    }
+                    onEditCancel={
+                      isArchived || readOnly ? undefined : handleEditCancel
+                    }
+                    hideFeedback={isArchived}
+                  />
+                </ThreadMessageMetadataProvider>
+              </ChatMessagesErrorBoundary>
+            )}
+          </div>
         </div>
       )}
 
@@ -1064,7 +1094,7 @@ export function ChatInterface({
           Portals to <body>, so placement here is just for lifecycle. */}
       {!readOnly && <SelectionQuoteButton containerRef={containerRef} />}
 
-      <PanelFooter className="bg-background/95 mt-auto backdrop-blur-xs">
+      <PanelFooter className="bg-background/95 backdrop-blur-xs">
         <div className="relative mx-auto w-full max-w-(--chat-max-width)">
           <AnimatePresence>
             {showScrollButton && (

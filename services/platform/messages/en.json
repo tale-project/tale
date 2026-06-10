@@ -3372,7 +3372,9 @@
     "backToForm": "Back to form",
     "editResponse": "Edit response",
     "updateResponse": "Update response",
-    "cancelEdit": "Cancel"
+    "cancelEdit": "Cancel",
+    "versionPrevious": "Previous response version",
+    "versionNext": "Next response version"
   },
   "integrationApproval": {
     "approve": "Approve",

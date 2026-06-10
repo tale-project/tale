@@ -23,6 +23,10 @@ Der Modell-Picker listet Modelle, die der Agent (oder die Org, wenn kein Agent g
 
 Die Antwort streamt Token für Token herein. Tool-Aufrufe rendern als eingeklappte Boxen, die der User aufklappen kann, um zu lesen, was der Agent gemacht hat; Ausgaben von **Run code** landen rechts im Canvas. Wenn der Agent Wissen abruft, hängen sich Zitate an die Sätze, die sie stützen — beim Hovern über ein Zitat erscheint der Quelltitel; ein Klick öffnet die Quelle. Die Instructions des Agents erscheinen nie in der gerenderten Antwort; sie sitzen eine Schicht tiefer und formen Verhalten statt Text.
 
+## Fragen vom Agent
+
+Ein Agent mit dem Human-Input-Tool kann mitten in einer Aufgabe innehalten und dich etwas fragen — eine **Frage**-Karte erscheint im Chat mit den Feldern, die der Agent braucht, und die Generierung wartet, bis du antwortest. Fülle das Formular aus und klicke auf **Antwort absenden**, oder klicke auf **Anders antworten**, um stattdessen in freiem Text zu widersprechen. Die beantwortete Karte bleibt an der Stelle im Verlauf, an der die Frage gestellt wurde, sodass sich der Austausch später in der richtigen Reihenfolge liest. War deine Antwort falsch oder unvollständig, klicke auf der beantworteten Karte auf **Antwort bearbeiten** — das Formular öffnet sich vorausgefüllt, und **Antwort aktualisieren** lässt den Agent erneut laufen, wobei die korrigierte Antwort die alte ersetzt. Die Karte behält jede frühere Antwort: Blättere mit den Pfeilen neben der Antwort durch die Versionen, genau wie bei bearbeiteten Nachrichten.
+
 ## Konversationen versus Chats
 
 Innerhalb von Chat ist die Einheit ein **Chat** — das ist das Wort, das jede Schaltfläche und jeder Toast verwendet. Das Datenmodell dahinter heisst `threads`, und der URL-Slug ist `threads/$threadId`; die Docs folgen der UI und sagen „Chat" in der Prosa. Der separate **Conversations**-Tab (einen weiter in der Sidebar) ist die Kundenkanal-Inbox, nicht eine Liste von Chats. Zwei Bedeutungen von „Konversation", zwei Oberflächen — siehe [Conversations-Übersicht](/de/platform/conversations/overview) für die Inbox-Bedeutung.

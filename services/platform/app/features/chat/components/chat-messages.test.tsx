@@ -5,7 +5,11 @@ import type { ChatMessage } from '@/app/features/chat/hooks/use-message-processi
 import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/test/utils/render';
 
-import { ChatMessages, resolveResponseSlackEnabled } from './chat-messages';
+import {
+  ChatMessages,
+  computeSlackPx,
+  resolveResponseSlackEnabled,
+} from './chat-messages';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
@@ -295,5 +299,45 @@ describe('resolveResponseSlackEnabled', () => {
         lastUserMessagePending: false,
       }),
     ).toEqual({ slackEnabled: true, sessionActive: true });
+  });
+});
+
+describe('computeSlackPx', () => {
+  it('fills the viewport below a short user message (minus gap, padding, inset)', () => {
+    expect(
+      computeSlackPx({
+        viewportH: 800,
+        userMsgH: 60,
+        gap: 12,
+        padBottom: 24,
+        topInset: 16,
+      }),
+    ).toBe(800 - 60 - 12 - 24 - 16);
+  });
+
+  it('still grants slack for a tall user message (top-anchor stays reachable)', () => {
+    // No clamp threshold: a 300px message in an 800px viewport gets the
+    // remaining space so the send-snap top-anchor position exists.
+    expect(
+      computeSlackPx({
+        viewportH: 800,
+        userMsgH: 300,
+        gap: 12,
+        padBottom: 24,
+        topInset: 16,
+      }),
+    ).toBe(800 - 300 - 12 - 24 - 16);
+  });
+
+  it('degrades to 0 when the user message exceeds the viewport', () => {
+    expect(
+      computeSlackPx({
+        viewportH: 800,
+        userMsgH: 900,
+        gap: 12,
+        padBottom: 24,
+        topInset: 16,
+      }),
+    ).toBe(0);
   });
 });

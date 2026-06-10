@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  resolveSnapTargetTop,
   resolveStickToBottom,
+  resolveThreadOpenTarget,
   shouldAnimateScrollToBottom,
 } from './use-chat-scroll';
 
@@ -180,5 +182,140 @@ describe('shouldAnimateScrollToBottom', () => {
         prefersReducedMotion: true,
       }),
     ).toBe(false);
+  });
+});
+
+/**
+ * Locks the hold-target resolution — the one place that decides where any
+ * programmatic scroll lands (send-snap, branch preservation, thread restore,
+ * settle re-pins).
+ */
+describe('resolveSnapTargetTop', () => {
+  const geometry = { scrollHeight: 4000, clientHeight: 800 };
+  const maxTop = 3200;
+
+  it("'bottom' resolves to the live bottom", () => {
+    expect(
+      resolveSnapTargetTop({ kind: 'bottom', ...geometry, topInset: 16 }),
+    ).toBe(maxTop);
+  });
+
+  it("'position' clamps into the scrollable range", () => {
+    expect(
+      resolveSnapTargetTop({
+        kind: 'position',
+        top: 1234,
+        ...geometry,
+        topInset: 16,
+      }),
+    ).toBe(1234);
+    expect(
+      resolveSnapTargetTop({
+        kind: 'position',
+        top: 99999,
+        ...geometry,
+        topInset: 16,
+      }),
+    ).toBe(maxTop);
+    expect(
+      resolveSnapTargetTop({
+        kind: 'position',
+        top: -50,
+        ...geometry,
+        topInset: 16,
+      }),
+    ).toBe(0);
+  });
+
+  it("'last-user-top' anchors the message at the inset", () => {
+    expect(
+      resolveSnapTargetTop({
+        kind: 'last-user-top',
+        lastUserTop: 3000,
+        ...geometry,
+        topInset: 16,
+      }),
+    ).toBe(3000 - 16);
+  });
+
+  it("'last-user-top' clamps when the message sits near the end of a short thread", () => {
+    // Anchor minus inset would overshoot the scrollable range (no slack yet).
+    expect(
+      resolveSnapTargetTop({
+        kind: 'last-user-top',
+        lastUserTop: 3950,
+        ...geometry,
+        topInset: 16,
+      }),
+    ).toBe(maxTop);
+  });
+
+  it("'last-user-top' falls back to the bottom when the anchor is missing", () => {
+    expect(
+      resolveSnapTargetTop({
+        kind: 'last-user-top',
+        lastUserTop: undefined,
+        ...geometry,
+        topInset: 16,
+      }),
+    ).toBe(maxTop);
+  });
+});
+
+/**
+ * Locks the thread-open decision: restore the remembered position when the
+ * thread was visited before, otherwise anchor the last user message at the
+ * viewport top (degrading to the bottom via the clamp).
+ */
+describe('resolveThreadOpenTarget', () => {
+  const geometry = {
+    scrollHeight: 4000,
+    clientHeight: 800,
+    lastUserTop: 3000,
+    topInset: 16,
+  };
+
+  it('restores a remembered position, clamped to the current range', () => {
+    expect(resolveThreadOpenTarget({ savedTop: 1500, ...geometry })).toEqual({
+      kind: 'position',
+      top: 1500,
+    });
+    expect(resolveThreadOpenTarget({ savedTop: 99999, ...geometry })).toEqual({
+      kind: 'position',
+      top: 3200,
+    });
+  });
+
+  it('treats a remembered 0 (scrolled to the very top) as a position', () => {
+    expect(resolveThreadOpenTarget({ savedTop: 0, ...geometry })).toEqual({
+      kind: 'position',
+      top: 0,
+    });
+  });
+
+  it('anchors the last user message at the top on first open', () => {
+    expect(
+      resolveThreadOpenTarget({ savedTop: undefined, ...geometry }),
+    ).toEqual({ kind: 'last-user-top', top: 3000 - 16 });
+  });
+
+  it('degrades to the bottom when the anchor cannot reach the top (short reply)', () => {
+    expect(
+      resolveThreadOpenTarget({
+        savedTop: undefined,
+        ...geometry,
+        lastUserTop: 3950,
+      }),
+    ).toEqual({ kind: 'last-user-top', top: 3200 });
+  });
+
+  it('degrades to the bottom when the thread has no user message', () => {
+    expect(
+      resolveThreadOpenTarget({
+        savedTop: undefined,
+        ...geometry,
+        lastUserTop: undefined,
+      }),
+    ).toEqual({ kind: 'last-user-top', top: 3200 });
   });
 });

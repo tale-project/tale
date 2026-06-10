@@ -23,6 +23,7 @@ import { useBranchContext } from '../context/branch-context';
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { usePersonalizationActiveForThread } from '../hooks/use-personalization-active';
 import { VoiceOutputProvider } from '../hooks/voice-output-context';
+import { TOP_INSET } from '../scroll-constants';
 import { hasThoughtSteps } from '../utils/build-thought-timeline';
 import type { RouteReason } from '../utils/route-reason';
 import { ApprovalCardRenderer } from './approval-card-renderer';
@@ -54,25 +55,8 @@ function useVirtualizedMessagesFlag(): boolean {
   return enabled;
 }
 
-/**
- * Compute the response area min-height so that scrolling to bottom
- * positions the last user message at the viewport top.
- *
- * Formula: viewport - footer - userMsg - gap - contentPadding - topInset
- *
- * This matches assistant-ui's ViewportSlack pattern.
- * The topInset ensures the user message has breathing room from the
- * viewport top edge (not flush against the toolbar).
- */
-const TOP_INSET = 16;
-
-/**
- * For short user messages (≤ CLAMP_THRESHOLD): compute min-height so
- * the user message anchors at the viewport top.
- * For tall user messages (> CLAMP_THRESHOLD): return 0 — content flows
- * naturally, no artificial white gap below the message.
- */
-const CLAMP_THRESHOLD = 160; // ~10em
+// TOP_INSET imported from ../scroll-constants — shared with use-chat-scroll
+// so the slack formula and the send-snap target always agree.
 
 /**
  * Native "virtualization-lite": history messages (everything before the
@@ -87,6 +71,27 @@ const CLAMP_THRESHOLD = 160; // ~10em
 const HISTORY_CONTENT_VISIBILITY =
   '[content-visibility:auto] [contain-intrinsic-size:auto_200px]';
 
+/**
+ * Pure slack formula: how tall the response area must be so that scrolling
+ * to the bottom positions the last user message at the viewport top (with
+ * TOP_INSET breathing room). Matches assistant-ui's ViewportSlack pattern.
+ * A user message taller than the viewport naturally yields 0 — its top still
+ * anchors at the viewport top via the send-snap scroll target.
+ * Exported for unit testing.
+ */
+export function computeSlackPx(opts: {
+  viewportH: number;
+  userMsgH: number;
+  gap: number;
+  padBottom: number;
+  topInset: number;
+}): number {
+  return Math.max(
+    0,
+    opts.viewportH - opts.userMsgH - opts.gap - opts.padBottom - opts.topInset,
+  );
+}
+
 function computeResponseMinHeight(
   container: HTMLElement,
   responseArea: HTMLElement,
@@ -94,14 +99,9 @@ function computeResponseMinHeight(
 ): number {
   if (!userMsg) return 0;
 
+  // `container` is the dedicated scroller (the chat input footer is a flex
+  // SIBLING outside it), so clientHeight is exactly the visible viewport.
   const userMsgH = userMsg.getBoundingClientRect().height;
-
-  // Tall user messages: skip min-height — just scroll to bottom naturally.
-  if (userMsgH > CLAMP_THRESHOLD) return 0;
-
-  const footer = container.querySelector('[class*="sticky"]');
-  const footerH =
-    footer instanceof HTMLElement ? footer.getBoundingClientRect().height : 0;
   const flexParent = responseArea.parentElement;
   const gap = flexParent
     ? parseFloat(getComputedStyle(flexParent).gap) || 0
@@ -118,10 +118,13 @@ function computeResponseMinHeight(
     ? parseFloat(getComputedStyle(contentWrapper).paddingBottom) || 0
     : 0;
 
-  return Math.max(
-    0,
-    container.clientHeight - footerH - userMsgH - gap - padBottom - TOP_INSET,
-  );
+  return computeSlackPx({
+    viewportH: container.clientHeight,
+    userMsgH,
+    gap,
+    padBottom,
+    topInset: TOP_INSET,
+  });
 }
 
 /**
@@ -181,6 +184,10 @@ interface ChatMessagesProps {
   lastUserMessageRef: RefObject<HTMLDivElement | null>;
   containerRef: RefObject<HTMLDivElement | null>;
   activeApproval: ChatItem | null;
+  /** True when the active approval already renders INLINE in `items` (human
+   *  input anchored to its source message) — the footer card is skipped so
+   *  the request doesn't show twice. */
+  activeApprovalInline?: boolean;
   forkedMessageCount?: number;
   lastForkedMessageOrder?: number;
   forkedAt?: number;
@@ -234,6 +241,7 @@ export const ChatMessages = memo(function ChatMessages({
   lastUserMessageRef,
   containerRef,
   activeApproval,
+  activeApprovalInline,
   forkedMessageCount,
   lastForkedMessageOrder,
   forkedAt,
@@ -455,9 +463,10 @@ export const ChatMessages = memo(function ChatMessages({
     };
 
     const ro = new ResizeObserver(update);
+    // The chat input footer is a flex sibling OUTSIDE the scroller, so footer
+    // growth (multiline input) shrinks the scroller itself — observing the
+    // container covers it.
     ro.observe(container);
-    const footer = container.querySelector('[class*="sticky"]');
-    if (footer instanceof HTMLElement) ro.observe(footer);
 
     return () => {
       ro.disconnect();
@@ -530,7 +539,26 @@ export const ChatMessages = memo(function ChatMessages({
   }, [branches, activeBranchThreadId]);
 
   const renderMessage = (item: ChatItem, isHistory: boolean) => {
-    if (item.type !== 'message') return null;
+    if (item.type !== 'message') {
+      // Inline approval card (resolved human-input requests, merged into the
+      // flow by useMergedChatItems). The data-message-key keeps load-more
+      // prepend anchoring working across these rows.
+      const approvalKey = `approval-${item.data._id}`;
+      return (
+        <div
+          key={approvalKey}
+          data-message-key={approvalKey}
+          className={cn(isHistory && HISTORY_CONTENT_VISIBILITY)}
+        >
+          <ApprovalCardRenderer
+            item={item}
+            organizationId={organizationId}
+            onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+            onSendMessage={onSendMessage}
+          />
+        </div>
+      );
+    }
 
     const message = item.data;
 
@@ -873,14 +901,15 @@ export const ChatMessages = memo(function ChatMessages({
   // the card's initial pending body is announced. In the virtualized path the
   // card renders bare (root log has no aria-live), so its pending body is not
   // auto-announced; an accepted limitation of the experimental windowed path.
-  const responseFooterStatic = activeApproval ? (
-    <ApprovalCardRenderer
-      item={activeApproval}
-      organizationId={organizationId}
-      onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
-      onSendMessage={onSendMessage}
-    />
-  ) : null;
+  const responseFooterStatic =
+    activeApproval && !activeApprovalInline ? (
+      <ApprovalCardRenderer
+        item={activeApproval}
+        organizationId={organizationId}
+        onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+        onSendMessage={onSendMessage}
+      />
+    ) : null;
 
   // Single VoiceOutputProvider wraps BOTH render paths (below) so voice-output
   // state has one lifecycle per ChatMessages instance — previously each branch

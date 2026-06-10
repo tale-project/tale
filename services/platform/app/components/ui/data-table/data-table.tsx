@@ -88,6 +88,15 @@ interface ColumnMeta {
   };
   align?: 'left' | 'center' | 'right';
   /**
+   * Opt this column in as the table's flex column (the one whose width is
+   * left `auto` so it absorbs the container slack). Without it the FIRST
+   * non-utility column flexes — right for name-first tables, wrong when a
+   * long prose column (e.g. a description) should soak up the space instead.
+   * Its declared `size` still counts toward the table's min-width floor, so
+   * keep that size at the column's readable minimum.
+   */
+  flex?: boolean;
+  /**
    * Extra classes applied to this column's header AND body cells (and the
    * matching skeleton cell). Use responsive utilities like `hidden md:table-cell`
    * to drop low-priority columns on small screens.
@@ -492,13 +501,21 @@ export function DataTable<TData, TValue = unknown>({
   //   • makes the table fill the container without a runaway column or
   //     trailing columns scrolling off-screen (the primary column soaks up the
   //     leftover instead of every column inflating).
-  const flexColumnId = table.getVisibleLeafColumns().find(
-    (column) =>
-      !isUtilityCol(
-        column.id,
+  const visibleLeafColumns = table.getVisibleLeafColumns();
+  const flexColumnId = (
+    visibleLeafColumns.find(
+      (column) =>
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
-        (column.columnDef.meta as ColumnMeta | undefined)?.isAction,
-      ),
+        (column.columnDef.meta as ColumnMeta | undefined)?.flex,
+    ) ??
+    visibleLeafColumns.find(
+      (column) =>
+        !isUtilityCol(
+          column.id,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+          (column.columnDef.meta as ColumnMeta | undefined)?.isAction,
+        ),
+    )
   )?.id;
 
   const cellWidthStyle = (

@@ -51,12 +51,17 @@ const humanInputResponseSchema = z.object({
   timestamp: z.number(),
 });
 
+export type HumanInputResponse = z.infer<typeof humanInputResponseSchema>;
+
 export const humanInputRequestMetadataSchema = z.object({
   question: z.string(),
   context: z.string().optional(),
   fields: z.array(humanInputFieldSchema).min(1),
   requestedAt: z.number(),
   response: humanInputResponseSchema.optional(),
+  /** Superseded answers, oldest first — appended on each edit so the card
+   *  can flip through response versions. */
+  responseHistory: z.array(humanInputResponseSchema).optional(),
 });
 
 export type HumanInputField = z.infer<typeof humanInputFieldSchema>;

@@ -493,6 +493,24 @@ export function IncrementalMarkdown({
     [components],
   );
 
+  // Fully revealed AND settled (not streaming/draining): render EVERYTHING
+  // through StableMarkdown — no `.stream-reveal` wrapper, no `.stream-seg`
+  // spans. Without this, the last block always sat in StreamingMarkdown with
+  // its animation markup, so every remount of a completed message (chat
+  // switch, branch/version switch) replayed the mount fade. Gate on the
+  // `aria-busy` prop (isStreaming || isDraining from the caller), not
+  // internal drain state, so the streaming half keeps rendering until the
+  // final reveal tick lands.
+  if (revealPosition >= content.length && ariaBusy !== true) {
+    return (
+      <div className={className} aria-busy={false}>
+        {content && (
+          <StableMarkdown content={content} components={stableMerged} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={className} aria-busy={ariaBusy}>
       {stableContent && (

@@ -141,19 +141,25 @@ export function useSkillsTableConfig({
             ) : null}
           </Stack>
         ),
-        size: 220,
+        size: 200,
       },
       {
         id: 'description',
         header: t('skills.columns.description', {
           defaultValue: 'Description',
         }),
+        // The description flexes (absorbs the container slack) instead of the
+        // name column, and its `size` is only the readable minimum — this
+        // table also renders inside the agent form's NARROW content column,
+        // where the previous 400px floor forced horizontal overflow and the
+        // text looked cut off at the container edge.
+        meta: { flex: true },
         cell: ({ row }) => (
           <Text as="span" variant="muted" className="line-clamp-2">
             {row.original.description}
           </Text>
         ),
-        size: 400,
+        size: 200,
       },
       ...(bindingMode
         ? []

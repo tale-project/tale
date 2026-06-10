@@ -328,6 +328,43 @@ export function useHumanInputRequests(
   };
 }
 
+/**
+ * Resolved (completed/rejected) human-input requests for the thread. The
+ * active-approvals subscription only carries pending/executing rows;
+ * `useMergedChatItems` splices these into the message flow so an answered
+ * request stays visible — and editable — inline in the history.
+ */
+export function useResolvedHumanInputRequests(
+  organizationId: string,
+  threadId: string | undefined,
+) {
+  const { data, isLoading } = useConvexQuery(
+    api.approvals.queries.listResolvedHumanInputRequestsByThread,
+    threadId ? { organizationId, threadId } : 'skip',
+  );
+
+  // `undefined` while the subscription is in flight — consumers use that to
+  // hold off pill suppression until the cards are actually available.
+  const requests = useMemo((): HumanInputRequest[] | undefined => {
+    if (!data) return undefined;
+    return data
+      .filter((a) => a.metadata !== undefined)
+      .map((a) => ({
+        _id: toId<'approvals'>(a._id),
+        status: a.status,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Metadata shape is guaranteed by the query's resourceType filter
+        metadata: a.metadata as unknown as HumanInputRequestMetadata,
+        _creationTime: a._creationTime,
+        messageId: a.messageId,
+        wfExecutionId: a.wfExecutionId
+          ? toId<'wfExecutions'>(a.wfExecutionId)
+          : undefined,
+      }));
+  }, [data]);
+
+  return { requests, isLoading };
+}
+
 export interface LocationRequest {
   _id: Id<'approvals'>;
   status: 'pending' | 'executing' | 'completed' | 'rejected';

@@ -107,6 +107,43 @@ describe('useStreamBuffer', () => {
       expect(result.current.displayLength).toBe(0);
       expect(result.current.progress).toBe(1);
     });
+
+    it('is fully revealed on the FIRST render, before effects (no blank frame)', () => {
+      // A completed message remounting (chat switch, branch/version switch)
+      // must paint whole on its very first frame. Capture the render-phase
+      // value — renderHook's result only reflects the post-effect state.
+      const text =
+        'A completed message that remounts on chat or branch switch.';
+      const renderPhaseLengths: number[] = [];
+      renderHook(() => {
+        const res = useStreamBuffer({ text, isStreaming: false });
+        renderPhaseLengths.push(res.displayLength);
+        return res;
+      });
+
+      expect(renderPhaseLengths[0]).toBe(text.length);
+    });
+
+    it('continues reveal from the mounted length when streaming starts later', () => {
+      // Non-streaming mount (fully revealed), then late chunks arrive and
+      // isStreaming flips true with longer text: the reveal must continue
+      // from the existing position, not restart at 0.
+      const initial = 'Initial complete text, already shown in full.';
+      const extended = `${initial} And now a late continuation arrives, with more clauses.`;
+      const { result, rerender } = renderHook(
+        ({ text, isStreaming }) => useStreamBuffer({ text, isStreaming }),
+        { initialProps: { text: initial, isStreaming: false } },
+      );
+
+      expect(result.current.displayLength).toBe(initial.length);
+
+      rerender({ text: extended, isStreaming: true });
+      act(() => advanceFrames(5));
+
+      expect(result.current.displayLength).toBeGreaterThanOrEqual(
+        initial.length,
+      );
+    });
   });
 
   describe('initial buffering', () => {

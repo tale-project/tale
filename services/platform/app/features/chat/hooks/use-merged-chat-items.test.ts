@@ -188,3 +188,187 @@ describe('useMergedChatItems', () => {
     expect(getMessageId(result.current.messages[1])).toBe('m2');
   });
 });
+
+describe('useMergedChatItems — inline resolved human-input requests', () => {
+  function makePill(id: string, creationTime: number): ChatMessage {
+    return {
+      id,
+      key: id,
+      content: '[HUMAN_INPUT_RESPONSE] My answer',
+      role: 'system',
+      timestamp: new Date(creationTime),
+      _creationTime: creationTime,
+      systemMessageDisplay: 'pill',
+      systemMessageBody: 'My answer',
+    };
+  }
+
+  const baseMessages = [
+    makeMessage('m1', 1000),
+    makeMessage('m2', 2000, 'assistant'),
+    makeMessage('m3', 3000),
+  ];
+
+  it('splices a completed request immediately after its source message', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        resolvedHumanInputRequests: [
+          makeApproval('h1', 'completed', 'm2', 2500) as never,
+        ],
+      }),
+    );
+    const kinds = result.current.messages.map((i) =>
+      i.type === 'message' ? i.data.id : `card:${i.data._id}`,
+    );
+    expect(kinds).toEqual(['m1', 'm2', 'card:h1', 'm3']);
+    expect(result.current.activeApproval).toBeNull();
+  });
+
+  it('includes rejected requests inline', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        resolvedHumanInputRequests: [
+          makeApproval('h1', 'rejected', 'm2', 2500) as never,
+        ],
+      }),
+    );
+    expect(
+      result.current.messages.some(
+        (i) => i.type === 'human_input_request' && i.data._id === 'h1',
+      ),
+    ).toBe(true);
+  });
+
+  it('orders multiple requests under one message by creation time', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        resolvedHumanInputRequests: [
+          makeApproval('h2', 'completed', 'm2', 2600) as never,
+          makeApproval('h1', 'completed', 'm2', 2500) as never,
+        ],
+      }),
+    );
+    const kinds = result.current.messages.map((i) =>
+      i.type === 'message' ? i.data.id : `card:${i.data._id}`,
+    );
+    expect(kinds).toEqual(['m1', 'm2', 'card:h1', 'card:h2', 'm3']);
+  });
+
+  it('drops requests whose source message is not loaded (pagination)', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        resolvedHumanInputRequests: [
+          makeApproval('h1', 'completed', 'older-msg', 500) as never,
+        ],
+      }),
+    );
+    expect(result.current.messages.every((i) => i.type === 'message')).toBe(
+      true,
+    );
+  });
+
+  it('never renders two cards for one request during the status-flip race', () => {
+    // The same approval id appears in BOTH subscriptions for a moment when
+    // pending flips to completed — the ACTIVE row wins and renders exactly
+    // one inline card (active human input is inlined too, so the card keeps
+    // one stable DOM slot through pending → executing → completed).
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        humanInputRequests: [
+          makeApproval('h1', 'executing', 'm2', 2500) as never,
+        ],
+        resolvedHumanInputRequests: [
+          makeApproval('h1', 'completed', 'm2', 2500) as never,
+        ],
+      }),
+    );
+    const inlineCards = result.current.messages.filter(
+      (i) => i.type === 'human_input_request',
+    );
+    expect(inlineCards).toHaveLength(1);
+    expect(
+      inlineCards[0].type === 'human_input_request' &&
+        inlineCards[0].data.status,
+    ).toBe('executing');
+    expect(getApprovalId(result.current.activeApproval)).toBe('h1');
+    expect(result.current.activeApprovalInline).toBe(true);
+  });
+
+  it('renders the active (pending) request inline and flags the footer skip', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        humanInputRequests: [
+          makeApproval('h1', 'pending', 'm2', 2500) as never,
+        ],
+      }),
+    );
+    const kinds = result.current.messages.map((i) =>
+      i.type === 'message' ? i.data.id : `card:${i.data._id}`,
+    );
+    expect(kinds).toEqual(['m1', 'm2', 'card:h1', 'm3']);
+    expect(result.current.activeApprovalInline).toBe(true);
+  });
+
+  it('does NOT flag inline when the active approval is not human input', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        integrationApprovals: [
+          makeApproval('a1', 'pending', 'm2', 2500) as never,
+        ],
+      }),
+    );
+    expect(result.current.activeApprovalInline).toBe(false);
+    expect(getApprovalId(result.current.activeApproval)).toBe('a1');
+  });
+
+  it('suppresses [HUMAN_INPUT_RESPONSE] pills when a card is inserted', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: [...baseMessages, makePill('p1', 2600)],
+        resolvedHumanInputRequests: [
+          makeApproval('h1', 'completed', 'm2', 2500) as never,
+        ],
+      }),
+    );
+    expect(
+      result.current.messages.some(
+        (i) => i.type === 'message' && i.data.id === 'p1',
+      ),
+    ).toBe(false);
+    expect(
+      result.current.messages.some(
+        (i) => i.type === 'human_input_request' && i.data._id === 'h1',
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps the pill as a fallback when no card was inserted', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: [...baseMessages, makePill('p1', 2600)],
+        resolvedHumanInputRequests: [],
+      }),
+    );
+    expect(
+      result.current.messages.some(
+        (i) => i.type === 'message' && i.data.id === 'p1',
+      ),
+    ).toBe(true);
+  });
+});

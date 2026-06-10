@@ -187,6 +187,10 @@ export const chatWithAgentTurn = mutation({
       updatedAt: Date.now(),
       cancelledAt: undefined,
       cancelledMessageId: undefined,
+      // Clear any prior turn's live route so the UI never flashes a stale
+      // "Routed to X" while this turn is still routing (mirrors
+      // threads/internal_mutations:markGenerating).
+      liveRoute: undefined,
       ...(isAuto ? {} : { agentSlug: args.agentSlug }),
     });
 

@@ -137,6 +137,29 @@ export const runChatTurnGeneration = internalAction({
         );
         resolvedAgentSlug = resolved.agentSlug;
         autoRouteReason = resolved.reason;
+
+        // Broadcast the resolved route the instant routing settles so the
+        // client's thinking timeline flips "Routing…" → "Routed to X" BEFORE
+        // generation starts (it rides the existing getThreadMeta
+        // subscription). Without this the timeline only learns the route from
+        // the assistant message's metadata, i.e. after the answer has already
+        // started streaming. Fire-and-forget + best-effort — never blocks the
+        // first-token path. (Prewarm turns never carry the Auto slug, so this
+        // can't fire for an invisible prewarm.)
+        if (autoRouteReason) {
+          void ctx
+            .runMutation(internal.threads.internal_mutations.setLiveRoute, {
+              threadId: args.threadId,
+              agentSlug: resolvedAgentSlug,
+              reason: autoRouteReason,
+            })
+            .catch((err: unknown) =>
+              console.warn(
+                '[runChatTurnGeneration] setLiveRoute broadcast failed:',
+                err instanceof Error ? err.message : err,
+              ),
+            );
+        }
       }
 
       // (Project access was validated synchronously in the chatWithAgentTurn

@@ -358,172 +358,178 @@ export function ConversationPanel({
   // loaded the real ConversationHeader / Message / composer render in place.
   return (
     <Skeletonize loading={isLoading}>
-      <div
-        ref={containerRef}
-        className="relative flex flex-[1_1_0] flex-col overflow-y-auto"
-      >
-        <div className="bg-background sticky top-0 z-20">
-          {conversation ? (
-            <ConversationHeader
-              conversation={conversation}
-              organizationId={conversation.organizationId}
-              onResolve={() => {
-                onSelectedConversationChange(null);
-              }}
-              onReopen={() => {
-                onSelectedConversationChange(null);
-              }}
-              onBack={() => {
-                onSelectedConversationChange(null);
-              }}
-            />
-          ) : (
-            <div className="border-border flex flex-col gap-3 border-b p-4 sm:px-6 sm:py-4">
-              <div className="flex items-center justify-between gap-4">
-                <SkeletonBox>
-                  <div className="h-5 w-64 max-w-full" />
-                </SkeletonBox>
-                <SkeletonBox>
-                  <div className="size-7 shrink-0 rounded-md" />
-                </SkeletonBox>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <SkeletonBox>
-                  <div className="size-8 shrink-0 rounded-full" />
-                </SkeletonBox>
-                <VStack className="gap-1">
+      {/* The composer/banner footer is a flex SIBLING of the scroller — never
+          inside the scroll container — so it cannot move with content. */}
+      <div className="relative flex min-h-0 flex-[1_1_0] flex-col">
+        <div
+          ref={containerRef}
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+        >
+          <div className="bg-background sticky top-0 z-20">
+            {conversation ? (
+              <ConversationHeader
+                conversation={conversation}
+                organizationId={conversation.organizationId}
+                onResolve={() => {
+                  onSelectedConversationChange(null);
+                }}
+                onReopen={() => {
+                  onSelectedConversationChange(null);
+                }}
+                onBack={() => {
+                  onSelectedConversationChange(null);
+                }}
+              />
+            ) : (
+              <div className="border-border flex flex-col gap-3 border-b p-4 sm:px-6 sm:py-4">
+                <div className="flex items-center justify-between gap-4">
                   <SkeletonBox>
-                    <div className="h-3.5 w-28" />
+                    <div className="h-5 w-64 max-w-full" />
                   </SkeletonBox>
                   <SkeletonBox>
-                    <div className="h-3 w-44" />
-                  </SkeletonBox>
-                </VStack>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
-          {!conversation ? (
-            <>
-              <div className="mb-4 py-2">
-                <div className="flex justify-center">
-                  <SkeletonBox>
-                    <div className="h-5 w-24 rounded-full" />
+                    <div className="size-7 shrink-0 rounded-md" />
                   </SkeletonBox>
                 </div>
+                <div className="flex items-center gap-2.5">
+                  <SkeletonBox>
+                    <div className="size-8 shrink-0 rounded-full" />
+                  </SkeletonBox>
+                  <VStack className="gap-1">
+                    <SkeletonBox>
+                      <div className="h-3.5 w-28" />
+                    </SkeletonBox>
+                    <SkeletonBox>
+                      <div className="h-3 w-44" />
+                    </SkeletonBox>
+                  </VStack>
+                </div>
               </div>
-              <VStack gap={4} className="mb-8">
-                {PLACEHOLDER_MESSAGE_BUBBLES.map((row, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'flex',
-                      row.align === 'start' ? 'justify-start' : 'justify-end',
-                    )}
-                  >
-                    <div className="relative">
-                      <SkeletonBox>
-                        <div
-                          className={cn(
-                            'mb-2 rounded-2xl',
-                            row.bubbleClassName,
-                          )}
-                        />
-                      </SkeletonBox>
-                      {row.withTimestamp && (
-                        <SkeletonBox>
-                          <div className="h-3 w-20" />
-                        </SkeletonBox>
-                      )}
-                    </div>
+            )}
+          </div>
+          <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
+            {!conversation ? (
+              <>
+                <div className="mb-4 py-2">
+                  <div className="flex justify-center">
+                    <SkeletonBox>
+                      <div className="h-5 w-24 rounded-full" />
+                    </SkeletonBox>
                   </div>
-                ))}
-              </VStack>
-            </>
-          ) : messageGroups.length === 0 ? (
-            <Center className="h-full">
-              <Text variant="muted">{tConversations('panel.noMessages')}</Text>
-            </Center>
-          ) : (
-            <>
-              {showCollapse && (
-                <div className="flex justify-center py-3">
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-foreground text-sm underline-offset-2 hover:underline"
-                    onClick={() => setIsThreadCollapsed(false)}
-                  >
-                    {tConversations('panel.showEarlierMessages', {
-                      count: collapsedHiddenCount,
-                    })}
-                  </button>
                 </div>
-              )}
-              {messageGroups.map((group, groupIndex) => {
-                const isLastGroup = groupIndex === messageGroups.length - 1;
-                const messagesToShow =
-                  showCollapse && isLastGroup
-                    ? group.messages.slice(-2)
-                    : showCollapse && !isLastGroup
-                      ? []
-                      : group.messages;
-
-                if (messagesToShow.length === 0) return null;
-
-                return (
-                  <div key={group.date} className="relative">
-                    {/* Sticky Date Header */}
-                    <div className="z-10 mb-4 py-2">
-                      <div className="flex justify-center">
-                        <div className="bg-background border-border rounded-full border px-2 py-0.5 shadow-sm">
-                          <Text
-                            as="span"
-                            variant="label-sm"
-                            className="text-primary"
-                          >
-                            {formatDateHeader(group.date)}
-                          </Text>
-                        </div>
+                <VStack gap={4} className="mb-8">
+                  {PLACEHOLDER_MESSAGE_BUBBLES.map((row, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        'flex',
+                        row.align === 'start' ? 'justify-start' : 'justify-end',
+                      )}
+                    >
+                      <div className="relative">
+                        <SkeletonBox>
+                          <div
+                            className={cn(
+                              'mb-2 rounded-2xl',
+                              row.bubbleClassName,
+                            )}
+                          />
+                        </SkeletonBox>
+                        {row.withTimestamp && (
+                          <SkeletonBox>
+                            <div className="h-3 w-20" />
+                          </SkeletonBox>
+                        )}
                       </div>
                     </div>
-
-                    {/* Messages for this date */}
-                    <Stack gap={4} className="mb-8">
-                      {messagesToShow.map((message) => (
-                        <Message
-                          key={message.id}
-                          message={message}
-                          onDownloadAttachments={(messageId) => {
-                            downloadAttachments(
-                              {
-                                messageId:
-                                  toId<'conversationMessages'>(messageId),
-                              },
-                              {
-                                onError: (error) => {
-                                  console.error(
-                                    'Failed to download attachments:',
-                                    error,
-                                  );
-                                  toast({
-                                    title: tConversations(
-                                      'panel.downloadFailed',
-                                    ),
-                                    variant: 'destructive',
-                                  });
-                                },
-                              },
-                            );
-                          }}
-                        />
-                      ))}
-                    </Stack>
+                  ))}
+                </VStack>
+              </>
+            ) : messageGroups.length === 0 ? (
+              <Center className="h-full">
+                <Text variant="muted">
+                  {tConversations('panel.noMessages')}
+                </Text>
+              </Center>
+            ) : (
+              <>
+                {showCollapse && (
+                  <div className="flex justify-center py-3">
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground text-sm underline-offset-2 hover:underline"
+                      onClick={() => setIsThreadCollapsed(false)}
+                    >
+                      {tConversations('panel.showEarlierMessages', {
+                        count: collapsedHiddenCount,
+                      })}
+                    </button>
                   </div>
-                );
-              })}
-            </>
-          )}
+                )}
+                {messageGroups.map((group, groupIndex) => {
+                  const isLastGroup = groupIndex === messageGroups.length - 1;
+                  const messagesToShow =
+                    showCollapse && isLastGroup
+                      ? group.messages.slice(-2)
+                      : showCollapse && !isLastGroup
+                        ? []
+                        : group.messages;
+
+                  if (messagesToShow.length === 0) return null;
+
+                  return (
+                    <div key={group.date} className="relative">
+                      {/* Sticky Date Header */}
+                      <div className="z-10 mb-4 py-2">
+                        <div className="flex justify-center">
+                          <div className="bg-background border-border rounded-full border px-2 py-0.5 shadow-sm">
+                            <Text
+                              as="span"
+                              variant="label-sm"
+                              className="text-primary"
+                            >
+                              {formatDateHeader(group.date)}
+                            </Text>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Messages for this date */}
+                      <Stack gap={4} className="mb-8">
+                        {messagesToShow.map((message) => (
+                          <Message
+                            key={message.id}
+                            message={message}
+                            onDownloadAttachments={(messageId) => {
+                              downloadAttachments(
+                                {
+                                  messageId:
+                                    toId<'conversationMessages'>(messageId),
+                                },
+                                {
+                                  onError: (error) => {
+                                    console.error(
+                                      'Failed to download attachments:',
+                                      error,
+                                    );
+                                    toast({
+                                      title: tConversations(
+                                        'panel.downloadFailed',
+                                      ),
+                                      variant: 'destructive',
+                                    });
+                                  },
+                                },
+                              );
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
         </div>
         {!conversation ? (
           isInactiveTab ? (

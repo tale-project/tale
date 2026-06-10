@@ -3373,7 +3373,9 @@
     "backToForm": "Retour au formulaire",
     "editResponse": "Modifier la réponse",
     "updateResponse": "Mettre à jour la réponse",
-    "cancelEdit": "Annuler"
+    "cancelEdit": "Annuler",
+    "versionPrevious": "Version de réponse précédente",
+    "versionNext": "Version de réponse suivante"
   },
   "integrationApproval": {
     "approve": "Approuver",

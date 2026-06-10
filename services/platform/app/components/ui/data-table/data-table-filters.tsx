@@ -19,19 +19,24 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
+// `flex` on the wrapper: the masked box is `inline-block`, so a block wrapper
+// would add baseline whitespace below it (~6px) and the filter bar would
+// shrink when the real picker swaps in — a visible bump on first navigation.
+const datePickerFallback = (
+  <Skeletonize loading className="flex">
+    <SkeletonBox>
+      <div className="h-9 w-[18rem]" />
+    </SkeletonBox>
+  </Skeletonize>
+);
+
 const DatePickerWithRange = lazyComponent(
   () =>
     import('@/app/components/ui/forms/date-range-picker').then((mod) => ({
       default: mod.DatePickerWithRange,
     })),
   {
-    loading: () => (
-      <Skeletonize loading>
-        <SkeletonBox>
-          <div className="h-9 w-[18rem]" />
-        </SkeletonBox>
-      </Skeletonize>
-    ),
+    loading: () => datePickerFallback,
   },
 );
 
@@ -361,13 +366,7 @@ export function DataTableFilters({
 
         {dateRange && (
           <SuspenseBoundary
-            fallback={
-              <Skeletonize loading>
-                <SkeletonBox>
-                  <div className="h-9 w-[18rem]" />
-                </SkeletonBox>
-              </Skeletonize>
-            }
+            fallback={datePickerFallback}
             errorFallback={
               <Text as="span" variant="muted">
                 {t('dataTable.dateFilterUnavailable')}
