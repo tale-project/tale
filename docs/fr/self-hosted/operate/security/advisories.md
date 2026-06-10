@@ -44,7 +44,7 @@ Les mainteneurs s'engagent sur le calendrier suivant à partir du moment où un 
 
 Les rapporteurs peuvent demander un délai s'ils ont besoin de plus de temps pour divulguer ; les mainteneurs acceptent jusqu'à 90 jours avant de publier le résumé malgré tout.
 
-Côté ingénierie, les correctifs de dépendances passent par une voie rapide pour que la version corrigée arrive vite : Renovate ouvre une PR de mise à jour de sécurité dans les 24 heures suivant un advisory amont — en contournant le délai d'âge de version appliqué aux mises à jour de routine — et la CI bloque tout merge introduisant un advisory critique connu. Un CVE de dépendance divulgué devient ainsi une version Tale corrigée en quelques jours, et non au prochain cycle de routine.
+Côté ingénierie, les correctifs de dépendances passent par une voie rapide pour que la version corrigée arrive vite : Renovate ouvre une PR de mise à jour de sécurité dans les 24 heures suivant un advisory amont — en contournant le délai d'âge de version appliqué aux mises à jour de routine — et la CI bloque tout merge introduisant un advisory connu noté High ou Critical. Un CVE de dépendance divulgué devient ainsi une version Tale corrigée en quelques jours, et non au prochain cycle de routine.
 
 ## S'abonner
 

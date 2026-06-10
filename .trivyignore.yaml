@@ -10,9 +10,39 @@
 # .github/workflows/security.yml and .github/workflows/build.yml.
 # =============================================================================
 
-# Vulnerability accept-risk entries go under a `vulnerabilities:` key with a
-# dated `statement:` documenting the compensating control. Remove each entry
-# the moment a fixed release becomes available.
+# Vulnerability accept-risk entries carry a dated `statement:` documenting the
+# compensating control. Remove each entry the moment a fixed release becomes
+# available in our channel.
+vulnerabilities:
+  # lxml XXE via iterparse()/ETCompatXMLParser() defaults, fixed in lxml 6.1.0.
+  # crawl4ai==0.8.6 pins lxml~=5.3, so the fix cannot be taken until crawl4ai
+  # supports the 6.x series (see the note in services/crawler/pyproject.toml).
+  # Trivy may report either the CVE or the GHSA id; both are listed.
+  - id: CVE-2026-41066
+    paths:
+      - 'services/crawler/uv.lock'
+    statement: |
+      2026-06-11: lxml is consumed by the crawler service, which runs inside
+      an isolated container with no filesystem secrets beyond its own
+      runtime; an XXE local-file read cannot reach other services' data. The
+      vulnerable surface is the iterparse()/ETCompatXMLParser() parse
+      defaults — the repo has no call sites for either (the crawler's direct
+      lxml usage only constructs/walks elements inside python-docx and
+      python-pptx documents); lxml parsing of untrusted input sits behind
+      crawl4ai. Accepted until crawl4ai lifts its lxml~=5.3 pin; revisit on
+      each crawl4ai release.
+  - id: GHSA-vfmq-68hx-4jfw
+    paths:
+      - 'services/crawler/uv.lock'
+    statement: |
+      2026-06-11: same finding as CVE-2026-41066 (GHSA alias); same scope and
+      rationale.
+  - id: PYSEC-2026-87
+    paths:
+      - 'services/crawler/uv.lock'
+    statement: |
+      2026-06-11: same finding as CVE-2026-41066 (PyPA alias); same scope and
+      rationale.
 
 misconfigurations:
   # AVD-DS-0002: "Image user should not be 'root'"

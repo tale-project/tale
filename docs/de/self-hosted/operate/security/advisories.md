@@ -44,7 +44,7 @@ Die Maintainer verpflichten sich auf die folgende Timeline ab dem Moment, in dem
 
 Melder können eine Verzögerung anfordern, wenn sie für die Offenlegung mehr Zeit brauchen; die Maintainer akzeptieren bis zu 90 Tage, bevor sie die Zusammenfassung trotzdem veröffentlichen.
 
-Auf der Engineering-Seite laufen Dependency-Fixes auf einem Fast Track, damit das gepatchte Release schnell erscheint: Renovate öffnet innerhalb von 24 Stunden nach einem Upstream-Advisory einen Security-Update-PR — am sonst üblichen Release-Age-Delay für Routine-Updates vorbei — und CI blockt jeden Merge, der ein bekanntes kritisches Advisory einführt. Ein offengelegter Dependency-CVE wird damit in Tagen zu einem gepatchten Tale-Release, nicht erst beim nächsten Routine-Zyklus.
+Auf der Engineering-Seite laufen Dependency-Fixes auf einem Fast Track, damit das gepatchte Release schnell erscheint: Renovate öffnet innerhalb von 24 Stunden nach einem Upstream-Advisory einen Security-Update-PR — am sonst üblichen Release-Age-Delay für Routine-Updates vorbei — und CI blockt jeden Merge, der ein bekanntes High- oder Critical-Advisory einführt. Ein offengelegter Dependency-CVE wird damit in Tagen zu einem gepatchten Tale-Release, nicht erst beim nächsten Routine-Zyklus.
 
 ## Anmelden
 
