@@ -56,6 +56,7 @@ type PlatformRoleName =
 
 const ALL: readonly PlatformAction[] = ['read', 'write'];
 const READ_ONLY: readonly PlatformAction[] = ['read'];
+const WRITE_ONLY: readonly PlatformAction[] = ['write'];
 const NONE: readonly PlatformAction[] = [];
 
 const platformPermissions: Record<
@@ -118,7 +119,9 @@ const platformPermissions: Record<
     websites: ALL,
     promptTemplates: ALL,
     promptCategories: ALL,
-    auditLogs: ALL,
+    // Audit-log reads are admin-only (#1505); WRITE stays so RLS-wrapped
+    // user mutations can insert their own audit rows.
+    auditLogs: WRITE_ONLY,
     artifacts: ALL,
     artifactRevisions: ALL,
     auditLogChainGenesis: NONE,
@@ -149,7 +152,9 @@ const platformPermissions: Record<
     websites: ALL,
     promptTemplates: ALL,
     promptCategories: ALL,
-    auditLogs: ALL,
+    // Audit-log reads are admin-only (#1505); WRITE stays so RLS-wrapped
+    // user mutations can insert their own audit rows.
+    auditLogs: WRITE_ONLY,
     artifacts: ALL,
     artifactRevisions: ALL,
     auditLogChainGenesis: NONE,
@@ -180,7 +185,9 @@ const platformPermissions: Record<
     websites: READ_ONLY,
     promptTemplates: ALL,
     promptCategories: ALL,
-    auditLogs: READ_ONLY,
+    // Audit-log reads are admin-only (#1505); member audit rows are written
+    // through internal mutations that bypass RLS (see prompts/mutations.ts).
+    auditLogs: NONE,
     // Members can READ artifacts (so the chat surface keeps working in
     // shared threads) but NOT write — artifact_create / file_* /
     // artifact_run all trigger billable sandbox executions. Aligns with

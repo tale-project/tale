@@ -3,9 +3,23 @@ import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import type { OrganizationMember } from '../lib/rls/types';
 import * as AuditLogHelpers from './helpers';
 import { listAuditLogsPaginated as listAuditLogsPaginatedHelper } from './list_audit_logs_paginated';
 import { auditLogFilterValidator, auditLogItemValidator } from './validators';
+
+/**
+ * Audit-log reads are admin/owner-only (#1505): the log records every
+ * member's actions, so non-admins reading it would leak other users'
+ * activity. Mirrors the RLS matrix (`access_control.ts`) and the
+ * admin-only `orgSettings` UI gate.
+ */
+export function assertAuditLogReadAccess(member: OrganizationMember): void {
+  if (!isAdmin(member.role)) {
+    throw new Error('Only admins can read audit logs');
+  }
+}
 
 export const listAuditLogs = query({
   args: {
@@ -24,7 +38,12 @@ export const listAuditLogs = query({
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, authUser);
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
+    assertAuditLogReadAccess(member);
 
     return await AuditLogHelpers.listAuditLogs(ctx, {
       organizationId: args.organizationId,
@@ -48,34 +67,14 @@ export const listAuditLogsPaginated = query({
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, authUser);
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
+    assertAuditLogReadAccess(member);
 
     return await listAuditLogsPaginatedHelper(ctx, args);
-  },
-});
-
-export const getResourceAuditTrail = query({
-  args: {
-    organizationId: v.string(),
-    resourceType: v.string(),
-    resourceId: v.string(),
-    limit: v.optional(v.number()),
-  },
-  returns: v.array(auditLogItemValidator),
-  handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      throw new Error('Unauthenticated');
-    }
-
-    await getOrganizationMember(ctx, args.organizationId, authUser);
-
-    return await AuditLogHelpers.getResourceAuditTrail(ctx, {
-      organizationId: args.organizationId,
-      resourceType: args.resourceType,
-      resourceId: args.resourceId,
-      limit: args.limit,
-    });
   },
 });
 
@@ -106,7 +105,12 @@ export const getActivitySummary = query({
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, authUser);
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
+    assertAuditLogReadAccess(member);
 
     return await AuditLogHelpers.getActivitySummary(ctx, {
       organizationId: args.organizationId,
