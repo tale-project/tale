@@ -1,26 +1,30 @@
 // Execution-backend abstraction.
 //
-// The spawner's HTTP/SSE/auth layer and the per-request orchestration in
-// spawn.ts (staging, phase parsing, output harvest, response assembly) are
-// backend-agnostic. Everything that is specific to HOW a runtime is launched
-// — `docker run` against the host daemon today, a Kubernetes Pod tomorrow —
-// lives behind `ExecutionBackend`. The backend is chosen once at boot from
-// `SANDBOX_BACKEND` (see backend/index.ts) and threaded through
-// `executeRequest`, the health probe, the orphan sweep, and the lifecycle
-// hooks.
+// The spawner's HTTP/SSE/auth layer and the in-flight registry in spawn.ts are
+// backend-agnostic; the per-request orchestration lives behind
+// `ExecutionBackend.execute`. Everything specific to HOW a runtime is launched
+// — `docker run` against the host daemon, or a Kubernetes Pod — lives behind
+// the backend. It is chosen once at boot from `SANDBOX_BACKEND` (see
+// backend/index.ts) and threaded through the dispatcher, the health probe, the
+// orphan sweep, and the lifecycle hooks.
 //
-// Design note — the workspace seam: today the spawner stages inputs onto a
-// host directory that is bind-mounted 1:1 into the runtime container and
-// harvests outputs back from that same directory with node:fs. We keep that
-// shape — `stageWorkspace`/`harvestOutputDir`/`readStepResults` still operate
-// on a LOCAL directory (`Workspace.localRoot`) exactly as before — and make
-// the backend responsible for getting those bytes to/from the real runtime.
-// For DockerBackend that is a no-op (the dir is bind-mounted, so the daemon
-// sees it directly). A future KubernetesBackend stages the same local dir
-// into the Pod (and harvests it back) around the run via the exec API, so the
-// host-path coupling never leaks past this interface.
+// Design note — the execution seam: `execute()` is coarse on purpose. The
+// DockerBackend stages inputs onto a host directory bind-mounted 1:1 into the
+// runtime container and harvests outputs back with node:fs (the
+// `LocalWorkspaceRuntime` flow in backend/local-workspace-run.ts). The
+// KubernetesBackend instead moves staging/harvest INTO the Pod (helper
+// containers do presigned-URL I/O) and only performs HTTP control-plane ops.
+// Those two shapes don't share a workspace abstraction, so the seam is the
+// whole `execute()` call rather than the Phase-1 fine-grained
+// createWorkspace/launch/harvest steps (which are now DockerBackend-internal).
 
-import type { Language, SpawnerConfig } from '../types.ts';
+import type {
+  ExecuteRequest,
+  ExecuteResponse,
+  Language,
+  SpawnerConfig,
+} from '../types.ts';
+import type { SandboxPhaseEvent } from '../wire.ts';
 
 /**
  * Per-execution staging + harvest directory on the SPAWNER's local
@@ -110,6 +114,46 @@ export type HealthResult =
   | { ok: true; detail: string }
   | { ok: false; error: string };
 
+/**
+ * Live-progress callbacks the SSE layer wires in. The orchestrator fires
+ * `onPhase` on PHASE markers and `onStdoutDelta`/`onStderrDelta` for the live
+ * tail; the canonical buffers still ride the final `ExecuteResponse`.
+ */
+export interface ExecuteCallbacks {
+  onPhase?: (event: { phase: SandboxPhaseEvent }) => void;
+  onStdoutDelta?: (text: string) => void;
+  onStderrDelta?: (text: string) => void;
+}
+
+/** Everything `execute()` needs beyond the request: the cancel signal, the
+ * shared wall-clock start (also the in-flight registry's `startedAt`), and the
+ * live-progress callbacks. */
+export interface ExecuteOptions extends ExecuteCallbacks {
+  /**
+   * Aborted by `cancelExecution`; ends the runtime stream so `execute()`
+   * unwinds to its cleanup and returns a `cancelled` response.
+   */
+  signal: AbortSignal;
+  /** Wall-clock start shared with the in-flight registry; drives durationMs + timing. */
+  startedAtMs: number;
+}
+
+/**
+ * The fine-grained local-workspace contract the DockerBackend exposes for the
+ * shared `runLocalWorkspaceExecution` orchestration (backend/local-workspace-
+ * run.ts): stage onto a local dir, run against it, harvest it back. This is no
+ * longer part of `ExecutionBackend` — the KubernetesBackend doesn't have a
+ * local workspace, so it implements `execute()` directly instead.
+ */
+export interface LocalWorkspaceRuntime {
+  /** Create the per-execution staging workspace. */
+  createWorkspace(executionId: string): Promise<Workspace>;
+  /** Idempotently ensure the per-org dependency caches exist. */
+  ensureCacheStore(organizationId: string): Promise<CacheStores>;
+  /** Launch the runtime against the already-staged workspace. */
+  launch(spec: LaunchSpec, cache: CacheStores): Promise<RunningExecution>;
+}
+
 export interface SweepOptions {
   /** Reap runtimes whose start time is older than this epoch-ms threshold. */
   staleBeforeMs: number;
@@ -138,12 +182,19 @@ export interface ExecutionBackend {
   /** Best-effort warm of the runtime image (no-op where the platform pulls). */
   warmImage(): Promise<void>;
 
-  /** Create the per-execution staging workspace. */
-  createWorkspace(executionId: string): Promise<Workspace>;
-  /** Idempotently ensure the per-org dependency caches exist. */
-  ensureCacheStore(organizationId: string): Promise<CacheStores>;
-  /** Launch the runtime against the already-staged workspace. */
-  launch(spec: LaunchSpec, cache: CacheStores): Promise<RunningExecution>;
+  /**
+   * Run one execution end-to-end: stage inputs, launch the runtime, stream
+   * live progress (via `opts` callbacks), harvest outputs, and return the
+   * canonical `ExecuteResponse`. Owns all runtime-specific staging/cleanup;
+   * the dispatcher in spawn.ts only wraps this with the in-flight registry +
+   * request validation. Never throws for an execution-level failure — it
+   * returns a `failed`/`cancelled` response instead.
+   */
+  execute(
+    cfg: SpawnerConfig,
+    req: ExecuteRequest,
+    opts: ExecuteOptions,
+  ): Promise<ExecuteResponse>;
   /** Best-effort cancel of an in-flight execution, addressed by id. */
   cancel(executionId: string): Promise<void>;
 

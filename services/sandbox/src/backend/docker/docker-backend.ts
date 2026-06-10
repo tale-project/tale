@@ -21,17 +21,24 @@ import {
   ensureImage,
   runDocker,
 } from '../../spawn-util.ts';
-import type { SpawnerConfig } from '../../types.ts';
+import type {
+  ExecuteRequest,
+  ExecuteResponse,
+  SpawnerConfig,
+} from '../../types.ts';
 import {
   ensureCacheVolume,
   npmCacheVolumeName,
   pipCacheVolumeName,
 } from '../../volume.ts';
+import { runLocalWorkspaceExecution } from '../local-workspace-run.ts';
 import type {
   CacheStores,
+  ExecuteOptions,
   ExecutionBackend,
   HealthResult,
   LaunchSpec,
+  LocalWorkspaceRuntime,
   RunningExecution,
   RunOptions,
   RunResult,
@@ -90,10 +97,24 @@ class DockerRunningExecution implements RunningExecution {
   }
 }
 
-export class DockerBackend implements ExecutionBackend {
+export class DockerBackend implements ExecutionBackend, LocalWorkspaceRuntime {
   readonly kind = 'docker' as const;
 
   constructor(private readonly cfg: SpawnerConfig) {}
+
+  /**
+   * The Compose execution path: stage onto a host bind-mount, `docker run`,
+   * harvest back. Byte-identical to the pre-reshape `spawn.ts:executeRequest`
+   * body — the shared orchestration lives in local-workspace-run.ts and calls
+   * back into this backend's `createWorkspace` / `ensureCacheStore` / `launch`.
+   */
+  execute(
+    cfg: SpawnerConfig,
+    req: ExecuteRequest,
+    opts: ExecuteOptions,
+  ): Promise<ExecuteResponse> {
+    return runLocalWorkspaceExecution(this, cfg, req, opts);
+  }
 
   async init(): Promise<void> {
     // Cross-process lock BEFORE bootSweep — refuses to start if another live

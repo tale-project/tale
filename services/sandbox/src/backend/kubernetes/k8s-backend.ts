@@ -12,12 +12,19 @@ import { join } from 'node:path';
 
 import type { V1Pod } from '@kubernetes/client-node';
 
-import type { SpawnerConfig } from '../../types.ts';
+import type {
+  ExecuteRequest,
+  ExecuteResponse,
+  SpawnerConfig,
+} from '../../types.ts';
+import { runLocalWorkspaceExecution } from '../local-workspace-run.ts';
 import type {
   CacheStores,
+  ExecuteOptions,
   ExecutionBackend,
   HealthResult,
   LaunchSpec,
+  LocalWorkspaceRuntime,
   RunningExecution,
   RunOptions,
   RunResult,
@@ -246,13 +253,29 @@ class K8sRunningExecution implements RunningExecution {
   }
 }
 
-export class KubernetesBackend implements ExecutionBackend {
+export class KubernetesBackend
+  implements ExecutionBackend, LocalWorkspaceRuntime
+{
   readonly kind = 'kubernetes' as const;
 
   private readonly client: K8sClient;
 
   constructor(private readonly cfg: SpawnerConfig) {
     this.client = makeK8sClient(cfg.k8s.namespace);
+  }
+
+  // NOTE (transitional): this still drives the exec-tar transport via the
+  // shared local-workspace orchestration (its createWorkspace/launch/wait tar
+  // bytes in/out over the exec websocket). The exec websocket is unreliable
+  // under Bun; increments 5-7 replace this with an HTTP-only Pod flow (3
+  // containers, presigned-URL I/O in-Pod) and remove the createWorkspace/
+  // launch/wait + exec helpers below.
+  execute(
+    cfg: SpawnerConfig,
+    req: ExecuteRequest,
+    opts: ExecuteOptions,
+  ): Promise<ExecuteResponse> {
+    return runLocalWorkspaceExecution(this, cfg, req, opts);
   }
 
   async init(): Promise<void> {
