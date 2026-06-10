@@ -23,6 +23,12 @@ Chaque pièce jointe est stockée dans le stockage objet de Tale et liée au cha
 
 Les petits fichiers texte et les documents structurés sous le budget en ligne de l'agent sont insérés tels quels. Les plus grands sont chunked, embedded et indexés ; l'agent récupère les chunks pertinents à la réponse et les cite. La limite dépend du modèle — les modèles à long contexte avalent davantage entier. Quand l'agent récupère depuis une pièce jointe plutôt que de la lire entière, les citations pointent vers des plages de chunks dans le fichier d'origine.
 
+## Référencer des documents Knowledge avec @
+
+Taper `@` dans le composer ouvre un sélecteur sur les documents Knowledge indexés de l'organisation. Tape pour filtrer par titre, choisis-en un, et une puce apparaît dans le composer — le message porte désormais une référence épinglée vers ce document. À l'envoi, Tale vérifie ton accès, restreint la récupération de cette réponse exactement aux documents épinglés et injecte les passages pertinents même quand le mode connaissance de l'agent est désactivé — une mention explicite l'emporte sur la configuration de récupération de l'agent. Jusqu'à cinq documents peuvent être épinglés par message.
+
+Les puces sont la source de vérité : supprimer le texte `@Titre` du message ne désépingle pas le document — retire plutôt la puce. Le sélecteur ne propose que des documents dont l'indexation est terminée et auxquels tes équipes ont accès. La référence vaut par message ; une question de suivi sans mention retombe sur le périmètre de connaissance normal de l'agent.
+
 ## Où ça s'inscrit
 
 Les pièces jointes sont le moyen léger, scopé au chat, d'amener un fichier dans une réponse. L'équivalent lourd, scopé à l'organisation, est [Documents](/fr/platform/knowledge/documents) — même pipeline d'indexation, mais lié à des agents au lieu d'un seul chat. La page à lire ensuite dépend de ce que tu essaies de faire — si le fichier compte une fois, attache-le ici ; s'il comptera encore, téléverse-le dans Knowledge et laisse un agent le référencer depuis chaque chat.

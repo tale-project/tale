@@ -801,7 +801,8 @@
       "piiBlocked": "Message blocked by PII policy",
       "policyViolation": "Message blocked by content policy",
       "modelAccessDenied": "Model not available",
-      "budgetExceeded": "Usage limit reached"
+      "budgetExceeded": "Usage limit reached",
+      "kbRefInvalid": "A referenced document is no longer available. Remove it and try again."
     },
     "blockedNotice": {
       "body": "This response was blocked by your organization's content policy."
@@ -1559,7 +1560,16 @@
     "modeHeader": "Modes",
     "capabilityHeader": "Capabilities",
     "capabilityDisable": "Disable {name}",
-    "requiresIntegration": "Requires {name}"
+    "requiresIntegration": "Requires {name}",
+    "kbMention": {
+      "title": "Knowledge base",
+      "loading": "Searching documents…",
+      "empty": "No matching indexed documents",
+      "emptyNoQuery": "No indexed documents yet",
+      "chipLabel": "Knowledge base",
+      "removeMention": "Remove reference to {title}",
+      "limitReached": "You can reference up to {max} documents per message"
+    }
   },
   "connectivity": {
     "tabTitle": "Reconnecting",

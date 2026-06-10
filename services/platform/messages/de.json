@@ -801,7 +801,8 @@
       "piiBlocked": "Nachricht durch PII-Richtlinie blockiert",
       "policyViolation": "Nachricht durch Inhaltsrichtlinie blockiert",
       "modelAccessDenied": "Modell nicht verfügbar",
-      "budgetExceeded": "Nutzungslimit erreicht"
+      "budgetExceeded": "Nutzungslimit erreicht",
+      "kbRefInvalid": "Ein referenziertes Dokument ist nicht mehr verfügbar. Entferne es und versuche es erneut."
     },
     "blockedNotice": {
       "body": "Diese Antwort wurde durch die Inhaltsrichtlinie deiner Organisation blockiert."
@@ -1559,7 +1560,16 @@
     "capabilityDisable": "{name} deaktivieren",
     "requiresIntegration": "Benötigt {name}",
     "takeScreenshot": "Screenshot aufnehmen",
-    "screenshotFailed": "Screenshot konnte nicht aufgenommen werden"
+    "screenshotFailed": "Screenshot konnte nicht aufgenommen werden",
+    "kbMention": {
+      "title": "Wissensdatenbank",
+      "loading": "Dokumente werden durchsucht …",
+      "empty": "Keine passenden indexierten Dokumente",
+      "emptyNoQuery": "Noch keine indexierten Dokumente",
+      "chipLabel": "Wissensdatenbank",
+      "removeMention": "Verweis auf {title} entfernen",
+      "limitReached": "Du kannst pro Nachricht bis zu {max} Dokumente referenzieren"
+    }
   },
   "connectivity": {
     "tabTitle": "Verbindung wird wiederhergestellt",

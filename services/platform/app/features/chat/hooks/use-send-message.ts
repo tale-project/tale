@@ -27,6 +27,7 @@ import {
   useUpdateThread,
 } from './mutations';
 import type { VideoLinkJob } from './use-chat-video-links';
+import type { KbMention } from './use-kb-mentions';
 import type { ChatMessage } from './use-message-processing';
 import { clearSendPending, markSendPending } from './use-pending-send';
 import { resetGlobalFreeze } from './use-stream-buffer';
@@ -87,6 +88,20 @@ function extractProjectErrorCode(error: unknown): ProjectErrorCode | null {
     return code;
   }
   return null;
+}
+
+/**
+ * `@`-mention KB reference rejected by `chatWithAgentTurn` (document deleted,
+ * moved out of the user's teams, or no longer RAG-indexed between pick and
+ * send). One opaque code server-side; mapped to a localized toast here.
+ */
+function isKbRefInvalidError(error: unknown): boolean {
+  if (!(error instanceof ConvexError)) return false;
+  const data: unknown = error.data;
+  if (typeof data !== 'object' || data === null || !('code' in data)) {
+    return false;
+  }
+  return data.code === 'KB_REF_INVALID';
 }
 
 /** Derive a thread title from the first message, truncating long input. */
@@ -167,6 +182,14 @@ interface UseSendMessageParams {
    * failed send.
    */
   unmarkJobsSent?: (jobIds: Array<Id<'videoLinkJobs'>>) => void;
+  /**
+   * Restore the composer's `@`-mention KB reference chips on send-failure
+   * paths (precheck block, chatWithAgent throw). The chips were cleared
+   * synchronously in ChatInput's send handler; without this rollback a
+   * failed send silently drops every pinned document. Mirrors
+   * `unmarkJobsSent` for video-link chips.
+   */
+  restoreKbMentions?: (mentions: KbMention[]) => void;
 }
 
 /**
@@ -192,6 +215,7 @@ export function useSendMessage({
   projectId,
   scrollIntentRef,
   unmarkJobsSent,
+  restoreKbMentions,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
   const navigate = useNavigate();
@@ -220,6 +244,7 @@ export function useSendMessage({
       message: string,
       attachments?: FileAttachment[],
       videoLinkSnapshot?: VideoLinkJob[],
+      kbReferences?: KbMention[],
     ) => {
       if (sendingRef.current) return;
 
@@ -275,6 +300,33 @@ export function useSendMessage({
           fileType: a.fileType,
           fileSize: a.fileSize,
         })) ?? [];
+
+      // `@`-mention KB references ride the optimistic bubble as DISPLAY
+      // attachments only (matching the chips the persisted swap extracts from
+      // the server's enriched marker block) — they are NOT part of the
+      // mutation `attachments` arg, which would re-register the blobs with
+      // the agent and duplicate the existing RAG index. The server receives
+      // `referencedDocumentIds` instead and resolves them authoritatively.
+      const kbDisplayAttachments =
+        kbReferences?.map((ref) => ({
+          fileId: ref.fileId,
+          fileName: ref.title,
+          fileType: ref.fileType,
+          fileSize: ref.fileSize,
+        })) ?? [];
+      const buildDisplayAttachments = () =>
+        kbDisplayAttachments.length > 0
+          ? [...mutationAttachments, ...kbDisplayAttachments]
+          : mutationAttachments;
+      const referencedDocumentIds =
+        kbReferences && kbReferences.length > 0
+          ? kbReferences.map((ref) => ref.documentId)
+          : undefined;
+      const rollbackKbMentions = () => {
+        if (restoreKbMentions && kbReferences && kbReferences.length > 0) {
+          restoreKbMentions(kbReferences);
+        }
+      };
 
       // Synchronously derive video-link attachments + pasted-token strip
       // list from the click-time snapshot owned by chat-interface.tsx
@@ -393,6 +445,8 @@ export function useSendMessage({
             if (unmarkJobsSent && snapshotJobIds.length > 0) {
               unmarkJobsSent(snapshotJobIds);
             }
+            // Same rollback for `@`-mention KB reference chips.
+            rollbackKbMentions();
             const title =
               precheck.code === 'pii.blocked'
                 ? t('toast.piiBlocked')
@@ -447,7 +501,7 @@ export function useSendMessage({
             content: optimisticContent,
             threadId: currentArena.arenaThreadIdA,
             arenaThreadIdB: currentArena.arenaThreadIdB,
-            attachments: mutationAttachments,
+            attachments: buildDisplayAttachments(),
             timestamp: pendingTimestamp,
             lastMessageKey,
           });
@@ -458,7 +512,7 @@ export function useSendMessage({
           setPendingMessage({
             content: optimisticContent,
             threadId: currentArena.arenaThreadIdA ?? 'pending',
-            attachments: mutationAttachments,
+            attachments: buildDisplayAttachments(),
             timestamp: pendingTimestamp,
             lastMessageKey,
           });
@@ -467,7 +521,7 @@ export function useSendMessage({
         setPendingMessage({
           content: optimisticContent,
           threadId: threadId ?? 'pending',
-          attachments: mutationAttachments,
+          attachments: buildDisplayAttachments(),
           timestamp: pendingTimestamp,
           lastMessageKey,
         });
@@ -525,7 +579,7 @@ export function useSendMessage({
                   content: messageToSend,
                   threadId: currentArena.arenaThreadIdA,
                   arenaThreadIdB: currentArena.arenaThreadIdB,
-                  attachments: mutationAttachments,
+                  attachments: buildDisplayAttachments(),
                   timestamp: pendingTimestamp,
                   lastMessageKey,
                 });
@@ -534,7 +588,7 @@ export function useSendMessage({
               setPendingMessage({
                 content: messageToSend,
                 threadId,
-                attachments: mutationAttachments,
+                attachments: buildDisplayAttachments(),
                 timestamp: pendingTimestamp,
                 lastMessageKey,
               });
@@ -624,7 +678,7 @@ export function useSendMessage({
               content: messageToSend,
               threadId: tIdA,
               arenaThreadIdB: tIdB,
-              attachments: mutationAttachments,
+              attachments: buildDisplayAttachments(),
               timestamp: pendingTimestamp,
               lastMessageKey,
             });
@@ -732,7 +786,7 @@ export function useSendMessage({
             setPendingMessage({
               content: messageToSend,
               threadId: 'pending',
-              attachments: mutationAttachments,
+              attachments: buildDisplayAttachments(),
               timestamp: pendingTimestamp,
               lastMessageKey,
             });
@@ -758,7 +812,7 @@ export function useSendMessage({
             setPendingMessage({
               content: messageToSend,
               threadId: newThreadId,
-              attachments: mutationAttachments,
+              attachments: buildDisplayAttachments(),
               timestamp: pendingTimestamp,
               lastMessageKey,
             });
@@ -859,6 +913,9 @@ export function useSendMessage({
             capabilityBindings:
               enabledCapabilities.length > 0 ? enabledCapabilities : undefined,
             attachments: mutationAttachments,
+            // `@`-mention KB pins. Server-resolved (access + RAG status), so
+            // only the document ids travel — never client-supplied fileIds.
+            referencedDocumentIds,
             userContext: userContextPayload,
             // projectId from URL query is a string; chatWithAgent expects
             // an Id<'projects'>. The branding is structural-only TS; server
@@ -901,6 +958,10 @@ export function useSendMessage({
         if (unmarkJobsSent && boundJobIdsLocal.length > 0) {
           unmarkJobsSent(boundJobIdsLocal);
         }
+        // Restore the `@`-mention KB reference chips (cleared synchronously
+        // in ChatInput's send handler) so the user can retry without
+        // re-picking every document.
+        rollbackKbMentions();
         clearChatState();
         resetGlobalFreeze();
 
@@ -938,6 +999,8 @@ export function useSendMessage({
           title = t('toast.modelAccessDenied');
         } else if (lower.includes('usage limit') || lower.includes('budget')) {
           title = t('toast.budgetExceeded');
+        } else if (isKbRefInvalidError(error)) {
+          description = t('toast.kbRefInvalid');
         } else if (projectCode) {
           // Surface the localized project-context message instead of the raw
           // ConvexError payload (which would otherwise show as the description).
@@ -982,6 +1045,7 @@ export function useSendMessage({
       projectId,
       scrollIntentRef,
       unmarkJobsSent,
+      restoreKbMentions,
     ],
   );
 

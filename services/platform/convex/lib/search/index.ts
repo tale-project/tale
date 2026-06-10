@@ -10,3 +10,4 @@ export { isActiveRow, rowMatches, scoreAndSort } from './relevance';
 
 // Per-entity strategies.
 export { customersSearchStrategy } from './strategies/customers';
+export { documentsSearchStrategy } from './strategies/documents';

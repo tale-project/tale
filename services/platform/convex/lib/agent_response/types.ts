@@ -219,6 +219,15 @@ export interface GenerateResponseArgs {
   /** Governance-resolved max context tokens (overrides agent default) */
   maxContextTokens?: number;
   /**
+   * Storage IDs of knowledge-base documents the user explicitly
+   * `@`-mentioned on this turn (resolved + access-validated upstream by
+   * `chatWithAgentTurn`). When non-empty, knowledge-context injection is
+   * forced on (explicit user intent overrides the agent's `knowledgeMode`)
+   * and the RAG query is scoped to exactly these files instead of the
+   * agent's configured scope, with a relaxed similarity threshold.
+   */
+  pinnedFileIds?: string[];
+  /**
    * When true, the error path skips saving a failed message, marking the
    * stream as error, and clearing the generation status. Used by the
    * fallback retry loop so the caller can handle cleanup itself without

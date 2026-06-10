@@ -51,6 +51,7 @@ import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-status';
+import { useKbMentions, type KbMention } from '../hooks/use-kb-mentions';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
 import { useMessageProcessing } from '../hooks/use-message-processing';
 import { useModelFallbackAutoSwitch } from '../hooks/use-model-fallback-auto-switch';
@@ -217,6 +218,16 @@ export function ChatInterface({
     markJobsSent: markVideoJobsSent,
     unmarkJobsSent: unmarkVideoJobsSent,
   } = useChatVideoLinks({ threadId, organizationId });
+
+  // `@`-mention knowledge-base references. Owned here (not inside ChatInput)
+  // so a failed send can restore the chips — mirrors the attachments hook.
+  const {
+    mentions: kbMentions,
+    addMention: addKbMention,
+    removeMention: removeKbMention,
+    clearMentions: clearKbMentions,
+    restoreMentions: restoreKbMentions,
+  } = useKbMentions();
 
   const { data: featureFlags } = useMyFeatureFlags(organizationId);
   const fileUploadDisabled = featureFlags?.fileUpload === false;
@@ -612,11 +623,14 @@ export function ChatInterface({
     // Mirrors the `setInputValue(draftSnapshot)` rollback we do here
     // for the typed text below.
     unmarkJobsSent: unmarkVideoJobsSent,
+    // Same rollback contract for `@`-mention KB reference chips.
+    restoreKbMentions,
   });
 
   const handleSendMessage = async (
     message: string,
     sentAttachments?: FileAttachment[],
+    kbReferences?: KbMention[],
   ) => {
     // Scroll-intent now set inside `useSendMessage` adjacent to each
     // setPendingMessage call — see `scrollIntentRef` prop above. Setting
@@ -677,11 +691,17 @@ export function ChatInterface({
     }
 
     try {
-      await sendMessage(message, finalAttachments, videoLinkSnapshot);
+      await sendMessage(
+        message,
+        finalAttachments,
+        videoLinkSnapshot,
+        kbReferences,
+      );
     } catch (err) {
       // Restore the draft so the user can retry or edit. The chip
       // unbind already happens inside `useSendMessage`'s catch via the
-      // `unmarkJobsSent` prop wired above.
+      // `unmarkJobsSent` prop wired above; KB mention chips are restored
+      // there too via `restoreKbMentions`.
       setInputValue(draftSnapshot);
       throw err;
     }
@@ -1219,6 +1239,10 @@ export function ChatInterface({
                   setSavePromptData({ messageId: '', content })
                 }
                 onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
+                kbMentions={kbMentions}
+                addKbMention={addKbMention}
+                removeKbMention={removeKbMention}
+                clearKbMentions={clearKbMentions}
               />
             </div>
           </FileUpload.Root>

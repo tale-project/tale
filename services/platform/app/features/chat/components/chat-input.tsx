@@ -32,6 +32,12 @@ import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 import { useChatLayout } from '../context/chat-layout-context';
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
+import {
+  detectMentionTrigger,
+  MAX_KB_MENTIONS,
+  type KbMention,
+  type MentionTrigger,
+} from '../hooks/use-kb-mentions';
 import { captureScreenshot } from '../utils/capture-screenshot';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { AgentSelector } from './agent-selector';
@@ -43,6 +49,8 @@ import {
   DictationButton,
   type DictationButtonHandle,
 } from './dictation-button';
+import { createDocumentsMentionSource } from './documents-mention-source';
+import { KbMentionPopover } from './kb-mention-popover';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { QuotedReferenceChip } from './quoted-reference-chip';
@@ -68,7 +76,11 @@ interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
   'onChange'
 > {
-  onSendMessage: (message: string, attachments?: FileAttachment[]) => void;
+  onSendMessage: (
+    message: string,
+    attachments?: FileAttachment[],
+    kbReferences?: KbMention[],
+  ) => void;
   onStopGenerating?: () => void;
   isLoading?: boolean;
   disabled?: boolean;
@@ -156,6 +168,16 @@ interface ChatInputProps extends Omit<
    * caller; safe to omit.
    */
   onComposerActivate?: () => void;
+  /**
+   * `@`-mention knowledge-base references (from `useKbMentions`, owned by the
+   * caller so a failed send can restore the chips). The picker only renders
+   * when ALL four are provided — surfaces without the feature (shared chat
+   * view, automation assistant) simply omit them. Hidden in arena mode.
+   */
+  kbMentions?: KbMention[];
+  addKbMention?: (mention: KbMention) => boolean;
+  removeKbMention?: (documentId: Id<'documents'>) => void;
+  clearKbMentions?: () => KbMention[];
 }
 
 export function ChatInput({
@@ -193,6 +215,10 @@ export function ChatInput({
   sendBlocked = false,
   sendBlockedReason,
   onComposerActivate,
+  kbMentions,
+  addKbMention,
+  removeKbMention,
+  clearKbMentions,
   ...restProps
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
@@ -250,6 +276,120 @@ export function ChatInput({
 
   const { quotedText, setQuotedText } = useChatLayout();
 
+  // ---- `@` knowledge-base mention picker -------------------------------
+  // Enabled only when the caller wires the full mention contract (chips are
+  // the source of truth and live with the caller for send-failure rollback).
+  // Hidden in arena mode — referencedDocumentIds is not wired through
+  // arena_chat in v1.
+  const kbMentionsEnabled =
+    !isArenaMode &&
+    !!kbMentions &&
+    !!addKbMention &&
+    !!removeKbMention &&
+    !!clearKbMentions;
+  const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(
+    null,
+  );
+  const [mentionHighlight, setMentionHighlight] = useState(0);
+  const mentionListboxId = `${textareaId}-kb-mentions`;
+  const mentionPickerOpen =
+    kbMentionsEnabled && mentionTrigger !== null && !inputDisabled;
+
+  // SearchSource contract: stable identity, called unconditionally every
+  // render (it is a hook); inactive renders pass 'skip' to Convex.
+  const mentionSource = useMemo(
+    () => createDocumentsMentionSource({ organizationId }),
+    [organizationId],
+  );
+  const mentionState = mentionSource(mentionTrigger?.query ?? '', {
+    active: mentionPickerOpen,
+    open: mentionPickerOpen,
+  });
+  const mentionResults = useMemo(
+    () => mentionState.results.slice(0, 8),
+    [mentionState.results],
+  );
+  const clampedMentionHighlight = Math.min(
+    mentionHighlight,
+    Math.max(mentionResults.length - 1, 0),
+  );
+
+  /**
+   * Re-evaluate the `@` trigger from the current caret. `onlyWhenOpen`
+   * restricts caret-move events (clicks, arrows) to UPDATING/CLOSING an open
+   * picker — only typing opens it, so clicking into previously inserted
+   * "@Title" prose doesn't pop the picker back up.
+   */
+  const updateMentionTrigger = useCallback(
+    (onlyWhenOpen: boolean) => {
+      if (!kbMentionsEnabled) return;
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      const next = detectMentionTrigger(
+        textarea.value,
+        textarea.selectionStart ?? textarea.value.length,
+      );
+      setMentionTrigger((prev) => {
+        if (onlyWhenOpen && prev === null) return prev;
+        if (
+          prev &&
+          next &&
+          prev.query === next.query &&
+          prev.start === next.start &&
+          prev.end === next.end
+        ) {
+          return prev;
+        }
+        if (prev === null || next === null || prev.query !== next.query) {
+          setMentionHighlight(0);
+        }
+        return next;
+      });
+    },
+    [kbMentionsEnabled],
+  );
+
+  const handleSelectMention = useCallback(
+    (mention: KbMention) => {
+      const trigger = mentionTrigger;
+      if (!trigger || !kbMentionsEnabled) return;
+      const added = addKbMention?.(mention) ?? false;
+      if (!added) {
+        toast({
+          title: tComposer('kbMention.limitReached', {
+            max: MAX_KB_MENTIONS,
+          }),
+          variant: 'destructive',
+        });
+        setMentionTrigger(null);
+        return;
+      }
+      // Replace the typed `@query` with `@Title ` prose. `setRangeText` on
+      // the DOM node keeps the caret + undo stack intact (same rationale as
+      // the video-link chip strip path below).
+      const insertion = `@${mention.title} `;
+      const textarea = textareaRef.current;
+      if (textarea) {
+        textarea.setRangeText(insertion, trigger.start, trigger.end, 'end');
+        onChange?.(textarea.value);
+      } else {
+        onChange?.(
+          value.slice(0, trigger.start) + insertion + value.slice(trigger.end),
+        );
+      }
+      setMentionTrigger(null);
+      setMentionHighlight(0);
+    },
+    [
+      mentionTrigger,
+      kbMentionsEnabled,
+      addKbMention,
+      onChange,
+      value,
+      tComposer,
+    ],
+  );
+
   const handleSendMessage = () => {
     // When the user clearly intends to send (there's content) but the send is
     // blocked for a stated reason, surface it. The disabled send button shows
@@ -292,7 +432,15 @@ export function ChatInput({
     // the message is sent (#1462).
     dictationRef.current?.stop();
 
-    onSendMessage(messageToSend, attachmentsToSend);
+    // Hand the pinned KB references over with the message; the caller owns
+    // the snapshot for send-failure rollback (mirrors clearAttachments).
+    const kbRefsToSend =
+      kbMentionsEnabled && kbMentions && kbMentions.length > 0
+        ? clearKbMentions?.()
+        : undefined;
+    setMentionTrigger(null);
+
+    onSendMessage(messageToSend, attachmentsToSend, kbRefsToSend);
   };
 
   const screenshotSupported =
@@ -329,6 +477,10 @@ export function ChatInput({
 
   const handleInputChange = (newValue: string) => {
     onChange?.(newValue);
+    // Typing both opens and closes the `@` picker (caret-move events only
+    // update/close it — see updateMentionTrigger). Runs after onChange so the
+    // textarea's value + caret reflect this keystroke.
+    updateMentionTrigger(false);
   };
 
   const handleTranscript = useCallback(
@@ -340,7 +492,6 @@ export function ChatInput({
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key !== 'Enter' || e.shiftKey) return;
     // IME composition guard. macOS Pinyin / Japanese Kotoeri commits a
     // candidate via Enter; without these checks the textarea swallows
     // the commit and sends the half-composed romaji. `isComposing` is
@@ -348,14 +499,45 @@ export function ChatInput({
     // mirror (composition events arrive on the DOM but React's
     // synthetic event types don't expose `isComposing`), and
     // `keyCode === 229` is the legacy Safari path. All three are
-    // necessary to cover Chromium + WebKit + Firefox.
-    if (
-      e.nativeEvent.isComposing ||
-      isComposingRef.current ||
-      e.keyCode === 229
-    ) {
-      return;
+    // necessary to cover Chromium + WebKit + Firefox. The guard also
+    // covers the mention-picker keys below — an IME commit must never
+    // select a mention.
+    const isComposing =
+      e.nativeEvent.isComposing || isComposingRef.current || e.keyCode === 229;
+
+    // `@` mention picker navigation — intercepted while open so the caret
+    // stays put and Enter selects instead of sending.
+    if (mentionPickerOpen && !isComposing) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionHighlight((i) =>
+          Math.min(i + 1, Math.max(mentionResults.length - 1, 0)),
+        );
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionHighlight((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionTrigger(null);
+        return;
+      }
+      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+        const selected = mentionResults[clampedMentionHighlight]?.data;
+        if (selected) {
+          e.preventDefault();
+          handleSelectMention(selected);
+          return;
+        }
+        // No results to pick: Enter falls through to send below.
+      }
     }
+
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    if (isComposing) return;
     e.preventDefault();
     handleSendMessage();
   };
@@ -562,8 +744,48 @@ export function ChatInput({
               ))}
             </HStack>
           )}
-          {(attachments.length > 0 || uploadingFiles.length > 0) && (
+          {(attachments.length > 0 ||
+            uploadingFiles.length > 0 ||
+            (kbMentionsEnabled && (kbMentions?.length ?? 0) > 0)) && (
             <HStack gap={1} wrap className="mb-2">
+              {kbMentionsEnabled &&
+                kbMentions?.map((mention) => (
+                  <div
+                    key={mention.documentId}
+                    className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
+                  >
+                    <DocumentIcon
+                      fileName={
+                        mention.extension
+                          ? `${mention.title}.${mention.extension}`
+                          : mention.title
+                      }
+                      mimeType={mention.fileType}
+                    />
+                    <VStack className="min-w-0 flex-1 gap-1">
+                      <Text as="div" variant="label" title={mention.title}>
+                        {middleEllipsis(mention.title, 28)}
+                      </Text>
+                      <Text
+                        as="span"
+                        variant="caption"
+                        className="text-muted-foreground/50"
+                      >
+                        {tComposer('kbMention.chipLabel')}
+                      </Text>
+                    </VStack>
+                    <button
+                      type="button"
+                      aria-label={tComposer('kbMention.removeMention', {
+                        title: mention.title,
+                      })}
+                      onClick={() => removeKbMention?.(mention.documentId)}
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                    >
+                      <X className="text-muted-foreground size-3" />
+                    </button>
+                  </div>
+                ))}
               {imageAttachments.map((attachment) => (
                 <div
                   key={attachment.fileId}
@@ -833,6 +1055,18 @@ export function ChatInput({
           <QuotedReferenceChip />
 
           <div className="relative">
+            {mentionPickerOpen && mentionTrigger && (
+              <KbMentionPopover
+                results={mentionResults}
+                status={mentionState.status}
+                query={mentionTrigger.query}
+                highlightedIndex={clampedMentionHighlight}
+                onHighlight={setMentionHighlight}
+                onSelect={handleSelectMention}
+                listboxId={mentionListboxId}
+                optionId={(index) => `${mentionListboxId}-option-${index}`}
+              />
+            )}
             <label
               id={textareaLabelId}
               htmlFor={textareaId}
@@ -848,6 +1082,10 @@ export function ChatInput({
               onFocus={onComposerActivate}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
+              // Caret moves (clicks, arrow keys) only update/close an open
+              // mention picker — typing is what opens it (handleInputChange).
+              onSelect={() => updateMentionTrigger(true)}
+              onBlur={() => setMentionTrigger(null)}
               // Track IME composition so the paste handler and the chip
               // cancel-strip path don't mutate the textarea mid-commit.
               // `e.nativeEvent.isComposing` on the paste event is the
@@ -863,6 +1101,14 @@ export function ChatInput({
               disabled={inputDisabled}
               placeholder=""
               aria-labelledby={textareaLabelId}
+              aria-autocomplete={kbMentionsEnabled ? 'list' : undefined}
+              aria-expanded={kbMentionsEnabled ? mentionPickerOpen : undefined}
+              aria-controls={mentionPickerOpen ? mentionListboxId : undefined}
+              aria-activedescendant={
+                mentionPickerOpen && mentionResults.length > 0
+                  ? `${mentionListboxId}-option-${clampedMentionHighlight}`
+                  : undefined
+              }
             />
             {value.length === 0 && !inputDisabled && (
               <Text

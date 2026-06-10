@@ -23,6 +23,12 @@ Jeder Anhang wird in Tales Objektspeicher abgelegt und an den Chat gebunden, der
 
 Kleine Textdateien und strukturierte Dokumente unter dem Inline-Budget des Agents werden wörtlich eingefügt. Grössere werden in Chunks geteilt, eingebettet und indiziert; der Agent ruft die relevanten Chunks zur Antwortzeit ab und zitiert sie. Die Grenze hängt vom Modell ab — Long-Context-Modelle schlucken mehr im Ganzen. Wenn der Agent aus einem Anhang abruft, statt ihn ganz zu lesen, zeigen die Zitate auf Chunk-Bereiche in der Originaldatei.
 
+## Wissensdokumente mit @ referenzieren
+
+Tippst du `@` in den Composer, öffnet sich ein Picker über die indizierten Wissensdokumente der Organisation. Tipp weiter, um nach Titel zu filtern, wähl eines aus, und ein Chip erscheint im Composer — die Nachricht trägt jetzt einen angehefteten Verweis auf dieses Dokument. Beim Senden prüft Tale deinen Zugriff, begrenzt das Retrieval dieser Antwort auf genau die angehefteten Dokumente und fügt die relevanten Passagen ein, selbst wenn der Wissensmodus des Agents aus ist — eine explizite Erwähnung schlägt die Retrieval-Konfiguration des Agents. Bis zu fünf Dokumente lassen sich pro Nachricht anheften.
+
+Die Chips sind die Quelle der Wahrheit: Löschst du den `@Titel`-Text aus der Nachricht, bleibt das Dokument angeheftet — entfern stattdessen den Chip. Der Picker bietet nur Dokumente an, deren Indizierung abgeschlossen ist und auf die deine Teams Zugriff haben. Der Verweis gilt pro Nachricht; eine Nachfrage ohne Erwähnungen fällt auf den normalen Wissens-Scope des Agents zurück.
+
 ## Wo das hineinpasst
 
 Anhänge sind der leichtgewichtige, chat-gebundene Weg, eine Datei in eine Antwort zu bringen. Das schwergewichtige, org-gebundene Äquivalent ist [Dokumente](/de/platform/knowledge/documents) — dieselbe Indizierungs-Pipeline, aber an Agents statt an einen einzelnen Chat gebunden. Welche Seite du als Nächstes liest, hängt davon ab, was du vorhast — zählt die Datei einmal, häng sie hier an; wird sie wieder zählen, lad sie in Wissen hoch und lass einen Agent aus jedem Chat darauf verweisen.
