@@ -44,7 +44,7 @@ import type { CacheStores } from '../types.ts';
 import { EXEC_SPEC_MOUNT_DIR, secretNameFor } from './exec-spec.ts';
 import { EXIT_CODE_PATH, STDERR_PATH, TALE_DIR } from './k8s-protocol.ts';
 
-export interface SandboxPodInput {
+interface SandboxPodInput {
   executionId: string;
   organizationId: string;
   language: Extract<Language, 'python' | 'node' | 'polyglot'>;

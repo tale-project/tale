@@ -16,14 +16,4 @@ export function createBackend(cfg: SpawnerConfig): ExecutionBackend {
   }
 }
 
-export type {
-  CacheStores,
-  ExecutionBackend,
-  HealthResult,
-  LaunchSpec,
-  RunningExecution,
-  RunOptions,
-  RunResult,
-  SweepOptions,
-  Workspace,
-} from './types.ts';
+export type { HealthResult } from './types.ts';

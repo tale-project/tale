@@ -35,13 +35,13 @@ import type {
 // writes its per-step bookkeeping. The harvest path filters anything under
 // this prefix so the bookkeeping never appears in the user-visible output
 // file chips.
-export const STEPS_INTERNAL_DIR = '.tale-steps';
-export const STEPS_RESULTS_FILENAME = 'results.json';
+const STEPS_INTERNAL_DIR = '.tale-steps';
+const STEPS_RESULTS_FILENAME = 'results.json';
 
-export const PHASE_INSTALL = 'PHASE: installing';
-export const PHASE_RUN = 'PHASE: running';
+const PHASE_INSTALL = 'PHASE: installing';
+const PHASE_RUN = 'PHASE: running';
 
-export interface StreamScannerCallbacks {
+interface StreamScannerCallbacks {
   /** Fired when a `PHASE: installing` / `PHASE: running` marker line is seen. */
   onPhase?: (event: { phase: SandboxPhaseEvent }) => void;
   /**
@@ -53,7 +53,7 @@ export interface StreamScannerCallbacks {
   onStderrDelta?: (text: string) => void;
 }
 
-export interface StreamScanner {
+interface StreamScanner {
   /** Feed a runtime stdout chunk (drives phase markers + live stdout tail). */
   onStdoutChunk?: (chunk: Uint8Array) => void;
   /** Feed a runtime stderr chunk (live stderr tail). */
@@ -173,7 +173,7 @@ export function createStreamScanner(
  * the remaining steps (recorded `skipped`) and the wrapper exits with the
  * first non-zero code, surfacing to classifyFailure().
  */
-export function buildMultiStepWrapper(
+function buildMultiStepWrapper(
   language: 'python' | 'node' | 'polyglot',
   steps: readonly string[],
 ): string {
@@ -442,7 +442,7 @@ type FetchUrlResult =
  * stream-and-cap byte ceiling. Computes sha256. Caller validates `dest`
  * against its own safe-directory boundary first.
  */
-export async function fetchUrlToFile(
+async function fetchUrlToFile(
   url: string,
   dest: string,
   opts: { timeoutMs: number; maxBytesPerFile: number },
@@ -703,12 +703,12 @@ export async function stageWorkspace(
   return { ...(priorStage !== undefined && { priorStage }) };
 }
 
-export interface HarvestEndpoints {
+interface HarvestEndpoints {
   outputUrlEndpoint: string;
   reportUploadedEndpoint: string;
 }
 
-export interface HarvestResult {
+interface HarvestResult {
   files: OutputFile[];
   truncatedCount: number;
   uploadStats: UploadStats;
@@ -961,7 +961,7 @@ export async function readStepResults(
   return out.filter((s) => requested.has(s.path));
 }
 
-export function guessContentType(name: string): string {
+function guessContentType(name: string): string {
   const lower = name.toLowerCase();
   if (lower.endsWith('.pptx'))
     return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';

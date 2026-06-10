@@ -21,7 +21,7 @@ function pvcName(prefix: string, organizationId: string): string {
   return `${prefix}-${slug}`;
 }
 
-export function cacheStoreNames(
+function cacheStoreNames(
   cfg: SpawnerConfig,
   organizationId: string,
 ): CacheStores {
