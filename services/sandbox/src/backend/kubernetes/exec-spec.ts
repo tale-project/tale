@@ -93,6 +93,7 @@ export function buildExecSecret(
   cfg: SpawnerConfig,
   req: ExecuteRequest,
   timeoutMs: number,
+  startedAtMs: number,
 ): V1Secret {
   const spec = buildExecSpec(cfg, req, timeoutMs);
   return {
@@ -107,6 +108,9 @@ export function buildExecSecret(
       },
       annotations: {
         'tale.dev/execution-id': req.executionId,
+        // Lets the orphan sweep age podless Secrets (a crash between
+        // createSecret and createPod would otherwise leak a token-bearer).
+        'tale.dev/started-at': String(startedAtMs),
       },
     },
     type: 'Opaque',
@@ -148,6 +152,34 @@ export function parseExecSpec(json: string): ExecSpec {
   }
   if (obj.caps === null || typeof obj.caps !== 'object') {
     throw new Error('exec-spec: missing or invalid `caps`');
+  }
+  // The numerics drive deadlines and byte caps in the Pod. An undefined
+  // timeoutMs would make the harvest's poll deadline NaN (`now >= NaN` is
+  // always false → infinite wait); an undefined cap silently disables its
+  // limit. Reachable on spawner↔spawnerImage version skew — fail loud instead.
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const caps = obj.caps as Record<string, unknown>;
+  for (const field of [
+    'stdoutMaxBytes',
+    'stderrMaxBytes',
+    'outputFileMaxBytes',
+    'outputTotalMaxBytes',
+  ]) {
+    const v = caps[field];
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) {
+      throw new Error(`exec-spec: missing or invalid \`caps.${field}\``);
+    }
+  }
+  const timeoutMs = obj.timeoutMs;
+  if (
+    typeof timeoutMs !== 'number' ||
+    !Number.isFinite(timeoutMs) ||
+    timeoutMs <= 0
+  ) {
+    throw new Error('exec-spec: missing or invalid `timeoutMs`');
+  }
+  if (obj.sandboxToken !== null && typeof obj.sandboxToken !== 'string') {
+    throw new Error('exec-spec: missing or invalid `sandboxToken`');
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   return parsed as ExecSpec;

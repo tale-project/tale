@@ -240,9 +240,7 @@ async function handleExecute(req: Request): Promise<Response> {
   // request-signal abort to cancelExecution so a closed SSE stream tears
   // the container down promptly.
   const abortHandler = () => {
-    cancelExecution(backend, parsed.executionId).catch((err) => {
-      console.warn('[sandbox] client-abort cancel failed:', err);
-    });
+    cancelExecution(parsed.executionId);
   };
   req.signal.addEventListener('abort', abortHandler, { once: true });
   registerInFlight(parsed.executionId);
@@ -326,11 +324,17 @@ async function handleCancel(req: Request, id: string): Promise<Response> {
   }
   const authFail = authorize(body, req);
   if (authFail) return authFail;
-  if (!isInFlight(id)) {
-    return jsonResponse({ killed: false }, 404);
+  // Locally owned → abort-only; execute() does its final reads then cleans up.
+  if (isInFlight(id)) {
+    const killed = cancelExecution(id);
+    return jsonResponse({ killed }, 200);
   }
-  const killed = await cancelExecution(backend, id);
-  return jsonResponse({ killed }, 200);
+  // Not ours — REMOTE path: the backend addresses the runtime by
+  // deterministic name, so a cancel landing on any replica still kills a run
+  // owned by another one (the docs' cancel-from-any-replica contract; the
+  // owner's run then resolves as failed/HARVEST_READ_FAILED, not cancelled).
+  const found = await backend.cancel(id);
+  return jsonResponse({ killed: found }, found ? 200 : 404);
 }
 
 // Cancel route uses the same id alphabet as the execute payload so a
@@ -418,4 +422,10 @@ async function main(): Promise<void> {
   void stopPeriodic;
 }
 
-void main();
+main().catch((err: unknown) => {
+  // Without this catch a boot failure after init() (e.g. Bun.serve EADDRINUSE)
+  // would be swallowed by the global unhandledRejection backstop above,
+  // leaving a zombie process that neither listens nor exits.
+  console.error('[sandbox] FATAL: boot failed:', err);
+  process.exit(1);
+});

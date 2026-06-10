@@ -7,7 +7,14 @@
 // + the presigned-URL callbacks (sandbox-callback.ts). No docker/k8s specifics.
 
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 
 import {
@@ -204,9 +211,13 @@ def interpreter_for(path):
     return None
 
 def flush_results():
+    # Write-then-rename so a reader (the k8s timeout harvest runs while this
+    # process is still alive) never sees a half-written file.
     try:
-        with open(RESULTS_PATH, "w") as fh:
+        tmp_path = RESULTS_PATH + ".tmp"
+        with open(tmp_path, "w") as fh:
             json.dump(results, fh)
+        os.replace(tmp_path, RESULTS_PATH)
     except Exception as exc:
         sys.stderr.write(f"[tale-runner] failed to persist step results: {exc}\\n")
 
@@ -284,9 +295,13 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 results = []
 
 def flush_results():
+    # Write-then-rename so a reader (the k8s timeout harvest runs while this
+    # process is still alive) never sees a half-written file.
     try:
-        with open(RESULTS_PATH, "w") as fh:
+        tmp_path = RESULTS_PATH + ".tmp"
+        with open(tmp_path, "w") as fh:
             json.dump(results, fh)
+        os.replace(tmp_path, RESULTS_PATH)
     except Exception as exc:
         sys.stderr.write(f"[tale-runner] failed to persist step results: {exc}\\n")
 
@@ -357,8 +372,12 @@ fs.mkdirSync(RESULTS_DIR, { recursive: true });
 const results = [];
 
 function flushResults() {
+  // Write-then-rename so a reader (the k8s timeout harvest runs while this
+  // process is still alive) never sees a half-written file.
   try {
-    fs.writeFileSync(RESULTS_PATH, JSON.stringify(results));
+    const tmpPath = RESULTS_PATH + '.tmp';
+    fs.writeFileSync(tmpPath, JSON.stringify(results));
+    fs.renameSync(tmpPath, RESULTS_PATH);
   } catch (err) {
     process.stderr.write(\`[tale-runner] failed to persist step results: \${err}\\n\`);
   }
@@ -477,48 +496,71 @@ async function fetchUrlToFile(
       };
     }
   }
-  try {
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    let oversize = false;
-    if (res.body !== null) {
-      const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let oversize = false;
+  if (res.body !== null) {
+    const reader = res.body.getReader();
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value === undefined) continue;
+        if (total + value.byteLength > opts.maxBytesPerFile) {
+          oversize = true;
+          break;
+        }
+        chunks.push(value);
+        total += value.byteLength;
+      }
+    } catch (err) {
+      // The AbortSignal.timeout above also covers body streaming — a timeout
+      // mid-stream is a fetch timeout, not a disk write failure.
+      const detail = err instanceof Error ? err.message : String(err);
+      const reason: PriorStageSkipReason =
+        err instanceof Error &&
+        (err.name === 'TimeoutError' || err.name === 'AbortError')
+          ? 'fetch_timeout'
+          : 'fetch_failed';
+      await reader.cancel().catch((cancelErr: unknown) => {
+        console.warn('[sandbox] fetchUrlToFile reader.cancel:', cancelErr);
+      });
+      return { ok: false, reason, detail };
+    } finally {
       try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value === undefined) continue;
-          if (total + value.byteLength > opts.maxBytesPerFile) {
-            oversize = true;
-            break;
-          }
-          chunks.push(value);
-          total += value.byteLength;
-        }
-      } finally {
-        try {
-          reader.releaseLock();
-        } catch (err) {
-          console.warn('[sandbox] fetchUrlToFile reader.releaseLock:', err);
-        }
+        reader.releaseLock();
+      } catch (err) {
+        console.warn('[sandbox] fetchUrlToFile reader.releaseLock:', err);
       }
     }
     if (oversize) {
+      // Tell the server we're done with the body instead of abandoning the
+      // half-read stream until GC.
+      await res.body.cancel().catch((cancelErr: unknown) => {
+        console.warn('[sandbox] fetchUrlToFile body.cancel:', cancelErr);
+      });
       return {
         ok: false,
         reason: 'download_too_large',
         detail: `streamed > ${opts.maxBytesPerFile} bytes`,
       };
     }
-    const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
-    const sha256 = createHash('sha256').update(buf).digest('hex');
+  }
+  const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+  const sha256 = createHash('sha256').update(buf).digest('hex');
+  try {
     await mkdir(dirname(dest), { recursive: true });
     await writeFile(dest, buf);
-    return { ok: true, bytes: buf.byteLength, sha256 };
   } catch (err) {
+    // Don't leave a partial file in the workspace — staging treats the file
+    // as skipped, and a later harvest must not pick up corrupt content.
+    await rm(dest, { force: true }).catch((rmErr: unknown) => {
+      console.warn('[sandbox] fetchUrlToFile partial-file cleanup:', rmErr);
+    });
     const detail = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: 'write_failed', detail };
   }
+  return { ok: true, bytes: buf.byteLength, sha256 };
 }
 
 async function stageDownloadsToDir(
@@ -748,12 +790,16 @@ export async function harvestOutputDir(
   let readFailed = false;
   const startUpload = Date.now();
 
+  // A hard (non-quota) EP1 failure latches: re-requesting once per remaining
+  // output file would only add one failing HTTP round-trip per file.
+  let slotRequestsBroken = false;
+
   async function nextSlotUrl(): Promise<string | null> {
     if (slotPool.length > 0) {
       const url = slotPool.shift();
       return url ?? null;
     }
-    if (quotaExhausted) return null;
+    if (quotaExhausted || slotRequestsBroken) return null;
     const result = await requestUploadUrls(
       endpoints.outputUrlEndpoint,
       executionId,
@@ -765,6 +811,7 @@ export async function harvestOutputDir(
         quotaExhausted = true;
       } else {
         uploadFailed = true;
+        slotRequestsBroken = true;
       }
       failures.push({
         slotIndex: -1,
@@ -778,6 +825,12 @@ export async function harvestOutputDir(
     const url = slotPool.shift();
     return url ?? null;
   }
+
+  // Symlinks / sockets / other non-regular files are never uploaded; count
+  // them so the skip is at least visible in the logs (NOT in failures[] — the
+  // platform treats any uploadStats.failures entry as fatal UPLOAD_INCOMPLETE,
+  // which would punish runs that merely created a symlink).
+  let skippedNonRegular = 0;
 
   async function walk(rel: string): Promise<void> {
     const abs = join(outputDir, rel);
@@ -797,8 +850,28 @@ export async function harvestOutputDir(
         await walk(childRel);
         continue;
       }
-      if (!e.isFile()) continue;
-      const st = await stat(childAbs);
+      if (!e.isFile()) {
+        skippedNonRegular += 1;
+        continue;
+      }
+      // Per-entry guards: on the k8s timeout path the harvest deliberately
+      // walks /workspace/output while the runner is still alive, so files can
+      // vanish (tmp-then-rename writes) between readdir / stat / read. One
+      // racing file must not abort the whole harvest.
+      let st;
+      try {
+        st = await stat(childAbs);
+      } catch (err) {
+        console.warn(`[sandbox.harvest] stat ${childAbs} failed:`, err);
+        readFailed = true;
+        failures.push({
+          slotIndex: -1,
+          fileName: childRel,
+          httpStatus: 0,
+          errorSnippet: `read failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        continue;
+      }
       if (
         st.size > caps.perFileMax ||
         totalAccepted + st.size > caps.totalMax
@@ -820,7 +893,29 @@ export async function harvestOutputDir(
         continue;
       }
       attempted += 1;
-      const bytes = await readFile(childAbs);
+      let bytes;
+      try {
+        bytes = await readFile(childAbs);
+      } catch (err) {
+        console.warn(`[sandbox.harvest] read ${childAbs} failed:`, err);
+        readFailed = true;
+        failures.push({
+          slotIndex: slotIndex,
+          fileName: childRel,
+          httpStatus: 0,
+          errorSnippet: `read failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        continue;
+      }
+      // The file may have grown between stat and read — re-enforce the caps
+      // on the actual bytes, and report the size that was really uploaded.
+      if (
+        bytes.byteLength > caps.perFileMax ||
+        totalAccepted + bytes.byteLength > caps.totalMax
+      ) {
+        truncatedCount += 1;
+        continue;
+      }
       const contentType = guessContentType(childRel);
       const sha256 = createHash('sha256').update(bytes).digest('hex');
       const postResult = await postToUploadSlot(
@@ -842,7 +937,7 @@ export async function harvestOutputDir(
         {
           fileName: childRel,
           storageId: postResult.storageId,
-          size: st.size,
+          size: bytes.byteLength,
           contentType,
         },
         { token: sandboxToken },
@@ -859,15 +954,20 @@ export async function harvestOutputDir(
       files.push({
         name: childRel,
         storageId: postResult.storageId,
-        size: st.size,
+        size: bytes.byteLength,
         contentType,
         sha256,
       });
-      totalAccepted += st.size;
+      totalAccepted += bytes.byteLength;
       succeeded += 1;
     }
   }
   await walk('');
+  if (skippedNonRegular > 0) {
+    console.warn(
+      `[sandbox.harvest] skipped ${skippedNonRegular} non-regular file(s) (symlinks etc.) under ${outputDir}`,
+    );
+  }
   return {
     files,
     truncatedCount,
@@ -1045,7 +1145,10 @@ export function capText(
 ): { text: string; truncated: boolean } {
   const buf = Buffer.from(text);
   if (buf.byteLength <= maxBytes) return { text, truncated: false };
-  return { text: buf.subarray(0, maxBytes).toString('utf8'), truncated: true };
+  // The byte cut can land mid-UTF-8-codepoint; toString resyncs but leaves
+  // U+FFFD replacement garbage at the tail — trim it off the cut edge.
+  const capped = buf.subarray(0, maxBytes).toString('utf8').replace(/�+$/, '');
+  return { text: capped, truncated: true };
 }
 
 const EGRESS_DENIED_RE =
@@ -1053,15 +1156,27 @@ const EGRESS_DENIED_RE =
 const PACKAGE_NOT_FOUND_RE =
   /no matching distribution|could not find a version|unsatisfiable|404 Not Found|E404|No matching distribution found/i;
 
+/**
+ * Authoritative kill-cause signal, when the backend has one (k8s: the runner
+ * containerStatus's `terminated.reason === 'OOMKilled'`; docker could use
+ * `State.OOMKilled`). Beats the stderr substring heuristic, which structurally
+ * never fires on k8s — the shell wrapper's "Killed" message goes to the pod
+ * log, not the captured stderr file.
+ */
+export interface OomHint {
+  oomKilled?: boolean;
+}
+
 export function classifyFailure(
   exitCode: number,
   stderr: string,
+  hint?: OomHint,
 ): { code: ErrorCode; message: string } {
   if (exitCode === 124) {
     return { code: 'TIMEOUT', message: 'Wall-clock timeout exceeded' };
   }
   if (exitCode === 137) {
-    if (/killed/i.test(stderr)) {
+    if (hint?.oomKilled === true || /killed/i.test(stderr)) {
       return { code: 'OOM', message: 'Container killed (likely OOM)' };
     }
     return { code: 'TIMEOUT', message: 'Container killed (SIGKILL)' };

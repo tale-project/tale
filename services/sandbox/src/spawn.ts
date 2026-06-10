@@ -55,20 +55,19 @@ export function unregisterInFlight(executionId: string): void {
   inFlight.delete(executionId);
 }
 
-export async function cancelExecution(
-  backend: ExecutionBackend,
-  executionId: string,
-): Promise<boolean> {
+/**
+ * LOCAL cancel: abort the in-flight signal and let `execute()` own the
+ * teardown. The docker backend kills the container promptly via an abort
+ * listener inside its wait(); the k8s backend's poll loop exits on the abort,
+ * performs its final log reads against the still-existing Pod, and its
+ * finally deletes Pod + Secret — so a cancel can never race the result
+ * harvest. The REMOTE/cross-replica path is `backend.cancel()`, invoked by
+ * server.ts only when the id is not in this replica's registry.
+ */
+export function cancelExecution(executionId: string): boolean {
   const entry = inFlight.get(executionId);
   if (!entry) return false;
-  // The abort signal is the primary cancel — it ends the runtime stream that
-  // `execute()` is draining, so the orchestration proceeds to its cleanup. The
-  // backend additionally kills the container/Pod (the TERM→KILL escalation +
-  // wedged-daemon ceiling live inside the backend, which addresses the runtime
-  // by execution id rather than a stored handle — so this works even before
-  // the runtime has been created).
   entry.abort.abort('cancelled by client');
-  await backend.cancel(executionId);
   return true;
 }
 

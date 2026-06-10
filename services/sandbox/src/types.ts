@@ -286,6 +286,13 @@ export interface SpawnerConfig {
     // 'pvc' mounts per-org ReadWriteMany cache PVCs (operator must provide
     // an RWX storage class).
     cacheMode: 'none' | 'pvc';
+    // sizeLimit on the per-exec /workspace emptyDir (K8s quantity string,
+    // env SANDBOX_K8S_WORKSPACE_SIZE_LIMIT). Everything the execution
+    // writes — dependency installs, temp files, outputs — lands on this
+    // volume, so without a limit a runaway run can fill the node disk.
+    // Exceeding it gets the pod evicted (classified via the runner-dead
+    // path), the K8s analogue of docker's fsize ulimit.
+    workspaceSizeLimit: string;
   };
   defaultTimeoutMs: number;
   maxTimeoutMs: number;

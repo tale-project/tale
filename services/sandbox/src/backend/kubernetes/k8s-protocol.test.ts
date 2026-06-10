@@ -7,9 +7,12 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  HARVEST_STARTED_MARKER,
   RESULT_MARKER,
   formatResultLine,
+  formatStartedLine,
   parseResultLine,
+  parseStartedLine,
   type K8sHarvestResult,
 } from './k8s-protocol.ts';
 
@@ -79,5 +82,37 @@ describe('result line protocol', () => {
     const withBig: K8sHarvestResult = { ...sample, stderr: big };
     const parsed = parseResultLine(formatResultLine(withBig));
     expect(parsed?.stderr).toBe(big);
+  });
+});
+
+describe('harvest started line', () => {
+  test('round-trips through format → parse and is one line', () => {
+    const line = formatStartedLine({ exitCode: 7, timedOut: false });
+    expect(line.startsWith(`${HARVEST_STARTED_MARKER} `)).toBe(true);
+    expect(line.includes('\n')).toBe(false);
+    expect(parseStartedLine(line)).toEqual({ exitCode: 7, timedOut: false });
+  });
+
+  test('started + result lines coexist without confusing either parser', () => {
+    const logs = [
+      formatStartedLine({ exitCode: 0, timedOut: false }),
+      'harvest progress noise',
+      formatResultLine(sample),
+    ].join('\n');
+    expect(parseStartedLine(logs)).toEqual({ exitCode: 0, timedOut: false });
+    expect(parseResultLine(logs)).toEqual(sample);
+  });
+
+  test('returns null when absent or malformed', () => {
+    expect(parseStartedLine('no markers here')).toBeNull();
+    expect(parseStartedLine(`${HARVEST_STARTED_MARKER} {broken`)).toBeNull();
+  });
+
+  test('user output containing the marker mid-line is not a match', () => {
+    // Only LINE-PREFIX matches count; the runner's stdout never reaches the
+    // harvest log anyway, but be strict.
+    expect(
+      parseStartedLine(`echoed ${HARVEST_STARTED_MARKER} {"exitCode":9}`),
+    ).toBeNull();
   });
 });

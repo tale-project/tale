@@ -13,7 +13,6 @@
 
 import {
   capText,
-  classifyFailure,
   createStreamScanner,
   harvestOutputDir,
   makeError,
@@ -23,14 +22,22 @@ import {
   stripPhaseMarkers,
   synthesizeStepResults,
 } from '../exec-common.ts';
+import {
+  buildCancelled,
+  buildCompleted,
+  buildInfraFailure,
+  buildRuntimeFailure,
+  classifyHarvestError,
+  type ResponseParts,
+} from '../exec-response.ts';
 import type {
-  ErrorCode,
   ExecuteRequest,
   ExecuteResponse,
   OutputFile,
   SpawnerConfig,
   UploadStats,
 } from '../types.ts';
+import { ID_ALPHABET_RE } from '../wire.ts';
 import type {
   ExecuteOptions,
   LocalWorkspaceRuntime,
@@ -38,6 +45,14 @@ import type {
   RunResult,
   Workspace,
 } from './types.ts';
+
+// Docker-CLI exit codes that can mean "the daemon/CLI failed", not user code
+// (125 daemon error, 126 not-runnable, 127 not-found). A user process can
+// legitimately exit with these too, so the stderr signature must ALSO match
+// before we classify the failure as infrastructure.
+const DOCKER_INFRA_EXITS = new Set([125, 126, 127]);
+const DOCKER_INFRA_STDERR_RE =
+  /docker: error response from daemon|cannot connect to the docker daemon|error during connect/i;
 
 export async function runLocalWorkspaceExecution(
   runtime: LocalWorkspaceRuntime,
@@ -54,6 +69,11 @@ export async function runLocalWorkspaceExecution(
     req.language !== 'polyglot'
   ) {
     return makeError('SPAWNER_UNAVAILABLE', 'invalid language', 0);
+  }
+  // The dispatcher validates this too, but the id feeds join() + rm -rf via
+  // createWorkspace — keep this entry point safe to call on its own.
+  if (!ID_ALPHABET_RE.test(req.executionId)) {
+    return makeError('SPAWNER_UNAVAILABLE', 'invalid executionId', 0);
   }
 
   const timeoutMs = Math.min(
@@ -175,7 +195,7 @@ export async function runLocalWorkspaceExecution(
     // step. The wrapper flushes after every step (and again on fail-fast),
     // so even cancelled / failed runs usually have a partial results.json
     // worth surfacing. `null` means the wrapper never got far enough — we
-    // synthesize a [{status:'failed'}] entry so the caller doesn't have to
+    // synthesize all-'skipped' entries so the caller doesn't have to
     // special-case the missing-file path.
     const stepResults =
       req.steps !== undefined
@@ -231,105 +251,60 @@ export async function runLocalWorkspaceExecution(
     }
     const harvestMs = Date.now() - harvestStartedAt;
 
-    // Classify any harvest-side failure into a wire errorCode. Order
-    // matters: quota > upload > report > read. The first matching code
-    // becomes the response's errorCode IF the user code itself exited 0
-    // — we don't want to mask a legitimate runtime crash. For non-zero
-    // exits, classifyFailure() picks the runtime errorCode and the upload
-    // failure shows up in `uploadStats.failures` instead.
-    let harvestErrorCode: ErrorCode | undefined;
-    let harvestErrorMessage: string | undefined;
-    if (harvestQuotaExhausted) {
-      harvestErrorCode = 'UPLOAD_QUOTA_EXCEEDED';
-      harvestErrorMessage =
-        'Per-run output-file quota exceeded; some files were not uploaded';
-    } else if (harvestUploadFailed) {
-      harvestErrorCode = 'UPLOAD_FAILED';
-      harvestErrorMessage = 'One or more output uploads failed';
-    } else if (harvestReportFailed) {
-      harvestErrorCode = 'UPLOAD_REPORT_FAILED';
-      harvestErrorMessage =
-        'Upload succeeded but report-back to platform failed';
-    } else if (harvestReadFailed) {
-      harvestErrorCode = 'HARVEST_READ_FAILED';
-      harvestErrorMessage = "Couldn't read /workspace/output";
-    }
-
-    const timing = {
-      stageMs,
-      executeMs: Math.max(0, durationMs),
-      harvestMs,
-      uploadMs,
-    };
-
-    if (opts.signal.aborted) {
-      return {
-        status: 'cancelled',
-        exitCode: null,
-        errorCode: 'CANCELLED',
-        errorMessage: 'Execution cancelled by client',
-        stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
-        stderrBase64: Buffer.from(stderrCapped).toString('base64'),
-        durationMs,
-        truncated: {
-          stdout: stdoutTrunc,
-          stderr: stderrTrunc,
-          files: harvestTruncatedCount,
-        },
-        outputFiles: harvestedFiles,
-        ...(stepResults !== undefined && { steps: stepResults }),
-        uploadStats: harvestUploadStats,
-        timing,
-        ...(priorStage !== undefined && { priorStage }),
-      };
-    }
-
-    if (exitCode === 0) {
-      return {
-        status: harvestErrorCode !== undefined ? 'failed' : 'completed',
-        exitCode: 0,
-        ...(harvestErrorCode !== undefined && {
-          errorCode: harvestErrorCode,
-          ...(harvestErrorMessage !== undefined && {
-            errorMessage: harvestErrorMessage,
-          }),
-        }),
-        stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
-        stderrBase64: Buffer.from(stderrCapped).toString('base64'),
-        durationMs,
-        truncated: {
-          stdout: stdoutTrunc,
-          stderr: stderrTrunc,
-          files: harvestTruncatedCount,
-        },
-        outputFiles: harvestedFiles,
-        ...(stepResults !== undefined && { steps: stepResults }),
-        uploadStats: harvestUploadStats,
-        timing,
-        ...(priorStage !== undefined && { priorStage }),
-      };
-    }
-
-    const { code: ec, message } = classifyFailure(exitCode, stderrCapped);
-    return {
-      status: ec === 'CANCELLED' ? 'cancelled' : 'failed',
-      exitCode,
-      errorCode: ec,
-      errorMessage: message,
-      stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
-      stderrBase64: Buffer.from(stderrCapped).toString('base64'),
+    // Every terminal shape routes through the shared constructors in
+    // exec-response.ts — the cross-backend contract (see the outcome table on
+    // ExecutionBackend.execute).
+    const parts: ResponseParts = {
+      stdoutCapped,
+      stderrCapped,
+      stdoutTruncated: stdoutTrunc,
+      stderrTruncated: stderrTrunc,
       durationMs,
-      truncated: {
-        stdout: stdoutTrunc,
-        stderr: stderrTrunc,
-        files: harvestTruncatedCount,
-      },
+      truncatedFiles: harvestTruncatedCount,
       outputFiles: harvestedFiles,
       ...(stepResults !== undefined && { steps: stepResults }),
       uploadStats: harvestUploadStats,
-      timing,
+      timing: {
+        stageMs,
+        executeMs: Math.max(0, durationMs),
+        harvestMs,
+        uploadMs,
+      },
       ...(priorStage !== undefined && { priorStage }),
     };
+
+    if (opts.signal.aborted) {
+      return buildCancelled(parts);
+    }
+
+    if (exitCode === 0) {
+      return buildCompleted(
+        parts,
+        classifyHarvestError({
+          quotaExhausted: harvestQuotaExhausted,
+          uploadFailed: harvestUploadFailed,
+          reportFailed: harvestReportFailed,
+          readFailed: harvestReadFailed,
+        }),
+      );
+    }
+
+    // A daemon/CLI failure surfaces as the `docker run` exit code and would
+    // otherwise classify as user-blaming RUNTIME_ERROR ("User code exited
+    // with status 125") — or even EGRESS_DENIED via the daemon's "connection
+    // refused" text. Require the docker-CLI stderr signature so a user
+    // process that exits 125 stays a runtime failure.
+    if (
+      DOCKER_INFRA_EXITS.has(exitCode) &&
+      DOCKER_INFRA_STDERR_RE.test(stderrCapped)
+    ) {
+      return buildInfraFailure(
+        parts,
+        `docker failed to run the execution (exit ${exitCode}): ${stderrCapped.slice(0, 500)}`,
+      );
+    }
+
+    return buildRuntimeFailure(parts, exitCode, stderrCapped);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return makeError(

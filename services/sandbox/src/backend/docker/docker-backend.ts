@@ -47,6 +47,37 @@ import type {
 } from '../types.ts';
 import { HostDirWorkspace } from './host-dir-workspace.ts';
 
+/**
+ * Kill a container with the TERM→KILL escalation + the 5s wedged-daemon
+ * ceiling (audit follow-up F4). Used by the in-wait abort listener (local
+ * cancel) and by `cancel()` (the remote path).
+ *
+ * @returns true when a kill was delivered.
+ */
+async function killContainerEscalating(
+  containerName: string,
+): Promise<boolean> {
+  try {
+    await dockerKill(containerName, 'TERM', { timeoutMs: 5_000 });
+    return true;
+  } catch (err) {
+    console.warn(
+      `[sandbox.cancel] dockerKill timed out / failed for ${containerName}:`,
+      err,
+    );
+    try {
+      await dockerKill(containerName, 'KILL', { timeoutMs: 5_000 });
+      return true;
+    } catch (forceErr) {
+      console.error(
+        `[sandbox.cancel] forced dockerKill also failed for ${containerName}:`,
+        forceErr,
+      );
+      return false;
+    }
+  }
+}
+
 class DockerRunningExecution implements RunningExecution {
   constructor(
     private readonly containerName: string,
@@ -70,6 +101,14 @@ class DockerRunningExecution implements RunningExecution {
         },
       );
     }, this.userTimeoutMs);
+    // Aborting the signal only kills the `docker run` CLI child — the
+    // container itself keeps running until the post-harvest remove(). Kill it
+    // promptly on abort (local cancel is abort-only; see spawn.ts).
+    const onAbort = (): void => {
+      void killContainerEscalating(this.containerName);
+    };
+    if (opts.signal.aborted) onAbort();
+    else opts.signal.addEventListener('abort', onAbort, { once: true });
     try {
       return await runDocker(this.argv, {
         timeoutMs: opts.outerTimeoutMs,
@@ -82,6 +121,7 @@ class DockerRunningExecution implements RunningExecution {
       });
     } finally {
       clearTimeout(killTimer);
+      opts.signal.removeEventListener('abort', onAbort);
     }
   }
 
@@ -178,28 +218,11 @@ export class DockerBackend implements ExecutionBackend, LocalWorkspaceRuntime {
     return new DockerRunningExecution(containerName, argv, spec.timeoutMs);
   }
 
-  async cancel(executionId: string): Promise<void> {
-    const containerName = `tale-sbx-${executionId}`;
-    // SIGTERM first (graceful), escalate to SIGKILL on failure. timeoutMs is
-    // forwarded to runDocker so a wedged daemon kills the docker CLI child too
-    // (audit follow-up F4). Best-effort: docker kill on a not-yet-created
-    // container just fails harmlessly.
-    try {
-      await dockerKill(containerName, 'TERM', { timeoutMs: 5_000 });
-    } catch (err) {
-      console.warn(
-        `[sandbox.cancel] dockerKill timed out / failed for ${executionId}:`,
-        err,
-      );
-      try {
-        await dockerKill(containerName, 'KILL', { timeoutMs: 5_000 });
-      } catch (forceErr) {
-        console.error(
-          `[sandbox.cancel] forced dockerKill also failed for ${executionId}:`,
-          forceErr,
-        );
-      }
-    }
+  async cancel(executionId: string): Promise<boolean> {
+    // REMOTE path (the local path is abort-only; the in-wait abort listener
+    // kills the container). Best-effort: docker kill on a not-yet-created /
+    // unknown container just fails harmlessly and reports false.
+    return killContainerEscalating(`tale-sbx-${executionId}`);
   }
 
   async sweepOrphans(opts: SweepOptions): Promise<number> {

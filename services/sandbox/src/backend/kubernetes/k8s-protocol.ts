@@ -29,6 +29,53 @@ export interface PrestageFile {
 export const RESULT_MARKER = '__TALE_RESULT__';
 
 /**
+ * Progress line the harvest container prints the moment `waitForExitCode`
+ * resolves — i.e. as soon as it stops waiting on the runner and starts
+ * collecting. Two consumers on the spawner side:
+ *   - runner-dead short-circuit: a runner container that terminated non-zero
+ *     can never write the exit-code file (the wrapper died with it), so a
+ *     missing started line means harvest is stuck waiting on a file that will
+ *     never exist — the spawner stops waiting and classifies from the runner's
+ *     terminated state. A present line means harvest is legitimately busy
+ *     (uploading) and owns its own timeouts.
+ *   - harvest-crash recovery: the line carries the runner's real exit code, so
+ *     even when the harvest later crashes without a result line the spawner
+ *     can report the true exitCode instead of null.
+ */
+export const HARVEST_STARTED_MARKER = '__TALE_HARVEST_STARTED__';
+
+export interface HarvestStarted {
+  exitCode: number;
+  timedOut: boolean;
+}
+
+export function formatStartedLine(started: HarvestStarted): string {
+  return `${HARVEST_STARTED_MARKER} ${JSON.stringify(started)}`;
+}
+
+/** Last started-marker line in the harvest logs, or null when absent. */
+export function parseStartedLine(logs: string): HarvestStarted | null {
+  const lines = logs.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (line !== undefined && line.startsWith(HARVEST_STARTED_MARKER)) {
+      const json = line.slice(HARVEST_STARTED_MARKER.length).trim();
+      try {
+        // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+        return JSON.parse(json) as HarvestStarted;
+      } catch (err) {
+        console.warn(
+          '[sandbox.k8s] failed to parse harvest started line:',
+          err instanceof Error ? err.message : err,
+        );
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * The harvest container's result, carried back to the spawner on the harvest
  * container's stdout. The spawner combines this with the runner container's
  * logs (which carry stdout) to assemble the final ExecuteResponse. stdout is
@@ -36,6 +83,14 @@ export const RESULT_MARKER = '__TALE_RESULT__';
  */
 export interface K8sHarvestResult {
   exitCode: number;
+  /**
+   * Set only by the harvest fatal handler's fallback line: the harvest crashed
+   * before producing a real result, so `exitCode` is a placeholder. The
+   * spawner must take the exit code from the started line instead (or report
+   * exitCode null when that is absent too) — never classify user code from a
+   * fatal placeholder.
+   */
+  fatal?: boolean;
   /** Capped runner stderr (read from STDERR_PATH); plain text, spawner base64s. */
   stderr: string;
   stderrTruncated: boolean;

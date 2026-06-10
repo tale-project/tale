@@ -21,6 +21,7 @@ const cfg: SpawnerConfig = {
     runtimeClassName: 'gvisor',
     spawnerImage: 'tale-sandbox:test',
     cacheMode: 'none',
+    workspaceSizeLimit: '4Gi',
   },
   defaultTimeoutMs: 30_000,
   maxTimeoutMs: 300_000,
@@ -226,10 +227,22 @@ describe('buildSandboxPod', () => {
     const pod = buildSandboxPod(cfg, goodInput);
     const ws = pod.spec?.volumes?.find((v) => v.name === 'workspace');
     expect(ws?.emptyDir).toBeDefined();
+    // Disk-bound: everything the execution writes lands here (HOME, TMPDIR,
+    // deps, outputs), so an uncapped emptyDir is a node-disk DoS surface.
+    expect(ws?.emptyDir?.sizeLimit).toBe('4Gi');
     for (const c of [stage(pod), runner(pod), harvest(pod)]) {
       const m = c.volumeMounts?.find((x) => x.name === 'workspace');
       expect(m?.mountPath).toBe('/workspace');
     }
+  });
+
+  test('workspace sizeLimit is operator-configurable', () => {
+    const pod = buildSandboxPod(
+      { ...cfg, k8s: { ...cfg.k8s, workspaceSizeLimit: '10Gi' } },
+      goodInput,
+    );
+    const ws = pod.spec?.volumes?.find((v) => v.name === 'workspace');
+    expect(ws?.emptyDir?.sizeLimit).toBe('10Gi');
   });
 
   test('helper containers are hardened non-root', () => {
@@ -239,7 +252,22 @@ describe('buildSandboxPod', () => {
       expect(c.securityContext?.runAsNonRoot).toBe(true);
       expect(c.securityContext?.readOnlyRootFilesystem).toBe(true);
       expect(c.securityContext?.allowPrivilegeEscalation).toBe(false);
+      // Pin the full hardening set — a silently-weakened helper would carry
+      // the SANDBOX_TOKEN with extra capabilities.
+      expect(c.securityContext?.capabilities?.drop).toEqual(['ALL']);
+      expect(c.securityContext?.seccompProfile?.type).toBe('RuntimeDefault');
     }
+  });
+
+  test('RUNNER_WRAPPER invariant: a surviving wrapper always exits 0 (echo is last)', () => {
+    // The runner-dead short-circuit in k8s-backend.ts depends on this: the
+    // wrapper's LAST command is the echo into the exit-code file, so a
+    // non-zero runner-container exit means the wrapper itself was killed and
+    // the exit-code file will never appear.
+    const c = runner(buildSandboxPod(cfg, goodInput));
+    const script = c.command?.[2] ?? '';
+    const lastLine = script.trim().split('\n').at(-1) ?? '';
+    expect(lastLine).toBe('echo $? > /workspace/.tale/exit-code');
   });
 
   test('gVisor: runtimeClassName set only when runtime === runsc', () => {

@@ -362,14 +362,12 @@ export function installSignalHandlers(
     } catch (err) {
       console.warn(`[sandbox.shutdown] stopAccepting failed:`, err);
     }
-    const ids = inFlightIds();
-    await Promise.allSettled(
-      ids.map((id) =>
-        cancelExecution(backend, id).catch((err) => {
-          console.warn(`[sandbox.shutdown] cancel ${id} failed:`, err);
-        }),
-      ),
-    );
+    // Abort-only: each execute() observes the abort and performs its own
+    // teardown (kill/remove container, delete Pod+Secret); the drain loop
+    // below waits on those finally blocks via the in-flight registry.
+    for (const id of inFlightIds()) {
+      cancelExecution(id);
+    }
     const deadline = Date.now() + 20_000;
     while (inFlightIds().length > 0 && Date.now() < deadline) {
       await new Promise<void>((resolve) => setTimeout(resolve, 200));

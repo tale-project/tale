@@ -18,7 +18,7 @@
 // result, then deletes the Pod (killing the runner). That preserves partial
 // output on timeout, matching docker.
 
-import { readFile } from 'node:fs/promises';
+import { open, readFile } from 'node:fs/promises';
 
 import {
   harvestOutputDir,
@@ -31,6 +31,7 @@ import {
   PRESTAGE_PATH,
   STDERR_PATH,
   formatResultLine,
+  formatStartedLine,
   type K8sHarvestResult,
   type PrestageFile,
 } from './k8s-protocol.ts';
@@ -81,10 +82,19 @@ async function readCapped(
   path: string,
   maxBytes: number,
 ): Promise<{ text: string; truncated: boolean }> {
+  // Head-read at most maxBytes+1 via the fd — STDERR_PATH sits on the
+  // size-unbounded workspace volume, so a whole-file readFile of a runaway
+  // stderr (GBs) would OOM this container and lose the entire result line.
+  let fh: Awaited<ReturnType<typeof open>> | undefined;
   try {
-    const buf = await readFile(path);
-    if (buf.byteLength <= maxBytes) {
-      return { text: buf.toString('utf8'), truncated: false };
+    fh = await open(path, 'r');
+    const buf = Buffer.alloc(maxBytes + 1);
+    const { bytesRead } = await fh.read(buf, 0, maxBytes + 1, 0);
+    if (bytesRead <= maxBytes) {
+      return {
+        text: buf.subarray(0, bytesRead).toString('utf8'),
+        truncated: false,
+      };
     }
     return {
       text: buf.subarray(0, maxBytes).toString('utf8'),
@@ -94,6 +104,10 @@ async function readCapped(
     if (isENOENT(err)) return { text: '', truncated: false };
     console.warn(`[sandbox.harvest] failed to read ${path}:`, err);
     return { text: '', truncated: false };
+  } finally {
+    await fh?.close().catch((err: unknown) => {
+      console.warn(`[sandbox.harvest] close ${path} failed:`, err);
+    });
   }
 }
 
@@ -114,6 +128,10 @@ async function run(spec: ExecSpec): Promise<K8sHarvestResult> {
   const { req, caps } = spec;
 
   const { exitCode, timedOut } = await waitForExitCode(spec.timeoutMs);
+  // Progress marker: tells the spawner we're past the exit-code wait (so a
+  // dead runner can't be the reason we're silent) and carries the real exit
+  // code so it survives even a later harvest crash.
+  process.stdout.write(`${formatStartedLine({ exitCode, timedOut })}\n`);
   if (timedOut) {
     console.warn(
       `[sandbox.harvest] runner did not exit within ${spec.timeoutMs}ms; harvesting partial output (exit 124)`,
@@ -123,18 +141,40 @@ async function run(spec: ExecSpec): Promise<K8sHarvestResult> {
   const stderr = await readCapped(STDERR_PATH, caps.stderrMaxBytes);
   const prestage = await readPrestage();
 
+  // Mirror the docker path (local-workspace-run.ts): a harvest crash must not
+  // erase the result line — degrade to readFailed and ship the real exitCode,
+  // stderr, and steps. On the timeout path we deliberately walk /workspace
+  // while the runner is still alive, so transient fs races are expected here.
+  let harvested: Awaited<ReturnType<typeof harvestOutputDir>> = {
+    files: [],
+    truncatedCount: 0,
+    uploadStats: { attempted: 0, succeeded: 0, failures: [] },
+    quotaExhausted: false,
+    uploadFailed: false,
+    reportFailed: false,
+    readFailed: false,
+    uploadMs: 0,
+  };
   const harvestStartedAt = Date.now();
-  const harvested = await harvestOutputDir(
-    '/workspace',
-    { perFileMax: caps.outputFileMaxBytes, totalMax: caps.outputTotalMaxBytes },
-    req.outputUploadSlots,
-    {
-      outputUrlEndpoint: req.outputUrlEndpoint,
-      reportUploadedEndpoint: req.reportUploadedEndpoint,
-    },
-    req.executionId,
-    spec.sandboxToken,
-  );
+  try {
+    harvested = await harvestOutputDir(
+      '/workspace',
+      {
+        perFileMax: caps.outputFileMaxBytes,
+        totalMax: caps.outputTotalMaxBytes,
+      },
+      req.outputUploadSlots,
+      {
+        outputUrlEndpoint: req.outputUrlEndpoint,
+        reportUploadedEndpoint: req.reportUploadedEndpoint,
+      },
+      req.executionId,
+      spec.sandboxToken,
+    );
+  } catch (err) {
+    console.warn('[sandbox.harvest] best-effort harvest failed:', err);
+    harvested = { ...harvested, readFailed: true };
+  }
   const harvestMs = Date.now() - harvestStartedAt;
 
   const steps =
@@ -181,5 +221,29 @@ main().catch((err: unknown) => {
     '[sandbox.harvest] fatal:',
     err instanceof Error ? (err.stack ?? err.message) : err,
   );
+  // Last-resort result line so a helper crash degrades to readFailed instead
+  // of erasing the whole result. `fatal` tells the spawner the exitCode is a
+  // placeholder — it recovers the real one from the started line if present.
+  try {
+    const fallback: K8sHarvestResult = {
+      fatal: true,
+      exitCode: 1,
+      stderr: '',
+      stderrTruncated: false,
+      outputFiles: [],
+      truncatedFiles: 0,
+      uploadStats: { attempted: 0, succeeded: 0, failures: [] },
+      quotaExhausted: false,
+      uploadFailed: false,
+      reportFailed: false,
+      readFailed: true,
+      stageMs: 0,
+      harvestMs: 0,
+      uploadMs: 0,
+    };
+    process.stdout.write(`${formatResultLine(fallback)}\n`);
+  } catch (writeErr) {
+    console.error('[sandbox.harvest] fallback result line failed:', writeErr);
+  }
   process.exit(0);
 });

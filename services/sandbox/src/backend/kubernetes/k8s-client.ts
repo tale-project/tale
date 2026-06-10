@@ -14,12 +14,60 @@
 // (/var/run/secrets/kubernetes.io/serviceaccount/ca.crt). Local dev needs a
 // token-based kubeconfig, not kind's client-cert one.
 
-import { CoreV1Api, KubeConfig } from '@kubernetes/client-node';
+import {
+  type ConfigurationOptions,
+  CoreV1Api,
+  KubeConfig,
+  Observable,
+} from '@kubernetes/client-node';
 
 export interface K8sClient {
   core: CoreV1Api;
   namespace: string;
 }
+
+/** Default per-request budget for control-plane calls (small JSON bodies). */
+const K8S_API_TIMEOUT_MS = 10_000;
+/** Log reads can ship up to stdoutMaxBytes through the apiserver→kubelet proxy. */
+const K8S_LOG_TIMEOUT_MS = 30_000;
+
+/**
+ * Per-call options that arm an AbortSignal timeout on the underlying fetch.
+ * Without this no API call has ANY timeout: one wedged TCP connection (LB
+ * failover, half-open socket) would hang its caller forever — deadlines in the
+ * poll loops are only checked BETWEEN awaits. The signal genuinely aborts the
+ * socket (the generated transport forwards `request.getSignal()` to fetch).
+ * Pass as the second argument to every generated API method.
+ */
+export function apiTimeout(ms = K8S_API_TIMEOUT_MS): ConfigurationOptions {
+  return {
+    middleware: [
+      {
+        pre: (ctx) => {
+          ctx.setSignal(AbortSignal.timeout(ms));
+          return new Observable(Promise.resolve(ctx));
+        },
+        post: (rsp) => new Observable(Promise.resolve(rsp)),
+      },
+    ],
+    middlewareMergeStrategy: 'append',
+  };
+}
+
+/**
+ * HTTP status from a @kubernetes/client-node ApiException (numeric `code`).
+ * Aborts/timeouts and network errors carry no code → undefined.
+ */
+export function httpStatusCode(err: unknown): number | undefined {
+  if (typeof err === 'object' && err !== null && 'code' in err) {
+    const c = err.code;
+    return typeof c === 'number' ? c : undefined;
+  }
+  return undefined;
+}
+
+/** Definitive 4xx responses that a retry can never fix. */
+const NON_RETRYABLE_STATUS = new Set([400, 401, 403, 404, 409, 422]);
 
 export function makeK8sClient(namespace: string): K8sClient {
   const kc = new KubeConfig();
@@ -61,7 +109,11 @@ export function makeK8sClient(namespace: string): K8sClient {
   };
 }
 
-/** Retry a flaky HTTP read (Bun's fetch can transiently throw an AbortError). */
+/**
+ * Retry a flaky HTTP call (Bun's fetch can transiently throw an AbortError).
+ * Definitive 4xx responses (not-found, conflict, …) are thrown immediately —
+ * retrying them only delays the caller's own 404/409 handling.
+ */
 export async function withRetry<T>(
   label: string,
   fn: () => Promise<T>,
@@ -72,12 +124,16 @@ export async function withRetry<T>(
     try {
       return await fn();
     } catch (err) {
+      const status = httpStatusCode(err);
+      if (status !== undefined && NON_RETRYABLE_STATUS.has(status)) throw err;
       lastErr = err;
       console.warn(
         `[sandbox.k8s] ${label} attempt ${i + 1}/${attempts} failed:`,
         err instanceof Error ? err.message : err,
       );
-      await new Promise<void>((r) => setTimeout(r, 200 * (i + 1)));
+      if (i < attempts - 1) {
+        await new Promise<void>((r) => setTimeout(r, 200 * (i + 1)));
+      }
     }
   }
   throw lastErr;
@@ -95,14 +151,18 @@ export async function readPodLog(
   client: K8sClient,
   podName: string,
   container: string,
-  opts: { limitBytes?: number } = {},
+  opts: { limitBytes?: number; tailLines?: number } = {},
 ): Promise<string> {
   return withRetry('read-log', () =>
-    client.core.readNamespacedPodLog({
-      name: podName,
-      namespace: client.namespace,
-      container,
-      ...(opts.limitBytes !== undefined && { limitBytes: opts.limitBytes }),
-    }),
+    client.core.readNamespacedPodLog(
+      {
+        name: podName,
+        namespace: client.namespace,
+        container,
+        ...(opts.limitBytes !== undefined && { limitBytes: opts.limitBytes }),
+        ...(opts.tailLines !== undefined && { tailLines: opts.tailLines }),
+      },
+      apiTimeout(K8S_LOG_TIMEOUT_MS),
+    ),
   );
 }

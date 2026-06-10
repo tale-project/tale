@@ -122,6 +122,12 @@ export type HealthResult =
 export interface ExecuteCallbacks {
   onPhase?: (event: { phase: SandboxPhaseEvent }) => void;
   onStdoutDelta?: (text: string) => void;
+  /**
+   * Best-effort and backend-dependent: the docker backend streams stderr live;
+   * the exec-free K8s backend never fires this (the runner's stderr goes to a
+   * file so its log stream stays clean stdout) — stderr arrives only in the
+   * final response. UI must not assume a live stderr tail exists.
+   */
   onStderrDelta?: (text: string) => void;
 }
 
@@ -189,14 +195,44 @@ export interface ExecutionBackend {
    * the dispatcher in spawn.ts only wraps this with the in-flight registry +
    * request validation. Never throws for an execution-level failure — it
    * returns a `failed`/`cancelled` response instead.
+   *
+   * NORMATIVE OUTCOME TABLE — every terminal response is built through the
+   * shared constructors in exec-response.ts; exec-response.test.ts asserts
+   * these invariants (the cross-backend contract test):
+   *
+   * | outcome                  | status    | errorCode             | exitCode            |
+   * |--------------------------|-----------|-----------------------|---------------------|
+   * | success                  | completed | —                     | 0                   |
+   * | success, harvest hiccup  | failed    | UPLOAD_* / HARVEST_*  | 0                   |
+   * | user code non-zero exit  | failed    | classifyFailure(...)  | real exit code      |
+   * | user timeout             | failed    | TIMEOUT               | backend-real (137 docker / 124 k8s) |
+   * | machinery wedged         | failed    | TIMEOUT               | 124                 |
+   * | harvest result lost      | failed    | HARVEST_READ_FAILED   | real if recoverable, else null |
+   * | runner container killed  | failed    | OOM / RUNTIME_ERROR   | 137 / container exit |
+   * | staging failure          | failed    | SPAWNER_UNAVAILABLE   | null                |
+   * | infra failure            | failed    | SPAWNER_UNAVAILABLE   | null                |
+   * | caller cancel            | cancelled | CANCELLED             | null                |
+   *
+   * Conventions: `errorCode` is the canonical signal; `exitCode` is
+   * informational and backend-real (never rewritten across backends).
+   * `PRE_STAGE_FAILED` is action-side-only — the spawner never emits it.
+   * Cancelled-payload richness is best-effort per backend: docker uploads
+   * partial outputs/steps on cancel; the exec-free K8s backend structurally
+   * cannot (the pod is deleted before harvest completes).
    */
   execute(
     cfg: SpawnerConfig,
     req: ExecuteRequest,
     opts: ExecuteOptions,
   ): Promise<ExecuteResponse>;
-  /** Best-effort cancel of an in-flight execution, addressed by id. */
-  cancel(executionId: string): Promise<void>;
+  /**
+   * REMOTE cancel: best-effort kill of a runtime addressed by id, designed to
+   * work from any replica (k8s deletes by deterministic name). The LOCALLY
+   * owned path is abort-only — spawn.ts aborts the in-flight signal and
+   * `execute()` performs its own cleanup after its final reads. Returns true
+   * when a runtime was actually found and killed.
+   */
+  cancel(executionId: string): Promise<boolean>;
 
   /** Reap orphaned runtimes/dirs left by crashes or stale runs. */
   sweepOrphans(opts: SweepOptions): Promise<number>;

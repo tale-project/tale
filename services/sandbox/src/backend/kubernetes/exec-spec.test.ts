@@ -26,6 +26,7 @@ const cfg: SpawnerConfig = {
     runtimeClassName: 'gvisor',
     spawnerImage: 'tale-sandbox:test',
     cacheMode: 'none',
+    workspaceSizeLimit: '4Gi',
   },
   defaultTimeoutMs: 30_000,
   maxTimeoutMs: 300_000,
@@ -83,7 +84,7 @@ describe('buildExecSpec', () => {
 
 describe('buildExecSecret', () => {
   test('targets the deterministic name + namespace as an Opaque Secret', () => {
-    const secret = buildExecSecret(cfg, req, 30_000);
+    const secret = buildExecSecret(cfg, req, 30_000, 1_700_000_000_000);
     expect(secret.metadata?.name).toBe(secretNameFor(req.executionId));
     expect(secret.metadata?.namespace).toBe('tale-sandbox');
     expect(secret.type).toBe('Opaque');
@@ -92,8 +93,16 @@ describe('buildExecSecret', () => {
     );
   });
 
+  test('carries the sweep labels + started-at annotation (orphan GC)', () => {
+    const secret = buildExecSecret(cfg, req, 30_000, 1_700_000_000_000);
+    expect(secret.metadata?.labels?.['tale.sandbox']).toBe('1');
+    expect(secret.metadata?.annotations?.['tale.dev/started-at']).toBe(
+      '1700000000000',
+    );
+  });
+
   test('stringData holds the serialized spec (apiserver base64s it)', () => {
-    const secret = buildExecSecret(cfg, req, 30_000);
+    const secret = buildExecSecret(cfg, req, 30_000, 1_700_000_000_000);
     const raw = secret.stringData?.[EXEC_SPEC_FILENAME];
     expect(typeof raw).toBe('string');
     const parsed = parseExecSpec(raw ?? '');
@@ -127,5 +136,53 @@ describe('parseExecSpec', () => {
     expect(() =>
       parseExecSpec(JSON.stringify({ req: { executionId: 'x' } })),
     ).toThrow(/caps/);
+  });
+
+  test('throws on a missing/invalid timeoutMs (NaN deadline guard)', () => {
+    const valid = buildExecSpec(cfg, req, 30_000);
+    const { timeoutMs: _dropped, ...withoutTimeout } = valid;
+    expect(() => parseExecSpec(JSON.stringify(withoutTimeout))).toThrow(
+      /timeoutMs/,
+    );
+    expect(() =>
+      parseExecSpec(JSON.stringify({ ...valid, timeoutMs: -1 })),
+    ).toThrow(/timeoutMs/);
+    expect(() =>
+      parseExecSpec(JSON.stringify({ ...valid, timeoutMs: 'soon' })),
+    ).toThrow(/timeoutMs/);
+  });
+
+  test('throws on missing/non-positive caps fields', () => {
+    const valid = buildExecSpec(cfg, req, 30_000);
+    for (const field of [
+      'stdoutMaxBytes',
+      'stderrMaxBytes',
+      'outputFileMaxBytes',
+      'outputTotalMaxBytes',
+    ]) {
+      const broken = {
+        ...valid,
+        caps: { ...valid.caps, [field]: undefined },
+      };
+      expect(() => parseExecSpec(JSON.stringify(broken))).toThrow(
+        new RegExp(field),
+      );
+      const negative = { ...valid, caps: { ...valid.caps, [field]: 0 } };
+      expect(() => parseExecSpec(JSON.stringify(negative))).toThrow(
+        new RegExp(field),
+      );
+    }
+  });
+
+  test('throws on a missing sandboxToken (string|null required)', () => {
+    const valid = buildExecSpec(cfg, req, 30_000);
+    const { sandboxToken: _dropped, ...withoutToken } = valid;
+    expect(() => parseExecSpec(JSON.stringify(withoutToken))).toThrow(
+      /sandboxToken/,
+    );
+    expect(
+      parseExecSpec(JSON.stringify({ ...valid, sandboxToken: null }))
+        .sandboxToken,
+    ).toBeNull();
   });
 });

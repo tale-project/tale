@@ -140,7 +140,15 @@ export function buildSandboxPod(
     { name: 'tmp', mountPath: '/tmp' },
   ];
   const volumes: V1Volume[] = [
-    { name: 'workspace', emptyDir: {} },
+    // sizeLimit bounds everything the execution writes (deps installs, temp
+    // files, outputs — the entrypoint points HOME/TMPDIR/PIP_TARGET here).
+    // Exceeding it evicts the pod; the spawner's runner-dead path classifies
+    // that instead of burning the full timeout. K8s analogue of the docker
+    // path's fsize ulimit (which has no per-process equivalent here).
+    {
+      name: 'workspace',
+      emptyDir: { sizeLimit: cfg.k8s.workspaceSizeLimit },
+    },
     { name: 'tmp', emptyDir: { medium: 'Memory', sizeLimit: '128Mi' } },
     // The per-exec Secret (presigned URLs + token + caps). Defined at Pod level
     // but mounted ONLY into stage/harvest below — never the runner.
