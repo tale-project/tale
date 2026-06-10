@@ -67,11 +67,15 @@ tale logs platform
 tale logs platform --follow
 tale logs db --tail 100
 
-# Rollback to previous version
-tale rollback
+# Snapshot all data volumes (also taken automatically before migrating deploys)
+tale backup
 
-# Rollback to a specific version
-tale rollback --version 0.9.0
+# List snapshots / restore one (stack must be stopped; --stop stops it)
+tale restore
+tale restore <snapshot-id> --stop
+
+# Roll back to the previous patch version (minor/major recovery = tale restore)
+tale rollback
 
 # Remove inactive (non-current) color containers
 tale cleanup
@@ -91,13 +95,13 @@ Deploy the current CLI version with the blue-green strategy. The deployed
 platform version always matches the running CLI; to upgrade, run
 `tale upgrade` first.
 
-| Option                  | Description                                             |
-| ----------------------- | ------------------------------------------------------- |
-| `-a, --all`             | Also update infrastructure (db, proxy)                  |
-| `-s, --services <list>` | Specific services to update (comma-separated)           |
-| `--dry-run`             | Preview deployment without making changes               |
-| `-d, --dir <path>`      | Deployment directory (default: current directory)       |
-| `--host <hostname>`     | Host alias for proxy (default: `tale.local` or `$HOST`) |
+| Option                  | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `-a, --all`             | Also update infrastructure (db, proxy)                        |
+| `-s, --services <list>` | Specific services to update (comma-separated)                 |
+| `--dry-run`             | Preview deployment without making changes                     |
+| `--skip-backup`         | Skip the automatic pre-deploy volume snapshot (logged loudly) |
+| `--host <hostname>`     | Host alias for proxy (default: `tale.local` or `$HOST`)       |
 
 ### `tale status`
 
@@ -114,14 +118,32 @@ View logs from a service.
 | `--since <duration>`  | Show logs since duration (e.g., 1h, 30m) |
 | `-n, --tail <lines>`  | Number of lines to show from end         |
 
+### `tale backup`
+
+Snapshot all data volumes (db-data, convex-data, rag-data, crawler-data,
+caddy-data, caddy-config) into the project-scoped `backups` volume. The same
+snapshot is taken automatically before any deploy step that can migrate
+data. Containers using a volume are paused for the seconds the tar takes so
+the archive is crash-consistent.
+
+### `tale restore`
+
+List snapshots, or restore one into the data volumes. Restoring verifies
+the sha256 sidecars first, refuses while any project container is running,
+and asks for confirmation. After a restore, redeploy the version recorded
+in the snapshot (`tale upgrade --version <version> && tale deploy --all`).
+
+| Option      | Description                                      |
+| ----------- | ------------------------------------------------ |
+| `--stop`    | Stop running project containers before restoring |
+| `-y, --yes` | Non-interactive: skip the confirmation prompt    |
+
 ### `tale rollback`
 
-Rollback to previous or specific version.
-
-| Option                    | Description                     |
-| ------------------------- | ------------------------------- |
-| `-v, --version <version>` | Specific version to rollback to |
-| `-d, --dir <path>`        | Deployment directory            |
+Roll back to the recorded previous version. Gated to patch-level steps
+(the target must share `major.minor` with the running platform) — minor
+and major upgrades can run forward-only migrations, and their recovery
+path is `tale restore` plus a redeploy of the matching version.
 
 ### `tale cleanup`
 
@@ -139,13 +161,15 @@ Remove ALL blue-green containers.
 
 ## Environment Variables
 
-| Variable               | Description                        | Default                     |
-| ---------------------- | ---------------------------------- | --------------------------- |
-| `GHCR_REGISTRY`        | Container registry                 | `ghcr.io/tale-project/tale` |
-| `HEALTH_CHECK_TIMEOUT` | Health check timeout (seconds)     | `300`                       |
-| `DRAIN_TIMEOUT`        | Connection drain timeout (seconds) | `30`                        |
-| `PROJECT_NAME`         | Docker project name                | `tale`                      |
-| `HOST`                 | Host alias for proxy               | `tale.local`                |
+| Variable               | Description                                 | Default                     |
+| ---------------------- | ------------------------------------------- | --------------------------- |
+| `GHCR_REGISTRY`        | Container registry                          | `ghcr.io/tale-project/tale` |
+| `HEALTH_CHECK_TIMEOUT` | Health check timeout (seconds)              | `300`                       |
+| `DRAIN_TIMEOUT`        | Connection drain timeout (seconds)          | `30`                        |
+| `BACKUP_KEEP_COUNT`    | Snapshots kept regardless of age            | `5`                         |
+| `BACKUP_KEEP_DAYS`     | Days a snapshot is kept regardless of count | `14`                        |
+| `PROJECT_NAME`         | Docker project name                         | `tale`                      |
+| `HOST`                 | Host alias for proxy                        | `tale.local`                |
 
 ## Architecture
 

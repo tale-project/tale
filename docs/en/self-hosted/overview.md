@@ -27,8 +27,8 @@ Read this before you `docker compose up`. Come back when you are debugging an ou
 
 Three volumes survive a `docker compose down`:
 
-- `db-data` — Postgres data directory. The only volume backups have to capture.
-- `db-backup` — destination for Postgres dumps the container writes on a schedule.
+- `db-data` — Postgres data directory: the database behind agents, runs, and the audit log.
+- `backups` — checksummed volume snapshots written by `tale backup` and automatically before migrating deploys; [Backups and restore](/self-hosted/operate/backups-and-restore) is the drill.
 - The platform's object-store mount — uploaded files, generated images, exported bundles.
 
 Everything else is ephemeral. Containers can be replaced without data loss as long as the volumes survive.

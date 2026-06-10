@@ -3,7 +3,7 @@ title: Montées de version
 description: Comment `tale upgrade` et `tale deploy` font avancer une instance Tale — le pattern de redémarrage rolling, quoi faire avant une montée de version et l'histoire de la compatibilité de versions.
 ---
 
-Les montées de version sur une instance Tale auto-hébergée passent par la CLI `tale` en deux étapes : `tale upgrade` pour bouger le binaire lui-même à la nouvelle version, puis `tale deploy` pour rouler les conteneurs plateforme pour correspondre. Le déploiement utilise un pattern blue-green — la nouvelle couleur démarre à côté de l'ancienne, les healthchecks passent, le trafic bascule, l'ancienne couleur draine. Zéro downtime est le défaut ; le rollback vers la couleur précédente est une commande unique si un smoke check échoue.
+Les montées de version sur une instance Tale auto-hébergée passent par la CLI `tale` en deux étapes : `tale upgrade` pour bouger le binaire lui-même à la nouvelle version, puis `tale deploy` pour rouler les conteneurs plateforme pour correspondre. Le déploiement utilise un pattern blue-green — la nouvelle couleur démarre à côté de l'ancienne, les healthchecks passent, le trafic bascule, l'ancienne couleur draine. Zéro downtime est le défaut ; si une release patch se comporte mal, `tale rollback` ramène le patch précédent en une commande, et tout ce qui est plus gros se récupère depuis le snapshot pré-upgrade.
 
 L'installation de la CLI vit dans [Installer la CLI tale](/fr/self-hosted/install/cli-install). Cette page couvre ce que fait chaque sous-commande et l'ordre dans lequel les exécuter.
 
@@ -11,7 +11,7 @@ L'installation de la CLI vit dans [Installer la CLI tale](/fr/self-hosted/instal
 
 Deux choses valent la peine d'être confirmées d'abord :
 
-- Un backup fonctionnel a atterri dans les dernières 24 heures — voir [Backups et restauration](/fr/self-hosted/operate/backups-and-restore). Les montées de version qui échouent en milieu de migration sont rares, mais le chemin de recovery est « restaurer depuis le dump ».
+- Ta copie hors-hôte du volume `backups` est à jour — voir [Backups et restauration](/fr/self-hosted/operate/backups-and-restore). `tale deploy` snapshotte automatiquement les volumes de données avant toute étape qui peut migrer des données, mais le snapshot vit sur le même hôte ; la copie hors-hôte est ce qui survit à un disque mort.
 - Les notes de version pour la version cible ne nomment pas un changement breaking. Les notes sont liées depuis la page de release GitHub ; les changements breaking sont flaggés comme tels en haut.
 
 Si la montée de version traverse une version majeure (1.x → 2.x), lis les notes de migration de bout en bout avant de commencer. Les versions majeures sont où atterrissent les migrations de schéma et les changements de format de fichier de config.
@@ -50,7 +50,7 @@ Une instance en marche est l'une des deux couleurs (blue ou green) à un instant
 Trois garanties que le pattern te donne :
 
 - **Aucune fenêtre où les deux couleurs servent du trafic.** Un constraint de base impose single-active — Caddy route vers la saine.
-- **Le rollback est inverser un fichier d'état.** `tale rollback` re-bascule l'upstream ; l'ancienne couleur tourne encore quelques minutes après un déploiement au cas où tu doives revenir.
+- **Le rollback de patch est une commande.** `tale rollback` redéploie la release patch précédente sur la couleur inactive et rebascule le trafic. Il refuse les downgrades minor et major — ceux-là peuvent laisser la base en avance sur le binaire, et leur chemin de récupération est une restauration de snapshot.
 - **Les healthchecks échoués bloquent la bascule.** Si la nouvelle couleur ne passe pas dans le timeout, le déploiement abandonne et l'ancienne couleur continue à servir.
 
 La procédure complète de déploiement, y compris la phase de cleanup, vit dans `tale --help` ; la recette côté opérateur est `tale deploy && tale status` et confirmation visuelle dans le navigateur.
@@ -58,21 +58,18 @@ La procédure complète de déploiement, y compris la phase de cleanup, vit dans
 ## Rollback
 
 ```bash
-# Retour à la version précédente
+# Retour à la version patch précédente
 tale rollback
-
-# Ou pin sur une version spécifique
-tale rollback --version 0.9.0
 ```
 
-Le rollback est rapide (c'est juste basculer la couleur) mais ne défait pas les migrations de schéma. Si la montée de version a fait tourner une migration que l'ancienne version ne comprend pas, le rollback laisse la base en avance sur le binaire — l'ancienne version refuse de démarrer. Les notes de version nomment quand ça se produit ; pour ces montées de version, restaurer-depuis-dump est le vrai chemin de rollback.
+`tale rollback` est limité aux pas de patch : il ne cible que la version précédente enregistrée, et refuse si cette version ne partage pas `major.minor` avec la plateforme qui tourne. Les releases patch ne portent jamais de migrations, donc redéployer le patch précédent est toujours sûr. Tout ce qui est plus gros peut avoir migré les données vers l'avant — déployer un binaire plus vieux sur des données migrées corrompt l'instance au lieu de la sauver. Pour ces cas, le chemin de récupération est de restaurer le snapshot pré-upgrade et de redéployer la version qui correspond ; le message de refus imprime les commandes exactes, et le walk complet vit dans [Backups et restauration](/fr/self-hosted/operate/backups-and-restore).
 
 ## Compatibilité de versions
 
 Les versions Tale sont en semver. Les règles de compatibilité :
 
-- Patch (`0.9.0 → 0.9.1`) — pas de migrations, pas de changements de config, le rollback est toujours sûr.
-- Minor (`0.9.x → 0.10.x`) — peut inclure des migrations forward-only ; le rollback restaure le binaire mais pas le schéma.
+- Patch (`0.9.0 → 0.9.1`) — pas de migrations, pas de changements de config, `tale rollback` est toujours sûr.
+- Minor (`0.9.x → 0.10.x`) — peut inclure des migrations forward-only ; `tale rollback` refuse, la récupération est restauration-de-snapshot plus redéploiement.
 - Major (`0.x → 1.x`) — lis les notes de migration, planifie la fenêtre de maintenance, attends-toi à des surprises.
 
 Sauter des versions mineures (passer de 0.9 à 0.11) est supporté tant que les migrations intermédiaires sont encore dans le binaire ; les notes de version le mentionnent quand ce n'est pas le cas.

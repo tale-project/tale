@@ -83,7 +83,9 @@ tale deploy                        # Blue-green zero-downtime deployment of the 
 tale status                        # Show deployment status
 tale logs <service>                # View service logs
 tale logs platform -f              # Follow log output
-tale rollback                      # Rollback to previous version
+tale backup                        # Snapshot all data volumes
+tale restore                       # List snapshots / restore one (stopped stack)
+tale rollback                      # Roll back to the previous patch version
 tale cleanup                       # Remove inactive containers
 tale reset --force                 # Remove all containers
 ```
