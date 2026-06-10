@@ -9,12 +9,11 @@ import * as logger from '../utils/logger';
 
 export function createRollbackCommand(): Command {
   return new Command('rollback')
-    .description('Rollback to the previous version or a specific version')
-    .option(
-      '-v, --version <version>',
-      'Specific version to rollback to (e.g., v1.0.0)',
+    .description(
+      'Roll back to the previous version (patch-level rollbacks only — ' +
+        'minor/major recovery goes through backup restore)',
     )
-    .action(async (options) => {
+    .action(async () => {
       try {
         const projectDir = requireProject();
         await resolveProjectContext(projectDir);
@@ -25,7 +24,7 @@ export function createRollbackCommand(): Command {
           process.exit(1);
         }
         const env = loadEnv(projectDir);
-        await rollback({ env, version: options.version });
+        await rollback({ env });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));
         process.exit(1);
