@@ -10,6 +10,8 @@
 
 import { join } from 'node:path';
 
+import type { V1Pod } from '@kubernetes/client-node';
+
 import type { SpawnerConfig } from '../../types.ts';
 import type {
   CacheStores,
@@ -106,7 +108,7 @@ class K8sRunningExecution implements RunningExecution {
     const stdoutChunks: Buffer[] = [];
     let stdoutBytes = 0;
     let stdoutTruncated = false;
-    const logController = await followLogs(client, podName, 'runner', (b) => {
+    const onLog = (b: Buffer) => {
       opts.onStdoutChunk?.(b); // always forward (phase detection past the cap)
       if (stdoutBytes >= opts.stdoutMaxBytes) {
         stdoutTruncated = true;
@@ -121,7 +123,10 @@ class K8sRunningExecution implements RunningExecution {
         stdoutBytes = opts.stdoutMaxBytes;
         stdoutTruncated = true;
       }
-    });
+    };
+    const logController = await withExecRetry('log-follow', () =>
+      followLogs(client, podName, 'runner', onLog),
+    );
 
     // 4. Race runner-exit against the inner timeout and client abort. The
     //    timers DON'T delete the Pod — remove() (executeRequest's finally)
@@ -186,14 +191,23 @@ class K8sRunningExecution implements RunningExecution {
     await deletePod(this.client, this.podName);
   }
 
+  // The exec websocket AND the REST reads under Bun occasionally throw a
+  // transient AbortError; retry so a single hiccup doesn't fail the whole
+  // execution (mirrors withExecRetry on the exec ops).
+  private readPod(): Promise<V1Pod> {
+    return withExecRetry('read-pod', () =>
+      this.client.core.readNamespacedPod({
+        name: this.podName,
+        namespace: this.client.namespace,
+      }),
+    );
+  }
+
   private async waitForRunning(signal: AbortSignal): Promise<void> {
     const deadline = Date.now() + STARTUP_BUDGET_MS;
     while (Date.now() < deadline) {
       if (signal.aborted) throw new Error('cancelled before pod started');
-      const pod = await this.client.core.readNamespacedPod({
-        name: this.podName,
-        namespace: this.client.namespace,
-      });
+      const pod = await this.readPod();
       const phase = pod.status?.phase;
       if (phase === 'Running') return;
       if (phase === 'Failed') {
@@ -221,10 +235,7 @@ class K8sRunningExecution implements RunningExecution {
 
   private async pollRunnerExit(signal: AbortSignal): Promise<number> {
     while (!signal.aborted) {
-      const pod = await this.client.core.readNamespacedPod({
-        name: this.podName,
-        namespace: this.client.namespace,
-      });
+      const pod = await this.readPod();
       const term = pod.status?.containerStatuses?.find(
         (c) => c.name === 'runner',
       )?.state?.terminated;

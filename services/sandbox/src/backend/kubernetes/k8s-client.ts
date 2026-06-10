@@ -275,7 +275,21 @@ export function followLogs(
       cb();
     },
   });
-  return client.log.log(client.namespace, podName, container, sink, {
-    follow: true,
-  });
+  // Use the done-callback overload so the stream-termination error is handled
+  // HERE rather than left as a detached/unhandled rejection. Aborting the
+  // controller on stop rejects the underlying fetch with AbortError under Bun
+  // — that's expected; only genuine errors are worth logging. (An unhandled
+  // AbortError would otherwise crash the spawner process.)
+  return client.log.log(
+    client.namespace,
+    podName,
+    container,
+    sink,
+    (err: unknown) => {
+      if (err && !(err instanceof Error && err.name === 'AbortError')) {
+        console.warn('[sandbox.k8s] log stream ended with error:', err);
+      }
+    },
+    { follow: true },
+  );
 }

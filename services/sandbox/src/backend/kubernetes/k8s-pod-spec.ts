@@ -206,6 +206,11 @@ export function buildSandboxPod(
         {
           name: 'runner',
           image: cfg.runtimeImage,
+          // Pull once and reuse (matches the docker path, where ensureImage
+          // pulls at boot and `docker run` reuses the local image). Default
+          // 'Always' on a :latest tag would re-pull EVERY execution and ignore
+          // a locally-loaded image (e.g. `kind load`).
+          imagePullPolicy: 'IfNotPresent',
           command: ['/bin/sh', '-c', RUNNER_WRAPPER],
           // $0..$3 inside RUNNER_WRAPPER → the image entrypoint's positional
           // args, identical to the docker path (docker-args.ts trailer).
@@ -226,6 +231,7 @@ export function buildSandboxPod(
         {
           name: 'holder',
           image: cfg.k8s.holderImage,
+          imagePullPolicy: 'IfNotPresent',
           // Stay alive for the pod's life so the spawner can exec `tar` to
           // stage in / harvest out — including after `runner` terminates.
           command: ['/bin/sh', '-c', 'sleep 86400'],

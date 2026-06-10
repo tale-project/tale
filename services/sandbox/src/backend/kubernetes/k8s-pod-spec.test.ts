@@ -108,6 +108,8 @@ describe('buildSandboxPod', () => {
   test('runner container maps the docker-args contract', () => {
     const c = runner(buildSandboxPod(cfg, goodInput));
     expect(c.image).toBe('tale-sandbox-runtime:test');
+    // Pull once + reuse (matches docker); never re-pull :latest every exec.
+    expect(c.imagePullPolicy).toBe('IfNotPresent');
     // command wraps a sentinel-wait then execs the image entrypoint.
     expect(c.command?.[0]).toBe('/bin/sh');
     expect(c.command?.[1]).toBe('-c');

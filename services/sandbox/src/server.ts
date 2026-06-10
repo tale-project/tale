@@ -27,6 +27,15 @@ const cfg = loadConfig();
 // it has no side effects; init() runs the docker lock + boot sweep in main().
 const backend = createBackend(cfg);
 
+// A single execution's stray async error must not take down the long-running
+// spawner that's serving other requests. Per-request paths already try/catch;
+// this is the backstop. (The k8s backend's aborted log/exec streams under Bun
+// are the most likely source — handled at the source too, but logged here if
+// one escapes.)
+process.on('unhandledRejection', (reason) => {
+  console.error('[sandbox] unhandledRejection (surviving):', reason);
+});
+
 async function readBodyCapped(req: Request, maxBytes: number): Promise<string> {
   // Streaming guard so an unbounded POST can't OOM the process before we
   // ever see HMAC. We rely on the Content-Length hint when present and
