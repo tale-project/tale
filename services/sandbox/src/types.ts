@@ -257,6 +257,10 @@ export interface ExecuteResponse {
 }
 
 export interface SpawnerConfig {
+  // Execution backend (env SANDBOX_BACKEND). 'docker' spawns sibling
+  // containers via the host docker socket (Compose, the default);
+  // 'kubernetes' runs each execution as a Pod (Helm, Phase 2).
+  backend: 'docker' | 'kubernetes';
   port: number;
   // Token policy: opt-in verification. When null, the spawner skips HMAC
   // checks on every route (a single warn at boot logs the state). When

@@ -9,14 +9,9 @@
 // Concurrency: in-process semaphore at SANDBOX_MAX_CONCURRENT. 429 over cap.
 
 import { verify, SIGNATURE_HEADER, TIMESTAMP_HEADER } from './auth.ts';
-import {
-  acquireSpawnerLock,
-  bootSweep,
-  installSignalHandlers,
-  startPeriodicSweep,
-} from './cleanup.ts';
+import { createBackend, type HealthResult } from './backend/index.ts';
+import { installSignalHandlers, startPeriodicSweep } from './cleanup.ts';
 import { loadConfig } from './config.ts';
-import { ensureImage, runDocker } from './spawn-util.ts';
 import {
   cancelExecution,
   executeRequest,
@@ -28,6 +23,9 @@ import {
 import { validateExecuteRequest } from './validate-request.ts';
 
 const cfg = loadConfig();
+// Execution backend (docker | kubernetes), chosen once at boot. Constructing
+// it has no side effects; init() runs the docker lock + boot sweep in main().
+const backend = createBackend(cfg);
 
 async function readBodyCapped(req: Request, maxBytes: number): Promise<string> {
   // Streaming guard so an unbounded POST can't OOM the process before we
@@ -113,56 +111,37 @@ function authorize(body: string, req: Request): Response | null {
   return null;
 }
 
-// Cache the docker version probe so the compose healthcheck (every 10s)
+// Cache the backend liveness probe so the compose healthcheck (every 10s)
 // doesn't fork a subprocess on every hit. 60s is well under the watchdog
 // cutoff and short enough that a daemon recycle surfaces within one
 // healthcheck cycle of the user noticing.
-const DOCKER_PROBE_TTL_MS = 60_000;
-let dockerProbeCache:
-  | { ok: true; version: string; expiresAt: number }
+const HEALTH_PROBE_TTL_MS = 60_000;
+let healthProbeCache:
+  | { ok: true; detail: string; expiresAt: number }
   | { ok: false; error: string; expiresAt: number }
   | null = null;
 
-async function probeDocker(): Promise<
-  { ok: true; version: string } | { ok: false; error: string }
-> {
+async function probeHealth(): Promise<HealthResult> {
   const now = Date.now();
-  if (dockerProbeCache !== null && dockerProbeCache.expiresAt > now) {
-    return dockerProbeCache.ok
-      ? { ok: true, version: dockerProbeCache.version }
-      : { ok: false, error: dockerProbeCache.error };
+  if (healthProbeCache !== null && healthProbeCache.expiresAt > now) {
+    return healthProbeCache.ok
+      ? { ok: true, detail: healthProbeCache.detail }
+      : { ok: false, error: healthProbeCache.error };
   }
-  // Probe docker daemon reachability. Use `docker version --format` over the
-  // older `docker info --format` because some Debian-packaged CLIs (e.g.
-  // docker.io 20.10 in our base image) panic when templating a newer-API
-  // `info` response. `docker version` is a much smaller surface that has
-  // been compatible across the 20.10 ↔ 29.x gap.
-  const info = await runDocker(['version', '--format', '{{.Server.Version}}']);
-  if (info.exitCode !== 0) {
-    const error = info.stderr.trim() || info.stdout.trim();
-    dockerProbeCache = {
-      ok: false,
-      error,
-      expiresAt: now + DOCKER_PROBE_TTL_MS,
-    };
-    return { ok: false, error };
-  }
-  const version = info.stdout.trim();
-  dockerProbeCache = {
-    ok: true,
-    version,
-    expiresAt: now + DOCKER_PROBE_TTL_MS,
-  };
-  return { ok: true, version };
+  const result = await backend.health();
+  healthProbeCache = { ...result, expiresAt: now + HEALTH_PROBE_TTL_MS };
+  return result;
 }
 
 async function handleHealth(): Promise<Response> {
-  const docker = await probeDocker();
-  if (!docker.ok) {
-    return jsonResponse({ status: 'unhealthy', error: docker.error }, 503);
+  const health = await probeHealth();
+  if (!health.ok) {
+    return jsonResponse({ status: 'unhealthy', error: health.error }, 503);
   }
+  // `dockerServerVersion` is preserved as the field name for the docker
+  // backend (the compose healthcheck only checks HTTP 200, not the body).
   return jsonResponse(
-    { status: 'ok', dockerServerVersion: docker.version },
+    { status: 'ok', dockerServerVersion: health.detail },
     200,
   );
 }
@@ -252,7 +231,7 @@ async function handleExecute(req: Request): Promise<Response> {
   // request-signal abort to cancelExecution so a closed SSE stream tears
   // the container down promptly.
   const abortHandler = () => {
-    cancelExecution(parsed.executionId).catch((err) => {
+    cancelExecution(backend, parsed.executionId).catch((err) => {
       console.warn('[sandbox] client-abort cancel failed:', err);
     });
   };
@@ -287,7 +266,7 @@ async function handleExecute(req: Request): Promise<Response> {
       };
       const keepalive = setInterval(sendKeepalive, 20_000);
       try {
-        const result = await executeRequest(cfg, parsed, {
+        const result = await executeRequest(backend, cfg, parsed, {
           onPhase: (e) => send('phase', e),
           // Live stdout/stderr tail. Per-line for stdout (PHASE markers
           // stripped); per-chunk for stderr. Coalescing is left to the
@@ -341,7 +320,7 @@ async function handleCancel(req: Request, id: string): Promise<Response> {
   if (!isInFlight(id)) {
     return jsonResponse({ killed: false }, 404);
   }
-  const killed = await cancelExecution(id);
+  const killed = await cancelExecution(backend, id);
   return jsonResponse({ killed }, 200);
 }
 
@@ -376,31 +355,29 @@ async function main(): Promise<void> {
     );
   }
 
-  // Cross-process lock BEFORE bootSweep — refuses to start if another live
-  // spawner is using the same hostSessionRoot. Prevents bootSweep's
-  // host-dir sweep from deleting a peer's in-flight workspace (audit
-  // finding R2-B5). Stale locks (mtime older than ~60s) are reclaimed.
+  // Backend boot setup. For the docker backend this acquires the cross-process
+  // host-session lock (refuses to start if another live spawner shares the
+  // hostSessionRoot — audit finding R2-B5) then runs the boot orphan sweep.
+  // Throwing here is fatal.
   try {
-    await acquireSpawnerLock(cfg);
+    await backend.init();
   } catch (err) {
-    console.error('[sandbox] FATAL: spawner lock acquire failed:', err);
+    console.error('[sandbox] FATAL: backend init failed:', err);
     process.exit(1);
   }
 
-  await bootSweep(cfg);
   // Warm the runtime image so the first /v1/execute call doesn't pay a
   // cold registry round-trip. Non-fatal: if the daemon is unreachable at
   // boot the spawner still starts (its /health probe will surface the
-  // real problem), but a hot daemon means the first call will get
-  // image-not-found if we never pull. Failure is logged inside ensureImage.
+  // real problem). Failure is logged inside the backend.
   // `SANDBOX_SKIP_IMAGE_WARMUP=1` skips the pull entirely — used by the
   // local `bun run dev` script where the runtime image is built ad-hoc
   // and never published to a registry, so the pull is guaranteed to 404.
   if (process.env.SANDBOX_SKIP_IMAGE_WARMUP !== '1') {
-    await ensureImage(cfg.runtimeImage);
+    await backend.warmImage();
   }
 
-  const stopPeriodic = startPeriodicSweep(cfg);
+  const stopPeriodic = startPeriodicSweep(backend, cfg);
 
   const server = Bun.serve({
     port: cfg.port,
@@ -422,7 +399,7 @@ async function main(): Promise<void> {
     } catch (err) {
       console.warn('[sandbox] server.stop() during shutdown failed:', err);
     }
-  }, cfg);
+  }, backend);
 
   console.log(
     `[sandbox] spawner listening on :${server.port}; runtime=${cfg.runtime}; image=${cfg.runtimeImage}; maxConcurrent=${cfg.maxConcurrent}; tokenAuth=${cfg.sandboxToken !== null ? 'on' : 'OFF (dev opt-in)'}`,

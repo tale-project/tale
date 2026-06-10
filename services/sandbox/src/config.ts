@@ -36,8 +36,16 @@ export function loadConfig(): SpawnerConfig {
     );
   }
   const runtime: 'runc' | 'runsc' = rawRuntime;
+  const rawBackend = process.env.SANDBOX_BACKEND ?? 'docker';
+  if (rawBackend !== 'docker' && rawBackend !== 'kubernetes') {
+    throw new Error(
+      `SANDBOX_BACKEND must be 'docker' or 'kubernetes'; got: ${JSON.stringify(rawBackend)}`,
+    );
+  }
+  const backend: 'docker' | 'kubernetes' = rawBackend;
   const rawToken = process.env.SANDBOX_TOKEN;
   return {
+    backend,
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),
     // Token policy: opt-in verification. Unset (or empty-string) = HMAC
     // disabled; set = enforced. `authorize()` returns null when this is

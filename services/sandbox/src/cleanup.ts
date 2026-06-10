@@ -25,6 +25,7 @@ import {
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 
+import type { ExecutionBackend } from './backend/types.ts';
 import { runDocker, dockerRm } from './spawn-util.ts';
 import { cancelExecution, inFlightIds, isInFlight } from './spawn.ts';
 import type { SpawnerConfig } from './types.ts';
@@ -130,9 +131,9 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
 
 /**
  * Drop the lock on graceful shutdown so a fast restart doesn't need to wait
- * out the freshness window.
+ * out the freshness window. Called by DockerBackend.shutdown().
  */
-async function releaseSpawnerLock(cfg: SpawnerConfig): Promise<void> {
+export async function releaseSpawnerLock(cfg: SpawnerConfig): Promise<void> {
   if (lockRefreshHandle !== undefined) {
     clearInterval(lockRefreshHandle);
     lockRefreshHandle = undefined;
@@ -237,20 +238,36 @@ export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
   }
 }
 
-export function startPeriodicSweep(cfg: SpawnerConfig): () => void {
-  const interval = setInterval(async () => {
-    try {
-      const result = await runDocker([
-        'ps',
-        '-a',
-        '--filter',
-        'label=tale.sandbox=1',
-        '--format',
-        '{{.Names}}\t{{.Labels}}',
-      ]);
-      if (result.exitCode !== 0) return;
-      const now = Date.now();
-      const staleThreshold = now - 2 * cfg.maxTimeoutMs;
+/**
+ * Docker-specific orphan reap: kill any `tale-sbx-*` container whose
+ * `tale.started` label predates `staleThreshold` and whose session id is no
+ * longer live, then sweep orphaned host session dirs. Called by
+ * `DockerBackend.sweepOrphans` (boot + periodic). Returns the count removed
+ * (containers + dirs); errors are logged, never thrown, so the periodic
+ * scheduler keeps running.
+ */
+export async function dockerSweepOrphans(
+  cfg: SpawnerConfig,
+  staleThreshold: number,
+  isLive: (executionId: string) => boolean,
+): Promise<number> {
+  let removed = 0;
+  // Match the prior startPeriodicSweep semantics: a failed/throwing `docker
+  // ps` short-circuits the whole tick (neither the container loop NOR the
+  // host-dir sweep runs), so we don't reap host session dirs while the daemon
+  // is unreachable.
+  let containerProbeOk = false;
+  try {
+    const result = await runDocker([
+      'ps',
+      '-a',
+      '--filter',
+      'label=tale.sandbox=1',
+      '--format',
+      '{{.Names}}\t{{.Labels}}',
+    ]);
+    if (result.exitCode === 0) {
+      containerProbeOk = true;
       for (const line of result.stdout.split('\n')) {
         const [name, labels] = line.split('\t');
         if (!name) continue;
@@ -260,7 +277,7 @@ export function startPeriodicSweep(cfg: SpawnerConfig): () => void {
         if (Number.isNaN(started) || started >= staleThreshold) continue;
         // session id is the second component of the name (tale-sbx-<id>).
         const sessionId = name.replace(/^tale-sbx-/, '');
-        if (isInFlight(sessionId)) continue;
+        if (isLive(sessionId)) continue;
         try {
           await dockerRm(name);
         } catch (err) {
@@ -270,18 +287,44 @@ export function startPeriodicSweep(cfg: SpawnerConfig): () => void {
           );
           continue;
         }
+        removed += 1;
         console.log(
           `[sandbox] periodic sweep removed stale container ${name} (started ${new Date(started).toISOString()})`,
         );
       }
-      // Host-dir sweep: per-execution session dirs that lived past the
-      // stale threshold without an active in-flight entry are orphaned.
-      // Replaces the old volume-sweep block that targeted volumes nobody
-      // creates (audit finding R2-3 C5).
-      await sweepHostSessionDirs(cfg, staleThreshold);
-    } catch (err) {
-      console.warn(`[sandbox.periodic] sweep error:`, err);
     }
+  } catch (err) {
+    console.warn(`[sandbox.periodic] container sweep error:`, err);
+  }
+  // Host-dir sweep: per-execution session dirs that lived past the stale
+  // threshold without an active in-flight entry are orphaned. Replaces the
+  // old volume-sweep block that targeted volumes nobody creates (audit
+  // finding R2-3 C5). Gated on the container probe so a wedged daemon defers
+  // dir reaping to the next cycle (matches the prior short-circuit).
+  if (containerProbeOk) {
+    removed += await sweepHostSessionDirs(cfg, staleThreshold);
+  }
+  return removed;
+}
+
+/**
+ * Generic periodic-sweep scheduler. Backend-agnostic: every 5 min it asks the
+ * active backend to reap orphans (DockerBackend → `dockerSweepOrphans`; a
+ * future KubernetesBackend → a label-selector Pod delete).
+ */
+export function startPeriodicSweep(
+  backend: ExecutionBackend,
+  cfg: SpawnerConfig,
+): () => void {
+  const interval = setInterval(() => {
+    void backend
+      .sweepOrphans({
+        staleBeforeMs: Date.now() - 2 * cfg.maxTimeoutMs,
+        isLive: isInFlight,
+      })
+      .catch((err) => {
+        console.warn(`[sandbox.periodic] sweep error:`, err);
+      });
   }, PERIODIC_INTERVAL_MS);
   return () => clearInterval(interval);
 }
@@ -304,7 +347,7 @@ export function startPeriodicSweep(cfg: SpawnerConfig): () => void {
  */
 export function installSignalHandlers(
   stopAccepting: () => void,
-  cfg?: SpawnerConfig,
+  backend: ExecutionBackend,
 ): void {
   let shuttingDown = false;
   const onTerm = async (sig: string) => {
@@ -322,7 +365,7 @@ export function installSignalHandlers(
     const ids = inFlightIds();
     await Promise.allSettled(
       ids.map((id) =>
-        cancelExecution(id).catch((err) => {
+        cancelExecution(backend, id).catch((err) => {
           console.warn(`[sandbox.shutdown] cancel ${id} failed:`, err);
         }),
       ),
@@ -337,9 +380,7 @@ export function installSignalHandlers(
         `[sandbox] shutdown deadline; ${remaining.length} execution(s) still in-flight (${remaining.join(', ')})`,
       );
     }
-    if (cfg) {
-      await releaseSpawnerLock(cfg);
-    }
+    await backend.shutdown();
     process.exit(0);
   };
   process.on('SIGTERM', () => void onTerm('SIGTERM'));

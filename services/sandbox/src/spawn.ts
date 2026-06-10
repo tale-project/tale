@@ -1,39 +1,45 @@
 // Per-call execution pipeline. The route handler in server.ts hands a typed
-// ExecuteRequest in; this module owns the docker lifecycle and returns a
-// typed ExecuteResponse out.
+// ExecuteRequest in; this module owns the backend-agnostic orchestration and
+// returns a typed ExecuteResponse out. The runtime itself (`docker run` today,
+// a Kubernetes Pod under SANDBOX_BACKEND=kubernetes) is launched through the
+// injected ExecutionBackend (see backend/types.ts); this module never touches
+// docker directly.
 //
 // Flow:
-//   1. Ensure per-org pip/npm cache volumes exist (one-shot chown so the
-//      unprivileged runtime user can write).
-//   2. Create host workspace dir at /var/lib/tale-sandbox/sessions/<uuid>/
-//      and stage code/ + input/ via Bun fs (the spawner sees this path
-//      directly because it's bind-mounted 1:1 into the container).
-//   3. `docker run` the runtime with --mount type=bind workspaceHostDir
-//      → /workspace.
-//   4. Wait with host-side wall-clock timeout.
-//   5. Read /workspace/output/ back via Bun fs.
+//   1. backend.createWorkspace() → a per-call staging dir (Workspace.localRoot,
+//      which the DockerBackend bind-mounts 1:1 into the runtime container).
+//   2. backend.ensureCacheStore() → per-org pip/npm dependency caches.
+//   3. stageWorkspace() writes code/ + inputs into the workspace via Bun fs.
+//   4. backend.launch() + RunningExecution.wait() run the runtime under the
+//      two-tier wall-clock timeout, streaming stdout/stderr (phase markers +
+//      live tail) back through the SSE callbacks.
+//   5. harvestOutputDir() reads /workspace/output/ back and POSTs each file to
+//      its presigned upload slot.
 //   6. Capture stdout/stderr; classify exit code → errorCode.
-//   7. `docker rm -f` + rm -rf the host dir.
+//   7. finally: RunningExecution.remove() + Workspace.destroy().
 
 import { createHash } from 'node:crypto';
 import {
   mkdir,
   readdir,
   readFile,
-  rm,
   stat,
   writeFile,
   lchown,
 } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 
-import { buildDockerRunArgs } from './docker-args.ts';
+import type {
+  ExecutionBackend,
+  RunningExecution,
+  RunResult,
+  Workspace,
+} from './backend/types.ts';
 import {
   postToUploadSlot,
   reportUploaded,
   requestUploadUrls,
 } from './sandbox-callback.ts';
-import { runDocker, dockerKill, dockerRm } from './spawn-util.ts';
 import type {
   ErrorCode,
   ExecuteRequest,
@@ -45,11 +51,6 @@ import type {
   UploadFailure,
   UploadStats,
 } from './types.ts';
-import {
-  ensureCacheVolume,
-  npmCacheVolumeName,
-  pipCacheVolumeName,
-} from './volume.ts';
 import {
   ID_ALPHABET_RE,
   ORG_ID_ALPHABET_RE,
@@ -71,7 +72,6 @@ const RUNTIME_UID = 65534;
 const RUNTIME_GID = 65534;
 
 interface InFlight {
-  containerName: string;
   abort: AbortController;
   startedAt: number;
 }
@@ -102,7 +102,6 @@ export function registerInFlight(executionId: string): void {
   // AbortController exists so an early cancelExecution call sees a real
   // signal-bearing object.
   inFlight.set(executionId, {
-    containerName: `tale-sbx-${executionId}`,
     abort: new AbortController(),
     startedAt: Date.now(),
   });
@@ -112,31 +111,20 @@ export function unregisterInFlight(executionId: string): void {
   inFlight.delete(executionId);
 }
 
-export async function cancelExecution(executionId: string): Promise<boolean> {
+export async function cancelExecution(
+  backend: ExecutionBackend,
+  executionId: string,
+): Promise<boolean> {
   const entry = inFlight.get(executionId);
   if (!entry) return false;
+  // The abort signal is the primary cancel — it ends the runtime stream that
+  // `RunningExecution.wait()` is draining, so `executeRequest` proceeds to its
+  // finally block. The backend additionally kills the container/Pod (the
+  // TERM→KILL escalation + wedged-daemon ceiling live inside the backend,
+  // which addresses the runtime by execution id rather than a stored handle —
+  // so this works even before `launch()` has created it).
   entry.abort.abort('cancelled by client');
-  // Hard ceiling on docker kill so a wedged daemon can't hang the cancel
-  // HTTP response. The timeoutMs is passed THROUGH to runDocker so the
-  // underlying Bun subprocess is killed too — earlier this used an outer
-  // `withTimeout` wrapper which only rejected the promise but left the
-  // docker CLI child running (audit follow-up F4).
-  try {
-    await dockerKill(entry.containerName, 'TERM', { timeoutMs: 5_000 });
-  } catch (err) {
-    console.warn(
-      `[sandbox.cancel] dockerKill timed out / failed for ${executionId}:`,
-      err,
-    );
-    try {
-      await dockerKill(entry.containerName, 'KILL', { timeoutMs: 5_000 });
-    } catch (forceErr) {
-      console.error(
-        `[sandbox.cancel] forced dockerKill also failed for ${executionId}:`,
-        forceErr,
-      );
-    }
-  }
+  await backend.cancel(executionId);
   return true;
 }
 
@@ -1148,6 +1136,7 @@ interface ExecuteRequestOptions {
 }
 
 export async function executeRequest(
+  backend: ExecutionBackend,
   cfg: SpawnerConfig,
   req: ExecuteRequest,
   opts: ExecuteRequestOptions = {},
@@ -1171,30 +1160,30 @@ export async function executeRequest(
     cfg.maxTimeoutMs,
   );
   const startedAtMs = Date.now();
-  const containerName = `tale-sbx-${req.executionId}`;
-  const pipVolume = pipCacheVolumeName(cfg, req.organizationId);
-  const npmVolume = npmCacheVolumeName(cfg, req.organizationId);
-  const workspaceHostDir = join(cfg.hostSessionRoot, req.executionId);
 
   // Reuse the placeholder AbortController if the server pre-registered one
   // when the request landed. A `cancelExecution` call between registerInFlight
   // and this line targets the placeholder's signal — discarding it here and
   // building a fresh controller would leak that early abort, leaving the
-  // child docker process running until the watchdog timeout. Reusing the
-  // entry preserves the (already-aborted, if cancelled) signal.
+  // runtime running until the watchdog timeout. Reusing the entry preserves
+  // the (already-aborted, if cancelled) signal.
   const placeholder = inFlight.get(req.executionId);
   const abort = placeholder?.abort ?? new AbortController();
   inFlight.set(req.executionId, {
-    containerName,
     abort,
     startedAt: startedAtMs,
   });
 
+  let workspace: Workspace | undefined;
+  let running: RunningExecution | undefined;
   try {
-    await ensureCacheVolume(pipVolume);
-    await ensureCacheVolume(npmVolume);
+    // `ws` is the non-undefined handle used throughout the body; `workspace`
+    // (the outer `let`) exists only so the finally block can tear it down.
+    const ws = await backend.createWorkspace(req.executionId);
+    workspace = ws;
+    const cache = await backend.ensureCacheStore(req.organizationId);
     const stageStartedAt = Date.now();
-    const stageResult = await stageWorkspace(workspaceHostDir, req);
+    const stageResult = await stageWorkspace(ws.localRoot, req);
     const stageMs = Date.now() - stageStartedAt;
     // Captured here for inclusion in ExecuteResponse.priorStage. Undefined
     // when the request had no priorOutputDownloads (nothing to attest).
@@ -1219,41 +1208,33 @@ export async function executeRequest(
         : // oxlint-disable-next-line typescript/no-non-null-assertion -- validator enforces mutex (entryPath xor steps)
           req.entryPath!;
 
-    const argv = buildDockerRunArgs(cfg, {
-      executionId: req.executionId,
-      organizationId: req.organizationId,
-      language: req.language,
-      timeoutMs,
-      pipCacheVolume: pipVolume,
-      npmCacheVolume: npmVolume,
-      workspaceHostDir,
-      startedAtMs,
-      entryPath,
-    });
+    const launched = await backend.launch(
+      {
+        executionId: req.executionId,
+        organizationId: req.organizationId,
+        language: req.language,
+        timeoutMs,
+        startedAtMs,
+        entryPath,
+        workspace: ws,
+      },
+      cache,
+    );
+    running = launched;
 
-    // Two-tier timeout:
-    //   - Inner: at `timeoutMs`, SIGKILL the container so user code cannot
+    // Two-tier timeout — both tiers are enforced inside
+    // RunningExecution.wait():
+    //   - Inner: at `timeoutMs`, SIGKILL the runtime so user code cannot
     //     exceed the cap. The runtime is untrusted; there's no graceful
     //     shutdown contract to honor with SIGTERM, and SIGTERM-then-wait
     //     would just let a misbehaving process burn additional wall-clock
     //     before we force the kill anyway.
-    //   - Outer (in runDocker): at `timeoutMs + 30_000`, kill the docker
-    //     CLI process too — covers the case where `docker kill` itself
-    //     hangs (rare; would mean the daemon is in trouble).
-    const killTimer = setTimeout(() => {
-      // Bounded so a wedged docker daemon doesn't leak the Bun subprocess
-      // (audit follow-up F4). Same 5s ceiling as cancelExecution.
-      void dockerKill(containerName, 'KILL', { timeoutMs: 5_000 }).catch(
-        (err) => {
-          console.warn(
-            `[sandbox] timeout-triggered dockerKill failed for ${containerName}:`,
-            err,
-          );
-        },
-      );
-    }, timeoutMs);
-    let result: Awaited<ReturnType<typeof runDocker>>;
-    try {
+    //   - Outer (RunOptions.outerTimeoutMs = `timeoutMs + 30_000`): kill the
+    //     launch mechanism itself (e.g. a wedged docker CLI) if it hangs past
+    //     the inner kill.
+    let result: RunResult;
+    // Block scope for the phase-marker parser state (lineBuf, decoders).
+    {
       // Line-buffered phase parser. The runtime image's entrypoint emits
       // "PHASE: installing\n" then later "PHASE: running\n" on stdout. We
       // accumulate bytes until we see a newline, then scan each line for
@@ -1328,12 +1309,11 @@ export async function executeRequest(
             opts.onStderrDelta?.(text);
           }
         : undefined;
-      result = await runDocker(argv, {
-        timeoutMs: timeoutMs + 30_000,
+      result = await launched.wait({
+        outerTimeoutMs: timeoutMs + 30_000,
         signal: abort.signal,
-        killOnTimeoutContainer: containerName,
-        // In-band byte caps prevent a runaway runtime container from OOM'ing
-        // the spawner heap; runDocker continues draining the pipe but
+        // In-band byte caps prevent a runaway runtime from OOM'ing the
+        // spawner heap; the backend continues draining the stream but
         // discards bytes past the cap (audit finding R2-B2).
         stdoutMaxBytes: cfg.stdoutMaxBytes,
         stderrMaxBytes: cfg.stderrMaxBytes,
@@ -1359,8 +1339,6 @@ export async function executeRequest(
         const tail = stderrDecoder.decode();
         if (tail.length > 0) opts.onStderrDelta(tail);
       }
-    } finally {
-      clearTimeout(killTimer);
     }
 
     const durationMs = Date.now() - startedAtMs;
@@ -1369,7 +1347,7 @@ export async function executeRequest(
     const stdoutWithoutPhases = stripPhaseMarkers(result.stdout);
     const stdoutClean = stripControlChars(stdoutWithoutPhases);
     const stderrClean = stripControlChars(result.stderr);
-    // runDocker now caps reads in-band, but keep capText as a defensive
+    // The backend caps reads in-band, but keep capText as a defensive
     // safety net (no-op when within bounds) and OR truncation flags so
     // either signal surfaces on the wire.
     const { text: stdoutCapped, truncated: stdoutCapPostTrunc } = capText(
@@ -1391,7 +1369,7 @@ export async function executeRequest(
     // special-case the missing-file path.
     const stepResults =
       req.steps !== undefined
-        ? ((await readStepResults(workspaceHostDir, req.steps)) ??
+        ? ((await readStepResults(ws.localRoot, req.steps)) ??
           synthesizeStepResults(req.steps))
         : undefined;
 
@@ -1416,7 +1394,7 @@ export async function executeRequest(
     const harvestStartedAt = Date.now();
     try {
       const harvested = await harvestOutputDir(
-        workspaceHostDir,
+        ws.localRoot,
         {
           perFileMax: cfg.outputFileMaxBytes,
           totalMax: cfg.outputTotalMaxBytes,
@@ -1551,23 +1529,13 @@ export async function executeRequest(
     );
   } finally {
     inFlight.delete(req.executionId);
-    try {
-      await dockerRm(containerName);
-    } catch (err) {
-      console.warn(
-        `[sandbox.cleanup] dockerRm failed for ${containerName}:`,
-        err,
-      );
-    }
-    try {
-      await rm(workspaceHostDir, { recursive: true, force: true });
-    } catch (err) {
-      // Loud: silent rm failures = host disk leak. Audit finding.
-      console.warn(
-        `[sandbox.cleanup] failed to rm host workspace ${workspaceHostDir}:`,
-        err,
-      );
-    }
+    // Tear down the runtime (docker rm / Pod delete) then the workspace
+    // (rm -rf the host session dir). Both swallow-and-log internally so a
+    // cleanup failure can't mask the real result. `running` is undefined if
+    // launch() never happened (e.g. staging threw); `workspace` is undefined
+    // only if createWorkspace() itself threw.
+    if (running !== undefined) await running.remove();
+    if (workspace !== undefined) await workspace.destroy();
   }
 }
 
