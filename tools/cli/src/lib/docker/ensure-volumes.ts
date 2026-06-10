@@ -2,7 +2,7 @@ import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { docker } from './docker';
 
-async function volumeExists(volumeName: string): Promise<boolean> {
+export async function volumeExists(volumeName: string): Promise<boolean> {
   const result = await docker('volume', 'inspect', volumeName);
   return result.success;
 }

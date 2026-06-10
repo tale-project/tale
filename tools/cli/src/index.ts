@@ -3,6 +3,7 @@ import { program } from 'commander';
 
 import pkg from '../package.json';
 import { createAuthCommand } from './commands/auth';
+import { createBackupCommand } from './commands/backup';
 import { createCleanupCommand } from './commands/cleanup';
 import { createConfigCommand } from './commands/config';
 import { createConvexCommand } from './commands/convex';
@@ -45,6 +46,7 @@ program.addCommand(createDeployCommand());
 program.addCommand(createStatusCommand());
 program.addCommand(createLogsCommand());
 program.addCommand(createRollbackCommand());
+program.addCommand(createBackupCommand());
 program.addCommand(createResetCommand());
 program.addCommand(createCleanupCommand());
 program.addCommand(createDoctorCommand());

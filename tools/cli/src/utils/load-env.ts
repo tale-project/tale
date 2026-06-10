@@ -16,6 +16,8 @@ export interface DeploymentEnv {
 const DEFAULT_REGISTRY = 'ghcr.io/tale-project/tale';
 const DEFAULT_HEALTH_CHECK_TIMEOUT = 300;
 const DEFAULT_DRAIN_TIMEOUT = 30;
+const DEFAULT_BACKUP_KEEP_COUNT = 5;
+const DEFAULT_BACKUP_KEEP_DAYS = 14;
 
 function parseIntSafe(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -43,6 +45,25 @@ function parseEnvFile(filePath: string): void {
   } catch {
     logger.warn(`Failed to parse env file: ${filePath}`);
   }
+}
+
+/**
+ * Snapshot-rotation retention, overridable via `BACKUP_KEEP_COUNT` /
+ * `BACKUP_KEEP_DAYS`. Read from process.env at call time (loadEnv folds the
+ * project `.env` into process.env) so the backup module works from code
+ * paths that don't carry a DeploymentEnv (e.g. the legacy-layout preflight).
+ */
+export function getBackupRetention(): { keepCount: number; keepDays: number } {
+  return {
+    keepCount: parseIntSafe(
+      process.env.BACKUP_KEEP_COUNT,
+      DEFAULT_BACKUP_KEEP_COUNT,
+    ),
+    keepDays: parseIntSafe(
+      process.env.BACKUP_KEEP_DAYS,
+      DEFAULT_BACKUP_KEEP_DAYS,
+    ),
+  };
 }
 
 export function loadEnv(deployDir: string): DeploymentEnv {
