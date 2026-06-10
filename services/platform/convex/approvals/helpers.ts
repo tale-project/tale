@@ -398,6 +398,7 @@ export async function linkApprovalsToMessage(
     'workflow_update',
     'human_input_request',
     'document_write',
+    'knowledge_write',
     'location_request',
     'mcp_tool_call',
   ] as const;

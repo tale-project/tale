@@ -521,6 +521,14 @@
       "description": "Wissen ist der Bereich, in dem die Dokumente und strukturierten Daten der Organisation liegen, damit Agents sie zitieren können. Redakteure kuratieren ihn; Agents rufen zur Antwort-Zeit darüber ab. Diese Übersicht nennt die zwei Hälften und verweist auf die Per-Bereich-Seiten."
     }
   },
+  "de:platform/knowledge/knowledge-entries": {
+    "slug": "platform/knowledge/knowledge-entries",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Wissenseinträge",
+      "description": "Wissenseinträge sind kleine, themen-basierte Fakten, die Nutzer zur Wissensdatenbank beitragen — mit Genehmigung aus dem Chat erfasst oder manuell hinzugefügt. Diese Seite behandelt, woher Einträge kommen, die Eine-Live-Version-pro-Thema-Regel und wie du sie verwaltest."
+    }
+  },
   "de:platform/knowledge/structured-data": {
     "slug": "platform/knowledge/structured-data",
     "locale": "de",
@@ -1545,6 +1553,14 @@
       "description": "Connaissance est la zone où vivent les documents et données structurées de l'org pour que les agents puissent les citer. Les Éditeurs la curent ; les agents récupèrent dessus à la réponse. Cette vue d'ensemble nomme les deux moitiés et pointe vers les pages par zone."
     }
   },
+  "fr:platform/knowledge/knowledge-entries": {
+    "slug": "platform/knowledge/knowledge-entries",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Entrées de connaissances",
+      "description": "Les entrées de connaissances sont de petits faits indexés par sujet que les utilisateurs apportent à la base de connaissances — capturés depuis le chat avec approbation ou ajoutés manuellement. Cette page couvre d'où viennent les entrées, la règle d'une version live par sujet, et comment les gérer."
+    }
+  },
   "fr:platform/knowledge/structured-data": {
     "slug": "platform/knowledge/structured-data",
     "locale": "fr",
@@ -2567,6 +2583,14 @@
     "frontmatter": {
       "title": "Knowledge",
       "description": "Knowledge is the area where the org's documents and structured data live so agents can cite them. Editors curate it; agents retrieve over it at reply time. This overview names the two halves and points at the per-area pages."
+    }
+  },
+  "en:platform/knowledge/knowledge-entries": {
+    "slug": "platform/knowledge/knowledge-entries",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Knowledge entries",
+      "description": "Knowledge entries are small, topic-keyed facts that users contribute to the knowledge base — captured from chat with approval or added manually. This page covers where entries come from, the one-live-version-per-topic rule, and how to manage them."
     }
   },
   "en:platform/knowledge/structured-data": {

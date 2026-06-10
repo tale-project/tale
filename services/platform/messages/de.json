@@ -837,6 +837,7 @@
       "customerRead": "Kundendaten",
       "productRead": "Produktkatalog",
       "ragSearch": "Wissensdatenbank",
+      "knowledgeWrite": "Wissenseintrag",
       "web": "Webinhalt",
       "pdf": "PDF",
       "image": "Bilder",
@@ -2090,6 +2091,10 @@
     "websites": {
       "title": "Noch keine Websites",
       "description": "Füge Websites hinzu, um deine KI zu verbessern"
+    },
+    "knowledgeEntries": {
+      "title": "Noch keine Wissenseinträge",
+      "description": "Speichere Fakten aus dem Chat oder füge Einträge hinzu, um deine KI zu verbessern"
     },
     "automations": {
       "title": "Noch keine Automatisierungen",
@@ -3397,10 +3402,80 @@
   "knowledge": {
     "title": "Wissen",
     "documents": "Dokumente",
+    "knowledgeEntries": "Wissenseinträge",
     "websites": "Websites",
     "products": "Produkte",
     "customers": "Kunden",
     "vendors": "Lieferanten"
+  },
+  "knowledgeEntries": {
+    "title": "Wissenseinträge",
+    "searchPlaceholder": "Wissenseinträge durchsuchen",
+    "addButton": "Eintrag hinzufügen",
+    "addEntry": "Wissenseintrag hinzufügen",
+    "editEntry": "Wissenseintrag bearbeiten",
+    "adding": "Wird hinzugefügt...",
+    "saving": "Wird gespeichert...",
+    "topic": "Thema",
+    "topicPlaceholder": "z. B. Öffnungszeiten",
+    "content": "Inhalt",
+    "contentPlaceholder": "Formuliere das Wissen so, dass es für sich allein verständlich ist, z. B. \"Unser Geschäft ist Montag bis Freitag von 9 bis 17 Uhr geöffnet.\"",
+    "headers": {
+      "topic": "Thema",
+      "content": "Inhalt",
+      "source": "Quelle",
+      "updated": "Aktualisiert"
+    },
+    "source": {
+      "chat": "Chat",
+      "manual": "Manuell"
+    },
+    "validation": {
+      "topicRequired": "Thema ist erforderlich",
+      "topicTooLong": "Das Thema darf höchstens 120 Zeichen lang sein",
+      "contentRequired": "Inhalt ist erforderlich",
+      "contentTooLong": "Der Inhalt darf höchstens 8000 Zeichen lang sein"
+    },
+    "toast": {
+      "addSuccess": "Wissenseintrag hinzugefügt",
+      "addError": "Wissenseintrag konnte nicht hinzugefügt werden",
+      "addErrorDuplicate": "Für dieses Thema existiert bereits ein Eintrag",
+      "updateSuccess": "Wissenseintrag aktualisiert",
+      "updateError": "Wissenseintrag konnte nicht aktualisiert werden",
+      "deleteError": "Wissenseintrag konnte nicht gelöscht werden"
+    },
+    "delete": {
+      "title": "Wissenseintrag löschen",
+      "confirmation": "Möchtest du diesen Wissenseintrag wirklich löschen? Er wird auch aus der Wissensdatenbank entfernt und ist für Agenten nicht mehr auffindbar. Diese Aktion kann nicht rückgängig gemacht werden."
+    },
+    "viewDialog": {
+      "title": "Details zum Wissenseintrag",
+      "indexingStatus": "Indexierungsstatus",
+      "updated": "Aktualisiert",
+      "history": "Versionsverlauf",
+      "versionCount": "{count, plural, one {# frühere Version} other {# frühere Versionen}}",
+      "superseded": "Ersetzt",
+      "supersededOn": "Ersetzt am {date}"
+    }
+  },
+  "knowledgeWriteApproval": {
+    "cardTitle": "In Wissensdatenbank speichern",
+    "cardTitleReplace": "Wissensdatenbank aktualisieren",
+    "topicLabel": "Thema",
+    "contentLabel": "Inhalt",
+    "incorrectInfoLabel": "Ersetzt veraltete Information",
+    "replaceNotice": "Mit der Genehmigung wird der bestehende Eintrag \"{topic}\" ersetzt.",
+    "savedSuccessfully": "In der Wissensdatenbank gespeichert",
+    "approve": "Genehmigen",
+    "reject": "Ablehnen",
+    "approveTooltip": "Diesen Wissenseintrag genehmigen und speichern",
+    "approveTooltipReplace": "Genehmigen und den bestehenden Wissenseintrag ersetzen",
+    "rejectTooltip": "Diesen Wissenseintrag ablehnen",
+    "statusExecuting": "Wissenseintrag wird gespeichert...",
+    "statusCompletedFailed": "Dieser Wissenseintrag wurde genehmigt, konnte aber nicht gespeichert werden.",
+    "statusCompletedSuccess": "Dieser Wissenseintrag wurde in der Wissensdatenbank gespeichert.",
+    "statusRejected": "Dieser Wissenseintrag wurde abgelehnt.",
+    "errorSaveFailed": "Wissenseintrag konnte nicht gespeichert werden"
   },
   "locationRequest": {
     "title": "Standortanfrage",
@@ -3517,6 +3592,10 @@
     "websites": {
       "title": "Websites",
       "description": "Websites für die Wissensextraktion verwalten."
+    },
+    "knowledgeEntries": {
+      "title": "Wissenseinträge",
+      "description": "Von Nutzern beigetragene Wissenseinträge verwalten."
     },
     "settings": {
       "title": "Einstellungen",

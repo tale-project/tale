@@ -60,6 +60,10 @@ export function useExecuteApprovedDocumentWrite() {
   return useConvexAction(api.approvals.actions.executeApprovedDocumentWrite);
 }
 
+export function useExecuteApprovedKnowledgeWrite() {
+  return useConvexAction(api.approvals.actions.executeApprovedKnowledgeWrite);
+}
+
 export function useCreateThread() {
   return useConvexMutation(api.threads.mutations.createChatThread);
 }

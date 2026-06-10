@@ -92,6 +92,7 @@ import type * as agent_tools_rag_format_search_results from "../agent_tools/rag/
 import type * as agent_tools_rag_helpers_fetch_document_chunks from "../agent_tools/rag/helpers/fetch_document_chunks.js";
 import type * as agent_tools_rag_helpers_list_indexed_documents from "../agent_tools/rag/helpers/list_indexed_documents.js";
 import type * as agent_tools_rag_helpers_verify_thread_scoped_access from "../agent_tools/rag/helpers/verify_thread_scoped_access.js";
+import type * as agent_tools_rag_knowledge_write_tool from "../agent_tools/rag/knowledge_write_tool.js";
 import type * as agent_tools_rag_parse_search_results from "../agent_tools/rag/parse_search_results.js";
 import type * as agent_tools_rag_query_rag_context from "../agent_tools/rag/query_rag_context.js";
 import type * as agent_tools_rag_rag_search_tool from "../agent_tools/rag/rag_search_tool.js";
@@ -453,6 +454,12 @@ import type * as integrations_update_integration_internal from "../integrations/
 import type * as integrations_update_sync_stats from "../integrations/update_sync_stats.js";
 import type * as integrations_utils_get_integration_type from "../integrations/utils/get_integration_type.js";
 import type * as integrations_validators from "../integrations/validators.js";
+import type * as knowledge_entries_constants from "../knowledge_entries/constants.js";
+import type * as knowledge_entries_internal_actions from "../knowledge_entries/internal_actions.js";
+import type * as knowledge_entries_internal_mutations from "../knowledge_entries/internal_mutations.js";
+import type * as knowledge_entries_internal_queries from "../knowledge_entries/internal_queries.js";
+import type * as knowledge_entries_mutations from "../knowledge_entries/mutations.js";
+import type * as knowledge_entries_queries from "../knowledge_entries/queries.js";
 import type * as lib_action_cache_index from "../lib/action_cache/index.js";
 import type * as lib_age_keygen from "../lib/age_keygen.js";
 import type * as lib_agent_chat_index from "../lib/agent_chat/index.js";
@@ -1420,6 +1427,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/rag/helpers/fetch_document_chunks": typeof agent_tools_rag_helpers_fetch_document_chunks;
   "agent_tools/rag/helpers/list_indexed_documents": typeof agent_tools_rag_helpers_list_indexed_documents;
   "agent_tools/rag/helpers/verify_thread_scoped_access": typeof agent_tools_rag_helpers_verify_thread_scoped_access;
+  "agent_tools/rag/knowledge_write_tool": typeof agent_tools_rag_knowledge_write_tool;
   "agent_tools/rag/parse_search_results": typeof agent_tools_rag_parse_search_results;
   "agent_tools/rag/query_rag_context": typeof agent_tools_rag_query_rag_context;
   "agent_tools/rag/rag_search_tool": typeof agent_tools_rag_rag_search_tool;
@@ -1781,6 +1789,12 @@ declare const fullApi: ApiFromModules<{
   "integrations/update_sync_stats": typeof integrations_update_sync_stats;
   "integrations/utils/get_integration_type": typeof integrations_utils_get_integration_type;
   "integrations/validators": typeof integrations_validators;
+  "knowledge_entries/constants": typeof knowledge_entries_constants;
+  "knowledge_entries/internal_actions": typeof knowledge_entries_internal_actions;
+  "knowledge_entries/internal_mutations": typeof knowledge_entries_internal_mutations;
+  "knowledge_entries/internal_queries": typeof knowledge_entries_internal_queries;
+  "knowledge_entries/mutations": typeof knowledge_entries_mutations;
+  "knowledge_entries/queries": typeof knowledge_entries_queries;
   "lib/action_cache/index": typeof lib_action_cache_index;
   "lib/age_keygen": typeof lib_age_keygen;
   "lib/agent_chat/index": typeof lib_agent_chat_index;

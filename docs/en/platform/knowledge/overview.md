@@ -25,6 +25,8 @@ The retrieval itself happens at reply time and is driven by the RAG-tagged tool 
 
 **[Documents](/platform/knowledge/documents)** — Editors read this when they upload files, watch the indexing pipeline, and manage the per-document lifecycle.
 
+**[Knowledge entries](/platform/knowledge/knowledge-entries)** — Editors read this when they manage the small, topic-keyed facts users contribute — captured from chat with approval or added by hand — that ride the same indexing pipeline as documents.
+
 **[Structured data](/platform/knowledge/structured-data)** — Editors read this when they maintain typed tables — customers, products, vendors, websites — that agents read as records.
 
 ## Where this fits

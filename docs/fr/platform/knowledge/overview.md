@@ -25,6 +25,8 @@ La récupération elle-même arrive à la réponse et est pilotée par la famill
 
 **[Documents](/fr/platform/knowledge/documents)** — Les Éditeurs lisent ceci quand ils téléversent des fichiers, regardent la pipeline d'indexation, et gèrent le cycle de vie par document.
 
+**[Entrées de connaissances](/fr/platform/knowledge/knowledge-entries)** — Les Éditeurs lisent ceci quand ils gèrent les petits faits indexés par sujet que les utilisateurs apportent — capturés depuis le chat avec approbation ou ajoutés à la main — et qui passent par la même pipeline d'indexation que les documents.
+
 **[Données structurées](/fr/platform/knowledge/structured-data)** — Les Éditeurs lisent ceci quand ils maintiennent des tables typées — clients, produits, fournisseurs, sites web — que les agents lisent comme enregistrements.
 
 ## Où cela s'inscrit

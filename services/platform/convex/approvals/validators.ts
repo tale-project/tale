@@ -29,6 +29,7 @@ export const approvalResourceTypeValidator = v.union(
   v.literal('workflow_update'),
   v.literal('human_input_request'),
   v.literal('document_write'),
+  v.literal('knowledge_write'),
   v.literal('location_request'),
   v.literal('mcp_tool_call'),
   // GDPR Art 17 erasure request awaiting dual-admin approval. Used when

@@ -29,6 +29,7 @@ import { integrationTool } from './integrations/integration_tool';
 import { requestUserLocationTool } from './location/request_user_location_tool';
 import { proposeMemoryTool } from './memory/propose_memory_tool';
 import { productReadTool } from './products/product_read_tool';
+import { knowledgeWriteTool } from './rag/knowledge_write_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
 import { runCodeTool } from './run_code_tool';
 import { secretReadTool } from './secrets/secret_read_tool';
@@ -63,6 +64,7 @@ export const TOOL_REGISTRY = [
   customerReadTool,
   productReadTool,
   ragSearchTool,
+  knowledgeWriteTool,
   webTool,
   workflowReadTool,
   workflowSyntaxTool,

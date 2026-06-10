@@ -153,6 +153,7 @@
           "pages": [
             "platform/knowledge/overview",
             "platform/knowledge/documents",
+            "platform/knowledge/knowledge-entries",
             "platform/knowledge/crawling",
             "platform/knowledge/structured-data"
           ]
