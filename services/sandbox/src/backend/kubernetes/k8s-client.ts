@@ -14,13 +14,10 @@
 // (/var/run/secrets/kubernetes.io/serviceaccount/ca.crt). Local dev needs a
 // token-based kubeconfig, not kind's client-cert one.
 
-import { Writable } from 'node:stream';
-
-import { CoreV1Api, KubeConfig, Log } from '@kubernetes/client-node';
+import { CoreV1Api, KubeConfig } from '@kubernetes/client-node';
 
 export interface K8sClient {
   core: CoreV1Api;
-  log: Log;
   namespace: string;
 }
 
@@ -60,7 +57,6 @@ export function makeK8sClient(namespace: string): K8sClient {
   }
   return {
     core: kc.makeApiClient(CoreV1Api),
-    log: new Log(kc),
     namespace,
   };
 }
@@ -88,56 +84,25 @@ export async function withRetry<T>(
 }
 
 /**
- * Follow a container's stdout log, forwarding each chunk. Returns the
- * AbortController so the caller can stop following once the container exits.
- * (The K8s log API merges stdout+stderr; the runner redirects its stderr to a
- * file so this stream is stdout-only — see k8s-pod-spec.ts.)
- */
-export function followLogs(
-  client: K8sClient,
-  podName: string,
-  container: string,
-  onChunk: (b: Buffer) => void,
-): Promise<AbortController> {
-  const sink = new Writable({
-    write(chunk, _enc, cb) {
-      onChunk(Buffer.from(chunk));
-      cb();
-    },
-  });
-  // Use the done-callback overload so the stream-termination error is handled
-  // HERE rather than left as a detached/unhandled rejection. Aborting the
-  // controller on stop rejects the underlying fetch with AbortError under Bun
-  // — that's expected; only genuine errors are worth logging. (An unhandled
-  // AbortError would otherwise crash the spawner process.)
-  return client.log.log(
-    client.namespace,
-    podName,
-    container,
-    sink,
-    (err: unknown) => {
-      if (err && !(err instanceof Error && err.name === 'AbortError')) {
-        console.warn('[sandbox.k8s] log stream ended with error:', err);
-      }
-    },
-    { follow: true },
-  );
-}
-
-/**
- * One-shot read of a container's full logs (no follow). Used to read the
- * harvest container's result line after it has terminated. Plain HTTP GET.
+ * One-shot read of a container's logs (no follow / no websocket — a plain HTTP
+ * GET). Used both to poll the runner's stdout for live progress and to read the
+ * harvest container's result line. `limitBytes` caps the response from the
+ * START (matches our "truncate the tail" stdout policy). Because every read is
+ * a discrete request/response, there is no long-lived stream to abort — the
+ * whole k8s path is Bun-robust by construction.
  */
 export async function readPodLog(
   client: K8sClient,
   podName: string,
   container: string,
+  opts: { limitBytes?: number } = {},
 ): Promise<string> {
   return withRetry('read-log', () =>
     client.core.readNamespacedPodLog({
       name: podName,
       namespace: client.namespace,
       container,
+      ...(opts.limitBytes !== undefined && { limitBytes: opts.limitBytes }),
     }),
   );
 }

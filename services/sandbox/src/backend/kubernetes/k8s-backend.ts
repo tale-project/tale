@@ -49,7 +49,6 @@ import type {
 import { buildExecSecret, secretNameFor } from './exec-spec.ts';
 import { ensureCachePvcs } from './k8s-cache.ts';
 import {
-  followLogs,
   makeK8sClient,
   readPodLog,
   withRetry,
@@ -188,9 +187,8 @@ export class KubernetesBackend implements ExecutionBackend {
         : // oxlint-disable-next-line typescript/no-non-null-assertion -- validator enforces entryPath xor steps
           req.entryPath!;
 
-    // Accumulate the runner's stdout (capped) while a scanner drives live
-    // PHASE + stdout deltas. The runner's logs are stdout-only (stderr → file),
-    // so there's no onStderrChunk here.
+    // A scanner drives live PHASE + stdout deltas. The runner's logs are
+    // stdout-only (stderr → file), so there's no onStderrChunk here.
     const scanner = createStreamScanner(
       {
         ...(opts.onPhase && { onPhase: opts.onPhase }),
@@ -201,27 +199,7 @@ export class KubernetesBackend implements ExecutionBackend {
         stderrMaxBytes: cfg.stderrMaxBytes,
       },
     );
-    const stdoutChunks: Buffer[] = [];
-    let stdoutBytes = 0;
-    let stdoutStreamTruncated = false;
-    const onRunnerLog = (b: Buffer) => {
-      scanner.onStdoutChunk?.(b); // always forward (phase detect past the cap)
-      if (stdoutBytes >= cfg.stdoutMaxBytes) {
-        stdoutStreamTruncated = true;
-        return;
-      }
-      const room = cfg.stdoutMaxBytes - stdoutBytes;
-      if (b.length <= room) {
-        stdoutChunks.push(b);
-        stdoutBytes += b.length;
-      } else {
-        stdoutChunks.push(b.subarray(0, room));
-        stdoutBytes = cfg.stdoutMaxBytes;
-        stdoutStreamTruncated = true;
-      }
-    };
 
-    let logController: AbortController | undefined;
     try {
       const cache = await this.ensureCache(req.organizationId);
       await this.createSecret(buildExecSecret(cfg, req, timeoutMs));
@@ -264,23 +242,67 @@ export class KubernetesBackend implements ExecutionBackend {
         );
       }
 
-      // Follow the runner's logs (stdout) for live progress + the buffer. The
-      // stream ends naturally when the runner exits; we also abort it once
-      // harvest is done (covers the timeout case where the runner outlives us).
-      logController = await withRetry('log-follow', () =>
-        followLogs(this.client, podName, 'runner', onRunnerLog),
-      );
+      // POLL (not stream) the runner's stdout for live PHASE + deltas while
+      // waiting for the harvest container to terminate (its completion signal —
+      // harvest owns the user timeout + prints the result line). Every read is a
+      // discrete HTTP GET, so there is NO long-lived stream to abort under Bun
+      // (the one remaining websocket-class fragility is gone). On cancel the
+      // abort signal ends the loop; cancel()/the finally then delete the Pod.
+      let lastLogLen = 0;
+      const pollRunnerStdout = async (): Promise<void> => {
+        let logs: string;
+        try {
+          logs = await readPodLog(this.client, podName, 'runner', {
+            limitBytes: cfg.stdoutMaxBytes,
+          });
+        } catch {
+          return; // transient; the next poll catches up
+        }
+        if (logs.length > lastLogLen) {
+          scanner.onStdoutChunk?.(Buffer.from(logs.slice(lastLogLen), 'utf8'));
+          lastLogLen = logs.length;
+        }
+      };
 
-      // The harvest container terminating is the completion signal (it owns the
-      // user timeout + prints the result line). On cancel, the abort signal
-      // ends the wait; cancel()/the finally then delete the Pod.
-      await this.waitForHarvestDone(podName, opts.signal, timeoutMs);
+      const harvestDeadline = Date.now() + timeoutMs + HARVEST_BACKSTOP_MS;
+      while (Date.now() < harvestDeadline) {
+        if (opts.signal.aborted) break;
+        await pollRunnerStdout();
+        let pod: V1Pod;
+        try {
+          pod = await this.readPod(podName);
+        } catch (err) {
+          if (httpStatusCode(err) === 404) break; // pod gone
+          throw err;
+        }
+        const harvestStatus = pod.status?.containerStatuses?.find(
+          (c) => c.name === 'harvest',
+        );
+        if (
+          harvestStatus?.state?.terminated ||
+          pod.status?.phase === 'Succeeded' ||
+          pod.status?.phase === 'Failed'
+        ) {
+          break;
+        }
+        await sleep(POLL_INTERVAL_MS, opts.signal);
+      }
 
-      logController.abort();
-      logController = undefined;
+      // Final stdout read (the runner may have emitted more between the last
+      // poll and exit) → feed the residual to the scanner, then drain it. The
+      // canonical buffer is the full (capped) runner log.
+      await pollRunnerStdout();
       scanner.finalize();
-
-      const stdout = Buffer.concat(stdoutChunks).toString('utf8');
+      let stdout = '';
+      try {
+        stdout = await readPodLog(this.client, podName, 'runner', {
+          limitBytes: cfg.stdoutMaxBytes,
+        });
+      } catch (err) {
+        console.warn('[sandbox.k8s] final runner log read failed:', err);
+      }
+      const stdoutStreamTruncated =
+        Buffer.byteLength(stdout, 'utf8') >= cfg.stdoutMaxBytes;
 
       if (opts.signal.aborted) {
         return this.assemble(req, cfg, opts, {
@@ -328,7 +350,6 @@ export class KubernetesBackend implements ExecutionBackend {
         Date.now() - startedAtMs,
       );
     } finally {
-      if (logController) logController.abort();
       await this.deletePod(podName);
       await this.deleteSecret(secretName);
     }
@@ -504,33 +525,6 @@ export class KubernetesBackend implements ExecutionBackend {
       kind: 'failed',
       message: `pod did not start the runner within ${STARTUP_BUDGET_MS}ms`,
     };
-  }
-
-  private async waitForHarvestDone(
-    podName: string,
-    signal: AbortSignal,
-    timeoutMs: number,
-  ): Promise<void> {
-    const deadline = Date.now() + timeoutMs + HARVEST_BACKSTOP_MS;
-    while (Date.now() < deadline) {
-      if (signal.aborted) return;
-      let pod: V1Pod;
-      try {
-        pod = await this.readPod(podName);
-      } catch (err) {
-        // Pod gone (deleted out from under us) → nothing more to wait for.
-        if (httpStatusCode(err) === 404) return;
-        throw err;
-      }
-      const harvestStatus = pod.status?.containerStatuses?.find(
-        (c) => c.name === 'harvest',
-      );
-      if (harvestStatus?.state?.terminated) return;
-      if (pod.status?.phase === 'Succeeded' || pod.status?.phase === 'Failed') {
-        return;
-      }
-      await sleep(POLL_INTERVAL_MS, signal);
-    }
   }
 
   /**
