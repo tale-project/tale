@@ -14,9 +14,14 @@ import type {
 } from '@/lib/shared/schemas/sso_providers';
 import { narrowStringUnion } from '@/lib/utils/type-guards';
 
+import type { SsoProviderType } from '../../hooks/use-sso-config-form';
+
+type RuleSource = RoleMappingRule['source'];
+
 interface RoleMappingSectionProps {
   rules: RoleMappingRule[];
   platformRoles: { value: PlatformRole; label: string }[];
+  providerType: SsoProviderType;
   disabled: boolean;
   onAdd: () => void;
   onRemove: (index: number) => void;
@@ -26,6 +31,7 @@ interface RoleMappingSectionProps {
 export function RoleMappingSection({
   rules,
   platformRoles,
+  providerType,
   disabled,
   onAdd,
   onRemove,
@@ -33,10 +39,28 @@ export function RoleMappingSection({
 }: RoleMappingSectionProps) {
   const { t } = useT('settings');
 
+  // Entra reads jobTitle/appRole from Microsoft Graph and groups from the
+  // directory; generic OIDC only has the userinfo response, so groups and
+  // arbitrary claims are its rule sources.
+  const isGeneric = providerType === 'generic-oidc';
+  const sourceValues: RuleSource[] = isGeneric
+    ? ['group', 'claim']
+    : ['jobTitle', 'appRole', 'group'];
+  const sourceLabels: Record<RuleSource, string> = {
+    jobTitle: t('integrations.sso.sourceJobTitle'),
+    appRole: t('integrations.sso.sourceAppRole'),
+    group: t('integrations.sso.sourceGroup'),
+    claim: t('integrations.sso.sourceClaim'),
+  };
+
   return (
     <FormSection
       label={t('integrations.sso.roleMappingRulesLabel')}
-      description={t('integrations.sso.roleMappingRulesHelp')}
+      description={
+        isGeneric
+          ? t('integrations.sso.roleMappingRulesHelpGeneric')
+          : t('integrations.sso.roleMappingRulesHelp')
+      }
     >
       <Stack gap={0} className="divide-border divide-y">
         {rules.map((rule, index) => (
@@ -49,30 +73,37 @@ export function RoleMappingSection({
             <Select
               value={rule.source}
               onValueChange={(value) => {
-                const narrowed = narrowStringUnion<'jobTitle' | 'appRole'>(
+                const narrowed = narrowStringUnion<RuleSource>(
                   value,
-                  ['jobTitle', 'appRole'] as const,
+                  sourceValues,
                 );
                 if (narrowed) {
                   onUpdate(index, { source: narrowed });
                 }
               }}
               disabled={disabled}
+              aria-label={t('integrations.sso.ruleSourceLabel')}
               className="w-28 shrink-0"
-              options={[
-                {
-                  value: 'jobTitle',
-                  label: t('integrations.sso.sourceJobTitle'),
-                },
-                {
-                  value: 'appRole',
-                  label: t('integrations.sso.sourceAppRole'),
-                },
-              ]}
+              options={sourceValues.map((source) => ({
+                value: source,
+                label: sourceLabels[source],
+              }))}
             />
 
+            {rule.source === 'claim' && (
+              <Input
+                placeholder="realm_access.roles"
+                aria-label={t('integrations.sso.claimPathLabel')}
+                value={rule.claim ?? ''}
+                onChange={(e) => onUpdate(index, { claim: e.target.value })}
+                disabled={disabled}
+                className="min-w-32 flex-1"
+              />
+            )}
+
             <Input
-              placeholder="*developer*"
+              placeholder={isGeneric ? '*admin*' : '*developer*'}
+              aria-label={t('integrations.sso.rulePatternLabel')}
               value={rule.pattern}
               onChange={(e) => onUpdate(index, { pattern: e.target.value })}
               disabled={disabled}
@@ -94,6 +125,7 @@ export function RoleMappingSection({
                 }
               }}
               disabled={disabled}
+              aria-label={t('integrations.sso.ruleTargetRoleLabel')}
               className="w-28 shrink-0"
               options={platformRoles}
             />
@@ -104,6 +136,7 @@ export function RoleMappingSection({
               size="icon"
               onClick={() => onRemove(index)}
               disabled={disabled}
+              aria-label={t('integrations.sso.removeRule')}
               className="shrink-0"
             >
               <Trash2 className="h-4 w-4" />

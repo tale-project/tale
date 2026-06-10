@@ -76,12 +76,18 @@ describe('useSsoConfigForm provider type (#1506)', () => {
     expect(arg.providerFeatures?.entraId).toBeDefined();
   });
 
-  it('saves generic OIDC with standard scopes and no provider features', async () => {
+  it('saves generic OIDC with standard scopes and genericOidc features', async () => {
     h.upsertMock.mockResolvedValueOnce('provider-2');
     const { result } = setup();
 
     act(() => result.current.setProviderType('generic-oidc'));
     fillCredentials(result);
+    act(() => {
+      result.current.setEmailClaim('contact.email');
+      result.current.setGroupsClaim('realm_access.roles');
+      result.current.setAutoProvisionTeam(true);
+      result.current.setExcludeGroups('everyone, all-users');
+    });
     await act(async () => {
       await result.current.handleSave();
     });
@@ -89,8 +95,33 @@ describe('useSsoConfigForm provider type (#1506)', () => {
     const arg = h.upsertMock.mock.calls[0][0];
     expect(arg.providerId).toBe('generic-oidc');
     expect(arg.scopes).toEqual(['openid', 'email', 'profile']);
-    // OneDrive / Graph team-sync are Entra-only; generic persists no features.
-    expect(arg.providerFeatures).toBeUndefined();
+    // OneDrive / Graph team-sync are Entra-only; generic persists claim
+    // mappings and userinfo-based team sync under its own namespace.
+    expect(arg.providerFeatures?.entraId).toBeUndefined();
+    expect(arg.providerFeatures?.genericOidc).toEqual({
+      emailClaim: 'contact.email',
+      nameClaim: undefined,
+      groupsClaim: 'realm_access.roles',
+      autoProvisionTeam: true,
+      excludeGroups: ['everyone', 'all-users'],
+    });
+  });
+
+  it('swaps to group-based default rules when switching to generic OIDC', () => {
+    const { result } = setup();
+    expect(result.current.roleMappingRules[0]?.source).toBe('jobTitle');
+
+    act(() => result.current.setProviderType('generic-oidc'));
+    expect(result.current.roleMappingRules).toEqual([
+      { source: 'group', pattern: '*admin*', targetRole: 'admin' },
+    ]);
+
+    act(() => result.current.addMappingRule());
+    expect(result.current.roleMappingRules[1]).toEqual({
+      source: 'group',
+      pattern: '',
+      targetRole: 'member',
+    });
   });
 
   it('tests a generic OIDC config against the generic adapter', async () => {
@@ -145,5 +176,67 @@ describe('useSsoConfigForm provider type (#1506)', () => {
       expect(result.current.providerType).toBe('generic-oidc'),
     );
     expect(result.current.issuer).toBe('https://idp.example.com');
+  });
+
+  it('keeps saved group/claim rules and loads genericOidc features on reload', async () => {
+    const existingProvider: SsoProvider = {
+      _id: 'sso-1',
+      providerId: 'generic-oidc',
+      issuer: 'https://idp.example.com',
+      scopes: ['openid', 'email', 'profile'],
+      autoProvisionRole: true,
+      roleMappingRules: [],
+      defaultRole: 'member',
+    };
+    const savedRules = [
+      { source: 'group', pattern: 'platform-admin*', targetRole: 'admin' },
+      {
+        source: 'claim',
+        claim: 'realm_access.roles',
+        pattern: '*developer*',
+        targetRole: 'developer',
+      },
+    ];
+    h.getFullConfigMock.mockResolvedValueOnce({
+      _id: 'sso-1',
+      organizationId: 'org-1',
+      providerId: 'generic-oidc',
+      issuer: 'https://idp.example.com',
+      clientId: 'client-123',
+      scopes: ['openid', 'email', 'profile'],
+      autoProvisionRole: true,
+      roleMappingRules: savedRules,
+      defaultRole: 'member',
+      providerFeatures: {
+        genericOidc: {
+          emailClaim: 'contact.email',
+          groupsClaim: 'realm_access.roles',
+          autoProvisionTeam: true,
+          excludeGroups: ['everyone'],
+        },
+      },
+      createdAt: 0,
+      updatedAt: 0,
+    });
+
+    const { result } = renderHook(() =>
+      useSsoConfigForm({
+        open: true,
+        onOpenChange: vi.fn(),
+        organizationId: 'org-1',
+        existingProvider,
+      }),
+    );
+
+    // Saved group/claim rules must survive the reload (a previous version
+    // silently dropped everything but jobTitle/appRole).
+    await waitFor(() =>
+      expect(result.current.roleMappingRules).toEqual(savedRules),
+    );
+    expect(result.current.emailClaim).toBe('contact.email');
+    expect(result.current.groupsClaim).toBe('realm_access.roles');
+    expect(result.current.autoProvisionTeam).toBe(true);
+    expect(result.current.excludeGroups).toBe('everyone');
+    expect(result.current.hasChanges).toBe(false);
   });
 });

@@ -1,7 +1,9 @@
 import { internal } from '../_generated/api';
 import { ActionCtx } from '../_generated/server';
 import { decryptString } from '../lib/crypto/decrypt_string';
+import { encryptString } from '../lib/crypto/encrypt_string';
 import { ONEDRIVE_SCOPES } from './entra_id/adapter';
+import { generatePkcePair } from './pkce';
 import { getAdapter } from './registry';
 import { signValue } from './sign_cookie_value';
 import type { SsoPromptMode } from './types';
@@ -76,10 +78,22 @@ export async function ssoAuthorizeHandler(
 
     const clientId = await decryptString(provider.clientIdEncrypted);
 
+    // PKCE (S256): the verifier must survive the round trip to the IdP, so it
+    // rides inside the signed state — encrypted, since state is visible to
+    // the browser and the IdP. Gated per adapter so Entra stays untouched.
+    let codeChallenge: string | undefined;
+    let encryptedPkceVerifier: string | undefined;
+    if (adapter.capabilities.supportsPkce) {
+      const pkce = await generatePkcePair();
+      codeChallenge = pkce.challenge;
+      encryptedPkceVerifier = await encryptString(pkce.verifier);
+    }
+
     const statePayload = JSON.stringify({
       redirectUri,
       timestamp: Date.now(),
       seamless: prompt === 'none',
+      ...(encryptedPkceVerifier ? { pkce: encryptedPkceVerifier } : {}),
     });
     const base64Payload = btoa(statePayload)
       .replace(/\+/g, '-')
@@ -114,6 +128,7 @@ export async function ssoAuthorizeHandler(
         prompt,
         domainHint,
         claims: claimsParam || undefined,
+        codeChallenge,
       },
     );
 

@@ -1,3 +1,4 @@
+import { claimValueToStrings, resolveClaimPath } from '../claims';
 import type { PlatformRole, RoleMappingRule, SsoUserInfo } from '../types';
 
 const MAX_PATTERN_LENGTH = 100;
@@ -42,6 +43,15 @@ export function mapEntraRoleToPlatformRole(
     } else if (rule.source === 'group' && userInfo.groups) {
       for (const group of userInfo.groups) {
         if (matchesPattern(group, rule.pattern)) {
+          return rule.targetRole;
+        }
+      }
+    } else if (rule.source === 'claim' && rule.claim && userInfo.rawClaims) {
+      const values = claimValueToStrings(
+        resolveClaimPath(userInfo.rawClaims, rule.claim),
+      );
+      for (const value of values) {
+        if (matchesPattern(value, rule.pattern)) {
           return rule.targetRole;
         }
       }

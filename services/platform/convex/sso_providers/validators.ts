@@ -19,6 +19,9 @@ export const roleMappingRuleValidator = v.object({
   source: roleMappingSourceValidator,
   pattern: v.string(),
   targetRole: platformRoleValidator,
+  // Dot-path into the raw userinfo claims (e.g. `realm_access.roles`);
+  // only read when `source` is `claim`.
+  claim: v.optional(v.string()),
 });
 
 export const entraIdFeaturesValidator = v.object({
@@ -33,9 +36,21 @@ export const googleWorkspaceFeaturesValidator = v.object({
   enableGoogleDriveAccess: v.optional(v.boolean()),
 });
 
+// Claim names accept dot-paths so nested claims (Keycloak's
+// `realm_access.roles`, namespaced Auth0 claims) can be mapped without
+// provider-specific code.
+const genericOidcFeaturesValidator = v.object({
+  emailClaim: v.optional(v.string()),
+  nameClaim: v.optional(v.string()),
+  groupsClaim: v.optional(v.string()),
+  autoProvisionTeam: v.optional(v.boolean()),
+  excludeGroups: v.optional(v.array(v.string())),
+});
+
 export const providerFeaturesValidator = v.object({
   entraId: v.optional(entraIdFeaturesValidator),
   googleWorkspace: v.optional(googleWorkspaceFeaturesValidator),
+  genericOidc: v.optional(genericOidcFeaturesValidator),
 });
 
 export const ssoConfigValidator = v.object({

@@ -22,7 +22,7 @@ BETTER_AUTH_SECRET=...
 
 ## Microsoft Entra
 
-The Microsoft Entra mode adds an OAuth/OIDC button to the sign-in screen and accepts users from a tenant you control. Set `MICROSOFT_AUTH_ENABLED=true` to turn the button on; the per-tenant client ID, client secret, and redirect URI are configured in **Settings > Authentication** once the platform is up.
+The Microsoft Entra mode adds an OAuth/OIDC button to the sign-in screen and accepts users from a tenant you control. Set `MICROSOFT_AUTH_ENABLED=true` to turn the button on; the per-tenant client ID, client secret, and redirect URI are configured on the **Single Sign-On** card under **Settings > Integrations** once the platform is up.
 
 ```bash
 # .env
@@ -33,7 +33,11 @@ The redirect URI Entra needs is `${SITE_URL}/api/auth/callback/microsoft`. The t
 
 ## Generic OIDC
 
-Generic OIDC accepts any spec-compliant identity provider — Keycloak, Authentik, Okta, Google Workspace. The button label is configurable in **Settings > Authentication**, and the flow uses the standard Authorization Code grant with PKCE. Tale stores no secret on disk for OIDC; the client ID and discovery URL go through the UI, the client secret through the encrypted credential store.
+Generic OIDC accepts any spec-compliant identity provider — Keycloak, Authentik, Okta, Google Workspace. Configuration lives on the **Single Sign-On** card under **Settings > Integrations**: pick the **Generic OIDC** provider type, enter the issuer URL, client ID, and client secret, and Tale reads the authorization, token, and userinfo endpoints from the issuer's `.well-known/openid-configuration` document. The flow uses the standard Authorization Code grant with PKCE (S256). Tale stores no secret on disk for OIDC; the client ID and client secret live in the encrypted credential store. The redirect URI to register with your provider is `${SITE_URL}/http_api/api/sso/callback`.
+
+Identity providers disagree on where claims live, so the card lets you point Tale at yours. The **Email claim**, **Name claim**, and **Groups claim** fields take a claim name or a dot path into the userinfo response — Keycloak's realm roles, for example, sit at `realm_access.roles`. Role mapping rules assign platform roles at sign-in: a **Group** rule matches the user's groups against a wildcard pattern (`platform-admin*` → Admin), a **Claim** rule matches any claim resolved by dot path. **Auto-provision teams** mirrors the groups your provider returns as Tale teams on every sign-in, minus the groups you exclude.
+
+A worked Keycloak example: create a confidential client `tale-platform` with the redirect URI above, add a Group Membership mapper so the client emits `groups` in userinfo, then in Tale set the issuer to `https://keycloak.example.com/realms/<realm>`, add a group rule `platform-admin*` → Admin, and click **Test connection** — it validates discovery before anything is saved.
 
 This is the mode for teams that already run an IdP and want their existing identity surface in Tale.
 

@@ -24,6 +24,9 @@ const capabilities: SsoProviderCapabilities = {
   supportsRoleMapping: true,
   supportsOneDriveAccess: true,
   supportsGoogleDriveAccess: false,
+  // PKCE stays off for Entra until verified against confidential-client
+  // tenant policies; the generic OIDC adapter carries it (#1506).
+  supportsPkce: false,
 };
 
 function buildAuthorizeUrl(

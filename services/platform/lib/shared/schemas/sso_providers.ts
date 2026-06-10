@@ -32,6 +32,11 @@ export const roleMappingRuleSchema = z.object({
   source: roleMappingSourceSchema,
   pattern: z.string(),
   targetRole: platformRoleSchema,
+  /**
+   * Dot-path into the raw userinfo claims (e.g. `realm_access.roles`).
+   * Only read when `source` is `claim`.
+   */
+  claim: z.string().optional(),
 });
 export type RoleMappingRule = z.infer<typeof roleMappingRuleSchema>;
 
@@ -40,6 +45,7 @@ export const ssoProviderCapabilitiesSchema = z.object({
   supportsRoleMapping: z.boolean(),
   supportsOneDriveAccess: z.boolean(),
   supportsGoogleDriveAccess: z.boolean(),
+  supportsPkce: z.boolean(),
 });
 export type SsoProviderCapabilities = z.infer<
   typeof ssoProviderCapabilitiesSchema
@@ -98,9 +104,22 @@ const googleWorkspaceFeaturesSchema = z.object({
 });
 type GoogleWorkspaceFeatures = z.infer<typeof googleWorkspaceFeaturesSchema>;
 
+// Claim names accept dot-paths so nested claims (Keycloak's
+// `realm_access.roles`, namespaced Auth0 claims) can be mapped without
+// provider-specific code.
+const genericOidcFeaturesSchema = z.object({
+  emailClaim: z.string().optional(),
+  nameClaim: z.string().optional(),
+  groupsClaim: z.string().optional(),
+  autoProvisionTeam: z.boolean().optional(),
+  excludeGroups: z.array(z.string()).optional(),
+});
+export type GenericOidcFeatures = z.infer<typeof genericOidcFeaturesSchema>;
+
 export const providerFeaturesSchema = z.object({
   entraId: entraIdFeaturesSchema.optional(),
   googleWorkspace: googleWorkspaceFeaturesSchema.optional(),
+  genericOidc: genericOidcFeaturesSchema.optional(),
 });
 export type ProviderFeatures = z.infer<typeof providerFeaturesSchema>;
 

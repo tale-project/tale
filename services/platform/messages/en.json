@@ -5221,7 +5221,23 @@
         "clientIdHelpGeneric": "The client ID issued by your OIDC provider",
         "clientSecretHelpGeneric": "The client secret issued by your OIDC provider",
         "connectedToGeneric": "Connected to your OIDC provider",
-        "autoProvisionRoleHelpGeneric": "Automatically assign roles based on claims returned by your OIDC provider"
+        "autoProvisionRoleHelpGeneric": "Automatically assign roles based on claims returned by your OIDC provider",
+        "sourceGroup": "Group",
+        "sourceClaim": "Claim",
+        "ruleSourceLabel": "Rule source",
+        "rulePatternLabel": "Pattern",
+        "ruleTargetRoleLabel": "Target role",
+        "removeRule": "Remove rule",
+        "claimPathLabel": "Claim path",
+        "roleMappingRulesHelpGeneric": "Define rules to map groups or claim values to platform roles. Use * as wildcard (e.g., *admin*). Claim rules take a dot path into the userinfo claims (e.g., realm_access.roles).",
+        "emailClaimLabel": "Email claim",
+        "emailClaimHelp": "Userinfo claim that carries the user's email. Leave empty to use the standard email claim.",
+        "nameClaimLabel": "Name claim",
+        "nameClaimHelp": "Userinfo claim that carries the user's display name. Leave empty to use the standard name claim.",
+        "groupsClaimLabel": "Groups claim",
+        "groupsClaimHelp": "Userinfo claim that carries the user's groups, as a dot path (e.g., realm_access.roles). Leave empty to use the groups claim.",
+        "autoProvisionTeamHelpGeneric": "Automatically sync team memberships from the groups your OIDC provider returns",
+        "excludeGroupsHelpGeneric": "Comma-separated list of groups to exclude from team sync"
       }
     },
     "providers": {

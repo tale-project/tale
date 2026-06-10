@@ -1,5 +1,7 @@
-// The role matcher is provider-agnostic (it matches jobTitle / appRole / group
-// claims against rules) — reused here rather than duplicated.
+// The role matcher is provider-agnostic (it matches jobTitle / appRole /
+// group / claim values against rules) — reused here rather than duplicated.
+import { isRecord } from '../../../lib/utils/type-guards';
+import { claimValueToStrings, resolveClaimPath } from '../claims';
 import { mapEntraRoleToPlatformRole } from '../entra_id/role_mapping';
 import { discoverOidc, OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';
 import type {
@@ -20,6 +22,7 @@ const capabilities: SsoProviderCapabilities = {
   supportsRoleMapping: true,
   supportsOneDriveAccess: false,
   supportsGoogleDriveAccess: false,
+  supportsPkce: true,
 };
 
 async function buildAuthorizeUrl(
@@ -44,6 +47,10 @@ async function buildAuthorizeUrl(
   if (params.prompt) authUrl.searchParams.set('prompt', params.prompt);
   if (params.loginHint)
     authUrl.searchParams.set('login_hint', params.loginHint);
+  if (params.codeChallenge) {
+    authUrl.searchParams.set('code_challenge', params.codeChallenge);
+    authUrl.searchParams.set('code_challenge_method', 'S256');
+  }
 
   return authUrl;
 }
@@ -54,16 +61,21 @@ async function exchangeCodeForTokens(
 ): Promise<SsoTokens> {
   const { tokenEndpoint } = await discoverOidc(config.issuer);
 
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: params.code,
+    redirect_uri: params.redirectUri,
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+  });
+  if (params.codeVerifier) {
+    body.set('code_verifier', params.codeVerifier);
+  }
+
   const response = await fetch(tokenEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code: params.code,
-      redirect_uri: params.redirectUri,
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-    }),
+    body,
     signal: AbortSignal.timeout(OIDC_FETCH_TIMEOUT_MS),
   });
 
@@ -87,10 +99,17 @@ function toStringArray(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === 'string');
 }
 
+function mappedClaimString(data: unknown, path: string): string | undefined {
+  const [first] = claimValueToStrings(resolveClaimPath(data, path));
+  return first;
+}
+
 /**
  * Fetch the standard OIDC userinfo claims and map them to our shape. The
  * `groups` claim (when the IdP is configured to emit it) is carried on
- * `groups` so group-based role mapping works at login.
+ * `groups` so group-based role mapping works at login. Operator-configured
+ * `claimMappings` (dot-paths) take precedence over the standard claims, and
+ * the full userinfo payload rides on `rawClaims` for claim-based role rules.
  */
 async function getUserInfo(
   config: SsoProviderConfig,
@@ -112,13 +131,28 @@ async function getUserInfo(
   }
 
   const data = await response.json();
+  const mappings = config.claimMappings;
+
+  const mappedName = mappings?.name
+    ? mappedClaimString(data, mappings.name)
+    : undefined;
   const name =
-    typeof data.name === 'string' && data.name
+    mappedName ??
+    (typeof data.name === 'string' && data.name
       ? data.name
       : [data.given_name, data.family_name].filter(Boolean).join(' ') ||
         (typeof data.preferred_username === 'string'
           ? data.preferred_username
-          : '');
+          : ''));
+
+  const mappedEmail = mappings?.email
+    ? mappedClaimString(data, mappings.email)
+    : undefined;
+  const email = mappedEmail ?? data.email ?? data.preferred_username;
+
+  const groups = mappings?.groups
+    ? claimValueToStrings(resolveClaimPath(data, mappings.groups))
+    : toStringArray(data.groups);
 
   // `sub` is the stable subject identifier and the only claim guaranteed by
   // the spec. A missing one would otherwise become the string "undefined" and
@@ -138,9 +172,10 @@ async function getUserInfo(
 
   return {
     externalId,
-    email: data.email ?? data.preferred_username,
+    email,
     name,
-    groups: toStringArray(data.groups),
+    groups,
+    rawClaims: isRecord(data) ? data : undefined,
   };
 }
 

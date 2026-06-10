@@ -23,6 +23,16 @@ export interface SsoProviderConfig {
   clientId: string;
   clientSecret: string;
   scopes: string[];
+  /**
+   * Operator-configured claim names (dot-paths into the userinfo response)
+   * overriding the standard OIDC claims. Derived from
+   * `providerFeatures.genericOidc`; ignored by provider-specific adapters.
+   */
+  claimMappings?: {
+    email?: string;
+    name?: string;
+    groups?: string;
+  };
 }
 
 export type SsoPromptMode = 'none' | 'login' | 'consent' | 'select_account';
@@ -35,11 +45,15 @@ export interface AuthorizeUrlParams {
   prompt?: SsoPromptMode;
   domainHint?: string;
   claims?: string;
+  /** PKCE S256 challenge; set only for adapters with `supportsPkce`. */
+  codeChallenge?: string;
 }
 
 export interface TokenExchangeParams {
   code: string;
   redirectUri: string;
+  /** PKCE verifier matching the `codeChallenge` sent at authorize time. */
+  codeVerifier?: string;
 }
 
 export interface SsoProviderAdapter {

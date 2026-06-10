@@ -63,6 +63,12 @@ export function SSOConfigDialog({
     setDefaultRole,
     enableOneDriveAccess,
     setEnableOneDriveAccess,
+    emailClaim,
+    setEmailClaim,
+    nameClaim,
+    setNameClaim,
+    groupsClaim,
+    setGroupsClaim,
     testResult,
     isSubmitting,
     isTesting,
@@ -282,37 +288,77 @@ export function SSOConfigDialog({
             </ActionRow>
 
             {!isGeneric && (
+              <Switch
+                id="onedrive-access-toggle"
+                label={t('integrations.sso.oneDriveAccessLabel')}
+                description={t('integrations.sso.oneDriveAccessHelp')}
+                checked={enableOneDriveAccess}
+                onCheckedChange={setEnableOneDriveAccess}
+                disabled={isSubmitting || isLoadingConfig}
+              />
+            )}
+
+            {isGeneric && (
               <>
-                <Switch
-                  id="onedrive-access-toggle"
-                  label={t('integrations.sso.oneDriveAccessLabel')}
-                  description={t('integrations.sso.oneDriveAccessHelp')}
-                  checked={enableOneDriveAccess}
-                  onCheckedChange={setEnableOneDriveAccess}
+                <Input
+                  id="sso-email-claim"
+                  label={t('integrations.sso.emailClaimLabel')}
+                  description={t('integrations.sso.emailClaimHelp')}
+                  placeholder="email"
+                  value={emailClaim}
+                  onChange={(e) => setEmailClaim(e.target.value)}
                   disabled={isSubmitting || isLoadingConfig}
                 />
 
-                <Switch
-                  id="auto-provision-team-toggle"
-                  label={t('integrations.sso.autoProvisionTeamLabel')}
-                  description={t('integrations.sso.autoProvisionTeamHelp')}
-                  checked={autoProvisionTeam}
-                  onCheckedChange={setAutoProvisionTeam}
+                <Input
+                  id="sso-name-claim"
+                  label={t('integrations.sso.nameClaimLabel')}
+                  description={t('integrations.sso.nameClaimHelp')}
+                  placeholder="name"
+                  value={nameClaim}
+                  onChange={(e) => setNameClaim(e.target.value)}
                   disabled={isSubmitting || isLoadingConfig}
                 />
 
-                {autoProvisionTeam && (
-                  <Input
-                    id="sso-exclude-groups"
-                    label={t('integrations.sso.excludeGroupsLabel')}
-                    description={t('integrations.sso.excludeGroupsHelp')}
-                    placeholder="All-Employees, Domain-Users"
-                    value={excludeGroups}
-                    onChange={(e) => setExcludeGroups(e.target.value)}
-                    disabled={isSubmitting || isLoadingConfig}
-                  />
-                )}
+                <Input
+                  id="sso-groups-claim"
+                  label={t('integrations.sso.groupsClaimLabel')}
+                  description={t('integrations.sso.groupsClaimHelp')}
+                  placeholder="groups"
+                  value={groupsClaim}
+                  onChange={(e) => setGroupsClaim(e.target.value)}
+                  disabled={isSubmitting || isLoadingConfig}
+                />
               </>
+            )}
+
+            <Switch
+              id="auto-provision-team-toggle"
+              label={t('integrations.sso.autoProvisionTeamLabel')}
+              description={
+                isGeneric
+                  ? t('integrations.sso.autoProvisionTeamHelpGeneric')
+                  : t('integrations.sso.autoProvisionTeamHelp')
+              }
+              checked={autoProvisionTeam}
+              onCheckedChange={setAutoProvisionTeam}
+              disabled={isSubmitting || isLoadingConfig}
+            />
+
+            {autoProvisionTeam && (
+              <Input
+                id="sso-exclude-groups"
+                label={t('integrations.sso.excludeGroupsLabel')}
+                description={
+                  isGeneric
+                    ? t('integrations.sso.excludeGroupsHelpGeneric')
+                    : t('integrations.sso.excludeGroupsHelp')
+                }
+                placeholder="All-Employees, Domain-Users"
+                value={excludeGroups}
+                onChange={(e) => setExcludeGroups(e.target.value)}
+                disabled={isSubmitting || isLoadingConfig}
+              />
             )}
 
             <Switch
@@ -332,6 +378,7 @@ export function SSOConfigDialog({
               <RoleMappingSection
                 rules={roleMappingRules}
                 platformRoles={platformRoles}
+                providerType={providerType}
                 disabled={isSubmitting || isLoadingConfig}
                 onAdd={addMappingRule}
                 onRemove={removeMappingRule}

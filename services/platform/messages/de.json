@@ -4960,7 +4960,23 @@
         "clientIdHelpGeneric": "Die Client-ID deines OIDC-Anbieters",
         "clientSecretHelpGeneric": "Das Client-Secret deines OIDC-Anbieters",
         "connectedToGeneric": "Mit deinem OIDC-Anbieter verbunden",
-        "autoProvisionRoleHelpGeneric": "Rollen automatisch anhand der Claims deines OIDC-Anbieters zuweisen"
+        "autoProvisionRoleHelpGeneric": "Rollen automatisch anhand der Claims deines OIDC-Anbieters zuweisen",
+        "sourceGroup": "Gruppe",
+        "sourceClaim": "Claim",
+        "ruleSourceLabel": "Regelquelle",
+        "rulePatternLabel": "Muster",
+        "ruleTargetRoleLabel": "Zielrolle",
+        "removeRule": "Regel entfernen",
+        "claimPathLabel": "Claim-Pfad",
+        "roleMappingRulesHelpGeneric": "Regeln definieren, um Gruppen oder Claim-Werte auf Plattformrollen abzubilden. Verwende * als Platzhalter (z. B. *admin*). Claim-Regeln nehmen einen Punktpfad in die Userinfo-Claims (z. B. realm_access.roles).",
+        "emailClaimLabel": "E-Mail-Claim",
+        "emailClaimHelp": "Userinfo-Claim mit der E-Mail-Adresse des Benutzers. Leer lassen, um den Standard-E-Mail-Claim zu verwenden.",
+        "nameClaimLabel": "Namens-Claim",
+        "nameClaimHelp": "Userinfo-Claim mit dem Anzeigenamen des Benutzers. Leer lassen, um den Standard-Namens-Claim zu verwenden.",
+        "groupsClaimLabel": "Gruppen-Claim",
+        "groupsClaimHelp": "Userinfo-Claim mit den Gruppen des Benutzers, als Punktpfad (z. B. realm_access.roles). Leer lassen, um den Standard-Gruppen-Claim zu verwenden.",
+        "autoProvisionTeamHelpGeneric": "Team-Mitgliedschaften automatisch aus den Gruppen synchronisieren, die dein OIDC-Anbieter zurückgibt",
+        "excludeGroupsHelpGeneric": "Kommagetrennte Liste von Gruppen, die von der Team-Synchronisierung ausgeschlossen werden"
       }
     },
     "providers": {
