@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { compareVersions, extractVersion } from './compare-versions';
+import { compareVersions, extractVersion, sameMinor } from './compare-versions';
 
 describe('extractVersion', () => {
   test('extracts version from plain semver', () => {
@@ -109,6 +109,38 @@ describe('compareVersions', () => {
 
   test('throws on empty string', () => {
     expect(() => compareVersions('', '0.2.7')).toThrow(
+      /Cannot compare versions/,
+    );
+  });
+});
+
+describe('sameMinor', () => {
+  test('true for a patch-level difference', () => {
+    expect(sameMinor('0.9.3', '0.9.1')).toBe(true);
+  });
+
+  test('true for identical versions', () => {
+    expect(sameMinor('1.2.3', '1.2.3')).toBe(true);
+  });
+
+  test('true across v-prefixed and plain forms', () => {
+    expect(sameMinor('v0.9.3', '0.9.1')).toBe(true);
+  });
+
+  test('ignores prerelease suffixes', () => {
+    expect(sameMinor('1.2.3-rc1', '1.2.4')).toBe(true);
+  });
+
+  test('false for a minor-version difference', () => {
+    expect(sameMinor('0.10.0', '0.9.6')).toBe(false);
+  });
+
+  test('false for a major-version difference', () => {
+    expect(sameMinor('1.0.0', '0.9.9')).toBe(false);
+  });
+
+  test('throws when no semver can be extracted', () => {
+    expect(() => sameMinor('latest', '0.9.1')).toThrow(
       /Cannot compare versions/,
     );
   });

@@ -62,3 +62,27 @@ export function compareVersions(a: string, b: string): number {
 
   return aVer.localeCompare(bVer);
 }
+
+/**
+ * True when two versions share the same `major.minor` — i.e. moving between
+ * them is a patch-level step. Prerelease suffixes are ignored.
+ *
+ * Accepts any format supported by {@link extractVersion}. Throws when no
+ * semver can be extracted from either argument (e.g. `latest`), because a
+ * caller gating a data-safety decision must not treat "unparseable" as
+ * "same minor".
+ */
+export function sameMinor(a: string, b: string): boolean {
+  const aVer = extractVersion(a);
+  const bVer = extractVersion(b);
+
+  if (!aVer || !bVer) {
+    throw new Error(
+      `Cannot compare versions: unable to extract semver from "${!aVer ? a : b}"`,
+    );
+  }
+
+  const [aMajor, aMinor] = aVer.split('-')[0].split('.');
+  const [bMajor, bMinor] = bVer.split('-')[0].split('.');
+  return aMajor === bMajor && aMinor === bMinor;
+}

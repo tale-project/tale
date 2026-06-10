@@ -1,3 +1,4 @@
+import { sameMinor } from '../../utils/compare-versions';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
@@ -20,11 +21,31 @@ import { withLock } from '../state/with-lock';
 
 interface RollbackOptions {
   env: DeploymentEnv;
-  version?: string;
+}
+
+/**
+ * Printed whenever the rollback gate refuses. Minor and major upgrades can
+ * run forward-only data migrations, so re-deploying an older binary on top
+ * of migrated data corrupts the instance instead of recovering it — the
+ * real recovery path is restoring the pre-upgrade backup and re-deploying
+ * the version that matches it.
+ */
+function printSnapshotRestoreRunbook(): void {
+  logger.blank();
+  logger.info('Minor and major upgrades can run forward-only data migrations;');
+  logger.info(
+    'redeploying an older binary on top of migrated data corrupts the',
+  );
+  logger.info('instance instead of recovering it. To recover:');
+  logger.info('  1. Restore the data-volume backup taken before the upgrade');
+  logger.info('     (see docs/self-hosted/operate/backups-and-restore.md).');
+  logger.info('  2. Re-deploy the version that matches the restored data:');
+  logger.info('       tale upgrade --version <version>');
+  logger.info('       tale deploy --all');
 }
 
 export async function rollback(options: RollbackOptions): Promise<void> {
-  const { env, version: targetVersion } = options;
+  const { env } = options;
 
   await withLock(env.DEPLOY_DIR, 'rollback', async () => {
     logger.header('Rolling Back Deployment');
@@ -36,30 +57,54 @@ export async function rollback(options: RollbackOptions): Promise<void> {
       throw new Error('No active deployment');
     }
 
-    // Determine rollback version: use provided version or fall back to previous
-    let rollbackVersion: string;
-    if (targetVersion) {
-      rollbackVersion = targetVersion.replace(/^v/, '');
-      logger.info(`Using specified version: ${rollbackVersion}`);
-    } else {
-      const previousVersion = await getPreviousVersion(env.DEPLOY_DIR);
-      if (!previousVersion) {
-        logger.error('No previous version found to rollback to');
-        logger.info('Use --version <version> to specify a version explicitly');
-        throw new Error('No previous version');
-      }
-      rollbackVersion = previousVersion;
+    // Forward-only migration gate: the only legal rollback target is the
+    // recorded previous version, and only when it is a patch-level step
+    // from the running version (the "patch = always safe" contract in
+    // docs/self-hosted/operate/upgrades.md). There is no applied-migrations
+    // ledger to consult, so anything beyond a patch difference must be
+    // treated as potentially migrated — refuse and point at the
+    // snapshot-restore runbook instead of corrupting the instance.
+    const rollbackVersion = await getPreviousVersion(env.DEPLOY_DIR);
+    if (!rollbackVersion) {
+      logger.error('No previous version recorded — nothing to roll back to.');
+      printSnapshotRestoreRunbook();
+      throw new Error('No previous version');
+    }
+
+    const currentVersion = await getContainerVersion(
+      `${getProjectId()}-platform-${currentColor}`,
+    );
+    if (!currentVersion) {
+      logger.error(
+        'Cannot determine the running platform version — refusing to roll back blind.',
+      );
+      printSnapshotRestoreRunbook();
+      throw new Error('Unknown running version');
+    }
+
+    let isPatchRollback: boolean;
+    try {
+      isPatchRollback = sameMinor(currentVersion, rollbackVersion);
+    } catch (err) {
+      logger.error(err instanceof Error ? err.message : String(err));
+      printSnapshotRestoreRunbook();
+      throw new Error('Rollback refused: cannot compare versions', {
+        cause: err,
+      });
+    }
+    if (!isPatchRollback) {
+      logger.error(
+        `Refusing to roll back from ${currentVersion} to ${rollbackVersion}: ` +
+          'only patch-level rollbacks (same major.minor) are safe.',
+      );
+      printSnapshotRestoreRunbook();
+      throw new Error('Rollback refused: not a patch-level rollback');
     }
 
     const rollbackColor = getOppositeColor(currentColor);
 
-    // Get current version before rollback (for version history)
-    const currentVersion = await getContainerVersion(
-      `${getProjectId()}-platform-${currentColor}`,
-    );
-
     logger.info(`Current color: ${currentColor}`);
-    logger.info(`Current version: ${currentVersion ?? 'unknown'}`);
+    logger.info(`Current version: ${currentVersion}`);
     logger.info(
       `Rolling back to: ${rollbackColor} (version ${rollbackVersion})`,
     );
@@ -128,10 +173,8 @@ export async function rollback(options: RollbackOptions): Promise<void> {
     // Switch traffic and update version history
     logger.step(`Switching traffic to ${rollbackColor}...`);
     await setCurrentColor(env.DEPLOY_DIR, rollbackColor);
-    if (currentVersion) {
-      await setPreviousVersion(env.DEPLOY_DIR, currentVersion);
-      logger.info(`Version history updated: previous=${currentVersion}`);
-    }
+    await setPreviousVersion(env.DEPLOY_DIR, currentVersion);
+    logger.info(`Version history updated: previous=${currentVersion}`);
 
     // Drain current color
     logger.step(`Draining ${currentColor} services (${env.DRAIN_TIMEOUT}s)...`);
