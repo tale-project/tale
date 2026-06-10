@@ -5664,7 +5664,6 @@
       },
       "appDb": {
         "summary": "Base de données applicative (avancé)",
-        "title": "Base de métadonnées Convex",
         "description": "Le magasin de métadonnées interne de Convex. La plupart des déploiements devraient conserver la base fournie.",
         "databaseNameNote": "Le backend Convex déduit le nom de sa base de données de la configuration de l'instance ; le Postgres externe doit donc déjà contenir cette base. Le champ « Base de données » ci-dessus sert uniquement au test de connexion.",
         "sslModeNote": "Le mode TLS de cette base de données est fixé par le pilote Convex et ne peut pas être configuré ici."

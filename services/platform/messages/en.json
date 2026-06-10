@@ -5924,7 +5924,6 @@
       },
       "appDb": {
         "summary": "Application database (advanced)",
-        "title": "Convex metadata database",
         "description": "Convex's internal metadata store. Most deployments should leave this on the bundled database.",
         "databaseNameNote": "The Convex backend derives its database name from the instance configuration, so the external Postgres must already contain that database. The Database field above is used only for the connection test.",
         "sslModeNote": "TLS mode for this database is fixed by the Convex driver and cannot be configured here."

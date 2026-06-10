@@ -5663,7 +5663,6 @@
       },
       "appDb": {
         "summary": "Anwendungsdatenbank (erweitert)",
-        "title": "Convex-Metadaten-Datenbank",
         "description": "Convex' interner Metadatenspeicher. Die meisten Deployments sollten hier die mitgelieferte Datenbank belassen.",
         "databaseNameNote": "Das Convex-Backend leitet seinen Datenbanknamen aus der Instanzkonfiguration ab, daher muss das externe Postgres diese Datenbank bereits enthalten. Das Feld „Datenbank“ oben wird nur für den Verbindungstest verwendet.",
         "sslModeNote": "Der TLS-Modus für diese Datenbank wird vom Convex-Treiber vorgegeben und kann hier nicht konfiguriert werden."
