@@ -12,6 +12,7 @@ import {
   Loader2,
   MessageCircleQuestion,
   MessageSquareText,
+  Pencil,
   Send,
   Square,
 } from 'lucide-react';
@@ -32,7 +33,10 @@ import { stripLeadingPunctuation } from '@/lib/utils/text';
 import { getString, isRecord } from '@/lib/utils/type-guards';
 
 import { useChatLayout } from '../context/chat-layout-context';
-import { useSubmitHumanInputResponse } from '../hooks/mutations';
+import {
+  useEditHumanInputResponse,
+  useSubmitHumanInputResponse,
+} from '../hooks/mutations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useCancelExecution } from '../hooks/use-execution-status';
 import { HumanInputFields } from './human-input-fields';
@@ -77,10 +81,23 @@ function HumanInputRequestCardComponent({
     [effectiveAgent?.name, selectedModelOverrides],
   );
 
-  const { mutate: submitResponse, isPending: isSubmitting } =
+  const { mutate: submitResponse, isPending: isSubmitPending } =
     useSubmitHumanInputResponse();
+  const { mutate: editResponse, isPending: isEditPending } =
+    useEditHumanInputResponse();
+  const isSubmitting = isSubmitPending || isEditPending;
   const { mutateAsync: cancelExecution } = useCancelExecution();
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Editing an already-submitted response (chat context only): re-opens the
+  // form prefilled with the previous values; submitting stores the corrected
+  // answer and re-triggers generation so the agent reconsiders.
+  const [isEditing, setIsEditing] = useState(false);
+  const canEditResponse =
+    status === 'completed' &&
+    !isWorkflowContext &&
+    !wfExecutionId &&
+    !!metadata.response;
 
   const handleCancel = useCallback(async () => {
     if (!wfExecutionId) return;
@@ -103,6 +120,40 @@ function HumanInputRequestCardComponent({
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
 
+  // Re-open the form prefilled with the previously submitted values.
+  const handleStartEdit = useCallback(() => {
+    const prev = metadata.response?.value;
+    if (typeof prev === 'string') {
+      try {
+        const parsed: unknown = JSON.parse(prev);
+        if (isRecord(parsed)) {
+          const feedbackVal = getString(parsed, FEEDBACK_KEY);
+          if (feedbackVal !== undefined) {
+            setFeedbackText(feedbackVal);
+            setShowFeedback(true);
+          } else {
+            const values: Record<string, string | string[]> = {};
+            for (const [key, val] of Object.entries(parsed)) {
+              if (typeof val === 'string') values[key] = val;
+              else if (Array.isArray(val)) values[key] = val.map(String);
+            }
+            setFormValues(values);
+            setShowFeedback(false);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not prefill previous human-input response:', err);
+      }
+    }
+    setError(null);
+    setIsEditing(true);
+  }, [metadata.response]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setError(null);
+  }, []);
+
   const handleSubmitFeedback = useCallback(() => {
     if (!feedbackText.trim()) {
       setError(t('errorFeedbackRequired'));
@@ -112,12 +163,21 @@ function HumanInputRequestCardComponent({
     const response = JSON.stringify({ [FEEDBACK_KEY]: feedbackText.trim() });
     // Optimistic resume signal — see handleSubmit. Fires before the round-trip so
     // the thinking line shows immediately; visual-only + safety-timeout guarded.
-    if (!isWorkflowContext) {
+    // Edits signal only on success: the edit can be legitimately rejected
+    // (e.g. a generation is still running), and the original answer stands.
+    if (!isWorkflowContext && !isEditing) {
       onResponseSubmitted?.();
     }
-    submitResponse(
+    const respond = isEditing ? editResponse : submitResponse;
+    respond(
       { approvalId, response, modelId },
       {
+        onSuccess: () => {
+          if (isEditing) {
+            setIsEditing(false);
+            if (!isWorkflowContext) onResponseSubmitted?.();
+          }
+        },
         onError: (err) => {
           setError(
             err instanceof Error ? err.message : tCommon('errorSubmitFailed'),
@@ -131,9 +191,11 @@ function HumanInputRequestCardComponent({
     tCommon,
     feedbackText,
     isWorkflowContext,
+    isEditing,
     approvalId,
     modelId,
     submitResponse,
+    editResponse,
     onResponseSubmitted,
   ]);
 
@@ -194,13 +256,22 @@ function HumanInputRequestCardComponent({
     // after the server confirms (the round-trip is the visible lag the user
     // reported). The flag is visual-only and self-clears via its safety timeout
     // if the submit fails; the server is the authority for actually resuming.
-    if (!isWorkflowContext) {
+    // Edits signal only on success — they can be legitimately rejected (e.g. a
+    // generation is still running) and the original answer then stands.
+    if (!isWorkflowContext && !isEditing) {
       onResponseSubmitted?.();
     }
 
-    submitResponse(
+    const respond = isEditing ? editResponse : submitResponse;
+    respond(
       { approvalId, response, modelId },
       {
+        onSuccess: () => {
+          if (isEditing) {
+            setIsEditing(false);
+            if (!isWorkflowContext) onResponseSubmitted?.();
+          }
+        },
         onError: (err) => {
           setError(
             err instanceof Error ? err.message : tCommon('errorSubmitFailed'),
@@ -215,9 +286,11 @@ function HumanInputRequestCardComponent({
     metadata.fields,
     formValues,
     isWorkflowContext,
+    isEditing,
     approvalId,
     modelId,
     submitResponse,
+    editResponse,
     onResponseSubmitted,
   ]);
 
@@ -286,6 +359,16 @@ function HumanInputRequestCardComponent({
             date: formatDate(new Date(timestamp), 'long'),
           })}
         </Text>
+        {canEditResponse && (
+          <button
+            type="button"
+            onClick={handleStartEdit}
+            className="text-muted-foreground hover:text-foreground flex w-fit cursor-pointer items-center gap-1.5 text-xs transition-colors"
+          >
+            <Pencil className="size-3" aria-hidden="true" />
+            {t('editResponse')}
+          </button>
+        )}
       </Stack>
     );
   };
@@ -345,8 +428,8 @@ function HumanInputRequestCardComponent({
         )}
       </div>
 
-      {/* Input or Response */}
-      {isPending ? (
+      {/* Input or Response (editing re-opens the form prefilled) */}
+      {isPending || isEditing ? (
         <Stack gap={4}>
           {showFeedback ? (
             <>
@@ -394,26 +477,53 @@ function HumanInputRequestCardComponent({
                 formValues={formValues}
                 onFormValuesChange={setFormValues}
               />
-              <Button
-                onClick={handleSubmit}
-                disabled={isSubmitting || isCancelling}
-                className="w-full"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <Send className="mr-2 size-4" />
-                )}
-                {t('submit')}
-              </Button>
-              <button
-                type="button"
-                onClick={() => setShowFeedback(true)}
-                className="text-muted-foreground hover:text-foreground mt-2 flex cursor-pointer items-center justify-center gap-1.5 text-xs transition-colors"
-              >
-                <MessageSquareText className="size-3.5" />
-                {t('pushback')}
-              </button>
+              {isEditing ? (
+                <HStack gap={2}>
+                  <Button
+                    variant="secondary"
+                    onClick={handleCancelEdit}
+                    disabled={isSubmitting}
+                    className="flex-1"
+                  >
+                    {t('cancelEdit')}
+                  </Button>
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || isCancelling}
+                    className="flex-1"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                    ) : (
+                      <Send className="mr-2 size-4" />
+                    )}
+                    {t('updateResponse')}
+                  </Button>
+                </HStack>
+              ) : (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || isCancelling}
+                  className="w-full"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  ) : (
+                    <Send className="mr-2 size-4" />
+                  )}
+                  {t('submit')}
+                </Button>
+              )}
+              {!isEditing && (
+                <button
+                  type="button"
+                  onClick={() => setShowFeedback(true)}
+                  className="text-muted-foreground hover:text-foreground mt-2 flex cursor-pointer items-center justify-center gap-1.5 text-xs transition-colors"
+                >
+                  <MessageSquareText className="size-3.5" />
+                  {t('pushback')}
+                </button>
+              )}
             </>
           )}
 

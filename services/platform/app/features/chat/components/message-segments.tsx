@@ -60,7 +60,9 @@ function NestedDelegationTimeline({
   if (!active || thoughtSegments.length === 0) return null;
 
   return (
-    <div className="border-border/60 mt-1 ml-5 border-l pl-3">
+    // Fade the nested timeline in when the sub-thread's first steps land so
+    // the delegation detail doesn't snap into the layout.
+    <div className="border-border/60 animate-content-in mt-1 ml-5 border-l pl-3">
       {thoughtSegments.map((segment) =>
         segment.kind === 'reasoning' ? (
           <InlineReasoning key={segment.id} step={segment} active />
@@ -91,6 +93,9 @@ interface MessageSegmentsProps {
    *  precedes any part, so it isn't a segment). */
   routedAgentName?: string;
   routeReason?: RouteReason;
+  /** Fired when the trailing text run's typewriter finishes revealing — the
+   *  bubble uses it to surface the post-answer toolbar only after the drain. */
+  onRevealComplete?: () => void;
 }
 
 /** Normalize doubled table pipes + inject citation tags, per text segment (the
@@ -122,6 +127,7 @@ function MessageSegmentsImpl({
   isFreshSinceMount,
   routedAgentName,
   routeReason,
+  onRevealComplete,
 }: MessageSegmentsProps) {
   const showRouting = !!routedAgentName && !!routeReason;
 
@@ -148,6 +154,7 @@ function MessageSegmentsImpl({
               threadId={threadId}
               voiceModeEnabled={voiceModeEnabled}
               isFreshSinceMount={isFreshSinceMount}
+              onRevealComplete={segment.isLast ? onRevealComplete : undefined}
             />
           );
         }

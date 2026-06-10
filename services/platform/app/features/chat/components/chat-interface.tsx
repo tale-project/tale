@@ -367,6 +367,33 @@ export function ChatInterface({
     documentWriteApprovals,
   });
 
+  // Edit-and-branch swap hold: submitting an edit switches `dataThreadId` to
+  // the new branch, whose message subscription starts EMPTY for a few hundred
+  // ms — without a hold the whole conversation blanks out and then remounts
+  // (the "message box rerenders completely" flash). While the swap settles,
+  // keep rendering the last non-empty list (the optimistic truncated view set
+  // by handleEditSubmit) and release the moment the branch's real messages
+  // land. Render-body refs (not effects) so the hold applies in the same
+  // commit the list would otherwise empty in. Cleared on URL-thread change —
+  // a real navigation must never resurrect another thread's items.
+  const editSwapActiveRef = useRef(false);
+  const heldItemsRef = useRef(mergedMessages);
+  const heldForThreadRef = useRef(threadId);
+  if (heldForThreadRef.current !== threadId) {
+    heldForThreadRef.current = threadId;
+    editSwapActiveRef.current = false;
+  }
+  if (pendingMessage?.editedMessageId) editSwapActiveRef.current = true;
+  let itemsForRender = mergedMessages;
+  if (editSwapActiveRef.current) {
+    if (mergedMessages.length === 0 && heldItemsRef.current.length > 0) {
+      itemsForRender = heldItemsRef.current;
+    } else if (mergedMessages.length > 0 && !pendingMessage?.editedMessageId) {
+      editSwapActiveRef.current = false;
+    }
+  }
+  if (itemsForRender === mergedMessages) heldItemsRef.current = mergedMessages;
+
   // Block input when any pending or executing approval exists
   const hasActiveApproval = activeApproval !== null;
 
@@ -964,7 +991,7 @@ export function ChatInterface({
                 generationStartMs={generationStartMs}
               >
                 <ChatMessages
-                  items={mergedMessages}
+                  items={itemsForRender}
                   threadId={dataThreadId}
                   organizationId={organizationId}
                   canLoadMore={canLoadMore}

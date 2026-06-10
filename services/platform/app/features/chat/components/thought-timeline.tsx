@@ -2,6 +2,7 @@
 
 import { AnimatePresence, m } from 'framer-motion';
 import {
+  Bot,
   Brain,
   Check,
   ChevronRight,
@@ -87,6 +88,9 @@ interface ThoughtTimelineProps {
 
 /** lucide icon per tool family — falls back to a generic wrench. */
 function toolIcon(toolName: string) {
+  // Delegations to sub-agents ("Asking the Research agent") show an agent
+  // icon, not the generic tool wrench.
+  if (toolName.startsWith('delegate_')) return Bot;
   if (toolName === 'web') return Globe;
   if (toolName === 'rag_search') return Search;
   if (toolName === 'image') return ImageIcon;
@@ -163,14 +167,14 @@ function PendingPhaseRow({ label }: { label: string }) {
 function ThinkingDots() {
   return (
     <span className="ml-0.5 inline-flex space-x-1" aria-hidden="true">
-      <span className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full" />
+      <span className="bg-muted-foreground animate-thinking-dot h-1 w-1 rounded-full" />
       <span
-        className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full"
-        style={{ animationDelay: '0.1s' }}
+        className="bg-muted-foreground animate-thinking-dot h-1 w-1 rounded-full"
+        style={{ animationDelay: '0.15s' }}
       />
       <span
-        className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full"
-        style={{ animationDelay: '0.2s' }}
+        className="bg-muted-foreground animate-thinking-dot h-1 w-1 rounded-full"
+        style={{ animationDelay: '0.3s' }}
       />
     </span>
   );

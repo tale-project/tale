@@ -137,9 +137,10 @@ describe('useStreamBuffer', () => {
 
       mockNow += 200;
 
-      // Add more text to meet character threshold
+      // Add more text to meet character threshold. Includes a clause
+      // separator so a complete segment is available to reveal.
       rerender({
-        text: 'short text that exceeds twenty chars easily',
+        text: 'short text, that exceeds twenty chars easily.',
         isStreaming: true,
       });
 
@@ -191,7 +192,10 @@ describe('useStreamBuffer', () => {
 
   describe('buffer empty during streaming', () => {
     it('keeps animation loop running when buffer empties', () => {
-      const text = 'Hello world test words five six seven eight';
+      // Trailing newline: the last segment is line-bounded, so the whole
+      // buffer is revealable mid-stream (a bare unpunctuated tail would be
+      // HELD as an incomplete clause until the stream ends).
+      const text = 'Hello world, test words.\nfive six seven eight.\n';
       const { result } = renderHook(() =>
         useStreamBuffer({
           text,
@@ -236,10 +240,10 @@ describe('useStreamBuffer', () => {
       expect(result.current.isTyping).toBe(false);
     });
 
-    it('reveals a multi-sentence tail character-by-character, not as sentence flashes', () => {
-      // The drain reveals ONE character per tick, so a multi-sentence reply
-      // produces many distinct intermediate displayLengths as it types out —
-      // not a handful of whole-sentence jumps.
+    it('reveals a multi-sentence tail in multiple clause parts, not one dump', () => {
+      // The drain reveals one SEGMENT per tick (clause parts bounded by
+      // separators), so a multi-sentence reply produces several distinct
+      // intermediate displayLengths as it reveals — never one full dump.
       const frenchText =
         "C'est très gentil à vous, merci beaucoup ! Je suis ravi de savoir " +
         "que mon aide vous satisfait. N'hésitez pas si vous avez besoin de " +
@@ -255,8 +259,8 @@ describe('useStreamBuffer', () => {
       act(() => advanceFrames(4));
       rerender({ text: frenchText, isStreaming: false });
 
-      // Sample displayLength across drain — character-by-character reveal
-      // should produce many distinct intermediate values (≫ 3 sentence stops).
+      // Sample displayLength across drain — clause-chunked reveal should
+      // pass through several intermediate boundaries.
       const seen = new Set<number>();
       for (let i = 0; i < 40; i++) {
         act(() => advanceFrames(2));
@@ -265,18 +269,18 @@ describe('useStreamBuffer', () => {
       const intermediates = [...seen].filter(
         (n) => n > 0 && n < frenchText.length,
       );
-      expect(intermediates.length).toBeGreaterThan(10);
+      expect(intermediates.length).toBeGreaterThanOrEqual(3);
 
       // Finishes eventually.
       act(() => advanceFrames(60));
       expect(result.current.displayLength).toBe(frenchText.length);
     });
 
-    it('reveals short tail in multiple per-character ticks, not one dump', () => {
+    it('reveals a short multi-clause tail in clause steps, not one dump', () => {
       // Short reply scenario: text is below the initialBufferChars gate so
       // streaming never starts the reveal; the whole buffer is handed to the
-      // drain phase, which reveals it character-by-character.
-      const shortText = 'Hello there friend it works.';
+      // drain phase, which reveals it clause part by clause part.
+      const shortText = 'Hello there, my friend, it works.';
 
       const { result, rerender } = renderHook(
         ({ text, isStreaming }) =>
@@ -284,7 +288,7 @@ describe('useStreamBuffer', () => {
         { initialProps: { text: shortText, isStreaming: true } },
       );
 
-      // During streaming, text length (28) < initialBufferChars (50) — no reveal.
+      // During streaming, text length (33) < initialBufferChars (50) — no reveal.
       act(() => advanceFrames(10));
       expect(result.current.displayLength).toBe(0);
 
@@ -292,11 +296,10 @@ describe('useStreamBuffer', () => {
       rerender({ text: shortText, isStreaming: false });
 
       // Sample reveal progression. This test passes no targetCPS, so the
-      // default 40 CPS applies; a short-tail drain reveals one character per
-      // ~25 ms tick (1000/40). We expect at least two distinct intermediate
-      // positions before the final length (i.e. it types out, not one dump).
+      // default 40 CPS applies; each clause charges its character cost
+      // (~25 ms/char), so the three clauses surface as distinct steps.
       const samples: number[] = [];
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 10; i++) {
         act(() => advanceFrames(3));
         samples.push(result.current.displayLength);
       }
@@ -305,7 +308,7 @@ describe('useStreamBuffer', () => {
       expect(distinctIntermediate.size).toBeGreaterThanOrEqual(2);
 
       // Finishes eventually.
-      act(() => advanceFrames(30));
+      act(() => advanceFrames(40));
       expect(result.current.displayLength).toBe(shortText.length);
       expect(result.current.isTyping).toBe(false);
     });
@@ -603,7 +606,6 @@ describe('useStreamBuffer — flush (freeze)', () => {
 
     // Advance and freeze
     act(() => advanceFrames(30));
-    const frozenLength = result.current.displayLength;
     act(() => result.current.freeze());
 
     // Stream ends (aborted)
@@ -616,10 +618,13 @@ describe('useStreamBuffer — flush (freeze)', () => {
     rerender({ text: newText, isStreaming: true });
     act(() => advanceFrames(60));
 
-    // Display should advance past the old frozen position
+    // Display should advance — the freeze was cleared by the new session.
     expect(result.current.displayLength).toBeGreaterThan(0);
-    // For a new session, it starts from 0 and advances
-    expect(result.current.displayLength).not.toBe(frozenLength);
+    // End the second stream (the unpunctuated tail is held while live) and
+    // drain — a still-frozen buffer would stay pinned at frozenLength.
+    rerender({ text: newText, isStreaming: false });
+    act(() => advanceFrames(300));
+    expect(result.current.displayLength).toBe(newText.length);
   });
 });
 
@@ -841,52 +846,64 @@ describe('useStreamBuffer — adaptive smoothing + character reveal', () => {
     vi.restoreAllMocks();
   });
 
-  it('reveals a single long word character-by-character, not all at once', () => {
-    // A 26-char token with NO word boundaries. Word/sentence chunking would
-    // reveal the whole token in one tick (no boundary until end-of-buffer);
-    // character reveal exposes it one char at a time, so after a few ticks the
-    // display lands MID-token — the proof of per-character granularity.
+  it('holds an incomplete token while streaming, reveals it whole on drain', () => {
+    // A 26-char token with no clause boundary. Segment reveal HOLDS it while
+    // the stream is live (a partial token must never flash in and then grow),
+    // then reveals it whole once the stream ends.
     const word = 'abcdefghijklmnopqrstuvwxyz';
-    const { result } = renderHook(() =>
-      useStreamBuffer({
-        text: word,
-        isStreaming: true,
-        targetCPS: 40,
-        initialBufferChars: 3,
-      }),
+    const { result, rerender } = renderHook(
+      ({ text, isStreaming }: { text: string; isStreaming: boolean }) =>
+        useStreamBuffer({
+          text,
+          isStreaming,
+          targetCPS: 40,
+          initialBufferChars: 3,
+        }),
+      { initialProps: { text: word, isStreaming: true } },
     );
 
-    act(() => advanceFrames(6)); // ~100ms at 40 CPS ≈ a few characters
-    expect(result.current.displayLength).toBeGreaterThan(0);
-    expect(result.current.displayLength).toBeLessThan(word.length);
+    act(() => advanceFrames(20));
+    expect(result.current.displayLength).toBe(0);
 
-    // And it still completes.
+    // Stream ends — the drain reveals the token in full.
+    rerender({ text: word, isStreaming: false });
     act(() => advanceFrames(400));
     expect(result.current.displayLength).toBe(word.length);
   });
 
   it('reveals link markdown atomically (no raw syntax flash mid-construct)', () => {
-    // Char-by-char must NOT expose "[", "[t", "[te"… of a link — the
-    // syntax-skip jumps the whole [text](url) in one step.
-    const text = 'see [the docs](https://example.com/page) now';
-    const { result } = renderHook(() =>
-      useStreamBuffer({
-        text,
-        isStreaming: true,
-        targetCPS: 1000, // fast so it advances into the link quickly
-        initialBufferChars: 1,
-      }),
+    // A clause boundary INSIDE the link text would land the reveal mid-link;
+    // the syntax-skip must jump the whole [text](url) in one step instead.
+    const text = 'see [the docs, part two](https://example.com/page) now, ok.';
+    const { result, rerender } = renderHook(
+      ({ text: t, isStreaming }: { text: string; isStreaming: boolean }) =>
+        useStreamBuffer({
+          text: t,
+          isStreaming,
+          targetCPS: 1000, // fast so it advances into the link quickly
+          initialBufferChars: 1,
+        }),
+      { initialProps: { text, isStreaming: true } },
     );
 
     // Sample reveal positions across frames; none may land inside the link
     // markup (between the opening '[' and the closing ')').
     const linkStart = text.indexOf('[');
     const linkEnd = text.indexOf(')') + 1;
-    for (let i = 0; i < 60; i++) {
-      act(() => advanceFrames(1));
+    const checkOutsideLink = () => {
       const len = result.current.displayLength;
       const insideLink = len > linkStart && len < linkEnd;
       expect(insideLink).toBe(false);
+    };
+    for (let i = 0; i < 40; i++) {
+      act(() => advanceFrames(1));
+      checkOutsideLink();
+    }
+    // Drain the held tail after the stream ends — still never inside the link.
+    rerender({ text, isStreaming: false });
+    for (let i = 0; i < 20; i++) {
+      act(() => advanceFrames(1));
+      checkOutsideLink();
     }
     expect(result.current.displayLength).toBe(text.length);
   });
@@ -930,16 +947,16 @@ describe('useStreamBuffer — adaptive smoothing + character reveal', () => {
     const burst = base + 'alpha '.repeat(120); // +720 chars
 
     const { result, rerender } = renderHook(
-      ({ text }: { text: string }) =>
-        useStreamBuffer({ text, isStreaming: true, initialBufferChars: 3 }),
-      { initialProps: { text: base } },
+      ({ text, isStreaming }: { text: string; isStreaming: boolean }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text: base, isStreaming: true } },
     );
 
     act(() => advanceFrames(6));
 
     // A large burst lands at once (throttled delta). The reveal stays paced —
     // one frame cannot expose the whole backlog.
-    rerender({ text: burst });
+    rerender({ text: burst, isStreaming: true });
     const before = result.current.displayLength;
     act(() => advanceFrames(1));
     const afterOneFrame = result.current.displayLength;
@@ -947,7 +964,9 @@ describe('useStreamBuffer — adaptive smoothing + character reveal', () => {
     expect(afterOneFrame).toBeLessThan(burst.length);
     expect(afterOneFrame - before).toBeLessThan(burst.length - before);
 
-    // …but it still catches up fully over time.
+    // …and once the stream ends, the drain catches up fully over time (the
+    // unpunctuated tail is held while streaming, by design).
+    rerender({ text: burst, isStreaming: false });
     act(() => advanceFrames(800));
     expect(result.current.displayLength).toBe(burst.length);
   });
@@ -1393,13 +1412,15 @@ describe('useStreamBuffer — progress and isDraining', () => {
   it('progress starts at 0 and reaches 1 when fully revealed', () => {
     const text = 'Short streaming message for progress tracking test.';
 
-    const { result } = renderHook(() =>
-      useStreamBuffer({
-        text,
-        isStreaming: true,
-        targetCPS: 800,
-        initialBufferChars: 3,
-      }),
+    const { result, rerender } = renderHook(
+      ({ isStreaming }: { isStreaming: boolean }) =>
+        useStreamBuffer({
+          text,
+          isStreaming,
+          targetCPS: 800,
+          initialBufferChars: 3,
+        }),
+      { initialProps: { isStreaming: true } },
     );
 
     // Initially (after buffering), progress should be low
@@ -1407,7 +1428,8 @@ describe('useStreamBuffer — progress and isDraining', () => {
     expect(result.current.progress).toBeGreaterThanOrEqual(0);
     expect(result.current.progress).toBeLessThanOrEqual(1);
 
-    // Drain fully
+    // End the stream (the trailing clause is held while live) and drain fully.
+    rerender({ isStreaming: false });
     act(() => advanceFrames(300));
     expect(result.current.progress).toBe(1);
   });
@@ -1591,7 +1613,7 @@ describe('line buffering', () => {
 
   it('reveals normally after ambiguous line resolves', () => {
     // A list item "- item" is ambiguous at "- " but resolves at "- i"
-    const text = 'Hello.\n- item text here and more words after';
+    const text = 'Hello.\n- item text here, and more words after.\n';
 
     const { result } = renderHook(() =>
       useStreamBuffer({

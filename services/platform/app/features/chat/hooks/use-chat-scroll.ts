@@ -81,18 +81,22 @@ export interface ChatScroll {
   scrollToBottom: () => void;
   showScrollButton: boolean;
   /**
-   * Force-snap signal: set to `true` to force a scroll-to-bottom (re-engaging
-   * the follow latch) on the next content settle, REGARDLESS of whether the
-   * user had scrolled away. A plain boolean, not a `ScrollBehavior`, on
-   * purpose: the snap is ALWAYS instant, so there is no motion to choose — it
-   * must not animate against the still-settling response slack / streaming
-   * growth (which previously left a `'smooth'` send-scroll stranded part-way
-   * down). Returned (not private) because `useSendMessage` writes it via its
+   * Force-snap signal: forces a scroll-to-bottom (re-engaging the follow
+   * latch) on the next content settle, REGARDLESS of whether the user had
+   * scrolled away.
+   *
+   *  - `true`  → INSTANT snap (thread-init, edit-and-branch, regenerate).
+   *  - `'smooth'` → animated snap for SENDS: a retargeting rAF loop that
+   *    re-reads the live `scrollHeight` every frame, easing toward the
+   *    moving bottom. A one-shot `behavior: 'smooth'` would animate against
+   *    the still-settling response slack / streaming growth and stall
+   *    part-way down; the retargeting loop lands exactly, smoothly.
+   *
+   * Returned (not private) because `useSendMessage` writes it via its
    * `scrollIntentRef` prop RIGHT BEFORE each `setPendingMessage`, and the
-   * edit-and-branch handler sets it too. Smooth motion is reserved for the
-   * explicit scroll-to-bottom button (`scrollToBottom`).
+   * edit-and-branch handler sets it too.
    */
-  scrollIntentRef: MutableRefObject<boolean>;
+  scrollIntentRef: MutableRefObject<boolean | 'smooth'>;
   handleLoadMore: (count: number) => void;
 }
 
@@ -137,11 +141,12 @@ export function useChatScroll({
 
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Force-snap signal: true ⇒ snap to bottom (instant) on the next content
-  // settle and re-engage the pin, overriding a prior user scroll-up. Written
-  // externally by useSendMessage / edit-branch right before each
-  // setPendingMessage; consumed by the scroll machine once the snap lands.
-  const forceScrollRef = useRef(false);
+  // Force-snap signal: truthy ⇒ snap to bottom on the next content settle and
+  // re-engage the pin, overriding a prior user scroll-up ('smooth' animates,
+  // true jumps — see ChatScroll.scrollIntentRef). Written externally by
+  // useSendMessage / edit-branch right before each setPendingMessage;
+  // consumed by the scroll machine once the snap lands.
+  const forceScrollRef = useRef<boolean | 'smooth'>(false);
   // Stick-to-bottom latch: we auto-follow content growth only while this is
   // true. The user escapes by scrolling UP and re-engages by returning to the
   // bottom (see resolveStickToBottom).
@@ -171,6 +176,33 @@ export function useChatScroll({
       container.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
     };
 
+    // Send-snap animation: ease toward the bottom while RE-READING the live
+    // target every frame, so the still-settling response slack / streaming
+    // growth is followed rather than raced (a one-shot smooth scroll stalls
+    // part-way). Cancels itself if the user escapes the pin mid-flight.
+    let smoothSnapRafId: number | null = null;
+    const smoothSnapToBottom = () => {
+      if (prefersReducedMotion) {
+        pinToBottom();
+        return;
+      }
+      if (smoothSnapRafId !== null) return; // already gliding; it retargets
+      const step = () => {
+        smoothSnapRafId = null;
+        if (!pinnedRef.current) return; // user scrolled away — stop
+        const target = container.scrollHeight - container.clientHeight;
+        const remaining = target - container.scrollTop;
+        if (remaining <= 1) {
+          if (remaining > 0) container.scrollTop = target;
+          return;
+        }
+        // Exponential ease-out toward the (possibly moving) target.
+        container.scrollTop += Math.max(1, remaining * 0.18);
+        smoothSnapRafId = requestAnimationFrame(step);
+      };
+      smoothSnapRafId = requestAnimationFrame(step);
+    };
+
     const updateButton = () => {
       // Show whenever we're NOT actively following — including the dead zone
       // where the user escaped with a small scroll-up but is still within the
@@ -191,18 +223,23 @@ export function useChatScroll({
         setShowScrollButton(!isAtBottom());
         return;
       }
-      // Forced snap (send / thread-init / edit-branch): re-engage the pin and
-      // jump to the bottom even if the user had scrolled away. Always instant;
-      // consumed once it lands (the pin then carries subsequent growth).
+      // Forced snap: re-engage the pin and head to the bottom even if the
+      // user had scrolled away. Sends ('smooth') glide via the retargeting
+      // animation; thread-init / edit-branch (true) jump instantly. Consumed
+      // once it lands (the pin then carries subsequent growth).
       if (forceScrollRef.current) {
         pinnedRef.current = true;
-        pinToBottom();
+        const smooth = forceScrollRef.current === 'smooth';
         forceScrollRef.current = false;
+        if (smooth) smoothSnapToBottom();
+        else pinToBottom();
         updateButton();
         return;
       }
-      // Normal content growth while following: pin to bottom instantly.
-      if (pinnedRef.current) pinToBottom();
+      // Normal content growth while following: pin to bottom instantly —
+      // unless the send-snap animation is in flight (it re-reads the live
+      // bottom every frame, so an instant pin here would yank past it).
+      if (pinnedRef.current && smoothSnapRafId === null) pinToBottom();
       updateButton();
     };
 
@@ -260,8 +297,9 @@ export function useChatScroll({
       resizeObserver.disconnect();
       mutationObserver.disconnect();
       container.removeEventListener('scroll', onScroll);
+      if (smoothSnapRafId !== null) cancelAnimationFrame(smoothSnapRafId);
     };
-  }, [containerRef, contentRef, isAtBottom, isArenaMode]);
+  }, [containerRef, contentRef, isAtBottom, isArenaMode, prefersReducedMotion]);
 
   // Clear the force-snap intent when streaming ends — covers the case where
   // the ref stayed set throughout the entire streaming session.

@@ -324,6 +324,18 @@ export const ChatMessages = memo(function ChatMessages({
     return item.type === 'message' ? item.data.key : null;
   }, [items, lastUserIdx]);
 
+  // The thread's last ASSISTANT message keeps an always-visible toolbar;
+  // every other bubble reveals its toolbar on hover/focus only.
+  const lastAssistantMessageKey = useMemo(() => {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.type === 'message' && item.data.role === 'assistant') {
+        return item.data.key;
+      }
+    }
+    return null;
+  }, [items]);
+
   // Map each assistant message key → the text of the user message that produced
   // it (the nearest preceding user turn). Powers the dev-only Direct TTFT probe,
   // which pre-fills with this so it can replay the real prompt instead of a
@@ -667,6 +679,9 @@ export const ChatMessages = memo(function ChatMessages({
                 isUserMessage && savedMessageMap
                   ? savedMessageMap.has(message.id)
                   : false
+              }
+              isLastAssistantMessage={
+                !isUserMessage && message.key === lastAssistantMessageKey
               }
               toolbarExtra={
                 !hideBranchNavigator &&

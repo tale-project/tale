@@ -3369,7 +3369,10 @@
     "pushback": "Reply differently",
     "pushbackPlaceholder": "Tell the AI what you'd like instead...",
     "sendFeedback": "Send feedback",
-    "backToForm": "Back to form"
+    "backToForm": "Back to form",
+    "editResponse": "Edit response",
+    "updateResponse": "Update response",
+    "cancelEdit": "Cancel"
   },
   "integrationApproval": {
     "approve": "Approve",

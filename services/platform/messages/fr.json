@@ -3370,7 +3370,10 @@
     "pushback": "Répondre différemment",
     "pushbackPlaceholder": "Dis à l'IA ce que tu souhaites à la place...",
     "sendFeedback": "Envoyer le commentaire",
-    "backToForm": "Retour au formulaire"
+    "backToForm": "Retour au formulaire",
+    "editResponse": "Modifier la réponse",
+    "updateResponse": "Mettre à jour la réponse",
+    "cancelEdit": "Annuler"
   },
   "integrationApproval": {
     "approve": "Approuver",

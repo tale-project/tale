@@ -32,6 +32,9 @@ interface HandleArgs {
   respondedBy: string;
   approvedBy: string;
   agentConfig?: SerializableAgentConfig;
+  /** Editing an already-completed response: replaces the stored answer and
+   *  re-triggers generation so the agent reconsiders with the correction. */
+  isEdit?: boolean;
 }
 
 async function handleSubmission({
@@ -41,13 +44,23 @@ async function handleSubmission({
   respondedBy,
   approvedBy,
   agentConfig: externalAgentConfig,
+  isEdit = false,
 }: HandleArgs) {
   const approval = await ctx.db.get(approvalId);
   if (!approval) {
     throw new Error('Approval not found');
   }
 
-  if (approval.status !== 'pending') {
+  if (isEdit) {
+    if (approval.status !== 'completed') {
+      throw new Error('Only a completed response can be edited');
+    }
+    // A paused workflow already consumed the original response event; there
+    // is no safe way to replay it, so edits are chat-context only.
+    if (approval.wfExecutionId) {
+      throw new Error('Workflow responses cannot be edited');
+    }
+  } else if (approval.status !== 'pending') {
     throw new Error('Human input request has already been responded to');
   }
 
@@ -60,6 +73,20 @@ async function handleSubmission({
 
   if (!threadId) {
     throw new Error('Human input request is not associated with a thread');
+  }
+
+  // Editing while the agent is still generating (e.g. from the original
+  // answer) would race two generations on one thread — reject until settled.
+  if (isEdit) {
+    const liveMeta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+      .first();
+    if (liveMeta?.generationStatus === 'generating') {
+      throw new Error(
+        'Wait for the current response to finish before editing your answer',
+      );
+    }
   }
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is stored as v.any() but always matches HumanInputRequestMetadata for human_input_request approvals
@@ -121,7 +148,11 @@ async function handleSubmission({
   } else {
     responseDisplay = response.join(', ');
   }
-  const responseMessage = `[HUMAN_INPUT_RESPONSE] ${responseDisplay}`;
+  // Edits keep the same marker (pill rendering keys off it) but tell the
+  // agent the new answer supersedes the one it may have already acted on.
+  const responseMessage = isEdit
+    ? `[HUMAN_INPUT_RESPONSE] The user edited their earlier answer — this corrected answer supersedes it: ${responseDisplay}`
+    : `[HUMAN_INPUT_RESPONSE] ${responseDisplay}`;
 
   // Workflow-context fork: resume the paused workflow via sendEvent instead of triggering chat agent
   if (approval.wfExecutionId) {
@@ -266,6 +297,35 @@ export const submitHumanInputResponseInternal = internalMutation({
       approvedBy: args.approvedBy,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- v.any() from Convex validator, shape guaranteed by the action caller
       agentConfig: args.agentConfig as SerializableAgentConfig | undefined,
+    });
+  },
+});
+
+/**
+ * Edit an already-completed human-input response (chat context only). Stores
+ * the corrected answer on the approval and re-triggers generation so the
+ * agent reconsiders with the new information. Auth and org membership are
+ * verified in the action layer.
+ */
+export const editHumanInputResponseInternal = internalMutation({
+  args: {
+    approvalId: v.id('approvals'),
+    response: v.union(v.string(), v.array(v.string())),
+    respondedBy: v.string(),
+    approvedBy: v.string(),
+    agentConfig: v.optional(v.any()),
+  },
+  returns: approvalReturnValidator,
+  handler: async (ctx, args) => {
+    return handleSubmission({
+      ctx,
+      approvalId: args.approvalId,
+      response: args.response,
+      respondedBy: args.respondedBy,
+      approvedBy: args.approvedBy,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- v.any() from Convex validator, shape guaranteed by the action caller
+      agentConfig: args.agentConfig as SerializableAgentConfig | undefined,
+      isEdit: true,
     });
   },
 });

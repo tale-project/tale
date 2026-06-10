@@ -3369,7 +3369,10 @@
     "pushback": "Anders antworten",
     "pushbackPlaceholder": "Sag der KI, was du stattdessen möchtest...",
     "sendFeedback": "Feedback senden",
-    "backToForm": "Zurück zum Formular"
+    "backToForm": "Zurück zum Formular",
+    "editResponse": "Antwort bearbeiten",
+    "updateResponse": "Antwort aktualisieren",
+    "cancelEdit": "Abbrechen"
   },
   "integrationApproval": {
     "approve": "Genehmigen",

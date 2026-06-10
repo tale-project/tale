@@ -22,6 +22,12 @@ export function useSubmitHumanInputResponse() {
   );
 }
 
+export function useEditHumanInputResponse() {
+  return useConvexAction(
+    api.agent_tools.human_input.actions.editHumanInputResponse,
+  );
+}
+
 export function useSubmitLocationResponse() {
   return useConvexAction(
     api.agent_tools.location.actions.submitLocationResponse,

@@ -47,6 +47,12 @@ interface AssistantMessageContentProps {
    * always render their text immediately.
    */
   isFreshSinceMount: boolean;
+  /**
+   * Fired when the LAST plain section's typewriter finishes revealing.
+   * The owning bubble gates its post-answer toolbar on this so the
+   * toolbar appears after the drain, not mid-typing.
+   */
+  onRevealComplete?: () => void;
 }
 
 const PARAGRAPH_SPLIT = /\n{2,}/;
@@ -104,6 +110,7 @@ function AssistantMessageContentComponent({
   threadId,
   voiceModeEnabled,
   isFreshSinceMount,
+  onRevealComplete,
 }: AssistantMessageContentProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
 
@@ -237,6 +244,16 @@ function AssistantMessageContentComponent({
     !spotlightMatchesAny
   ) {
     const lastIndex = parsed.sections.length - 1;
+    // The reveal-completion signal belongs to the LAST plain section — the
+    // one whose typewriter finishes last (a trailing NEXT_STEPS section
+    // renders chips, not typed prose).
+    let lastPlainIndex = -1;
+    for (let i = parsed.sections.length - 1; i >= 0; i--) {
+      if (parsed.sections[i].type === 'plain') {
+        lastPlainIndex = i;
+        break;
+      }
+    }
     return (
       <>
         {parsed.sections.map((section, index) => {
@@ -260,6 +277,9 @@ function AssistantMessageContentComponent({
                   isStreaming={isActiveSection}
                   components={markdownComponents}
                   className={markdownWrapperStyles}
+                  onComplete={
+                    index === lastPlainIndex ? onRevealComplete : undefined
+                  }
                 />
               );
             default:
@@ -355,5 +375,6 @@ export const AssistantMessageContent = memo(
     prevProps.isFreshSinceMount === nextProps.isFreshSinceMount &&
     prevProps.messageId === nextProps.messageId &&
     prevProps.threadId === nextProps.threadId &&
-    prevProps.onSendFollowUp === nextProps.onSendFollowUp,
+    prevProps.onSendFollowUp === nextProps.onSendFollowUp &&
+    prevProps.onRevealComplete === nextProps.onRevealComplete,
 );

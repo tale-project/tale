@@ -97,6 +97,12 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   /** Extra content rendered in the user message toolbar (e.g. BranchNavigator). */
   toolbarExtra?: React.ReactNode;
   /**
+   * True only for the thread's LAST assistant message. Its toolbar stays
+   * always visible; every other message (assistant and user alike) reveals
+   * its toolbar on hover/focus only, keeping history calm.
+   */
+  isLastAssistantMessage?: boolean;
+  /**
    * True if this message's id was NOT in the chat-list's first-render
    * snapshot — i.e. it arrived via subscription during this mount, not
    * as part of history load. Drives the voice-output chunker's
@@ -184,6 +190,7 @@ function MessageBubbleComponent({
   onUnsavePrompt,
   isSavedPrompt,
   toolbarExtra,
+  isLastAssistantMessage = false,
   isFreshSinceMount = false,
   ...restProps
 }: MessageBubbleProps) {
@@ -411,6 +418,45 @@ function MessageBubbleComponent({
   // `hasAnswerStarted` is the boolean `!!displayContent`, which flips once
   // (empty → non-empty) and then stays stable through the answer stream.
   const hasAnswerStarted = !!displayContent;
+
+  // Post-answer toolbar gating: the toolbar appears only after the typewriter
+  // has fully REVEALED the answer, not merely when the server stream ends —
+  // the drain phase keeps typing for a while after `isStreaming` flips false,
+  // and a toolbar popping in mid-drain gets pushed down by every revealed
+  // segment (a visible layout shift). The completion signal travels
+  // MessageSegments → AssistantMessageContent → the last TypewriterText's
+  // `onComplete`. History bubbles (never observed streaming) start done.
+  const [revealDone, setRevealDone] = useState(!isAssistantStreaming);
+  const handleRevealComplete = useCallback(() => setRevealDone(true), []);
+  useEffect(() => {
+    if (isAssistantStreaming) {
+      setRevealDone(false);
+      return undefined;
+    }
+    const lastSegment =
+      messageSegments.segments[messageSegments.segments.length - 1];
+    // Terminal states and turns with no trailing text reveal have no
+    // typewriter completion to wait for.
+    if (
+      message.isAborted ||
+      message.isFailed ||
+      !lastSegment ||
+      lastSegment.kind !== 'text'
+    ) {
+      setRevealDone(true);
+      return undefined;
+    }
+    // Safety net: the drain is bounded (drainMaxTotalMs ≈ 8s). If the
+    // completion callback never fires (e.g. voice-first reveal kept the text
+    // hidden), surface the toolbar anyway.
+    const timer = setTimeout(() => setRevealDone(true), 10_000);
+    return () => clearTimeout(timer);
+  }, [
+    isAssistantStreaming,
+    message.isAborted,
+    message.isFailed,
+    messageSegments,
+  ]);
   const timeToFirstTokenMs = metadata?.timeToFirstTokenMs;
   // Pre-answer wall-clock the user waited, INCLUDING Auto-routing (server-
   // anchored, same origin as the live timer) — preferred for the "Thought for
@@ -608,6 +654,7 @@ function MessageBubbleComponent({
   return (
     <div
       className={cn(
+        'group/message',
         isUser ? 'flex flex-col items-end' : 'flex justify-start',
         className,
       )}
@@ -697,6 +744,7 @@ function MessageBubbleComponent({
                     isFreshSinceMount={isFreshSinceMount}
                     routedAgentName={resolvedRoutedAgentName}
                     routeReason={resolvedRouteReason}
+                    onRevealComplete={handleRevealComplete}
                   />
                   {organizationId && message.threadId && (
                     <MessageArtifactPills
@@ -860,12 +908,26 @@ function MessageBubbleComponent({
 
         {!isUser &&
           !isAssistantStreaming &&
+          revealDone &&
           !isErrored &&
           (!!displayContent ||
             (message.fileParts && message.fileParts.length > 0)) && (
             // Fade the post-answer toolbar in (opacity-only, no layout shift)
-            // so it doesn't snap into existence the instant streaming ends.
-            <div className="animate-content-in">
+            // once the typewriter has fully revealed the answer. Only the
+            // LAST assistant message keeps its toolbar always visible —
+            // history toolbars reveal on hover/focus to keep the thread calm.
+            // `animate-content-in` (fill: both) would pin opacity at 1 after
+            // its entrance run, defeating the hover-hide — so the entrance
+            // fade applies only to the always-visible last-message toolbar.
+            // Touch devices have no hover: keep history toolbars visible there
+            // (pointer-coarse) so the actions stay reachable.
+            <div
+              className={cn(
+                isLastAssistantMessage
+                  ? 'animate-content-in'
+                  : 'opacity-0 transition-opacity duration-200 focus-within:opacity-100 pointer-coarse:opacity-100 group-hover/message:opacity-100',
+              )}
+            >
               {!hideFeedback && organizationId && message.threadId ? (
                 <MessageFeedback
                   messageId={message.id}
@@ -980,7 +1042,10 @@ function MessageBubbleComponent({
         />
       </div>
       {isUser && (onEdit || onSavePrompt || toolbarExtra) && (
-        <div className="flex items-center justify-end gap-0.5 pt-0.5">
+        // Own-message toolbar: hover/focus-revealed (opacity-only, so no
+        // layout shift) — matches the calmer history-toolbar behavior. Touch
+        // devices have no hover, so it stays visible there (pointer-coarse).
+        <div className="flex items-center justify-end gap-0.5 pt-0.5 opacity-0 transition-opacity duration-200 group-hover/message:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
           {(onSavePrompt || isSavedPrompt) && !!displayContent && (
             <Tooltip
               content={
@@ -1137,6 +1202,7 @@ export const MessageBubble = memo(
       prevProps.onFork === nextProps.onFork &&
       prevProps.isSavedPrompt === nextProps.isSavedPrompt &&
       prevProps.toolbarExtra === nextProps.toolbarExtra &&
+      prevProps.isLastAssistantMessage === nextProps.isLastAssistantMessage &&
       prevProps.isFreshSinceMount === nextProps.isFreshSinceMount
     );
   },

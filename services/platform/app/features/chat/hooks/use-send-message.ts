@@ -154,7 +154,7 @@ interface UseSendMessageParams {
    * text / images work (those paths skip the bind round-trip). Re-marking
    * adjacent to every `setPendingMessage` keeps the snap armed.
    */
-  scrollIntentRef?: MutableRefObject<boolean>;
+  scrollIntentRef?: MutableRefObject<boolean | 'smooth'>;
   /**
    * Restore the composer chips for the given videoLinkJob ids. Called from
    * inside `sendMessage` when bind or downstream `chatWithAgent` throws so
@@ -252,12 +252,13 @@ export function useSendMessage({
       // optimistic bubble lands, the snap wouldn't fire.
       const markScrollIntent = () => {
         if (scrollIntentRef) {
-          // Force-snap to the bottom on the next content settle. The snap is
-          // always INSTANT (the send reposition is a jump — the new user
-          // message lands at the viewport top via the response slack — and a
-          // smooth animation would chase the still-settling slack + streaming
-          // growth and stall part-way down). See ChatScroll.scrollIntentRef.
-          scrollIntentRef.current = true;
+          // Force-snap to the bottom on the next content settle. Sends use the
+          // SMOOTH variant: a retargeting rAF animation that re-reads the live
+          // scrollHeight every frame, so it glides the new user message up to
+          // the viewport top without stalling against the still-settling
+          // response slack the way a one-shot `behavior: 'smooth'` would. See
+          // ChatScroll.scrollIntentRef.
+          scrollIntentRef.current = 'smooth';
         }
       };
 

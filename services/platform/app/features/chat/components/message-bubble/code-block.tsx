@@ -31,6 +31,26 @@ function extractShikiCodeContent(html: string): string {
  * After streaming ends, 150ms of stability triggers one clean highlight. */
 const HIGHLIGHT_DEBOUNCE_MS = 150;
 
+/**
+ * Split code into lines, keeping each newline attached to its line so the
+ * concatenated chunks reproduce the input exactly. Each line renders as a
+ * `.stream-seg` span: inside the streaming portion (`.stream-reveal`) a newly
+ * arrived line fades in (line-by-line reveal); outside it the spans are
+ * inert markup with identical layout (`<pre>` preserves the whitespace).
+ */
+function splitCodeLines(code: string): string[] {
+  const lines: string[] = [];
+  let start = 0;
+  for (let i = 0; i < code.length; i++) {
+    if (code[i] === '\n') {
+      lines.push(code.slice(start, i + 1));
+      start = i + 1;
+    }
+  }
+  if (start < code.length) lines.push(code.slice(start));
+  return lines;
+}
+
 export const HighlightedCode = memo(function HighlightedCode({
   lang,
   code,
@@ -60,7 +80,20 @@ export const HighlightedCode = memo(function HighlightedCode({
   }, [code, lang, shikiTheme]);
 
   if (!html || highlightedForRef.current !== code) {
-    return <code>{code}</code>;
+    // Un-highlighted fallback (highlight is debounced while streaming):
+    // line-keyed spans so each newly streamed line mounts fresh and fades in
+    // via the `.stream-reveal` mount animation. Index keys are stable —
+    // streamed code only ever appends lines.
+    return (
+      <code>
+        {splitCodeLines(code).map((line, i) => (
+          // oxlint-disable-next-line react/no-array-index-key -- lines only append during streaming; index identity is stable
+          <span key={i} className="stream-seg">
+            {line}
+          </span>
+        ))}
+      </code>
+    );
   }
 
   return <code dangerouslySetInnerHTML={{ __html: html }} />;

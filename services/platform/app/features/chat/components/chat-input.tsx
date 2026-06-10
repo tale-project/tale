@@ -505,7 +505,8 @@ export function ChatInput({
           style={{ display: 'none' }}
         />
 
-        <div className="border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 sm:rounded-2xl sm:px-5 sm:pt-4">
+        {/* Soft top shadow lifts the composer off the conversation above it. */}
+        <div className="border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.15)] sm:rounded-2xl sm:px-5 sm:pt-4 dark:shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.5)]">
           {videoLinkJobs.length > 0 && (
             <HStack gap={1} wrap className="mb-2">
               {videoLinkJobs.map((job) => (
@@ -988,22 +989,34 @@ export function ChatInput({
                 // readers and keyboard activation still observe the
                 // disabled state.
                 const button = (
-                  <Button
-                    type="button"
-                    onClick={isLoading ? onStopGenerating : handleSendMessage}
-                    disabled={sendDisabled}
-                    size="icon"
-                    className="focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:ring-inset"
-                    aria-label={
-                      isLoading ? tChat('stopGenerating') : tChat('send')
-                    }
-                  >
-                    {isLoading ? (
-                      <CircleStop className="size-4" />
-                    ) : (
-                      <ArrowUp className="size-4" />
+                  <span className="relative inline-flex">
+                    {/* Generation in progress: a spinner ring orbits the
+                        (now Stop) button so the composer itself signals the
+                        in-flight turn. Purely decorative — the live status
+                        is announced by the thinking indicator. */}
+                    {isLoading && (
+                      <span
+                        aria-hidden="true"
+                        className="border-primary/30 border-t-primary pointer-events-none absolute -inset-1 animate-spin rounded-full border-2"
+                      />
                     )}
-                  </Button>
+                    <Button
+                      type="button"
+                      onClick={isLoading ? onStopGenerating : handleSendMessage}
+                      disabled={sendDisabled}
+                      size="icon"
+                      className="focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:ring-inset"
+                      aria-label={
+                        isLoading ? tChat('stopGenerating') : tChat('send')
+                      }
+                    >
+                      {isLoading ? (
+                        <CircleStop className="size-4" />
+                      ) : (
+                        <ArrowUp className="size-4" />
+                      )}
+                    </Button>
+                  </span>
                 );
                 return (
                   <Tooltip content={tooltipContent} side="top">

@@ -425,6 +425,78 @@
   }
 }
 
+/* Streaming markdown reveal (Gemini-style): content arrives in SEGMENTS
+   (prose clauses, code lines, table rows) and each newly mounted node fades
+   from 0% → 100% opacity. CSS animations only run when an element is
+   INSERTED into the DOM, and React preserves prior nodes across re-renders,
+   so already-revealed segments never re-fade. Scoped to `.stream-reveal`
+   (the streaming half of IncrementalMarkdown) so completed/stable markdown
+   renders without any animation. */
+/* Text clauses: fade in with a soft de-blur, Gemini-style. `filter` (unlike
+   `transform`) applies to inline boxes, so clause spans can wrap normally. */
+@keyframes stream-segment-in {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* Block-level units (list items, code blocks, quotes, images): fade + a
+   subtle lift. */
+@keyframes stream-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Table rows / rules: plain fade — transforms and filters on table-internal
+   boxes render inconsistently across engines. */
+@keyframes stream-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.stream-reveal .stream-seg {
+  animation: stream-segment-in 460ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.stream-reveal li,
+.stream-reveal pre,
+.stream-reveal blockquote,
+.stream-reveal img {
+  animation: stream-block-in 460ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.stream-reveal tr,
+.stream-reveal hr {
+  animation: stream-fade-in 460ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-reveal .stream-seg,
+  .stream-reveal li,
+  .stream-reveal tr,
+  .stream-reveal pre,
+  .stream-reveal blockquote,
+  .stream-reveal hr,
+  .stream-reveal img {
+    animation: none;
+  }
+}
+
 @keyframes shake {
   0%,
   100% {

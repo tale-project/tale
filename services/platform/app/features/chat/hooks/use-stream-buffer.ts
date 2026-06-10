@@ -1,46 +1,47 @@
 'use client';
 
 /**
- * Stream Buffer Hook — Smooth Character-by-Character Reveal
+ * Stream Buffer Hook — Smooth Segment-by-Segment Reveal
  *
  * Manages the buffer between incoming streamed text and displayed text and
- * reveals it ONE CHARACTER AT A TIME at an adaptive rate, for a smooth,
- * continuous typewriter flow (never word- or sentence-chunked). The rate
- * scales with buffer depth: a shallow buffer types at a relaxed pace; a deep
- * buffer ramps up (faster character typing) so the user isn't left watching
- * text trickle long after the server has finished — but it stays per-character,
- * never a dump.
+ * reveals it ONE SEGMENT AT A TIME (Gemini-style): prose appears in clause
+ * parts (bounded by `, . : ; ! ?` + whitespace), code line by line, table
+ * rows row by row — see `findRevealSegmentEnd`. Pacing is still charged PER
+ * CHARACTER (a long clause "costs" proportionally more time than a short
+ * one), so the average rate is the configured CPS. The rate scales with
+ * buffer depth: a shallow buffer reveals at a relaxed pace; a deep buffer
+ * ramps up so the user isn't left watching text trickle long after the
+ * server has finished.
  *
  * STRATEGY:
  * =========
- * 1. ADAPTIVE CHARACTER RATE: Base targetCPS (default 40) for a steady,
- *    readable type speed when the stream is keeping pace. The effective CPS
- *    scales up with buffer depth (smoothed via an EMA, above
+ * 1. ADAPTIVE RATE: Base targetCPS (default 40) for a steady, readable
+ *    reveal speed when the stream is keeping pace. The effective CPS scales
+ *    up with buffer depth (smoothed via an EMA, above
  *    streamingBufferTargetChars) when the server gets ahead of the reveal,
- *    capped at streamingCPSMax (220) — fast-but-smooth character typing that
- *    catches up without chunking. tickInterval = 1000 / effectiveCPS (one
- *    character per tick).
+ *    capped at streamingCPSMax (220). Each revealed segment consumes
+ *    `segmentLength × (1000 / effectiveCPS)` ms from a small time bank.
  *
  * 2. INITIAL BUFFERING: Waits for enough characters before starting
  *    - Builds a small reservoir to smooth the first few seconds
  *    - Character-based threshold (works for CJK and Latin)
  *
- * 3. BUFFER EMPTY: Keeps animation loop running
- *    - Cursor stays visible while waiting for next delta
- *    - Resumes at the same rate when text arrives
+ * 3. BUFFER EMPTY / MID-SEGMENT: Keeps animation loop running
+ *    - An incomplete clause/line is HELD until its boundary arrives, so a
+ *      partial part never flashes in and then grows awkwardly
+ *    - Cursor stays visible while waiting for the next delta
  *
- * 4. STREAM ENDS: Drain the remaining buffer, still character-by-character.
+ * 4. STREAM ENDS: Drain the remaining buffer, still segment-by-segment.
  *    - Short tail (< drainShortRemainingChars ≈ 80): base targetCPS — a short
- *      reply types out at reading speed.
+ *      reply reveals at reading speed.
  *    - Larger tail: CPS tuned to drainMsPerChar (≈ 83 CPS), scaling up to fit
- *      the drainMaxTotalMs budget so big tails don't trickle for minutes,
- *      bounded per frame by maxCharsPerFrame so it stays progressive.
+ *      the drainMaxTotalMs budget so big tails don't trickle for minutes.
  *    - Reduced motion: reveals immediately (no animation).
  *
- * MARKDOWN SAFETY: even though prose flows char-by-char, link/image/code
- * constructs are revealed atomically and ambiguous partial lines (unclosed
- * fences/rules/emphasis) are held — so raw markdown syntax never flashes
- * mid-construct (see findSyntaxSkipEnd / isAmbiguousPartialLine usage below).
+ * MARKDOWN SAFETY: link/image/code constructs are revealed atomically and
+ * ambiguous partial lines (unclosed fences/rules/emphasis) are held — so raw
+ * markdown syntax never flashes mid-construct (see findSyntaxSkipEnd /
+ * isAmbiguousPartialLine usage below).
  *
  * USAGE:
  * ------
@@ -59,6 +60,7 @@ import {
   isAmbiguousPartialLine,
   isAtTrailingEmptyMarker,
 } from '../utils/line-buffer';
+import { findRevealSegmentEnd } from '../utils/reveal-segment';
 
 // ============================================================================
 // CONFIGURATION
@@ -111,6 +113,17 @@ const DEFAULT_CONFIG = {
   drainMaxTotalMs: 8000,
   /** Maximum delta time (ms) to prevent jumps after tab switching */
   maxDeltaTime: 100,
+  /** Cap on banked reveal time. While a segment is held (mid-clause, waiting
+   *  for its separator) the frame deltas keep accruing; without a cap the
+   *  bank could grow unbounded and fire several segments back-to-back when
+   *  the hold resolves. A small bank keeps the post-hold cadence gentle
+   *  (roughly one short clause of credit). */
+  maxTimeBankMs: 250,
+  /** Cap on reveal-time DEBT. Revealing a long segment (a full code line, a
+   *  long clause) charges its whole character cost at once, going negative;
+   *  uncapped, a very long line could silence the reveal for seconds. This
+   *  bounds the pause after any single segment. */
+  maxTimeDebtMs: 600,
   /** EMA smoothing factor for the buffer depth that drives the streaming CPS
    *  ramp. The backend flushes deltas in ~250 ms throttled bursts, so a single
    *  push can drop ~80 chars into the buffer at once; reading raw bufferSize
@@ -459,37 +472,48 @@ export function useStreamBuffer({
           Math.max(safeCPS, safeCPS * ratio),
         );
       }
-      // Reveal ONE character per tick → smooth, continuous character-by-
-      // character output (not word/sentence chunks). tickInterval is
-      // ms-per-char; clamp so even a very low CPS still makes visible progress.
-      const tickInterval = Math.min(500, 1000 / effectiveCPS);
+      // Ms charged per revealed character. Segments reveal whole, but each
+      // consumes its character cost from the time bank, so a long clause is
+      // followed by a proportionally longer pause and the AVERAGE rate stays
+      // at effectiveCPS. Clamped so a very low CPS still makes progress.
+      const msPerChar = Math.min(500, 1000 / effectiveCPS);
       // Bound for the line-buffer extension scan below.
       const chunkCap = DEFAULT_CONFIG.maxChunkChars;
 
-      accumulatedTimeRef.current += normalizedDelta;
+      // Token-bucket pacing: deltas accrue into a small bank (capped, so a
+      // long mid-clause hold can't dump several segments at once when it
+      // resolves); revealing a segment spends its character cost, allowed to
+      // go negative (capped debt) so the next segment waits its turn.
+      accumulatedTimeRef.current = Math.min(
+        accumulatedTimeRef.current + normalizedDelta,
+        DEFAULT_CONFIG.maxTimeBankMs,
+      );
 
       let newDisplayed = currentDisplayed;
-      let ticks = 0;
+      let revealedChars = 0;
       // Per-frame char cap. The `maxCharsPerFrame` floor keeps normal streaming
-      // gentle (a few chars/frame, well under it), but a large drain computes a
-      // high effectiveCPS to fit drainMaxTotalMs — so scale the cap to the chars
-      // this frame actually budgeted (effectiveCPS × elapsed). Without this the
-      // flat 16-char/frame cap throttles drain to ~960 CPS and a long message
-      // would trickle for tens of seconds, defeating the drain budget.
-      const maxTicksPerFrame = Math.max(
+      // gentle, but a large drain computes a high effectiveCPS to fit
+      // drainMaxTotalMs — so scale the cap to the chars this frame actually
+      // budgeted (effectiveCPS × elapsed). Without this the flat 16-char/frame
+      // cap throttles drain to ~960 CPS and a long message would trickle for
+      // tens of seconds, defeating the drain budget.
+      const frameCharBudget = Math.max(
         DEFAULT_CONFIG.maxCharsPerFrame,
         Math.ceil((effectiveCPS * normalizedDelta) / 1000),
       );
       while (
-        accumulatedTimeRef.current >= tickInterval &&
+        accumulatedTimeRef.current > 0 &&
         newDisplayed < textLength &&
-        ticks < maxTicksPerFrame
+        revealedChars < frameCharBudget
       ) {
-        // Advance a single character. Markdown-atomic constructs (links/images/
-        // code) and ambiguous partial lines are still revealed atomically / held
-        // by the syntax-skip + line-buffer logic below, so raw syntax never
-        // flashes mid-construct even though prose flows char-by-char.
-        let candidate = Math.min(newDisplayed + 1, textLength);
+        // Advance one SEGMENT: a prose clause (`, . : ; ! ?` + whitespace), a
+        // code line, or a table row — see findRevealSegmentEnd. Returns the
+        // current position to signal "hold" while a part is still incomplete.
+        let candidate = Math.min(
+          findRevealSegmentEnd(targetText, newDisplayed, streaming),
+          textLength,
+        );
+        if (candidate <= newDisplayed) break;
 
         // Avoid splitting surrogate pairs — emoji and other supplementary
         // characters use two UTF-16 code units. Slicing between them produces
@@ -512,7 +536,7 @@ export function useStreamBuffer({
         // prefix (partial ---, ```, === etc.) or on a trailing empty marker
         // (**, *, ~~), extend char-by-char (bounded by chunkCap) until the
         // prefix resolves. If it won't resolve within budget, hold.
-        const extendCap = Math.min(newDisplayed + chunkCap, textLength);
+        const extendCap = Math.min(candidate + chunkCap, textLength);
         while (
           candidate < extendCap &&
           (isAmbiguousPartialLine(targetText, candidate, streaming) ||
@@ -536,10 +560,25 @@ export function useStreamBuffer({
           break;
         }
 
-        accumulatedTimeRef.current -= tickInterval;
+        const segmentLength = candidate - newDisplayed;
+        accumulatedTimeRef.current -= segmentLength * msPerChar;
         newDisplayed = candidate;
-        ticks++;
+        revealedChars += segmentLength;
+        // While LIVE-streaming, reveal at most ONE segment per frame: two
+        // segments committed in the same frame mount together and their
+        // fades read as a single big chunk (visible after a mid-clause hold
+        // banked credit). One per frame staggers consecutive fades while
+        // still allowing ~60 segments/s. The drain is exempt — its CPS is
+        // budgeted to finish within drainMaxTotalMs, and capping it to one
+        // segment per frame could overrun that for huge fine-grained tails.
+        if (streaming) break;
       }
+      // Bound the debt a single long segment can leave behind so the pause
+      // before the next segment never stretches past maxTimeDebtMs.
+      accumulatedTimeRef.current = Math.max(
+        accumulatedTimeRef.current,
+        -DEFAULT_CONFIG.maxTimeDebtMs,
+      );
 
       if (newDisplayed !== displayedLengthRef.current) {
         displayedLengthRef.current = newDisplayed;
