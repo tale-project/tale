@@ -4,23 +4,31 @@
 // touching a cluster. Same defense-in-depth: every identifier that lands in a
 // name/label/annotation/arg position is re-validated with strict regexes.
 //
-// CRITICAL: user code is NEVER passed via the Pod spec. Inputs are delivered
-// by the spawner staging them into the shared `/workspace` emptyDir via the
-// holder sidecar (exec-tar), exactly like the docker bind-mount. Only typed
+// CRITICAL: user code is NEVER passed via the Pod spec, and the per-exec
+// Secret (presigned URLs, SANDBOX_TOKEN, upload slots) is mounted ONLY into the
+// trusted `stage` / `harvest` containers — never the `runner`. Only typed
 // identifiers (execution id, org id, language, image, entry path) reach the
-// spec.
+// runner's spec.
 //
-// Pod shape (validated by the Phase-2 transport spike):
-//   - container `runner` (the runtime image): its command is overridden to
-//     wait for a `/workspace/.tale/.staged` sentinel (written by the spawner
-//     after tar-in), then `exec`s the image's real /entrypoint.sh with the
-//     same positional args the docker path passes, redirecting stderr to a
-//     file (the K8s log API merges stdout+stderr, so we keep stderr separate
-//     on disk and harvest it via tar-out). No runtime-image change required.
-//   - container `holder` (a minimal sh+tar image): sleeps for the pod's life
-//     sharing the `/workspace` emptyDir, so the spawner can exec `tar` to
-//     stage inputs in and harvest outputs out — including AFTER the runner
-//     has exited. Holds no secret and runs no user-influenced logic.
+// Exec-free Pod shape (one Pod, shared `/workspace` emptyDir, no PVC required):
+//   - initContainer `stage` (the SPAWNER image, k8s-stage.ts): downloads
+//     inputs from presigned URLs into /workspace and writes the multi-step
+//     wrapper + the prior-stage attestation. initContainers complete before
+//     app containers, so the runner finds a fully-staged workspace — no
+//     sentinel handshake. A required-input failure exits non-zero → Pod fails
+//     → spawner surfaces PRE_STAGE_FAILED.
+//   - container `runner` (the runtime image): command override runs the
+//     image's real /entrypoint.sh as a CHILD of `sh -c` (NOT `exec`), so the
+//     wrapper resumes after it to capture the exit code into EXIT_CODE_PATH.
+//     stderr is redirected to STDERR_PATH (the K8s log API merges stdout+stderr;
+//     keeping stderr on disk leaves the runner's logs clean stdout for phase
+//     parsing). No runtime-image change, no credentials, no callbacks.
+//   - container `harvest` (the SPAWNER image, k8s-harvest.ts): waits for the
+//     runner's exit code, uploads /workspace/output via presigned slots +
+//     EP1/EP2, and prints the result line the spawner reads back from its logs.
+//
+// Every spawner↔Pod interaction is plain HTTP (createNamespacedPod,
+// readNamespacedPodLog, deleteNamespacedPod) — no exec websocket anywhere.
 
 import { createHash } from 'node:crypto';
 
@@ -33,6 +41,8 @@ import type {
 
 import type { Language, SpawnerConfig } from '../../types.ts';
 import type { CacheStores } from '../types.ts';
+import { EXEC_SPEC_MOUNT_DIR, secretNameFor } from './exec-spec.ts';
+import { EXIT_CODE_PATH, STDERR_PATH, TALE_DIR } from './k8s-protocol.ts';
 
 export interface SandboxPodInput {
   executionId: string;
@@ -48,8 +58,10 @@ export interface SandboxPodInput {
 const RUNTIME_UID = 65534;
 const RUNTIME_GID = 65534;
 const WORKSPACE_MOUNT = '/workspace';
-const SENTINEL = '/workspace/.tale/.staged';
-const STDERR_FILE = '/workspace/.tale/stderr.log';
+
+// In-Pod entry-mode scripts (the spawner image's WORKDIR is /app).
+const STAGE_ENTRY = '/app/src/backend/kubernetes/k8s-stage.ts';
+const HARVEST_ENTRY = '/app/src/backend/kubernetes/k8s-harvest.ts';
 
 // Mirror docker-args.ts's safety regexes (kept local so this builder is
 // independently testable, exactly like docker-args.test.ts).
@@ -77,20 +89,15 @@ export function podNameFor(executionId: string): string {
   return `tale-sbx-${h}`;
 }
 
-// The runner's command wrapper: block until the spawner signals staging is
-// complete, then hand off to the image's real entrypoint with stderr split to
-// a file. Positional $0..$3 come from the Pod `args` (sh -c <script> $0 $1...).
-// The bounded loop (~300s) is a backstop so a pod is never wedged forever if
-// the spawner dies before staging — the orphan sweep also reaps it.
+// The runner's command wrapper. Run the image's real entrypoint as a CHILD of
+// `sh -c` (NOT `exec`): the entrypoint internally `exec`s python/node, which
+// replaces only that child, so `sh -c` resumes here to capture the exit code.
+// stderr → a file (kept out of the K8s log stream, which is stdout-only for
+// clean phase parsing). $0..$3 come from the Pod `args` trailer below.
 const RUNNER_WRAPPER = [
-  'n=0',
-  `while [ ! -e ${SENTINEL} ]; do`,
-  '  n=$((n+1))',
-  '  if [ "$n" -gt 6000 ]; then echo "sandbox: stage-in timeout" >&2; exit 65; fi',
-  '  sleep 0.05',
-  'done',
-  'mkdir -p /workspace/.tale',
-  `exec /entrypoint.sh "$0" "$1" "$2" "$3" 2>${STDERR_FILE}`,
+  `mkdir -p ${TALE_DIR}`,
+  `/entrypoint.sh "$0" "$1" "$2" "$3" 2>${STDERR_PATH}`,
+  `echo $? > ${EXIT_CODE_PATH}`,
 ].join('\n');
 
 export function buildSandboxPod(
@@ -110,19 +117,18 @@ export function buildSandboxPod(
 
   const usePvcCache = cfg.k8s.cacheMode === 'pvc' && inp.cache !== undefined;
 
-  // Env mirrors docker-args.ts. The dependency-cache env vars are set only in
-  // pvc mode — pointing them at /cache/* with no mount would break installs
-  // under readOnlyRootFilesystem (uv/npm can't create the dir). In 'none' mode
-  // uv/npm fall back to HOME-based caches under the writable /workspace/.home
-  // that entrypoint.sh sets up.
-  const env: V1EnvVar[] = [
+  // Runner env mirrors docker-args.ts. The dependency-cache env vars are set
+  // only in pvc mode — pointing them at /cache/* with no mount would break
+  // installs under readOnlyRootFilesystem (uv/npm can't create the dir). In
+  // 'none' mode uv/npm fall back to HOME-based caches under the writable /tmp.
+  const runnerEnv: V1EnvVar[] = [
     { name: 'HTTPS_PROXY', value: cfg.egressProxy },
     { name: 'HTTP_PROXY', value: cfg.egressProxy },
     { name: 'NO_PROXY', value: '127.0.0.1,localhost' },
     { name: 'HOME', value: '/tmp' },
   ];
   if (usePvcCache) {
-    env.push(
+    runnerEnv.push(
       { name: 'PIP_CACHE_DIR', value: '/cache/pip' },
       { name: 'UV_CACHE_DIR', value: '/cache/pip' },
       { name: 'NPM_CONFIG_CACHE', value: '/cache/npm' },
@@ -136,6 +142,15 @@ export function buildSandboxPod(
   const volumes: V1Volume[] = [
     { name: 'workspace', emptyDir: {} },
     { name: 'tmp', emptyDir: { medium: 'Memory', sizeLimit: '128Mi' } },
+    // The per-exec Secret (presigned URLs + token + caps). Defined at Pod level
+    // but mounted ONLY into stage/harvest below — never the runner.
+    {
+      name: 'exec-spec',
+      secret: { secretName: secretNameFor(inp.executionId) },
+    },
+    // Scratch for the helper containers' Bun runtime (HOME=/helper-tmp) under
+    // readOnlyRootFilesystem. Separate from the runner's /tmp.
+    { name: 'helper-tmp', emptyDir: { medium: 'Memory', sizeLimit: '64Mi' } },
   ];
   if (usePvcCache && inp.cache) {
     runnerMounts.push(
@@ -164,6 +179,22 @@ export function buildSandboxPod(
     seccompProfile: { type: 'RuntimeDefault' },
   };
 
+  // The trusted helper containers (stage/harvest) run the spawner image as the
+  // same non-root uid, sharing /workspace via fsGroup, with the per-exec Secret
+  // mounted read-only + a writable HOME for Bun. They hold the token but run no
+  // user code, so they don't need gVisor containment (the Pod-level
+  // RuntimeClass still covers them when runsc is on — harmless overhead).
+  const helperEnv: V1EnvVar[] = [{ name: 'HOME', value: '/helper-tmp' }];
+  const helperMounts: V1VolumeMount[] = [
+    { name: 'workspace', mountPath: WORKSPACE_MOUNT },
+    { name: 'exec-spec', mountPath: EXEC_SPEC_MOUNT_DIR, readOnly: true },
+    { name: 'helper-tmp', mountPath: '/helper-tmp' },
+  ];
+  const helperResources = {
+    requests: { cpu: '100m', memory: '256Mi' },
+    limits: { cpu: '1', memory: '1Gi' },
+  };
+
   return {
     apiVersion: 'v1',
     kind: 'Pod',
@@ -189,19 +220,34 @@ export function buildSandboxPod(
       // Don't leak Service env vars (URLs, tokens) into untrusted code.
       enableServiceLinks: false,
       // Untrusted: no graceful-shutdown contract — SIGKILL on delete, like the
-      // docker --runtime path. Harvest happens before delete, so 0 is safe.
+      // docker --runtime path. The spawner only deletes after reading the
+      // harvest result, so output isn't lost.
       terminationGracePeriodSeconds: 0,
       // gVisor: the RuntimeClass replaces docker's --runtime=runsc.
       ...(cfg.runtime === 'runsc' && {
         runtimeClassName: cfg.k8s.runtimeClassName,
       }),
       securityContext: {
-        // fsGroup so the shared emptyDir is group-writable by `nobody` — the
-        // K8s replacement for the host-side chownRecursive on the docker path.
+        // fsGroup so the shared emptyDir is group-writable across the stage,
+        // runner, and harvest containers — the K8s replacement for the
+        // host-side chownRecursive on the docker path.
         fsGroup: RUNTIME_GID,
         seccompProfile: { type: 'RuntimeDefault' },
       },
       volumes,
+      initContainers: [
+        {
+          name: 'stage',
+          image: cfg.k8s.spawnerImage,
+          imagePullPolicy: 'IfNotPresent',
+          command: ['bun', STAGE_ENTRY],
+          workingDir: '/app',
+          env: helperEnv,
+          resources: helperResources,
+          securityContext: hardenedSecurityContext,
+          volumeMounts: helperMounts,
+        },
+      ],
       containers: [
         {
           name: 'runner',
@@ -220,7 +266,7 @@ export function buildSandboxPod(
             '/workspace/code/options.json',
             inp.entryPath,
           ],
-          env,
+          env: runnerEnv,
           resources: {
             requests: { cpu: '1', memory: '1500Mi' },
             limits: { cpu: '1', memory: '1500Mi' },
@@ -229,18 +275,15 @@ export function buildSandboxPod(
           volumeMounts: runnerMounts,
         },
         {
-          name: 'holder',
-          image: cfg.k8s.holderImage,
+          name: 'harvest',
+          image: cfg.k8s.spawnerImage,
           imagePullPolicy: 'IfNotPresent',
-          // Stay alive for the pod's life so the spawner can exec `tar` to
-          // stage in / harvest out — including after `runner` terminates.
-          command: ['/bin/sh', '-c', 'sleep 86400'],
-          resources: {
-            requests: { cpu: '10m', memory: '32Mi' },
-            limits: { cpu: '500m', memory: '256Mi' },
-          },
+          command: ['bun', HARVEST_ENTRY],
+          workingDir: '/app',
+          env: helperEnv,
+          resources: helperResources,
           securityContext: hardenedSecurityContext,
-          volumeMounts: [{ name: 'workspace', mountPath: WORKSPACE_MOUNT }],
+          volumeMounts: helperMounts,
         },
       ],
     },

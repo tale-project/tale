@@ -25,7 +25,11 @@ import type {
   UploadFailure,
   UploadStats,
 } from './types.ts';
-import type { SandboxStepResult, SandboxStepStatus } from './wire.ts';
+import type {
+  SandboxPhaseEvent,
+  SandboxStepResult,
+  SandboxStepStatus,
+} from './wire.ts';
 
 // Hidden directory inside /workspace/output/ where the multi-step wrapper
 // writes its per-step bookkeeping. The harvest path filters anything under
@@ -36,6 +40,127 @@ export const STEPS_RESULTS_FILENAME = 'results.json';
 
 export const PHASE_INSTALL = 'PHASE: installing';
 export const PHASE_RUN = 'PHASE: running';
+
+export interface StreamScannerCallbacks {
+  /** Fired when a `PHASE: installing` / `PHASE: running` marker line is seen. */
+  onPhase?: (event: { phase: SandboxPhaseEvent }) => void;
+  /**
+   * Fired per non-marker stdout line WITH its trailing newline (live tail).
+   * On stream EOF a final residual line without a newline is also delivered.
+   */
+  onStdoutDelta?: (text: string) => void;
+  /** Fired per decoded stderr chunk (no line buffering). */
+  onStderrDelta?: (text: string) => void;
+}
+
+export interface StreamScanner {
+  /** Feed a runtime stdout chunk (drives phase markers + live stdout tail). */
+  onStdoutChunk?: (chunk: Uint8Array) => void;
+  /** Feed a runtime stderr chunk (live stderr tail). */
+  onStderrChunk?: (chunk: Uint8Array) => void;
+  /** Drain the residual unterminated line on stream EOF. */
+  finalize: () => void;
+}
+
+// Hard cap on the stdout line buffer so a runtime that emits no newlines (a
+// single multi-GB "log line") can't grow the spawner heap. On overflow the
+// buffered prefix is flushed as a synthetic line — PHASE markers are short, so
+// they're never inside such a blast.
+const MAX_LINE_BUF_BYTES = 64 * 1024;
+
+/**
+ * Build the live-progress stream scanner shared by the docker orchestrator and
+ * the k8s backend's runner-log follower. Parses `PHASE:` markers off stdout
+ * (firing `onPhase`), forwards non-marker stdout lines as a live tail
+ * (`onStdoutDelta`, PHASE lines stripped), and forwards stderr chunks
+ * (`onStderrDelta`). Live-tail bytes are capped to mirror the buffered output
+ * caps. The canonical full stdout/stderr still rides the final response; this
+ * is purely for incremental SSE deltas.
+ */
+export function createStreamScanner(
+  cb: StreamScannerCallbacks,
+  caps: { stdoutMaxBytes: number; stderrMaxBytes: number },
+): StreamScanner {
+  let lineBuf = '';
+  let stdoutDeltaBytes = 0;
+  let stderrDeltaBytes = 0;
+  const decoder = new TextDecoder('utf-8', { fatal: false });
+  const stderrDecoder = new TextDecoder('utf-8', { fatal: false });
+
+  // PHASE-marker lines are stripped from the live tail so the user doesn't
+  // briefly see `PHASE: installing` in the canvas. Non-marker lines are
+  // forwarded WITH their trailing newline so the platform-side append produces
+  // a faithful tail.
+  const handleStdoutLine = (line: string) => {
+    if (line === PHASE_INSTALL) {
+      cb.onPhase?.({ phase: 'installing' });
+    } else if (line === PHASE_RUN) {
+      cb.onPhase?.({ phase: 'running' });
+    } else if (cb.onStdoutDelta && stdoutDeltaBytes < caps.stdoutMaxBytes) {
+      const payload = `${line}\n`;
+      stdoutDeltaBytes += payload.length;
+      cb.onStdoutDelta(payload);
+    }
+  };
+
+  const wantStdoutScan = Boolean(cb.onPhase || cb.onStdoutDelta);
+  const onStdoutChunk = wantStdoutScan
+    ? (chunk: Uint8Array) => {
+        lineBuf += decoder.decode(chunk, { stream: true });
+        // Flush newline-delimited prefixes first so partial markers at the
+        // seam don't get clipped.
+        let nl: number;
+        while ((nl = lineBuf.indexOf('\n')) !== -1) {
+          const line = lineBuf.slice(0, nl);
+          lineBuf = lineBuf.slice(nl + 1);
+          handleStdoutLine(line);
+        }
+        // No-newline blast guard: flush the prefix so heap can't grow unbounded.
+        if (lineBuf.length > MAX_LINE_BUF_BYTES) {
+          const synthetic = lineBuf.slice(0, MAX_LINE_BUF_BYTES);
+          lineBuf = lineBuf.slice(MAX_LINE_BUF_BYTES);
+          handleStdoutLine(synthetic);
+        }
+      }
+    : undefined;
+
+  const onStderrChunk = cb.onStderrDelta
+    ? (chunk: Uint8Array) => {
+        if (stderrDeltaBytes >= caps.stderrMaxBytes) return;
+        const text = stderrDecoder.decode(chunk, { stream: true });
+        if (text.length === 0) return;
+        stderrDeltaBytes += text.length;
+        cb.onStderrDelta?.(text);
+      }
+    : undefined;
+
+  const finalize = () => {
+    // EOF drain — the line loop only fires on newlines; a final unterminated
+    // line (PHASE marker OR user output) lives in lineBuf.
+    if (wantStdoutScan) {
+      lineBuf += decoder.decode();
+      if (lineBuf.length > 0) {
+        if (lineBuf === PHASE_INSTALL) {
+          cb.onPhase?.({ phase: 'installing' });
+        } else if (lineBuf === PHASE_RUN) {
+          cb.onPhase?.({ phase: 'running' });
+        } else {
+          cb.onStdoutDelta?.(lineBuf);
+        }
+      }
+    }
+    if (cb.onStderrDelta) {
+      const tail = stderrDecoder.decode();
+      if (tail.length > 0) cb.onStderrDelta(tail);
+    }
+  };
+
+  return {
+    ...(onStdoutChunk && { onStdoutChunk }),
+    ...(onStderrChunk && { onStderrChunk }),
+    finalize,
+  };
+}
 
 /**
  * Generate the multi-step wrapper script that lands at /workspace/.tale/

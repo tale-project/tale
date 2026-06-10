@@ -1,54 +1,73 @@
-// KubernetesBackend — runs each execution as a Pod (Helm deployment target).
+// KubernetesBackend — runs each execution as a Pod (Helm deployment target),
+// using an EXEC-FREE transport: every spawner↔Pod interaction is plain HTTP
+// (createNamespacedPod / readNamespacedPodLog / deleteNamespacedPod + a per-exec
+// Secret). There is no exec websocket anywhere — the Phase-2 spike found it
+// unreliable under Bun.
 //
-// The spawner stays the trusted broker: it stages inputs into a local dir,
-// tars them INTO the runtime Pod's /workspace via a holder sidecar, follows
-// the runner's logs, reaps the exit code from Pod status, tars /workspace/output
-// back OUT into the local dir, and only THEN does spawn.ts run its existing
-// (unchanged) harvest/upload/attestation logic. SANDBOX_TOKEN, output byte
-// caps, and input attestation never enter the Pod. All streaming primitives
-// were validated live against kind under Bun (see k8s-client.ts).
+// Per execution the backend:
+//   1. creates a Secret (presigned URLs + token + caps) + a Pod with a `stage`
+//      initContainer (downloads inputs), a `runner` (user code), and a
+//      `harvest` sidecar (uploads outputs + prints a result line). The Secret
+//      is mounted ONLY into stage/harvest — the runner never sees a credential.
+//   2. follows the runner container's logs (HTTP) to drive live PHASE + stdout
+//      progress and accumulate the canonical stdout buffer.
+//   3. waits for the harvest container to terminate (it owns the user timeout),
+//      then reads the harvest container's logs once and parses the
+//      `__TALE_RESULT__` line for exitCode / stderr / outputs / steps.
+//   4. assembles the ExecuteResponse and deletes the Pod + Secret.
+//
+// Horizontal scale: the result rides the harvest container's logs, which the
+// OWNING spawner replica reads itself — no result callback to a Service VIP, no
+// cross-replica affinity. Cancel = delete-by-deterministic-name from any
+// replica.
 
-import { join } from 'node:path';
+import type { V1Pod, V1Secret } from '@kubernetes/client-node';
 
-import type { V1Pod } from '@kubernetes/client-node';
-
+import {
+  capText,
+  classifyFailure,
+  createStreamScanner,
+  makeError,
+  stripControlChars,
+  stripPhaseMarkers,
+} from '../../exec-common.ts';
 import type {
+  ErrorCode,
   ExecuteRequest,
   ExecuteResponse,
+  OutputFile,
   SpawnerConfig,
+  UploadStats,
 } from '../../types.ts';
-import { runLocalWorkspaceExecution } from '../local-workspace-run.ts';
 import type {
   CacheStores,
   ExecuteOptions,
   ExecutionBackend,
   HealthResult,
-  LaunchSpec,
-  LocalWorkspaceRuntime,
-  RunningExecution,
-  RunOptions,
-  RunResult,
   SweepOptions,
-  Workspace,
 } from '../types.ts';
-import { cacheStoreNames, ensureCachePvcs } from './k8s-cache.ts';
+import { buildExecSecret, secretNameFor } from './exec-spec.ts';
+import { ensureCachePvcs } from './k8s-cache.ts';
 import {
-  execReadFile,
-  execTarIn,
-  execTarOut,
   followLogs,
   makeK8sClient,
-  runExec,
-  withExecRetry,
+  readPodLog,
+  withRetry,
   type K8sClient,
 } from './k8s-client.ts';
 import { buildSandboxPod, podNameFor } from './k8s-pod-spec.ts';
-import { K8sWorkspace } from './k8s-workspace.ts';
+import { parseResultLine, type K8sHarvestResult } from './k8s-protocol.ts';
 
-// Max time to wait for a runtime Pod to reach Running before giving up (covers
+// Max time to wait for the runner container to start (covers stage staging +
 // scheduling + a cold image pull, since warmImage is a no-op on K8s).
 const STARTUP_BUDGET_MS = 180_000;
-const POLL_INTERVAL_MS = 700;
+const POLL_INTERVAL_MS = 500;
+// Backstop beyond the user timeout for the harvest container to print + exit
+// (harvest enforces the timeout itself; this only guards a wedged harvest).
+const HARVEST_BACKSTOP_MS = 120_000;
+
+const IMAGE_ERR_RE =
+  /ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerError|CrashLoopBackOff/;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise<void>((resolve) => {
@@ -72,210 +91,19 @@ function httpStatusCode(err: unknown): number | undefined {
   return undefined;
 }
 
-async function deletePod(client: K8sClient, name: string): Promise<void> {
-  try {
-    await client.core.deleteNamespacedPod({
-      name,
-      namespace: client.namespace,
-      gracePeriodSeconds: 0,
-    });
-  } catch (err) {
-    // 404 = already gone (idempotent); anything else is logged, not thrown.
-    if (httpStatusCode(err) !== 404) {
-      console.warn(`[sandbox.k8s] delete pod ${name} failed:`, err);
-    }
-  }
-}
+type StartupResult =
+  | { kind: 'started' }
+  | { kind: 'preStageFailed'; message: string }
+  | { kind: 'failed'; message: string }
+  | { kind: 'aborted' };
 
-class K8sRunningExecution implements RunningExecution {
-  constructor(
-    private readonly client: K8sClient,
-    private readonly podName: string,
-    private readonly workspace: Workspace,
-    private readonly userTimeoutMs: number,
-  ) {}
-
-  async wait(opts: RunOptions): Promise<RunResult> {
-    const { client, podName, workspace } = this;
-
-    // 1. Wait until the runner container is Running (or a startup failure).
-    await this.waitForRunning(opts.signal);
-
-    // 2. Stage inputs into the Pod, then release the sentinel-gated runner.
-    await execTarIn(client, podName, 'holder', workspace.localRoot);
-    await withExecRetry('sentinel', () =>
-      runExec(client, podName, 'holder', [
-        '/bin/sh',
-        '-c',
-        'mkdir -p /workspace/.tale && touch /workspace/.tale/.staged',
-      ]),
-    );
-
-    // 3. Follow runner stdout → the phase-marker parser + a capped buffer.
-    const stdoutChunks: Buffer[] = [];
-    let stdoutBytes = 0;
-    let stdoutTruncated = false;
-    const onLog = (b: Buffer) => {
-      opts.onStdoutChunk?.(b); // always forward (phase detection past the cap)
-      if (stdoutBytes >= opts.stdoutMaxBytes) {
-        stdoutTruncated = true;
-        return;
-      }
-      const room = opts.stdoutMaxBytes - stdoutBytes;
-      if (b.length <= room) {
-        stdoutChunks.push(b);
-        stdoutBytes += b.length;
-      } else {
-        stdoutChunks.push(b.subarray(0, room));
-        stdoutBytes = opts.stdoutMaxBytes;
-        stdoutTruncated = true;
-      }
-    };
-    const logController = await withExecRetry('log-follow', () =>
-      followLogs(client, podName, 'runner', onLog),
-    );
-
-    // 4. Race runner-exit against the inner timeout and client abort. The
-    //    timers DON'T delete the Pod — remove() (executeRequest's finally)
-    //    does — so the harvest below still runs on timeout/cancel, mirroring
-    //    docker's "partial output survives a kill".
-    const pollAbort = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeoutP = new Promise<number>((resolve) => {
-      // 124 → classifyFailure maps to TIMEOUT (matches docker's exit 124).
-      timer = setTimeout(() => resolve(124), this.userTimeoutMs);
-    });
-    const abortP = new Promise<number>((resolve) => {
-      if (opts.signal.aborted) resolve(137);
-      else
-        opts.signal.addEventListener('abort', () => resolve(137), {
-          once: true,
-        });
-    });
-    let exitCode: number;
-    try {
-      exitCode = await Promise.race([
-        this.pollRunnerExit(pollAbort.signal),
-        timeoutP,
-        abortP,
-      ]);
-    } finally {
-      if (timer) clearTimeout(timer);
-      pollAbort.abort();
-      logController.abort();
-    }
-
-    // 5. Harvest outputs + the separated stderr back into the local workspace
-    //    (best-effort; the Pod still exists). spawn.ts then runs its normal
-    //    harvest/upload over workspace.localRoot/output.
-    await execTarOut(
-      client,
-      podName,
-      'holder',
-      '/workspace/output',
-      join(workspace.localRoot, 'output'),
-    ).catch((err) =>
-      console.warn('[sandbox.k8s] harvest tar-out failed:', err),
-    );
-    const { text: stderr, truncated: stderrTruncated } = await execReadFile(
-      client,
-      podName,
-      'holder',
-      '/workspace/.tale/stderr.log',
-      opts.stderrMaxBytes,
-    );
-
-    return {
-      exitCode,
-      stdout: Buffer.concat(stdoutChunks).toString('utf8'),
-      stderr,
-      stdoutTruncated,
-      stderrTruncated,
-    };
-  }
-
-  async remove(): Promise<void> {
-    await deletePod(this.client, this.podName);
-  }
-
-  // The exec websocket AND the REST reads under Bun occasionally throw a
-  // transient AbortError; retry so a single hiccup doesn't fail the whole
-  // execution (mirrors withExecRetry on the exec ops).
-  private readPod(): Promise<V1Pod> {
-    return withExecRetry('read-pod', () =>
-      this.client.core.readNamespacedPod({
-        name: this.podName,
-        namespace: this.client.namespace,
-      }),
-    );
-  }
-
-  private async waitForRunning(signal: AbortSignal): Promise<void> {
-    const deadline = Date.now() + STARTUP_BUDGET_MS;
-    while (Date.now() < deadline) {
-      if (signal.aborted) throw new Error('cancelled before pod started');
-      const pod = await this.readPod();
-      const phase = pod.status?.phase;
-      if (phase === 'Running') return;
-      if (phase === 'Failed') {
-        throw new Error(
-          `runtime pod failed to start: ${pod.status?.reason ?? 'unknown'} ${pod.status?.message ?? ''}`.trim(),
-        );
-      }
-      const waiting = pod.status?.containerStatuses?.find(
-        (c) => c.name === 'runner',
-      )?.state?.waiting?.reason;
-      if (
-        waiting &&
-        /ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerError|CrashLoopBackOff/.test(
-          waiting,
-        )
-      ) {
-        throw new Error(`runtime pod runner cannot start: ${waiting}`);
-      }
-      await sleep(500, signal);
-    }
-    throw new Error(
-      `runtime pod did not reach Running within ${STARTUP_BUDGET_MS}ms`,
-    );
-  }
-
-  private async pollRunnerExit(signal: AbortSignal): Promise<number> {
-    while (!signal.aborted) {
-      const pod = await this.readPod();
-      const term = pod.status?.containerStatuses?.find(
-        (c) => c.name === 'runner',
-      )?.state?.terminated;
-      if (term) return term.exitCode ?? 1;
-      await sleep(POLL_INTERVAL_MS, signal);
-    }
-    return 1; // aborted; the race already resolved with another value
-  }
-}
-
-export class KubernetesBackend
-  implements ExecutionBackend, LocalWorkspaceRuntime
-{
+export class KubernetesBackend implements ExecutionBackend {
   readonly kind = 'kubernetes' as const;
 
   private readonly client: K8sClient;
 
   constructor(private readonly cfg: SpawnerConfig) {
     this.client = makeK8sClient(cfg.k8s.namespace);
-  }
-
-  // NOTE (transitional): this still drives the exec-tar transport via the
-  // shared local-workspace orchestration (its createWorkspace/launch/wait tar
-  // bytes in/out over the exec websocket). The exec websocket is unreliable
-  // under Bun; increments 5-7 replace this with an HTTP-only Pod flow (3
-  // containers, presigned-URL I/O in-Pod) and remove the createWorkspace/
-  // launch/wait + exec helpers below.
-  execute(
-    cfg: SpawnerConfig,
-    req: ExecuteRequest,
-    opts: ExecuteOptions,
-  ): Promise<ExecuteResponse> {
-    return runLocalWorkspaceExecution(this, cfg, req, opts);
   }
 
   async init(): Promise<void> {
@@ -327,46 +155,183 @@ export class KubernetesBackend
     // No-op: the kubelet pulls the runtime image per-Pod.
   }
 
-  async createWorkspace(executionId: string): Promise<Workspace> {
-    return new K8sWorkspace(this.cfg.hostSessionRoot, executionId);
-  }
-
-  async ensureCacheStore(organizationId: string): Promise<CacheStores> {
-    if (this.cfg.k8s.cacheMode === 'pvc') {
-      return ensureCachePvcs(this.client, this.cfg, organizationId);
+  async execute(
+    cfg: SpawnerConfig,
+    req: ExecuteRequest,
+    opts: ExecuteOptions,
+  ): Promise<ExecuteResponse> {
+    // The dispatcher validates language; re-narrow for the entry-path resolve.
+    if (
+      req.language !== 'python' &&
+      req.language !== 'node' &&
+      req.language !== 'polyglot'
+    ) {
+      return makeError('SPAWNER_UNAVAILABLE', 'invalid language', 0);
     }
-    // 'none' mode: names are unused (no cache mount), but the interface wants them.
-    return cacheStoreNames(this.cfg, organizationId);
-  }
 
-  async launch(
-    spec: LaunchSpec,
-    cache: CacheStores,
-  ): Promise<RunningExecution> {
-    const pod = buildSandboxPod(this.cfg, {
-      executionId: spec.executionId,
-      organizationId: spec.organizationId,
-      language: spec.language,
-      entryPath: spec.entryPath,
-      startedAtMs: spec.startedAtMs,
-      ...(this.cfg.k8s.cacheMode === 'pvc' && { cache }),
-    });
-    await this.client.core.createNamespacedPod({
-      namespace: this.client.namespace,
-      body: pod,
-    });
-    return new K8sRunningExecution(
-      this.client,
-      podNameFor(spec.executionId),
-      spec.workspace,
-      spec.timeoutMs,
+    const timeoutMs = Math.min(
+      Math.max(req.timeoutMs ?? cfg.defaultTimeoutMs, 1_000),
+      cfg.maxTimeoutMs,
     );
+    const startedAtMs = opts.startedAtMs;
+    const podName = podNameFor(req.executionId);
+    const secretName = secretNameFor(req.executionId);
+
+    // Resolve the path the runtime entrypoint will exec — same rule as docker.
+    const entryPath =
+      req.steps !== undefined
+        ? `/workspace/.tale/${
+            req.language === 'python' || req.language === 'polyglot'
+              ? 'runner.py'
+              : 'runner.js'
+          }`
+        : // oxlint-disable-next-line typescript/no-non-null-assertion -- validator enforces entryPath xor steps
+          req.entryPath!;
+
+    // Accumulate the runner's stdout (capped) while a scanner drives live
+    // PHASE + stdout deltas. The runner's logs are stdout-only (stderr → file),
+    // so there's no onStderrChunk here.
+    const scanner = createStreamScanner(
+      {
+        ...(opts.onPhase && { onPhase: opts.onPhase }),
+        ...(opts.onStdoutDelta && { onStdoutDelta: opts.onStdoutDelta }),
+      },
+      {
+        stdoutMaxBytes: cfg.stdoutMaxBytes,
+        stderrMaxBytes: cfg.stderrMaxBytes,
+      },
+    );
+    const stdoutChunks: Buffer[] = [];
+    let stdoutBytes = 0;
+    let stdoutStreamTruncated = false;
+    const onRunnerLog = (b: Buffer) => {
+      scanner.onStdoutChunk?.(b); // always forward (phase detect past the cap)
+      if (stdoutBytes >= cfg.stdoutMaxBytes) {
+        stdoutStreamTruncated = true;
+        return;
+      }
+      const room = cfg.stdoutMaxBytes - stdoutBytes;
+      if (b.length <= room) {
+        stdoutChunks.push(b);
+        stdoutBytes += b.length;
+      } else {
+        stdoutChunks.push(b.subarray(0, room));
+        stdoutBytes = cfg.stdoutMaxBytes;
+        stdoutStreamTruncated = true;
+      }
+    };
+
+    let logController: AbortController | undefined;
+    try {
+      const cache = await this.ensureCache(req.organizationId);
+      await this.createSecret(buildExecSecret(cfg, req, timeoutMs));
+      await this.client.core.createNamespacedPod({
+        namespace: this.client.namespace,
+        body: buildSandboxPod(cfg, {
+          executionId: req.executionId,
+          organizationId: req.organizationId,
+          language: req.language,
+          entryPath,
+          startedAtMs,
+          ...(cache !== undefined && { cache }),
+        }),
+      });
+
+      // Wait for the runner to start (stage initContainer complete) — or a
+      // startup failure (image pull, stage-init non-zero → PRE_STAGE_FAILED).
+      const startup = await this.waitForRunnerStart(podName, opts.signal);
+      if (startup.kind === 'aborted') {
+        return this.assemble(req, cfg, opts, {
+          aborted: true,
+          stdout: '',
+          stdoutStreamTruncated: false,
+          startedAtMs,
+          harvest: null,
+        });
+      }
+      if (startup.kind === 'preStageFailed') {
+        return makeError(
+          'PRE_STAGE_FAILED',
+          startup.message,
+          Date.now() - startedAtMs,
+        );
+      }
+      if (startup.kind === 'failed') {
+        return makeError(
+          'SPAWNER_UNAVAILABLE',
+          startup.message,
+          Date.now() - startedAtMs,
+        );
+      }
+
+      // Follow the runner's logs (stdout) for live progress + the buffer. The
+      // stream ends naturally when the runner exits; we also abort it once
+      // harvest is done (covers the timeout case where the runner outlives us).
+      logController = await withRetry('log-follow', () =>
+        followLogs(this.client, podName, 'runner', onRunnerLog),
+      );
+
+      // The harvest container terminating is the completion signal (it owns the
+      // user timeout + prints the result line). On cancel, the abort signal
+      // ends the wait; cancel()/the finally then delete the Pod.
+      await this.waitForHarvestDone(podName, opts.signal, timeoutMs);
+
+      logController.abort();
+      logController = undefined;
+      scanner.finalize();
+
+      const stdout = Buffer.concat(stdoutChunks).toString('utf8');
+
+      if (opts.signal.aborted) {
+        return this.assemble(req, cfg, opts, {
+          aborted: true,
+          stdout,
+          stdoutStreamTruncated,
+          startedAtMs,
+          harvest: null,
+        });
+      }
+
+      // Read the harvest container's logs once and extract its result line.
+      let harvest: K8sHarvestResult | null = null;
+      try {
+        const logs = await readPodLog(this.client, podName, 'harvest');
+        harvest = parseResultLine(logs);
+        if (harvest === null) {
+          console.warn(
+            `[sandbox.k8s] no result line in harvest logs for ${req.executionId}`,
+          );
+        }
+      } catch (err) {
+        console.warn('[sandbox.k8s] failed to read harvest logs:', err);
+      }
+
+      return this.assemble(req, cfg, opts, {
+        aborted: false,
+        stdout,
+        stdoutStreamTruncated,
+        startedAtMs,
+        harvest,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return makeError(
+        'SPAWNER_UNAVAILABLE',
+        `spawner internal error: ${message}`,
+        Date.now() - startedAtMs,
+      );
+    } finally {
+      if (logController) logController.abort();
+      await this.deletePod(podName);
+      await this.deleteSecret(secretName);
+    }
   }
 
   async cancel(executionId: string): Promise<void> {
-    // Addressed by deterministic name — works cross-replica and before the
-    // pod exists. Best-effort (delete tolerates 404).
-    await deletePod(this.client, podNameFor(executionId));
+    // Addressed by deterministic name — works cross-replica and before the pod
+    // exists. Best-effort (delete tolerates 404). Also drop the Secret.
+    await this.deletePod(podNameFor(executionId));
+    await this.deleteSecret(secretNameFor(executionId));
   }
 
   async sweepOrphans(opts: SweepOptions): Promise<number> {
@@ -395,12 +360,299 @@ export class KubernetesBackend
         startedAt > 0 &&
         startedAt < opts.staleBeforeMs;
       // Reap terminal pods promptly (restartPolicy:Never leaves them around)
-      // and stale running pods no longer tracked in-flight.
+      // and stale running pods no longer tracked in-flight. Drop the matching
+      // per-exec Secret too (best-effort; tolerates 404).
       if (terminal || (stale && !opts.isLive(execId))) {
-        await deletePod(this.client, name);
+        await this.deletePod(name);
+        if (execId) await this.deleteSecret(secretNameFor(execId));
         removed += 1;
       }
     }
     return removed;
+  }
+
+  // ---- internals -----------------------------------------------------------
+
+  private async ensureCache(
+    organizationId: string,
+  ): Promise<CacheStores | undefined> {
+    if (this.cfg.k8s.cacheMode !== 'pvc') return undefined;
+    return ensureCachePvcs(this.client, this.cfg, organizationId);
+  }
+
+  private async createSecret(secret: V1Secret): Promise<void> {
+    try {
+      await this.client.core.createNamespacedSecret({
+        namespace: this.client.namespace,
+        body: secret,
+      });
+    } catch (err) {
+      // 409 = a prior attempt left it; replace so the Pod mounts fresh data.
+      if (httpStatusCode(err) === 409 && secret.metadata?.name) {
+        await this.client.core.replaceNamespacedSecret({
+          name: secret.metadata.name,
+          namespace: this.client.namespace,
+          body: secret,
+        });
+        return;
+      }
+      throw err;
+    }
+  }
+
+  private async deleteSecret(name: string): Promise<void> {
+    try {
+      await this.client.core.deleteNamespacedSecret({
+        name,
+        namespace: this.client.namespace,
+      });
+    } catch (err) {
+      if (httpStatusCode(err) !== 404) {
+        console.warn(`[sandbox.k8s] delete secret ${name} failed:`, err);
+      }
+    }
+  }
+
+  private async deletePod(name: string): Promise<void> {
+    try {
+      await this.client.core.deleteNamespacedPod({
+        name,
+        namespace: this.client.namespace,
+        gracePeriodSeconds: 0,
+      });
+    } catch (err) {
+      if (httpStatusCode(err) !== 404) {
+        console.warn(`[sandbox.k8s] delete pod ${name} failed:`, err);
+      }
+    }
+  }
+
+  private readPod(podName: string): Promise<V1Pod> {
+    // Bun's fetch occasionally throws a transient AbortError; retry so a single
+    // hiccup doesn't fail the whole execution.
+    return withRetry('read-pod', () =>
+      this.client.core.readNamespacedPod({
+        name: podName,
+        namespace: this.client.namespace,
+      }),
+    );
+  }
+
+  private async waitForRunnerStart(
+    podName: string,
+    signal: AbortSignal,
+  ): Promise<StartupResult> {
+    const deadline = Date.now() + STARTUP_BUDGET_MS;
+    while (Date.now() < deadline) {
+      if (signal.aborted) return { kind: 'aborted' };
+      const pod = await this.readPod(podName);
+
+      // Stage initContainer outcome.
+      const stageStatus = pod.status?.initContainerStatuses?.find(
+        (c) => c.name === 'stage',
+      );
+      const stageTerm = stageStatus?.state?.terminated;
+      if (stageTerm && stageTerm.exitCode !== 0) {
+        return {
+          kind: 'preStageFailed',
+          message:
+            `pre-stage failed (exit ${stageTerm.exitCode})` +
+            (stageTerm.reason ? `: ${stageTerm.reason}` : ''),
+        };
+      }
+      const stageWaiting = stageStatus?.state?.waiting?.reason;
+      if (stageWaiting && IMAGE_ERR_RE.test(stageWaiting)) {
+        return {
+          kind: 'failed',
+          message: `stage cannot start: ${stageWaiting}`,
+        };
+      }
+
+      // Runner started (running or already terminated for a very fast exec) →
+      // staging is done and we can follow its logs.
+      const runnerStatus = pod.status?.containerStatuses?.find(
+        (c) => c.name === 'runner',
+      );
+      if (runnerStatus?.state?.running || runnerStatus?.state?.terminated) {
+        return { kind: 'started' };
+      }
+      const runnerWaiting = runnerStatus?.state?.waiting?.reason;
+      if (runnerWaiting && IMAGE_ERR_RE.test(runnerWaiting)) {
+        return {
+          kind: 'failed',
+          message: `runner cannot start: ${runnerWaiting}`,
+        };
+      }
+
+      if (pod.status?.phase === 'Failed') {
+        return {
+          kind: 'failed',
+          message:
+            `pod failed before runner start: ${pod.status?.reason ?? 'unknown'} ${pod.status?.message ?? ''}`.trim(),
+        };
+      }
+      await sleep(POLL_INTERVAL_MS, signal);
+    }
+    return {
+      kind: 'failed',
+      message: `pod did not start the runner within ${STARTUP_BUDGET_MS}ms`,
+    };
+  }
+
+  private async waitForHarvestDone(
+    podName: string,
+    signal: AbortSignal,
+    timeoutMs: number,
+  ): Promise<void> {
+    const deadline = Date.now() + timeoutMs + HARVEST_BACKSTOP_MS;
+    while (Date.now() < deadline) {
+      if (signal.aborted) return;
+      let pod: V1Pod;
+      try {
+        pod = await this.readPod(podName);
+      } catch (err) {
+        // Pod gone (deleted out from under us) → nothing more to wait for.
+        if (httpStatusCode(err) === 404) return;
+        throw err;
+      }
+      const harvestStatus = pod.status?.containerStatuses?.find(
+        (c) => c.name === 'harvest',
+      );
+      if (harvestStatus?.state?.terminated) return;
+      if (pod.status?.phase === 'Succeeded' || pod.status?.phase === 'Failed') {
+        return;
+      }
+      await sleep(POLL_INTERVAL_MS, signal);
+    }
+  }
+
+  /**
+   * Assemble the ExecuteResponse from the runner stdout buffer + the harvest
+   * result line. Mirrors the docker path's classification (abort → cancelled;
+   * exit 0 + harvest error → failed; exit 0 → completed; else classifyFailure)
+   * using the same shared pure helpers.
+   */
+  private assemble(
+    req: ExecuteRequest,
+    cfg: SpawnerConfig,
+    opts: ExecuteOptions,
+    src: {
+      aborted: boolean;
+      stdout: string;
+      stdoutStreamTruncated: boolean;
+      startedAtMs: number;
+      harvest: K8sHarvestResult | null;
+    },
+  ): ExecuteResponse {
+    const durationMs = Date.now() - src.startedAtMs;
+    const h = src.harvest;
+
+    const { text: stdoutCapped, truncated: stdoutCapTrunc } = capText(
+      stripControlChars(stripPhaseMarkers(src.stdout)),
+      cfg.stdoutMaxBytes,
+    );
+    const { text: stderrCapped, truncated: stderrCapTrunc } = capText(
+      stripControlChars(h?.stderr ?? ''),
+      cfg.stderrMaxBytes,
+    );
+    const stdoutTrunc = src.stdoutStreamTruncated || stdoutCapTrunc;
+    const stderrTrunc = (h?.stderrTruncated ?? false) || stderrCapTrunc;
+
+    const outputFiles: OutputFile[] = h?.outputFiles ?? [];
+    const uploadStats: UploadStats = h?.uploadStats ?? {
+      attempted: 0,
+      succeeded: 0,
+      failures: [],
+    };
+    const truncatedFiles = h?.truncatedFiles ?? 0;
+
+    const timing = {
+      stageMs: h?.stageMs ?? 0,
+      executeMs: Math.max(0, durationMs),
+      harvestMs: h?.harvestMs ?? 0,
+      uploadMs: h?.uploadMs ?? 0,
+    };
+
+    const base = {
+      stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
+      stderrBase64: Buffer.from(stderrCapped).toString('base64'),
+      durationMs,
+      truncated: {
+        stdout: stdoutTrunc,
+        stderr: stderrTrunc,
+        files: truncatedFiles,
+      },
+      outputFiles,
+      ...(h?.steps !== undefined && { steps: h.steps }),
+      uploadStats,
+      timing,
+      ...(h?.priorStage !== undefined && { priorStage: h.priorStage }),
+    };
+
+    if (src.aborted || opts.signal.aborted) {
+      return {
+        status: 'cancelled',
+        exitCode: null,
+        errorCode: 'CANCELLED',
+        errorMessage: 'Execution cancelled by client',
+        ...base,
+      };
+    }
+
+    // No harvest result (Pod deleted before harvest printed, or harvest
+    // crashed). We can't trust an exit code — surface a harvest-read failure
+    // while still returning whatever stdout we captured.
+    if (h === null) {
+      return {
+        status: 'failed',
+        exitCode: null,
+        errorCode: 'HARVEST_READ_FAILED',
+        errorMessage: 'No harvest result was produced for this execution',
+        ...base,
+      };
+    }
+
+    // Harvest-side failure classification (quota > upload > report > read),
+    // applied only when user code itself exited 0 (don't mask a real crash).
+    let harvestErrorCode: ErrorCode | undefined;
+    let harvestErrorMessage: string | undefined;
+    if (h.quotaExhausted) {
+      harvestErrorCode = 'UPLOAD_QUOTA_EXCEEDED';
+      harvestErrorMessage =
+        'Per-run output-file quota exceeded; some files were not uploaded';
+    } else if (h.uploadFailed) {
+      harvestErrorCode = 'UPLOAD_FAILED';
+      harvestErrorMessage = 'One or more output uploads failed';
+    } else if (h.reportFailed) {
+      harvestErrorCode = 'UPLOAD_REPORT_FAILED';
+      harvestErrorMessage =
+        'Upload succeeded but report-back to platform failed';
+    } else if (h.readFailed) {
+      harvestErrorCode = 'HARVEST_READ_FAILED';
+      harvestErrorMessage = "Couldn't read /workspace/output";
+    }
+
+    if (h.exitCode === 0) {
+      return {
+        status: harvestErrorCode !== undefined ? 'failed' : 'completed',
+        exitCode: 0,
+        ...(harvestErrorCode !== undefined && {
+          errorCode: harvestErrorCode,
+          ...(harvestErrorMessage !== undefined && {
+            errorMessage: harvestErrorMessage,
+          }),
+        }),
+        ...base,
+      };
+    }
+
+    const { code: ec, message } = classifyFailure(h.exitCode, stderrCapped);
+    return {
+      status: ec === 'CANCELLED' ? 'cancelled' : 'failed',
+      exitCode: h.exitCode,
+      errorCode: ec,
+      errorMessage: message,
+      ...base,
+    };
   }
 }

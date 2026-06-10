@@ -14,10 +14,9 @@
 import {
   capText,
   classifyFailure,
+  createStreamScanner,
   harvestOutputDir,
   makeError,
-  PHASE_INSTALL,
-  PHASE_RUN,
   readStepResults,
   stageWorkspace,
   stripControlChars,
@@ -125,114 +124,32 @@ export async function runLocalWorkspaceExecution(
     //   - Outer (RunOptions.outerTimeoutMs = `timeoutMs + 30_000`): kill the
     //     launch mechanism itself (e.g. a wedged docker CLI) if it hangs past
     //     the inner kill.
-    let result: RunResult;
-    // Block scope for the phase-marker parser state (lineBuf, decoders).
-    {
-      // Line-buffered phase parser. The runtime image's entrypoint emits
-      // "PHASE: installing\n" then later "PHASE: running\n" on stdout. We
-      // accumulate bytes until we see a newline, then scan each line for
-      // those markers and fire the onPhase callback. Other lines (user's
-      // own prints) are ignored — the full stdout is still captured in
-      // result.stdout for the final response.
-      //
-      // On stream EOF without a trailing newline, the residual `lineBuf` is
-      // drained once via `finalize` so the last marker still produces an
-      // event (audit finding R2-3 C3 partial). `stripPhaseMarkers` below
-      // also handles the unterminated case via `split('\n')`.
-      let lineBuf = '';
-      // Hard cap on lineBuf so a runtime that emits no newlines (a single
-      // multi-GB "log line") cannot grow the spawner heap. On overflow we
-      // flush the buffered prefix as a synthetic line and reset — the
-      // PHASE markers are short, so they're never inside such a blast.
-      const MAX_LINE_BUF_BYTES = 64 * 1024;
-      // Live-tail delta byte caps mirror `stdoutMaxBytes`/`stderrMaxBytes`
-      // (which only bound the spawner's buffered output). Without these
-      // caps `onStdoutDelta`/`onStderrDelta` would forward unbounded
-      // bytes to the SSE consumer even after truncation kicks in.
-      let stdoutDeltaBytes = 0;
-      let stderrDeltaBytes = 0;
-      const decoder = new TextDecoder('utf-8', { fatal: false });
-      const stderrDecoder = new TextDecoder('utf-8', { fatal: false });
-      // PHASE-marker lines are stripped from the live tail (`onStdoutDelta`)
-      // so the user doesn't briefly see `PHASE: installing` in the canvas.
-      // Non-marker lines are forwarded WITH their trailing newline so the
-      // platform-side append produces a faithful tail.
-      const handleStdoutLine = (line: string) => {
-        if (line === PHASE_INSTALL) {
-          opts.onPhase?.({ phase: 'installing' });
-        } else if (line === PHASE_RUN) {
-          opts.onPhase?.({ phase: 'running' });
-        } else if (
-          opts.onStdoutDelta &&
-          stdoutDeltaBytes < cfg.stdoutMaxBytes
-        ) {
-          const payload = `${line}\n`;
-          stdoutDeltaBytes += payload.length;
-          opts.onStdoutDelta(payload);
-        }
-      };
-      const wantStdoutScan = Boolean(opts.onPhase || opts.onStdoutDelta);
-      const onStdoutChunk = wantStdoutScan
-        ? (chunk: Uint8Array) => {
-            lineBuf += decoder.decode(chunk, { stream: true });
-            // Flush any newline-delimited prefixes first so partial markers
-            // at the seam don't get clipped.
-            let nl: number;
-            while ((nl = lineBuf.indexOf('\n')) !== -1) {
-              const line = lineBuf.slice(0, nl);
-              lineBuf = lineBuf.slice(nl + 1);
-              handleStdoutLine(line);
-            }
-            // No-newline blast guard: if we still have a large pending
-            // buffer with no terminator, flush its prefix as a synthetic
-            // line so heap doesn't grow unbounded.
-            if (lineBuf.length > MAX_LINE_BUF_BYTES) {
-              const synthetic = lineBuf.slice(0, MAX_LINE_BUF_BYTES);
-              lineBuf = lineBuf.slice(MAX_LINE_BUF_BYTES);
-              handleStdoutLine(synthetic);
-            }
-          }
-        : undefined;
-      const onStderrChunk = opts.onStderrDelta
-        ? (chunk: Uint8Array) => {
-            if (stderrDeltaBytes >= cfg.stderrMaxBytes) return;
-            const text = stderrDecoder.decode(chunk, { stream: true });
-            if (text.length === 0) return;
-            stderrDeltaBytes += text.length;
-            opts.onStderrDelta?.(text);
-          }
-        : undefined;
-      result = await launched.wait({
-        outerTimeoutMs: timeoutMs + 30_000,
-        signal: opts.signal,
-        // In-band byte caps prevent a runaway runtime from OOM'ing the
-        // spawner heap; the backend continues draining the stream but
-        // discards bytes past the cap (audit finding R2-B2).
+    // Live-progress scanner: parses PHASE markers off the runtime's stdout and
+    // forwards the live stdout/stderr tail (byte-capped). The canonical full
+    // stdout/stderr still rides `result` below; this only drives SSE deltas.
+    const scanner = createStreamScanner(
+      {
+        ...(opts.onPhase && { onPhase: opts.onPhase }),
+        ...(opts.onStdoutDelta && { onStdoutDelta: opts.onStdoutDelta }),
+        ...(opts.onStderrDelta && { onStderrDelta: opts.onStderrDelta }),
+      },
+      {
         stdoutMaxBytes: cfg.stdoutMaxBytes,
         stderrMaxBytes: cfg.stderrMaxBytes,
-        ...(onStdoutChunk && { onStdoutChunk }),
-        ...(onStderrChunk && { onStderrChunk }),
-      });
-      // EOF drain — the line loop above only fires on newlines; a final
-      // unterminated line (PHASE marker OR user output) lives in lineBuf.
-      if (wantStdoutScan) {
-        lineBuf += decoder.decode();
-        if (lineBuf.length > 0) {
-          if (lineBuf === PHASE_INSTALL) {
-            opts.onPhase?.({ phase: 'installing' });
-          } else if (lineBuf === PHASE_RUN) {
-            opts.onPhase?.({ phase: 'running' });
-          } else {
-            // Trailing chunk WITHOUT newline — forward verbatim.
-            opts.onStdoutDelta?.(lineBuf);
-          }
-        }
-      }
-      if (opts.onStderrDelta) {
-        const tail = stderrDecoder.decode();
-        if (tail.length > 0) opts.onStderrDelta(tail);
-      }
-    }
+      },
+    );
+    const result: RunResult = await launched.wait({
+      outerTimeoutMs: timeoutMs + 30_000,
+      signal: opts.signal,
+      // In-band byte caps prevent a runaway runtime from OOM'ing the
+      // spawner heap; the backend continues draining the stream but
+      // discards bytes past the cap (audit finding R2-B2).
+      stdoutMaxBytes: cfg.stdoutMaxBytes,
+      stderrMaxBytes: cfg.stderrMaxBytes,
+      ...(scanner.onStdoutChunk && { onStdoutChunk: scanner.onStdoutChunk }),
+      ...(scanner.onStderrChunk && { onStderrChunk: scanner.onStderrChunk }),
+    });
+    scanner.finalize();
 
     const durationMs = Date.now() - startedAtMs;
     const exitCode = result.exitCode;

@@ -276,10 +276,12 @@ export interface SpawnerConfig {
     namespace: string;
     // RuntimeClass applied to runtime Pods when runtime === 'runsc' (gVisor).
     runtimeClassName: string;
-    // Minimal image (sh + tar) for the workspace holder sidecar — the
-    // spawner execs `tar` into it to stage inputs / harvest outputs while
-    // keeping the runtime container's image free of that dependency.
-    holderImage: string;
+    // The SPAWNER's own image ref, used for the per-exec Pod's `stage`
+    // initContainer + `harvest` sidecar (which run the spawner image's in-Pod
+    // entry modes to do presigned-URL workspace I/O). Defaults to a dev tag;
+    // the Helm chart must set SANDBOX_SPAWNER_IMAGE to the deployed image so
+    // the helper containers match the running spawner version.
+    spawnerImage: string;
     // 'none' (default) installs deps fresh each run via the egress proxy;
     // 'pvc' mounts per-org ReadWriteMany cache PVCs (operator must provide
     // an RWX storage class).

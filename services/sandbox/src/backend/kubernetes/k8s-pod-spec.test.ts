@@ -1,11 +1,13 @@
 // Regression gate for the Kubernetes runtime-Pod builder — the K8s analogue of
 // docker-args.test.ts. Asserts the docker→Pod field mapping, the hardened
-// securityContext, the exec-tar holder-sidecar shape, and that unsafe
-// identifiers are rejected. No cluster needed.
+// securityContext, the exec-free 3-container shape (stage init + runner +
+// harvest), that the per-exec Secret is mounted ONLY into stage/harvest (never
+// the runner), and that unsafe identifiers are rejected. No cluster needed.
 
 import { describe, expect, test } from 'bun:test';
 
 import type { SpawnerConfig } from '../../types.ts';
+import { EXEC_SPEC_MOUNT_DIR, secretNameFor } from './exec-spec.ts';
 import { buildSandboxPod, podNameFor } from './k8s-pod-spec.ts';
 
 const cfg: SpawnerConfig = {
@@ -17,7 +19,7 @@ const cfg: SpawnerConfig = {
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: 'gvisor',
-    holderImage: 'busybox:1.36',
+    spawnerImage: 'tale-sandbox:test',
     cacheMode: 'none',
   },
   defaultTimeoutMs: 30_000,
@@ -42,14 +44,21 @@ const goodInput = {
   startedAtMs: 1_700_000_000_000,
 };
 
-function runner(pod: ReturnType<typeof buildSandboxPod>) {
+type Pod = ReturnType<typeof buildSandboxPod>;
+
+function runner(pod: Pod) {
   const c = pod.spec?.containers.find((x) => x.name === 'runner');
   if (!c) throw new Error('no runner container');
   return c;
 }
-function holder(pod: ReturnType<typeof buildSandboxPod>) {
-  const c = pod.spec?.containers.find((x) => x.name === 'holder');
-  if (!c) throw new Error('no holder container');
+function harvest(pod: Pod) {
+  const c = pod.spec?.containers.find((x) => x.name === 'harvest');
+  if (!c) throw new Error('no harvest container');
+  return c;
+}
+function stage(pod: Pod) {
+  const c = pod.spec?.initContainers?.find((x) => x.name === 'stage');
+  if (!c) throw new Error('no stage initContainer');
   return c;
 }
 
@@ -105,17 +114,34 @@ describe('buildSandboxPod', () => {
     );
   });
 
+  test('exec-free shape: one stage initContainer + runner + harvest containers', () => {
+    const pod = buildSandboxPod(cfg, goodInput);
+    expect(pod.spec?.initContainers?.map((c) => c.name)).toEqual(['stage']);
+    expect(pod.spec?.containers.map((c) => c.name)).toEqual([
+      'runner',
+      'harvest',
+    ]);
+    // No holder sidecar / exec transport remnants.
+    expect(
+      pod.spec?.containers.find((c) => c.name === 'holder'),
+    ).toBeUndefined();
+  });
+
   test('runner container maps the docker-args contract', () => {
     const c = runner(buildSandboxPod(cfg, goodInput));
     expect(c.image).toBe('tale-sandbox-runtime:test');
     // Pull once + reuse (matches docker); never re-pull :latest every exec.
     expect(c.imagePullPolicy).toBe('IfNotPresent');
-    // command wraps a sentinel-wait then execs the image entrypoint.
+    // command runs the image entrypoint as a CHILD (no `exec`) so the wrapper
+    // resumes to capture the exit code; stderr is split to a file.
     expect(c.command?.[0]).toBe('/bin/sh');
     expect(c.command?.[1]).toBe('-c');
-    expect(c.command?.[2]).toContain('/workspace/.tale/.staged');
-    expect(c.command?.[2]).toContain('exec /entrypoint.sh');
+    expect(c.command?.[2]).toContain('/entrypoint.sh "$0" "$1" "$2" "$3"');
     expect(c.command?.[2]).toContain('2>/workspace/.tale/stderr.log');
+    expect(c.command?.[2]).toContain('echo $? > /workspace/.tale/exit-code');
+    // No sentinel handshake — staging is an initContainer now.
+    expect(c.command?.[2]).not.toContain('.staged');
+    expect(c.command?.[2]).not.toContain('exec /entrypoint.sh');
     // positional args = entrypoint's [language, packages, options, entry].
     expect(c.args).toEqual([
       'python',
@@ -155,26 +181,65 @@ describe('buildSandboxPod', () => {
     expect(byName.NPM_CONFIG_CACHE).toBeUndefined();
   });
 
-  test('workspace emptyDir is shared by runner and holder at /workspace', () => {
+  test('SECURITY: per-exec Secret is mounted into stage + harvest, NEVER the runner', () => {
+    const pod = buildSandboxPod(cfg, goodInput);
+    const secretName = secretNameFor(goodInput.executionId);
+    // The Secret volume exists at Pod level...
+    const vol = pod.spec?.volumes?.find((v) => v.name === 'exec-spec');
+    expect(vol?.secret?.secretName).toBe(secretName);
+    // ...mounted read-only into the trusted helper containers...
+    for (const c of [stage(pod), harvest(pod)]) {
+      const m = c.volumeMounts?.find((x) => x.name === 'exec-spec');
+      expect(m?.mountPath).toBe(EXEC_SPEC_MOUNT_DIR);
+      expect(m?.readOnly).toBe(true);
+    }
+    // ...and NOT mounted into the runner (no token / presigned URLs reach
+    // user code). This is the core security invariant of the exec-free design.
+    expect(
+      runner(pod).volumeMounts?.find((m) => m.name === 'exec-spec'),
+    ).toBeUndefined();
+  });
+
+  test('runner env carries no SANDBOX_TOKEN / presigned URLs', () => {
+    const env = runner(buildSandboxPod(cfg, goodInput)).env ?? [];
+    const names = env.map((e) => e.name);
+    expect(names).not.toContain('SANDBOX_TOKEN');
+    // Only the egress proxy + HOME are set — no callback endpoints/URLs.
+    for (const e of env) {
+      expect(e.value ?? '').not.toContain('http://sandbox-egress:3128/upload');
+    }
+  });
+
+  test('stage initContainer + harvest run the spawner image with their entry modes', () => {
+    const pod = buildSandboxPod(cfg, goodInput);
+    const s = stage(pod);
+    expect(s.image).toBe('tale-sandbox:test');
+    expect(s.command?.[0]).toBe('bun');
+    expect(s.command?.[1]).toContain('k8s-stage.ts');
+    const h = harvest(pod);
+    expect(h.image).toBe('tale-sandbox:test');
+    expect(h.command?.[0]).toBe('bun');
+    expect(h.command?.[1]).toContain('k8s-harvest.ts');
+  });
+
+  test('workspace emptyDir is shared by stage, runner, and harvest at /workspace', () => {
     const pod = buildSandboxPod(cfg, goodInput);
     const ws = pod.spec?.volumes?.find((v) => v.name === 'workspace');
     expect(ws?.emptyDir).toBeDefined();
-    const runnerWs = runner(pod).volumeMounts?.find(
-      (m) => m.name === 'workspace',
-    );
-    const holderWs = holder(pod).volumeMounts?.find(
-      (m) => m.name === 'workspace',
-    );
-    expect(runnerWs?.mountPath).toBe('/workspace');
-    expect(holderWs?.mountPath).toBe('/workspace');
+    for (const c of [stage(pod), runner(pod), harvest(pod)]) {
+      const m = c.volumeMounts?.find((x) => x.name === 'workspace');
+      expect(m?.mountPath).toBe('/workspace');
+    }
   });
 
-  test('holder sidecar: minimal image, long-lived, hardened', () => {
-    const c = holder(buildSandboxPod(cfg, goodInput));
-    expect(c.image).toBe('busybox:1.36');
-    expect(c.command?.join(' ')).toContain('sleep');
-    expect(c.securityContext?.runAsUser).toBe(65534);
-    expect(c.securityContext?.readOnlyRootFilesystem).toBe(true);
+  test('helper containers are hardened non-root', () => {
+    const pod = buildSandboxPod(cfg, goodInput);
+    for (const c of [stage(pod), harvest(pod)]) {
+      expect(c.securityContext?.runAsUser).toBe(65534);
+      expect(c.securityContext?.runAsNonRoot).toBe(true);
+      expect(c.securityContext?.readOnlyRootFilesystem).toBe(true);
+      expect(c.securityContext?.allowPrivilegeEscalation).toBe(false);
+    }
   });
 
   test('gVisor: runtimeClassName set only when runtime === runsc', () => {

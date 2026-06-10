@@ -56,7 +56,7 @@ export function loadConfig(): SpawnerConfig {
     k8s: {
       namespace: process.env.SANDBOX_K8S_NAMESPACE ?? 'tale-sandbox',
       runtimeClassName: process.env.SANDBOX_RUNTIME_CLASS ?? 'gvisor',
-      holderImage: process.env.SANDBOX_K8S_HOLDER_IMAGE ?? 'busybox:1.36',
+      spawnerImage: process.env.SANDBOX_SPAWNER_IMAGE ?? 'tale-sandbox:latest',
       cacheMode,
     },
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),
