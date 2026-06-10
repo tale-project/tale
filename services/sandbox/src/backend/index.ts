@@ -1,17 +1,15 @@
 // Backend selection. Chosen once at boot from `cfg.backend` (env
-// SANDBOX_BACKEND, default 'docker'). The Docker Compose path is the default;
-// 'kubernetes' lands in Phase 2.
+// SANDBOX_BACKEND, default 'docker'): the Docker Compose path or the native
+// Kubernetes Pod-per-exec path.
 
 import { DockerBackend } from './docker/docker-backend.ts';
+import { KubernetesBackend } from './kubernetes/k8s-backend.ts';
 import type { ExecutionBackend, SpawnerConfig } from './types.ts';
 
 export function createBackend(cfg: SpawnerConfig): ExecutionBackend {
   switch (cfg.backend) {
     case 'kubernetes':
-      throw new Error(
-        "SANDBOX_BACKEND='kubernetes' is not implemented yet (Phase 2). " +
-          'Set SANDBOX_BACKEND=docker (the default) for the Compose path.',
-      );
+      return new KubernetesBackend(cfg);
     case 'docker':
     default:
       return new DockerBackend(cfg);

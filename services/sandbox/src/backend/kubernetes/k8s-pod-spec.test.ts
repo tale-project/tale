@@ -1,0 +1,217 @@
+// Regression gate for the Kubernetes runtime-Pod builder — the K8s analogue of
+// docker-args.test.ts. Asserts the docker→Pod field mapping, the hardened
+// securityContext, the exec-tar holder-sidecar shape, and that unsafe
+// identifiers are rejected. No cluster needed.
+
+import { describe, expect, test } from 'bun:test';
+
+import type { SpawnerConfig } from '../../types.ts';
+import { buildSandboxPod, podNameFor } from './k8s-pod-spec.ts';
+
+const cfg: SpawnerConfig = {
+  backend: 'kubernetes',
+  port: 8003,
+  sandboxToken: 'test',
+  runtimeImage: 'tale-sandbox-runtime:test',
+  runtime: 'runc',
+  k8s: {
+    namespace: 'tale-sandbox',
+    runtimeClassName: 'gvisor',
+    holderImage: 'busybox:1.36',
+    cacheMode: 'none',
+  },
+  defaultTimeoutMs: 30_000,
+  maxTimeoutMs: 300_000,
+  maxConcurrent: 4,
+  hostSessionRoot: '/var/lib/tale-sandbox/sessions',
+  cacheVolumePrefix: { pip: 'pip', npm: 'npm' },
+  egressNetwork: 'tale-sandbox-net',
+  egressProxy: 'http://sandbox-egress:3128',
+  stdoutMaxBytes: 5_242_880,
+  stderrMaxBytes: 5_242_880,
+  outputFileMaxBytes: 52_428_800,
+  outputTotalMaxBytes: 104_857_600,
+  maxRequestBodyBytes: 262_144,
+};
+
+const goodInput = {
+  executionId: 'k74m9zr5b8jcgvx2pqfwsdyhntq3l1a0',
+  organizationId: 'org_456',
+  language: 'python' as const,
+  entryPath: 'main.py',
+  startedAtMs: 1_700_000_000_000,
+};
+
+function runner(pod: ReturnType<typeof buildSandboxPod>) {
+  const c = pod.spec?.containers.find((x) => x.name === 'runner');
+  if (!c) throw new Error('no runner container');
+  return c;
+}
+function holder(pod: ReturnType<typeof buildSandboxPod>) {
+  const c = pod.spec?.containers.find((x) => x.name === 'holder');
+  if (!c) throw new Error('no holder container');
+  return c;
+}
+
+describe('podNameFor', () => {
+  test('is deterministic, DNS-1123-safe, and <= 63 chars', () => {
+    const a = podNameFor(goodInput.executionId);
+    const b = podNameFor(goodInput.executionId);
+    expect(a).toBe(b);
+    expect(a.length).toBeLessThanOrEqual(63);
+    expect(a).toMatch(/^[a-z0-9-]+$/);
+    expect(a.startsWith('tale-sbx-')).toBe(true);
+  });
+
+  test('normalizes uppercase/underscore/over-long ids into a safe name', () => {
+    const ugly = 'ABC_def-' + 'x'.repeat(80);
+    const name = podNameFor(ugly);
+    expect(name).toMatch(/^tale-sbx-[a-f0-9]{16}$/);
+    expect(name.length).toBeLessThanOrEqual(63);
+  });
+});
+
+describe('buildSandboxPod', () => {
+  test('metadata: name/namespace/labels/annotations', () => {
+    const pod = buildSandboxPod(cfg, goodInput);
+    expect(pod.apiVersion).toBe('v1');
+    expect(pod.kind).toBe('Pod');
+    expect(pod.metadata?.name).toBe(podNameFor(goodInput.executionId));
+    expect(pod.metadata?.namespace).toBe('tale-sandbox');
+    expect(pod.metadata?.labels?.['tale.sandbox']).toBe('1');
+    // NetworkPolicy selects runtime pods by this label for egress isolation.
+    expect(pod.metadata?.labels?.['tale.sandbox/role']).toBe('runtime');
+    // Raw ids preserved in annotations (no charset/length limit).
+    expect(pod.metadata?.annotations?.['tale.dev/execution-id']).toBe(
+      goodInput.executionId,
+    );
+    expect(pod.metadata?.annotations?.['tale.dev/organization-id']).toBe(
+      'org_456',
+    );
+    expect(pod.metadata?.annotations?.['tale.dev/started-at']).toBe(
+      '1700000000000',
+    );
+  });
+
+  test('pod spec hardening: restartPolicy, no SA token, no service links, fsGroup', () => {
+    const pod = buildSandboxPod(cfg, goodInput);
+    expect(pod.spec?.restartPolicy).toBe('Never');
+    expect(pod.spec?.automountServiceAccountToken).toBe(false);
+    expect(pod.spec?.enableServiceLinks).toBe(false);
+    expect(pod.spec?.terminationGracePeriodSeconds).toBe(0);
+    expect(pod.spec?.securityContext?.fsGroup).toBe(65534);
+    expect(pod.spec?.securityContext?.seccompProfile?.type).toBe(
+      'RuntimeDefault',
+    );
+  });
+
+  test('runner container maps the docker-args contract', () => {
+    const c = runner(buildSandboxPod(cfg, goodInput));
+    expect(c.image).toBe('tale-sandbox-runtime:test');
+    // command wraps a sentinel-wait then execs the image entrypoint.
+    expect(c.command?.[0]).toBe('/bin/sh');
+    expect(c.command?.[1]).toBe('-c');
+    expect(c.command?.[2]).toContain('/workspace/.tale/.staged');
+    expect(c.command?.[2]).toContain('exec /entrypoint.sh');
+    expect(c.command?.[2]).toContain('2>/workspace/.tale/stderr.log');
+    // positional args = entrypoint's [language, packages, options, entry].
+    expect(c.args).toEqual([
+      'python',
+      '/workspace/code/packages.json',
+      '/workspace/code/options.json',
+      'main.py',
+    ]);
+  });
+
+  test('runner resource caps mirror --cpus=1 --memory=1500m', () => {
+    const c = runner(buildSandboxPod(cfg, goodInput));
+    expect(c.resources?.requests?.cpu).toBe('1');
+    expect(c.resources?.requests?.memory).toBe('1500Mi');
+    expect(c.resources?.limits?.cpu).toBe('1');
+    expect(c.resources?.limits?.memory).toBe('1500Mi');
+  });
+
+  test('runner securityContext mirrors --read-only --cap-drop=ALL no-new-privileges --user 65534', () => {
+    const sc = runner(buildSandboxPod(cfg, goodInput)).securityContext;
+    expect(sc?.runAsUser).toBe(65534);
+    expect(sc?.runAsGroup).toBe(65534);
+    expect(sc?.runAsNonRoot).toBe(true);
+    expect(sc?.readOnlyRootFilesystem).toBe(true);
+    expect(sc?.allowPrivilegeEscalation).toBe(false);
+    expect(sc?.capabilities?.drop).toEqual(['ALL']);
+    expect(sc?.seccompProfile?.type).toBe('RuntimeDefault');
+  });
+
+  test('runner egress env mirrors HTTP(S)_PROXY/NO_PROXY', () => {
+    const env = runner(buildSandboxPod(cfg, goodInput)).env ?? [];
+    const byName = Object.fromEntries(env.map((e) => [e.name, e.value]));
+    expect(byName.HTTPS_PROXY).toBe('http://sandbox-egress:3128');
+    expect(byName.HTTP_PROXY).toBe('http://sandbox-egress:3128');
+    expect(byName.NO_PROXY).toBe('127.0.0.1,localhost');
+    // cacheMode 'none' must NOT set /cache/* env (no mount → readonly-fs break).
+    expect(byName.PIP_CACHE_DIR).toBeUndefined();
+    expect(byName.NPM_CONFIG_CACHE).toBeUndefined();
+  });
+
+  test('workspace emptyDir is shared by runner and holder at /workspace', () => {
+    const pod = buildSandboxPod(cfg, goodInput);
+    const ws = pod.spec?.volumes?.find((v) => v.name === 'workspace');
+    expect(ws?.emptyDir).toBeDefined();
+    const runnerWs = runner(pod).volumeMounts?.find(
+      (m) => m.name === 'workspace',
+    );
+    const holderWs = holder(pod).volumeMounts?.find(
+      (m) => m.name === 'workspace',
+    );
+    expect(runnerWs?.mountPath).toBe('/workspace');
+    expect(holderWs?.mountPath).toBe('/workspace');
+  });
+
+  test('holder sidecar: minimal image, long-lived, hardened', () => {
+    const c = holder(buildSandboxPod(cfg, goodInput));
+    expect(c.image).toBe('busybox:1.36');
+    expect(c.command?.join(' ')).toContain('sleep');
+    expect(c.securityContext?.runAsUser).toBe(65534);
+    expect(c.securityContext?.readOnlyRootFilesystem).toBe(true);
+  });
+
+  test('gVisor: runtimeClassName set only when runtime === runsc', () => {
+    expect(
+      buildSandboxPod(cfg, goodInput).spec?.runtimeClassName,
+    ).toBeUndefined();
+    const gvisor = buildSandboxPod({ ...cfg, runtime: 'runsc' }, goodInput);
+    expect(gvisor.spec?.runtimeClassName).toBe('gvisor');
+  });
+
+  test('cacheMode pvc mounts per-org PVCs + sets cache env', () => {
+    const pod = buildSandboxPod(
+      { ...cfg, k8s: { ...cfg.k8s, cacheMode: 'pvc' } },
+      { ...goodInput, cache: { pip: 'pip-org_456', npm: 'npm-org_456' } },
+    );
+    const vols = pod.spec?.volumes ?? [];
+    expect(
+      vols.find((v) => v.name === 'pip-cache')?.persistentVolumeClaim
+        ?.claimName,
+    ).toBe('pip-org_456');
+    expect(
+      vols.find((v) => v.name === 'npm-cache')?.persistentVolumeClaim
+        ?.claimName,
+    ).toBe('npm-org_456');
+    const env = runner(pod).env ?? [];
+    const byName = Object.fromEntries(env.map((e) => [e.name, e.value]));
+    expect(byName.PIP_CACHE_DIR).toBe('/cache/pip');
+    expect(byName.NPM_CONFIG_CACHE).toBe('/cache/npm');
+  });
+
+  test('rejects unsafe executionId / organizationId / entryPath', () => {
+    expect(() =>
+      buildSandboxPod(cfg, { ...goodInput, executionId: 'bad;id' }),
+    ).toThrow(/executionId/);
+    expect(() =>
+      buildSandboxPod(cfg, { ...goodInput, organizationId: 'org 456' }),
+    ).toThrow(/organizationId/);
+    expect(() =>
+      buildSandboxPod(cfg, { ...goodInput, entryPath: '../escape.py' }),
+    ).toThrow(/entryPath/);
+  });
+});

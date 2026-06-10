@@ -31,6 +31,13 @@ import type { Language, SpawnerConfig } from '../types.ts';
 export interface Workspace {
   /** Absolute path on the spawner fs to stage into / harvest from. */
   readonly localRoot: string;
+  /**
+   * Called once after `stageWorkspace` has written all inputs, before launch.
+   * DockerBackend chowns the tree to the runtime uid (the container reads the
+   * bind-mount as `nobody`); a non-shared-fs backend is a no-op (it re-owns
+   * when it transports the tree into the runtime).
+   */
+  finalizeStaging(): Promise<void>;
   /** Remove the staging directory (and any backend-local scratch). */
   destroy(): Promise<void>;
 }

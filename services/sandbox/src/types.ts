@@ -269,6 +269,22 @@ export interface SpawnerConfig {
   sandboxToken: string | null;
   runtimeImage: string;
   runtime: 'runc' | 'runsc';
+  // Kubernetes-backend settings (env SANDBOX_K8S_* / SANDBOX_CACHE). Always
+  // populated by loadConfig; consumed only when backend === 'kubernetes'.
+  k8s: {
+    // Namespace the per-execution runtime Pods are created in.
+    namespace: string;
+    // RuntimeClass applied to runtime Pods when runtime === 'runsc' (gVisor).
+    runtimeClassName: string;
+    // Minimal image (sh + tar) for the workspace holder sidecar — the
+    // spawner execs `tar` into it to stage inputs / harvest outputs while
+    // keeping the runtime container's image free of that dependency.
+    holderImage: string;
+    // 'none' (default) installs deps fresh each run via the egress proxy;
+    // 'pvc' mounts per-org ReadWriteMany cache PVCs (operator must provide
+    // an RWX storage class).
+    cacheMode: 'none' | 'pvc';
+  };
   defaultTimeoutMs: number;
   maxTimeoutMs: number;
   maxConcurrent: number;

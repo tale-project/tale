@@ -19,14 +19,7 @@
 //   7. finally: RunningExecution.remove() + Workspace.destroy().
 
 import { createHash } from 'node:crypto';
-import {
-  mkdir,
-  readdir,
-  readFile,
-  stat,
-  writeFile,
-  lchown,
-} from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 
 import type {
@@ -68,8 +61,6 @@ const STEPS_RESULTS_FILENAME = 'results.json';
 
 const PHASE_INSTALL = 'PHASE: installing';
 const PHASE_RUN = 'PHASE: running';
-const RUNTIME_UID = 65534;
-const RUNTIME_GID = 65534;
 
 interface InFlight {
   abort: AbortController;
@@ -757,30 +748,11 @@ export async function stageWorkspace(
   // empty object today so the entrypoint's positional arg shape stays stable.
   await writeFile(join(codeDir, 'options.json'), '{}');
 
-  // Spawner runs as root; the runtime container runs as nobody (65534) and
-  // needs to read the staged files. Recursively `lchown` (not `chown`) so a
-  // symlink the runtime container planted into the bind-mounted workspace
-  // CANNOT redirect ownership of an arbitrary host file (audit finding
-  // R2-B4: latent footgun if session dirs ever get reused across runs).
-  await chownRecursive(hostDir, RUNTIME_UID, RUNTIME_GID);
+  // Making the staged tree readable by the runtime uid is backend-specific
+  // (the docker bind-mount needs a chown; a transport backend re-owns on the
+  // way in), so it lives in Workspace.finalizeStaging() — called by
+  // executeRequest right after this returns.
   return { ...(priorStage !== undefined && { priorStage }) };
-}
-
-async function chownRecursive(
-  path: string,
-  uid: number,
-  gid: number,
-): Promise<void> {
-  await lchown(path, uid, gid);
-  const entries = await readdir(path, { withFileTypes: true });
-  for (const e of entries) {
-    const p = join(path, e.name);
-    if (e.isDirectory()) {
-      await chownRecursive(p, uid, gid);
-    } else {
-      await lchown(p, uid, gid);
-    }
-  }
 }
 
 interface HarvestEndpoints {
@@ -1184,6 +1156,10 @@ export async function executeRequest(
     const cache = await backend.ensureCacheStore(req.organizationId);
     const stageStartedAt = Date.now();
     const stageResult = await stageWorkspace(ws.localRoot, req);
+    // Backend-specific: docker chowns the bind-mount tree to the runtime uid;
+    // k8s is a no-op (the holder re-owns on tar-in). Kept inside the stage
+    // timing for parity with the prior inline chown.
+    await ws.finalizeStaging();
     const stageMs = Date.now() - stageStartedAt;
     // Captured here for inclusion in ExecuteResponse.priorStage. Undefined
     // when the request had no priorOutputDownloads (nothing to attest).
