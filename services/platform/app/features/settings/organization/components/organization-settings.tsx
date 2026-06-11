@@ -103,7 +103,10 @@ export function OrganizationSettingsView({
   );
 
   return (
-    <SettingsPage>
+    <SettingsPage
+      title={tSettings('organization.pageTitle')}
+      description={tSettings('organization.pageDescription')}
+    >
       <SettingsSection
         title={tSettings('organization.detailsTitle')}
         description={tSettings('organization.detailsDescription')}

@@ -4324,6 +4324,10 @@
         "workspace": "Arbeitsbereich",
         "governance": "Governance"
       },
+      "railSections": {
+        "personal": "Persönlich",
+        "organization": "Organisation"
+      },
       "account": {
         "description": "Profil, Anmeldung und Sicherheit."
       },
@@ -4390,6 +4394,8 @@
       }
     },
     "organization": {
+      "pageTitle": "Organisation",
+      "pageDescription": "Verwalte deine Organisation und Mitglieder.",
       "title": "Organisation (optional)",
       "detailsTitle": "Organisationsdetails",
       "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",

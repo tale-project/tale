@@ -4585,6 +4585,10 @@
         "workspace": "Workspace",
         "governance": "Governance"
       },
+      "railSections": {
+        "personal": "Personal",
+        "organization": "Organization"
+      },
       "account": {
         "description": "Your profile, sign-in, and security."
       },
@@ -4651,6 +4655,8 @@
       }
     },
     "organization": {
+      "pageTitle": "Organization",
+      "pageDescription": "Manage your organization and members.",
       "title": "Organization name",
       "detailsTitle": "Organization details",
       "detailsDescription": "Basic information about your organization.",
