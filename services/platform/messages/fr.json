@@ -607,6 +607,27 @@
         "aiAssistant": "Assistant IA",
         "testAutomation": "Tester l'automatisation",
         "addStep": "Ajouter une étape"
+      },
+      "execution": {
+        "viewingRun": "Affichage de l'exécution {id}",
+        "clear": "Masquer les résultats de l'exécution",
+        "nodeBadgeLabel": "Statut d'exécution : {status}",
+        "duration": "Durée : {duration}",
+        "attempts": "{count, plural, one {# tentative} other {# tentatives}}",
+        "loopProgress": "Itération {current} sur {total}",
+        "output": "Sortie",
+        "error": "Erreur",
+        "outputTruncated": "Aperçu de la sortie tronqué",
+        "outputUnavailable": "Sortie trop volumineuse pour l'aperçu",
+        "status": {
+          "pending": "En attente",
+          "running": "En cours",
+          "completed": "Terminée",
+          "failed": "Échouée",
+          "waiting": "En attente de saisie",
+          "success": "Réussie",
+          "canceled": "Annulée"
+        }
       }
     },
     "stepTypes": {

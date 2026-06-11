@@ -1,8 +1,6 @@
-import { components } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
-
-const workflow = components.workflow;
+import { getWorkflowComponentForExecution } from './get_workflow_component';
 
 export type GetExecutionStepJournalArgs = {
   executionId: Id<'wfExecutions'>;
@@ -14,6 +12,10 @@ export async function getExecutionStepJournal(
 ): Promise<Array<unknown>> {
   const execution = await ctx.db.get(args.executionId);
   if (!execution) return [];
+
+  // Journals live on the component shard the execution was started on —
+  // loading from a fixed shard made ~75% of journals appear empty.
+  const workflow = getWorkflowComponentForExecution(execution);
 
   const metadata: Record<string, unknown> = execution.metadata
     ? JSON.parse(execution.metadata)
@@ -36,7 +38,13 @@ export async function getExecutionStepJournal(
     idsOrdered.map(async (wid) => {
       try {
         return await ctx.runQuery(workflow.journal.load, { workflowId: wid });
-      } catch {
+      } catch (error) {
+        // Cleaned-up component workflows legitimately 404 here; this swallow
+        // also hid the shard-routing bug, so keep a trace of every miss.
+        console.warn(
+          `getExecutionStepJournal: failed to load journal for workflow ${wid}:`,
+          error,
+        );
         return null;
       }
     }),

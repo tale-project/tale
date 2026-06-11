@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
+import { useUrlState } from '@/app/hooks/use-url-state';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -30,6 +31,7 @@ import {
   type InputSchema,
 } from '../utils/input-schema-template';
 import { getStepTypeColor } from '../utils/step-icons';
+import { AUTOMATION_EXECUTION_URL_DEFINITIONS } from './execution-status-context';
 
 interface AutomationTesterProps {
   organizationId: string;
@@ -112,6 +114,11 @@ export function AutomationTester({
   const { data: executionStatus } = useExecutionStatus(
     activeExecutionId ?? undefined,
   );
+
+  // Mirror the started run into the `execution` URL param so the canvas
+  // (via ExecutionStatusProvider) shows live per-node badges for it (#1487).
+  const { state: executionUrlState, setState: setExecutionUrlState } =
+    useUrlState({ definitions: AUTOMATION_EXECUTION_URL_DEFINITIONS });
 
   const { mutateAsync: startWorkflow, isPending: isExecuting } =
     useStartWorkflowFromFile();
@@ -200,6 +207,7 @@ export function AutomationTester({
 
       setDryRunResult(null);
       setActiveExecutionId(executionId);
+      setExecutionUrlState('execution', executionId);
       onTestComplete?.();
     } catch (error) {
       console.error('Test execution failed:', error);
@@ -224,6 +232,11 @@ export function AutomationTester({
             setTestInput(value);
             setDryRunResult(null);
             setActiveExecutionId(null);
+            // Guard: writing URL state navigates — only clear when a run is
+            // actually being viewed, not on every keystroke.
+            if (executionUrlState.execution) {
+              setExecutionUrlState('execution', null);
+            }
           }}
           label={t('tester.inputLabel')}
           description={t('tester.inputDescription')}

@@ -606,6 +606,27 @@
         "aiAssistant": "KI-Assistent",
         "testAutomation": "Automatisierung testen",
         "addStep": "Schritt hinzufügen"
+      },
+      "execution": {
+        "viewingRun": "Lauf {id} wird angezeigt",
+        "clear": "Laufergebnisse ausblenden",
+        "nodeBadgeLabel": "Ausführungsstatus: {status}",
+        "duration": "Dauer: {duration}",
+        "attempts": "{count, plural, one {# Versuch} other {# Versuche}}",
+        "loopProgress": "Durchlauf {current} von {total}",
+        "output": "Ausgabe",
+        "error": "Fehler",
+        "outputTruncated": "Ausgabevorschau gekürzt",
+        "outputUnavailable": "Ausgabe ist zu groß für die Vorschau",
+        "status": {
+          "pending": "Ausstehend",
+          "running": "Läuft",
+          "completed": "Abgeschlossen",
+          "failed": "Fehlgeschlagen",
+          "waiting": "Wartet auf Eingabe",
+          "success": "Erfolgreich",
+          "canceled": "Abgebrochen"
+        }
       }
     },
     "stepTypes": {

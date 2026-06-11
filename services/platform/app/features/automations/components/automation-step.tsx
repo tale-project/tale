@@ -11,7 +11,9 @@ import { cn } from '@/lib/utils/cn';
 
 import { getStepIconComponent } from '../utils/step-icons';
 import { useAutomationCallbacks } from './automation-callbacks-context';
+import { useNodeExecutionStatus } from './execution-status-context';
 import { InvisibleHandle } from './invisible-handle';
+import { NodeExecutionStatusBadge } from './node-execution-status-badge';
 
 interface AutomationStepProps {
   data: {
@@ -34,6 +36,7 @@ interface AutomationStepProps {
 export function AutomationStep({ data }: AutomationStepProps) {
   const { t } = useT('automations');
   const { onNodeClick } = useAutomationCallbacks();
+  const nodeStatus = useNodeExecutionStatus(data.stepSlug);
 
   // Determine handle positions based on whether each edge (top/bottom) has bidirectional connections
   // Only offset if there are connections in both directions at that specific edge
@@ -91,6 +94,9 @@ export function AutomationStep({ data }: AutomationStepProps) {
         data.isTerminalNode
           ? 'border-dashed border-2 border-muted-foreground/50'
           : 'border-border',
+        nodeStatus?.status === 'running' && 'ring-2 ring-blue-400',
+        nodeStatus?.status === 'failed' && 'ring-2 ring-destructive',
+        nodeStatus?.status === 'waiting' && 'ring-2 ring-amber-400',
       )}
       onClick={() => onNodeClick(data.stepSlug)}
     >
@@ -172,6 +178,14 @@ export function AutomationStep({ data }: AutomationStepProps) {
       />
 
       {cardContent}
+
+      {/* Execution status badge — a SIBLING of the card button (nesting a
+          button inside the card's <button> would be invalid HTML), overlaid
+          on the top-right corner. Renders nothing when no run is viewed. */}
+      <NodeExecutionStatusBadge
+        stepSlug={data.stepSlug}
+        className="absolute -top-2.5 -right-2.5 z-10"
+      />
 
       {/* Bottom Target Handle - incoming from lower-ranked nodes */}
       <InvisibleHandle

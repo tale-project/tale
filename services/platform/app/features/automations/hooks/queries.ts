@@ -26,6 +26,20 @@ export function useExecutionStatus(
   );
 }
 
+/**
+ * Reactive per-node statuses for one execution, derived server-side from the
+ * step journal (compact payload keyed by step slug). Drives the canvas node
+ * badges and the test panel's per-step feedback. Accepts a plain string
+ * because the id typically comes from the `execution` URL param; the backend
+ * normalizes and returns `null` for malformed ids.
+ */
+export function useExecutionStepStatuses(executionId: string | undefined) {
+  return useConvexQuery(
+    api.wf_executions.queries.getExecutionStepStatuses,
+    executionId ? { executionId } : 'skip',
+  );
+}
+
 interface ListExecutionsArgs {
   wfDefinitionId: string;
   status?: string[];

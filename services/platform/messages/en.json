@@ -606,6 +606,27 @@
         "aiAssistant": "AI assistant",
         "testAutomation": "Test automation",
         "addStep": "Add step"
+      },
+      "execution": {
+        "viewingRun": "Viewing run {id}",
+        "clear": "Hide run results",
+        "nodeBadgeLabel": "Execution status: {status}",
+        "duration": "Duration: {duration}",
+        "attempts": "{count, plural, one {# attempt} other {# attempts}}",
+        "loopProgress": "Iteration {current} of {total}",
+        "output": "Output",
+        "error": "Error",
+        "outputTruncated": "Output preview truncated",
+        "outputUnavailable": "Output too large to preview",
+        "status": {
+          "pending": "Pending",
+          "running": "Running",
+          "completed": "Completed",
+          "failed": "Failed",
+          "waiting": "Waiting for input",
+          "success": "Succeeded",
+          "canceled": "Canceled"
+        }
       }
     },
     "stepTypes": {

@@ -18,9 +18,13 @@ const h = vi.hoisted(() => {
   const fixture: {
     startMock: ReturnType<typeof vi.fn>;
     executionStatus: { data: ExecStatusData | undefined };
+    setUrlState: ReturnType<typeof vi.fn>;
+    urlState: Record<string, string | null>;
   } = {
     startMock: vi.fn(() => Promise.resolve('exec-1')),
     executionStatus: { data: undefined },
+    setUrlState: vi.fn(),
+    urlState: { execution: null },
   };
   return fixture;
 });
@@ -37,6 +41,19 @@ vi.mock('@/lib/i18n/client', () => ({
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
+
+// useUrlState wraps TanStack router hooks, which need a RouterProvider; the
+// tester only writes the `execution` param through it, so stub the surface.
+vi.mock('@/app/hooks/use-url-state', () => ({
+  useUrlState: () => ({
+    state: h.urlState,
+    setState: h.setUrlState,
+    setStates: vi.fn(),
+    clearState: vi.fn(),
+    clearAll: vi.fn(),
+    isPending: false,
+  }),
+}));
 
 vi.mock('@/app/hooks/use-persisted-state', () => ({
   usePersistedState: () => ['{}', vi.fn()],
@@ -70,6 +87,7 @@ import { AutomationTester } from './automation-tester';
 afterEach(() => {
   vi.clearAllMocks();
   h.executionStatus = { data: undefined };
+  h.urlState = { execution: null };
 });
 
 async function runExecute() {
@@ -124,6 +142,14 @@ describe('AutomationTester result feedback (#1484)', () => {
       expect(
         screen.getByText('automations.tester.result.completed'),
       ).toBeInTheDocument(),
+    );
+  });
+
+  it('mirrors the started run into the execution URL param (#1487)', async () => {
+    await runExecute();
+
+    await waitFor(() =>
+      expect(h.setUrlState).toHaveBeenCalledWith('execution', 'exec-1'),
     );
   });
 

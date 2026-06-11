@@ -21,6 +21,8 @@ Der **Triggers**-Tab am Workflow hängt die laufenden Pfade an: ein manueller Tr
 
 Das **Automatisierung testen**-Panel in der Editor-Toolbar feuert einen einmaligen Lauf direkt aus dem Editor. Fügst du die Eingabe-JSON ein, die der Lauf erhalten soll, klickst **Ausführen**, taucht der Lauf im Ausführungen-Tab mit seiner ID auf. Greif zum Test-Panel, wenn du an einem Workflow iterierst und das volle Ausführungsjournal sehen willst, ohne erst einen Trigger zu verdrahten.
 
+Während der Lauf läuft, spiegelt die Canvas ihn live: Jeder Schritt trägt ein Status-Badge — ein Spinner während der Ausführung, ein Häkchen bei Erfolg, ein Warnsymbol bei Fehlern, ein Pause-Symbol beim Warten auf Eingabe — und ein Banner über der Canvas zeigt, welcher Lauf gerade angezeigt wird. Klick auf ein Badge, um Dauer, Fehler und eine Vorschau der Ausgabe des Schritts zu prüfen. Der angezeigte Lauf hängt am URL-Parameter `execution` und übersteht damit ein Neuladen; schließt du das Banner, verschwinden die Badges.
+
 Der **Dry run**-Button im selben Panel simuliert einen Lauf ohne Seiteneffekte — der Workflow validiert gegen die Eingabe, läuft den Schritte-Graph ab und meldet Fehler und Warnungen, ohne irgendeinen Agent, eine API oder einen Mail-Server zu rufen. Greif zum Dry Run, wenn der Workflow noch nicht sicher ist, ihn von Anfang bis Ende laufen zu lassen.
 
 ## Pausieren und deaktivieren
