@@ -76,9 +76,14 @@ function TasksSkeleton({ view }: { view: TaskView }) {
               <div className="size-4 rounded" />
             </SkeletonBox>
             <div className="min-w-0 flex-1">
-              <SkeletonBox fullWidth>
-                <div className="h-3.5 w-1/2 max-w-xs" />
-              </SkeletonBox>
+              <div
+                className="max-w-xs"
+                style={{ width: `${42 + ((i * 19) % 31)}%` }}
+              >
+                <SkeletonBox fullWidth>
+                  <div className="h-3.5" />
+                </SkeletonBox>
+              </div>
             </div>
             <SkeletonBox>
               <div className="h-5 w-16 rounded-full" />

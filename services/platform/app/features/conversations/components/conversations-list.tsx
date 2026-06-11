@@ -248,13 +248,15 @@ const ConversationRow = memo(function ConversationRow({
           </div>
 
           <Text variant="muted" truncate className="mb-1.5 tracking-tight">
-            <SkeletonBox fullWidth>
-              {conversation ? (
-                conversation.title
-              ) : (
-                <span className="inline-block w-3/4">&nbsp;</span>
-              )}
-            </SkeletonBox>
+            {conversation ? (
+              <SkeletonBox fullWidth>{conversation.title}</SkeletonBox>
+            ) : (
+              // Width sits on a wrapper around the box: a narrower placeholder
+              // INSIDE a fullWidth box would be ignored by the mask.
+              <span className="block w-3/4">
+                <SkeletonBox fullWidth>&nbsp;</SkeletonBox>
+              </span>
+            )}
           </Text>
 
           <Text variant="caption" truncate className="mb-2 tracking-tight">

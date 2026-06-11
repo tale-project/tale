@@ -30,16 +30,22 @@ function SwaggerSkeleton() {
   return (
     <Skeletonize loading className="contents">
       <ContentArea variant="page" gap={4} className="p-8">
-        <SkeletonBox fullWidth>
-          <div className="h-10 w-full max-w-md" />
-        </SkeletonBox>
-        <SkeletonBox fullWidth>
-          <div className="h-8 w-3/4" />
-        </SkeletonBox>
-        <Stack gap={2}>
+        <div className="max-w-md">
           <SkeletonBox fullWidth>
-            <div className="h-6 w-1/2" />
+            <div className="h-10" />
           </SkeletonBox>
+        </div>
+        <div className="w-3/4">
+          <SkeletonBox fullWidth>
+            <div className="h-8" />
+          </SkeletonBox>
+        </div>
+        <Stack gap={2}>
+          <div className="w-1/2">
+            <SkeletonBox fullWidth>
+              <div className="h-6" />
+            </SkeletonBox>
+          </div>
           <SkeletonBox fullWidth>
             <div className="h-24 w-full" />
           </SkeletonBox>

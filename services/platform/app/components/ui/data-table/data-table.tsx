@@ -633,11 +633,17 @@ export function DataTable<TData, TValue = unknown>({
         <TableBody>
           {tableBodyState === 'loading' || tableBodyState === 'skeleton' ? (
             // Skeleton rows — count-loading uses 3 placeholder rows,
-            // skeleton uses the actual approxRowCount
+            // skeleton uses the actual approxRowCount.
+            // Text-line widths vary per cell (deterministic, so SSR-stable)
+            // instead of painting a uniform grid of identical bars; the width
+            // lives on a wrapper around the box because a narrower placeholder
+            // INSIDE a fullWidth SkeletonBox is ignored by the mask.
             Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
               <TableRow key={`skeleton-${rowIndex}`}>
                 {enableExpanding && <TableCell className="w-[3rem]" />}
                 {columns.map((col, colIndex) => {
+                  const textWidth = (salt: number, min: number, span: number) =>
+                    `${min + ((rowIndex * 17 + colIndex * 29 + salt * 13) % span)}%`;
                   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
                   const meta = col.meta as ColumnMeta | undefined;
                   const isActionCol = meta?.isAction === true;
@@ -671,9 +677,11 @@ export function DataTable<TData, TValue = unknown>({
                     cellContent = (
                       <HStack gap={2}>
                         <div className="min-w-0 flex-1">
-                          <SkeletonBox fullWidth>
-                            <div className="h-3.5 max-w-[120px]" />
-                          </SkeletonBox>
+                          <div className="max-w-[120px]">
+                            <SkeletonBox fullWidth>
+                              <div className="h-3.5" />
+                            </SkeletonBox>
+                          </div>
                         </div>
                         <SkeletonBox>
                           <div className="size-6 shrink-0 rounded-md" />
@@ -695,12 +703,22 @@ export function DataTable<TData, TValue = unknown>({
                           <div className="size-8 shrink-0 rounded-md" />
                         </SkeletonBox>
                         <Stack gap={1} className="min-w-0 flex-1">
-                          <SkeletonBox fullWidth>
-                            <div className="h-3.5 w-full max-w-48" />
-                          </SkeletonBox>
-                          <SkeletonBox fullWidth>
-                            <div className="h-3 w-2/3 max-w-24" />
-                          </SkeletonBox>
+                          <div
+                            className="max-w-48"
+                            style={{ width: textWidth(1, 62, 31) }}
+                          >
+                            <SkeletonBox fullWidth>
+                              <div className="h-3.5" />
+                            </SkeletonBox>
+                          </div>
+                          <div
+                            className="max-w-24"
+                            style={{ width: textWidth(2, 38, 25) }}
+                          >
+                            <SkeletonBox fullWidth>
+                              <div className="h-3" />
+                            </SkeletonBox>
+                          </div>
                         </Stack>
                       </HStack>
                     );
@@ -711,9 +729,14 @@ export function DataTable<TData, TValue = unknown>({
                           <div className="size-4 shrink-0 rounded" />
                         </SkeletonBox>
                         <div className="min-w-0 flex-1">
-                          <SkeletonBox fullWidth>
-                            <div className="h-3.5 w-full max-w-48" />
-                          </SkeletonBox>
+                          <div
+                            className="max-w-48"
+                            style={{ width: textWidth(3, 62, 31) }}
+                          >
+                            <SkeletonBox fullWidth>
+                              <div className="h-3.5" />
+                            </SkeletonBox>
+                          </div>
                         </div>
                       </HStack>
                     );
@@ -722,12 +745,22 @@ export function DataTable<TData, TValue = unknown>({
                     // skeleton row matches the real two-line cell height.
                     cellContent = (
                       <Stack gap={1} className="min-w-0">
-                        <SkeletonBox fullWidth>
-                          <div className="h-3.5 w-full max-w-48" />
-                        </SkeletonBox>
-                        <SkeletonBox fullWidth>
-                          <div className="h-3 w-2/3 max-w-24" />
-                        </SkeletonBox>
+                        <div
+                          className="max-w-48"
+                          style={{ width: textWidth(4, 62, 31) }}
+                        >
+                          <SkeletonBox fullWidth>
+                            <div className="h-3.5" />
+                          </SkeletonBox>
+                        </div>
+                        <div
+                          className="max-w-24"
+                          style={{ width: textWidth(5, 38, 25) }}
+                        >
+                          <SkeletonBox fullWidth>
+                            <div className="h-3" />
+                          </SkeletonBox>
+                        </div>
                       </Stack>
                     );
                   } else if (align === 'right') {
@@ -748,9 +781,11 @@ export function DataTable<TData, TValue = unknown>({
                     );
                   } else {
                     cellContent = (
-                      <SkeletonBox fullWidth>
-                        <div className="h-3.5 w-full max-w-[80%]" />
-                      </SkeletonBox>
+                      <div style={{ width: textWidth(6, 52, 38) }}>
+                        <SkeletonBox fullWidth>
+                          <div className="h-3.5" />
+                        </SkeletonBox>
+                      </div>
                     );
                   }
 
