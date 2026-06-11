@@ -72,6 +72,16 @@ const SESSION_GRANTS = ['github'];
 const TURN_BUDGET_CENTS = Number(
   process.env.EXTERNAL_AGENT_TURN_BUDGET_CENTS ?? '500',
 );
+// How long a single agent turn may run. Threaded down as the exec `timeoutMs`
+// so the sandbox (runnerd) and the caller's SSE fetch share ONE deadline —
+// replacing the old hardcoded 660s caller-side cap. Bounded by the self-hosted
+// Convex action ceiling (ACTIONS_USER_TIMEOUT_SECS=1800s / 30min) while a turn
+// is still one held connection; the cross-action continuation (later stage)
+// lifts it toward the sandbox `execMaxTimeoutMs` (2h). 25min default leaves
+// headroom for session create + the +60s fetch grace under the 30min ceiling.
+const TURN_TIMEOUT_MS = Number(
+  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(25 * 60 * 1000),
+);
 
 /**
  * Append a failure note to the timeline-so-far WITHOUT discarding it. On an
@@ -302,6 +312,7 @@ export const runExternalAgentTurn = internalAction({
         }),
         gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
         gatewayToken: vk.key,
+        timeoutMs: TURN_TIMEOUT_MS,
         // Durable per-flush mirror: patch the streaming message with the
         // timeline-so-far. This is the record that survives cancel/timeout.
         onTimeline: async (content) => {

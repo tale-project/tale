@@ -82,6 +82,15 @@ export interface SessionInfo {
 }
 
 const CREATE_TIMEOUT_MS = 200_000; // create polls runnerd readiness (≤180s)
+// Grace added to the caller's exec timeoutMs for the SSE fetch, so the stream
+// outlives the sandbox-side exec deadline and delivers the terminal result
+// instead of aborting first (the old code hardcoded 60s here too).
+const EXEC_FETCH_GRACE_MS = 60_000;
+// Fallback fetch deadline when a caller omits timeoutMs. Env-tunable; the
+// real value is supplied per-turn by run_external_agent (TURN_TIMEOUT_MS).
+const EXEC_FALLBACK_TIMEOUT_MS = Number(
+  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(25 * 60 * 1000),
+);
 
 /** POST /v1/sessions — create + wait for runnerd ready. Throws on 4xx/5xx. */
 export async function sessionCreate(
@@ -203,9 +212,15 @@ export async function sessionExec(
 ): Promise<SessionExecResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec`;
   const bodyJson = JSON.stringify(body);
+  // The caller (run_external_agent) passes an explicit per-turn timeoutMs; the
+  // fetch is given that + a grace so the SSE outlives the sandbox-side exec
+  // timeout and receives the terminal result rather than aborting first. The
+  // fallback is only for a caller that omits timeoutMs.
   const fetchAbort = AbortSignal.any([
     signal,
-    AbortSignal.timeout((body.timeoutMs ?? 600_000) + 60_000),
+    AbortSignal.timeout(
+      (body.timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
+    ),
   ]);
   const res = await fetch(`${getSpawnerUrl()}${path}`, {
     method: 'POST',
