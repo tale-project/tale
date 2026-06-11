@@ -167,6 +167,28 @@ class TestQueryRequestFilters:
         req = QueryRequest(query="q", file_ids=["f1"], folder_path="legacy")
         assert req.effective_folder_path == "legacy"
 
+    def test_explicit_empty_filters_folder_path_overrides_legacy(self):
+        # An explicitly provided `filters.folder_path` supersedes the legacy
+        # field even when it normalizes to None ("no folder prefix" override),
+        # rather than silently falling back to the legacy value.
+        req = QueryRequest(
+            query="q",
+            file_ids=["f1"],
+            folder_path="legacy",
+            filters={"folder_path": ""},
+        )
+        assert req.effective_folder_path is None
+
+    def test_filters_without_folder_path_falls_back_to_legacy(self):
+        # `filters` set but `folder_path` absent → legacy field still wins.
+        req = QueryRequest(
+            query="q",
+            file_ids=["f1"],
+            folder_path="legacy",
+            filters={"metadata": {"department": "legal"}},
+        )
+        assert req.effective_folder_path == "legacy"
+
     def test_metadata_filters_exposed(self):
         req = QueryRequest(
             query="q",

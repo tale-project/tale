@@ -471,17 +471,17 @@ class TestReranking:
     """Cross-encoder re-ranking wiring: pool widening, fallback, creds."""
 
     def test_shared_reranker_is_a_singleton_with_creds(self):
-        import app.services.search_service as ss
+        from app.services.search_service import _get_shared_reranker
 
-        with patch.object(ss, "_shared_reranker", None):
+        with patch("app.services.search_service._shared_reranker", None):
             with patch("app.services.search_service.settings") as mock_settings:
                 mock_settings.reranking_model = "model-x"
                 mock_settings.reranking_provider = "api"
                 mock_settings.reranking_api_base_url = "https://rerank.example"
                 mock_settings.reranking_api_key = "key-1"
 
-                first = ss._get_shared_reranker()
-                second = ss._get_shared_reranker()
+                first = _get_shared_reranker()
+                second = _get_shared_reranker()
 
         assert first is second
         assert first._model_name == "model-x"

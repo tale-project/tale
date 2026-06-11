@@ -352,8 +352,14 @@ class QueryRequest(BaseModel):
 
     @property
     def effective_folder_path(self) -> str | None:
-        """`filters.folder_path` wins over the legacy flat field."""
-        if self.filters and self.filters.folder_path:
+        """`filters.folder_path` wins over the legacy flat field.
+
+        Precedence is presence-based, not truthiness-based: when the caller
+        explicitly provides `filters.folder_path` it supersedes the legacy
+        field even if it normalizes to ``None`` (an explicit "no folder
+        prefix" override), per the documented "supersedes" contract.
+        """
+        if self.filters is not None and "folder_path" in self.filters.model_fields_set:
             return self.filters.folder_path
         return self.folder_path
 

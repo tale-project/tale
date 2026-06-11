@@ -48,8 +48,11 @@ def _get_shared_reranker() -> Reranker:
 def _jsonb_scalar_text(value: Any) -> str:
     """Render a scalar the way Postgres `jsonb ->> key` renders it.
 
-    Strings are unquoted; numbers and booleans use their JSON text form
-    (`true`, `2023`, `2.5`) so IN-list comparisons match the stored value.
+    Expects JSON scalars only (`str`, `int`/`float`, `bool`, `None`); lists
+    and dicts are rejected upstream by metadata validation and must not be
+    passed here. Strings are returned unquoted; other scalars use their JSON
+    text form (`true`, `2023`, `2.5`, `null`) so IN-list comparisons match the
+    stored value.
     """
     if isinstance(value, str):
         return value
