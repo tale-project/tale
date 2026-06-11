@@ -1,5 +1,6 @@
 import type { MutationCtx } from '../../_generated/server';
 import type { UpdateExecutionStatusArgs, WorkflowExecution } from './types';
+import { mergeExecutionMetadata } from './update_execution_metadata';
 
 type ExecutionUpdateData = Partial<
   Pick<
@@ -9,6 +10,8 @@ type ExecutionUpdateData = Partial<
     | 'currentStepName'
     | 'loopProgress'
     | 'waitingFor'
+    | 'error'
+    | 'errorCode'
     | 'metadata'
     | 'completedAt'
   >
@@ -43,10 +46,20 @@ export async function updateExecutionStatus(
   }
 
   if (args.error !== undefined) {
-    updates.metadata = JSON.stringify({ error: args.error });
+    // Persist at the top level (what getExecutionStatus and the UI read) and
+    // merge into metadata so existing keys (componentWorkflowIds, …) survive.
+    const execution = await ctx.db.get(args.executionId);
+    updates.error = args.error;
+    updates.metadata = mergeExecutionMetadata(execution?.metadata, {
+      error: args.error,
+    });
   }
 
-  if (args.status === 'completed') {
+  if (args.errorCode !== undefined) {
+    updates.errorCode = args.errorCode;
+  }
+
+  if (args.status === 'completed' || args.status === 'failed') {
     updates.completedAt = Date.now();
   }
 

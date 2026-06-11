@@ -11,7 +11,28 @@ type ExecStatusData = {
   status: string;
   currentStepName?: string;
   error?: string;
+  errorCode?: string;
   waitingFor?: string;
+};
+
+type StepStatusesData = {
+  execution: Record<string, unknown>;
+  nodes: Record<
+    string,
+    {
+      status:
+        | 'running'
+        | 'success'
+        | 'failed'
+        | 'waiting'
+        | 'paused'
+        | 'canceled';
+      stepName?: string;
+      attempts: number;
+      startedAt?: number;
+      error?: string;
+    }
+  >;
 };
 
 // Mutable so each test sets the execution status the subscription returns.
@@ -19,12 +40,16 @@ const h = vi.hoisted(() => {
   const fixture: {
     startMock: ReturnType<typeof vi.fn>;
     executionStatus: { data: ExecStatusData | undefined };
+    stepStatuses: { data: StepStatusesData | undefined };
     setUrlState: ReturnType<typeof vi.fn>;
+    setUrlStates: ReturnType<typeof vi.fn>;
     urlState: Record<string, string | null>;
   } = {
     startMock: vi.fn(() => Promise.resolve('exec-1')),
     executionStatus: { data: undefined },
+    stepStatuses: { data: undefined },
     setUrlState: vi.fn(),
+    setUrlStates: vi.fn(),
     urlState: { execution: null },
   };
   return fixture;
@@ -49,11 +74,20 @@ vi.mock('@/app/hooks/use-url-state', () => ({
   useUrlState: () => ({
     state: h.urlState,
     setState: h.setUrlState,
-    setStates: vi.fn(),
+    setStates: h.setUrlStates,
     clearState: vi.fn(),
     clearAll: vi.fn(),
     isPending: false,
   }),
+}));
+
+// The tester only needs the URL-state definitions object; the real module
+// pulls the whole ReactFlow canvas into the jsdom test for no reason.
+vi.mock('./automation-steps', () => ({
+  AUTOMATION_PANEL_URL_DEFINITIONS: {
+    panel: { default: null },
+    step: { default: null },
+  },
 }));
 
 vi.mock('@/app/hooks/use-persisted-state', () => ({
@@ -81,6 +115,7 @@ vi.mock('../hooks/file-mutations', () => ({
 
 vi.mock('../hooks/queries', () => ({
   useExecutionStatus: () => h.executionStatus,
+  useExecutionStepStatuses: () => h.stepStatuses,
 }));
 
 // The debug controls pull in action-query/mutation hooks that need a Convex
@@ -96,6 +131,7 @@ import { AutomationTester } from './automation-tester';
 afterEach(() => {
   vi.clearAllMocks();
   h.executionStatus = { data: undefined };
+  h.stepStatuses = { data: undefined };
   h.urlState = { execution: null };
 });
 
@@ -249,5 +285,130 @@ describe('AutomationTester debug mode (#1490)', () => {
       ).toBeInTheDocument(),
     );
     expect(screen.queryByTestId('debug-controls')).not.toBeInTheDocument();
+  });
+});
+
+describe('AutomationTester per-step feedback (#1484)', () => {
+  const failedRun = () => {
+    h.executionStatus = {
+      data: {
+        status: 'failed',
+        currentStepName: 'Send Email',
+        error: 'Missing recipient address',
+        errorCode: 'step_failure',
+      },
+    };
+    h.stepStatuses = {
+      data: {
+        execution: { status: 'failed', startedAt: 0 },
+        nodes: {
+          'send-email': {
+            status: 'failed',
+            stepName: 'Send Email',
+            attempts: 1,
+            startedAt: 2,
+            error: 'Missing recipient address',
+          },
+          'fetch-data': {
+            status: 'success',
+            stepName: 'Fetch Data',
+            attempts: 1,
+            startedAt: 1,
+          },
+        },
+      },
+    };
+  };
+
+  it('lists executed steps in start order with the failing step error inline', async () => {
+    failedRun();
+
+    await runExecute();
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('list', {
+          name: 'automations.tester.result.stepsHeading',
+        }),
+      ).toBeInTheDocument(),
+    );
+    const items = screen.getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    // Sorted by startedAt, not by (alphabetical) record key order.
+    expect(items[0]).toHaveTextContent('Fetch Data');
+    expect(items[1]).toHaveTextContent('Send Email');
+    expect(items[1]).toHaveTextContent('Missing recipient address');
+    // The run-level fallback line is suppressed when a step row carries the
+    // error — no duplicated "failed at step" prose.
+    expect(
+      screen.queryByText('automations.tester.result.failedAtStep Send Email'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens the failing step editor when its row is clicked', async () => {
+    failedRun();
+
+    await runExecute();
+
+    const user = userEvent.setup();
+    const stepButton = await screen.findByRole('button', {
+      name: 'automations.tester.result.openStep Send Email',
+    });
+    await user.click(stepButton);
+
+    expect(h.setUrlStates).toHaveBeenCalledWith({
+      panel: 'step',
+      step: 'send-email',
+    });
+  });
+
+  it('shows an attempts counter for retried/looped steps', async () => {
+    failedRun();
+    const sendEmail = h.stepStatuses.data?.nodes['send-email'];
+    if (sendEmail) sendEmail.attempts = 3;
+
+    await runExecute();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('automations.steps.execution.attempts 3'),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it('falls back to the run-level error and reason when no step failed', async () => {
+    h.executionStatus = {
+      data: {
+        status: 'failed',
+        error: 'Failed to start workflow: boom',
+        errorCode: 'start_failure',
+      },
+    };
+
+    await runExecute();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('automations.tester.result.errorCode.start_failure'),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText('Failed to start workflow: boom'),
+    ).toBeInTheDocument();
+  });
+
+  it('has no critical accessibility violations with step rows rendered', async () => {
+    failedRun();
+    const user = userEvent.setup();
+    const { container } = render(
+      <AutomationTester organizationId="org-1" workflowSlug="my-workflow" />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'automations.tester.execute' }),
+    );
+    await screen.findByRole('list', {
+      name: 'automations.tester.result.stepsHeading',
+    });
+    await checkAccessibility(container);
   });
 });

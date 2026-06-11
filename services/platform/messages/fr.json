@@ -749,7 +749,16 @@
         "failed": "Échec de l'exécution",
         "running": "En cours…",
         "failedAtStep": "Échec à l'étape : {step}",
-        "runningStep": "Étape en cours : {step}"
+        "runningStep": "Étape en cours : {step}",
+        "stepsHeading": "Étapes exécutées",
+        "openStep": "Ouvrir les réglages de l'étape en échec {step}",
+        "errorCode": {
+          "start_failure": "Le démarrage de l'exécution a échoué",
+          "step_failure": "Une étape a échoué",
+          "timeout": "L'exécution a dépassé le délai imparti",
+          "canceled": "L'exécution a été annulée",
+          "invalid_input": "L'entrée était invalide"
+        }
       },
       "debug": {
         "button": "Déboguer",

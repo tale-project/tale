@@ -17,6 +17,7 @@ import type { Id } from '../../../_generated/dataModel';
 import { internalAction } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
 import { jsonValueValidator } from '../../../lib/validators/json';
+import { preflightTestRunInput } from '../validation/preflight_test_run_input';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -73,6 +74,18 @@ export const startWorkflowFromFile = internalAction({
         workflowSlug: args.workflowSlug,
       });
       return null;
+    }
+
+    // Server-side input preflight for test runs only: reject before an
+    // execution record exists so the tester gets the field-specific reasons
+    // immediately (client-side gating is the first line, this is the backstop).
+    // Production trigger paths (webhook/schedule/event) are deliberately NOT
+    // enforced — live payloads may predate the declared schema.
+    if (args.triggeredBy === 'test') {
+      const preflightError = preflightTestRunInput(config.steps, args.input);
+      if (preflightError) {
+        throw new Error(preflightError);
+      }
     }
 
     debugLog('startWorkflowFromFile Starting execution', {

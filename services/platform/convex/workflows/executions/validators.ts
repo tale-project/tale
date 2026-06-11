@@ -17,6 +17,14 @@ export const executionStatusValidator = v.union(
   v.literal('failed'),
 );
 
+export const executionErrorCodeValidator = v.union(
+  v.literal('start_failure'),
+  v.literal('step_failure'),
+  v.literal('timeout'),
+  v.literal('canceled'),
+  v.literal('invalid_input'),
+);
+
 export const executionSortOrderValidator = sortOrderValidator;
 
 export const updateExecutionStatusArgsValidator = v.object({
@@ -29,11 +37,13 @@ export const updateExecutionStatusArgsValidator = v.object({
   ),
   waitingFor: v.optional(v.string()),
   error: v.optional(v.string()),
+  errorCode: v.optional(executionErrorCodeValidator),
 });
 
 export const failExecutionArgsValidator = v.object({
   executionId: v.string(),
   error: v.string(),
+  errorCode: v.optional(executionErrorCodeValidator),
 });
 
 export const patchExecutionArgsValidator = v.object({

@@ -748,7 +748,16 @@
         "failed": "Execution failed",
         "running": "Running…",
         "failedAtStep": "Failed at step: {step}",
-        "runningStep": "Current step: {step}"
+        "runningStep": "Current step: {step}",
+        "stepsHeading": "Executed steps",
+        "openStep": "Open settings for the failed step {step}",
+        "errorCode": {
+          "start_failure": "The run failed to start",
+          "step_failure": "A step failed",
+          "timeout": "The run timed out",
+          "canceled": "The run was canceled",
+          "invalid_input": "The input was invalid"
+        }
       },
       "debug": {
         "button": "Debug",

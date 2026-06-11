@@ -10,6 +10,7 @@ import { workflowManagers } from '../workflow_engine/engine';
 import { safeShardIndex } from '../workflow_engine/helpers/engine/shard';
 import { STORAGE_RETENTION_MS } from '../workflows/executions/cleanup_execution_storage';
 import { resumeDebugStep as resumeDebugStepHandler } from '../workflows/executions/resume_debug_step';
+import { mergeExecutionMetadata } from '../workflows/executions/update_execution_metadata';
 
 const CLEANUP_DELAY_MS = 10_000;
 
@@ -58,8 +59,11 @@ export const cancelExecution = mutationWithRLS({
 
     await ctx.db.patch(args.executionId, {
       status: 'failed',
+      error: 'Cancelled by user',
+      errorCode: 'canceled',
+      completedAt: execution.completedAt ?? Date.now(),
       updatedAt: Date.now(),
-      metadata: JSON.stringify({
+      metadata: mergeExecutionMetadata(execution.metadata, {
         error: 'Cancelled by user',
         cancelledAt: Date.now(),
       }),
@@ -95,8 +99,12 @@ export const cancelExecution = mutationWithRLS({
             },
           });
         }
-      } catch {
+      } catch (error) {
         // Non-critical: system message failure should not block cancellation
+        console.warn(
+          `cancelExecution: failed to post cancellation message for execution ${args.executionId}:`,
+          error,
+        );
       }
     }
 

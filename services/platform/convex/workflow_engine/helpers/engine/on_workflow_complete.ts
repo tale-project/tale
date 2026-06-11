@@ -91,6 +91,7 @@ export async function handleWorkflowComplete(
       {
         executionId: toId<'wfExecutions'>(exec._id),
         error: result.error || 'failed',
+        errorCode: 'step_failure',
       },
     );
   } else if (kind === 'canceled') {
@@ -100,6 +101,7 @@ export async function handleWorkflowComplete(
         executionId: toId<'wfExecutions'>(exec._id),
         status: 'failed',
         error: 'canceled',
+        errorCode: 'canceled',
       },
     );
   }

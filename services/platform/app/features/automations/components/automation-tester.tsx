@@ -26,7 +26,8 @@ import { cn } from '@/lib/utils/cn';
 
 import { useStartWorkflowFromFile } from '../hooks/file-mutations';
 import { useReadWorkflow } from '../hooks/file-queries';
-import { useExecutionStatus } from '../hooks/queries';
+import { useExecutionStatus, useExecutionStepStatuses } from '../hooks/queries';
+import { EXECUTION_STATUS_ICONS } from '../utils/execution-status-icons';
 import {
   buildInputTemplateFromSchema,
   getMissingRequiredFields,
@@ -34,7 +35,20 @@ import {
 } from '../utils/input-schema-template';
 import { getStepTypeColor } from '../utils/step-icons';
 import { AutomationDebugControls } from './automation-debug-controls';
+import { AUTOMATION_PANEL_URL_DEFINITIONS } from './automation-steps';
 import { AUTOMATION_EXECUTION_URL_DEFINITIONS } from './execution-status-context';
+
+/**
+ * Run-level failure codes the backend persists (ExecutionErrorCode). The
+ * schema stores a plain string, so unknown codes simply render no reason line.
+ */
+const KNOWN_ERROR_CODES = new Set([
+  'start_failure',
+  'step_failure',
+  'timeout',
+  'canceled',
+  'invalid_input',
+]);
 
 interface AutomationTesterProps {
   organizationId: string;
@@ -118,10 +132,50 @@ export function AutomationTester({
     activeExecutionId ?? undefined,
   );
 
+  // Per-step statuses derived server-side from the step journal — the same
+  // query the canvas node badges subscribe to (#1487), rendered here as a
+  // step list with the failing step's error inline.
+  const { data: stepStatuses } = useExecutionStepStatuses(
+    activeExecutionId ?? undefined,
+  );
+
+  // Convex normalizes object key order, so the `nodes` record cannot be
+  // trusted to arrive in journal order — sort by start time instead
+  // (not-yet-started steps sink to the bottom).
+  const stepRows = useMemo(() => {
+    if (!stepStatuses) return [];
+    return Object.entries(stepStatuses.nodes)
+      .map(([stepSlug, node]) => ({ stepSlug, node }))
+      .sort(
+        (a, b) =>
+          (a.node.startedAt ?? Number.MAX_SAFE_INTEGER) -
+          (b.node.startedAt ?? Number.MAX_SAFE_INTEGER),
+      );
+  }, [stepStatuses]);
+
+  const failedStepRow = stepRows.find((row) => row.node.status === 'failed');
+
+  // Coarse run-level failure reason (start failure / timeout / canceled …),
+  // shown when no journal step carries the error (e.g. the run never started).
+  const runErrorCode = executionStatus?.errorCode;
+  const errorCodeLabel =
+    executionStatus?.status === 'failed' &&
+    runErrorCode &&
+    KNOWN_ERROR_CODES.has(runErrorCode)
+      ? t(`tester.result.errorCode.${runErrorCode}`)
+      : undefined;
+
   // Mirror the started run into the `execution` URL param so the canvas
   // (via ExecutionStatusProvider) shows live per-node badges for it (#1487).
   const { state: executionUrlState, setState: setExecutionUrlState } =
     useUrlState({ definitions: AUTOMATION_EXECUTION_URL_DEFINITIONS });
+
+  // Deep link from a failing step row to its editor panel — the same URL
+  // mechanism the canvas node click uses, so the side panel swaps from the
+  // tester to that step's settings.
+  const { setStates: setPanelStates } = useUrlState({
+    definitions: AUTOMATION_PANEL_URL_DEFINITIONS,
+  });
 
   const {
     mutateAsync: startWorkflow,
@@ -368,16 +422,91 @@ export function AutomationTester({
               </Text>
             </HStack>
 
+            {stepRows.length > 0 && (
+              <ul
+                aria-label={t('tester.result.stepsHeading')}
+                className="mt-2 space-y-1.5"
+              >
+                {stepRows.map((row) => {
+                  const { Icon, className: iconClassName } =
+                    EXECUTION_STATUS_ICONS[row.node.status];
+                  const stepName = row.node.stepName ?? row.stepSlug;
+                  return (
+                    <li key={row.stepSlug} className="flex items-start gap-2">
+                      <Icon
+                        className={cn(
+                          'mt-0.5 size-3.5 shrink-0',
+                          iconClassName,
+                        )}
+                        aria-hidden="true"
+                      />
+                      <Stack gap={1} className="min-w-0 flex-1">
+                        <HStack gap={2} className="items-baseline">
+                          {row.node.status === 'failed' ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPanelStates({
+                                  panel: 'step',
+                                  step: row.stepSlug,
+                                })
+                              }
+                              aria-label={t('tester.result.openStep', {
+                                step: stepName,
+                              })}
+                              className="cursor-pointer text-left text-xs font-medium underline-offset-2 hover:underline focus-visible:underline"
+                            >
+                              {stepName}
+                            </button>
+                          ) : (
+                            <Text as="span" className="text-xs font-medium">
+                              {stepName}
+                            </Text>
+                          )}
+                          {row.node.attempts > 1 && (
+                            <Text
+                              as="span"
+                              className="text-muted-foreground text-xs"
+                            >
+                              {t('steps.execution.attempts', {
+                                count: row.node.attempts,
+                              })}
+                            </Text>
+                          )}
+                        </HStack>
+                        {row.node.status === 'failed' && row.node.error && (
+                          <Text
+                            variant="error-sm"
+                            className="break-words whitespace-pre-line"
+                          >
+                            {row.node.error}
+                          </Text>
+                        )}
+                      </Stack>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
             {executionStatus?.status === 'failed' ? (
-              <Stack gap={1}>
-                {executionStatus.currentStepName && (
+              <Stack
+                gap={1}
+                className={stepRows.length > 0 ? 'mt-2' : undefined}
+              >
+                {errorCodeLabel && !failedStepRow && (
+                  <Text variant="error-sm" className="font-medium">
+                    {errorCodeLabel}
+                  </Text>
+                )}
+                {!failedStepRow && executionStatus.currentStepName && (
                   <Text variant="error-sm">
                     {t('tester.result.failedAtStep', {
                       step: executionStatus.currentStepName,
                     })}
                   </Text>
                 )}
-                {executionStatus.error && (
+                {!failedStepRow && executionStatus.error && (
                   <Text
                     variant="error-sm"
                     className="break-words whitespace-pre-line"
@@ -388,6 +517,7 @@ export function AutomationTester({
               </Stack>
             ) : (
               executionStatus?.status !== 'completed' &&
+              stepRows.length === 0 &&
               executionStatus?.currentStepName && (
                 <Text className="text-muted-foreground text-xs">
                   {t('tester.result.runningStep', {

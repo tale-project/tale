@@ -24,7 +24,10 @@ import { failExecution as failExecutionHandler } from '../workflows/executions/f
 import { persistExecutionOutput as persistExecutionOutputHandler } from '../workflows/executions/persist_execution_output';
 import { updateExecutionStatus as updateExecutionStatusHandler } from '../workflows/executions/update_execution_status';
 import { updateExecutionVariables as updateExecutionVariablesHandler } from '../workflows/executions/update_execution_variables';
-import { executionStatusValidator } from '../workflows/executions/validators';
+import {
+  executionErrorCodeValidator,
+  executionStatusValidator,
+} from '../workflows/executions/validators';
 import {
   failExecution as failExecutionHelper,
   updateExecutionMetadata,
@@ -56,6 +59,7 @@ export const failExecution = internalMutation({
   args: {
     executionId: v.id('wfExecutions'),
     error: v.string(),
+    errorCode: v.optional(executionErrorCodeValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -88,6 +92,7 @@ export const updateExecutionStatus = internalMutation({
     ),
     waitingFor: v.optional(v.string()),
     error: v.optional(v.string()),
+    errorCode: v.optional(executionErrorCodeValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -243,6 +248,7 @@ export const startWorkflowFromFileConfig = internalMutation({
       await failExecutionHelper(ctx, {
         executionId,
         error: `Failed to start workflow: ${errorMessage}`,
+        errorCode: 'start_failure',
       });
     }
 

@@ -403,12 +403,25 @@ describe('updateExecutionStatus', () => {
     expect(patchCall.completedAt).toBeGreaterThanOrEqual(before);
   });
 
-  it('should not set completedAt for non-completed status', async () => {
+  it('should set completedAt when status is failed (failed runs need a duration)', async () => {
     const ctx = createMockCtx();
+    const before = Date.now();
 
     await updateExecutionStatus(ctx as unknown as MutationCtx, {
       executionId: 'exec_1' as Id<'wfExecutions'>,
       status: 'failed',
+    });
+
+    const patchCall = ctx.db.patch.mock.calls[0][1];
+    expect(patchCall.completedAt).toBeGreaterThanOrEqual(before);
+  });
+
+  it('should not set completedAt for non-terminal status', async () => {
+    const ctx = createMockCtx();
+
+    await updateExecutionStatus(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      status: 'running',
     });
 
     const patchCall = ctx.db.patch.mock.calls[0][1];
