@@ -1,6 +1,6 @@
 import { HardDrive, KeyRound, Server, type LucideIcon } from 'lucide-react';
 
-export interface ApiNavItem {
+interface ApiNavItem {
   slug: 'rest' | 'mcp' | 'webdav';
   labelKey: 'apiRest' | 'mcp' | 'webdav';
   icon: LucideIcon;

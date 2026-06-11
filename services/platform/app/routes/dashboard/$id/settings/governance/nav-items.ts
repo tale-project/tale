@@ -13,7 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-export const GOVERNANCE_GROUPS = [
+const GOVERNANCE_GROUPS = [
   'content-models',
   'policies-limits',
   'run-code-policy',
@@ -26,9 +26,9 @@ export const GOVERNANCE_GROUPS = [
   'trash',
   'feedback',
 ] as const;
-export type GovernanceGroup = (typeof GOVERNANCE_GROUPS)[number];
+type GovernanceGroup = (typeof GOVERNANCE_GROUPS)[number];
 
-export interface GovernanceNavItem {
+interface GovernanceNavItem {
   slug: GovernanceGroup;
   labelKey:
     | 'contentAndModels'
