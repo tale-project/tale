@@ -171,7 +171,11 @@ export async function handleTurnOutcome(
       agentSessionId: result.agentSessionId,
       finalText: result.finalText,
     });
-    const storageId = await ctx.storage.store(new Blob([checkpoint]));
+    // An untyped Blob sends an empty content-type header that self-hosted
+    // Convex storage rejects ("Bad header for content-type") — set it.
+    const storageId = await ctx.storage.store(
+      new Blob([checkpoint], { type: 'application/json' }),
+    );
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: turn.organizationId,
       sessionId: turn.sessionId,
