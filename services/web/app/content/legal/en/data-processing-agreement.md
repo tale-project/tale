@@ -4,7 +4,7 @@ description: How Ruler GmbH processes personal data on behalf of customers using
 noindex: true
 ---
 
-**Last updated:** 01.05.2026
+**Last updated:** 11.06.2026
 
 This Data Processing Agreement ("DPA") is an addendum to the Service Agreement ("Agreement") between Ruler GmbH ("Tale", "we", "us", "our") and the entity or person accepting the Agreement ("Customer", "you", "your"). It applies whenever Tale processes Personal Data on behalf of the Customer in providing the services. By executing the Agreement, the Customer enters into this DPA on its own behalf and, where Applicable Data Protection Law requires, on behalf of its authorized users and affiliates. This DPA takes effect on the date of the Agreement.
 
@@ -206,7 +206,7 @@ Audit reports, findings, and information obtained through audits are confidentia
 
 ### 11.1 Processing locations
 
-Tale processes Personal Data in Switzerland for Swiss customers and in the European Union for all other customers. The same regional choice applies to every Sub-processor in **Appendix A** — calls are routed to a region matching the Customer's data-residency selection. Where the Customer deploys Tale on its own infrastructure (on-premises or private cloud), the Customer determines the processing locations.
+Tale hosts the platform and stores Personal Data in Switzerland for Swiss customers and in the European Union for all other customers. AI calls (LLM inference, audio, and image processing) are processed in the European Union/EEA for all customers — no AI Sub-processor Tale engages operates a Swiss processing region. For Swiss customers, that processing relies on the adequacy of EU/EEA countries under Art. 16 FADP (the Federal Council's country list). The place of processing for each Sub-processor is listed in **Appendix A**. Where the Customer deploys Tale on its own infrastructure (on-premises or private cloud), the Customer determines the processing locations.
 
 ### 11.2 Adequate countries
 
@@ -283,31 +283,49 @@ Switzerland
 
 ## Appendix A — Sub-processors
 
-This appendix lists the third parties Tale engages to process Personal Data on behalf of the Customer for Tale Cloud, the data each one processes, the location of processing, and the contractual position on model training. Self-hosted deployments are operated by the Customer; for those, the Sub-processor list is whichever providers the Customer assembles.
+This appendix lists the third parties Tale engages to process Personal Data on behalf of the Customer for Tale Cloud — each with its legal entity, registered address, type of service, and place of processing. Self-hosted deployments are operated by the Customer; for those, the Sub-processor list is whichever providers the Customer assembles.
 
 ### Current Sub-processors
 
-Each Sub-processor name links to that provider's publicly available DPA (or equivalent terms). Certifications and trust pages are listed below the table. The processing location is selected per Customer: Switzerland for Swiss customers, the European Union for all other customers. Tale routes each call to a region matching the Customer's data-residency choice.
+Each name links to that provider's publicly available DPA (or equivalent terms); certifications and trust pages are listed below the tables. Platform hosting follows the Customer's data-residency choice: table A.1 applies to customers in the EU/EEA, table A.2 to Swiss customers. AI calls (LLM inference, audio, and image processing) are processed in the EU/EEA for all customers; they do not leave the EU/EEA and are at no point processed in third countries such as the USA.
 
-| Sub-processor                                                   | Purpose                                                              | Categories of data                                                         | Location                                              | Training on Customer data                             |
-| --------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------- |
-| [Exoscale](https://www.exoscale.com/dpa/)                       | Cloud hosting for Tale Cloud middleware (VMs and container runtime). | Application data in transit and at rest on the hosted runtime and storage. | Switzerland (Swiss customers) / EU (other customers). | No (infrastructure only; no AI training).             |
-| [OpenRouter](https://openrouter.ai/privacy)                     | LLM inference (chat, vision, embeddings).                            | Prompts and responses routed for the specific inference call.              | Switzerland (Swiss customers) / EU (other customers). | No — contractually prohibited.                        |
-| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Audio processing only: Speech-to-Text (Whisper) and Text-to-Speech.  | Audio payloads and transcribed or synthesized text for the specific call.  | Switzerland (Swiss customers) / EU (other customers). | No — contractually prohibited (enterprise/API terms). |
-| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Image processing and generation.                                     | Image prompts and generated images for the specific call.                  | Switzerland (Swiss customers) / EU (other customers). | No — contractually prohibited.                        |
+#### A.1 — Customers in the EU/EEA
+
+| Sub-processor (legal entity)                                                | Registered address                                                                            | Type of service                                                                                                        | Place of processing                                                                                                       |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| [Akenes SA (Exoscale)](https://www.exoscale.com/dpa/)                       | Boulevard de Grancy 19A, 1006 Lausanne, Switzerland                                           | Cloud infrastructure (datacenter): hosting of the Tale Cloud platform — VMs, container runtime, database, and storage. | Germany (Frankfurt region).                                                                                               |
+| [OpenRouter, Inc.](https://openrouter.ai/privacy)                           | 169 Madison Avenue, New York, NY 10016, USA                                                   | LLM inference (chat, vision, embeddings) plus image processing and generation.                                         | European Union (in-region routing via `eu.openrouter.ai`: prompts and responses are processed exclusively within the EU). |
+| [OpenAI Ireland Ltd](https://openai.com/policies/data-processing-addendum/) | 1st Floor, The Liffey Trust Centre, 117–126 Sheriff Street Upper, Dublin 1, D01 YC43, Ireland | Audio processing: speech-to-text and text-to-speech.                                                                   | European Union/EEA (OpenAI data-residency region Europe, endpoint `eu.api.openai.com`).                                   |
+
+#### A.2 — Swiss customers
+
+| Sub-processor (legal entity)                                                | Registered address                                                                            | Type of service                                                                                                        | Place of processing                                                                                         |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [Akenes SA (Exoscale)](https://www.exoscale.com/dpa/)                       | Boulevard de Grancy 19A, 1006 Lausanne, Switzerland                                           | Cloud infrastructure (datacenter): hosting of the Tale Cloud platform — VMs, container runtime, database, and storage. | Switzerland (Zurich; disaster-recovery replica in Geneva).                                                  |
+| [OpenRouter, Inc.](https://openrouter.ai/privacy)                           | 169 Madison Avenue, New York, NY 10016, USA                                                   | LLM inference (chat, vision, embeddings) plus image processing and generation.                                         | European Union (in-region routing via `eu.openrouter.ai`).                                                  |
+| [OpenAI Ireland Ltd](https://openai.com/policies/data-processing-addendum/) | 1st Floor, The Liffey Trust Centre, 117–126 Sheriff Street Upper, Dublin 1, D01 YC43, Ireland | Audio processing: speech-to-text and text-to-speech.                                                                   | European Union/EEA (OpenAI data-residency region Europe (EEA + Switzerland), endpoint `eu.api.openai.com`). |
+
+For Swiss customers, platform hosting stays entirely in Switzerland. The AI Sub-processors do not offer a Swiss processing region; those calls are processed in the EU/EEA. All EU/EEA countries are on the Swiss Federal Council's adequacy list under Art. 16 FADP — the transfer requires no additional safeguards.
+
+### Data categories and training prohibition
+
+| Sub-processor        | Categories of data                                                                         | Training on Customer data                             |
+| -------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| Akenes SA (Exoscale) | Application data in transit and at rest on the hosted runtime and storage.                 | No (infrastructure only; no AI training).             |
+| OpenRouter, Inc.     | Prompts and responses for the specific inference call; image prompts and generated images. | No — contractually prohibited (enterprise terms).     |
+| OpenAI Ireland Ltd   | Audio payloads and transcribed or synthesized text for the specific call.                  | No — contractually prohibited (enterprise/API terms). |
 
 ### Certifications and trust pages
 
 Each Sub-processor maintains its own security certifications and publishes them on a trust page:
 
-- **Exoscale** — ISO/IEC 27001:2022, ISO/IEC 27017, ISO/IEC 27018, SOC 2 Type II, PCI DSS v4.0, HDS, BSI C5, TISAX. Trust page: [exoscale.com/compliance](https://www.exoscale.com/compliance/).
-- **OpenRouter** — no separately published certifications. The provider operates under its [Terms of Service](https://openrouter.ai/terms) and [Privacy Policy](https://openrouter.ai/privacy); EU Standard Contractual Clauses apply to cross-border transfers.
-- **OpenAI** — SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, CSA STAR (API and ChatGPT Enterprise tiers). Trust page: [trust.openai.com](https://trust.openai.com).
-- **Vercel AI Gateway** — covered by Vercel's enterprise certifications: SOC 2 Type 2, ISO/IEC 27001, PCI DSS, HIPAA, TISAX L2, EU-US / Swiss-US / UK Data Privacy Framework. Trust page: [security.vercel.com](https://security.vercel.com/).
+- **Akenes SA (Exoscale)** — ISO/IEC 27001:2022, ISO/IEC 27017, ISO/IEC 27018, SOC 2 Type II, PCI DSS v4.0, HDS, BSI C5, TISAX. Trust page: [exoscale.com/compliance](https://www.exoscale.com/compliance/).
+- **OpenRouter, Inc.** — SOC 2; evidence available through the access-gated trust portal [trust.openrouter.ai](https://trust.openrouter.ai). EU Standard Contractual Clauses apply to transfers outside the EU/EEA.
+- **OpenAI Ireland Ltd** — SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, CSA STAR (API and ChatGPT Enterprise tiers). Trust page: [trust.openai.com](https://trust.openai.com).
 
 ### Notes
 
-- Each AI Sub-processor (OpenRouter, OpenAI, Vercel AI Gateway) is engaged only when the relevant feature routes a call to it. An organization that does not use audio features sends no data to OpenAI; one that does not use image generation sends no data to Vercel AI Gateway; and so on.
-- Model providers reachable through OpenRouter (such as Anthropic, Google, Meta, Mistral) are upstream providers of OpenRouter and are not Tale's direct Sub-processors. They operate under OpenRouter's own contractual terms, which forbid training on routed payloads.
+- Each AI Sub-processor is engaged only when the relevant feature routes a call to it. An organization that does not use audio features sends no data to OpenAI Ireland Ltd; one that uses neither LLM inference nor image generation sends no data to OpenRouter, Inc.
+- Model providers reachable through OpenRouter (such as Anthropic, Google, Meta, Mistral) are upstream providers of OpenRouter and are not Tale's direct Sub-processors. They operate under OpenRouter's own contractual terms, which forbid training on routed payloads; in-region routing restricts every call to provider endpoints inside the EU.
 - Each Sub-processor engages its own sub-processors (cloud hosting, CDN, secret stores). Those lists are public on the providers' trust pages above; Tale tracks material changes through the same 30-day notice mechanism in Section 6.2.
-- Tale Cloud's middleware, application state, and supporting infrastructure run on Exoscale in the Customer's selected region. Each AI Sub-processor call is routed to the matching region.
+- Tale Cloud's middleware, application state, and supporting infrastructure run on Exoscale in the Customer's selected region. Each AI call is routed to the provider's EU/EEA region.

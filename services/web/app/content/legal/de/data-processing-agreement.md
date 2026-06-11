@@ -4,7 +4,7 @@ description: Wie die Ruler GmbH personenbezogene Daten im Auftrag von Kunden der
 noindex: true
 ---
 
-**Letzte Aktualisierung:** 01.05.2026
+**Letzte Aktualisierung:** 11.06.2026
 
 Diese Auftragsverarbeitungsvereinbarung ("AVV") ist ein Zusatz zum Service Agreement ("Vereinbarung") zwischen der Ruler GmbH ("Tale", "wir", "uns", "unsere") und der Entität oder Person, die die Vereinbarung akzeptiert ("Kunde", "du", "dein"). Sie gilt, soweit Tale personenbezogene Daten im Auftrag des Kunden im Rahmen der Leistungserbringung verarbeitet. Mit Abschluss der Vereinbarung schließt der Kunde diese AVV im eigenen Namen und, soweit nach anwendbarem Datenschutzrecht erforderlich, im Namen seiner autorisierten Nutzer und verbundenen Unternehmen ab. Diese AVV tritt mit dem Datum der Vereinbarung in Kraft.
 
@@ -206,7 +206,7 @@ Audit-Berichte, Feststellungen und Informationen aus Audits gelten als vertrauli
 
 ### 11.1 Verarbeitungs-Standorte
 
-Tale verarbeitet personenbezogene Daten in der Schweiz für Schweizer Kunden und in der Europäischen Union für alle übrigen Kunden. Dieselbe regionale Wahl gilt für jeden Unterauftragsverarbeiter in **Anhang A** — Aufrufe werden an eine Region geroutet, die der Datenresidenz-Wahl des Kunden entspricht. Deployt der Kunde Tale auf eigener Infrastruktur (on-premises oder Private Cloud), bestimmt der Kunde die Verarbeitungs-Standorte.
+Tale hostet die Plattform und speichert personenbezogene Daten in der Schweiz für Schweizer Kunden und in der Europäischen Union für alle übrigen Kunden. KI-Aufrufe (LLM-Inferenz, Audio- und Bild-Verarbeitung) werden für alle Kunden in der Europäischen Union bzw. im EWR verarbeitet — kein eingesetzter KI-Unterauftragsverarbeiter betreibt eine Schweizer Verarbeitungs-Region. Für Schweizer Kunden stützt sich diese Verarbeitung auf die Angemessenheit der EU-/EWR-Staaten nach Art. 16 FADP (Staatenliste des Bundesrats). Der Ort der Verarbeitung pro Unterauftragsverarbeiter steht in **Anhang A**. Deployt der Kunde Tale auf eigener Infrastruktur (on-premises oder Private Cloud), bestimmt der Kunde die Verarbeitungs-Standorte.
 
 ### 11.2 Übermittlung in angemessene Länder
 
@@ -283,31 +283,49 @@ Schweiz
 
 ## Anhang A — Unterauftragsverarbeiter
 
-Dieser Anhang listet die Dritt-Parteien, die Tale zur Verarbeitung personenbezogener Daten im Auftrag des Kunden für Tale Cloud einsetzt, die jeweils verarbeiteten Daten, den Verarbeitungsort und die vertragliche Position zum Modell-Training. Self-hosted-Deployments werden vom Kunden betrieben; deren Unterauftragsverarbeiter-Liste ist der vom Kunden zusammengestellte Stack.
+Dieser Anhang listet die Dritt-Parteien, die Tale zur Verarbeitung personenbezogener Daten im Auftrag des Kunden für Tale Cloud einsetzt — jeweils mit Firma, ladungsfähiger Adresse, Art der Leistung und Ort der Verarbeitung. Self-hosted-Deployments werden vom Kunden betrieben; deren Unterauftragsverarbeiter-Liste ist der vom Kunden zusammengestellte Stack.
 
 ### Aktuelle Unterauftragsverarbeiter
 
-Jeder Name verlinkt auf die öffentlich zugängliche AVV (oder gleichwertige Bedingungen) des jeweiligen Anbieters. Zertifizierungen und Trust-Seiten sind unter der Tabelle aufgeführt. Der Verarbeitungsort wird pro Kunde gewählt: Schweiz für Schweizer Kunden, Europäische Union für alle übrigen Kunden. Tale routet jeden Aufruf an eine Region, die der Datenresidenz-Wahl des Kunden entspricht.
+Jeder Name verlinkt auf die öffentlich zugängliche AVV (oder gleichwertige Bedingungen) des jeweiligen Anbieters; Zertifizierungen und Trust-Seiten stehen unter den Tabellen. Das Plattform-Hosting folgt der Datenresidenz-Wahl des Kunden: Tabelle A.1 gilt für Kunden in der EU/im EWR, Tabelle A.2 für Schweizer Kunden. KI-Aufrufe (LLM-Inferenz, Audio- und Bild-Verarbeitung) werden für alle Kunden in der EU/im EWR verarbeitet; sie verlassen die EU/den EWR nicht und werden zu keinem Zeitpunkt in Drittstaaten wie den USA verarbeitet.
 
-| Unterauftragsverarbeiter                                        | Zweck                                                                           | Datenkategorien                                                                 | Standort                                         | Training auf Kundendaten                                    |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------- |
-| [Exoscale](https://www.exoscale.com/dpa/)                       | Cloud-Hosting für die Tale-Cloud-Middleware (VMs und Container-Runtime).        | Anwendungs-Daten in Transit und at rest auf der gehosteten Runtime und Storage. | Schweiz (Schweizer Kunden) / EU (übrige Kunden). | Nein (nur Infrastruktur; kein KI-Training).                 |
-| [OpenRouter](https://openrouter.ai/privacy)                     | LLM-Inferenz (Chat, Vision, Embeddings).                                        | Prompts und Antworten für den jeweiligen Inferenz-Aufruf.                       | Schweiz (Schweizer Kunden) / EU (übrige Kunden). | Nein — vertraglich untersagt.                               |
-| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Ausschließlich Audio-Verarbeitung: Speech-to-Text (Whisper) und Text-to-Speech. | Audio-Payloads und transkribierter oder synthetisierter Text des Aufrufs.       | Schweiz (Schweizer Kunden) / EU (übrige Kunden). | Nein — vertraglich untersagt (Enterprise-/API-Bedingungen). |
-| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Bild-Verarbeitung und -Generierung.                                             | Bild-Prompts und generierte Bilder des jeweiligen Aufrufs.                      | Schweiz (Schweizer Kunden) / EU (übrige Kunden). | Nein — vertraglich untersagt.                               |
+#### A.1 — Kunden in der EU/im EWR
+
+| Unterauftragsverarbeiter (Firma)                                            | Ladungsfähige Adresse                                                                        | Art der Leistung                                                                                                                          | Ort der Verarbeitung                                                                                                                     |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| [Akenes SA (Exoscale)](https://www.exoscale.com/dpa/)                       | Boulevard de Grancy 19A, 1006 Lausanne, Schweiz                                              | Bereitstellung der Cloud-Infrastruktur (Rechenzentrum): Hosting der Tale-Cloud-Plattform — VMs, Container-Runtime, Datenbank und Storage. | Deutschland (Region Frankfurt).                                                                                                          |
+| [OpenRouter, Inc.](https://openrouter.ai/privacy)                           | 169 Madison Avenue, New York, NY 10016, USA                                                  | Bereitstellung der LLM-Inferenz (Chat, Vision, Embeddings) sowie der Bild-Verarbeitung und -Generierung.                                  | Europäische Union (In-Region-Routing über `eu.openrouter.ai`: Prompts und Antworten werden ausschließlich innerhalb der EU verarbeitet). |
+| [OpenAI Ireland Ltd](https://openai.com/policies/data-processing-addendum/) | 1st Floor, The Liffey Trust Centre, 117–126 Sheriff Street Upper, Dublin 1, D01 YC43, Irland | Bereitstellung der Audio-Verarbeitung: Speech-to-Text und Text-to-Speech.                                                                 | Europäische Union/EWR (OpenAI-Datenresidenz-Region Europe, Endpunkt `eu.api.openai.com`).                                                |
+
+#### A.2 — Schweizer Kunden
+
+| Unterauftragsverarbeiter (Firma)                                            | Ladungsfähige Adresse                                                                        | Art der Leistung                                                                                                                          | Ort der Verarbeitung                                                                                      |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [Akenes SA (Exoscale)](https://www.exoscale.com/dpa/)                       | Boulevard de Grancy 19A, 1006 Lausanne, Schweiz                                              | Bereitstellung der Cloud-Infrastruktur (Rechenzentrum): Hosting der Tale-Cloud-Plattform — VMs, Container-Runtime, Datenbank und Storage. | Schweiz (Zürich; Disaster-Recovery-Replikat in Genf).                                                     |
+| [OpenRouter, Inc.](https://openrouter.ai/privacy)                           | 169 Madison Avenue, New York, NY 10016, USA                                                  | Bereitstellung der LLM-Inferenz (Chat, Vision, Embeddings) sowie der Bild-Verarbeitung und -Generierung.                                  | Europäische Union (In-Region-Routing über `eu.openrouter.ai`).                                            |
+| [OpenAI Ireland Ltd](https://openai.com/policies/data-processing-addendum/) | 1st Floor, The Liffey Trust Centre, 117–126 Sheriff Street Upper, Dublin 1, D01 YC43, Irland | Bereitstellung der Audio-Verarbeitung: Speech-to-Text und Text-to-Speech.                                                                 | Europäische Union/EWR (OpenAI-Datenresidenz-Region Europe (EWR + Schweiz), Endpunkt `eu.api.openai.com`). |
+
+Für Schweizer Kunden bleibt das Plattform-Hosting vollständig in der Schweiz. Die KI-Unterauftragsverarbeiter bieten keine Schweizer Verarbeitungs-Region an; diese Aufrufe werden in der EU/im EWR verarbeitet. Alle EU-/EWR-Staaten stehen auf der Staatenliste des Bundesrats nach Art. 16 FADP — die Übermittlung erfordert keine zusätzlichen Garantien.
+
+### Datenkategorien und Trainings-Verbot
+
+| Unterauftragsverarbeiter | Datenkategorien                                                                            | Training auf Kundendaten                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Akenes SA (Exoscale)     | Anwendungs-Daten in Transit und at rest auf der gehosteten Runtime und Storage.            | Nein (nur Infrastruktur; kein KI-Training).                 |
+| OpenRouter, Inc.         | Prompts und Antworten des jeweiligen Inferenz-Aufrufs; Bild-Prompts und generierte Bilder. | Nein — vertraglich untersagt (Enterprise-Bedingungen).      |
+| OpenAI Ireland Ltd       | Audio-Payloads und transkribierter oder synthetisierter Text des Aufrufs.                  | Nein — vertraglich untersagt (Enterprise-/API-Bedingungen). |
 
 ### Zertifizierungen und Trust-Seiten
 
 Jeder Unterauftragsverarbeiter führt eigene Sicherheitszertifizierungen und veröffentlicht sie auf seiner Trust-Seite:
 
-- **Exoscale** — ISO/IEC 27001:2022, ISO/IEC 27017, ISO/IEC 27018, SOC 2 Type II, PCI DSS v4.0, HDS, BSI C5, TISAX. Trust-Seite: [exoscale.com/compliance](https://www.exoscale.com/compliance/).
-- **OpenRouter** — keine gesondert veröffentlichten Zertifizierungen. Der Anbieter operiert unter seinen [Terms of Service](https://openrouter.ai/terms) und der [Privacy Policy](https://openrouter.ai/privacy); für grenzüberschreitende Übermittlungen gelten EU-Standardvertragsklauseln.
-- **OpenAI** — SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, CSA STAR (API- und ChatGPT-Enterprise-Tarife). Trust-Seite: [trust.openai.com](https://trust.openai.com).
-- **Vercel AI Gateway** — abgedeckt durch die Enterprise-Zertifizierungen von Vercel: SOC 2 Type 2, ISO/IEC 27001, PCI DSS, HIPAA, TISAX L2, EU-US- / Swiss-US- / UK-Data-Privacy-Framework. Trust-Seite: [security.vercel.com](https://security.vercel.com/).
+- **Akenes SA (Exoscale)** — ISO/IEC 27001:2022, ISO/IEC 27017, ISO/IEC 27018, SOC 2 Type II, PCI DSS v4.0, HDS, BSI C5, TISAX. Trust-Seite: [exoscale.com/compliance](https://www.exoscale.com/compliance/).
+- **OpenRouter, Inc.** — SOC 2; Nachweise über das zugangsbeschränkte Trust-Portal [trust.openrouter.ai](https://trust.openrouter.ai). Für Übermittlungen außerhalb der EU/des EWR gelten EU-Standardvertragsklauseln.
+- **OpenAI Ireland Ltd** — SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, CSA STAR (API- und ChatGPT-Enterprise-Tarife). Trust-Seite: [trust.openai.com](https://trust.openai.com).
 
 ### Hinweise
 
-- Jeder KI-Unterauftragsverarbeiter (OpenRouter, OpenAI, Vercel AI Gateway) wird nur eingesetzt, wenn die jeweilige Funktion einen Aufruf an ihn routet. Eine Org, die keine Audio-Funktionen nutzt, sendet keine Daten an OpenAI; eine, die keine Bild-Generierung nutzt, sendet keine Daten an Vercel AI Gateway; und so weiter.
-- Modell-Anbieter, die über OpenRouter erreichbar sind (etwa Anthropic, Google, Meta, Mistral), sind Upstream-Anbieter von OpenRouter und keine direkten Unterauftragsverarbeiter von Tale. Sie unterliegen den eigenen Vertragsbedingungen von OpenRouter, die das Training auf gerouteten Payloads untersagen.
+- Jeder KI-Unterauftragsverarbeiter wird nur eingesetzt, wenn die jeweilige Funktion einen Aufruf an ihn routet. Eine Org, die keine Audio-Funktionen nutzt, sendet keine Daten an OpenAI Ireland Ltd; eine, die weder LLM-Inferenz noch Bild-Generierung nutzt, sendet keine Daten an OpenRouter, Inc.
+- Modell-Anbieter, die über OpenRouter erreichbar sind (etwa Anthropic, Google, Meta, Mistral), sind Upstream-Anbieter von OpenRouter und keine direkten Unterauftragsverarbeiter von Tale. Sie unterliegen den eigenen Vertragsbedingungen von OpenRouter, die das Training auf gerouteten Payloads untersagen; das In-Region-Routing beschränkt jeden Aufruf auf Anbieter-Endpunkte innerhalb der EU.
 - Jeder Unterauftragsverarbeiter setzt eigene Unter-Auftragsverarbeiter ein (Cloud-Hosting, CDN, Secret-Stores). Diese Listen sind öffentlich auf den oben verlinkten Trust-Seiten der Anbieter verfügbar; Tale verfolgt wesentliche Änderungen über denselben 30-Tage-Hinweis-Mechanismus aus Abschnitt 6.2.
-- Die Middleware, der Anwendungs-State und die unterstützende Infrastruktur von Tale Cloud laufen auf Exoscale in der vom Kunden gewählten Region. Jeder KI-Unterauftragsverarbeiter-Aufruf wird an die passende Region geroutet.
+- Die Middleware, der Anwendungs-State und die unterstützende Infrastruktur von Tale Cloud laufen auf Exoscale in der vom Kunden gewählten Region. Jeder KI-Aufruf wird an die EU-/EWR-Region des jeweiligen Anbieters geroutet.
