@@ -21,8 +21,13 @@ import { defineConfig, devices } from '@playwright/test';
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
-const mockLlmPort = Number(process.env.E2E_MOCK_LLM_PORT ?? '4141');
 const useMockLlm = process.env.E2E_MOCK_LLM !== '0';
+
+// Fixed port — must match the provider fixture's `baseUrl`
+// (`e2e/fixtures/config/default/providers/e2e-mock.json`), which is loaded
+// verbatim into Convex and cannot interpolate env. Keep this and the mock
+// server's `MOCK_LLM_PORT` in sync with that fixture.
+const MOCK_LLM_PORT = 4141;
 
 export default defineConfig({
   testDir: './e2e',
@@ -67,15 +72,19 @@ export default defineConfig({
     },
   ],
   webServer: [
-    {
-      command: 'bun e2e/mock-llm/server.ts',
-      url: `http://127.0.0.1:${mockLlmPort}/health`,
-      reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
-      env: {
-        E2E_MOCK_LLM_PORT: String(mockLlmPort),
-      },
-    },
+    // The mock LLM is only needed in the default (hermetic) mode. With
+    // `E2E_MOCK_LLM=0` the suite targets a real stack with live provider keys,
+    // so booting the mock would only risk a port conflict and waste startup.
+    ...(useMockLlm
+      ? [
+          {
+            command: 'bun e2e/mock-llm/server.ts',
+            url: `http://127.0.0.1:${MOCK_LLM_PORT}/health`,
+            reuseExistingServer: !process.env.CI,
+            timeout: 30_000,
+          },
+        ]
+      : []),
     {
       command: 'bun scripts/dev.ts',
       url: baseURL,

@@ -16,7 +16,11 @@
 
 import { CANNED_REPLY } from './canned';
 
-const port = Number(process.env.E2E_MOCK_LLM_PORT ?? '4141');
+// Fixed port — the single source of truth. The provider fixture's `baseUrl`
+// (`e2e/fixtures/config/default/providers/e2e-mock.json`) is loaded verbatim
+// into Convex and cannot interpolate env, so the mock must always listen here
+// for provider calls to reach it. Keep `MOCK_LLM_PORT` and that fixture in sync.
+const MOCK_LLM_PORT = 4141;
 
 // Canned content for structured-output requests (`response_format` of any
 // `json*` type): callers that parse the content as JSON (router, title
@@ -29,10 +33,38 @@ interface ChatCompletionRequest {
   response_format?: { type?: string };
 }
 
-function isChatCompletionRequest(
-  value: unknown,
-): value is ChatCompletionRequest {
-  return typeof value === 'object' && value !== null;
+/**
+ * Recursive JSON value — the only thing `request.json()` can yield. Narrowing
+ * from this (instead of `unknown`) keeps the parse path type-safe per the
+ * repo's no-`unknown` rule.
+ */
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+function isJsonObject(value: JsonValue): value is { [key: string]: JsonValue } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Project a parsed JSON body onto the handful of fields the mock cares about.
+ * Anything missing or mistyped is dropped, so callers always get a well-typed
+ * `ChatCompletionRequest` (matching the prior lenient behaviour).
+ */
+function toChatCompletionRequest(value: JsonValue): ChatCompletionRequest {
+  if (!isJsonObject(value)) return {};
+  const request: ChatCompletionRequest = {};
+  if (typeof value.model === 'string') request.model = value.model;
+  if (typeof value.stream === 'boolean') request.stream = value.stream;
+  const responseFormat = value.response_format;
+  if (isJsonObject(responseFormat) && typeof responseFormat.type === 'string') {
+    request.response_format = { type: responseFormat.type };
+  }
+  return request;
 }
 
 function pickContent(body: ChatCompletionRequest): string {
@@ -62,7 +94,24 @@ function jsonCompletion(body: ChatCompletionRequest): Response {
   });
 }
 
-function sseChunk(payload: unknown): string {
+interface ChatCompletionChunk {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    delta: { role?: string; content?: string };
+    finish_reason: 'stop' | null;
+  }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+function sseChunk(payload: ChatCompletionChunk): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
@@ -120,7 +169,7 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
 }
 
 const server = Bun.serve({
-  port,
+  port: MOCK_LLM_PORT,
   hostname: '127.0.0.1',
   async fetch(request) {
     const url = new URL(request.url);
@@ -133,14 +182,17 @@ const server = Bun.serve({
       request.method === 'POST' &&
       url.pathname.endsWith('/chat/completions')
     ) {
-      let parsed: unknown;
+      // `Request.json()` is typed `Promise<any>` by bun-types; the explicit
+      // `JsonValue` annotation pins it to our JSON union so every read below is
+      // type-safe without `any`/`unknown`.
+      let parsed: JsonValue;
       try {
         parsed = await request.json();
       } catch (error) {
         console.warn('[mock-llm] non-JSON request body:', error);
         return new Response('invalid JSON body', { status: 400 });
       }
-      const body = isChatCompletionRequest(parsed) ? parsed : {};
+      const body = toChatCompletionRequest(parsed);
       console.log(
         `[mock-llm] POST ${url.pathname} (stream=${body.stream === true}, model=${body.model ?? 'unknown'})`,
       );
