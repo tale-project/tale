@@ -45,6 +45,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # This job only reads/tests — don't leave the GITHUB_TOKEN in git config.
+          persist-credentials: false
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
