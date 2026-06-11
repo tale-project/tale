@@ -27,6 +27,14 @@ All four layers share the same scope ladder: user > team > role > org > default.
 
 Retention policy sits inside operator-imposed bounds — the self-hosted operator sets a floor and a ceiling per category, and the org's value clamps to that range. When the operator proposes a tighter floor or a lower ceiling, the change surfaces as a proposal Admins can apply or reject. Reductions to the policy land with a pending-change banner and a grace window before they take effect — the same grace gives Admins a chance to cancel.
 
+## Session idle timeout
+
+Session idle timeout signs members out after a period of inactivity — the session-bound control compliance frameworks ask for (SOC 2 CC6.1). Open **Settings > Governance > Security & Monitoring**, switch on **Enable session idle timeout**, and set **Idle timeout (minutes)** (1–1440, default 30). Members see a warning shortly before the cut-off; after it, the active tab signs out and the login page explains the sign-out instead of presenting a bare form.
+
+The window can only tighten the deployment-wide limit, never loosen it. Self-hosted operators set that hard cap with an environment variable (see the [environment reference](/self-hosted/configuration/environment-reference)); the org policy applies on top, and the stricter of the two windows wins. A member of several organisations gets the strictest window across all of them.
+
+Enforcement has two halves. The watchdog in the browser ends open, visible sessions on the minute. Closed tabs and abandoned devices are caught server-side by a revocation sweep that runs about every five minutes — a session can therefore outlive the window by a few minutes; when you state the control to an auditor, count the window plus roughly half an hour in the worst case. Every server-side revocation lands in the [audit log](/platform/admin/governance/audit-logs) as `session.idle_revoked`. One caveat for trusted-headers deployments: the reverse proxy owns authentication there, so a revoked session is re-established as soon as the member confirms the sign-in notice — pair the policy with an idle timeout on the proxy or IdP side for a real lockout.
+
 ## Where this fits
 
 Policies and limits is the budget and gate layer that protects the org from runaway spend and unintended access. Pair it with [content and models](/platform/admin/governance/content-models) so the model the budget caps is also the one the access list permits, and with [retention policy on the same page](#retention-bounds-and-approvals) so the data the org keeps is bounded too. The companion is [audit logs](/platform/admin/governance/audit-logs) — every policy change here lands there as a permanent record.

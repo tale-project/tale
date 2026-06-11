@@ -161,6 +161,19 @@ crons.cron(
   {},
 );
 
+// Session idle-timeout enforcement (#1502) — server-side teeth for the
+// per-org `session_idle_timeout` governance policy. The client watchdog only
+// covers open tabs; this sweep revokes session rows whose `updatedAt` is
+// older than the user's strictest org window, catching closed browsers and
+// stolen cookies. Every 5 min keeps worst-case enforcement latency at
+// roughly window + updatedAt staleness (~15 min) + cron tick + JWT tail.
+crons.cron(
+  'revoke idle sessions (every 5 min)',
+  '*/5 * * * *',
+  internal.governance.session_idle_enforcement.revokeIdleSessions,
+  {},
+);
+
 // Auto-route cache purge — drop routing-decision rows older than 30 days so
 // the cache can't grow unbounded. Correctness rests on the candidate-roster
 // hash + read-side TTL, not this sweep; daily off-peak is plenty.

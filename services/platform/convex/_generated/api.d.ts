@@ -400,6 +400,7 @@ import type * as governance_retention_project_shared from "../governance/retenti
 import type * as governance_retention_runs from "../governance/retention_runs.js";
 import type * as governance_run_code_policy from "../governance/run_code_policy.js";
 import type * as governance_sanitize from "../governance/sanitize.js";
+import type * as governance_session_idle_enforcement from "../governance/session_idle_enforcement.js";
 import type * as governance_soft_delete_helpers from "../governance/soft_delete_helpers.js";
 import type * as governance_soft_delete_validators from "../governance/soft_delete_validators.js";
 import type * as governance_stream_transform from "../governance/stream_transform.js";
@@ -1755,6 +1756,7 @@ declare const fullApi: ApiFromModules<{
   "governance/retention_runs": typeof governance_retention_runs;
   "governance/run_code_policy": typeof governance_run_code_policy;
   "governance/sanitize": typeof governance_sanitize;
+  "governance/session_idle_enforcement": typeof governance_session_idle_enforcement;
   "governance/soft_delete_helpers": typeof governance_soft_delete_helpers;
   "governance/soft_delete_validators": typeof governance_soft_delete_validators;
   "governance/stream_transform": typeof governance_stream_transform;

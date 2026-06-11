@@ -29,6 +29,11 @@ import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
   redirectTo: z.string().optional(),
+  // Why the user landed here. `idle` is set by the session idle watchdog and
+  // renders a "signed out due to inactivity" notice (#1502). `.catch` so an
+  // unknown value degrades to the plain login page instead of erroring the
+  // route.
+  reason: z.literal('idle').optional().catch(undefined),
 });
 
 export const Route = createFileRoute('/_auth/log-in')({
@@ -51,9 +56,11 @@ type LogInFormData = {
 export function LogInPage() {
   const navigate = useNavigate();
   const queryClient = useReactQueryClient();
-  const { redirectTo } = useSearch({ from: '/_auth/log-in' });
+  const { redirectTo, reason } = useSearch({ from: '/_auth/log-in' });
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
+
+  const signedOutForIdle = reason === 'idle';
 
   const { data: hasUsers, isLoading: isLoadingUsers } = useHasAnyUsers();
   const { data: ssoConfig } = useIsSsoConfigured();
@@ -67,14 +74,27 @@ export function LogInPage() {
   const hasTrustedHeadersError = new URLSearchParams(
     window.location.search,
   ).has('trusted_headers_error');
+  const redirectToTrustedHeadersAuth = useCallback(() => {
+    const siteUrl = getEnv('SITE_URL');
+    const basePath = getEnv('BASE_PATH');
+    const target = redirectTo || `${basePath}/dashboard`;
+    window.location.href = `${siteUrl}${basePath}/api/trusted-headers/authenticate?redirect=${encodeURIComponent(target)}`;
+  }, [redirectTo]);
   useEffect(() => {
-    if (trustedHeadersEnabled && !hasTrustedHeadersError) {
-      const siteUrl = getEnv('SITE_URL');
-      const basePath = getEnv('BASE_PATH');
-      const target = redirectTo || `${basePath}/dashboard`;
-      window.location.href = `${siteUrl}${basePath}/api/trusted-headers/authenticate?redirect=${encodeURIComponent(target)}`;
+    // After an idle sign-out (#1502) the auto-redirect would silently
+    // re-establish the session, hiding the sign-out entirely. Hold the
+    // redirect behind an explicit "Continue" click instead (rendered below)
+    // so the inactivity notice is visible — the proxy/IdP still owns the
+    // actual authentication.
+    if (trustedHeadersEnabled && !hasTrustedHeadersError && !signedOutForIdle) {
+      redirectToTrustedHeadersAuth();
     }
-  }, [trustedHeadersEnabled, hasTrustedHeadersError, redirectTo]);
+  }, [
+    trustedHeadersEnabled,
+    hasTrustedHeadersError,
+    signedOutForIdle,
+    redirectToTrustedHeadersAuth,
+  ]);
 
   useEffect(() => {
     if (!trustedHeadersEnabled && hasUsers === false) {
@@ -264,6 +284,27 @@ export function LogInPage() {
     }
   }, [navigate, queryClient, redirectTo, t]);
 
+  // Trusted-headers deployments after an idle sign-out (#1502): make the
+  // sign-out visible and require an explicit click before the proxy
+  // re-authenticates, instead of bouncing straight back into a session.
+  if (trustedHeadersEnabled && !hasTrustedHeadersError && signedOutForIdle) {
+    return (
+      <AuthFormLayout title={t('login.loginTitle')}>
+        <Stack gap={6}>
+          <p
+            role="status"
+            className="bg-muted/50 text-muted-foreground rounded-lg border p-3 text-sm"
+          >
+            {tCommon('sessionIdle.signedOutNotice')}
+          </p>
+          <Button onClick={redirectToTrustedHeadersAuth} fullWidth>
+            {tCommon('sessionIdle.continueToSignIn')}
+          </Button>
+        </Stack>
+      </AuthFormLayout>
+    );
+  }
+
   if (isLoadingUsers || (trustedHeadersEnabled && !hasTrustedHeadersError)) {
     return null;
   }
@@ -273,6 +314,14 @@ export function LogInPage() {
   return (
     <AuthFormLayout title={t('login.loginTitle')}>
       <Stack gap={8}>
+        {signedOutForIdle && (
+          <p
+            role="status"
+            className="bg-muted/50 text-muted-foreground rounded-lg border p-3 text-sm"
+          >
+            {tCommon('sessionIdle.signedOutNotice')}
+          </p>
+        )}
         <FormSection>
           <Form onSubmit={form.handleSubmit(handleSubmit)} autoComplete="on">
             <Input

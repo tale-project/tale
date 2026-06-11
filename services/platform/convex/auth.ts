@@ -379,7 +379,10 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
       // SESSION_IDLE_TIMEOUT_MINUTES is set, this makes the session a sliding
       // window that expires after that many minutes of inactivity (Better Auth
       // refreshes the expiry on activity and rejects it once idle past the
-      // window). No-op — Better Auth's default lifetime — when unset.
+      // window). When unset, the lifetime stays at Better Auth's default but
+      // `updateAge` tightens to 60s so `session.updatedAt` tracks activity —
+      // the per-org idle-revocation sweep
+      // (`governance/session_idle_enforcement.ts`) keys off it.
       ...sessionIdleWindowSeconds(),
       additionalFields: {
         trustedRole: {
