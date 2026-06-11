@@ -4,6 +4,19 @@ import type { Id } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
 import { getExecutionStepJournal } from './get_execution_step_journal';
 
+// Component references resist identity assertions (every property access on
+// the generated `components` proxy mints a new object), so stub the shard
+// lookup with per-shard sentinels and assert those reach `ctx.runQuery`.
+const shardMock = vi.hoisted(() => ({
+  getWorkflowComponentForExecution: vi.fn(
+    (execution: { shardIndex?: number }) => ({
+      journal: { load: `journal-load-shard-${execution.shardIndex ?? 0}` },
+    }),
+  ),
+}));
+
+vi.mock('./get_workflow_component', () => shardMock);
+
 function createMockCtx(
   execution: Record<string, unknown> | null = null,
   journalsByWorkflowId: Record<
@@ -147,6 +160,34 @@ describe('getExecutionStepJournal', () => {
     });
 
     expect(result).toEqual([]);
+  });
+
+  it('loads the journal from the component of the execution shard', async () => {
+    const ctx = createMockCtx(
+      {
+        _id: 'exec_1',
+        metadata: null,
+        componentWorkflowId: 'wf_1',
+        shardIndex: 2,
+      },
+      {
+        wf_1: {
+          journalEntries: [{ stepNumber: 1, name: 'step' }],
+        },
+      },
+    );
+
+    const result = await getExecutionStepJournal(ctx as unknown as QueryCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+    });
+
+    expect(shardMock.getWorkflowComponentForExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ shardIndex: 2 }),
+    );
+    expect(ctx.runQuery).toHaveBeenCalledWith('journal-load-shard-2', {
+      workflowId: 'wf_1',
+    });
+    expect(result).toHaveLength(1);
   });
 
   it('deduplicates workflow IDs from metadata and componentWorkflowId', async () => {

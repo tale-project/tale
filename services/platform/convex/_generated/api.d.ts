@@ -1262,8 +1262,10 @@ import type * as workflows_executions_delete_storage_blob from "../workflows/exe
 import type * as workflows_executions_fail_execution from "../workflows/executions/fail_execution.js";
 import type * as workflows_executions_get_execution from "../workflows/executions/get_execution.js";
 import type * as workflows_executions_get_execution_step_journal from "../workflows/executions/get_execution_step_journal.js";
+import type * as workflows_executions_get_execution_step_statuses from "../workflows/executions/get_execution_step_statuses.js";
 import type * as workflows_executions_get_org_workflow_metrics from "../workflows/executions/get_org_workflow_metrics.js";
 import type * as workflows_executions_get_raw_execution from "../workflows/executions/get_raw_execution.js";
+import type * as workflows_executions_get_workflow_component from "../workflows/executions/get_workflow_component.js";
 import type * as workflows_executions_get_workflow_execution_stats from "../workflows/executions/get_workflow_execution_stats.js";
 import type * as workflows_executions_helpers from "../workflows/executions/helpers.js";
 import type * as workflows_executions_list_executions from "../workflows/executions/list_executions.js";
@@ -2591,8 +2593,10 @@ declare const fullApi: ApiFromModules<{
   "workflows/executions/fail_execution": typeof workflows_executions_fail_execution;
   "workflows/executions/get_execution": typeof workflows_executions_get_execution;
   "workflows/executions/get_execution_step_journal": typeof workflows_executions_get_execution_step_journal;
+  "workflows/executions/get_execution_step_statuses": typeof workflows_executions_get_execution_step_statuses;
   "workflows/executions/get_org_workflow_metrics": typeof workflows_executions_get_org_workflow_metrics;
   "workflows/executions/get_raw_execution": typeof workflows_executions_get_raw_execution;
+  "workflows/executions/get_workflow_component": typeof workflows_executions_get_workflow_component;
   "workflows/executions/get_workflow_execution_stats": typeof workflows_executions_get_workflow_execution_stats;
   "workflows/executions/helpers": typeof workflows_executions_helpers;
   "workflows/executions/list_executions": typeof workflows_executions_list_executions;

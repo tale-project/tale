@@ -9,6 +9,7 @@ import React from 'react';
 import { useT } from '@/lib/i18n/client';
 
 import { InvisibleHandle } from './invisible-handle';
+import { NodeExecutionStatusBadge } from './node-execution-status-badge';
 
 interface AutomationLoopContainerProps {
   data: {
@@ -115,6 +116,14 @@ export function AutomationLoopContainer({
           </div>
         </div>
       </button>
+
+      {/* Execution status badge — sibling of the card button (nesting would
+          be invalid HTML), overlaid on the top-right corner. The popover also
+          carries the loop's n/total progress while it is the current step. */}
+      <NodeExecutionStatusBadge
+        stepSlug={data.stepSlug}
+        className="absolute -top-2.5 -right-2.5 z-10"
+      />
 
       {/* Bottom Target Handle - incoming from lower-ranked nodes */}
       <InvisibleHandle

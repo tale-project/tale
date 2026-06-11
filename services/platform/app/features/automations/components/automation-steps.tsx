@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -48,6 +49,10 @@ import { AutomationEdge } from './automation-edge';
 import { AutomationGroupNode } from './automation-group-node';
 import { AutomationLoopContainer } from './automation-loop-container';
 import { AutomationStep } from './automation-step';
+import {
+  AUTOMATION_EXECUTION_URL_DEFINITIONS,
+  useViewedExecution,
+} from './execution-status-context';
 import { CreateStepDialog } from './step-create-dialog';
 
 interface AutomationStepsProps {
@@ -73,6 +78,17 @@ export const AUTOMATION_PANEL_URL_DEFINITIONS = {
   panel: { default: null },
   step: { default: null },
 } as const;
+
+const RUN_STATUS_BADGE_VARIANTS: Record<
+  string,
+  'green' | 'destructive' | 'blue' | 'outline' | 'yellow'
+> = {
+  completed: 'green',
+  failed: 'destructive',
+  running: 'blue',
+  pending: 'outline',
+  waiting: 'yellow',
+};
 
 const MINIMAP_STYLES = `
   .react-flow__edges { z-index: auto; }
@@ -122,6 +138,12 @@ function AutomationStepsInner({
 
   const { setStates: setPanelStates } = useUrlState({
     definitions: AUTOMATION_PANEL_URL_DEFINITIONS,
+  });
+
+  const { executionId: viewedExecutionId, execution: viewedExecution } =
+    useViewedExecution();
+  const { setState: setExecutionUrlState } = useUrlState({
+    definitions: AUTOMATION_EXECUTION_URL_DEFINITIONS,
   });
 
   const [_parentStepForNewStep, setParentStepForNewStep] = useState<
@@ -262,6 +284,14 @@ function AutomationStepsInner({
     [steps],
   );
 
+  // Surface waiting-for-input as its own banner state; the run row in the
+  // executions table applies the same mapping.
+  const viewedRunStatus = viewedExecution
+    ? viewedExecution.status === 'running' && viewedExecution.waitingFor
+      ? 'waiting'
+      : viewedExecution.status
+    : null;
+
   const { initialNodes, initialEdges } = useAutomationLayout(steps);
 
   useEffect(() => {
@@ -387,22 +417,62 @@ function AutomationStepsInner({
               </div>
             )}
 
-            {showActivityBanner && hasActiveTrigger && (
+            {((showActivityBanner && hasActiveTrigger) ||
+              viewedExecutionId) && (
               <Panel position="top-center" className="mx-4 mt-4 w-full px-4">
-                <div className="mx-auto flex max-w-3xl items-center gap-2.5 rounded-lg bg-amber-50 px-4 py-3 shadow-sm ring-1 ring-amber-200">
-                  <AlertTriangle className="size-5 shrink-0 text-amber-600" />
-                  <Text className="text-sm text-amber-600">
-                    {t('steps.banners.hasActiveTriggers')}
-                  </Text>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="ml-auto size-6 shrink-0 p-1 text-amber-600 hover:bg-amber-100 hover:text-amber-700"
-                    onClick={() => setShowActivityBanner(false)}
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </div>
+                <Stack gap={2} className="mx-auto max-w-3xl">
+                  {showActivityBanner && hasActiveTrigger && (
+                    <div className="flex items-center gap-2.5 rounded-lg bg-amber-50 px-4 py-3 shadow-sm ring-1 ring-amber-200">
+                      <AlertTriangle className="size-5 shrink-0 text-amber-600" />
+                      <Text className="text-sm text-amber-600">
+                        {t('steps.banners.hasActiveTriggers')}
+                      </Text>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto size-6 shrink-0 p-1 text-amber-600 hover:bg-amber-100 hover:text-amber-700"
+                        onClick={() => setShowActivityBanner(false)}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                  )}
+                  {viewedExecutionId && (
+                    <div
+                      className="bg-background ring-border flex items-center gap-2.5 rounded-lg px-4 py-2 shadow-sm ring-1"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <Text className="text-sm">
+                        {t('steps.execution.viewingRun', {
+                          id: viewedExecutionId.slice(-6),
+                        })}
+                      </Text>
+                      {viewedRunStatus && (
+                        <Badge
+                          dot
+                          variant={
+                            RUN_STATUS_BADGE_VARIANTS[viewedRunStatus] ||
+                            'outline'
+                          }
+                          className="text-xs"
+                        >
+                          {t(`steps.execution.status.${viewedRunStatus}`)}
+                        </Badge>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={t('steps.execution.clear')}
+                        aria-label={t('steps.execution.clear')}
+                        className="ml-auto size-6 shrink-0 p-1"
+                        onClick={() => setExecutionUrlState('execution', null)}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                  )}
+                </Stack>
               </Panel>
             )}
 

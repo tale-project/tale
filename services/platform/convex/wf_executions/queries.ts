@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 
 import { queryWithRLS } from '../lib/rls';
 import { getExecutionStepJournal as getExecutionStepJournalHelper } from '../workflows/executions/get_execution_step_journal';
+import { getExecutionStepStatuses as getExecutionStepStatusesHelper } from '../workflows/executions/get_execution_step_statuses';
 import { getOrgWorkflowMetrics as getOrgWorkflowMetricsHelper } from '../workflows/executions/get_org_workflow_metrics';
 import { getRawExecution as getRawExecutionHelper } from '../workflows/executions/get_raw_execution';
 import { listExecutionsCursor as listExecutionsCursorHelper } from '../workflows/executions/list_executions_cursor';
@@ -33,6 +34,20 @@ export const getExecutionStepJournal = queryWithRLS({
   },
   handler: async (ctx, args) => {
     return await getExecutionStepJournalHelper(ctx, args);
+  },
+});
+
+export const getExecutionStepStatuses = queryWithRLS({
+  args: {
+    // v.string() + normalizeId instead of v.id: the execution id arrives from
+    // a user-editable URL param, and a malformed value must resolve to `null`
+    // rather than throw an ArgumentValidationError at the subscription.
+    executionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const executionId = ctx.db.normalizeId('wfExecutions', args.executionId);
+    if (!executionId) return null;
+    return await getExecutionStepStatusesHelper(ctx, { executionId });
   },
 });
 

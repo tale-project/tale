@@ -21,6 +21,7 @@ import { AutomationAIChatPanel } from '@/app/features/automations/components/aut
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
 import { AutomationSidePanel } from '@/app/features/automations/components/automation-sidepanel';
 import { AUTOMATION_PANEL_URL_DEFINITIONS } from '@/app/features/automations/components/automation-steps';
+import { ExecutionStatusProvider } from '@/app/features/automations/components/execution-status-context';
 import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';
 import {
   WorkflowConfigProvider,
@@ -456,59 +457,61 @@ function AutomationDetailInner({
       }
       organizationId={organizationId}
     >
-      <div className="relative flex min-h-0 flex-1">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-          {isExactAutomationPage ? (
-            <SuspenseBoundary
-              fallback={
-                // The ReactFlow canvas is a genuine code-split chunk, so a
-                // fallback is unavoidable while it downloads — but reuse the
-                // SAME step-card placeholder as the route-level loading state
-                // instead of a generic text skeleton. Otherwise the skeleton
-                // visibly "blinks": canvas placeholder → text lines → canvas.
-                <Skeletonize loading className="contents">
-                  <AutomationCanvasSkeleton />
-                </Skeletonize>
-              }
-            >
-              <AutomationSteps
-                hasActiveTrigger={hasActiveTrigger}
-                className="flex-1"
-                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to Doc shape; component only reads display fields
-                steps={steps as Doc<'wfStepDefs'>[]}
-                onOpenAIChat={handleOpenAIChat}
-              />
-            </SuspenseBoundary>
-          ) : (
-            <Outlet />
+      <ExecutionStatusProvider>
+        <div className="relative flex min-h-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+            {isExactAutomationPage ? (
+              <SuspenseBoundary
+                fallback={
+                  // The ReactFlow canvas is a genuine code-split chunk, so a
+                  // fallback is unavoidable while it downloads — but reuse the
+                  // SAME step-card placeholder as the route-level loading state
+                  // instead of a generic text skeleton. Otherwise the skeleton
+                  // visibly "blinks": canvas placeholder → text lines → canvas.
+                  <Skeletonize loading className="contents">
+                    <AutomationCanvasSkeleton />
+                  </Skeletonize>
+                }
+              >
+                <AutomationSteps
+                  hasActiveTrigger={hasActiveTrigger}
+                  className="flex-1"
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to Doc shape; component only reads display fields
+                  steps={steps as Doc<'wfStepDefs'>[]}
+                  onOpenAIChat={handleOpenAIChat}
+                />
+              </SuspenseBoundary>
+            ) : (
+              <Outlet />
+            )}
+          </div>
+
+          {isAIChatOpen && !isUrlSidePanelOpen && (
+            <AutomationAIChatPanel
+              workflowSlug={workflowSlug}
+              workflowName={config.name}
+              organizationId={organizationId}
+              onClose={handleCloseAIChat}
+              panelWidth={panelWidth}
+              onPanelWidthChange={setPanelWidth}
+            />
+          )}
+
+          {isUrlSidePanelOpen && (
+            <AutomationSidePanel
+              step={selectedStep}
+              isOpen
+              onClose={clearPanelUrlState}
+              showTestPanel={panelState.panel === 'test'}
+              automationId={workflowSlug}
+              organizationId={organizationId}
+              stepOptions={stepOptions}
+              panelWidth={panelWidth}
+              onPanelWidthChange={setPanelWidth}
+            />
           )}
         </div>
-
-        {isAIChatOpen && !isUrlSidePanelOpen && (
-          <AutomationAIChatPanel
-            workflowSlug={workflowSlug}
-            workflowName={config.name}
-            organizationId={organizationId}
-            onClose={handleCloseAIChat}
-            panelWidth={panelWidth}
-            onPanelWidthChange={setPanelWidth}
-          />
-        )}
-
-        {isUrlSidePanelOpen && (
-          <AutomationSidePanel
-            step={selectedStep}
-            isOpen
-            onClose={clearPanelUrlState}
-            showTestPanel={panelState.panel === 'test'}
-            automationId={workflowSlug}
-            organizationId={organizationId}
-            stepOptions={stepOptions}
-            panelWidth={panelWidth}
-            onPanelWidthChange={setPanelWidth}
-          />
-        )}
-      </div>
+      </ExecutionStatusProvider>
     </PageLayout>
   );
 }

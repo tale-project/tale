@@ -21,6 +21,8 @@ L'onglet **Triggers** sur le workflow attache les chemins de déclenchement : un
 
 Le panneau **Tester l'automatisation** dans la barre d'outils de l'éditeur déclenche une exécution ponctuelle directement depuis l'éditeur. Colle le JSON d'entrée que l'exécution doit recevoir, clique **Exécuter** et l'exécution apparaît dans l'onglet Exécutions avec son ID. Sers-toi du panneau de test quand tu itères sur un workflow et veux voir le journal d'exécution complet sans câbler de trigger d'abord.
 
+Pendant que l'exécution tourne, la canvas la reflète en direct : chaque étape porte un badge de statut — un spinner pendant l'exécution, une coche en cas de succès, une alerte en cas d'échec, une icône pause en attente de saisie — et une bannière au-dessus de la canvas indique l'exécution affichée. Clique sur un badge pour inspecter la durée de l'étape, son erreur et un aperçu de sa sortie. L'exécution affichée tient dans le paramètre d'URL `execution` et survit donc à un rechargement ; ferme la bannière pour masquer les badges.
+
 Le bouton **Dry run** dans le même panneau simule une exécution sans effets de bord — le workflow valide contre l'entrée, parcourt le graphe d'étapes et signale erreurs et avertissements sans appeler aucun agent, API ou serveur de mail. Sers-toi du dry run quand le workflow n'est pas encore sûr à exécuter de bout en bout.
 
 ## Mettre en pause et désactiver
