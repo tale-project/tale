@@ -1,9 +1,23 @@
 """Pydantic models for Tale RAG API."""
 
 import datetime as dt
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
+
+from .utils.folder_path import MAX_FOLDER_PATH_LENGTH, normalize_folder_path
+
+
+def _normalize_folder_path_value(value: object) -> object:
+    """Pre-validator: normalize string folder paths, pass everything else
+    through so pydantic's own type/constraint validation reports it."""
+    if isinstance(value, str):
+        return normalize_folder_path(value)
+    return value
+
+
+NormalizedFolderPath = Annotated[str | None, BeforeValidator(_normalize_folder_path_value)]
+
 
 # ============================================================================
 # Health & Status Models
@@ -171,6 +185,44 @@ class DocumentStatusResponse(BaseModel):
 
 
 # ============================================================================
+# Folder Path Models
+# ============================================================================
+
+
+class FolderPathUpdate(BaseModel):
+    """A single folder-path assignment for an indexed document."""
+
+    file_id: str = Field(..., min_length=1, description="File ID whose folder_path to update")
+    folder_path: NormalizedFolderPath = Field(
+        default=None,
+        max_length=MAX_FOLDER_PATH_LENGTH,
+        description="New folder path, or null to clear it (document moved to the root)",
+    )
+
+
+class FolderPathUpdateRequest(BaseModel):
+    """Batch folder-path update for already-indexed documents.
+
+    Lets the platform keep the denormalized `documents.folder_path` fresh
+    on folder moves/renames without re-extraction or re-embedding.
+    """
+
+    updates: list[FolderPathUpdate] = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Folder-path assignments (max 200 per call)",
+    )
+
+
+class FolderPathUpdateResponse(BaseModel):
+    """Response after a batch folder-path update."""
+
+    success: bool = Field(..., description="Whether the operation succeeded")
+    updated_count: int = Field(..., description="Number of document rows updated")
+
+
+# ============================================================================
 # Query Models
 # ============================================================================
 
@@ -191,6 +243,16 @@ class QueryRequest(BaseModel):
         min_length=1,
         max_length=500,
         description="File IDs to restrict search to.",
+    )
+    folder_path: NormalizedFolderPath = Field(
+        default=None,
+        max_length=MAX_FOLDER_PATH_LENGTH,
+        description=(
+            "Optional folder path prefix filter (e.g. 'contracts/2024'). "
+            "Hierarchical: matches documents in the folder and all of its "
+            "subfolders, never sibling folders sharing the prefix. Narrows "
+            "within the file_ids scope; it is not an authorization boundary."
+        ),
     )
 
 

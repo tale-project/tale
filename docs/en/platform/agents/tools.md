@@ -15,7 +15,7 @@ The user asks "what is the weather in Zurich today". The agent has the web tool 
 
 - **Web** — fetches and reads URLs the model decides are useful.
 - **Files** — reads attachments and files in the active Project.
-- **RAG** — searches knowledge sources bound to the agent and returns chunks with citations.
+- **RAG** — searches knowledge sources bound to the agent and returns chunks with citations. Name a folder in your request ("search only in Contracts/2024") and the agent scopes retrieval to that folder and its subfolders.
 - **Run code** — runs Python, Node, or shell scripts in a sandbox. Gated by the org's [run-code policy](/platform/admin/governance/run-code-policy).
 - **Sub-agents** — delegates to another agent the org has marked sub-agent-callable. Loop prevention rules live on [Delegation](/platform/agents/delegation).
 - **Workflows** — invokes a Tale workflow as a tool. The workflow's outputs come back as the tool result.

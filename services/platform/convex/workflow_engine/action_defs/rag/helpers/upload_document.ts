@@ -5,6 +5,7 @@ import {
 import { internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
 import { orgSlugFromId } from '../../../../lib/helpers/org_slug';
+import { normalizeFolderPath } from '../../../../lib/helpers/rag_folder_path';
 import { toId } from '../../../../lib/type_cast_helpers';
 import type { RagUploadResult } from './types';
 import { uploadFile } from './upload_file_direct';
@@ -30,6 +31,13 @@ export async function uploadDocument(
     fileName?: string;
     contentType?: string;
     metadata?: Record<string, unknown>;
+    /**
+     * Document Hub folder path for folder-scoped RAG search. When
+     * omitted, resolved from the Hub document linked via
+     * `fileMetadata.documentId` (covers every upload path that funnels
+     * through this helper).
+     */
+    folderPath?: string;
   },
 ): Promise<RagUploadResult> {
   const storageId = toId<'_storage'>(fileId);
@@ -68,6 +76,19 @@ export async function uploadDocument(
     contentType,
   );
 
+  // Resolve the Document Hub folder path so RAG can serve folder-scoped
+  // searches. Explicit option wins; otherwise fall back to the linked Hub
+  // document's denormalized folderPath. Chat uploads (no documentId)
+  // simply carry no folder.
+  let folderPath = normalizeFolderPath(options?.folderPath);
+  if (!folderPath && metadata.documentId) {
+    const document = await ctx.runQuery(
+      internal.documents.internal_queries.getDocumentByIdRaw,
+      { documentId: metadata.documentId },
+    );
+    folderPath = normalizeFolderPath(document?.folderPath);
+  }
+
   const orgSlug = await orgSlugFromId(ctx, metadata.organizationId);
 
   return uploadFile({
@@ -75,7 +96,9 @@ export async function uploadDocument(
     filename: fileName,
     contentType,
     fileId,
-    metadata: options?.metadata,
+    metadata: folderPath
+      ? { ...options?.metadata, folder_path: folderPath }
+      : options?.metadata,
     sync: options?.sync ?? false,
     orgSlug,
   });

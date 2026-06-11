@@ -8,6 +8,12 @@ export type RagActionParams =
       fileName?: string;
       contentType?: string;
       sync?: boolean;
+      /**
+       * Document Hub folder path (`parent/child`, no leading slash).
+       * Stored on the RAG side for folder-scoped search. When omitted,
+       * `uploadDocument` resolves it from the linked Hub document.
+       */
+      folderPath?: string;
     }
   | {
       operation: 'delete_document';

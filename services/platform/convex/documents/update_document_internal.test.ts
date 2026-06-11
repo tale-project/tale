@@ -10,13 +10,18 @@ type Doc = Record<string, unknown> & { _id: string; fileId?: string };
  * schedules `reindexDocumentInRag` when that blob is completed AND the file or
  * title changed.
  */
-function createMockCtx(document: Doc, fm: Record<string, unknown> | null) {
+function createMockCtx(
+  document: Doc,
+  fm: Record<string, unknown> | null,
+  folders: Record<string, Record<string, unknown>> = {},
+) {
   const patches: Array<{ id: string; data: Record<string, unknown> }> = [];
   const scheduled: Array<{ args: Record<string, unknown> }> = [];
 
   const ctx = {
     db: {
-      get: async (id: unknown) => (id === document._id ? document : null),
+      get: async (id: unknown) =>
+        id === document._id ? document : (folders[String(id)] ?? null),
       query: () => {
         let storageId: unknown;
         const q = {
@@ -138,5 +143,79 @@ describe('updateDocumentInternal reindex gate', () => {
     });
 
     expect(scheduled).toHaveLength(0);
+  });
+});
+
+describe('updateDocumentInternal folder-move RAG sync', () => {
+  const contractsFolder = {
+    f1: { _id: 'f1', name: 'Contracts', organizationId: 'org1' },
+  };
+
+  it('schedules syncRagFolderPaths on a folder move of an indexed doc', async () => {
+    const { ctx, scheduled } = createMockCtx(
+      { ...baseDoc },
+      { ragStatus: 'completed' },
+      contractsFolder,
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      folderId: 'f1' as never,
+    });
+
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].args).toEqual({
+      organizationId: 'org1',
+      updates: [{ fileId: 's1', folderPath: 'Contracts' }],
+    });
+  });
+
+  it('does NOT sync folder paths when the doc is not indexed', async () => {
+    const { ctx, scheduled } = createMockCtx(
+      { ...baseDoc },
+      { ragStatus: 'queued' },
+      contractsFolder,
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      folderId: 'f1' as never,
+    });
+
+    expect(scheduled).toHaveLength(0);
+  });
+
+  it('does NOT sync when folderId is unchanged', async () => {
+    const { ctx, scheduled } = createMockCtx(
+      { ...baseDoc, folderId: 'f1' },
+      { ragStatus: 'completed' },
+      contractsFolder,
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      folderId: 'f1' as never,
+    });
+
+    expect(scheduled).toHaveLength(0);
+  });
+
+  it('skips the folder sync when a reindex is scheduled (re-upload carries the path)', async () => {
+    const { ctx, scheduled } = createMockCtx(
+      { ...baseDoc },
+      { ragStatus: 'completed' },
+      contractsFolder,
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      contentHash: 'newhash',
+      fileId: 's2' as never,
+      folderId: 'f1' as never,
+    });
+
+    // Only the reindex is scheduled — not a duplicate folder-path sync.
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].args).toMatchObject({ documentId: 'd1' });
   });
 });

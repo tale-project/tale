@@ -444,8 +444,13 @@ class RagService:
         top_k: int | None = None,
         similarity_threshold: float | None = None,
         file_ids: list[str] | None = None,
+        folder_path: str | None = None,
     ) -> tuple[list[dict[str, Any]], Any]:
         """Search the knowledge base scoped to `org_slug`.
+
+        `folder_path` optionally narrows results to one Document Hub folder
+        and its subfolders (hierarchical prefix). It is a pure narrowing
+        filter inside the file_ids scope, never an authorization boundary.
 
         Returns a `(results, embedding_usage)` tuple — the underlying
         `RagSearchService.search` returns the tuple directly so there's
@@ -460,6 +465,7 @@ class RagService:
             org_slug,
             query,
             file_ids=file_ids,
+            folder_path=folder_path,
             top_k=effective_top_k,
             similarity_threshold=threshold,
         )
@@ -475,6 +481,7 @@ class RagService:
                     org_slug,
                     query,
                     file_ids=file_ids,
+                    folder_path=folder_path,
                     top_k=effective_top_k,
                     similarity_threshold=threshold,
                 )

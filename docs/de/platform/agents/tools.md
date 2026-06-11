@@ -15,7 +15,7 @@ Der User fragt „wie ist das Wetter in Zürich heute". Der Agent hat das Web-To
 
 - **Web** — holt und liest URLs, die das Modell für nützlich hält.
 - **Dateien** — liest Anhänge und Dateien im aktiven Projekt.
-- **RAG** — sucht in Wissensquellen, die an den Agent gebunden sind, und gibt Chunks mit Zitaten zurück.
+- **RAG** — sucht in Wissensquellen, die an den Agent gebunden sind, und gibt Chunks mit Zitaten zurück. Nennst du in deiner Anfrage einen Ordner („such nur in Contracts/2024"), beschränkt der Agent die Suche auf diesen Ordner und seine Unterordner.
 - **Run code** — führt Python, Node oder Shell-Skripte in einer Sandbox aus. Gegated durch die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) der Org.
 - **Sub-Agents** — delegiert an einen anderen Agent, den die Org als sub-agent-aufrufbar markiert hat. Loop-Verhinderung lebt in [Delegation](/de/platform/agents/delegation).
 - **Workflows** — ruft einen Tale-Workflow als Tool auf. Die Outputs des Workflows kommen als Tool-Ergebnis zurück.

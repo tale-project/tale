@@ -58,6 +58,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       fileName: v.optional(v.string()),
       contentType: v.optional(v.string()),
       sync: v.optional(v.boolean()),
+      folderPath: v.optional(v.string()),
     }),
     v.object({
       operation: v.literal('delete_document'),
@@ -94,6 +95,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           sync: migratedParams.sync,
           fileName: migratedParams.fileName,
           contentType: migratedParams.contentType,
+          folderPath: migratedParams.folderPath,
         });
         return { ...result, executionTimeMs: Date.now() - startTime };
       }

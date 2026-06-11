@@ -212,4 +212,83 @@ describe('uploadDocument', () => {
     const callArgs = uploadFileMock.mock.calls[0][0];
     expect(callArgs.file).toBeInstanceOf(Blob);
   });
+
+  describe('folder path resolution', () => {
+    it('resolves folder_path from the linked Hub document', async () => {
+      // runQuery order: getByStorageId → getDocumentByIdRaw → org row.
+      const ctx = {
+        storage: {
+          getUrl: vi.fn().mockResolvedValue('https://storage.example.com/file'),
+        },
+        runQuery: vi
+          .fn()
+          .mockResolvedValueOnce({ ...DEFAULT_METADATA, documentId: 'doc-1' })
+          .mockResolvedValueOnce({ folderPath: 'contracts/2024' })
+          .mockResolvedValueOnce(DEFAULT_ORG_ROW),
+      };
+      mockFetchOk();
+
+      await uploadDocument(ctx as never, FILE_ID);
+
+      expect(uploadFileMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ folder_path: 'contracts/2024' }),
+        }),
+      );
+    });
+
+    it('explicit folderPath option wins and skips the document lookup', async () => {
+      const ctx = {
+        storage: {
+          getUrl: vi.fn().mockResolvedValue('https://storage.example.com/file'),
+        },
+        runQuery: vi
+          .fn()
+          .mockResolvedValueOnce({ ...DEFAULT_METADATA, documentId: 'doc-1' })
+          .mockResolvedValueOnce(DEFAULT_ORG_ROW),
+      };
+      mockFetchOk();
+
+      await uploadDocument(ctx as never, FILE_ID, {
+        folderPath: '/reports/',
+      });
+
+      // Only two runQuery calls: getByStorageId + org row (no doc lookup).
+      expect(ctx.runQuery).toHaveBeenCalledTimes(2);
+      expect(uploadFileMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ folder_path: 'reports' }),
+        }),
+      );
+    });
+
+    it('omits folder_path when the file has no linked document', async () => {
+      const ctx = createCtx();
+      mockFetchOk();
+
+      await uploadDocument(ctx as never, FILE_ID);
+
+      const callArgs = uploadFileMock.mock.calls[0][0];
+      expect(callArgs.metadata).toBeUndefined();
+    });
+
+    it('omits folder_path when the linked document has none', async () => {
+      const ctx = {
+        storage: {
+          getUrl: vi.fn().mockResolvedValue('https://storage.example.com/file'),
+        },
+        runQuery: vi
+          .fn()
+          .mockResolvedValueOnce({ ...DEFAULT_METADATA, documentId: 'doc-1' })
+          .mockResolvedValueOnce({ folderPath: undefined })
+          .mockResolvedValueOnce(DEFAULT_ORG_ROW),
+      };
+      mockFetchOk();
+
+      await uploadDocument(ctx as never, FILE_ID);
+
+      const callArgs = uploadFileMock.mock.calls[0][0];
+      expect(callArgs.metadata).toBeUndefined();
+    });
+  });
 });

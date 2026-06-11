@@ -401,6 +401,20 @@ export const moveResource = internalMutation({
         patch.driveId = undefined;
       }
       await ctx.db.patch(args.src.id, patch);
+      // Keep RAG's denormalized folder_path fresh so the folder-scoped
+      // search filter follows the move. Best-effort (the action
+      // warn-and-skips on failure); RAG updates zero rows for files
+      // that were never indexed.
+      if (existing.fileId) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.documents.internal_actions.syncRagFolderPaths,
+          {
+            organizationId: args.organizationId,
+            updates: [{ fileId: existing.fileId, folderPath: newFolderPath }],
+          },
+        );
+      }
     } else {
       await ctx.db.patch(args.src.id, {
         name: destName,
@@ -413,12 +427,30 @@ export const moveResource = internalMutation({
       // subtree, mirroring the per-document branch above — otherwise the
       // external-sync reconcile (which matches on folderPath / folderPathPrefix)
       // mis-matches the relocated subtree and re-creates duplicates.
+      const ragFolderPathUpdates: Array<{
+        fileId: Id<'_storage'>;
+        folderPath?: string;
+      }> = [];
       await fixupMovedFolderDescendants(
         ctx,
         args.organizationId,
         args.src.id,
         0,
+        newReadBudget(),
+        ragFolderPathUpdates,
       );
+      // One batch for the whole subtree; the action chunks the PATCH
+      // calls to the RAG endpoint's batch limit.
+      if (ragFolderPathUpdates.length > 0) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.documents.internal_actions.syncRagFolderPaths,
+          {
+            organizationId: args.organizationId,
+            updates: ragFolderPathUpdates,
+          },
+        );
+      }
     }
 
     // Drop lock rows at the old path (and below for folder moves).
@@ -798,7 +830,11 @@ async function fixupMovedFolderDescendants(
   organizationId: string,
   folderId: Id<'folders'>,
   depth: number,
-  budget: ReadBudget = newReadBudget(),
+  budget: ReadBudget,
+  ragFolderPathUpdates: Array<{
+    fileId: Id<'_storage'>;
+    folderPath?: string;
+  }>,
 ): Promise<void> {
   if (depth > MAX_FOLDER_DEPTH) {
     throw new ConvexError({ code: 'CONFLICT' });
@@ -820,6 +856,9 @@ async function fixupMovedFolderDescendants(
       patch.driveId = undefined;
     }
     await ctx.db.patch(d._id, patch);
+    if (d.fileId) {
+      ragFolderPathUpdates.push({ fileId: d.fileId, folderPath });
+    }
   }
   const childFolders = await ctx.db
     .query('folders')
@@ -835,6 +874,7 @@ async function fixupMovedFolderDescendants(
       cf._id,
       depth + 1,
       budget,
+      ragFolderPathUpdates,
     );
   }
 }

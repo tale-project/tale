@@ -34,6 +34,7 @@ async def search(
             top_k=request.top_k,
             similarity_threshold=request.similarity_threshold,
             file_ids=request.file_ids,
+            folder_path=request.folder_path,
         )
 
         processing_time = (time.time() - start_time) * 1000

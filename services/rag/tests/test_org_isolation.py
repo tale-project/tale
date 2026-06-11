@@ -82,6 +82,17 @@ class TestSearchScopeClause:
         assert "file_id = ANY" in clause
         assert params == [ORG_A, ["d1", "d2"]]
 
+    def test_folder_path_filter_is_org_scoped(self):
+        from app.services.search_service import RagSearchService
+
+        svc = RagSearchService(MagicMock(), MagicMock())
+        clause, params = svc._build_scope_clause(ORG_A, None, 1, folder_path="shared-folder")
+        # The folder filter rides the same org-scoped documents subquery —
+        # an identical folder name in another org can never match.
+        assert clause.count("org_slug") == 2
+        assert "folder_path" in clause
+        assert params == [ORG_A, "shared-folder"]
+
 
 class TestDeleteDocumentScopedByOrg:
     """`delete_document` only deletes within `org_slug`."""
