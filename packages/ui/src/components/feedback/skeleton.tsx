@@ -58,18 +58,27 @@ function MaskedContent({
  * Renders the real value as-is. While loading (`useSkeleton()` is true, i.e.
  * inside a `<Skeletonize loading>`) a static opaque base covers it with a pulse
  * shimmer layered on top — the base never animates, so the content stays hidden
- * even at the trough of the pulse. The base is inset by a negative 2px so it
- * slightly overhangs the content on every side — anti-aliased glyph/border
- * edges can't peek out from under the mask — without over-extending enough to
- * overlap adjacent masks in tight layouts. It also intercepts pointer events so
- * masked controls aren't interactive. When *not* loading the wrapper is
- * `display: contents`, so it
- * adds no box and can't tangle layout — wrap any dynamic value (text, a number,
- * a control) unconditionally and leave it in place.
+ * even at the trough of the pulse. The content itself is `visibility: hidden`
+ * while masked (see {@link MaskedContent}), so the base only has to draw the
+ * placeholder *shape* and hugs the content box exactly. (It used to overhang by
+ * 2px to swallow anti-aliased glyph edges, but that predates the visibility
+ * mask — and the overhang made adjacent masks bleed into each other in tight
+ * `gap-1` stacks.) The base also intercepts pointer events so masked controls
+ * aren't interactive. When *not* loading the wrapper is `display: contents`, so
+ * it adds no box and can't tangle layout — wrap any dynamic value (text, a
+ * number, a control) unconditionally and leave it in place.
  *
  * Deliberately has no `className`/`style`: the skeleton's size comes from the
  * content it wraps, never from call-site styling. Reach for `fullWidth` (or a
  * new semantic prop here) instead of one-off classes.
+ *
+ * Sizing gotcha: with `fullWidth` the mask fills the *wrapper*, not the hidden
+ * placeholder — a narrower placeholder (`w-2/3`, `max-w-48`) inside a
+ * `fullWidth` box still paints a full-width mask. Put the width on an element
+ * AROUND the box (`<div className="w-2/3"><SkeletonBox fullWidth>…`) so the
+ * mask is exactly that wide. Percentage widths can't live on the placeholder
+ * in the non-`fullWidth` case either: the wrapper is shrink-to-fit, so a
+ * `%`-wide child collapses to zero.
  *
  * Decorative (`aria-hidden`): the enclosing `<Skeletonize>` announces "Loading"
  * once for the whole region, so individual boxes must not re-announce.
@@ -90,7 +99,7 @@ export function SkeletonBox({ children, fullWidth }: SkeletonWrapProps) {
     >
       <MaskedContent loading={loading}>{children}</MaskedContent>
       {loading && (
-        <span className="bg-muted absolute -inset-0.5 overflow-hidden rounded-[inherit]">
+        <span className="bg-muted absolute inset-0 overflow-hidden rounded-[inherit]">
           <span className={SKELETON_SHIMMER} />
         </span>
       )}
@@ -119,7 +128,7 @@ export function SkeletonCircle({ children, fullWidth }: SkeletonWrapProps) {
     >
       <MaskedContent loading={loading}>{children}</MaskedContent>
       {loading && (
-        <span className="bg-muted absolute -inset-0.5 overflow-hidden rounded-full">
+        <span className="bg-muted absolute inset-0 overflow-hidden rounded-full">
           <span className={SKELETON_SHIMMER} />
         </span>
       )}

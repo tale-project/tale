@@ -206,7 +206,7 @@ export function SearchCommand({
                   duration: reduceMotion ? 0 : 0.18,
                   ease: [0.22, 1, 0.36, 1],
                 }}
-                className="fixed inset-0 z-40 bg-black/50 backdrop-blur-md"
+                className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md"
               />
             </Dialog.Overlay>
             <Dialog.Content asChild aria-label={labels.title}>

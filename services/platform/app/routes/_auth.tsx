@@ -6,7 +6,11 @@ import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 
 export const Route = createFileRoute('/_auth')({
   beforeLoad: async ({ context }) => {
-    const session = await context.queryClient.fetchQuery(sessionQueryOptions);
+    // fetchQuery rejects on transport failures (after retries) — treat that
+    // as signed-out and show the auth page rather than a route error.
+    const session = await context.queryClient
+      .fetchQuery(sessionQueryOptions)
+      .catch(() => null);
     if (session?.data?.user) {
       throw redirect({ to: '/dashboard' });
     }

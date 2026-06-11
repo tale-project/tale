@@ -361,6 +361,58 @@ async function assertPortFree(port: number): Promise<void> {
   );
 }
 
+/** Probe the Better Auth HTTP surface (served by the Convex site proxy on
+ *  :3211) until `/api/auth/ok` answers 200. This is a true end-to-end auth
+ *  readiness check: it proves the http router is pushed AND the better-auth
+ *  handler can execute with its env (BETTER_AUTH_SECRET etc.). On the FIRST
+ *  run in a clean repo the browser used to race this bootstrap — the page's
+ *  initial session/token fetches failed, the auth provider latched the
+ *  failure, and the app sat in skeletons until a manual reload. Probing
+ *  before Vite starts means the app is never reachable before auth is.
+ *  Warn-and-continue on timeout: a genuinely broken auth route fails loudly
+ *  in the browser anyway, and the client now retries transient failures. */
+async function waitForAuthRoutes(timeoutMs = 90_000): Promise<void> {
+  const convexBase =
+    process.env.CONVEX_URL ||
+    `http://${DEFAULT_CONVEX_HOST}:${DEFAULT_CONVEX_PORT}`;
+  // Derive the Convex site-proxy origin (:3211) from CONVEX_URL. Parse with
+  // URL and set the port explicitly so a trailing slash or path on CONVEX_URL
+  // (e.g. `http://127.0.0.1:3210/`) can't defeat a `:\d+$` swap and leave the
+  // probe pointed at the backend port — which would block startup for the full
+  // timeout despite auth being healthy on :3211.
+  const siteBase =
+    process.env.CONVEX_SITE_PROXY_URL ||
+    (() => {
+      const u = new URL(convexBase);
+      u.port = '3211';
+      u.pathname = '';
+      u.search = '';
+      u.hash = '';
+      return u.toString();
+    })();
+  const url = `${siteBase.replace(/\/$/, '')}/api/auth/ok`;
+  const deadline = Date.now() + timeoutMs;
+  let lastError = 'no response yet';
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(3_000) });
+      if (res.ok) {
+        console.log('[dev] ✅ Auth routes ready');
+        return;
+      }
+      lastError = `HTTP ${res.status}`;
+    } catch (err) {
+      // Expected while the backend is still warming — remember the failure
+      // for the timeout warning instead of spamming once per second.
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  console.warn(
+    `[dev] ⚠️  Auth routes did not answer at ${url} within ${timeoutMs / 1000}s (last: ${lastError}) — continuing; the first page load may need the in-app auth retry.`,
+  );
+}
+
 /** Poll until the dev server is actually accepting connections, then print one
  *  unmistakable READY banner. This matters because (a) the log line printed
  *  just before spawning Vite only *promises* the URL — the socket isn't bound
@@ -718,6 +770,9 @@ async function main() {
     console.log('[dev] 🔄 Running code generation...');
     await runCommand('npx', ['convex', 'codegen']);
     console.log('[dev] ✅ Code generation completed');
+
+    console.log('[dev] ⏳ Waiting for auth routes to serve...');
+    await waitForAuthRoutes();
 
     // Preserve any existing CONVEX_URL the user set (external mode); only
     // synthesize one for local mode where we own the spawned backend.

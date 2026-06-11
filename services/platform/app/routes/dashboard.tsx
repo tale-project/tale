@@ -17,10 +17,18 @@ import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 
+// sessionStorage key arming the one-shot "stuck websocket auth" recovery
+// reload (see the effect in DashboardRedirect).
+const CONVEX_AUTH_RELOAD_GUARD = 'convex-auth-recovery-reloaded';
+
 export const Route = createFileRoute('/dashboard')({
   beforeLoad: async ({ context }) => {
-    // Use TanStack Query for caching and deduplication
-    const session = await context.queryClient.fetchQuery(sessionQueryOptions);
+    // Use TanStack Query for caching and deduplication. fetchQuery rejects on
+    // transport failures (after retries) — fall back to the signed-out path
+    // rather than surfacing a route error.
+    const session = await context.queryClient
+      .fetchQuery(sessionQueryOptions)
+      .catch(() => null);
     if (!session?.data?.user) {
       throw redirect({ to: '/log-in' });
     }
@@ -52,20 +60,88 @@ function DashboardRedirect() {
   const [hasValidSession, setHasValidSession] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      // Convex auth may lag behind Better Auth after sign-up.
-      // Re-check Better Auth before doing a hard redirect.
+    if (isLoading) return undefined;
+    if (isAuthenticated) {
+      // Healthy (or recovered) — re-arm the one-shot recovery reload below.
+      sessionStorage.removeItem(CONVEX_AUTH_RELOAD_GUARD);
+      return undefined;
+    }
+
+    // Convex reports unauthenticated. That's either a genuinely signed-out
+    // user, Convex auth lagging behind Better Auth after sign-up, or a STUCK
+    // handshake: the auth provider latches the first session/token fetch
+    // result, so a transient cold-start failure (backend still warming,
+    // first-run JWKS bootstrap) strands the websocket unauthenticated and
+    // every auth-gated query disabled — endless skeletons until a manual
+    // reload. Re-check Better Auth directly before doing a hard redirect, and
+    // un-stick the provider when the session is actually alive.
+    let cancelled = false;
+    // At most one timer is ever pending: a verify() run finishes before it
+    // schedules anything, and it arms exactly one of the two timers (the
+    // re-check backoff in scheduleRecheck or the one-shot reload below) — never
+    // both — overwriting this single handle. Cleanup clears whichever is set.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const MAX_RECHECKS = 8;
+
+    const scheduleRecheck = (attempt: number) => {
+      // Backend unreachable — keep the shell up instead of bouncing a
+      // possibly-valid session to /log-in on a blip, and re-check until the
+      // backend answers (the fetch layer's own retries cover ~8s; this
+      // extends coverage to ~40s of outage). Only a CLEAN signed-out answer
+      // ever triggers the redirect.
+      if (attempt + 1 < MAX_RECHECKS) {
+        timer = setTimeout(() => verify(attempt + 1), 4_000);
+      }
+    };
+
+    const verify = (attempt: number) => {
       void authClient
         .getSession()
         .then((session) => {
-          setHasValidSession(!!session?.data?.user);
+          if (cancelled) return;
+          const status = session?.error?.status;
+          if (status !== undefined && (status === 0 || status >= 500)) {
+            console.warn(
+              `[auth] Session re-check failed with ${status} (attempt ${attempt + 1})`,
+            );
+            scheduleRecheck(attempt);
+            return;
+          }
+          const valid = !!session?.data?.user;
+          setHasValidSession(valid);
           setSessionVerified(true);
+          if (!valid) return;
+          // Better Auth has a live session but the Convex websocket never
+          // authenticated. Poke the session signal so the provider refetches
+          // its session atom and rebuilds the token fetch → ws auth chain.
+          authClient.$store.notify('$sessionSignal');
+          // Last resort: if the kick doesn't authenticate within 8s, reload
+          // once (what this state otherwise forces the user to do manually).
+          // Guarded per tab so it can never loop; cleared on success above.
+          if (!sessionStorage.getItem(CONVEX_AUTH_RELOAD_GUARD)) {
+            timer = setTimeout(() => {
+              sessionStorage.setItem(CONVEX_AUTH_RELOAD_GUARD, '1');
+              console.warn(
+                '[auth] Convex websocket auth is stuck with a valid session — reloading once to recover.',
+              );
+              window.location.reload();
+            }, 8_000);
+          }
         })
-        .catch(() => {
-          setHasValidSession(false);
-          setSessionVerified(true);
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          // Thrown fetch = transport failure too (offline, refused) — same
+          // treatment as 5xx: hold the shell and re-check.
+          console.warn('[auth] Session re-check failed', err);
+          scheduleRecheck(attempt);
         });
-    }
+    };
+
+    verify(0);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [isLoading, isAuthenticated]);
 
   useEffect(() => {

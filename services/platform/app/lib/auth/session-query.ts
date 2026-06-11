@@ -11,8 +11,24 @@ import { authClient } from '@/lib/auth-client';
  */
 export const sessionQueryOptions = {
   queryKey: ['auth', 'session'] as const,
-  queryFn: () => authClient.getSession(),
+  queryFn: async () => {
+    const session = await authClient.getSession();
+    // Better Auth resolves transport failures as `{ data: null, error }`
+    // instead of throwing. Returning that would cache "signed out" as fresh
+    // data for the whole staleTime and bounce a logged-in user to /log-in
+    // while the backend is still warming up. Throw so TanStack Query treats
+    // it as a failure: retryable, never cached as data. Genuine signed-out
+    // (`data: null`, no transport error) still resolves normally.
+    const status = session?.error?.status;
+    if (status !== undefined && (status === 0 || status >= 500)) {
+      throw new Error(`getSession failed with status ${status}`);
+    }
+    return session;
+  },
   staleTime: 5 * 60 * 1000, // 5 minutes
+  // The auth fetch layer already retries 5xx with backoff (see auth-client);
+  // one extra round here covers a backend that came up between the two.
+  retry: 1,
 };
 
 /**

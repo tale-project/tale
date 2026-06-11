@@ -419,9 +419,16 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
                     <tr key={i} className="border-border border-t">
                       {Array.from({ length: 6 }).map((__, j) => (
                         <td key={j} className="px-3 py-2">
-                          <SkeletonBox fullWidth>
-                            <div className="h-3.5 w-full max-w-24" />
-                          </SkeletonBox>
+                          <div
+                            className="max-w-24"
+                            style={{
+                              width: `${58 + ((i * 17 + j * 29) % 35)}%`,
+                            }}
+                          >
+                            <SkeletonBox fullWidth>
+                              <div className="h-3.5" />
+                            </SkeletonBox>
+                          </div>
                         </td>
                       ))}
                     </tr>

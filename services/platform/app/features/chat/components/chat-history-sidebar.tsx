@@ -525,9 +525,11 @@ export function ChatHistorySidebar({
           {showSkeleton ? (
             // Mirror the loaded sidebar geometry (Projects header + folder rows,
             // Chats header + chat rows) so the reveal is a mask swap, not a
-            // layout change. `fullWidth` on the label boxes is required: the
-            // rows are flex with `items-center` (no horizontal stretch), so a
-            // non-fullWidth (inline-block) box would collapse the % width to 0.
+            // layout change. The varied label widths live on plain flex-item
+            // wrappers (a % width resolves against the row there), with a
+            // `fullWidth` box filling each wrapper — a % width on the hidden
+            // placeholder itself would either collapse to 0 (non-fullWidth)
+            // or be ignored by the mask (fullWidth).
             <Skeletonize loading>
               <Stack gap={1} className="pb-2">
                 <div className="flex h-7 items-center px-2">
@@ -550,12 +552,11 @@ export function ChatHistorySidebar({
                     <SkeletonBox>
                       <div className="size-3 rounded-sm" />
                     </SkeletonBox>
-                    <SkeletonBox fullWidth>
-                      <div
-                        className="h-3.5"
-                        style={{ width: `${58 - i * 14}%` }}
-                      />
-                    </SkeletonBox>
+                    <div style={{ width: `${58 - i * 14}%` }}>
+                      <SkeletonBox fullWidth>
+                        <div className="h-3.5" />
+                      </SkeletonBox>
+                    </div>
                   </div>
                 ))}
                 <div className="border-border mt-1.5 flex h-7 items-center border-t px-2 pt-2.5">
@@ -568,12 +569,11 @@ export function ChatHistorySidebar({
                     key={`chat-${i}`}
                     className="flex min-h-[1.5rem] items-center px-2 py-1.5"
                   >
-                    <SkeletonBox fullWidth>
-                      <div
-                        className="h-3.5"
-                        style={{ width: `${82 - (i % 4) * 14}%` }}
-                      />
-                    </SkeletonBox>
+                    <div style={{ width: `${82 - (i % 4) * 14}%` }}>
+                      <SkeletonBox fullWidth>
+                        <div className="h-3.5" />
+                      </SkeletonBox>
+                    </div>
                   </div>
                 ))}
               </Stack>
