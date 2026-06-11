@@ -375,8 +375,21 @@ async function waitForAuthRoutes(timeoutMs = 90_000): Promise<void> {
   const convexBase =
     process.env.CONVEX_URL ||
     `http://${DEFAULT_CONVEX_HOST}:${DEFAULT_CONVEX_PORT}`;
+  // Derive the Convex site-proxy origin (:3211) from CONVEX_URL. Parse with
+  // URL and set the port explicitly so a trailing slash or path on CONVEX_URL
+  // (e.g. `http://127.0.0.1:3210/`) can't defeat a `:\d+$` swap and leave the
+  // probe pointed at the backend port — which would block startup for the full
+  // timeout despite auth being healthy on :3211.
   const siteBase =
-    process.env.CONVEX_SITE_PROXY_URL || convexBase.replace(/:\d+$/, ':3211');
+    process.env.CONVEX_SITE_PROXY_URL ||
+    (() => {
+      const u = new URL(convexBase);
+      u.port = '3211';
+      u.pathname = '';
+      u.search = '';
+      u.hash = '';
+      return u.toString();
+    })();
   const url = `${siteBase.replace(/\/$/, '')}/api/auth/ok`;
   const deadline = Date.now() + timeoutMs;
   let lastError = 'no response yet';
