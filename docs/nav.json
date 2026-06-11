@@ -139,6 +139,7 @@
             "platform/agents/webhook-triggers",
             "platform/agents/versions",
             "platform/agents/image-generation",
+            "platform/agents/external-agent",
             "platform/agents/categories"
           ]
         },
