@@ -114,7 +114,7 @@ const genericOidcFeaturesSchema = z.object({
   autoProvisionTeam: z.boolean().optional(),
   excludeGroups: z.array(z.string()).optional(),
 });
-export type GenericOidcFeatures = z.infer<typeof genericOidcFeaturesSchema>;
+type GenericOidcFeatures = z.infer<typeof genericOidcFeaturesSchema>;
 
 export const providerFeaturesSchema = z.object({
   entraId: entraIdFeaturesSchema.optional(),
