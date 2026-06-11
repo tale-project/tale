@@ -624,6 +624,7 @@
           "completed": "Abgeschlossen",
           "failed": "Fehlgeschlagen",
           "waiting": "Wartet auf Eingabe",
+          "paused": "Pausiert (Debug)",
           "success": "Erfolgreich",
           "canceled": "Abgebrochen"
         }
@@ -748,6 +749,17 @@
         "running": "Läuft …",
         "failedAtStep": "Fehlgeschlagen bei Schritt: {step}",
         "runningStep": "Aktueller Schritt: {step}"
+      },
+      "debug": {
+        "button": "Debuggen",
+        "title": "Debug-Sitzung",
+        "pausedAt": "Pausiert vor Schritt: {step}",
+        "step": "Schritt",
+        "continue": "Fortsetzen",
+        "stop": "Stoppen",
+        "variables": "Laufvariablen",
+        "variablesLoading": "Variablen werden geladen …",
+        "variablesError": "Die Laufvariablen konnten nicht geladen werden."
       }
     }
   },
@@ -1461,6 +1473,7 @@
       "completed": "Abgeschlossen",
       "failed": "Fehlgeschlagen",
       "waitingForInput": "Wartet auf Eingabe",
+      "pausedDebug": "Pausiert (Debug)",
       "draft": "Entwurf",
       "enabled": "Aktiviert",
       "disabled": "Deaktiviert",
@@ -1472,7 +1485,8 @@
       "event": "Ereignis",
       "webhook": "Webhook",
       "api": "API",
-      "system": "System"
+      "system": "System",
+      "debug": "Debug"
     },
     "validation": {
       "required": "{field} ist erforderlich",

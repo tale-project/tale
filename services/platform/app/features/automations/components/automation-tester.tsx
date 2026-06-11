@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
+  Bug,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -19,6 +20,7 @@ import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import type { Id } from '@/convex/_generated/dataModel';
+import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/debug_gate';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -31,6 +33,7 @@ import {
   type InputSchema,
 } from '../utils/input-schema-template';
 import { getStepTypeColor } from '../utils/step-icons';
+import { AutomationDebugControls } from './automation-debug-controls';
 import { AUTOMATION_EXECUTION_URL_DEFINITIONS } from './execution-status-context';
 
 interface AutomationTesterProps {
@@ -120,8 +123,23 @@ export function AutomationTester({
   const { state: executionUrlState, setState: setExecutionUrlState } =
     useUrlState({ definitions: AUTOMATION_EXECUTION_URL_DEFINITIONS });
 
-  const { mutateAsync: startWorkflow, isPending: isExecuting } =
-    useStartWorkflowFromFile();
+  const {
+    mutateAsync: startWorkflow,
+    isPending: isExecuting,
+    variables: startVariables,
+  } = useStartWorkflowFromFile();
+
+  // Which start button is in flight (the mutation's variables are only set
+  // while it is pending) — keeps the spinner on the button that was clicked.
+  const isDebugStarting = isExecuting && startVariables?.debugMode === true;
+  const isExecuteStarting = isExecuting && !isDebugStarting;
+
+  // Debug-mode pause: the engine sets waitingFor='debug:<n>:<slug>' while it
+  // waits for a Step/Continue event (status stays 'running').
+  const debugPause =
+    executionStatus?.status === 'running'
+      ? parseDebugWaitingFor(executionStatus.waitingFor)
+      : null;
 
   const parsedInput = (() => {
     try {
@@ -164,7 +182,7 @@ export function AutomationTester({
     setIsDryRunning(false);
   };
 
-  const handleExecute = async () => {
+  const handleExecute = async (debugMode: boolean) => {
     setActiveExecutionId(null);
     let input = {};
     try {
@@ -183,12 +201,15 @@ export function AutomationTester({
         organizationId,
         workflowSlug,
         input,
-        triggeredBy: 'test',
+        // Debug runs carry their own trigger source so the Executions tab can
+        // filter them apart from plain test runs.
+        triggeredBy: debugMode ? 'debug' : 'test',
         triggerData: {
           triggerType: 'manual',
-          reason: 'test',
+          reason: debugMode ? 'debug' : 'test',
           timestamp: Date.now(),
         },
+        ...(debugMode ? { debugMode: true } : {}),
       });
 
       if (!executionId) {
@@ -378,6 +399,14 @@ export function AutomationTester({
           </BorderedSection>
         )}
 
+        {activeExecutionId && debugPause && executionStatus?.waitingFor && (
+          <AutomationDebugControls
+            executionId={activeExecutionId}
+            waitingFor={executionStatus.waitingFor}
+            currentStepName={executionStatus.currentStepName}
+          />
+        )}
+
         <BorderedSection className="border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/20">
           <Text className="text-xs text-blue-900 dark:text-blue-100">
             {t('tester.tip')}
@@ -415,11 +444,29 @@ export function AutomationTester({
             )}
           </Button>
           <Button
-            onClick={handleExecute}
+            variant="secondary"
+            onClick={() => handleExecute(true)}
             disabled={isExecuting || isDryRunning || !canRun}
             className="flex-1"
           >
-            {isExecuting ? (
+            {isDebugStarting ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                {t('tester.executing')}
+              </>
+            ) : (
+              <>
+                <Bug className="mr-2 size-4" />
+                {t('tester.debug.button')}
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={() => handleExecute(false)}
+            disabled={isExecuting || isDryRunning || !canRun}
+            className="flex-1"
+          >
+            {isExecuteStarting ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
                 {t('tester.executing')}

@@ -144,6 +144,7 @@ export const startWorkflowFromFileConfig = internalMutation({
     triggeredBy: v.string(),
     triggerData: v.optional(jsonValueValidator),
     userId: v.optional(v.string()),
+    debugMode: v.optional(v.boolean()),
   },
   returns: v.id('wfExecutions'),
   handler: async (ctx, args) => {
@@ -219,6 +220,7 @@ export const startWorkflowFromFileConfig = internalMutation({
           input: toConvexJsonValue(args.input || {}),
           triggeredBy: args.triggeredBy,
           triggerData: toConvexJsonValue(args.triggerData || {}),
+          debugMode: args.debugMode,
         },
         {
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- our onComplete handler is compatible at runtime

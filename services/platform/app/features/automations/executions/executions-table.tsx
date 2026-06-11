@@ -15,6 +15,7 @@ import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
+import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/debug_gate';
 import { useT } from '@/lib/i18n/client';
 import { formatDuration } from '@/lib/utils/format/number';
 
@@ -45,6 +46,7 @@ const STATUS_BADGE_VARIANTS: Record<
   running: 'blue',
   pending: 'outline',
   waiting_for_input: 'yellow',
+  paused_debug: 'yellow',
 };
 
 type Execution = Doc<'wfExecutions'>;
@@ -169,7 +171,11 @@ export function ExecutionsTable({
   const getStatusBadge = useCallback(
     (statusVal: string, waitingFor?: string) => {
       const displayStatus =
-        statusVal === 'running' && waitingFor ? 'waiting_for_input' : statusVal;
+        statusVal === 'running' && waitingFor
+          ? parseDebugWaitingFor(waitingFor)
+            ? 'paused_debug'
+            : 'waiting_for_input'
+          : statusVal;
       return (
         <Badge
           dot
@@ -178,7 +184,9 @@ export function ExecutionsTable({
         >
           {displayStatus === 'waiting_for_input'
             ? tCommon('status.waitingForInput')
-            : statusVal}
+            : displayStatus === 'paused_debug'
+              ? tCommon('status.pausedDebug')
+              : statusVal}
         </Badge>
       );
     },
@@ -401,6 +409,7 @@ export function ExecutionsTable({
           { value: 'webhook', label: tCommon('triggerSource.webhook') },
           { value: 'api', label: tCommon('triggerSource.api') },
           { value: 'system', label: tCommon('triggerSource.system') },
+          { value: 'debug', label: tCommon('triggerSource.debug') },
         ],
         selectedValues: triggeredBy ? [triggeredBy] : [],
         onChange: handleTriggeredByChange,

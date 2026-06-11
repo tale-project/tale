@@ -36,6 +36,7 @@ const dynamicWorkflowDef = {
     resumeFromStepSlug: v.optional(v.string()),
     resumeVariables: v.optional(jsonValueValidator),
     threadId: v.optional(v.string()),
+    debugMode: v.optional(v.boolean()),
   },
   handler: async (
     step: WorkflowCtx,

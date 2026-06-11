@@ -625,6 +625,7 @@
           "completed": "Terminée",
           "failed": "Échouée",
           "waiting": "En attente de saisie",
+          "paused": "En pause (débogage)",
           "success": "Réussie",
           "canceled": "Annulée"
         }
@@ -749,6 +750,17 @@
         "running": "En cours…",
         "failedAtStep": "Échec à l'étape : {step}",
         "runningStep": "Étape en cours : {step}"
+      },
+      "debug": {
+        "button": "Déboguer",
+        "title": "Session de débogage",
+        "pausedAt": "En pause avant l'étape : {step}",
+        "step": "Pas à pas",
+        "continue": "Continuer",
+        "stop": "Arrêter",
+        "variables": "Variables de l'exécution",
+        "variablesLoading": "Chargement des variables…",
+        "variablesError": "Impossible de charger les variables de l'exécution."
       }
     }
   },
@@ -1462,6 +1474,7 @@
       "completed": "Terminé",
       "failed": "Échoué",
       "waitingForInput": "En attente de saisie",
+      "pausedDebug": "En pause (débogage)",
       "draft": "Brouillon",
       "enabled": "Activé",
       "disabled": "Désactivé",
@@ -1473,7 +1486,8 @@
       "event": "Événement",
       "webhook": "Webhook",
       "api": "API",
-      "system": "Système"
+      "system": "Système",
+      "debug": "Débogage"
     },
     "validation": {
       "required": "{field} est requis",

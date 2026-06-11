@@ -40,6 +40,7 @@ import React, {
 import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import { Doc } from '@/convex/_generated/dataModel';
+import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/debug_gate';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomationLayout } from '../hooks/use-automation-layout';
@@ -88,6 +89,7 @@ const RUN_STATUS_BADGE_VARIANTS: Record<
   running: 'blue',
   pending: 'outline',
   waiting: 'yellow',
+  paused: 'yellow',
 };
 
 const MINIMAP_STYLES = `
@@ -284,11 +286,13 @@ function AutomationStepsInner({
     [steps],
   );
 
-  // Surface waiting-for-input as its own banner state; the run row in the
-  // executions table applies the same mapping.
+  // Surface waiting-for-input and debug pauses as their own banner states;
+  // the run row in the executions table applies the same mapping.
   const viewedRunStatus = viewedExecution
     ? viewedExecution.status === 'running' && viewedExecution.waitingFor
-      ? 'waiting'
+      ? parseDebugWaitingFor(viewedExecution.waitingFor)
+        ? 'paused'
+        : 'waiting'
       : viewedExecution.status
     : null;
 

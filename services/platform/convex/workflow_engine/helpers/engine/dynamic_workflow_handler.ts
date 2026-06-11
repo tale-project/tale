@@ -14,6 +14,11 @@ import { jsonValueValidator } from '../../../lib/validators/json';
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
 import { createDebugLog } from '../../../lib/debug_log';
+import {
+  buildDebugWaitingFor,
+  debugEventName,
+  debugResumeEventValidator,
+} from './debug_gate';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -28,6 +33,14 @@ export type DynamicWorkflowArgs = {
   resumeFromStepSlug?: string;
   resumeVariables?: ConvexJsonValue;
   threadId?: string;
+  /**
+   * Step-by-step debug mode: the engine pauses before every node until the
+   * user sends a `debug:<pauseIndex>` event ('step' pauses again before the
+   * next node, 'continue' runs to the end). Journaled with the workflow args,
+   * so replays of in-flight executions are deterministic — runs started
+   * without the flag never hit the gate.
+   */
+  debugMode?: boolean;
 };
 
 function buildRetryBehaviorFromPolicy(policy?: {
@@ -107,10 +120,57 @@ export async function handleDynamicWorkflow(
   // outward and recover at the first loop that opted in.
   const activeLoopStack: string[] = [];
 
+  // Debug gate state: `pauseIndex` increments deterministically per pause so
+  // each awaitEvent gets a unique, journal-stable event name.
+  let runToEnd = !args.debugMode;
+  let pauseIndex = 0;
+
   while (currentStepSlug) {
     const stepDef = stepMap.get(currentStepSlug);
     if (!stepDef) {
       throw new Error(`Step not found: ${currentStepSlug}`);
+    }
+
+    if (!runToEnd) {
+      pauseIndex += 1;
+      debugLog('dynamicWorkflow Debug pause before step', {
+        executionId,
+        stepSlug: stepDef.stepSlug,
+        pauseIndex,
+      });
+
+      // Surface the pause on the execution row (status stays 'running', same
+      // convention as human-input approvals — watchdog/filter safe).
+      await step.runMutation(
+        internal.wf_executions.internal_mutations.updateExecutionStatus,
+        {
+          executionId,
+          status: 'running',
+          currentStepSlug: stepDef.stepSlug,
+          currentStepName: stepDef.name,
+          waitingFor: buildDebugWaitingFor(pauseIndex, stepDef.stepSlug),
+        },
+      );
+
+      const resume = await step.awaitEvent({
+        name: debugEventName(pauseIndex),
+        validator: debugResumeEventValidator,
+      });
+
+      if (resume.action === 'continue') {
+        runToEnd = true;
+      }
+
+      // Clear waitingFor (empty string signals "clear" since Convex strips
+      // undefined values from serialized args).
+      await step.runMutation(
+        internal.wf_executions.internal_mutations.updateExecutionStatus,
+        {
+          executionId,
+          status: 'running',
+          waitingFor: '',
+        },
+      );
     }
 
     // Determine retry policy: step-level override > workflow-level default

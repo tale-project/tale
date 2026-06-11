@@ -624,6 +624,7 @@
           "completed": "Completed",
           "failed": "Failed",
           "waiting": "Waiting for input",
+          "paused": "Paused (debug)",
           "success": "Succeeded",
           "canceled": "Canceled"
         }
@@ -748,6 +749,17 @@
         "running": "Running…",
         "failedAtStep": "Failed at step: {step}",
         "runningStep": "Current step: {step}"
+      },
+      "debug": {
+        "button": "Debug",
+        "title": "Debug session",
+        "pausedAt": "Paused before step: {step}",
+        "step": "Step",
+        "continue": "Continue",
+        "stop": "Stop",
+        "variables": "Run variables",
+        "variablesLoading": "Loading variables…",
+        "variablesError": "Couldn't load the run variables."
       }
     }
   },
@@ -1461,6 +1473,7 @@
       "completed": "Completed",
       "failed": "Failed",
       "waitingForInput": "Waiting for input",
+      "pausedDebug": "Paused (debug)",
       "draft": "Draft",
       "enabled": "Enabled",
       "disabled": "Disabled",
@@ -1472,7 +1485,8 @@
       "event": "Event",
       "webhook": "Webhook",
       "api": "API",
-      "system": "System"
+      "system": "System",
+      "debug": "Debug"
     },
     "validation": {
       "required": "{field} is required",
