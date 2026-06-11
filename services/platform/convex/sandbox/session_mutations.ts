@@ -18,7 +18,10 @@ import {
 } from './sessions_schema';
 import { sandboxSessionProfileValidator } from './wire';
 
-const SANDBOX_MAX_SESSIONS_PER_ORG = 4;
+// Sessions are per-user (one persistent sandbox per user), so this org cap
+// should not bind before the spawner's host-RAM cap (SANDBOX_MAX_SESSIONS) —
+// keep it high enough that ~one sandbox per active user in an org is allowed.
+const SANDBOX_MAX_SESSIONS_PER_ORG = 50;
 
 /**
  * Atomically check the per-owner + per-org active-session caps and insert a
@@ -225,6 +228,27 @@ export const deleteOpsForSession = internalMutation({
   },
 });
 
+/**
+ * Delete a thread's progress/op rows. Per-user sandboxes outlive any single
+ * thread, so the thread-delete cascade can't reap the shared session — it
+ * prunes just that thread's ops (keyed by threadId) so the table doesn't
+ * accumulate after a chat is deleted. Returns the count.
+ */
+export const deleteOpsForThread = internalMutation({
+  args: { threadId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let deleted = 0;
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
+      await ctx.db.delete(row._id);
+      deleted += 1;
+    }
+    return deleted;
+  },
+});
+
 // --- in-session exec progress ----------------------------------------------
 
 /**
@@ -237,6 +261,7 @@ export const upsertSessionOp = internalMutation({
   args: {
     organizationId: v.string(),
     sessionId: v.string(),
+    threadId: v.optional(v.string()),
     execId: v.string(),
     kind: v.string(),
     status: v.union(
@@ -283,6 +308,7 @@ export const upsertSessionOp = internalMutation({
     return ctx.db.insert('sandboxSessionOps', {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
+      ...(args.threadId !== undefined && { threadId: args.threadId }),
       execId: args.execId,
       kind: args.kind,
       status: args.status,

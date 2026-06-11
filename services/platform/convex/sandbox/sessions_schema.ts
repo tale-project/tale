@@ -90,6 +90,10 @@ export const sandboxSessionTokensTable = defineTable({
 export const sandboxSessionOpsTable = defineTable({
   organizationId: v.string(),
   sessionId: v.string(),
+  /** The chat thread this op ran for. A per-user sandbox serves many threads
+   * from one session, so resume + the live-progress query scope by thread, not
+   * just sessionId. Optional for pre-per-user rows + non-chat (exec) ops. */
+  threadId: v.optional(v.string()),
   execId: v.string(),
   kind: v.string(), // 'exec' | 'agent-run'
   status: v.union(
@@ -109,6 +113,7 @@ export const sandboxSessionOpsTable = defineTable({
   eventLogStorageId: v.optional(v.string()),
 })
   .index('by_sessionId', ['sessionId'])
+  .index('by_threadId', ['threadId'])
   .index('by_organizationId_and_status', ['organizationId', 'status']);
 
 /**

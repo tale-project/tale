@@ -8,7 +8,6 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
-import { sessionIdForThread } from './session_naming';
 
 /**
  * Latest in-session `agent-run` op for a thread, for live tool-use/text
@@ -43,7 +42,8 @@ export const getActiveSessionOp = query({
     const metadata = await canAccessThread(ctx, args.threadId, authUser);
     if (!metadata) return null;
 
-    const sessionId = sessionIdForThread(args.threadId);
+    // Scope by thread, not session id — a per-user sandbox serves many threads
+    // from one session, so the live op for THIS chat is found by threadId.
     let latest: {
       status: 'running' | 'completed' | 'failed' | 'cancelled';
       progressText?: string;
@@ -54,7 +54,7 @@ export const getActiveSessionOp = query({
     } | null = null;
     for await (const row of ctx.db
       .query('sandboxSessionOps')
-      .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))) {
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
       if (row.kind !== 'agent-run') continue;
       if (latest === null || row.startedAt > latest.startedAt) {
         latest = {

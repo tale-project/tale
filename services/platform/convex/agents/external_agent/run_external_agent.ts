@@ -39,14 +39,23 @@ import {
 } from '../../node_only/sandbox/helpers/session_client';
 import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
-import { sessionIdForThread } from '../../sandbox/session_naming';
+import {
+  sessionIdForThread,
+  sessionIdForUser,
+  userOwnerId,
+} from '../../sandbox/session_naming';
 
 const debugLog = createDebugLog(
   'DEBUG_EXTERNAL_AGENT',
   '[runExternalAgentTurn]',
 );
 
-const OWNER_TYPE = 'thread';
+// One persistent sandbox per USER, reused across all their chat threads (shared
+// /workspace; each thread keeps its own Claude conversation via per-thread
+// resume). Falls back to thread ownership only when no userId is available
+// (system/rare). See [[sandbox-agent-sessions-e2e-2026-06-11]].
+const OWNER_TYPE_USER = 'user';
+const OWNER_TYPE_THREAD = 'thread';
 // Data plane — Bifrost as seen from INSIDE the session container. (The
 // management plane URL, BIFROST_URL, is read in bifrost_admin.ts.) Always the
 // sandbox-network alias (it's hardcoded in the runtime NO_PROXY); kept
@@ -87,10 +96,18 @@ export const runExternalAgentTurn = internalAction({
     let turnTokens: { inputTokens: number; outputTokens: number } | null = null;
 
     try {
-      // 1. Reuse the thread's active session, or create one (owner = thread).
+      // 1. Reuse the user's persistent sandbox, or create one (owner = user;
+      // thread-owned fallback only when no userId is available). One sandbox
+      // per user PER ORG serves all their threads in that org — shared
+      // /workspace, per-thread Claude conversation. The owner key is
+      // (org, user) so the same user in another org gets a separate sandbox.
+      const ownerType = args.userId ? OWNER_TYPE_USER : OWNER_TYPE_THREAD;
+      const ownerId = args.userId
+        ? userOwnerId(args.organizationId, args.userId)
+        : args.threadId;
       const existing = await ctx.runQuery(
         internal.sandbox.session_queries.getActiveSessionByOwner,
-        { ownerType: OWNER_TYPE, ownerId: args.threadId },
+        { ownerType, ownerId },
       );
       let sessionId: string;
       // Lower bound for the --resume lookup: ops from a PRIOR session (same
@@ -102,7 +119,9 @@ export const runExternalAgentTurn = internalAction({
         sessionId = existing.sessionId;
         sessionCreatedAt = existing.createdAt;
       } else {
-        sessionId = sessionIdForThread(args.threadId);
+        sessionId = args.userId
+          ? sessionIdForUser(args.organizationId, args.userId)
+          : sessionIdForThread(args.threadId);
         sessionCreatedAt = Date.now();
         const rowId = await ctx.runMutation(
           internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
@@ -110,8 +129,8 @@ export const runExternalAgentTurn = internalAction({
             organizationId: args.organizationId,
             sessionId,
             profile: 'agent',
-            ownerType: OWNER_TYPE,
-            ownerId: args.threadId,
+            ownerType,
+            ownerId,
             createdBy: args.userId ?? 'system',
             agentKind: args.agentKind,
           },
@@ -211,10 +230,12 @@ export const runExternalAgentTurn = internalAction({
         },
       );
 
-      // 4. Resume the in-sandbox agent's prior conversation if any.
+      // 4. Resume THIS thread's prior conversation, if any (a per-user sandbox
+      // holds every thread's conversation — scope by thread, bounded to the
+      // current session's lifetime).
       const agentSessionId = await ctx.runQuery(
         internal.sandbox.session_queries.latestAgentSessionId,
-        { sessionId, sinceStartedAt: sessionCreatedAt },
+        { threadId: args.threadId, sinceStartedAt: sessionCreatedAt },
       );
 
       debugLog('run', {
@@ -231,6 +252,7 @@ export const runExternalAgentTurn = internalAction({
       const result = await runAgentInSessionImpl(ctx, {
         organizationId: args.organizationId,
         sessionId,
+        threadId: args.threadId,
         execId,
         agentSlug: args.agentKind,
         prompt: args.rawPrompt,

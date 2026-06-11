@@ -31,6 +31,9 @@ const RECENT_EVENTS_CAP = 20;
 export interface RunAgentInSessionArgs {
   organizationId: string;
   sessionId: string;
+  /** Chat thread this run belongs to — stamped on the op so a per-user
+   * sandbox's per-thread resume + live-progress query can scope by thread. */
+  threadId?: string;
   execId: string;
   agentSlug: 'claude-code' | 'opencode';
   prompt: string;
@@ -133,6 +136,7 @@ export async function runAgentInSessionImpl(
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
+      ...(args.threadId !== undefined && { threadId: args.threadId }),
       execId: args.execId,
       kind: 'agent-run',
       status: 'running',
@@ -183,6 +187,7 @@ export async function runAgentInSessionImpl(
   await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
     organizationId: args.organizationId,
     sessionId: args.sessionId,
+    ...(args.threadId !== undefined && { threadId: args.threadId }),
     execId: args.execId,
     kind: 'agent-run',
     status: opStatus,

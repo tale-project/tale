@@ -23,26 +23,30 @@ export const getActiveSessionByOwner = internalQuery({
   },
 });
 
-/** The most recent in-session exec's captured agent session id (for --resume),
- * or null.
+/** The most recent captured agent session id for a THREAD (for --resume), or
+ * null.
  *
- * `sinceStartedAt` scopes the lookup to the CURRENT session row's lifetime.
- * The thread session id is deterministic (`thr-<threadId>`), so a destroyed +
- * recreated session reuses the same id string; without this bound the query
- * would return a prior session's `agentSessionId`, whose in-container Claude
- * conversation no longer exists — the next `--resume` then fails immediately
- * with "No conversation found". Pass the active session row's `createdAt`: a
- * fresh session has no ops at/after it (→ null → no resume, correct for an
- * empty workspace); a reused session returns only its own turns' handle. */
+ * A per-user sandbox serves many threads from one session, so the resume handle
+ * is scoped by `threadId` — thread T continues T's own Claude conversation, not
+ * another thread's, even though they share the container's CLAUDE_CONFIG_DIR.
+ *
+ * `sinceStartedAt` additionally bounds the lookup to the CURRENT session row's
+ * lifetime: a destroyed + recreated sandbox (same deterministic id, workspace
+ * wiped) must not resume a prior incarnation's conversation — pass the active
+ * session row's `createdAt`. Ops are queried by `by_threadId`; pre-per-user
+ * rows have no `threadId` and are naturally excluded (→ no stale resume). */
 export const latestAgentSessionId = internalQuery({
-  args: { sessionId: v.string(), sinceStartedAt: v.optional(v.number()) },
+  args: {
+    threadId: v.string(),
+    sinceStartedAt: v.optional(v.number()),
+  },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
     const since = args.sinceStartedAt ?? 0;
     let latest: { startedAt: number; agentSessionId?: string } | null = null;
     for await (const row of ctx.db
       .query('sandboxSessionOps')
-      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
       if (
         row.agentSessionId &&
         row.startedAt >= since &&

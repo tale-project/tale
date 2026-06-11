@@ -149,8 +149,12 @@ export function loadConfig(): SpawnerConfig {
       { min: 4 * 1024 },
     ),
     session: {
+      // Spawner-wide cap = the host-RAM guard (each agent session ≈ 2 cpu / 4 g);
+      // operators size it to the box. Sessions are per-USER now, so the per-org
+      // cap should NOT bind before the host cap — keep it high (effectively
+      // "one sandbox per active user, host RAM is the real limit").
       maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 10, { min: 1 }),
-      maxSessionsPerOrg: numEnv('SANDBOX_MAX_SESSIONS_PER_ORG', 2, { min: 1 }),
+      maxSessionsPerOrg: numEnv('SANDBOX_MAX_SESSIONS_PER_ORG', 50, { min: 1 }),
       maxLifetimeMs: numEnv(
         'SANDBOX_SESSION_MAX_LIFETIME_MS',
         24 * 60 * 60 * 1000,
