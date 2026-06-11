@@ -49,10 +49,15 @@ export function bunCacheVolumeName(
 const ensureInFlight = new Map<string, Promise<void>>();
 
 /**
- * Lazy idempotent create. New volumes are root-owned by default and the
- * runtime container runs as nobody (65534), so on first creation we also
- * spin up a transient busybox to chown the volume's root to 65534:65534.
- * Subsequent calls are no-ops (we detect via `docker volume inspect`).
+ * Lazy idempotent create. New volumes are root-owned by default, but the
+ * per-org cache is shared by BOTH session profiles — the one-shot default
+ * profile (uid 65534) and the agent session profile (uid 10001) — so no single
+ * owner works. On first creation we spin up a transient busybox to set the
+ * volume root to 1777 (sticky, world-writable, like /tmp): every same-org
+ * sandbox uid can write its own cache entries, and the sticky bit stops one uid
+ * from deleting another's. The per-org volume is the isolation boundary (R2.3),
+ * so intra-org world-write is acceptable. Subsequent calls are no-ops (detected
+ * via `docker volume inspect`).
  */
 export async function ensureCacheVolume(name: string): Promise<void> {
   const existing = ensureInFlight.get(name);
@@ -88,8 +93,11 @@ async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
     );
   }
 
-  // One-shot chown so the unprivileged runtime user can write to the cache.
-  const chown = await runDocker([
+  // One-shot perms fix so EITHER profile's uid can write the shared cache.
+  // 1777 (sticky world-writable) rather than a chown because the per-org
+  // volume is shared by the one-shot uid 65534 and the agent-session uid 10001;
+  // chowning to one would lock out the other.
+  const perms = await runDocker([
     'run',
     '--rm',
     '--user',
@@ -99,13 +107,13 @@ async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
     '--mount',
     `type=volume,src=${name},dst=/cache`,
     'busybox:1.36',
-    'chown',
-    '65534:65534',
+    'chmod',
+    '1777',
     '/cache',
   ]);
-  if (chown.exitCode !== 0) {
+  if (perms.exitCode !== 0) {
     throw new Error(
-      `volume: failed to chown cache volume ${name}: ${chown.stderr.trim()}`,
+      `volume: failed to set perms on cache volume ${name}: ${perms.stderr.trim()}`,
     );
   }
 }
