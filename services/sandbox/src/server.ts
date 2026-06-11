@@ -1,17 +1,24 @@
 // Tale Sandbox Spawner — HTTP entrypoint.
 //
 // Routes:
-//   GET  /health             — 200 if docker daemon reachable.
-//   POST /v1/execute         — HMAC-authenticated, runs one ephemeral container,
-//                              streams SSE phase events + final result.
-//   POST /v1/cancel/:id      — HMAC-authenticated, kills in-flight container.
+//   GET  /health                       — 200 if docker daemon reachable.
+//   POST /v1/execute                   — HMAC-auth, one ephemeral container.
+//   POST /v1/cancel/:id                — HMAC-auth, kills in-flight container.
+//   POST/GET/DELETE /v1/sessions[...]  — HMAC-auth, persistent session API
+//                                        (create/get/list/destroy/exec/cancel).
 //
 // Concurrency: in-process semaphore at SANDBOX_MAX_CONCURRENT. 429 over cap.
 
 import { verify, SIGNATURE_HEADER, TIMESTAMP_HEADER } from './auth.ts';
-import { createBackend, type HealthResult } from './backend/index.ts';
+import {
+  createBackend,
+  createSessionBackend,
+  type HealthResult,
+} from './backend/index.ts';
 import { installSignalHandlers, startPeriodicSweep } from './cleanup.ts';
 import { loadConfig } from './config.ts';
+import { jsonResponse, readBodyCapped } from './http-util.ts';
+import { SessionRoutes } from './session/session-routes.ts';
 import {
   cancelExecution,
   executeRequest,
@@ -20,12 +27,23 @@ import {
   registerInFlight,
   unregisterInFlight,
 } from './spawn.ts';
+import { sseResponse } from './sse.ts';
 import { validateExecuteRequest } from './validate-request.ts';
 
 const cfg = loadConfig();
 // Execution backend (docker | kubernetes), chosen once at boot. Constructing
 // it has no side effects; init() runs the docker lock + boot sweep in main().
 const backend = createBackend(cfg);
+// Session subsystem (persistent sessions). Lazily constructed on first session
+// route hit so a kubernetes deployment (session backend not yet implemented)
+// only errors when sessions are actually used, never at boot.
+let sessionRoutes: SessionRoutes | null = null;
+function getSessionRoutes(): SessionRoutes {
+  if (sessionRoutes === null) {
+    sessionRoutes = new SessionRoutes(cfg, createSessionBackend(cfg));
+  }
+  return sessionRoutes;
+}
 
 // A single execution's stray async error must not take down the long-running
 // spawner that's serving other requests. Per-request paths already try/catch;
@@ -35,69 +53,6 @@ const backend = createBackend(cfg);
 process.on('unhandledRejection', (reason) => {
   console.error('[sandbox] unhandledRejection (surviving):', reason);
 });
-
-async function readBodyCapped(req: Request, maxBytes: number): Promise<string> {
-  // Streaming guard so an unbounded POST can't OOM the process before we
-  // ever see HMAC. We rely on the Content-Length hint when present and
-  // hard-cap the actual byte count regardless.
-  const cl = req.headers.get('content-length');
-  if (cl !== null) {
-    const declared = Number(cl);
-    if (Number.isFinite(declared) && declared > maxBytes) {
-      throw Object.assign(new Error('payload_too_large'), { httpStatus: 413 });
-    }
-  }
-  const reader = req.body?.getReader();
-  if (!reader) {
-    return '';
-  }
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    if (value) {
-      total += value.byteLength;
-      if (total > maxBytes) {
-        reader.cancel().catch((err) => {
-          console.warn('[sandbox] reader cancel after body cap failed:', err);
-        });
-        throw Object.assign(new Error('payload_too_large'), {
-          httpStatus: 413,
-        });
-      }
-      chunks.push(value);
-    }
-  }
-  const first = chunks[0];
-  return new TextDecoder('utf-8').decode(
-    chunks.length === 1 && first ? first : concat(chunks, total),
-  );
-}
-
-function concat(chunks: Uint8Array[], total: number): Uint8Array {
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const c of chunks) {
-    out.set(c, offset);
-    offset += c.byteLength;
-  }
-  return out;
-}
-
-function jsonResponse(
-  body: unknown,
-  status: number,
-  extraHeaders?: Record<string, string>,
-): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      'content-type': 'application/json',
-      ...extraHeaders,
-    },
-  });
-}
 
 function authorize(body: string, req: Request): Response | null {
   if (cfg.sandboxToken === null) return null; // dev opt-in mode
@@ -245,67 +200,28 @@ async function handleExecute(req: Request): Promise<Response> {
   req.signal.addEventListener('abort', abortHandler, { once: true });
   registerInFlight(parsed.executionId);
 
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const enc = new TextEncoder();
-      const send = (event: string, data: unknown) => {
-        try {
-          controller.enqueue(
-            enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
-          );
-        } catch (err) {
-          // Stream already closed — common when the caller aborted; we
-          // continue draining the spawn so the cleanup paths run.
-          console.warn('[sandbox] SSE enqueue after close:', err);
-        }
-      };
-      // Bun.serve enforces a per-connection idleTimeout (we raise it to the
-      // 255 s max below, but install + run can still outlast that). An SSE
-      // comment line (`: ...\n\n`) is ignored by the platform-side parser
-      // and resets the idle clock, so a periodic tick keeps the stream live
-      // during silent stretches like `pip install` / `npm install`.
-      const sendKeepalive = () => {
-        try {
-          controller.enqueue(enc.encode(`: keepalive\n\n`));
-        } catch (err) {
-          console.warn('[sandbox] SSE keepalive enqueue after close:', err);
-        }
-      };
-      const keepalive = setInterval(sendKeepalive, 20_000);
-      try {
-        const result = await executeRequest(backend, cfg, parsed, {
-          onPhase: (e) => send('phase', e),
-          // Live stdout/stderr tail. Per-line for stdout (PHASE markers
-          // stripped); per-chunk for stderr. Coalescing is left to the
-          // platform-side action because that's where the cost of "too
-          // many mutations" actually lives — SSE event overhead is small.
-          onStdoutDelta: (text) => send('stdout', { text }),
-          onStderrDelta: (text) => send('stderr', { text }),
-        });
-        send('result', result);
-      } catch (err) {
-        send('error', {
-          message: err instanceof Error ? err.message : String(err),
-        });
-      } finally {
-        clearInterval(keepalive);
-        unregisterInFlight(parsed.executionId);
-        req.signal.removeEventListener('abort', abortHandler);
-        try {
-          controller.close();
-        } catch (err) {
-          console.warn('[sandbox] SSE close failed:', err);
-        }
-      }
-    },
-  });
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      'content-type': 'text/event-stream',
-      'cache-control': 'no-cache, no-transform',
-      'x-accel-buffering': 'no',
-    },
+  // Keepalive + stream-close handling live in sseResponse (extracted to
+  // sse.ts so the session exec route shares them).
+  return sseResponse(async ({ send }) => {
+    try {
+      const result = await executeRequest(backend, cfg, parsed, {
+        onPhase: (e) => send('phase', e),
+        // Live stdout/stderr tail. Per-line for stdout (PHASE markers
+        // stripped); per-chunk for stderr. Coalescing is left to the
+        // platform-side action because that's where the cost of "too
+        // many mutations" actually lives — SSE event overhead is small.
+        onStdoutDelta: (text) => send('stdout', { text }),
+        onStderrDelta: (text) => send('stderr', { text }),
+      });
+      send('result', result);
+    } catch (err) {
+      send('error', {
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      unregisterInFlight(parsed.executionId);
+      req.signal.removeEventListener('abort', abortHandler);
+    }
   });
 }
 
@@ -342,6 +258,156 @@ async function handleCancel(req: Request, id: string): Promise<Response> {
 // wire.ts; one regex covers spawn.ts, docker-args.ts, and this router.
 const CANCEL_ROUTE_RE = /^\/v1\/cancel\/([a-zA-Z0-9_-]{1,64})$/;
 
+// Session routes. All authenticated identically to /v1/execute (HMAC over
+// METHOD\npath\nts\nsha256(body)); the per-route handlers live in
+// session/session-routes.ts.
+const SESSION_ID = '([a-zA-Z0-9_-]{1,64})';
+const EXEC_ID = '([a-zA-Z0-9_-]{1,64})';
+const SESSION_ONE_RE = new RegExp(`^/v1/sessions/${SESSION_ID}$`);
+const SESSION_EXEC_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/exec$`);
+const SESSION_EXEC_CANCEL_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/exec/${EXEC_ID}/cancel$`,
+);
+const SESSION_EXEC_ATTACH_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/exec/${EXEC_ID}/attach$`,
+);
+const SESSION_ENV_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/env$`);
+const SESSION_FILES_STAGE_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/files/stage$`,
+);
+const SESSION_FILES_CONTENT_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/files/content$`,
+);
+const SESSION_FILES_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/files$`);
+
+// How often the session TTL/idle reaper runs.
+const SESSION_SWEEP_INTERVAL_MS = 60_000;
+
+/** Body-cap + HMAC for a session route that needs the raw body; returns the
+ * verified body string or an error Response. */
+async function readAndAuth(
+  req: Request,
+): Promise<{ body: string } | { error: Response }> {
+  let body: string;
+  try {
+    body = await readBodyCapped(req, cfg.maxRequestBodyBytes);
+  } catch (err) {
+    const status =
+      err && typeof err === 'object' && 'httpStatus' in err
+        ? Number((err as { httpStatus: unknown }).httpStatus)
+        : 400;
+    return {
+      error: jsonResponse(
+        { error: status === 413 ? 'payload_too_large' : 'bad_request' },
+        status === 413 ? 413 : 400,
+      ),
+    };
+  }
+  const authFail = authorize(body, req);
+  if (authFail) return { error: authFail };
+  return { body };
+}
+
+async function handleSessionRoutes(
+  req: Request,
+  url: URL,
+): Promise<Response | null> {
+  const path = url.pathname;
+
+  // POST /v1/sessions (create)
+  if (req.method === 'POST' && path === '/v1/sessions') {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleCreate(r.body);
+  }
+  // GET /v1/sessions?organizationId=… (list)
+  if (req.method === 'GET' && path === '/v1/sessions') {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleList(
+      url.searchParams.get('organizationId'),
+    );
+  }
+  // POST /v1/sessions/:id/exec  (must precede the bare :id matcher)
+  const execMatch = path.match(SESSION_EXEC_RE);
+  if (req.method === 'POST' && execMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleExec(req, execMatch[1] ?? '', r.body);
+  }
+  // POST /v1/sessions/:id/exec/:execId/cancel
+  const cancelMatch = path.match(SESSION_EXEC_CANCEL_RE);
+  if (req.method === 'POST' && cancelMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleExecCancel(
+      cancelMatch[1] ?? '',
+      cancelMatch[2] ?? '',
+    );
+  }
+  // GET /v1/sessions/:id/exec/:execId/attach (SSE reconnect)
+  const attachMatch = path.match(SESSION_EXEC_ATTACH_RE);
+  if (req.method === 'GET' && attachMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleExecAttach(
+      req,
+      attachMatch[1] ?? '',
+      attachMatch[2] ?? '',
+    );
+  }
+  // PATCH /v1/sessions/:id/env
+  const envMatch = path.match(SESSION_ENV_RE);
+  if (req.method === 'PATCH' && envMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleEnvPatch(envMatch[1] ?? '', r.body);
+  }
+  // POST /v1/sessions/:id/files/stage
+  const stageMatch = path.match(SESSION_FILES_STAGE_RE);
+  if (req.method === 'POST' && stageMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleFilesStage(stageMatch[1] ?? '', r.body);
+  }
+  // GET /v1/sessions/:id/files/content?path=  (must precede the bare files RE)
+  const fileContentMatch = path.match(SESSION_FILES_CONTENT_RE);
+  if (req.method === 'GET' && fileContentMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleFileContent(
+      fileContentMatch[1] ?? '',
+      url.searchParams.get('path') ?? '',
+    );
+  }
+  // GET /v1/sessions/:id/files?path=  (directory listing)
+  const filesMatch = path.match(SESSION_FILES_RE);
+  if (req.method === 'GET' && filesMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleFilesList(
+      filesMatch[1] ?? '',
+      url.searchParams.get('path') ?? '.',
+    );
+  }
+  // GET / DELETE /v1/sessions/:id
+  const oneMatch = path.match(SESSION_ONE_RE);
+  if (oneMatch) {
+    const id = oneMatch[1] ?? '';
+    if (req.method === 'GET') {
+      const r = await readAndAuth(req);
+      if ('error' in r) return r.error;
+      return getSessionRoutes().handleGet(id);
+    }
+    if (req.method === 'DELETE') {
+      const r = await readAndAuth(req);
+      if ('error' in r) return r.error;
+      return getSessionRoutes().handleDestroy(id);
+    }
+  }
+  return null;
+}
+
 async function router(req: Request): Promise<Response> {
   const url = new URL(req.url);
   if (req.method === 'GET' && url.pathname === '/health') {
@@ -353,6 +419,10 @@ async function router(req: Request): Promise<Response> {
   const cancelMatch = url.pathname.match(CANCEL_ROUTE_RE);
   if (req.method === 'POST' && cancelMatch) {
     return handleCancel(req, cancelMatch[1] ?? '');
+  }
+  if (url.pathname.startsWith('/v1/sessions')) {
+    const sessionResponse = await handleSessionRoutes(req, url);
+    if (sessionResponse !== null) return sessionResponse;
   }
   return jsonResponse({ error: 'not_found' }, 404);
 }
@@ -392,6 +462,27 @@ async function main(): Promise<void> {
 
   const stopPeriodic = startPeriodicSweep(backend, cfg);
 
+  // Session subsystem: re-adopt running session containers into the registry
+  // (the registry is a cache; backend objects are the source of truth) and
+  // start the TTL/idle reaper. Best-effort + guarded so a kubernetes
+  // deployment (session backend not yet implemented) doesn't fail boot.
+  let stopSessionSweep: (() => void) | undefined;
+  try {
+    const sessions = getSessionRoutes();
+    await sessions.adoptExisting();
+    const sweepTimer = setInterval(() => {
+      void sessions.sweepExpired().catch((err) => {
+        console.warn('[sandbox.session] periodic sweep failed:', err);
+      });
+    }, SESSION_SWEEP_INTERVAL_MS);
+    stopSessionSweep = () => clearInterval(sweepTimer);
+  } catch (err) {
+    console.warn(
+      '[sandbox.session] session subsystem not started (backend unsupported?):',
+      err,
+    );
+  }
+
   const server = Bun.serve({
     port: cfg.port,
     // Bun's default idleTimeout is 10 s, which kills long SSE streams during
@@ -418,8 +509,9 @@ async function main(): Promise<void> {
     `[sandbox] spawner listening on :${server.port}; runtime=${cfg.runtime}; image=${cfg.runtimeImage}; maxConcurrent=${cfg.maxConcurrent}; tokenAuth=${cfg.sandboxToken !== null ? 'on' : 'OFF (dev opt-in)'}`,
   );
 
-  // Keep the periodic sweep handle so it isn't GC'd.
+  // Keep the periodic sweep handles so they aren't GC'd.
   void stopPeriodic;
+  void stopSessionSweep;
 }
 
 main().catch((err: unknown) => {

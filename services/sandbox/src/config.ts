@@ -148,5 +148,48 @@ export function loadConfig(): SpawnerConfig {
       2 * 1024 * 1024,
       { min: 4 * 1024 },
     ),
+    session: {
+      maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 10, { min: 1 }),
+      maxSessionsPerOrg: numEnv('SANDBOX_MAX_SESSIONS_PER_ORG', 2, { min: 1 }),
+      maxLifetimeMs: numEnv(
+        'SANDBOX_SESSION_MAX_LIFETIME_MS',
+        24 * 60 * 60 * 1000,
+        { min: 60_000 },
+      ),
+      maxIdleMs: numEnv('SANDBOX_SESSION_MAX_IDLE_MS', 30 * 60 * 1000, {
+        min: 60_000,
+      }),
+      execDefaultTimeoutMs: numEnv(
+        'SANDBOX_SESSION_EXEC_DEFAULT_TIMEOUT_MS',
+        10 * 60 * 1000,
+        { min: 1_000 },
+      ),
+      execMaxTimeoutMs: numEnv(
+        'SANDBOX_SESSION_EXEC_MAX_TIMEOUT_MS',
+        2 * 60 * 60 * 1000,
+        { min: 1_000 },
+      ),
+      createHealthTimeoutMs: numEnv(
+        'SANDBOX_SESSION_CREATE_TIMEOUT_MS',
+        180_000,
+        { min: 5_000 },
+      ),
+      agentProfile: {
+        cpus: numEnv('SANDBOX_AGENT_CPUS', 2, { min: 1 }),
+        memory: process.env.SANDBOX_AGENT_MEMORY ?? '4g',
+        pidsLimit: numEnv('SANDBOX_AGENT_PIDS', 512, { min: 64 }),
+        nofileSoft: numEnv('SANDBOX_AGENT_NOFILE_SOFT', 4096, { min: 256 }),
+        nofileHard: numEnv('SANDBOX_AGENT_NOFILE_HARD', 8192, { min: 256 }),
+        fsizeBytes: numEnv('SANDBOX_AGENT_FSIZE_BYTES', 512 * 1024 * 1024, {
+          min: 1024 * 1024,
+        }),
+        tmpfsSize: process.env.SANDBOX_AGENT_TMP_SIZE ?? '512m',
+        shmSize: process.env.SANDBOX_AGENT_SHM_SIZE ?? '512m',
+        // The image's `agent` user (uid 10001). Overridable only for
+        // emergency rollback to nobody — Claude Code's bypassPermissions
+        // requires non-root either way.
+        user: process.env.SANDBOX_AGENT_USER ?? '10001:10001',
+      },
+    },
   };
 }

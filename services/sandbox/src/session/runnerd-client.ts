@@ -1,0 +1,238 @@
+// Spawner-side HTTP client for a session's runnerd. Resolves the per-session
+// token, calls the daemon over plain HTTP on tale-sandbox-net (Docker: the
+// container DNS name; K8s: the Pod IP — both produce a base URL), and
+// translates the daemon's NDJSON exec stream into the SSE callbacks the route
+// layer forwards to the platform. No kubectl exec anywhere — this is ordinary
+// fetch, which is what keeps the K8s backend exec-free.
+
+import {
+  RUNNERD_TOKEN_HEADER,
+  type RunnerdExecEvent,
+  type RunnerdExecRequest,
+  type RunnerdHealth,
+} from './runnerd-protocol.ts';
+
+export interface RunnerdClientOptions {
+  baseUrl: string;
+  /** Per-session token (deriveRunnerdToken), or '' in unsigned dev mode. */
+  token: string;
+}
+
+function authHeaders(token: string): Record<string, string> {
+  return token ? { [RUNNERD_TOKEN_HEADER]: token } : {};
+}
+
+/** GET /healthz — used by create-poll and the idle reaper. Throws on
+ * unreachable/non-200 so callers can distinguish "not ready yet" (retry)
+ * from "degraded". */
+export async function runnerdHealth(
+  opts: RunnerdClientOptions,
+  signal?: AbortSignal,
+): Promise<RunnerdHealth> {
+  const res = await fetch(`${opts.baseUrl}/healthz`, {
+    headers: authHeaders(opts.token),
+    ...(signal ? { signal } : {}),
+  });
+  if (!res.ok) {
+    throw new Error(`runnerd /healthz ${res.status}`);
+  }
+  // runnerd is a trusted peer (we built its image); the JSON shape is fixed
+  // by runnerd-protocol.ts. Same narrowing pattern as validate-request.ts.
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as RunnerdHealth;
+}
+
+/** Poll /healthz until it answers 200 or the deadline passes. Resolves once
+ * the daemon is ready; throws on timeout. */
+export async function waitForRunnerd(
+  opts: RunnerdClientOptions,
+  deadlineMs: number,
+  pollIntervalMs = 500,
+): Promise<void> {
+  const start = Date.now();
+  for (;;) {
+    try {
+      await runnerdHealth(opts);
+      return;
+    } catch {
+      if (Date.now() - start > deadlineMs) {
+        throw new Error(`runnerd did not become ready within ${deadlineMs}ms`);
+      }
+      await new Promise((r) => setTimeout(r, pollIntervalMs));
+    }
+  }
+}
+
+/**
+ * POST /execs and stream the NDJSON response, invoking `onEvent` per parsed
+ * daemon event in order. Resolves when the stream ends. The caller's abort
+ * signal (SSE-client disconnect) aborts the fetch, which closes the daemon's
+ * request and cancels the exec daemon-side.
+ */
+export async function runnerdExec(
+  opts: RunnerdClientOptions,
+  req: RunnerdExecRequest,
+  onEvent: (event: RunnerdExecEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${opts.baseUrl}/execs`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(opts.token),
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(req),
+    ...(signal ? { signal } : {}),
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`runnerd /execs ${res.status}`);
+  }
+  await pumpNdjson(res.body, onEvent);
+}
+
+/** Read an NDJSON body, invoking `onEvent` per parsed line in order (trailing
+ * partial buffered until the next chunk; final unterminated line flushed at
+ * EOF). Shared by runnerdExec + runnerdAttach. */
+async function pumpNdjson(
+  body: ReadableStream<Uint8Array>,
+  onEvent: (event: RunnerdExecEvent) => void,
+): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buf = '';
+  const emitLine = (line: string): void => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    try {
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      onEvent(JSON.parse(trimmed) as RunnerdExecEvent);
+    } catch (err) {
+      console.warn('[sandbox.session] bad NDJSON line from runnerd:', err);
+    }
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl = buf.indexOf('\n');
+    while (nl !== -1) {
+      emitLine(buf.slice(0, nl));
+      buf = buf.slice(nl + 1);
+      nl = buf.indexOf('\n');
+    }
+  }
+  emitLine(buf);
+}
+
+/** POST /execs/:id/cancel — best-effort. */
+export async function runnerdCancelExec(
+  opts: RunnerdClientOptions,
+  execId: string,
+): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/cancel`,
+      { method: 'POST', headers: authHeaders(opts.token) },
+    );
+    if (!res.ok) return false;
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const body = (await res.json()) as { killed?: boolean };
+    return body.killed === true;
+  } catch (err) {
+    console.warn('[sandbox.session] runnerd cancel failed:', err);
+    return false;
+  }
+}
+
+/** GET /execs/:id/attach — reconnect to a live/recent exec; same NDJSON event
+ * stream as runnerdExec. Returns false with no events if the exec is unknown
+ * (404). */
+export async function runnerdAttach(
+  opts: RunnerdClientOptions,
+  execId: string,
+  onEvent: (event: RunnerdExecEvent) => void,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const res = await fetch(
+    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/attach`,
+    { headers: authHeaders(opts.token), ...(signal ? { signal } : {}) },
+  );
+  if (res.status === 404) return false;
+  if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
+  await pumpNdjson(res.body, onEvent);
+  return true;
+}
+
+/** PATCH the session env store (POST /env on runnerd). Returns the names the
+ * daemon rejected via its deny-list. */
+export async function runnerdEnvPatch(
+  opts: RunnerdClientOptions,
+  patch: { set?: Record<string, string>; unset?: string[] },
+): Promise<string[]> {
+  const res = await fetch(`${opts.baseUrl}/env`, {
+    method: 'POST',
+    headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`runnerd /env ${res.status}`);
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const body = (await res.json()) as { denied?: string[] };
+  return body.denied ?? [];
+}
+
+export interface RunnerdStageResult {
+  staged: Array<{ path: string; bytes: number }>;
+  skipped: Array<{ path: string; reason: string }>;
+}
+
+/** POST /files/stage — fetch each URL into the workspace. */
+export async function runnerdStageFiles(
+  opts: RunnerdClientOptions,
+  files: Array<{ path: string; url: string }>,
+): Promise<RunnerdStageResult> {
+  const res = await fetch(`${opts.baseUrl}/files/stage`, {
+    method: 'POST',
+    headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
+    body: JSON.stringify({ files }),
+  });
+  if (!res.ok) throw new Error(`runnerd /files/stage ${res.status}`);
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as RunnerdStageResult;
+}
+
+export interface RunnerdFsEntry {
+  name: string;
+  type: 'file' | 'dir' | 'other';
+  size: number;
+  mtimeMs: number;
+}
+
+/** GET /fs/list — directory entries, or null when the path is unsafe/missing. */
+export async function runnerdListDir(
+  opts: RunnerdClientOptions,
+  path: string,
+): Promise<RunnerdFsEntry[] | null> {
+  const res = await fetch(
+    `${opts.baseUrl}/fs/list?path=${encodeURIComponent(path)}`,
+    { headers: authHeaders(opts.token) },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`runnerd /fs/list ${res.status}`);
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const body = (await res.json()) as { entries: RunnerdFsEntry[] };
+  return body.entries;
+}
+
+/** GET /fs/read — file bytes, or null when unsafe/missing/oversize. */
+export async function runnerdReadFile(
+  opts: RunnerdClientOptions,
+  path: string,
+): Promise<ArrayBuffer | null> {
+  const res = await fetch(
+    `${opts.baseUrl}/fs/read?path=${encodeURIComponent(path)}`,
+    { headers: authHeaders(opts.token) },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`runnerd /fs/read ${res.status}`);
+  return res.arrayBuffer();
+}

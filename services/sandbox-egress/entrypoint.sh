@@ -7,11 +7,20 @@
 
 set -e
 
+# Package registries (pip/npm/uv) + GitHub. github.com / api.github.com are
+# added for the agent-session scenario (git-over-HTTPS clone/push + the `gh`
+# CLI for issue→PR flows); codeload / objects.githubusercontent serve the
+# tarball/asset CDNs already used by pip/npm installs. CONNECT-443-only stays
+# (no SSH). Deliberately NOT here: provider hosts like api.anthropic.com (LLM
+# traffic must transit the Bifrost gateway, not tinyproxy) and telemetry hosts
+# (disabled via env in the runtime image instead).
 DEFAULT_ALLOWLIST='^pypi\.org$
 ^files\.pythonhosted\.org$
 ^registry\.npmjs\.org$
 ^objects\.githubusercontent\.com$
-^codeload\.github\.com$'
+^codeload\.github\.com$
+^github\.com$
+^api\.github\.com$'
 
 # Operator override: one regex per line, or `|`-separated for compose-friendly
 # single-line env values.

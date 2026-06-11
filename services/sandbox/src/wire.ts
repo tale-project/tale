@@ -48,6 +48,16 @@ export const sandboxErrorCodeLiterals = [
   // doesn't get reported as `success:true`. Same as PRE_STAGE_FAILED:
   // this is an action-side decision, not a spawner-emitted code.
   'UPLOAD_INCOMPLETE',
+  // Session-exec error codes (sessions plan, milestone A). SESSION_LOST is
+  // emitted when the session container/Pod died (or its runnerd stopped
+  // answering) while an exec was in flight or being addressed — the
+  // workspace may survive (Docker host dir / K8s emptyDir with
+  // restartPolicy Always), so the caller distinguishes "retry against the
+  // same session" from "session is gone, create a new one" via
+  // GET /v1/sessions/:id state. INVALID_CWD rejects an exec whose cwd
+  // fails the runnerd realpath-under-/workspace check (no silent mkdir).
+  'SESSION_LOST',
+  'INVALID_CWD',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];
@@ -159,3 +169,89 @@ export interface SandboxStepResult {
   exitCode: number | null;
   durationMs: number;
 }
+
+// ---------------------------------------------------------------------------
+// Persistent sessions (sessions plan, milestone A). The `/v1/sessions` API is
+// a sibling of the one-shot `/v1/execute` path; literals live here so the
+// Convex-side mirror (`convex/sandbox/wire.ts`) can keep its compile-time
+// parity guard over a single import surface.
+// ---------------------------------------------------------------------------
+
+/**
+ * Session lifecycle states surfaced by GET /v1/sessions[/:id].
+ *  - `creating`   — container/Pod launched, runnerd /healthz not yet green.
+ *  - `ready`      — runnerd answering; execs accepted.
+ *  - `degraded`   — backend object exists but runnerd is unreachable or the
+ *                   container exited (workspace intact). v1 remedy is
+ *                   destroy-and-recreate; an in-place restart endpoint is a
+ *                   named v1.1 follow-up.
+ *  - `terminating`— DELETE accepted, teardown in progress.
+ *  - `terminated` — destroyed by request.
+ *  - `expired`    — reaped by the TTL/idle sweep.
+ */
+export const sandboxSessionStateLiterals = [
+  'creating',
+  'ready',
+  'degraded',
+  'terminating',
+  'terminated',
+  'expired',
+] as const;
+
+export type SandboxSessionState = (typeof sandboxSessionStateLiterals)[number];
+
+/**
+ * Resource profile selecting the session container's caps + user. `default`
+ * mirrors the one-shot limits (uid 65534); `agent` is the coding-agent shape
+ * (uid 10001, 2 cpu / 4 GiB / 512 pids / no cpu-time ulimit / 512m shm —
+ * see session/docker-session-args.ts).
+ */
+export const sandboxSessionProfileLiterals = ['default', 'agent'] as const;
+
+export type SandboxSessionProfile =
+  (typeof sandboxSessionProfileLiterals)[number];
+
+/**
+ * SSE event types emitted by `POST /v1/sessions/:id/exec`. Same grammar as
+ * the one-shot stream so `spawner_client.ts`-style parsers are reusable:
+ * `phase` (only ever `running` for session execs), `stdout`/`stderr` live
+ * deltas (byte-faithful, ordered — the one-shot PHASE-marker stripping does
+ * NOT apply here; agent adapters parse JSONL out of this stream), exactly
+ * one terminal `result`, and zero or one transport `error`.
+ */
+export const sandboxSessionExecSseEventLiterals = [
+  'phase',
+  'stdout',
+  'stderr',
+  'result',
+  'error',
+] as const;
+
+/** Terminal payload of a session exec (the SSE `result` event). */
+export interface SessionExecResponse {
+  status: 'completed' | 'failed' | 'cancelled';
+  exitCode: number | null;
+  durationMs: number;
+  stdoutBase64: string;
+  stderrBase64: string;
+  truncated: { stdout: boolean; stderr: boolean };
+  errorCode?: SandboxErrorCode;
+  errorMessage?: string;
+}
+
+/** Wire shape of one session in GET/POST /v1/sessions responses. */
+export interface SessionInfo {
+  sessionId: string;
+  organizationId: string;
+  profile: SandboxSessionProfile;
+  state: SandboxSessionState;
+  backend: 'docker' | 'kubernetes';
+  createdAtMs: number;
+  /** Last exec/file/env activity as reported by runnerd's activity clock. */
+  lastActivityAtMs: number;
+  expiresAtMs: number;
+  idleTimeoutMs: number;
+}
+
+/** execId shares the sessionId alphabet; unique within its session. */
+export const EXEC_ID_RE = ID_ALPHABET_RE;

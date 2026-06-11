@@ -668,6 +668,57 @@ services:
       - sandbox
 
   # ============================================================================
+  # Tale LLM Gateway — Bifrost (OSS, Apache-2.0) for sandbox AGENT SESSIONS
+  # ----------------------------------------------------------------------------
+  # The only path from an in-sandbox coding agent (Claude Code / OpenCode) to an
+  # LLM. Dual-homed onto `internal` (platform provisions providers + mints
+  # session virtual keys via the governance API) and `sandbox` (agents reach it
+  # at http://bifrost:8080 over the internal bridge — NOT through tinyproxy).
+  #
+  # Raw provider API keys live ONLY here + in the platform; the sandbox holds a
+  # session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at
+  # session destroy. The platform is the source of truth for providers/models;
+  # it provisions Bifrost via the governance API at boot + on config change
+  # (convex/sandbox/bifrost_admin.ts).
+  #
+  # SECURITY: management API is gated by BIFROST_MANAGEMENT_TOKEN (Tier-0 secret,
+  # never in the sandbox); enforce-virtual-keys-on-inference is ON so the data
+  # plane rejects anything but a minted key. No published port. PINNED image —
+  # the project has had virtual-key auth regressions, so the version is fixed
+  # and an integration test guards the VK auth path before rollout.
+  # ============================================================================
+  bifrost:
+    image: maximhq/bifrost:${BIFROST_VERSION:-1.4.8}
+    pull_policy: ${PULL_POLICY:-build}
+    container_name: tale-bifrost
+    env_file:
+      - .env
+    environment:
+      # Management-API bearer (provisioning + key mint); shared with platform.
+      BIFROST_MANAGEMENT_TOKEN: ${BIFROST_MANAGEMENT_TOKEN:-}
+      # Reject inference requests that don't carry a minted virtual key.
+      BIFROST_ENFORCE_VIRTUAL_KEYS: 'true'
+    volumes:
+      # SQLite config/log store (providers + minted keys survive restarts).
+      - bifrost-data:/app/data
+    restart: unless-stopped
+    mem_limit: 512m
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:8080/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - internal
+      - sandbox
+
+  # ============================================================================
   # Tale Controller — privileged control-plane sidecar (OPT-IN)
   # ----------------------------------------------------------------------------
   # Restarts allowlisted compose services ({rag, convex}) on an HMAC-signed
@@ -769,6 +820,11 @@ volumes:
 
   # Persistent storage for Crawler data (website registry + per-site URL databases)
   crawler-data:
+    driver: local
+
+  # Bifrost LLM gateway SQLite store (provisioned providers + minted session
+  # virtual keys). Survives restarts so in-flight sessions keep working.
+  bifrost-data:
     driver: local
 
 # ============================================================================
