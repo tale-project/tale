@@ -34,6 +34,7 @@ import {
   toGatewayModelRef,
 } from '../../node_only/sandbox/bifrost_admin';
 import {
+  SessionNotFoundError,
   sessionCreate,
   sessionEnvPatch,
 } from '../../node_only/sandbox/helpers/session_client';
@@ -378,6 +379,23 @@ export const runExternalAgentTurn = internalAction({
         agentKind: args.agentKind,
         error: message,
       });
+      // Self-heal the phantom: a reused session that's gone spawner-side leaves
+      // an `active` platform row that would 404 every future turn. Clear it so
+      // the next turn creates a fresh session.
+      if (err instanceof SessionNotFoundError) {
+        const ownerType = args.userId ? OWNER_TYPE_USER : OWNER_TYPE_THREAD;
+        const ownerId = args.userId
+          ? userOwnerId(args.organizationId, args.userId)
+          : args.threadId;
+        await ctx
+          .runMutation(
+            internal.sandbox.session_mutations.destroyActiveSessionsByOwner,
+            { ownerType, ownerId },
+          )
+          .catch((e) =>
+            console.warn('[runExternalAgentTurn] self-heal clear failed:', e),
+          );
+      }
       try {
         if (assistantMessageId !== null && sessionId !== null) {
           // The streaming message already holds the partial tool timeline

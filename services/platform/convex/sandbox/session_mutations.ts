@@ -156,6 +156,33 @@ export const recoverStuckSessions = internalMutation({
   },
 });
 
+/**
+ * Self-heal: mark every active/creating session row for an owner as destroyed.
+ * Called when a reused session turns out to be gone spawner-side (the phantom
+ * row left after a container was reaped out-of-band) — clearing it lets the
+ * next turn (or an in-turn retry) create a fresh session instead of looping on
+ * a 404. Returns the count cleared.
+ */
+export const destroyActiveSessionsByOwner = internalMutation({
+  args: { ownerType: v.string(), ownerId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    let cleared = 0;
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_owner', (q) =>
+        q.eq('ownerType', args.ownerType).eq('ownerId', args.ownerId),
+      )) {
+      if (row.status === 'creating' || row.status === 'active') {
+        await ctx.db.patch(row._id, { status: 'destroyed', destroyedAt: now });
+        cleared += 1;
+      }
+    }
+    return cleared;
+  },
+});
+
 // --- session virtual-key bookkeeping ---------------------------------------
 
 /** Persist a minted session token's sha256 hash + scope (never the plaintext). */

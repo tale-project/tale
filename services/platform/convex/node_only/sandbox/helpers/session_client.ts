@@ -25,6 +25,15 @@ function signRequest(
   return createHmac('sha256', token).update(signedString).digest('hex');
 }
 
+/** The session is gone spawner-side (404). NOT a transient drop — the resilient
+ * drain must not retry it, and the caller self-heals the stale platform row. */
+export class SessionNotFoundError extends Error {
+  constructor(sessionId: string) {
+    super(`session ${sessionId} not found`);
+    this.name = 'SessionNotFoundError';
+  }
+}
+
 function getSpawnerUrl(): string {
   return process.env.SANDBOX_URL ?? 'http://localhost:8003';
 }
@@ -233,7 +242,7 @@ export async function sessionExec(
     body: bodyJson,
     signal: fetchAbort,
   });
-  if (res.status === 404) throw new Error(`session ${sessionId} not found`);
+  if (res.status === 404) throw new SessionNotFoundError(sessionId);
   if (!res.ok || !res.body) {
     throw new Error(`sandbox session exec failed (${res.status})`);
   }
@@ -269,7 +278,7 @@ export async function sessionAttachExec(
     headers: signedHeaders('GET', path, '', 'text/event-stream'),
     signal: fetchAbort,
   });
-  if (res.status === 404) throw new Error(`session ${sessionId} not found`);
+  if (res.status === 404) throw new SessionNotFoundError(sessionId);
   if (!res.ok || !res.body) {
     throw new Error(`sandbox session attach failed (${res.status})`);
   }
@@ -319,6 +328,9 @@ export async function drainSessionExecResilient(
         : await sessionExec(sessionId, body, signal, callbacks, cursor);
     } catch (err) {
       if (signal.aborted) throw err;
+      // A 404 means the session is gone, not a transient drop — retrying can't
+      // help. Surface it so the caller self-heals the stale platform row.
+      if (err instanceof SessionNotFoundError) throw err;
       // Progress since the last failure resets the consecutive-failure budget.
       if (cursor.lastSeq > seqAtAttemptStart) attempt = 0;
       seqAtAttemptStart = cursor.lastSeq;
