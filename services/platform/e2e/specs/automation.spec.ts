@@ -11,6 +11,12 @@ import { readRunContext } from '../helpers/test-context';
  * (reactive status subscription in `automation-tester.tsx`).
  */
 
+// The seeded fixture workflow's NAME, defined in
+// `fixtures/config/default/workflows/test.json`. Not translated UI copy — this
+// is rename-safety, so it stays a single literal rather than going through
+// `t()`. Only this spec consumes it, so a local constant is enough.
+const WORKFLOW_NAME = 'test';
+
 test('runs the seeded test automation to completion', async ({ page }) => {
   const { organizationId } = readRunContext();
 
@@ -23,9 +29,9 @@ test('runs the seeded test automation to completion', async ({ page }) => {
   // exists. If `test` is already in the installed list, open its row directly;
   // otherwise install it through the create-automation menu. Both paths land
   // on the editor at `/automations/test`.
-  const installedRow = page
-    .getByRole('row')
-    .filter({ has: page.getByRole('cell', { name: 'test', exact: true }) });
+  const installedRow = page.getByRole('row').filter({
+    has: page.getByRole('cell', { name: WORKFLOW_NAME, exact: true }),
+  });
   const emptyState = page.getByText(t('emptyStates.automations.title'));
 
   // The list loads via a Convex action behind a skeleton (whose rows carry no
@@ -50,7 +56,9 @@ test('runs the seeded test automation to completion', async ({ page }) => {
         name: t('automations.createDialog.tabTemplate'),
       })
       .click();
-    await page.getByRole('button', { name: 'test', exact: true }).click();
+    await page
+      .getByRole('button', { name: WORKFLOW_NAME, exact: true })
+      .click();
   }
   await page.waitForURL(/\/automations\/test(?:[/?#]|$)/, { timeout: 60_000 });
 

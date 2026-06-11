@@ -31,8 +31,8 @@ bun run --filter @tale/platform test:e2e
 # Headed/debug mode:
 bun run --filter @tale/platform test:e2e:ui
 
-# Inspect the last failure:
-bunx playwright show-report
+# Inspect the last failure (report lives under services/platform):
+bunx playwright show-report services/platform/playwright-report
 ```
 
 First run: install the browser once with `bunx playwright install chromium`.
