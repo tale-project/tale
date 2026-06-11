@@ -111,10 +111,44 @@ export const sandboxSessionOpsTable = defineTable({
   startedAt: v.number(),
   finishedAt: v.optional(v.number()),
   eventLogStorageId: v.optional(v.string()),
+  // --- durable-job fields (connection-independent turns) -------------------
+  // Enough for the cross-action continuation to resume and for the recovery
+  // watchdog to finalize a turn whose action died, exactly-once. All optional
+  // + additive (existing rows validate; non-agent execs leave them unset).
+  /** The streaming assistant message this turn patches/finalizes. */
+  assistantMessageId: v.optional(v.string()),
+  /** Bifrost virtual-key id to revoke on finalize (spend attribution). */
+  mintedKeyId: v.optional(v.string()),
+  /** Usage-attribution + finalize context for a recovery-path finalize. */
+  userId: v.optional(v.string()),
+  modelRef: v.optional(v.string()),
+  agentSlug: v.optional(v.string()),
+  /** Generation stream id — recovery clears the thread's generation status. */
+  streamId: v.optional(v.string()),
+  /** Absolute deadline for the whole turn; recovery treats `running` past this
+   * (with a stale heartbeat) as abandoned. */
+  deadlineMs: v.optional(v.number()),
+  /** Last drain heartbeat — distinguishes a live draining action from a dead
+   * one (the watchdog only reaps rows whose heartbeat went stale). */
+  heartbeatAt: v.optional(v.number()),
+  /** Resume cursor: highest runnerd event seq consumed (for the continuation
+   * action to re-attach without missing/duplicating events). */
+  lastSeq: v.optional(v.number()),
+  /** _storage id of the turn checkpoint (the accumulated AgentEvent timeline)
+   * the continuation action re-loads to resume building the message. */
+  checkpointStorageId: v.optional(v.string()),
+  /** Set exactly once when the turn's side-effects (VK revoke + usage ledger +
+   * message finalize) have run — guards against duplicate finalization across
+   * the action, the continuation, recovery, and cancel. */
+  finalizedAt: v.optional(v.number()),
+  /** How many cross-action handoffs this turn has done (runaway cap). */
+  continuationCount: v.optional(v.number()),
 })
   .index('by_sessionId', ['sessionId'])
   .index('by_threadId', ['threadId'])
-  .index('by_organizationId_and_status', ['organizationId', 'status']);
+  .index('by_organizationId_and_status', ['organizationId', 'status'])
+  // Watchdog: scan `running` ops by heartbeat to find abandoned turns.
+  .index('by_status_and_heartbeat', ['status', 'heartbeatAt']);
 
 /**
  * Audit row for every Tier-2 credential fetch (the integration-credential

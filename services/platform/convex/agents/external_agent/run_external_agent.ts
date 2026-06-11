@@ -27,7 +27,6 @@ import { createDebugLog } from '../../lib/debug_log';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import {
   applyGatewayConfig,
-  getVirtualKeySpendCents,
   hashVirtualKey,
   mintVirtualKey,
   provisionProviders,
@@ -45,6 +44,12 @@ import {
   sessionIdForUser,
   userOwnerId,
 } from '../../sandbox/session_naming';
+import {
+  finalizeTurnSideEffects,
+  handleTurnOutcome,
+  patchStreamingMessage,
+  type TurnContext,
+} from './turn_lifecycle';
 
 const debugLog = createDebugLog(
   'DEBUG_EXTERNAL_AGENT',
@@ -72,15 +77,18 @@ const SESSION_GRANTS = ['github'];
 const TURN_BUDGET_CENTS = Number(
   process.env.EXTERNAL_AGENT_TURN_BUDGET_CENTS ?? '500',
 );
-// How long a single agent turn may run. Threaded down as the exec `timeoutMs`
-// so the sandbox (runnerd) and the caller's SSE fetch share ONE deadline —
-// replacing the old hardcoded 660s caller-side cap. Bounded by the self-hosted
-// Convex action ceiling (ACTIONS_USER_TIMEOUT_SECS=1800s / 30min) while a turn
-// is still one held connection; the cross-action continuation (later stage)
-// lifts it toward the sandbox `execMaxTimeoutMs` (2h). 25min default leaves
-// headroom for session create + the +60s fetch grace under the 30min ceiling.
+// Total wall-clock a turn may run, threaded down as the exec `timeoutMs` so
+// runnerd keeps the child alive this long. Decoupled from the Convex action
+// ceiling via the cross-action continuation, so it can be the full sandbox
+// `execMaxTimeoutMs` (2h) — the turn is no longer one held connection.
 const TURN_TIMEOUT_MS = Number(
-  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(25 * 60 * 1000),
+  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(2 * 60 * 60 * 1000),
+);
+// Per-ACTION window: how long one action drains before handing off to a
+// continuation action (kept under the 30min ACTIONS_USER_TIMEOUT_SECS ceiling
+// with margin for the handoff + the next action's cold start).
+const ACTION_WINDOW_MS = Number(
+  process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(25 * 60 * 1000),
 );
 
 /**
@@ -124,13 +132,12 @@ export const runExternalAgentTurn = internalAction({
     // catch falls back to a fresh failed message only if the run died before this
     // was created.
     let assistantMessageId: string | null = null;
+    // Hoisted so the catch can finalize side-effects (it's assigned once the
+    // sandbox is resolved, before the message + op row exist).
+    let sessionId: string | null = null;
     // Mirror of the most recent content patched into the streaming message, so
     // the catch can mark it failed while preserving the partial tool timeline.
     let lastContent: AgentAssistantContent = '';
-    // Token totals the agent reported (often 0 through non-Anthropic gateways);
-    // cost comes from the VK budget in the finally. Captured here so usage is
-    // attributed even if the turn later throws.
-    let turnTokens: { inputTokens: number; outputTokens: number } | null = null;
 
     try {
       // 1. Reuse the user's persistent sandbox, or create one (owner = user;
@@ -146,7 +153,6 @@ export const runExternalAgentTurn = internalAction({
         internal.sandbox.session_queries.getActiveSessionByOwner,
         { ownerType, ownerId },
       );
-      let sessionId: string;
       // Lower bound for the --resume lookup: ops from a PRIOR session (same
       // deterministic id, since destroyed) must not be resumed. The reused
       // session uses its own createdAt; a freshly created one uses now (it
@@ -288,13 +294,52 @@ export const runExternalAgentTurn = internalAction({
       // (and its finally then revokes the VK under the still-running agent).
       // 5a. Create the streaming assistant message BEFORE the run so its tool
       // timeline is persisted incrementally (onTimeline) and survives an early
-      // end. Finalized to success/failed below.
+      // end / handoff. Finalized to success/failed by handleTurnOutcome.
       const created = await saveMessage(ctx, components.agent, {
         threadId: args.threadId,
         message: { role: 'assistant', content: '' },
         metadata: { status: 'pending' },
       });
       assistantMessageId = created.messageId;
+
+      const turn: TurnContext = {
+        organizationId: args.organizationId,
+        sessionId,
+        execId,
+        threadId: args.threadId,
+        agentKind: args.agentKind,
+        modelRef: args.modelRef,
+        assistantMessageId: created.messageId,
+        mintedKeyId,
+        continuationCount: 0,
+        ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
+        ...(args.userId !== undefined && { userId: args.userId }),
+        ...(args.streamId !== undefined && { streamId: args.streamId }),
+      };
+
+      // Stamp the durable-job fields on the op row up front so a continuation
+      // action OR the recovery watchdog can resume/finalize THIS turn even if
+      // this action dies (crash / 30min ceiling).
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.upsertSessionOp,
+        {
+          organizationId: args.organizationId,
+          sessionId,
+          threadId: args.threadId,
+          execId,
+          kind: 'agent-run',
+          status: 'running',
+          heartbeatAt: Date.now(),
+          deadlineMs: Date.now() + TURN_TIMEOUT_MS,
+          assistantMessageId: created.messageId,
+          userId: args.userId ?? 'system',
+          modelRef: args.modelRef,
+          continuationCount: 0,
+          ...(mintedKeyId !== null && { mintedKeyId }),
+          ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
+          ...(args.streamId !== undefined && { streamId: args.streamId }),
+        },
+      );
 
       const result = await runAgentInSessionImpl(ctx, {
         organizationId: args.organizationId,
@@ -313,53 +358,19 @@ export const runExternalAgentTurn = internalAction({
         gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
         gatewayToken: vk.key,
         timeoutMs: TURN_TIMEOUT_MS,
+        budgetDeadlineMs: Date.now() + ACTION_WINDOW_MS,
         // Durable per-flush mirror: patch the streaming message with the
         // timeline-so-far. This is the record that survives cancel/timeout.
         onTimeline: async (content) => {
           lastContent = content;
-          await ctx.runMutation(components.agent.messages.updateMessage, {
-            messageId: created.messageId,
-            patch: { message: { role: 'assistant', content } },
-          });
+          await patchStreamingMessage(ctx, created.messageId, content);
         },
       });
 
-      // 6. Capture token totals (cost is read from the VK budget in finally —
-      // see the usage attribution there).
-      if (result.usage) {
-        turnTokens = {
-          inputTokens: result.usage.inputTokens,
-          outputTokens: result.usage.outputTokens,
-        };
-      }
-
-      // 7. Save the agent's reply into the thread. Persist the FULL tool-call
-      // timeline as the assistant message content (reasoning + tool-call/
-      // tool-result + final text) so a completed turn keeps its tool history in
-      // chat history (listUIMessages reconstructs the tool-<name> UI parts the
-      // renderer shows). Fall back to plain text when there was no timeline
-      // (trivial turn) or none was produced (errored early).
-      const finalText =
-        result.finalText ??
-        (result.status === 'completed'
-          ? 'Agent run completed.'
-          : `Agent run ${result.status}.`);
-      const content =
-        result.assistantContent !== undefined &&
-        // a non-empty parts array, or a non-empty string
-        (typeof result.assistantContent !== 'string' ||
-          result.assistantContent.length > 0)
-          ? result.assistantContent
-          : finalText;
-      // Finalize the streaming message (created at 5a) in place — the durable
-      // record the live op was only mirroring.
-      await ctx.runMutation(components.agent.messages.updateMessage, {
-        messageId: created.messageId,
-        patch: {
-          status: result.status === 'completed' ? 'success' : 'failed',
-          message: { role: 'assistant', content },
-        },
-      });
+      // 6. Dispatch: TERMINAL → finalize the message + VK revoke + usage ledger;
+      // 'continued' → checkpoint to _storage + schedule the continuation action
+      // (the >30min handoff; no finalize, the turn keeps going).
+      await handleTurnOutcome(ctx, turn, result);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[runExternalAgentTurn] failed:', {
@@ -368,24 +379,37 @@ export const runExternalAgentTurn = internalAction({
         error: message,
       });
       try {
-        if (assistantMessageId !== null) {
+        if (assistantMessageId !== null && sessionId !== null) {
           // The streaming message already holds the partial tool timeline
           // (patched live via onTimeline). Mark it failed and APPEND the reason
           // rather than discarding the history with a bare error string — this
           // is the fix for "cancel/timeout wipes the tool calls".
-          await ctx.runMutation(components.agent.messages.updateMessage, {
-            messageId: assistantMessageId,
-            patch: {
-              status: 'failed',
-              message: {
-                role: 'assistant',
-                content: withErrorNote(lastContent, message),
-              },
-            },
+          await patchStreamingMessage(
+            ctx,
+            assistantMessageId,
+            withErrorNote(lastContent, message),
+            'failed',
+          );
+          // Terminal side-effects, exactly-once (the op row was stamped before
+          // the run, so the claim succeeds here).
+          await finalizeTurnSideEffects(ctx, {
+            organizationId: args.organizationId,
+            sessionId,
+            execId,
+            threadId: args.threadId,
+            agentKind: args.agentKind,
+            modelRef: args.modelRef,
+            assistantMessageId,
+            mintedKeyId,
+            continuationCount: 0,
+            ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
+            ...(args.userId !== undefined && { userId: args.userId }),
+            ...(args.streamId !== undefined && { streamId: args.streamId }),
           });
         } else {
-          // Failed before the streaming message existed (e.g. session create) —
-          // save a fresh failed bubble.
+          // Failed before the streaming message + op row existed (e.g. session
+          // create). Save a fresh failed bubble; revoke the VK directly (no op
+          // row to claim) + clear the generation status.
           await saveMessage(ctx, components.agent, {
             threadId: args.threadId,
             message: {
@@ -394,73 +418,27 @@ export const runExternalAgentTurn = internalAction({
             },
             metadata: { status: 'failed', error: message },
           });
+          if (mintedKeyId !== null) {
+            await revokeVirtualKey(mintedKeyId).catch((e) =>
+              console.warn('[runExternalAgentTurn] VK revoke failed:', e),
+            );
+          }
+          if (args.streamId) {
+            await ctx
+              .runMutation(
+                internal.threads.internal_mutations.clearGenerationStatus,
+                { threadId: args.threadId, streamId: args.streamId },
+              )
+              .catch((e) =>
+                console.error('[runExternalAgentTurn] clear gen failed:', e),
+              );
+          }
         }
       } catch (saveErr) {
         console.error(
-          '[runExternalAgentTurn] also failed to save error message:',
+          '[runExternalAgentTurn] also failed to finalize error:',
           saveErr,
         );
-      }
-    } finally {
-      // Attribute spend + revoke the single-use key. Read the VK's cumulative
-      // budget for cost (the only signal that works through every gateway
-      // path), pair it with the agent's reported tokens (often 0 via
-      // non-Anthropic upstreams), and write ONE usageLedger row. No cron —
-      // the per-turn VK lifecycle is the natural attribution point.
-      if (mintedKeyId !== null) {
-        try {
-          // Bifrost v1.4.8 aggregates per-VK spend asynchronously (~seconds of
-          // lag) and exposes no token breakdown — so poll the budget briefly
-          // until it lands. Best-effort and bounded (the user's answer is
-          // already saved above; this only delays VK revoke + status clear).
-          let costCents: number | null = null;
-          for (let attempt = 0; attempt < 5; attempt++) {
-            costCents = await getVirtualKeySpendCents(mintedKeyId);
-            if ((costCents ?? 0) > 0) break;
-            await new Promise((r) => setTimeout(r, 800));
-          }
-          const inputTokens = turnTokens?.inputTokens ?? 0;
-          const outputTokens = turnTokens?.outputTokens ?? 0;
-          if (inputTokens > 0 || outputTokens > 0 || (costCents ?? 0) > 0) {
-            const colon = args.modelRef.indexOf(':');
-            const provider =
-              colon === -1 ? undefined : args.modelRef.slice(0, colon);
-            await ctx.runMutation(
-              internal.governance.internal_mutations.incrementUsageLedger,
-              {
-                organizationId: args.organizationId,
-                userId: args.userId ?? 'system',
-                inputTokens,
-                outputTokens,
-                costEstimateCents: costCents ?? 0,
-                timestamp: Date.now(),
-                agentSlug: args.agentSlug ?? args.agentKind,
-                model: args.modelRef,
-                ...(provider ? { provider } : {}),
-              },
-            );
-          }
-        } catch (usageErr) {
-          console.warn('[runExternalAgentTurn] usage sync failed:', usageErr);
-        }
-        try {
-          await revokeVirtualKey(mintedKeyId);
-        } catch (revokeErr) {
-          console.warn('[runExternalAgentTurn] VK revoke failed:', revokeErr);
-        }
-      }
-      if (args.streamId) {
-        try {
-          await ctx.runMutation(
-            internal.threads.internal_mutations.clearGenerationStatus,
-            { threadId: args.threadId, streamId: args.streamId },
-          );
-        } catch (clearErr) {
-          console.error(
-            '[runExternalAgentTurn] failed to clear generation status:',
-            clearErr,
-          );
-        }
       }
     }
 

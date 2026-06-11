@@ -83,6 +83,56 @@ export const listRunningOpsByThread = internalQuery({
   },
 });
 
+/** Abandoned agent-run ops: `running`, not yet finalized, with a heartbeat
+ * gone stale (the draining action died — crash / redeploy / 30min ceiling). The
+ * recovery watchdog finalizes these exactly-once. The heartbeat (not the
+ * deadline) is the liveness signal — a live action heartbeats on a fixed
+ * interval independent of output. */
+export const listAbandonedAgentOps = internalQuery({
+  args: { staleBeforeMs: v.number(), limit: v.number() },
+  returns: v.array(
+    v.object({
+      organizationId: v.string(),
+      sessionId: v.string(),
+      execId: v.string(),
+      threadId: v.optional(v.string()),
+      assistantMessageId: v.optional(v.string()),
+      mintedKeyId: v.optional(v.string()),
+      userId: v.optional(v.string()),
+      modelRef: v.optional(v.string()),
+      agentSlug: v.optional(v.string()),
+      streamId: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const out = [];
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_status_and_heartbeat', (q) =>
+        q.eq('status', 'running').lt('heartbeatAt', args.staleBeforeMs),
+      )) {
+      if (row.kind !== 'agent-run') continue;
+      if (row.finalizedAt !== undefined) continue;
+      out.push({
+        organizationId: row.organizationId,
+        sessionId: row.sessionId,
+        execId: row.execId,
+        ...(row.threadId !== undefined && { threadId: row.threadId }),
+        ...(row.assistantMessageId !== undefined && {
+          assistantMessageId: row.assistantMessageId,
+        }),
+        ...(row.mintedKeyId !== undefined && { mintedKeyId: row.mintedKeyId }),
+        ...(row.userId !== undefined && { userId: row.userId }),
+        ...(row.modelRef !== undefined && { modelRef: row.modelRef }),
+        ...(row.agentSlug !== undefined && { agentSlug: row.agentSlug }),
+        ...(row.streamId !== undefined && { streamId: row.streamId }),
+      });
+      if (out.length >= args.limit) break;
+    }
+    return out;
+  },
+});
+
 /** All active/creating sessions owned by an entity (for the thread-delete
  * cascade — destroy every session a thread owns). */
 export const listActiveSessionsByOwner = internalQuery({

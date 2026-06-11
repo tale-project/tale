@@ -293,15 +293,21 @@ export async function drainSessionExecResilient(
   body: SessionExecBody,
   signal: AbortSignal,
   callbacks: SessionExecCallbacks = {},
+  opts: { cursor?: ExecCursor; resumeSinceSeq?: number } = {},
 ): Promise<SessionExecResult> {
-  const cursor: ExecCursor = { lastSeq: 0 };
+  // External cursor lets the caller (run_agent) read the resume position; on a
+  // continuation it starts at the handoff seq. `resumeSinceSeq` makes the FIRST
+  // attempt an attach (no new exec — the exec is already running in the sandbox).
+  const cursor: ExecCursor = opts.cursor ?? {
+    lastSeq: opts.resumeSinceSeq ?? 0,
+  };
+  const startWithAttach = opts.resumeSinceSeq !== undefined;
   let attempt = 0;
-  let seqAtAttemptStart = 0;
+  let seqAtAttemptStart = cursor.lastSeq;
   for (;;) {
     try {
-      return attempt === 0
-        ? await sessionExec(sessionId, body, signal, callbacks, cursor)
-        : await sessionAttachExec(
+      return startWithAttach || attempt > 0
+        ? await sessionAttachExec(
             sessionId,
             body.execId,
             cursor.lastSeq,
@@ -309,7 +315,8 @@ export async function drainSessionExecResilient(
             callbacks,
             cursor,
             body.timeoutMs,
-          );
+          )
+        : await sessionExec(sessionId, body, signal, callbacks, cursor);
     } catch (err) {
       if (signal.aborted) throw err;
       // Progress since the last failure resets the consecutive-failure budget.

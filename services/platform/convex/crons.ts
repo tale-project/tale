@@ -131,6 +131,20 @@ crons.cron(
   {},
 );
 
+// External-agent turn recovery — the connection-independent counterpart. A
+// turn whose draining action died (crash / redeploy / 30min ceiling) without
+// finalizing is found by its stale heartbeat and finalized exactly-once
+// (VK revoke + usage ledger + clear generation + mark message failed + cancel
+// the lingering exec). The cross-action continuation covers the planned long
+// turn; this covers the crash.
+crons.cron(
+  'recover stuck external-agent turns (every 2 min)',
+  '*/2 * * * *',
+  internal.agents.external_agent.recover_external_agent_turns
+    .recoverStuckExternalAgentTurns,
+  {},
+);
+
 // GDPR erasure watchdog (round-2 V5 P0-14) - the same shape as the
 // transcription watchdog above. Convex actions hard-stop at 30 min;
 // `gdprErasureRequests` rows whose subject has too many rows / RAG

@@ -153,7 +153,10 @@ import type * as agents_auto_route_helpers from "../agents/auto_route_helpers.js
 import type * as agents_chat_turn from "../agents/chat_turn.js";
 import type * as agents_chat_turn_generate from "../agents/chat_turn_generate.js";
 import type * as agents_config from "../agents/config.js";
+import type * as agents_external_agent_continue_external_agent_turn from "../agents/external_agent/continue_external_agent_turn.js";
+import type * as agents_external_agent_recover_external_agent_turns from "../agents/external_agent/recover_external_agent_turns.js";
 import type * as agents_external_agent_run_external_agent from "../agents/external_agent/run_external_agent.js";
+import type * as agents_external_agent_turn_lifecycle from "../agents/external_agent/turn_lifecycle.js";
 import type * as agents_file_actions from "../agents/file_actions.js";
 import type * as agents_file_utils from "../agents/file_utils.js";
 import type * as agents_guardrails_budget_guard from "../agents/guardrails/budget_guard.js";
@@ -1559,7 +1562,10 @@ declare const fullApi: ApiFromModules<{
   "agents/chat_turn": typeof agents_chat_turn;
   "agents/chat_turn_generate": typeof agents_chat_turn_generate;
   "agents/config": typeof agents_config;
+  "agents/external_agent/continue_external_agent_turn": typeof agents_external_agent_continue_external_agent_turn;
+  "agents/external_agent/recover_external_agent_turns": typeof agents_external_agent_recover_external_agent_turns;
   "agents/external_agent/run_external_agent": typeof agents_external_agent_run_external_agent;
+  "agents/external_agent/turn_lifecycle": typeof agents_external_agent_turn_lifecycle;
   "agents/file_actions": typeof agents_file_actions;
   "agents/file_utils": typeof agents_file_utils;
   "agents/guardrails/budget_guard": typeof agents_guardrails_budget_guard;

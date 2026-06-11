@@ -275,6 +275,18 @@ export const upsertSessionOp = internalMutation({
     agentSessionId: v.optional(v.string()),
     exitCode: v.optional(v.number()),
     eventLogStorageId: v.optional(v.string()),
+    // Durable-job fields (set by the external-agent turn + continuation).
+    assistantMessageId: v.optional(v.string()),
+    mintedKeyId: v.optional(v.string()),
+    userId: v.optional(v.string()),
+    modelRef: v.optional(v.string()),
+    agentSlug: v.optional(v.string()),
+    streamId: v.optional(v.string()),
+    deadlineMs: v.optional(v.number()),
+    heartbeatAt: v.optional(v.number()),
+    lastSeq: v.optional(v.number()),
+    checkpointStorageId: v.optional(v.string()),
+    continuationCount: v.optional(v.number()),
   },
   returns: v.id('sandboxSessionOps'),
   handler: async (ctx, args) => {
@@ -290,14 +302,28 @@ export const upsertSessionOp = internalMutation({
     }
     const terminal = args.status !== 'running';
     const patch: Record<string, unknown> = { status: args.status };
-    if (args.progressText !== undefined) patch.progressText = args.progressText;
-    if (args.recentEvents !== undefined) patch.recentEvents = args.recentEvents;
-    if (args.agentSessionId !== undefined) {
-      patch.agentSessionId = args.agentSessionId;
-    }
-    if (args.exitCode !== undefined) patch.exitCode = args.exitCode;
-    if (args.eventLogStorageId !== undefined) {
-      patch.eventLogStorageId = args.eventLogStorageId;
+    // Optional fields: patch only when provided so a throttled flush that omits
+    // them never clobbers a value set at turn start.
+    const optional = [
+      'progressText',
+      'recentEvents',
+      'agentSessionId',
+      'exitCode',
+      'eventLogStorageId',
+      'assistantMessageId',
+      'mintedKeyId',
+      'userId',
+      'modelRef',
+      'agentSlug',
+      'streamId',
+      'deadlineMs',
+      'heartbeatAt',
+      'lastSeq',
+      'checkpointStorageId',
+      'continuationCount',
+    ] as const;
+    for (const k of optional) {
+      if (args[k] !== undefined) patch[k] = args[k];
     }
     if (terminal) patch.finishedAt = now;
 
@@ -308,26 +334,37 @@ export const upsertSessionOp = internalMutation({
     return ctx.db.insert('sandboxSessionOps', {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
-      ...(args.threadId !== undefined && { threadId: args.threadId }),
       execId: args.execId,
       kind: args.kind,
-      status: args.status,
-      ...(args.progressText !== undefined && {
-        progressText: args.progressText,
-      }),
-      ...(args.recentEvents !== undefined && {
-        recentEvents: args.recentEvents,
-      }),
-      ...(args.agentSessionId !== undefined && {
-        agentSessionId: args.agentSessionId,
-      }),
-      ...(args.exitCode !== undefined && { exitCode: args.exitCode }),
-      ...(args.eventLogStorageId !== undefined && {
-        eventLogStorageId: args.eventLogStorageId,
-      }),
       startedAt: now,
-      ...(terminal && { finishedAt: now }),
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+      ...(patch as any),
+      ...(args.threadId !== undefined && { threadId: args.threadId }),
     });
+  },
+});
+
+/**
+ * Exactly-once finalize claim. Atomically sets `finalizedAt` only if it was
+ * unset and returns whether THIS caller won the claim. The action `finally`,
+ * the continuation, the recovery watchdog, and cancel all race to finalize a
+ * turn; only the winner runs the VK revoke + usage ledger + message finalize.
+ * Serializable OCC makes the read-then-set race-free (same property as
+ * reserveSessionSlotAndInsert).
+ */
+export const claimSessionOpFinalize = internalMutation({
+  args: { sessionId: v.string(), execId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.execId !== args.execId) continue;
+      if (row.finalizedAt !== undefined) return false; // already finalized
+      await ctx.db.patch(row._id, { finalizedAt: Date.now() });
+      return true;
+    }
+    return false; // op row gone → nothing to finalize
   },
 });
 
