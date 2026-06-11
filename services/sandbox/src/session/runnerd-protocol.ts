@@ -88,8 +88,14 @@ export interface RunnerdExecRequest {
 
 /** NDJSON lines emitted while an exec runs. Exactly one terminal `exit` or
  * `fail` line closes the stream; `stdout`/`stderr` chunks are base64 and
- * preserve byte order within their own stream. */
-export type RunnerdExecEvent =
+ * preserve byte order within their own stream.
+ *
+ * `seq` is a monotonic per-exec counter assigned to every emitted event. A
+ * consumer that drops its stream reconnects via `GET /attach?sinceSeq=<lastSeq>`
+ * and the daemon replays only events with a higher seq — making reconnect
+ * idempotent (no missed or double-counted lines). Optional only because the
+ * pre-spawn `fail` lines (which can never be reconnected to) skip the counter. */
+export type RunnerdExecEvent = (
   | { t: 'start'; execId: string; startedAtMs: number }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
@@ -108,7 +114,8 @@ export type RunnerdExecEvent =
       /** Structured pre-spawn failures (the process never ran). */
       code: 'INVALID_CWD' | 'EXEC_LIMIT' | 'DUPLICATE_EXEC' | 'BAD_REQUEST';
       message: string;
-    };
+    }
+) & { seq?: number };
 
 // --- POST /execs/:id/cancel --------------------------------------------------
 

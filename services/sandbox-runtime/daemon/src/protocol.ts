@@ -43,7 +43,7 @@ export interface RunnerdExecRequest {
   stderrMaxBytes: number;
 }
 
-export type RunnerdExecEvent =
+export type RunnerdExecEvent = (
   | { t: 'start'; execId: string; startedAtMs: number }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
@@ -59,7 +59,16 @@ export type RunnerdExecEvent =
       t: 'fail';
       code: 'INVALID_CWD' | 'EXEC_LIMIT' | 'DUPLICATE_EXEC' | 'BAD_REQUEST';
       message: string;
-    };
+    }
+) & { seq?: number };
+
+/** Detach-grace: how long the daemon keeps a child alive after its consumer
+ * connection drops, before SIGTERM. Lets a platform action that lost its SSE
+ * reconnect via /attach?sinceSeq= and keep streaming. Explicit /cancel still
+ * kills immediately. Env-tunable. */
+export const RUNNERD_DETACH_GRACE_MS = Number(
+  process.env.RUNNERD_DETACH_GRACE_MS ?? 60_000,
+);
 
 export interface RunnerdCancelResponse {
   killed: boolean;

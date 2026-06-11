@@ -206,4 +206,74 @@ describe('ExecManager', () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     expect(mgr.attach('nope', () => {})).toBeNull();
   });
+
+  test('assigns a monotonic seq to every emitted event', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    await mgr.run(
+      { ...base, execId: 'eq1', command: ['echo', 'hi'], cwd: ROOT },
+      emit,
+    );
+    const seqs = events.map((e) => e.seq);
+    expect(seqs.every((s) => typeof s === 'number')).toBe(true);
+    // strictly increasing from 1
+    expect(seqs).toEqual(seqs.map((_, i) => i + 1));
+  });
+
+  test('attach(sinceSeq) replays only events newer than the cursor', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    await mgr.run(
+      { ...base, execId: 'eq2', command: ['echo', 'replay-me'], cwd: ROOT },
+      emit,
+    );
+    // Resume from the 2nd event — replay must skip seq 1 and 2.
+    const cursor = events[1]?.seq ?? 0;
+    expect(cursor).toBeGreaterThan(0);
+    const replayed = collect();
+    await mgr.attach('eq2', replayed.emit, cursor);
+    expect(replayed.events.length).toBeGreaterThan(0);
+    expect(replayed.events.every((e) => (e.seq ?? 0) > cursor)).toBe(true);
+    // The full replay (cursor 0) returns strictly more events.
+    const all = collect();
+    await mgr.attach('eq2', all.emit, 0);
+    expect(all.events.length).toBeGreaterThan(replayed.events.length);
+  });
+
+  test('detach-grace kills the exec when no consumer reattaches', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    const done = mgr.run(
+      { ...base, execId: 'eg1', shell: 'sleep 30', cwd: ROOT },
+      emit,
+    );
+    await new Promise((r) => setTimeout(r, 100)); // let it start
+    mgr.scheduleDetachGrace('eg1', 80);
+    await done; // grace fires → SIGTERM → exit
+    const last = events[events.length - 1];
+    expect(last?.t).toBe('exit');
+    if (last?.t === 'exit') {
+      expect(last.cancelled).toBe(true);
+      expect(last.timedOut).toBe(false);
+    }
+  });
+
+  test('a reattach clears a pending detach-grace (exec survives)', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { emit } = collect();
+    const done = mgr.run(
+      { ...base, execId: 'eg2', shell: 'sleep 30', cwd: ROOT },
+      emit,
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    mgr.scheduleDetachGrace('eg2', 120);
+    // Reconnect before the grace fires → timer cleared, child kept alive.
+    const follower = collect();
+    const stream = mgr.attach('eg2', follower.emit, 0);
+    expect(stream).not.toBeNull();
+    await new Promise((r) => setTimeout(r, 300)); // past the 120ms grace
+    expect(mgr.has('eg2')).toBe(true); // not killed
+    expect(mgr.cancel('eg2')).toBe(true); // clean up
+    await Promise.all([done, stream]);
+  });
 });

@@ -25,6 +25,7 @@ import {
   type StageItem,
 } from './file-ops.ts';
 import {
+  RUNNERD_DETACH_GRACE_MS,
   RUNNERD_MAX_LIVE_EXECS,
   RUNNERD_PORT,
   RUNNERD_TOKEN_HEADER,
@@ -129,16 +130,23 @@ async function handleExec(
     'cache-control': 'no-cache, no-transform',
     'x-accel-buffering': 'no',
   });
+  let primaryClosed = false;
   const emit = (event: RunnerdExecEvent) => {
+    if (primaryClosed) return; // stop writing to a dead socket (no log spam)
     try {
       res.write(`${JSON.stringify(event)}\n`);
     } catch (err) {
       console.warn('[runnerd] NDJSON write after close:', err);
     }
   };
-  // Client disconnect (spawner aborted the proxy) → cancel the exec.
+  // Consumer disconnect: do NOT kill immediately. Arm the detach-grace so a
+  // platform action that lost its SSE can reconnect via /attach?sinceSeq= and
+  // keep the turn alive; the exec is killed only if no one reattaches within
+  // the grace (or on an explicit /cancel). The child runs detached regardless —
+  // we just stop writing to the closed socket.
   req.on('close', () => {
-    if (execManager.has(parsed.execId)) execManager.cancel(parsed.execId);
+    primaryClosed = true;
+    execManager.scheduleDetachGrace(parsed.execId, RUNNERD_DETACH_GRACE_MS);
   });
   try {
     await execManager.run(parsed, emit);
@@ -158,8 +166,10 @@ const EXEC_ATTACH_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/attach$/;
 const EXEC_STATUS_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})$/;
 
 async function handleAttach(
+  req: IncomingMessage,
   res: ServerResponse,
   execId: string,
+  sinceSeq: number,
 ): Promise<void> {
   if (!execManager.canAttach(execId)) {
     sendJson(res, 404, { error: 'not_found' });
@@ -170,14 +180,22 @@ async function handleAttach(
     'cache-control': 'no-cache, no-transform',
     'x-accel-buffering': 'no',
   });
+  let attachClosed = false;
   const emit = (event: RunnerdExecEvent) => {
+    if (attachClosed) return;
     try {
       res.write(`${JSON.stringify(event)}\n`);
     } catch (err) {
       console.warn('[runnerd] attach write after close:', err);
     }
   };
-  const stream = execManager.attach(execId, emit);
+  // This attach consumer dropping may leave the exec unwatched — arm the
+  // detach-grace (a further reattach clears it).
+  req.on('close', () => {
+    attachClosed = true;
+    execManager.scheduleDetachGrace(execId, RUNNERD_DETACH_GRACE_MS);
+  });
+  const stream = execManager.attach(execId, emit, sinceSeq);
   if (stream) await stream;
   res.end();
 }
@@ -221,7 +239,8 @@ async function router(
   }
   const attachMatch = path.match(EXEC_ATTACH_RE);
   if (req.method === 'GET' && attachMatch) {
-    await handleAttach(res, attachMatch[1] ?? '');
+    const sinceSeq = Number(url.searchParams.get('sinceSeq') ?? '0') || 0;
+    await handleAttach(req, res, attachMatch[1] ?? '', sinceSeq);
     return;
   }
   const statusMatch = path.match(EXEC_STATUS_RE);

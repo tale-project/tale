@@ -267,13 +267,19 @@ export class SessionRoutes {
           case 'stdout': {
             const bytes = b64decode(e.b64);
             stdoutChunks.push(bytes);
-            send('stdout', { text: new TextDecoder().decode(bytes) });
+            send('stdout', {
+              text: new TextDecoder().decode(bytes),
+              seq: e.seq,
+            });
             break;
           }
           case 'stderr': {
             const bytes = b64decode(e.b64);
             stderrChunks.push(bytes);
-            send('stderr', { text: new TextDecoder().decode(bytes) });
+            send('stderr', {
+              text: new TextDecoder().decode(bytes),
+              seq: e.seq,
+            });
             break;
           }
           case 'exit':
@@ -372,6 +378,10 @@ export class SessionRoutes {
     const ac = new AbortController();
     const onAbort = () => ac.abort();
     req.signal.addEventListener('abort', onAbort, { once: true });
+    // Resume cursor: the platform passes the highest seq it already consumed so
+    // runnerd replays only newer events (idempotent reconnect).
+    const sinceSeq =
+      Number(new URL(req.url).searchParams.get('sinceSeq') ?? '0') || 0;
     const token = this.tokenFor(sessionId);
     return sseResponse(async ({ send }) => {
       try {
@@ -380,6 +390,7 @@ export class SessionRoutes {
           execId,
           (e) => forwardExecEvent(e, send),
           ac.signal,
+          sinceSeq,
         );
         if (!found) send('error', { message: `exec ${execId} not found` });
       } catch (err) {
@@ -474,10 +485,16 @@ function forwardExecEvent(
       send('phase', { phase: 'running' });
       break;
     case 'stdout':
-      send('stdout', { text: new TextDecoder().decode(b64decode(e.b64)) });
+      send('stdout', {
+        text: new TextDecoder().decode(b64decode(e.b64)),
+        seq: e.seq,
+      });
       break;
     case 'stderr':
-      send('stderr', { text: new TextDecoder().decode(b64decode(e.b64)) });
+      send('stderr', {
+        text: new TextDecoder().decode(b64decode(e.b64)),
+        seq: e.seq,
+      });
       break;
     case 'exit':
       send('result', {

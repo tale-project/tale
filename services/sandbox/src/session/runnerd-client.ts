@@ -152,9 +152,11 @@ export async function runnerdAttach(
   execId: string,
   onEvent: (event: RunnerdExecEvent) => void,
   signal?: AbortSignal,
+  sinceSeq = 0,
 ): Promise<boolean> {
+  const q = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
   const res = await fetch(
-    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/attach`,
+    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/attach${q}`,
     { headers: authHeaders(opts.token), ...(signal ? { signal } : {}) },
   );
   if (res.status === 404) return false;

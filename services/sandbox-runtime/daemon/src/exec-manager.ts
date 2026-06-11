@@ -37,6 +37,12 @@ interface LiveExec {
   subscribers: Set<ExecSubscriber>;
   /** Resolves when the exec emits its terminal event. */
   done: Promise<void>;
+  /** Monotonic per-exec event counter (assigned in ringEmit). Lets a
+   * reconnecting consumer request `/attach?sinceSeq=` and skip replayed lines. */
+  seq: number;
+  /** Detach-grace timer: armed when the consumer connection drops, cleared by a
+   * reconnecting attach(); fires SIGTERM if no one reattaches in time. */
+  graceTimer: ReturnType<typeof setTimeout> | null;
 }
 
 export class ExecManager {
@@ -69,19 +75,48 @@ export class ExecManager {
    * when the stream is complete, or null if the exec is unknown (neither live
    * nor recently retained). Used by GET /execs/:id/attach for reconnect.
    */
-  attach(execId: string, emit: ExecSubscriber): Promise<void> | null {
+  attach(
+    execId: string,
+    emit: ExecSubscriber,
+    sinceSeq = 0,
+  ): Promise<void> | null {
     const liveRec = this.live.get(execId);
     if (liveRec) {
-      for (const line of liveRec.ring) emitRingLine(line, emit);
+      // A consumer reconnected → cancel any pending detach-grace kill.
+      if (liveRec.graceTimer) {
+        clearTimeout(liveRec.graceTimer);
+        liveRec.graceTimer = null;
+      }
+      // Replay only what this consumer hasn't seen (seq > sinceSeq), then
+      // follow live. The replay loop + subscribers.add are synchronous, so no
+      // live event can slip in between (single-threaded) → no gap, no dup.
+      for (const line of liveRec.ring) emitRingLine(line, emit, sinceSeq);
       liveRec.subscribers.add(emit);
       return liveRec.done.finally(() => liveRec.subscribers.delete(emit));
     }
     const recentRing = this.recent.get(execId);
     if (recentRing) {
-      for (const line of recentRing) emitRingLine(line, emit);
+      for (const line of recentRing) emitRingLine(line, emit, sinceSeq);
       return Promise.resolve();
     }
     return null;
+  }
+
+  /** Arm the detach-grace: if no consumer reattaches within graceMs, kill the
+   * exec's process group. Called when a consumer connection drops (vs an
+   * explicit /cancel, which kills immediately). A reconnecting attach() clears
+   * it. Idempotent — resets a pending timer. No-op if the exec already exited. */
+  scheduleDetachGrace(execId: string, graceMs: number): void {
+    const rec = this.live.get(execId);
+    if (!rec) return;
+    if (rec.graceTimer) clearTimeout(rec.graceTimer);
+    rec.graceTimer = setTimeout(() => {
+      const r = this.live.get(execId);
+      if (!r) return;
+      r.cancelRequested = true;
+      r.kill('SIGTERM');
+      setTimeout(() => r.kill('SIGKILL'), SIGKILL_GRACE_MS);
+    }, graceMs);
   }
 
   private retainRecent(execId: string, ring: string[]): void {
@@ -191,6 +226,8 @@ export class ExecManager {
       cancelRequested: false,
       subscribers: new Set(),
       done,
+      seq: 0,
+      graceTimer: null,
       kill: (signal) => {
         try {
           // Negative pid → signal the whole process group.
@@ -203,16 +240,20 @@ export class ExecManager {
     this.live.set(req.execId, record);
 
     const ringEmit = (event: RunnerdExecEvent) => {
-      emit(event);
+      // Stamp a monotonic seq so a reconnecting /attach?sinceSeq= can replay
+      // only events it hasn't seen — idempotent reconnect.
+      record.seq += 1;
+      const stamped: RunnerdExecEvent = { ...event, seq: record.seq };
+      emit(stamped);
       // Fan out to any concurrent /attach consumers.
       for (const sub of record.subscribers) {
         try {
-          sub(event);
+          sub(stamped);
         } catch (err) {
           console.warn('[runnerd] attach subscriber threw:', err);
         }
       }
-      const line = `${JSON.stringify(event)}\n`;
+      const line = `${JSON.stringify(stamped)}\n`;
       record.ring.push(line);
       record.ringBytes += Buffer.byteLength(line, 'utf8');
       while (
@@ -265,6 +306,7 @@ export class ExecManager {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        if (record.graceTimer) clearTimeout(record.graceTimer);
         record.exitCode = code;
         this.onActivity();
         ringEmit({
@@ -307,6 +349,7 @@ export class ExecManager {
   cancel(execId: string): boolean {
     const rec = this.live.get(execId);
     if (!rec) return false;
+    if (rec.graceTimer) clearTimeout(rec.graceTimer);
     rec.cancelRequested = true;
     rec.kill('SIGTERM');
     setTimeout(() => rec.kill('SIGKILL'), SIGKILL_GRACE_MS);
@@ -320,15 +363,18 @@ export class ExecManager {
   }
 }
 
-/** Parse a retained ring line (NDJSON) back to an event for attach replay. */
-function emitRingLine(line: string, emit: ExecSubscriber): void {
+/** Parse a retained ring line (NDJSON) back to an event for attach replay,
+ * skipping anything the reconnecting consumer already saw (seq <= sinceSeq). */
+function emitRingLine(line: string, emit: ExecSubscriber, sinceSeq = 0): void {
   const trimmed = line.trim();
   if (!trimmed) return;
   try {
     // Lines were produced by ringEmit (JSON.stringify of a RunnerdExecEvent),
     // so the shape is ours, not external input.
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    emit(JSON.parse(trimmed) as RunnerdExecEvent);
+    const event = JSON.parse(trimmed) as RunnerdExecEvent;
+    if ((event.seq ?? 0) <= sinceSeq) return;
+    emit(event);
   } catch (err) {
     console.warn('[runnerd] bad ring line during attach replay:', err);
   }
