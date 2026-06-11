@@ -140,6 +140,13 @@ describe('buildSandboxPod', () => {
     expect(c.command?.[2]).toContain('/entrypoint.sh "$0" "$1" "$2" "$3"');
     expect(c.command?.[2]).toContain('2>/workspace/.tale/stderr.log');
     expect(c.command?.[2]).toContain('echo $? > /workspace/.tale/exit-code');
+    // Per-process ulimit parity with the docker backend (issue #1851).
+    expect(c.command?.[2]).toContain('ulimit -u 128 -f 204800 -t 600 -c 0');
+    expect(c.command?.[2]).toContain('ulimit -n 1024');
+    // ulimit lines appear BEFORE the entrypoint invocation.
+    expect(c.command?.[2].indexOf('ulimit -u')).toBeLessThan(
+      c.command?.[2].indexOf('/entrypoint.sh'),
+    );
     // No sentinel handshake — staging is an initContainer now.
     expect(c.command?.[2]).not.toContain('.staged');
     expect(c.command?.[2]).not.toContain('exec /entrypoint.sh');

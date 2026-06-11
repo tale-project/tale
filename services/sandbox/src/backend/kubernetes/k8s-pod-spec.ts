@@ -96,6 +96,12 @@ export function podNameFor(executionId: string): string {
 // clean phase parsing). $0..$3 come from the Pod `args` trailer below.
 const RUNNER_WRAPPER = [
   `mkdir -p ${TALE_DIR}`,
+  // Per-process ulimit parity with the docker backend (docker-args.ts:117-135).
+  // Busybox sh supports ulimit, making this a zero-dependency mechanism that
+  // works under both runc and gVisor. Each call sets limits on the shell and
+  // everything it forks, mirroring Docker's per-container resource bounds.
+  `ulimit -u 128 -f 204800 -t 600 -c 0`,
+  `ulimit -n 1024`,
   `/entrypoint.sh "$0" "$1" "$2" "$3" 2>${STDERR_PATH}`,
   `echo $? > ${EXIT_CODE_PATH}`,
 ].join('\n');
