@@ -119,6 +119,12 @@ export async function cancelGeneration(
   // don't want to block the user's Stop-acknowledged response on a network
   // round-trip. The mutation that finalizes each execution is terminal-state
   // guarded so racing with `executeCode`'s own finalize is safe.
+  //
+  // TWO cascades, because the two sandbox paths use different tables:
+  //   - one-shot `executeCode` → `sandboxExecutions` (cancelExecutionsForThread)
+  //   - external-agent turns   → `sandboxSessionOps` (cancelSessionExecsForThread)
+  // Without the second, clicking Stop never actually cancelled an external-agent
+  // run's in-sandbox process.
   try {
     await ctx.scheduler.runAfter(
       0,
@@ -128,6 +134,18 @@ export async function cancelGeneration(
   } catch (err) {
     console.warn(
       '[cancelGeneration] scheduler.runAfter(cancelExecutionsForThread) failed:',
+      err,
+    );
+  }
+  try {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.node_only.sandbox.internal_actions.cancelSessionExecsForThread,
+      { threadId },
+    );
+  } catch (err) {
+    console.warn(
+      '[cancelGeneration] scheduler.runAfter(cancelSessionExecsForThread) failed:',
       err,
     );
   }

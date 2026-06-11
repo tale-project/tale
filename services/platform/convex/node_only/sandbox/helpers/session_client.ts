@@ -142,6 +142,27 @@ export async function sessionEnvPatch(
   return parsed.denied ?? [];
 }
 
+/** POST /v1/sessions/:id/exec/:execId/cancel — SIGTERM→SIGKILL the exec's
+ * process group in the sandbox. Idempotent (false if the exec/session is gone).
+ * The Stop-button path for external-agent turns; the run's own finalize then
+ * persists the partial timeline + marks the message failed. */
+export async function sessionCancelExec(
+  sessionId: string,
+  execId: string,
+): Promise<boolean> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel`;
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'POST',
+    headers: signedHeaders('POST', path, ''),
+    body: '',
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) return false;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = (await res.json()) as { killed?: boolean };
+  return parsed.killed === true;
+}
+
 export interface SessionExecBody {
   execId: string;
   command?: string[];

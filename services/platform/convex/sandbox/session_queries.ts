@@ -62,6 +62,27 @@ export const latestAgentSessionId = internalQuery({
   },
 });
 
+/** Running ops for a thread, as {sessionId, execId} — the Stop path cancels
+ * each one's exec in the sandbox. The external-agent turn writes
+ * `sandboxSessionOps` (NOT the one-shot `sandboxExecutions` table that
+ * cancelExecutionsForThread scans), so this is how Stop reaches the in-sandbox
+ * agent process. */
+export const listRunningOpsByThread = internalQuery({
+  args: { threadId: v.string() },
+  returns: v.array(v.object({ sessionId: v.string(), execId: v.string() })),
+  handler: async (ctx, args) => {
+    const out: { sessionId: string; execId: string }[] = [];
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
+      if (row.status === 'running') {
+        out.push({ sessionId: row.sessionId, execId: row.execId });
+      }
+    }
+    return out;
+  },
+});
+
 /** All active/creating sessions owned by an entity (for the thread-delete
  * cascade — destroy every session a thread owns). */
 export const listActiveSessionsByOwner = internalQuery({
