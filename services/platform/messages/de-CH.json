@@ -172,9 +172,6 @@
       "RATE_LIMITED": "Das passiert grad zu oft. Versuch es gleich nochmal."
     }
   },
-  "accessDenied": {
-    "webdav": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die WebDAV-Einstellungen zuzugreifen."
-  },
   "metadata": {
     "webdav": {
       "title": "WebDAV",

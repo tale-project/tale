@@ -9,7 +9,6 @@
     "skills": "You need Admin or Developer permissions to manage skills.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
-    "webdav": "You need Admin or Developer permissions to access WebDAV settings.",
     "workspaceNotFound": "The workspace you're looking for doesn't exist or may have been removed.",
     "disabled": "Your account has been disabled. Contact support for assistance.",
     "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
@@ -1526,7 +1525,6 @@
       "completed": "Completed",
       "back": "Back",
       "backTo": "Back to {page}",
-      "settingsNavigation": "Settings navigation",
       "automationsNavigation": "Automations navigation",
       "agentsNavigation": "Agents navigation",
       "knowledgeNavigation": "Knowledge navigation",
@@ -4585,6 +4583,10 @@
         "workspace": "Workspace",
         "governance": "Governance"
       },
+      "railSections": {
+        "personal": "Personal",
+        "organization": "Organization"
+      },
       "account": {
         "description": "Your profile, sign-in, and security."
       },
@@ -4651,6 +4653,8 @@
       }
     },
     "organization": {
+      "pageTitle": "Organization",
+      "pageDescription": "Manage your organization and members.",
       "title": "Organization name",
       "detailsTitle": "Organization details",
       "detailsDescription": "Basic information about your organization.",

@@ -9,7 +9,6 @@
     "skills": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Skills zu verwalten.",
     "branding": "Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen zuzugreifen.",
     "knowledge": "Dein Konto hat keine Berechtigung, auf Wissen zuzugreifen.",
-    "webdav": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die WebDAV-Einstellungen zuzugreifen.",
     "workspaceNotFound": "Der gesuchte Workspace existiert nicht oder wurde möglicherweise entfernt.",
     "disabled": "Dein Konto wurde deaktiviert. Kontaktiere den Support für Unterstützung.",
     "noMembership": "Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen Administrator für Zugriff.",
@@ -1526,7 +1525,6 @@
       "completed": "Abgeschlossen",
       "back": "Zurück",
       "backTo": "Zurück zu {page}",
-      "settingsNavigation": "Einstellungen-Navigation",
       "automationsNavigation": "Automatisierungen-Navigation",
       "agentsNavigation": "Agents-Navigation",
       "knowledgeNavigation": "Wissen-Navigation",
@@ -4324,6 +4322,10 @@
         "workspace": "Arbeitsbereich",
         "governance": "Governance"
       },
+      "railSections": {
+        "personal": "Persönlich",
+        "organization": "Organisation"
+      },
       "account": {
         "description": "Profil, Anmeldung und Sicherheit."
       },
@@ -4390,6 +4392,8 @@
       }
     },
     "organization": {
+      "pageTitle": "Organisation",
+      "pageDescription": "Verwalte deine Organisation und Mitglieder.",
       "title": "Organisation (optional)",
       "detailsTitle": "Organisationsdetails",
       "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",

@@ -220,7 +220,7 @@ export function BrandingForm({
     <Form
       id="branding-form"
       onSubmit={handleSubmit((values) => save(values))}
-      className="w-full max-w-sm shrink-0 space-y-0"
+      className="w-full max-w-sm shrink-0 space-y-0 self-start"
     >
       <div className="flex h-full flex-col justify-between">
         <FormSection>

@@ -81,7 +81,7 @@ export const BrandingPreview = memo(function BrandingPreview({
 
   return (
     <div
-      className="bg-muted flex flex-1 items-start justify-center overflow-hidden rounded-xl p-10 pt-20"
+      className="bg-muted -mt-[106px] -mr-4 -mb-6 flex min-h-[calc(100vh-80px)] flex-1 items-start justify-center overflow-hidden p-6 pt-[130px]"
       role="img"
       aria-label={t('branding.preview')}
     >
