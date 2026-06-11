@@ -12,11 +12,14 @@
 // Raw provider API keys + the management token are Tier-0 secrets — they live
 // only here (Convex) and in Bifrost, never in the sandbox.
 //
-// NOTE: the exact governance endpoint paths + field names are pinned to the
-// Bifrost version in compose.yml (maximhq/bifrost). The shapes below follow
-// docs.getbifrost.ai/features/governance/virtual-keys; re-verify against the
-// pinned version's OpenAPI at integration time (an integration test guards the
-// VK auth path before rollout — sessions plan §"Bifrost 集成").
+// NOTE: the governance endpoint paths + field names below are verified
+// against the pinned maximhq/bifrost:v1.4.8 (transports/bifrost-http/
+// handlers/governance.go at tag transports/v1.4.8): VK create takes
+// `name` (required) + `provider_configs[]` (array, per-provider
+// allowed_models) + `budget` (singular; reset_duration must parse as a
+// duration — 'never' is rejected), `team_id`/`customer_id` are mutually
+// exclusive FK references (we encode attribution in `name` instead), and
+// the response wraps the key as `{ virtual_key: { id, value } }`.
 
 import { createHash } from 'node:crypto';
 
@@ -32,6 +35,19 @@ function managementHeaders(): Record<string, string> {
     // keys (which it explicitly rejects on the governance routes).
     authorization: `Bearer ${token}`,
   };
+}
+
+/**
+ * Tale model refs are colon-qualified (`openrouter:anthropic/claude-sonnet-4.6`,
+ * optionally with a quantization qualifier like `@fp8`) but Bifrost routes on
+ * the first slash (`provider/model`) and rejects the colon form as an invalid
+ * model ID (verified against v1.4.8). Upstreams don't understand the Tale
+ * quantization qualifier either (the in-platform chat path strips it before
+ * calling the provider), so drop it here too. Translate at this boundary
+ * only — everything platform-side keeps the Tale ref.
+ */
+export function toGatewayModelRef(taleModelRef: string): string {
+  return taleModelRef.replace(':', '/').replace(/@[^@/]+$/, '');
 }
 
 export interface MintVirtualKeyArgs {
@@ -55,15 +71,36 @@ export interface MintedVirtualKey {
 export async function mintVirtualKey(
   args: MintVirtualKeyArgs,
 ): Promise<MintedVirtualKey> {
+  // Group allowed models by gateway provider; allow both the bare and the
+  // provider-qualified spellings so the allowlist matches however the
+  // resolver normalizes the request model.
+  const byProvider = new Map<string, string[]>();
+  for (const taleRef of args.allowedModels) {
+    const gatewayRef = toGatewayModelRef(taleRef);
+    const slash = gatewayRef.indexOf('/');
+    const provider = slash === -1 ? gatewayRef : gatewayRef.slice(0, slash);
+    const bare = slash === -1 ? gatewayRef : gatewayRef.slice(slash + 1);
+    const models = byProvider.get(provider) ?? [];
+    models.push(bare, gatewayRef);
+    byProvider.set(provider, models);
+  }
   const body = {
-    budgets: {
+    // team_id/customer_id are mutually-exclusive FK references in Bifrost;
+    // we anchor attribution in the (required) name instead. Bifrost has no
+    // native TTL; the session watchdog revokes on expiry.
+    name: `tale-${args.organizationId}-${args.sessionId}-${Date.now().toString(36)}`,
+    provider_configs: [...byProvider.entries()].map(
+      ([provider, allowedModels]) => ({
+        provider,
+        allowed_models: allowedModels,
+      }),
+    ),
+    budget: {
       max_limit: args.budgetCents / 100, // governance API is dollars
-      reset_duration: 'never',
+      // Smallest accepted horizon ('never' is rejected); the key is revoked
+      // at turn end, long before any reset matters.
+      reset_duration: '1M',
     },
-    provider_configs: { allowed_models: args.allowedModels },
-    // Bifrost has no native TTL; the session watchdog revokes on expiry.
-    team_id: args.organizationId,
-    customer_id: args.sessionId,
     is_active: true,
   };
   const res = await fetch(`${bifrostUrl()}/api/governance/virtual-keys`, {
@@ -76,11 +113,15 @@ export async function mintVirtualKey(
     throw new Error(`bifrost mint key failed (${res.status})`);
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = (await res.json()) as { key?: string; id?: string };
-  if (!parsed.key || !parsed.id) {
+  const parsed = (await res.json()) as {
+    virtual_key?: { id?: string; value?: string };
+  };
+  const key = parsed.virtual_key?.value;
+  const keyId = parsed.virtual_key?.id;
+  if (!key || !keyId) {
     throw new Error('bifrost mint key returned no key/id');
   }
-  return { key: parsed.key, keyId: parsed.id };
+  return { key, keyId };
 }
 
 /** DELETE /api/governance/virtual-keys/:id — instant revoke (session destroy /

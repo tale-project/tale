@@ -28,8 +28,13 @@ import {
   hashVirtualKey,
   mintVirtualKey,
   revokeVirtualKey,
+  toGatewayModelRef,
 } from '../../node_only/sandbox/bifrost_admin';
-import { sessionCreate } from '../../node_only/sandbox/helpers/session_client';
+import {
+  sessionCreate,
+  sessionEnvPatch,
+} from '../../node_only/sandbox/helpers/session_client';
+import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
 
 const debugLog = createDebugLog(
   'DEBUG_EXTERNAL_AGENT',
@@ -37,7 +42,17 @@ const debugLog = createDebugLog(
 );
 
 const OWNER_TYPE = 'thread';
-const BIFROST_URL = process.env.BIFROST_URL ?? 'http://bifrost:8080';
+// Data plane — Bifrost as seen from INSIDE the session container. (The
+// management plane URL, BIFROST_URL, is read in bifrost_admin.ts.) Always the
+// sandbox-network alias (it's hardcoded in the runtime NO_PROXY); kept
+// separate from BIFROST_URL so host-run convex doesn't leak a host-only URL
+// into the container (same split as SANDBOX_STORAGE_INTERNAL_BASE_URL).
+const EXTERNAL_AGENT_GATEWAY_URL =
+  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://bifrost:8080';
+// v1 static grant set: external agents get the org's GitHub credential (when
+// one is active) so they can clone/push/open PRs. The broker audits every
+// fetch; a missing credential degrades to an anonymous session.
+const SESSION_GRANTS = ['github'];
 // Per-turn LLM budget for an external-agent run (cents). Operator-tunable.
 const TURN_BUDGET_CENTS = Number(
   process.env.EXTERNAL_AGENT_TURN_BUDGET_CENTS ?? '500',
@@ -109,7 +124,39 @@ export const runExternalAgentTurn = internalAction({
         );
       }
 
-      // 2. Mint a per-turn, model-scoped gateway key (revoked in finally).
+      // 2. Inject Tier-2 integration credentials. Per-turn (not just at
+      // create) so reused sessions pick up rotations; the broker audits
+      // every fetch and skips grants without an active credential.
+      let grantedSlugs: string[] = [];
+      try {
+        const creds = await ctx.runAction(
+          internal.node_only.sandbox.session_credentials
+            .resolveSessionCredentials,
+          {
+            organizationId: args.organizationId,
+            sessionId,
+            grants: SESSION_GRANTS,
+            kind: 'bootstrap',
+          },
+        );
+        grantedSlugs = creds.git.map((g) => g.slug);
+        if (Object.keys(creds.env).length > 0) {
+          const denied = await sessionEnvPatch(sessionId, { set: creds.env });
+          if (denied.length > 0) {
+            console.warn(
+              '[runExternalAgentTurn] session env names denied by runnerd:',
+              denied,
+            );
+          }
+        }
+      } catch (credErr) {
+        console.warn(
+          '[runExternalAgentTurn] credential injection failed (continuing without):',
+          credErr,
+        );
+      }
+
+      // 3. Mint a per-turn, model-scoped gateway key (revoked in finally).
       const vk = await mintVirtualKey({
         budgetCents: TURN_BUDGET_CENTS,
         allowedModels: [args.modelRef],
@@ -127,14 +174,14 @@ export const runExternalAgentTurn = internalAction({
           scope: {
             agentKind: args.agentKind,
             allowedModels: [args.modelRef],
-            integrationGrants: [],
+            integrationGrants: grantedSlugs,
             budgetCents: TURN_BUDGET_CENTS,
           },
           expiresAt: Date.now() + 2 * 60 * 60 * 1000,
         },
       );
 
-      // 3. Resume the in-sandbox agent's prior conversation if any.
+      // 4. Resume the in-sandbox agent's prior conversation if any.
       const agentSessionId = await ctx.runQuery(
         internal.sandbox.session_queries.latestAgentSessionId,
         { sessionId },
@@ -147,26 +194,28 @@ export const runExternalAgentTurn = internalAction({
         resume: agentSessionId !== null,
       });
 
-      // 4. Run the agent — streams tool-use/text into sandboxSessionOps live.
-      const result = await ctx.runAction(
-        internal.node_only.sandbox.run_agent.runAgentInSession,
-        {
-          organizationId: args.organizationId,
-          sessionId,
-          execId,
-          agentSlug: args.agentKind,
-          prompt: args.rawPrompt,
-          model: args.modelRef,
-          ...(agentSessionId !== null && { agentSessionId }),
-          ...(args.systemInstructions
-            ? { systemPromptAppend: args.systemInstructions }
-            : {}),
-          gatewayBaseUrl: BIFROST_URL,
-          gatewayToken: vk.key,
-        },
-      );
+      // 5. Run the agent — streams tool-use/text into sandboxSessionOps live.
+      // Direct import, NOT ctx.runAction: the action-RPC hop is capped at
+      // ~5 minutes in self-hosted Convex, which kills the parent mid-turn
+      // (and its finally then revokes the VK under the still-running agent).
+      const result = await runAgentInSessionImpl(ctx, {
+        organizationId: args.organizationId,
+        sessionId,
+        execId,
+        agentSlug: args.agentKind,
+        prompt: args.rawPrompt,
+        // The agent CLI sends this verbatim to the gateway, which rejects
+        // the colon-qualified Tale form — translate at the boundary.
+        model: toGatewayModelRef(args.modelRef),
+        ...(agentSessionId !== null && { agentSessionId }),
+        ...(args.systemInstructions !== undefined && {
+          systemPromptAppend: args.systemInstructions,
+        }),
+        gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
+        gatewayToken: vk.key,
+      });
 
-      // 5. Save the agent's final reply into the thread (chat UI renders it).
+      // 6. Save the agent's final reply into the thread (chat UI renders it).
       const finalText =
         result.finalText ??
         (result.status === 'completed'
