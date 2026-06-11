@@ -64,6 +64,7 @@ import { Route as DashboardIdAgentsAgentIdRouteImport } from './routes/dashboard
 import { Route as DashboardIdKnowledgeWebsitesRouteImport } from './routes/dashboard/$id/_knowledge/websites';
 import { Route as DashboardIdKnowledgeVendorsRouteImport } from './routes/dashboard/$id/_knowledge/vendors';
 import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashboard/$id/_knowledge/products';
+import { Route as DashboardIdKnowledgeKnowledgeEntriesRouteImport } from './routes/dashboard/$id/_knowledge/knowledge-entries';
 import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents';
 import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers';
 import { Route as DashboardIdSettingsGovernanceRouteRouteImport } from './routes/dashboard/$id/settings/governance/route';
@@ -411,6 +412,12 @@ const DashboardIdKnowledgeProductsRoute =
     path: '/products',
     getParentRoute: () => DashboardIdKnowledgeRoute,
   } as any);
+const DashboardIdKnowledgeKnowledgeEntriesRoute =
+  DashboardIdKnowledgeKnowledgeEntriesRouteImport.update({
+    id: '/knowledge-entries',
+    path: '/knowledge-entries',
+    getParentRoute: () => DashboardIdKnowledgeRoute,
+  } as any);
 const DashboardIdKnowledgeDocumentsRoute =
   DashboardIdKnowledgeDocumentsRouteImport.update({
     id: '/documents',
@@ -710,6 +717,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute;
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute;
+  '/dashboard/$id/knowledge-entries': typeof DashboardIdKnowledgeKnowledgeEntriesRoute;
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute;
   '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute;
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute;
@@ -802,6 +810,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/inbox': typeof DashboardIdInboxRoute;
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute;
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute;
+  '/dashboard/$id/knowledge-entries': typeof DashboardIdKnowledgeKnowledgeEntriesRoute;
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute;
   '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute;
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute;
@@ -901,6 +910,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
   '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute;
   '/dashboard/$id/_knowledge/documents': typeof DashboardIdKnowledgeDocumentsRoute;
+  '/dashboard/$id/_knowledge/knowledge-entries': typeof DashboardIdKnowledgeKnowledgeEntriesRoute;
   '/dashboard/$id/_knowledge/products': typeof DashboardIdKnowledgeProductsRoute;
   '/dashboard/$id/_knowledge/vendors': typeof DashboardIdKnowledgeVendorsRoute;
   '/dashboard/$id/_knowledge/websites': typeof DashboardIdKnowledgeWebsitesRoute;
@@ -1003,6 +1013,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
+    | '/dashboard/$id/knowledge-entries'
     | '/dashboard/$id/products'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
@@ -1095,6 +1106,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/inbox'
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
+    | '/dashboard/$id/knowledge-entries'
     | '/dashboard/$id/products'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
@@ -1193,6 +1205,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/_knowledge/customers'
     | '/dashboard/$id/_knowledge/documents'
+    | '/dashboard/$id/_knowledge/knowledge-entries'
     | '/dashboard/$id/_knowledge/products'
     | '/dashboard/$id/_knowledge/vendors'
     | '/dashboard/$id/_knowledge/websites'
@@ -1664,6 +1677,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdKnowledgeProductsRouteImport;
       parentRoute: typeof DashboardIdKnowledgeRoute;
     };
+    '/dashboard/$id/_knowledge/knowledge-entries': {
+      id: '/dashboard/$id/_knowledge/knowledge-entries';
+      path: '/knowledge-entries';
+      fullPath: '/dashboard/$id/knowledge-entries';
+      preLoaderRoute: typeof DashboardIdKnowledgeKnowledgeEntriesRouteImport;
+      parentRoute: typeof DashboardIdKnowledgeRoute;
+    };
     '/dashboard/$id/_knowledge/documents': {
       id: '/dashboard/$id/_knowledge/documents';
       path: '/documents';
@@ -1999,6 +2019,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren);
 interface DashboardIdKnowledgeRouteChildren {
   DashboardIdKnowledgeCustomersRoute: typeof DashboardIdKnowledgeCustomersRoute;
   DashboardIdKnowledgeDocumentsRoute: typeof DashboardIdKnowledgeDocumentsRoute;
+  DashboardIdKnowledgeKnowledgeEntriesRoute: typeof DashboardIdKnowledgeKnowledgeEntriesRoute;
   DashboardIdKnowledgeProductsRoute: typeof DashboardIdKnowledgeProductsRoute;
   DashboardIdKnowledgeVendorsRoute: typeof DashboardIdKnowledgeVendorsRoute;
   DashboardIdKnowledgeWebsitesRoute: typeof DashboardIdKnowledgeWebsitesRoute;
@@ -2007,6 +2028,8 @@ interface DashboardIdKnowledgeRouteChildren {
 const DashboardIdKnowledgeRouteChildren: DashboardIdKnowledgeRouteChildren = {
   DashboardIdKnowledgeCustomersRoute: DashboardIdKnowledgeCustomersRoute,
   DashboardIdKnowledgeDocumentsRoute: DashboardIdKnowledgeDocumentsRoute,
+  DashboardIdKnowledgeKnowledgeEntriesRoute:
+    DashboardIdKnowledgeKnowledgeEntriesRoute,
   DashboardIdKnowledgeProductsRoute: DashboardIdKnowledgeProductsRoute,
   DashboardIdKnowledgeVendorsRoute: DashboardIdKnowledgeVendorsRoute,
   DashboardIdKnowledgeWebsitesRoute: DashboardIdKnowledgeWebsitesRoute,

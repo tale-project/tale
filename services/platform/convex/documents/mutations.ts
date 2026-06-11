@@ -12,6 +12,7 @@ import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { checkUploadPolicy } from '../governance/upload_enforcement';
+import { markEntryChainDeleted } from '../knowledge_entries/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -85,6 +86,20 @@ export const deleteDocument = mutation({
       undefined,
       document.createdBy ?? undefined,
     );
+
+    // Knowledge entries are backed by hub documents — deleting the backing
+    // document from the Documents tab must not orphan the entry, so mark
+    // every linked entry chain deleted too.
+    const linkedTopicKeys = new Set<string>();
+    for await (const entry of ctx.db
+      .query('knowledgeEntries')
+      .withIndex('by_documentId', (q) => q.eq('documentId', args.documentId))) {
+      if (entry.deletedAt !== undefined) continue;
+      linkedTopicKeys.add(entry.topicKey);
+    }
+    for (const topicKey of linkedTopicKeys) {
+      await markEntryChainDeleted(ctx, document.organizationId, topicKey);
+    }
 
     await ctx.scheduler.runAfter(
       0,

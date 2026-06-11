@@ -155,6 +155,23 @@ export function normalizeDocumentWriteMetadata(
   };
 }
 
+export interface KnowledgeWriteMetadata {
+  topic: string;
+  topicKey: string;
+  content: string;
+  /** What the agent believes is outdated/incorrect (free-form, optional). */
+  incorrectInfo?: string;
+  /** Active entry this write will supersede (topic-keyed upsert). */
+  replacesEntryId?: string;
+  replacesTopic?: string;
+  requestedAt: number;
+  executedAt?: number;
+  /** Set after execution. */
+  entryId?: string;
+  documentId?: string;
+  executionError?: string;
+}
+
 export interface CreateApprovalArgs {
   organizationId: string;
   resourceType: ApprovalResourceType;

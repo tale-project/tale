@@ -10,6 +10,7 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type {
+  KnowledgeWriteMetadata,
   WorkflowCreationMetadata,
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
@@ -638,6 +639,16 @@ export function useDocumentWriteApprovals(
     approvals: documentWriteApprovals,
     isLoading,
   };
+}
+
+export interface KnowledgeWriteApproval {
+  _id: Id<'approvals'>;
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
+  metadata: KnowledgeWriteMetadata;
+  executedAt?: number;
+  executionError?: string;
+  _creationTime: number;
+  messageId?: string;
 }
 
 export interface ToolUsage {

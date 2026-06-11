@@ -12,6 +12,7 @@ interface KnowledgeNavigationProps {
 
 type KnowledgeLabelKey =
   | 'documents'
+  | 'knowledgeEntries'
   | 'websites'
   | 'products'
   | 'customers'
@@ -30,6 +31,11 @@ export function KnowledgeNavigation({
       labelKey: 'documents',
       label: t('documents'),
       href: `/dashboard/${organizationId}/documents`,
+    },
+    {
+      labelKey: 'knowledgeEntries',
+      label: t('knowledgeEntries'),
+      href: `/dashboard/${organizationId}/knowledge-entries`,
     },
     {
       labelKey: 'websites',

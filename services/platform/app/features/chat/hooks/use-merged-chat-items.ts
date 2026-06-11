@@ -6,6 +6,7 @@ import type {
   DocumentWriteApproval,
   HumanInputRequest,
   IntegrationApproval,
+  KnowledgeWriteApproval,
   LocationRequest,
   WorkflowCreationApproval,
   WorkflowRunApproval,
@@ -21,6 +22,7 @@ export type ChatItem =
   | { type: 'workflow_run_approval'; data: WorkflowRunApproval }
   | { type: 'human_input_request'; data: HumanInputRequest }
   | { type: 'document_write_approval'; data: DocumentWriteApproval }
+  | { type: 'knowledge_write_approval'; data: KnowledgeWriteApproval }
   | { type: 'location_request'; data: LocationRequest };
 
 type ApprovalChatItem = Exclude<ChatItem, { type: 'message' }>;
@@ -38,6 +40,9 @@ interface UseMergedChatItemsParams {
   resolvedHumanInputRequests?: HumanInputRequest[];
   locationRequests: LocationRequest[] | undefined;
   documentWriteApprovals: DocumentWriteApproval[] | undefined;
+  /** Optional — surfaces only on the main chat path (the `knowledge_write`
+   *  tool); arena/automation callers don't pass it. */
+  knowledgeWriteApprovals?: KnowledgeWriteApproval[];
 }
 
 export interface MergedChatItemsResult {
@@ -131,6 +136,7 @@ export function useMergedChatItems({
   resolvedHumanInputRequests,
   locationRequests,
   documentWriteApprovals,
+  knowledgeWriteApprovals,
 }: UseMergedChatItemsParams): MergedChatItemsResult {
   return useMemo((): MergedChatItemsResult => {
     // Build message items
@@ -238,6 +244,15 @@ export function useMergedChatItems({
         activeApprovals.push({ type: 'document_write_approval', data: a });
       }
     }
+    for (const a of knowledgeWriteApprovals ?? []) {
+      if (
+        a.messageId &&
+        loadedMessageIds.has(a.messageId) &&
+        isActiveStatus(a.status)
+      ) {
+        activeApprovals.push({ type: 'knowledge_write_approval', data: a });
+      }
+    }
 
     // Pick the latest active approval by creation time
     let activeApproval: ChatItem | null = null;
@@ -271,5 +286,6 @@ export function useMergedChatItems({
     resolvedHumanInputRequests,
     locationRequests,
     documentWriteApprovals,
+    knowledgeWriteApprovals,
   ]);
 }

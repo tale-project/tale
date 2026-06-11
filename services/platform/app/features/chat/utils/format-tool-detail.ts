@@ -72,6 +72,7 @@ export function formatToolDetail(
     customer_read: t('tools.customerRead'),
     product_read: t('tools.productRead'),
     rag_search: t('tools.ragSearch'),
+    knowledge_write: t('tools.knowledgeWrite'),
     web: t('tools.web'),
     pdf: t('tools.pdf'),
     image: t('tools.image'),

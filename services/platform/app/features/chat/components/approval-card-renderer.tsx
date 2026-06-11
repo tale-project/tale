@@ -4,6 +4,7 @@ import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { DocumentWriteApprovalCard } from './document-write-approval-card';
 import { HumanInputRequestCard } from './human-input-request-card';
 import { IntegrationApprovalCard } from './integration-approval-card';
+import { KnowledgeWriteApprovalCard } from './knowledge-write-approval-card';
 import { LocationRequestCard } from './location-request-card';
 import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
 import { WorkflowRunApprovalCard } from './workflow-run-approval-card';
@@ -90,6 +91,16 @@ export function ApprovalCardRenderer({
       )}
       {item.type === 'document_write_approval' && (
         <DocumentWriteApprovalCard
+          approvalId={item.data._id}
+          organizationId={organizationId}
+          status={item.data.status}
+          metadata={item.data.metadata}
+          executedAt={item.data.executedAt}
+          executionError={item.data.executionError}
+        />
+      )}
+      {item.type === 'knowledge_write_approval' && (
+        <KnowledgeWriteApprovalCard
           approvalId={item.data._id}
           organizationId={organizationId}
           status={item.data.status}

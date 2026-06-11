@@ -55,6 +55,7 @@ import {
   slackThreadsTable,
 } from './integrations/slack/schema';
 import { slackInstallationsTable } from './integrations/slack_installations_schema';
+import { knowledgeEntriesTable } from './knowledge_entries/schema';
 import { llmResponseCacheTable } from './lib/response_cache/schema';
 import {
   loginAttemptsTable,
@@ -160,6 +161,7 @@ export default defineSchema({
   documents: documentsTable,
   fileMetadata: fileMetadataTable,
   folders: foldersTable,
+  knowledgeEntries: knowledgeEntriesTable,
   integrationCredentials: integrationCredentialsTable,
   /** @deprecated Retained for backward compatibility with existing data. Use integrationCredentials + file-based config. */
   integrations: integrationsTable,

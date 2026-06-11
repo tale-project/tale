@@ -872,6 +872,7 @@
       "customerRead": "Données client",
       "productRead": "Catalogue produits",
       "ragSearch": "Base de connaissances",
+      "knowledgeWrite": "Entrée de connaissances",
       "web": "Contenu web",
       "pdf": "PDF",
       "image": "Images",
@@ -2136,6 +2137,10 @@
     "websites": {
       "title": "Aucun site web pour l'instant",
       "description": "Ajoute des sites web pour rendre ton IA plus performante"
+    },
+    "knowledgeEntries": {
+      "title": "Aucune entrée de connaissances pour l'instant",
+      "description": "Enregistre des faits depuis le chat ou ajoute des entrées pour rendre ton IA plus performante"
     },
     "automations": {
       "title": "Aucune automatisation pour l'instant",
@@ -3443,10 +3448,80 @@
   "knowledge": {
     "title": "Base de connaissances",
     "documents": "Documents",
+    "knowledgeEntries": "Entrées de connaissances",
     "websites": "Sites web",
     "products": "Produits",
     "customers": "Clients",
     "vendors": "Fournisseurs"
+  },
+  "knowledgeEntries": {
+    "title": "Entrées de connaissances",
+    "searchPlaceholder": "Rechercher des entrées de connaissances",
+    "addButton": "Ajouter une entrée",
+    "addEntry": "Ajouter une entrée de connaissances",
+    "editEntry": "Modifier l'entrée de connaissances",
+    "adding": "Ajout en cours...",
+    "saving": "Enregistrement...",
+    "topic": "Sujet",
+    "topicPlaceholder": "p. ex. Horaires d'ouverture",
+    "content": "Contenu",
+    "contentPlaceholder": "Rédige la connaissance pour qu'elle soit compréhensible seule, p. ex. \"Notre magasin est ouvert du lundi au vendredi de 9 h à 17 h.\"",
+    "headers": {
+      "topic": "Sujet",
+      "content": "Contenu",
+      "source": "Source",
+      "updated": "Mis à jour"
+    },
+    "source": {
+      "chat": "Chat",
+      "manual": "Manuel"
+    },
+    "validation": {
+      "topicRequired": "Le sujet est requis",
+      "topicTooLong": "Le sujet doit contenir au maximum 120 caractères",
+      "contentRequired": "Le contenu est requis",
+      "contentTooLong": "Le contenu doit contenir au maximum 8000 caractères"
+    },
+    "toast": {
+      "addSuccess": "Entrée de connaissances ajoutée",
+      "addError": "Échec de l'ajout de l'entrée de connaissances",
+      "addErrorDuplicate": "Une entrée existe déjà pour ce sujet",
+      "updateSuccess": "Entrée de connaissances mise à jour",
+      "updateError": "Échec de la mise à jour de l'entrée de connaissances",
+      "deleteError": "Échec de la suppression de l'entrée de connaissances"
+    },
+    "delete": {
+      "title": "Supprimer l'entrée de connaissances",
+      "confirmation": "Es-tu sûr de vouloir supprimer cette entrée de connaissances ? Elle sera aussi retirée de la base de connaissances et les agents ne pourront plus la trouver. Cette action est irréversible."
+    },
+    "viewDialog": {
+      "title": "Détails de l'entrée de connaissances",
+      "indexingStatus": "Statut d'indexation",
+      "updated": "Mis à jour",
+      "history": "Historique des versions",
+      "versionCount": "{count, plural, one {# version précédente} other {# versions précédentes}}",
+      "superseded": "Remplacée",
+      "supersededOn": "Remplacée le {date}"
+    }
+  },
+  "knowledgeWriteApproval": {
+    "cardTitle": "Enregistrer dans la base de connaissances",
+    "cardTitleReplace": "Mettre à jour la base de connaissances",
+    "topicLabel": "Sujet",
+    "contentLabel": "Contenu",
+    "incorrectInfoLabel": "Remplace une information obsolète",
+    "replaceNotice": "L'approbation remplacera l'entrée existante \"{topic}\".",
+    "savedSuccessfully": "Enregistré dans la base de connaissances",
+    "approve": "Approuver",
+    "reject": "Rejeter",
+    "approveTooltip": "Approuver et enregistrer cette entrée de connaissances",
+    "approveTooltipReplace": "Approuver et remplacer l'entrée de connaissances existante",
+    "rejectTooltip": "Rejeter cette entrée de connaissances",
+    "statusExecuting": "Enregistrement de l'entrée de connaissances...",
+    "statusCompletedFailed": "Cette entrée de connaissances a été approuvée mais n'a pas pu être enregistrée.",
+    "statusCompletedSuccess": "Cette entrée de connaissances a été enregistrée dans la base de connaissances.",
+    "statusRejected": "Cette entrée de connaissances a été rejetée.",
+    "errorSaveFailed": "Échec de l'enregistrement de l'entrée de connaissances"
   },
   "locationRequest": {
     "title": "Demande de localisation",
@@ -3563,6 +3638,10 @@
     "websites": {
       "title": "Sites web",
       "description": "Gère les sites web pour l'extraction de connaissances."
+    },
+    "knowledgeEntries": {
+      "title": "Entrées de connaissances",
+      "description": "Gère les entrées de connaissances ajoutées par les utilisateurs."
     },
     "settings": {
       "title": "Paramètres",

@@ -19,6 +19,7 @@ export const TOOL_NAMES = [
   'customer_read',
   'product_read',
   'rag_search',
+  'knowledge_write',
   'web',
   'pdf',
   'image',

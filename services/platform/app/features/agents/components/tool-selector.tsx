@@ -38,6 +38,7 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
     'document_retrieve',
     'document_find',
     'document_write',
+    'knowledge_write',
   ],
   Workflows: [
     'workflow_read',

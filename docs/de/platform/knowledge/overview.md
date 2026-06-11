@@ -25,6 +25,8 @@ Der Abruf selbst passiert zur Antwort-Zeit und wird von der RAG-getaggten Tool-F
 
 **[Dokumente](/de/platform/knowledge/documents)** — Redakteure lesen das, wenn sie Dateien hochladen, die Indexierungs-Pipeline beobachten und den Per-Dokument-Lebenszyklus verwalten.
 
+**[Wissenseinträge](/de/platform/knowledge/knowledge-entries)** — Redakteure lesen das, wenn sie die kleinen, themen-basierten Fakten verwalten, die Nutzer beitragen — mit Genehmigung aus dem Chat erfasst oder von Hand hinzugefügt — und die durch dieselbe Indexierungs-Pipeline fahren wie Dokumente.
+
 **[Strukturierte Daten](/de/platform/knowledge/structured-data)** — Redakteure lesen das, wenn sie typisierte Tabellen pflegen — Kunden, Produkte, Lieferanten, Websites — die Agents als Datensätze lesen.
 
 ## Wo das hingehört

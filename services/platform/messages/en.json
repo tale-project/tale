@@ -871,6 +871,7 @@
       "customerRead": "Customer data",
       "productRead": "Product catalog",
       "ragSearch": "Knowledge base",
+      "knowledgeWrite": "Knowledge entry",
       "web": "Web content",
       "pdf": "PDF",
       "image": "Images",
@@ -2135,6 +2136,10 @@
     "websites": {
       "title": "No websites yet",
       "description": "Add websites to make your AI smarter"
+    },
+    "knowledgeEntries": {
+      "title": "No knowledge entries yet",
+      "description": "Save facts from chat or add entries to make your AI smarter"
     },
     "automations": {
       "title": "No automations yet",
@@ -3442,10 +3447,80 @@
   "knowledge": {
     "title": "Knowledge",
     "documents": "Documents",
+    "knowledgeEntries": "Knowledge entries",
     "websites": "Websites",
     "products": "Products",
     "customers": "Customers",
     "vendors": "Vendors"
+  },
+  "knowledgeEntries": {
+    "title": "Knowledge entries",
+    "searchPlaceholder": "Search knowledge entries",
+    "addButton": "Add entry",
+    "addEntry": "Add knowledge entry",
+    "editEntry": "Edit knowledge entry",
+    "adding": "Adding...",
+    "saving": "Saving...",
+    "topic": "Topic",
+    "topicPlaceholder": "e.g. Store opening hours",
+    "content": "Content",
+    "contentPlaceholder": "Write the knowledge so it makes sense on its own, e.g. \"Our store is open Monday to Friday from 9 am to 5 pm.\"",
+    "headers": {
+      "topic": "Topic",
+      "content": "Content",
+      "source": "Source",
+      "updated": "Updated"
+    },
+    "source": {
+      "chat": "Chat",
+      "manual": "Manual"
+    },
+    "validation": {
+      "topicRequired": "Topic is required",
+      "topicTooLong": "Topic must be 120 characters or fewer",
+      "contentRequired": "Content is required",
+      "contentTooLong": "Content must be 8000 characters or fewer"
+    },
+    "toast": {
+      "addSuccess": "Knowledge entry added",
+      "addError": "Failed to add knowledge entry",
+      "addErrorDuplicate": "An entry for this topic already exists",
+      "updateSuccess": "Knowledge entry updated",
+      "updateError": "Failed to update knowledge entry",
+      "deleteError": "Failed to delete knowledge entry"
+    },
+    "delete": {
+      "title": "Delete knowledge entry",
+      "confirmation": "Are you sure you want to delete this knowledge entry? It will also be removed from the knowledge base, so agents can no longer find it. This action cannot be undone."
+    },
+    "viewDialog": {
+      "title": "Knowledge entry details",
+      "indexingStatus": "Indexing status",
+      "updated": "Updated",
+      "history": "Version history",
+      "versionCount": "{count, plural, one {# previous version} other {# previous versions}}",
+      "superseded": "Superseded",
+      "supersededOn": "Replaced on {date}"
+    }
+  },
+  "knowledgeWriteApproval": {
+    "cardTitle": "Save to knowledge base",
+    "cardTitleReplace": "Update knowledge base",
+    "topicLabel": "Topic",
+    "contentLabel": "Content",
+    "incorrectInfoLabel": "Replaces outdated information",
+    "replaceNotice": "Approving will replace the existing entry \"{topic}\".",
+    "savedSuccessfully": "Saved to the knowledge base",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveTooltip": "Approve and save this knowledge entry",
+    "approveTooltipReplace": "Approve and replace the existing knowledge entry",
+    "rejectTooltip": "Reject this knowledge entry",
+    "statusExecuting": "Saving knowledge entry...",
+    "statusCompletedFailed": "This knowledge entry was approved but failed to save.",
+    "statusCompletedSuccess": "This knowledge entry was saved to the knowledge base.",
+    "statusRejected": "This knowledge entry was rejected.",
+    "errorSaveFailed": "Failed to save knowledge entry"
   },
   "locationRequest": {
     "title": "Location request",
@@ -3562,6 +3637,10 @@
     "websites": {
       "title": "Websites",
       "description": "Manage websites for knowledge extraction."
+    },
+    "knowledgeEntries": {
+      "title": "Knowledge entries",
+      "description": "Manage user-contributed knowledge entries."
     },
     "settings": {
       "title": "Settings",

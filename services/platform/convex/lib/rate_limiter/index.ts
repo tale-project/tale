@@ -173,6 +173,29 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   // ============================================
+  // TIER 3.55: Knowledge entries (Token Bucket)
+  // Bounds storage + RAG-pipeline churn from knowledge-entry writes.
+  // ============================================
+  // Agent-initiated knowledge_write approvals, keyed by org. Same shape as
+  // prompt:create: 20-burst headroom, refilling at 10/min. Each approved
+  // write stores a blob and triggers a RAG (re)index, so the bound matters.
+  'knowledge:write': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
+  },
+  // Manual create/update/delete from the Knowledge entries tab, keyed by org.
+  'knowledge:mutate': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
+  },
+
+  // ============================================
   // TIER 3.6: Projects (Token Bucket)
   // Bounds storage churn from scripted project creation/duplication and
   // caps blast radius of cascade deletes (which touch every doc + thread).

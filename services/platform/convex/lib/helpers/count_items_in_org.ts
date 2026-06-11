@@ -1,6 +1,12 @@
 import type { DatabaseReader } from '../../_generated/server';
 
-type OrgTable = 'customers' | 'documents' | 'products' | 'vendors' | 'websites';
+type OrgTable =
+  | 'customers'
+  | 'documents'
+  | 'knowledgeEntries'
+  | 'products'
+  | 'vendors'
+  | 'websites';
 
 export const DEFAULT_COUNT_CAP = 20;
 

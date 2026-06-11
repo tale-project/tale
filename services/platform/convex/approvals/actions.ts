@@ -132,6 +132,29 @@ export const executeApprovedDocumentWrite = action({
   },
 });
 
+export const executeApprovedKnowledgeWrite = action({
+  args: {
+    approvalId: v.id('approvals'),
+  },
+  returns: jsonValueValidator,
+  handler: async (ctx, args): Promise<JsonValue> => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    await verifyApprovalAccess(ctx, args.approvalId, authUser);
+
+    return await ctx.runAction(
+      internal.knowledge_entries.internal_actions.executeApprovedKnowledgeWrite,
+      {
+        approvalId: args.approvalId,
+        approvedBy: authUser.userId,
+      },
+    );
+  },
+});
+
 export const executeApprovedWorkflowUpdate = action({
   args: {
     approvalId: v.id('approvals'),

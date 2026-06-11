@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import type {
+  KnowledgeWriteMetadata,
   WorkflowCreationMetadata,
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
@@ -21,6 +22,7 @@ import {
   type HumanInputRequest,
   type IntegrationApproval,
   type IntegrationOperationMetadata,
+  type KnowledgeWriteApproval,
   type LocationRequest,
   type WorkflowCreationApproval,
   type WorkflowRunApproval,
@@ -35,6 +37,7 @@ export interface ThreadApprovals {
   humanInputRequests: HumanInputRequest[];
   locationRequests: LocationRequest[];
   documentWriteApprovals: DocumentWriteApproval[];
+  knowledgeWriteApprovals: KnowledgeWriteApproval[];
   isLoading: boolean;
 }
 
@@ -71,6 +74,7 @@ export function useThreadApprovals(
     const humanInputRequests: HumanInputRequest[] = [];
     const locationRequests: LocationRequest[] = [];
     const documentWriteApprovals: DocumentWriteApproval[] = [];
+    const knowledgeWriteApprovals: KnowledgeWriteApproval[] = [];
 
     if (approvals && threadId) {
       for (const a of approvals) {
@@ -165,6 +169,18 @@ export function useThreadApprovals(
               messageId: a.messageId,
             });
             break;
+          case 'knowledge_write':
+            knowledgeWriteApprovals.push({
+              _id: toId<'approvals'>(a._id),
+              status: a.status,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Metadata shape is guaranteed by resourceType filter above
+              metadata: a.metadata as unknown as KnowledgeWriteMetadata,
+              executedAt: a.executedAt,
+              executionError: a.executionError,
+              _creationTime: a._creationTime,
+              messageId: a.messageId,
+            });
+            break;
           default:
             break;
         }
@@ -179,6 +195,7 @@ export function useThreadApprovals(
       humanInputRequests,
       locationRequests,
       documentWriteApprovals,
+      knowledgeWriteApprovals,
     };
     // `isLoading` is intentionally excluded from the deps below: it's a cheap
     // passthrough, so re-partitioning when it toggles would be wasted work.
