@@ -47,6 +47,7 @@ vi.mock('../context/chat-layout-context', () => ({
 import { useUIMessages } from '@convex-dev/agent/react';
 
 import { api } from '@/convex/_generated/api';
+import { appendKbReferenceBlock } from '@/convex/lib/agent_chat/kb_reference_block';
 
 import {
   useMessageProcessing,
@@ -1079,6 +1080,60 @@ describe('useMessageProcessing', () => {
       const input =
         '![photo.jpg](https://example.com/img.jpg)\n*(fileId: abc123)*';
       expect(extractFileAttachments(input)).toEqual([]);
+    });
+  });
+
+  // Locks the server marker format to the client regexes: the KB reference
+  // block built in convex/lib/agent_chat/kb_reference_block.ts must round-trip
+  // through extractFileAttachments (chips) and stripInternalFileReferences
+  // (bubble body) — a drift on either side silently breaks sent-bubble chips
+  // for `@`-mentioned documents.
+  describe('KB reference block round-trip (kb_reference_block.ts)', () => {
+    const refs = [
+      {
+        documentId: 'doc1',
+        fileId: 'kd7abc123',
+        fileName: 'Q3 Report.pdf',
+        fileType: 'application/pdf',
+        fileSize: 2048,
+      },
+      {
+        documentId: 'doc2',
+        fileId: 'kd7def456',
+        fileName: 'Handbook.docx',
+        fileType:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        fileSize: 4096,
+      },
+    ];
+
+    it('extractFileAttachments recovers every referenced file as a chip', () => {
+      const message = appendKbReferenceBlock('Summarize @Q3 Report.pdf', refs);
+      expect(extractFileAttachments(message)).toEqual([
+        {
+          fileId: 'kd7abc123',
+          fileName: 'Q3 Report.pdf',
+          fileType: 'application/pdf',
+          fileSize: 2048,
+        },
+        {
+          fileId: 'kd7def456',
+          fileName: 'Handbook.docx',
+          fileType:
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          fileSize: 4096,
+        },
+      ]);
+    });
+
+    it('stripInternalFileReferences removes the whole block from the bubble body', () => {
+      const userText = 'Summarize @Q3 Report.pdf';
+      const message = appendKbReferenceBlock(userText, refs);
+      expect(stripInternalFileReferences(message)).toBe(userText);
+    });
+
+    it('appendKbReferenceBlock is a no-op for zero refs', () => {
+      expect(appendKbReferenceBlock('hello', [])).toBe('hello');
     });
   });
 

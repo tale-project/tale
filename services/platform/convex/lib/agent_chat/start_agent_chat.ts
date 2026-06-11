@@ -33,6 +33,10 @@ import {
   computeDeduplicationState,
   type AgentListMessagesResult,
 } from '../message_deduplication';
+import {
+  appendKbReferenceBlock,
+  type KbReferencedFile,
+} from './kb_reference_block';
 import type {
   SerializableAgentConfig,
   AgentHooksConfig,
@@ -69,6 +73,15 @@ export interface StartAgentChatArgs {
   message: string;
   maxSteps?: number;
   attachments?: FileAttachment[];
+  /**
+   * `@`-mentioned knowledge-base documents, already resolved + authorized by
+   * the entry mutation (`chatWithAgentTurn`). Appended to the saved message as
+   * an enriched marker block (same format as attachment markers, so the
+   * client's chip extraction and the `rag_search` tool's fileId-priority
+   * behavior apply unchanged) and forwarded as `pinnedFileIds` to scope the
+   * per-turn auto-RAG query.
+   */
+  referencedFiles?: KbReferencedFile[];
   /** Additional context to pass to the agent (key-value pairs) */
   additionalContext?: Record<string, string>;
   /** User environment context (timezone, language, UI locale) for template variables */
@@ -283,11 +296,20 @@ export async function startAgentChat(
     computeDeduplicationState(existingMessages, message);
 
   const hasAttachments = attachments && attachments.length > 0;
+  const referencedFiles = prewarm ? [] : (args.referencedFiles ?? []);
 
-  // Build message content with attachment markdown
-  const messageContent = hasAttachments
+  // Build message content with attachment markdown, then append the
+  // knowledge-base reference block for `@`-mentioned documents. The block
+  // reuses the enriched attachment marker format, so the client renders the
+  // refs as file chips and strips the block from the bubble body with zero
+  // new display plumbing (see kb_reference_block.ts).
+  const messageWithAttachments = hasAttachments
     ? await buildMessageWithAttachments(ctx, trimmedMessage, attachments)
     : trimmedMessage;
+  const messageContent = appendKbReferenceBlock(
+    messageWithAttachments,
+    referencedFiles,
+  );
 
   // Save user message if not a duplicate
   let promptMessageId: string;
@@ -520,6 +542,12 @@ export async function startAgentChat(
     promptMessage: prewarm ? '.' : messageContent,
     originalUserText: prewarm ? '.' : trimmedMessage,
     attachments: prewarm ? undefined : actionAttachments,
+    // Pinned RAG scope for this turn — explicit user intent, so it applies
+    // even on a dedup hit (a resend of the same message keeps its pins).
+    pinnedFileIds:
+      referencedFiles.length > 0
+        ? referencedFiles.map((ref) => ref.fileId)
+        : undefined,
     streamId: streamId || undefined,
     promptMessageId: prewarm ? undefined : promptMessageId,
     maxSteps,

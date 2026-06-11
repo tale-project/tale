@@ -91,6 +91,20 @@ export const runChatTurnGeneration = internalAction({
     // Arena root side only: create the A↔B branch link from here, AFTER
     // startChat has saved this thread's user message (see chat_turn.ts).
     arenaBranchThreadId: v.optional(v.string()),
+    /** `@`-mentioned knowledge-base documents, already resolved + authorized
+     *  by `chatWithAgentTurn`. Threaded to startChat → startAgentChat, where
+     *  they become the enriched marker block + the pinned RAG scope. */
+    referencedFiles: v.optional(
+      v.array(
+        v.object({
+          documentId: v.id('documents'),
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -326,6 +340,7 @@ export const runChatTurnGeneration = internalAction({
           message,
           maxSteps: args.maxSteps,
           attachments: args.attachments,
+          referencedFiles: args.referencedFiles,
           additionalContext: args.additionalContext,
           userContext: args.userContext,
           agentConfig,

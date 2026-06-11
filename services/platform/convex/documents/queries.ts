@@ -14,6 +14,7 @@ import { getOrganizationMember } from '../lib/rls/organization/get_organization_
 import { hasTeamAccess } from '../lib/team_access';
 import { isActiveDocument } from './_helpers';
 import { listDocumentsPaginated as listDocumentsPaginatedHelper } from './list_documents_paginated';
+import { searchDocumentsForMention as searchDocumentsForMentionHelper } from './search_documents_for_mention';
 import { transformDocumentsBatch } from './transform_to_document_item';
 
 export const approxCountDocuments = query({
@@ -97,6 +98,37 @@ export const getDocumentById = query({
 
     const [item] = await transformDocumentsBatch(ctx, [doc]);
     return item ?? null;
+  },
+});
+
+/**
+ * Title search for the chat composer's `@` knowledge-base mention picker.
+ * Returns slim rows for RAG-indexed, user-accessible documents only (the
+ * picker must not offer a document that the pinned-turn retrieval could not
+ * actually search). Same auth contract as `listDocumentsPaginated`.
+ */
+export const searchDocumentsForMention = query({
+  args: {
+    organizationId: v.string(),
+    query: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return [];
+
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch {
+      return [];
+    }
+
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
+
+    return await searchDocumentsForMentionHelper(ctx, {
+      organizationId: args.organizationId,
+      term: args.query,
+      userTeamIds,
+    });
   },
 });
 

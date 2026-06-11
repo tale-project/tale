@@ -23,6 +23,12 @@ Each attachment is stored in Tale's object store and bound to the chat that rece
 
 Small text files and structured documents under the agent's inline budget are pasted verbatim. Larger ones are chunked, embedded, and indexed; the agent retrieves the relevant chunks at reply time and cites them. The boundary depends on the model — long-context models swallow more whole. When the agent retrieves from an attachment rather than reading it whole, the citations point to chunk ranges in the original file.
 
+## Referencing knowledge documents with @
+
+Typing `@` in the composer opens a picker over the org's indexed knowledge documents. Type to filter by title, pick one, and a chip appears in the composer — the message now carries a pinned reference to that document. On send, Tale checks your access, scopes that reply's retrieval to exactly the pinned documents, and injects the relevant passages even when the agent's knowledge mode is off — an explicit mention outranks the agent's retrieval configuration. Up to five documents can be pinned per message.
+
+The chips are the source of truth: deleting the `@Title` text from the message does not unpin the document — remove the chip instead. The picker only offers documents that have finished indexing and that your teams can access. The reference is per-message; a follow-up without mentions falls back to the agent's normal knowledge scope.
+
 ## Where this fits
 
 Attachments are the lightweight, chat-scoped way to bring a file into a reply. The heavyweight, org-scoped equivalent is [Documents](/platform/knowledge/documents) — same indexing pipeline, but bound to agents instead of a single chat. The page worth reading next depends on what you are trying to do — if the file matters once, attach it here; if it will matter again, upload it to Knowledge and let an agent reference it from every chat.

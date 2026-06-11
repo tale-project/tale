@@ -254,6 +254,85 @@ describe('startAgentChat — deferGeneration (Track B return path)', () => {
   });
 });
 
+describe('startAgentChat — `@`-mention KB references', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListMessages.mockResolvedValue({ page: [] });
+    mockSaveMessage.mockResolvedValue({ messageId: 'msg_1' });
+  });
+
+  const referencedFiles = [
+    {
+      documentId: 'doc_1',
+      fileId: 'file_kb_1',
+      fileName: 'Q3 Report.pdf',
+      fileType: 'application/pdf',
+      fileSize: 2048,
+    },
+  ];
+
+  it('appends the enriched KB reference block to the saved message and pins the fileIds', async () => {
+    const ctx = createMockCtx({ _id: 'meta_1', generationStatus: 'idle' });
+
+    const result = await startAgentChat({
+      ...createDefaultArgs(ctx),
+      deferGeneration: true,
+      referencedFiles,
+    } as never);
+
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        message: expect.objectContaining({
+          role: 'user',
+          content:
+            'hello\n\n📚 Referenced from the knowledge base: Q3 Report.pdf\n*(fileId: file_kb_1 | fileName: Q3 Report.pdf | fileType: application/pdf | fileSize: 2048)*',
+        }),
+      }),
+    );
+    expect(result.generationArgs).toMatchObject({
+      promptMessage: expect.stringContaining('fileId: file_kb_1'),
+      // The un-augmented text used for multimodal prompts stays clean.
+      originalUserText: 'hello',
+      pinnedFileIds: ['file_kb_1'],
+    });
+    // KB refs are NOT attachments — no blob re-registration.
+    expect(result.generationArgs).toMatchObject({ attachments: undefined });
+  });
+
+  it('omits pinnedFileIds and the block when no references are passed', async () => {
+    const ctx = createMockCtx({ _id: 'meta_1', generationStatus: 'idle' });
+
+    const result = await startAgentChat({
+      ...createDefaultArgs(ctx),
+      deferGeneration: true,
+    } as never);
+
+    expect(result.generationArgs).toMatchObject({
+      promptMessage: 'hello',
+      pinnedFileIds: undefined,
+    });
+  });
+
+  it('drops KB references entirely on a prewarm turn', async () => {
+    const ctx = createMockCtx({ _id: 'meta_1', generationStatus: 'idle' });
+
+    const result = await startAgentChat({
+      ...createDefaultArgs(ctx),
+      deferGeneration: true,
+      prewarm: true,
+      referencedFiles,
+    } as never);
+
+    expect(mockSaveMessage).not.toHaveBeenCalled();
+    expect(result.generationArgs).toMatchObject({
+      promptMessage: '.',
+      pinnedFileIds: undefined,
+    });
+  });
+});
+
 describe('startAgentChat — feature flag enforcement', () => {
   beforeEach(() => {
     vi.clearAllMocks();

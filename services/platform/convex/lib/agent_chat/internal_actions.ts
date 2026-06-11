@@ -270,6 +270,13 @@ const runGenerationArgs = {
   generationParams: v.optional(v.any()),
   maxContextTokens: v.optional(v.number()),
   threadTeamId: v.optional(v.string()),
+  /**
+   * Storage IDs of knowledge-base documents the user `@`-mentioned on this
+   * turn (already access-validated by chatWithAgentTurn). When present, the
+   * per-turn auto-RAG context is forced on and scoped to exactly these files
+   * — see generate_response.ts.
+   */
+  pinnedFileIds: v.optional(v.array(v.string())),
   // Server-stamped turn-start (chatWithAgent entry) for TTFT measurement.
   // Optional so jobs scheduled before this field existed still validate
   // during a rolling deploy (the consumer falls back to the action start).
@@ -756,6 +763,7 @@ export async function runGenerationCore(
             maxSteps,
             deadlineMs,
             generationParams,
+            pinnedFileIds: args.pinnedFileIds,
             requestStartMs: args.requestStartMs,
             // Suppress error cleanup (stream error, generation status clear,
             // failed message) when there are more fallback models to try.

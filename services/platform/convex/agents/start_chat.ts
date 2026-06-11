@@ -41,6 +41,19 @@ export const startChat = internalMutation({
         }),
       ),
     ),
+    /** `@`-mentioned knowledge-base documents, resolved + authorized by the
+     *  chatWithAgentTurn entry mutation. */
+    referencedFiles: v.optional(
+      v.array(
+        v.object({
+          documentId: v.id('documents'),
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
     additionalContext: v.optional(v.record(v.string(), v.string())),
     userContext: v.optional(userContextValidator),
     agentConfig: v.any(),
@@ -157,6 +170,7 @@ export const startChat = internalMutation({
       message: args.message,
       maxSteps: args.maxSteps,
       attachments: args.attachments,
+      referencedFiles: args.referencedFiles,
       additionalContext: args.additionalContext,
       userContext: args.userContext,
       agentConfig: mergedConfig,

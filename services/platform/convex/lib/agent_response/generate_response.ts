@@ -97,6 +97,14 @@ import { AgentTimeoutError, withTimeout } from './with_timeout';
 
 const OUTPUT_BLOCKED_SENTINEL = '[blocked by content policy]';
 
+/**
+ * Similarity threshold for the auto-RAG query when the turn carries
+ * `@`-mentioned (pinned) documents. Matches the `rag_search` tool default —
+ * the standard 0.51 returns nothing for indirect phrasings like
+ * "summarize @Doc", and the pinned scope already bounds the result set.
+ */
+const PINNED_KB_SIMILARITY_THRESHOLD = 0.3;
+
 function convexErrorToBlockedReason(err: unknown): BlockedReason | null {
   if (!(err instanceof ConvexError)) return null;
   const data: unknown = err.data;
@@ -480,6 +488,7 @@ export async function generateAgentResponse(
     generationParams,
     suppressErrorCleanup,
     prewarm,
+    pinnedFileIds,
   } = args;
 
   const debugLog = createDebugLog(
@@ -810,13 +819,19 @@ export async function generateAgentResponse(
     // Determine retrieval modes
     const knowledgeMode = configKnowledgeMode ?? 'off';
     const webSearchMode = configWebSearchMode ?? 'off';
+    // `@`-mentioned KB documents force knowledge-context injection regardless
+    // of the agent's knowledgeMode — an explicit user pin is stronger intent
+    // than the agent's default retrieval config.
+    const hasPinnedKbRefs =
+      !prewarm && pinnedFileIds !== undefined && pinnedFileIds.length > 0;
     // Prewarm skips volatile RAG/web retrieval: those land AFTER the cache
     // breakpoint, so omitting them keeps the cached prefix identical to the
     // real first turn while making the priming call cheap and fast. Thread
     // history is also volatile (post-breakpoint) but isn't gated here — prewarm
     // primes a fresh thread, so it's empty in practice either way.
     const needsKnowledgeContext =
-      !prewarm && (knowledgeMode === 'context' || knowledgeMode === 'both');
+      hasPinnedKbRefs ||
+      (!prewarm && (knowledgeMode === 'context' || knowledgeMode === 'both'));
     const needsWebContext =
       !prewarm && (webSearchMode === 'context' || webSearchMode === 'both');
 
@@ -833,24 +848,31 @@ export async function generateAgentResponse(
       // Degrade to "no knowledge context this turn" (logged) rather than abort
       // the whole response — same guardrail as the orgSlugFromId resolve below.
       let accessibleFileIds: string[] = [];
-      try {
-        accessibleFileIds = await ctx.runQuery(
-          internal.documents.internal_queries.getAgentScopedFileIds,
-          {
-            organizationId,
-            agentTeamId,
-            agentTeamIds,
-            includeTeamKnowledge,
-            includeOrgKnowledge,
-            knowledgeFileIds,
-            agentProjectIds,
-          },
-        );
-      } catch (err) {
-        console.warn(
-          '[generateAgentResponse] getAgentScopedFileIds failed; skipping knowledge context',
-          err instanceof Error ? err.message : err,
-        );
+      if (hasPinnedKbRefs && pinnedFileIds) {
+        // Explicit `@`-mentions REPLACE the agent scope for this turn (focused
+        // retrieval over the pinned documents only). Access was validated
+        // synchronously in chatWithAgentTurn, so no scope query is needed.
+        accessibleFileIds = pinnedFileIds;
+      } else {
+        try {
+          accessibleFileIds = await ctx.runQuery(
+            internal.documents.internal_queries.getAgentScopedFileIds,
+            {
+              organizationId,
+              agentTeamId,
+              agentTeamIds,
+              includeTeamKnowledge,
+              includeOrgKnowledge,
+              knowledgeFileIds,
+              agentProjectIds,
+            },
+          );
+        } catch (err) {
+          console.warn(
+            '[generateAgentResponse] getAgentScopedFileIds failed; skipping knowledge context',
+            err instanceof Error ? err.message : err,
+          );
+        }
       }
       if (accessibleFileIds.length === 0) {
         debugLog('No accessible RAG documents, skipping knowledge context');
@@ -873,13 +895,17 @@ export async function generateAgentResponse(
           knowledgeContextPromise = queryRagContext(
             promptMessage,
             undefined,
-            undefined,
+            // Pinned queries relax the similarity threshold (matching the
+            // rag_search tool default): "summarize @Doc" phrasing scores low
+            // against the doc body, and the default 0.51 returns nothing.
+            hasPinnedKbRefs ? PINNED_KB_SIMILARITY_THRESHOLD : undefined,
             undefined,
             undefined,
             { fileIds: accessibleFileIds, orgSlug },
           );
           debugLog('Knowledge context query started', {
             threadId,
+            pinned: hasPinnedKbRefs,
             elapsedMs: Date.now() - startTime,
           });
         }

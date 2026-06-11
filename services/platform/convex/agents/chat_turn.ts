@@ -26,12 +26,94 @@ import {
   DEFAULT_CHAT_AGENT_SLUG,
 } from '../../lib/shared/constants/agents';
 import { internal } from '../_generated/api';
-import { mutation } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import { mutation, type MutationCtx } from '../_generated/server';
+import { isActiveDocument } from '../documents/_helpers';
 import { userContextValidator } from '../lib/agent_response/validators';
+import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { hasTeamAccess } from '../lib/team_access';
 import { persistentStreaming } from '../streaming/helpers';
 import { cancelGeneration } from '../threads/cancel_generation';
 import { normalizeMessageKey } from './auto_route_helpers';
+
+/** Hard cap on `@`-mentioned knowledge-base documents per turn. Mirrored by
+ *  the composer (`MAX_KB_MENTIONS` in use-kb-mentions.ts). */
+const MAX_KB_REFERENCES = 5;
+
+/** Branded-Id variant of `KbReferencedFile` (kb_reference_block.ts) for the
+ *  scheduled-action payload. */
+interface ResolvedKbReference {
+  documentId: Id<'documents'>;
+  fileId: Id<'_storage'>;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+}
+
+/**
+ * Resolve + authorize the composer's `@`-mentioned documents synchronously so
+ * an invalid reference fails the send with a client-visible ConvexError
+ * instead of a mid-generation surprise. Each reference must be: same org,
+ * active, team-accessible to the sender, blob-backed, and RAG-indexed —
+ * the same gate the picker query applies, re-checked server-side.
+ *
+ * Bounded work on the Track-B fast path: ≤ MAX_KB_REFERENCES point reads plus
+ * one team lookup.
+ */
+async function resolveReferencedFiles(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    userId: string;
+    referencedDocumentIds: Id<'documents'>[];
+  },
+): Promise<ResolvedKbReference[]> {
+  if (args.referencedDocumentIds.length > MAX_KB_REFERENCES) {
+    throw new ConvexError({ code: 'KB_REF_INVALID' });
+  }
+  const userTeamIds = await getUserTeamIds(ctx, args.userId);
+  // Org-wide sentinel mirrors get_accessible_document_ids.ts.
+  const teamSet = new Set([`org_${args.organizationId}`, ...userTeamIds]);
+
+  const resolved: ResolvedKbReference[] = [];
+  const seen = new Set<string>();
+  for (const documentId of args.referencedDocumentIds) {
+    if (seen.has(documentId)) continue;
+    seen.add(documentId);
+
+    const doc = await ctx.db.get(documentId);
+    // One opaque code for every failure mode so the error doesn't reveal
+    // whether an inaccessible document exists.
+    if (
+      !doc ||
+      doc.organizationId !== args.organizationId ||
+      !isActiveDocument(doc) ||
+      !hasTeamAccess(doc, teamSet)
+    ) {
+      throw new ConvexError({ code: 'KB_REF_INVALID' });
+    }
+    const fileId = doc.fileId;
+    if (!fileId) {
+      throw new ConvexError({ code: 'KB_REF_INVALID' });
+    }
+    const fm = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
+      .first();
+    if (!fm || fm.ragStatus !== 'completed') {
+      throw new ConvexError({ code: 'KB_REF_INVALID' });
+    }
+    resolved.push({
+      documentId,
+      fileId,
+      fileName: doc.title?.trim() || fm.fileName,
+      fileType: doc.mimeType ?? fm.contentType,
+      fileSize: fm.size,
+    });
+  }
+  return resolved;
+}
 
 export const chatWithAgentTurn = mutation({
   args: {
@@ -55,6 +137,13 @@ export const chatWithAgentTurn = mutation({
     additionalContext: v.optional(v.record(v.string(), v.string())),
     userContext: v.optional(userContextValidator),
     projectId: v.optional(v.id('projects')),
+    /**
+     * Knowledge-base documents the user pinned to this turn via the
+     * composer's `@`-mention picker (cap 5). Validated synchronously
+     * (org/team access, active, RAG-indexed) — an invalid reference throws
+     * `KB_REF_INVALID` before anything is marked generating.
+     */
+    referencedDocumentIds: v.optional(v.array(v.id('documents'))),
     /**
      * Cache pre-warm. Fired on composer focus/typing: resolves the agent +
      * config exactly as a real turn would and primes the prompt cache with one
@@ -141,6 +230,18 @@ export const chatWithAgentTurn = mutation({
         });
       }
     }
+
+    // Resolve + authorize `@`-mentioned knowledge-base documents BEFORE any
+    // state is committed, so a stale/inaccessible reference throws
+    // synchronously (client toast) and never leaves the thread generating.
+    const referencedFiles =
+      args.referencedDocumentIds && args.referencedDocumentIds.length > 0
+        ? await resolveReferencedFiles(ctx, {
+            organizationId: args.organizationId,
+            userId: authUser.userId,
+            referencedDocumentIds: args.referencedDocumentIds,
+          })
+        : undefined;
 
     // markGenerating inline (mirrors threads/internal_mutations:markGenerating)
     // — commit the spinner state + allocate the stream synchronously so the
@@ -236,6 +337,7 @@ export const chatWithAgentTurn = mutation({
         userName: authUser.name ?? '',
         requestStartMs,
         arenaBranchThreadId: args.arenaBranchThreadId,
+        referencedFiles,
       },
     );
 
