@@ -31,7 +31,10 @@ RESULTS=()
 # Image size budgets (in MB) — based on optimized sizes + 10% headroom
 declare -A SIZE_BUDGETS=(
     [crawler]=2100
-    [rag]=600
+    # Ships the [reranking] extra (torch CPU + sentence-transformers for the
+    # cross-encoder), which alone is ~600 MB installed — the runtime image
+    # lands ~1.2 GB. Budget covers that optimized size plus headroom.
+    [rag]=1400
     [platform]=2900
     [db]=1200
     [proxy]=100
