@@ -29,13 +29,13 @@ Die Pipeline ist idempotent auf dem Hash der Quelldatei. Dieselbe Datei zweimal 
 Die Pipeline behandelt die Dateitypen, die das Gros des Organisations-Wissens abdecken:
 
 - **Text und Code.** Markdown (`.md`), Klartext (`.txt`), Quellcode (jede Sprache, die Tale hervorhebt — siehe die Highlighter-Liste).
-- **Dokumente.** PDF (`.pdf`), Word (`.docx`), Open Document (`.odt`), Rich Text (`.rtf`).
-- **Tabellenkalkulationen.** Excel (`.xlsx`), CSV (`.csv`), Open Document Sheet (`.ods`).
-- **Folien.** PowerPoint (`.pptx`), Open Document Presentation (`.odp`).
+- **Dokumente.** PDF (`.pdf`), Word (`.docx`).
+- **Tabellenkalkulationen.** Excel (`.xlsx`), CSV (`.csv`), TSV (`.tsv`).
+- **Folien.** PowerPoint (`.pptx`).
 - **Webseiten.** HTML (`.html`) und die gerenderte Ausgabe eines Seiten-Crawls.
-- **Bilder.** PNG, JPG, WEBP, mit OCR angewendet, um Text zu extrahieren.
+- **Bilder.** PNG, JPG, GIF, BMP, TIFF, WEBP, mit OCR angewendet, um Text zu extrahieren.
 
-Eine Datei in einem nicht unterstützten Format lädt hoch, scheitert aber bei der Indexierung; die Zeile zeigt den Format-nicht-unterstützt-Fehler. Die Liste der unterstützten Formate wächst, wie die Pipeline wächst.
+Eine Datei in einem Format außerhalb dieser Liste — eine ältere Office-Datei (`.doc`, `.xls`, `.ppt`), ein Archiv, eine beliebige Binärdatei — lädt weiterhin hoch und bleibt als gespeicherte Datei verfügbar, aber Tale überspringt die Indexierungs-Pipeline für sie: Die Zeile zeigt **Nicht indexiert** statt eines Indexierungsfehlers, und Agents können ihren Inhalt nicht abrufen. Die Liste der unterstützten Formate wächst, wie die Pipeline wächst.
 
 ## Der Per-Dokument-Lebenszyklus
 

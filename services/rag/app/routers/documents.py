@@ -18,6 +18,7 @@ from fastapi import (
 )
 from fastapi.background import BackgroundTasks
 from loguru import logger
+from tale_knowledge.extraction.router import ALL_SUPPORTED_EXTENSIONS
 from tale_shared.db import acquire_with_retry
 
 from ..auth import require_org_slug
@@ -47,91 +48,19 @@ _BASE_FILE = File(..., description="Base document file")
 _COMPARISON_FILE = File(..., description="Comparison document file")
 _MAX_CHANGES_FORM = Form(default=500, ge=1, le=2000, description="Maximum number of change items")
 
-SUPPORTED_EXTENSIONS = {
-    # Documents
-    ".pdf",
-    ".docx",
-    ".pptx",
-    ".xlsx",
-    # Images
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".bmp",
-    ".tiff",
-    ".webp",
-    # Text / markup
-    ".txt",
-    ".md",
-    ".mdx",
-    ".rst",
-    ".tex",
-    ".csv",
-    ".tsv",
-    ".html",
-    ".htm",
-    ".css",
-    ".scss",
-    ".sass",
-    ".less",
-    # Data / config
-    ".json",
-    ".yaml",
-    ".yml",
-    ".toml",
-    ".xml",
-    ".ini",
-    ".cfg",
-    ".conf",
-    ".properties",
-    # Code
-    ".js",
-    ".jsx",
-    ".ts",
-    ".tsx",
-    ".mjs",
-    ".cjs",
-    ".py",
-    ".pyi",
-    ".c",
-    ".h",
-    ".cpp",
-    ".hpp",
-    ".cc",
-    ".cxx",
-    ".rs",
-    ".go",
-    ".swift",
-    ".kt",
-    ".java",
-    ".rb",
-    ".php",
-    ".pl",
-    ".lua",
-    ".r",
-    ".scala",
-    ".groovy",
-    ".dart",
-    ".ex",
-    ".exs",
-    # Shell / scripts
-    ".sh",
-    ".bash",
-    ".zsh",
-    ".ps1",
-    ".bat",
-    ".cmd",
-    # Query / schema
-    ".sql",
-    ".graphql",
-    ".gql",
-    ".proto",
-    # Build / project
-    ".gradle",
-    ".cmake",
-    ".lock",
-}
+# Secret-bearing formats the extractors can technically read but the
+# knowledge base deliberately refuses to index — defense in depth on top of
+# the secret scanner. Enforced by tests/test_document_helpers.py and
+# tests/test_secret_scanner.py.
+SENSITIVE_EXTENSIONS = frozenset({".env", ".log"})
+
+# Derived from the extraction router's capability set so the upload gate and
+# the extractors can never drift (a previously duplicated literal here
+# rejected `.tif`, which the image extractor supports). The platform-side
+# mirror lives at services/platform/lib/shared/file-types.ts
+# (RAG_INDEXABLE_EXTENSIONS); parity is enforced by
+# tests/test_extension_sync.py.
+SUPPORTED_EXTENSIONS = frozenset(ALL_SUPPORTED_EXTENSIONS - SENSITIVE_EXTENSIONS)
 
 
 async def _insert_processing_row(
@@ -216,8 +145,13 @@ async def _mark_completed(
 
 
 def _sanitize_error(exc: Exception, max_length: int = 500) -> str:
-    """Return a truncated error message safe for DB storage."""
-    msg = str(exc)
+    """Return a truncated error message safe for DB storage.
+
+    Falls back to the exception class name when ``str(exc)`` is empty
+    (e.g. a bare ``ValueError()``), so a failure never reaches the UI as
+    an unactionable "Unknown error".
+    """
+    msg = str(exc) or type(exc).__name__
     if len(msg) > max_length:
         return msg[:max_length] + "..."
     return msg

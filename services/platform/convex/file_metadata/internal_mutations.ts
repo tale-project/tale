@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { isRagIndexableFile } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import {
@@ -73,14 +74,21 @@ export const saveFileMetadata = internalMutation({
       args.contentType.startsWith('audio/') ||
       args.contentType.startsWith('video/');
 
+    // Only queue formats the RAG service can actually index — anything
+    // else (legacy Office .doc/.xls/.ppt, misc text extensions) gets a
+    // deterministic HTTP 400 from RAG and a permanent "Index failed".
+    // Mirrors the public saveFileMetadata in mutations.ts.
+    const shouldIndex =
+      !isAudio && isRagIndexableFile(args.fileName, args.contentType);
+
     const id = await ctx.db.insert('fileMetadata', {
       organizationId: args.organizationId,
       storageId: args.storageId,
       fileName: args.fileName,
       contentType: args.contentType,
       size: args.size,
-      ragStatus: isAudio ? undefined : 'queued',
-      ragQueuedAt: isAudio ? undefined : Date.now(),
+      ragStatus: shouldIndex ? 'queued' : undefined,
+      ragQueuedAt: shouldIndex ? Date.now() : undefined,
       transcriptionStatus: isAudio ? 'queued' : undefined,
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
@@ -99,7 +107,7 @@ export const saveFileMetadata = internalMutation({
       }),
     });
 
-    if (!isAudio) {
+    if (shouldIndex) {
       await ctx.scheduler.runAfter(
         0,
         internal.file_metadata.internal_actions.uploadFileToRag,

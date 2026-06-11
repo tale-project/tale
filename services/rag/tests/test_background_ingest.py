@@ -179,6 +179,12 @@ class TestSanitizeError:
         result = _sanitize_error(exc, max_length=500)
         assert result == "a" * 500
 
+    def test_empty_message_falls_back_to_type_name(self):
+        from app.routers.documents import _sanitize_error
+
+        exc = ValueError()
+        assert _sanitize_error(exc) == "ValueError"
+
 
 @_requires_multipart
 class TestBackgroundIngest:

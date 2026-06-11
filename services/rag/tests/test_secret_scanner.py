@@ -126,19 +126,19 @@ class TestScanFileForSecrets:
 
 
 class TestSupportedExtensions:
-    """Verify .env and .log are no longer in SUPPORTED_EXTENSIONS."""
+    """Verify .env and .log stay out of SUPPORTED_EXTENSIONS.
 
-    @staticmethod
-    def _read_documents_source() -> str:
-        from pathlib import Path
-
-        source_path = Path(__file__).resolve().parent.parent / "app" / "routers" / "documents.py"
-        return source_path.read_text()
+    Asserts against the imported set (not the source text) so the guarantee
+    holds now that SUPPORTED_EXTENSIONS is derived from the extraction
+    router's capability set minus SENSITIVE_EXTENSIONS.
+    """
 
     def test_env_not_in_supported_extensions(self):
-        source = self._read_documents_source()
-        assert '".env"' not in source, ".env should not be in SUPPORTED_EXTENSIONS"
+        from app.routers.documents import SUPPORTED_EXTENSIONS
+
+        assert ".env" not in SUPPORTED_EXTENSIONS, ".env should not be in SUPPORTED_EXTENSIONS"
 
     def test_log_not_in_supported_extensions(self):
-        source = self._read_documents_source()
-        assert '".log"' not in source, ".log should not be in SUPPORTED_EXTENSIONS"
+        from app.routers.documents import SUPPORTED_EXTENSIONS
+
+        assert ".log" not in SUPPORTED_EXTENSIONS, ".log should not be in SUPPORTED_EXTENSIONS"
