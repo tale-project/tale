@@ -61,6 +61,7 @@ function BrandingSettingsView({
     <SettingsPage
       title={tNav('branding')}
       description={tSettings('menu.branding.description')}
+      fitToContainer
     >
       {/* `justify-center` centers the fixed-width form on small screens where
           the preview is hidden; it's inert on lg where the flex-1 preview fills

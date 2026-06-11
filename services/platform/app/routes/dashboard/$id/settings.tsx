@@ -38,7 +38,8 @@ function SettingsLayout() {
   // ContentArea's own `py-6` bottom padding.
   const usesBoundedLayout =
     location.pathname.includes('/settings/governance') ||
-    location.pathname.includes('/settings/api');
+    location.pathname.includes('/settings/api') ||
+    location.pathname.includes('/settings/branding');
 
   return (
     <ActiveEditorProvider>
