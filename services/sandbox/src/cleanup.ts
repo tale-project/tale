@@ -176,6 +176,14 @@ async function sweepHostSessionDirs(
   let removed = 0;
   for (const e of entries) {
     if (!e.isDirectory()) continue;
+    // Persistent agent-session workspaces (`ses-<sessionId>`, see
+    // session-naming.ts) are lifecycle-managed by destroySession + the
+    // session TTL/idle sweep — NEVER by this one-shot dir sweep. Without
+    // this skip the 5-min periodic sweep deletes any live session's
+    // workspace once its top-level mtime passes the one-shot watchdog
+    // cutoff (~10 min), yanking the bind mount out from under a running
+    // container.
+    if (e.name.startsWith('ses-')) continue;
     if (isInFlight(e.name)) continue;
     const abs = join(cfg.hostSessionRoot, e.name);
     let st;
