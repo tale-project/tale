@@ -20,6 +20,7 @@ import {
 import { dockerRm, runDocker } from '../../spawn-util.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import {
+  bunCacheVolumeName,
   ensureCacheVolume,
   npmCacheVolumeName,
   pipCacheVolumeName,
@@ -66,8 +67,10 @@ export class DockerSessionBackend implements SessionBackend {
 
     const pip = pipCacheVolumeName(this.cfg, spec.organizationId);
     const npm = npmCacheVolumeName(this.cfg, spec.organizationId);
+    const bun = bunCacheVolumeName(this.cfg, spec.organizationId);
     await ensureCacheVolume(pip);
     await ensureCacheVolume(npm);
+    await ensureCacheVolume(bun);
 
     const token = this.tokenFor(spec.sessionId);
     const argv = buildDockerSessionRunArgs(this.cfg, {
@@ -77,6 +80,7 @@ export class DockerSessionBackend implements SessionBackend {
       workspaceHostDir,
       pipCacheVolume: pip,
       npmCacheVolume: npm,
+      bunCacheVolume: bun,
       runnerdToken: token,
       createdAtMs: spec.createdAtMs,
     });

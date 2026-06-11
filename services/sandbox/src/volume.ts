@@ -33,6 +33,13 @@ export function npmCacheVolumeName(
   return `${cfg.cacheVolumePrefix.npm}-${orgSlug(organizationId)}`;
 }
 
+export function bunCacheVolumeName(
+  cfg: SpawnerConfig,
+  organizationId: string,
+): string {
+  return `${cfg.cacheVolumePrefix.bun}-${orgSlug(organizationId)}`;
+}
+
 // Coalesce concurrent ensureCacheVolume calls for the same volume name.
 // Two parallel /v1/execute requests from the same org trigger this twice
 // in quick succession; without a mutex, both race past the `volume inspect`

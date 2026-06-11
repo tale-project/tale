@@ -22,9 +22,10 @@ interface DockerSessionRunInput {
   profile: SandboxSessionProfile;
   /** Host dir bind-mounted 1:1 at /workspace (survives container death). */
   workspaceHostDir: string;
-  /** Per-org pip/npm cache volume names (reused from one-shot). */
+  /** Per-org pip/npm/bun cache volume names (pip/npm reused from one-shot). */
   pipCacheVolume: string;
   npmCacheVolume: string;
+  bunCacheVolume: string;
   /** Per-session runnerd auth token (deriveRunnerdToken). */
   runnerdToken: string;
   createdAtMs: number;
@@ -71,6 +72,7 @@ export function buildDockerSessionRunArgs(
   assertSafe('organizationId', inp.organizationId, ORG_RE);
   assertSafe('pipCacheVolume', inp.pipCacheVolume, VOL_RE);
   assertSafe('npmCacheVolume', inp.npmCacheVolume, VOL_RE);
+  assertSafe('bunCacheVolume', inp.bunCacheVolume, VOL_RE);
   assertSafe('workspaceHostDir', inp.workspaceHostDir, HOST_DIR_RE);
   assertSafe('runnerdToken', inp.runnerdToken, TOKEN_RE);
 
@@ -118,6 +120,11 @@ export function buildDockerSessionRunArgs(
     `UV_CACHE_DIR=/cache/pip`,
     '--env',
     `NPM_CONFIG_CACHE=/cache/npm`,
+    // bun's package cache on the shared per-org volume too (else it falls to
+    // ~/.bun inside the per-user workspace — unmanaged + not reused across
+    // sessions). bun honors this; install temp follows TMPDIR (workspace disk).
+    '--env',
+    `BUN_INSTALL_CACHE_DIR=/cache/bun`,
     // HOME on the persistent workspace volume so agent state (~/.claude,
     // ~/.config/opencode, ~/.gitconfig) survives every exec + restart.
     '--env',
@@ -163,6 +170,8 @@ export function buildDockerSessionRunArgs(
     `type=volume,src=${inp.pipCacheVolume},dst=/cache/pip`,
     '--mount',
     `type=volume,src=${inp.npmCacheVolume},dst=/cache/npm`,
+    '--mount',
+    `type=volume,src=${inp.bunCacheVolume},dst=/cache/bun`,
     cfg.runtimeImage,
     // Entrypoint dispatch: `daemon` mode boots runnerd as PID 1 instead of
     // running a one-shot script. See sandbox-runtime/entrypoint.sh.

@@ -25,7 +25,7 @@ const cfg: SpawnerConfig = {
   maxTimeoutMs: 300_000,
   maxConcurrent: 4,
   hostSessionRoot: '/var/lib/tale-sandbox/sessions',
-  cacheVolumePrefix: { pip: 'pip', npm: 'npm' },
+  cacheVolumePrefix: { pip: 'pip', npm: 'npm', bun: 'bun' },
   egressNetwork: 'tale-sandbox-net',
   egressProxy: 'http://sandbox-egress:3128',
   stdoutMaxBytes: 5_242_880,
@@ -43,6 +43,7 @@ const goodInput = {
   workspaceHostDir: '/var/lib/tale-sandbox/sessions/ses-ses-abc-123',
   pipCacheVolume: 'pip-org_456',
   npmCacheVolume: 'npm-org_456',
+  bunCacheVolume: 'bun-org_456',
   runnerdToken: 'a'.repeat(64),
   createdAtMs: 1_700_000_000_000,
 };
@@ -83,6 +84,11 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain(
       'type=bind,src=/var/lib/tale-sandbox/sessions/ses-ses-abc-123,dst=/workspace',
     );
+    // Shared per-org caches on disk volumes — bun alongside pip/npm so its
+    // cache doesn't fall to ~/.bun in the per-user workspace.
+    expect(args).toContain('NPM_CONFIG_CACHE=/cache/npm');
+    expect(args).toContain('BUN_INSTALL_CACHE_DIR=/cache/bun');
+    expect(args).toContain('type=volume,src=bun-org_456,dst=/cache/bun');
   });
 
   test('default profile: one-shot-equivalent caps + uid 65534', () => {

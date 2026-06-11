@@ -32,7 +32,7 @@ const cfg: SpawnerConfig = {
   maxTimeoutMs: 300_000,
   maxConcurrent: 4,
   hostSessionRoot: '/tmp/tale-sandbox/sessions',
-  cacheVolumePrefix: { pip: 'pip', npm: 'npm' },
+  cacheVolumePrefix: { pip: 'pip', npm: 'npm', bun: 'bun' },
   egressNetwork: 'tale-sandbox-net',
   egressProxy: 'http://sandbox-egress:3128',
   stdoutMaxBytes: 5_242_880,

@@ -117,6 +117,8 @@ export function loadConfig(): SpawnerConfig {
         process.env.SANDBOX_PIP_CACHE_VOLUME_PREFIX ?? 'tale-sandbox-pip-cache',
       npm:
         process.env.SANDBOX_NPM_CACHE_VOLUME_PREFIX ?? 'tale-sandbox-npm-cache',
+      bun:
+        process.env.SANDBOX_BUN_CACHE_VOLUME_PREFIX ?? 'tale-sandbox-bun-cache',
     },
     egressNetwork: process.env.SANDBOX_EGRESS_NETWORK ?? 'tale-sandbox-net',
     egressProxy:

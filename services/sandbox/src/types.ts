@@ -298,7 +298,7 @@ export interface SpawnerConfig {
   maxTimeoutMs: number;
   maxConcurrent: number;
   hostSessionRoot: string;
-  cacheVolumePrefix: { pip: string; npm: string };
+  cacheVolumePrefix: { pip: string; npm: string; bun: string };
   egressNetwork: string;
   egressProxy: string;
   stdoutMaxBytes: number;
