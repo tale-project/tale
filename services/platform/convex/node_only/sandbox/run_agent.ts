@@ -19,12 +19,14 @@ import {
   type AgentEvent,
   type AgentSlug,
 } from '@tale/agent-adapters';
-import type { AssistantContent } from 'ai';
 import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
-import { buildAssistantContent } from './agent_message_parts';
+import {
+  buildAssistantContent,
+  type AgentAssistantContent,
+} from './agent_message_parts';
 import { sessionExec } from './helpers/session_client';
 
 const PROGRESS_FLUSH_MS = 500;
@@ -51,6 +53,13 @@ export interface RunAgentInSessionArgs {
   gatewayToken: string;
   workdir?: string;
   timeoutMs?: number;
+  /** Per-flush durable persistence hook. Called on the same throttle as the
+   * live op flush with the timeline-so-far as AI-SDK assistant content, so the
+   * caller can patch a streaming chat message — making the persisted message the
+   * durable record (survives cancel/timeout/disconnect, not just the live op
+   * buffer). Best-effort; failures are swallowed (the op flush is the fallback).
+   */
+  onTimeline?: (content: AgentAssistantContent) => Promise<void>;
 }
 
 export interface RunAgentInSessionResult {
@@ -70,7 +79,7 @@ export interface RunAgentInSessionResult {
    * tool-call/tool-result + final text), for persisting into chat history so a
    * completed turn's tool calls survive (not just the live, capped op buffer).
    * A plain string when the turn had no timeline. */
-  assistantContent?: AssistantContent;
+  assistantContent?: AgentAssistantContent;
 }
 
 /**
@@ -166,6 +175,17 @@ export async function runAgentInSessionImpl(
         agentSessionId: capturedSessionId,
       }),
     });
+    // Durable mirror: patch the streaming chat message with the timeline-so-far
+    // on the same throttle. This is the record that survives an early end (the
+    // op buffer is capped + cleared); best-effort so a transient patch failure
+    // never aborts the live run.
+    if (args.onTimeline) {
+      try {
+        await args.onTimeline(buildAssistantContent(timeline, finalText ?? ''));
+      } catch (err) {
+        console.warn('[run_agent] onTimeline patch failed (continuing):', err);
+      }
+    }
   };
 
   const controller = new AbortController();

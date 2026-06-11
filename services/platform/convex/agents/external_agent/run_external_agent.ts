@@ -24,6 +24,7 @@ import { v } from 'convex/values';
 import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
+import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import {
   applyGatewayConfig,
   getVirtualKeySpendCents,
@@ -72,6 +73,23 @@ const TURN_BUDGET_CENTS = Number(
   process.env.EXTERNAL_AGENT_TURN_BUDGET_CENTS ?? '500',
 );
 
+/**
+ * Append a failure note to the timeline-so-far WITHOUT discarding it. On an
+ * early end (timeout/abort/error) the message already holds the partial
+ * tool timeline (patched live via onTimeline); we mark it failed and add the
+ * reason rather than clobbering the history with a bare error string.
+ */
+function withErrorNote(
+  content: AgentAssistantContent,
+  note: string,
+): AgentAssistantContent {
+  const text = `\n\n⚠️ External agent run failed: ${note}`;
+  if (typeof content === 'string') {
+    return content.length > 0 ? content + text : text.trimStart();
+  }
+  return [...content, { type: 'text', text: text.trimStart() }];
+}
+
 export const runExternalAgentTurn = internalAction({
   args: {
     threadId: v.string(),
@@ -90,6 +108,15 @@ export const runExternalAgentTurn = internalAction({
   handler: async (ctx, args) => {
     const execId = `exec-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     let mintedKeyId: string | null = null;
+    // The streaming assistant message, created BEFORE the run so the turn's tool
+    // timeline is persisted incrementally into it (onTimeline below) and survives
+    // cancel/timeout/disconnect. Finalized to success/failed at the end; the
+    // catch falls back to a fresh failed message only if the run died before this
+    // was created.
+    let assistantMessageId: string | null = null;
+    // Mirror of the most recent content patched into the streaming message, so
+    // the catch can mark it failed while preserving the partial tool timeline.
+    let lastContent: AgentAssistantContent = '';
     // Token totals the agent reported (often 0 through non-Anthropic gateways);
     // cost comes from the VK budget in the finally. Captured here so usage is
     // attributed even if the turn later throws.
@@ -249,6 +276,16 @@ export const runExternalAgentTurn = internalAction({
       // Direct import, NOT ctx.runAction: the action-RPC hop is capped at
       // ~5 minutes in self-hosted Convex, which kills the parent mid-turn
       // (and its finally then revokes the VK under the still-running agent).
+      // 5a. Create the streaming assistant message BEFORE the run so its tool
+      // timeline is persisted incrementally (onTimeline) and survives an early
+      // end. Finalized to success/failed below.
+      const created = await saveMessage(ctx, components.agent, {
+        threadId: args.threadId,
+        message: { role: 'assistant', content: '' },
+        metadata: { status: 'pending' },
+      });
+      assistantMessageId = created.messageId;
+
       const result = await runAgentInSessionImpl(ctx, {
         organizationId: args.organizationId,
         sessionId,
@@ -265,6 +302,15 @@ export const runExternalAgentTurn = internalAction({
         }),
         gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
         gatewayToken: vk.key,
+        // Durable per-flush mirror: patch the streaming message with the
+        // timeline-so-far. This is the record that survives cancel/timeout.
+        onTimeline: async (content) => {
+          lastContent = content;
+          await ctx.runMutation(components.agent.messages.updateMessage, {
+            messageId: created.messageId,
+            patch: { message: { role: 'assistant', content } },
+          });
+        },
       });
 
       // 6. Capture token totals (cost is read from the VK budget in finally —
@@ -294,12 +340,14 @@ export const runExternalAgentTurn = internalAction({
           result.assistantContent.length > 0)
           ? result.assistantContent
           : finalText;
-      await saveMessage(ctx, components.agent, {
-        threadId: args.threadId,
-        message: { role: 'assistant', content },
-        ...(result.status !== 'completed' && {
-          metadata: { status: 'failed', error: `agent ${result.status}` },
-        }),
+      // Finalize the streaming message (created at 5a) in place — the durable
+      // record the live op was only mirroring.
+      await ctx.runMutation(components.agent.messages.updateMessage, {
+        messageId: created.messageId,
+        patch: {
+          status: result.status === 'completed' ? 'success' : 'failed',
+          message: { role: 'assistant', content },
+        },
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -309,14 +357,33 @@ export const runExternalAgentTurn = internalAction({
         error: message,
       });
       try {
-        await saveMessage(ctx, components.agent, {
-          threadId: args.threadId,
-          message: {
-            role: 'assistant',
-            content: `External agent run failed: ${message}`,
-          },
-          metadata: { status: 'failed', error: message },
-        });
+        if (assistantMessageId !== null) {
+          // The streaming message already holds the partial tool timeline
+          // (patched live via onTimeline). Mark it failed and APPEND the reason
+          // rather than discarding the history with a bare error string — this
+          // is the fix for "cancel/timeout wipes the tool calls".
+          await ctx.runMutation(components.agent.messages.updateMessage, {
+            messageId: assistantMessageId,
+            patch: {
+              status: 'failed',
+              message: {
+                role: 'assistant',
+                content: withErrorNote(lastContent, message),
+              },
+            },
+          });
+        } else {
+          // Failed before the streaming message existed (e.g. session create) —
+          // save a fresh failed bubble.
+          await saveMessage(ctx, components.agent, {
+            threadId: args.threadId,
+            message: {
+              role: 'assistant',
+              content: `External agent run failed: ${message}`,
+            },
+            metadata: { status: 'failed', error: message },
+          });
+        }
       } catch (saveErr) {
         console.error(
           '[runExternalAgentTurn] also failed to save error message:',

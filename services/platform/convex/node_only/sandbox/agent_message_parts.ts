@@ -8,8 +8,18 @@
 // This is the ModelMessage CONTENT shape — distinct from the frontend
 // build-external-agent-parts.ts (UI-part shape used for the live op view).
 
+import type { vAssistantContent } from '@convex-dev/agent/validators';
 import type { AgentEvent } from '@tale/agent-adapters';
-import type { AssistantContent } from 'ai';
+import type { Infer } from 'convex/values';
+
+/**
+ * The assistant-message `content` shape @convex-dev/agent persists + validates
+ * (saveMessage / updateMessage / listUIMessages all speak this). Unified on the
+ * agent component's own validator type rather than AI-SDK's wider
+ * `AssistantContent` (which carries variants like ToolApprovalRequest the agent
+ * validator rejects) so the durable-persistence chain typechecks without casts.
+ */
+export type AgentAssistantContent = Infer<typeof vAssistantContent>;
 
 // Per-tool-output cap so a giant clone/diff/file-read can't push the persisted
 // message past Convex's 1 MB document limit. The live view clamps display
@@ -47,14 +57,14 @@ function stringifyOutput(output: unknown): string {
 export function buildAssistantContent(
   events: readonly AgentEvent[],
   finalText: string,
-): AssistantContent {
+): AgentAssistantContent {
   const hasToolTimeline = events.some(
     (e) => e.type === 'tool-use' || e.type === 'tool-result',
   );
   // No tools → the message is just its answer; keep it a plain string.
   if (!hasToolTimeline) return finalText;
 
-  const parts: Exclude<AssistantContent, string> = [];
+  const parts: Exclude<AgentAssistantContent, string> = [];
   // toolUseId → toolName, so a tool-result (which carries no toolName) pairs
   // with its call under the same name for toUIMessages' merge.
   const toolNames = new Map<string, string>();
