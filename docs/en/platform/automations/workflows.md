@@ -23,6 +23,8 @@ The **Test automation** panel in the editor toolbar fires a one-off run from the
 
 While the run is live, the canvas mirrors it: every step carries a status badge — a spinner while running, a check on success, an alert on failure, a pause icon while waiting for input — and a banner above the canvas names the run being viewed. Click a badge to inspect the step's duration, error, and a preview of its output. The viewed run rides the `execution` URL parameter, so it survives a reload; dismiss the banner to clear the badges.
 
+The **Debug** button on the same panel starts the run in step-by-step mode. The engine pauses before every step: the paused step carries a debug badge on the canvas, and the panel shows which step is next together with the run's variables and each completed step's output, so you can check what a step is about to receive before it runs. **Step** executes the paused step and pauses again before the next one, **Continue** runs the rest of the workflow without further pauses, **Stop** cancels the run. Debug runs appear in the Executions tab with a _Paused (debug)_ badge while paused and `debug` as their trigger source.
+
 The **Dry run** button on the same panel simulates a run without side effects — the workflow validates against the input, walks the step graph, and reports errors and warnings without calling out to any agent, API, or mail server. Reach for dry run when the workflow is not yet safe to run end to end.
 
 ## Pausing and disabling

@@ -29,6 +29,7 @@ export const startWorkflowFromFile = internalAction({
     triggeredBy: v.string(),
     triggerData: v.optional(jsonValueValidator),
     userId: v.optional(v.string()),
+    debugMode: v.optional(v.boolean()),
   },
   returns: v.union(v.id('wfExecutions'), v.null()),
   handler: async (ctx, args): Promise<Id<'wfExecutions'> | null> => {
@@ -90,6 +91,7 @@ export const startWorkflowFromFile = internalAction({
         triggeredBy: args.triggeredBy,
         triggerData: args.triggerData,
         userId: args.userId,
+        debugMode: args.debugMode,
       },
     );
 

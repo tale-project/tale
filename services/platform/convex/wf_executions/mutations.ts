@@ -9,8 +9,20 @@ import { toId } from '../lib/type_cast_helpers';
 import { workflowManagers } from '../workflow_engine/engine';
 import { safeShardIndex } from '../workflow_engine/helpers/engine/shard';
 import { STORAGE_RETENTION_MS } from '../workflows/executions/cleanup_execution_storage';
+import { resumeDebugStep as resumeDebugStepHandler } from '../workflows/executions/resume_debug_step';
 
 const CLEANUP_DELAY_MS = 10_000;
+
+export const resumeDebugStep = mutationWithRLS({
+  args: {
+    executionId: v.id('wfExecutions'),
+    action: v.union(v.literal('step'), v.literal('continue')),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    return await resumeDebugStepHandler(ctx, args);
+  },
+});
 
 export const cancelExecution = mutationWithRLS({
   args: {

@@ -228,6 +228,32 @@ describe('deriveStepStatuses', () => {
     expect(result.execution.waitingFor).toBe('human_input:approval');
   });
 
+  it('marks the current step as paused while the execution is debug-paused', () => {
+    const result = deriveStepStatuses(
+      [
+        executeStepEntry('fetch', {
+          runResult: { kind: 'success', returnValue: { port: 'next' } },
+        }),
+      ],
+      execution({
+        status: 'running',
+        waitingFor: 'debug:2:send-email',
+        currentStepSlug: 'send-email',
+        currentStepName: 'Send email',
+      }),
+    );
+
+    // The paused node has not executed yet, so it has no journal entry —
+    // the overlay synthesizes it from the execution row.
+    expect(result.nodes['send-email']).toMatchObject({
+      status: 'paused',
+      stepName: 'Send email',
+      attempts: 0,
+    });
+    expect(result.nodes.fetch.status).toBe('success');
+    expect(result.execution.waitingFor).toBe('debug:2:send-email');
+  });
+
   it('flags outputs as unavailable when variables were offloaded to storage', () => {
     const result = deriveStepStatuses(
       [

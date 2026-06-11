@@ -11,6 +11,7 @@ type ExecStatusData = {
   status: string;
   currentStepName?: string;
   error?: string;
+  waitingFor?: string;
 };
 
 // Mutable so each test sets the execution status the subscription returns.
@@ -80,6 +81,14 @@ vi.mock('../hooks/file-mutations', () => ({
 
 vi.mock('../hooks/queries', () => ({
   useExecutionStatus: () => h.executionStatus,
+}));
+
+// The debug controls pull in action-query/mutation hooks that need a Convex
+// provider; the tester test only asserts whether/with what they render.
+vi.mock('./automation-debug-controls', () => ({
+  AutomationDebugControls: (props: { currentStepName?: string }) => (
+    <div data-testid="debug-controls">{props.currentStepName}</div>
+  ),
 }));
 
 import { AutomationTester } from './automation-tester';
@@ -168,5 +177,77 @@ describe('AutomationTester result feedback (#1484)', () => {
     expect(
       screen.getByText('automations.tester.result.runningStep Fetch Data'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('AutomationTester debug mode (#1490)', () => {
+  async function runDebug() {
+    const user = userEvent.setup();
+    render(
+      <AutomationTester organizationId="org-1" workflowSlug="my-workflow" />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'automations.tester.debug.button' }),
+    );
+  }
+
+  it('starts the run with debugMode and a distinct trigger source', async () => {
+    await runDebug();
+
+    expect(h.startMock).toHaveBeenCalledTimes(1);
+    expect(h.startMock.mock.calls[0][0]).toMatchObject({
+      organizationId: 'org-1',
+      workflowSlug: 'my-workflow',
+      debugMode: true,
+      triggeredBy: 'debug',
+    });
+  });
+
+  it('does not pass debugMode on a plain Execute run', async () => {
+    await runExecute();
+
+    expect(h.startMock).toHaveBeenCalledTimes(1);
+    expect(h.startMock.mock.calls[0][0]).toMatchObject({
+      triggeredBy: 'test',
+    });
+    expect(h.startMock.mock.calls[0][0]).not.toHaveProperty('debugMode');
+  });
+
+  it('renders the debug controls while the run is paused before a step', async () => {
+    h.executionStatus = {
+      data: {
+        status: 'running',
+        currentStepName: 'Send email',
+        waitingFor: 'debug:1:send-email',
+      },
+    };
+
+    await runDebug();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('debug-controls')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('debug-controls')).toHaveTextContent(
+      'Send email',
+    );
+  });
+
+  it('does not render the debug controls for a human-input pause', async () => {
+    h.executionStatus = {
+      data: {
+        status: 'running',
+        currentStepName: 'Approval',
+        waitingFor: 'approval-id-123',
+      },
+    };
+
+    await runExecute();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('automations.tester.result.running'),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('debug-controls')).not.toBeInTheDocument();
   });
 });

@@ -97,6 +97,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
         nodeStatus?.status === 'running' && 'ring-2 ring-blue-400',
         nodeStatus?.status === 'failed' && 'ring-2 ring-destructive',
         nodeStatus?.status === 'waiting' && 'ring-2 ring-amber-400',
+        nodeStatus?.status === 'paused' && 'ring-2 ring-amber-400',
       )}
       onClick={() => onNodeClick(data.stepSlug)}
     >

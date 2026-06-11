@@ -23,6 +23,8 @@ Das **Automatisierung testen**-Panel in der Editor-Toolbar feuert einen einmalig
 
 Während der Lauf läuft, spiegelt die Canvas ihn live: Jeder Schritt trägt ein Status-Badge — ein Spinner während der Ausführung, ein Häkchen bei Erfolg, ein Warnsymbol bei Fehlern, ein Pause-Symbol beim Warten auf Eingabe — und ein Banner über der Canvas zeigt, welcher Lauf gerade angezeigt wird. Klick auf ein Badge, um Dauer, Fehler und eine Vorschau der Ausgabe des Schritts zu prüfen. Der angezeigte Lauf hängt am URL-Parameter `execution` und übersteht damit ein Neuladen; schließt du das Banner, verschwinden die Badges.
 
+Der **Debuggen**-Button im selben Panel startet den Lauf im Schritt-für-Schritt-Modus. Die Engine hält vor jedem Schritt an: Der pausierte Schritt trägt ein Debug-Badge auf der Canvas, und das Panel zeigt, welcher Schritt als Nächstes dran ist, samt den Variablen des Laufs und der Ausgabe jedes abgeschlossenen Schritts — so prüfst du, was ein Schritt gleich erhält, bevor er läuft. **Schritt** führt den pausierten Schritt aus und hält vor dem nächsten wieder an, **Fortsetzen** lässt den Rest des Workflows ohne weitere Pausen durchlaufen, **Stoppen** bricht den Lauf ab. Debug-Läufe erscheinen im Ausführungen-Tab mit dem Badge _Pausiert (Debug)_, solange sie pausiert sind, und mit `debug` als Auslöser.
+
 Der **Dry run**-Button im selben Panel simuliert einen Lauf ohne Seiteneffekte — der Workflow validiert gegen die Eingabe, läuft den Schritte-Graph ab und meldet Fehler und Warnungen, ohne irgendeinen Agent, eine API oder einen Mail-Server zu rufen. Greif zum Dry Run, wenn der Workflow noch nicht sicher ist, ihn von Anfang bis Ende laufen zu lassen.
 
 ## Pausieren und deaktivieren

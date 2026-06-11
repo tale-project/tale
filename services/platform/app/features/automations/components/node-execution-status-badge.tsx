@@ -6,6 +6,7 @@ import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
 import {
   AlertCircle,
+  Bug,
   CheckCircle2,
   CirclePause,
   Loader2,
@@ -39,6 +40,10 @@ const STATUS_ICONS: Record<
   failed: { Icon: AlertCircle, className: 'text-destructive' },
   waiting: {
     Icon: CirclePause,
+    className: 'text-amber-600 dark:text-amber-400',
+  },
+  paused: {
+    Icon: Bug,
     className: 'text-amber-600 dark:text-amber-400',
   },
   canceled: { Icon: XCircle, className: 'text-muted-foreground' },

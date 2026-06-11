@@ -8,6 +8,7 @@
 import { getNumber, getString, isRecord } from '../../../lib/utils/type-guards';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
+import { parseDebugWaitingFor } from '../../workflow_engine/helpers/engine/debug_gate';
 import { getExecutionStepJournal } from './get_execution_step_journal';
 
 /** Per-node output previews are capped server-side to keep the reactive payload small. */
@@ -18,6 +19,7 @@ export type ExecutionNodeStatus =
   | 'success'
   | 'failed'
   | 'waiting'
+  | 'paused'
   | 'canceled';
 
 export interface ExecutionNodeState {
@@ -208,18 +210,22 @@ export function deriveStepStatuses(
     };
   }
 
-  // A running execution that waits on an external event (human input,
-  // approval, debug pause) shows the current node as 'waiting'.
+  // A running execution that waits on an external event shows the current
+  // node as 'waiting' (human input / approval) or 'paused' (debug-mode step
+  // gate — the node has not executed yet, it is paused right before running).
   if (
     execution.status === 'running' &&
     execution.waitingFor &&
     execution.currentStepSlug
   ) {
+    const overlayStatus = parseDebugWaitingFor(execution.waitingFor)
+      ? 'paused'
+      : 'waiting';
     const current = nodes[execution.currentStepSlug];
     nodes[execution.currentStepSlug] = current
-      ? { ...current, status: 'waiting' }
+      ? { ...current, status: overlayStatus }
       : {
-          status: 'waiting',
+          status: overlayStatus,
           stepName: execution.currentStepName,
           attempts: 0,
         };

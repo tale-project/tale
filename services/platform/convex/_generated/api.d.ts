@@ -1167,6 +1167,7 @@ import type * as workflow_engine_helpers_data_source_types from "../workflow_eng
 import type * as workflow_engine_helpers_engine_build_steps_config_map from "../workflow_engine/helpers/engine/build_steps_config_map.js";
 import type * as workflow_engine_helpers_engine_build_workflow_user_profile from "../workflow_engine/helpers/engine/build_workflow_user_profile.js";
 import type * as workflow_engine_helpers_engine_cleanup_component_workflow from "../workflow_engine/helpers/engine/cleanup_component_workflow.js";
+import type * as workflow_engine_helpers_engine_debug_gate from "../workflow_engine/helpers/engine/debug_gate.js";
 import type * as workflow_engine_helpers_engine_dynamic_workflow_handler from "../workflow_engine/helpers/engine/dynamic_workflow_handler.js";
 import type * as workflow_engine_helpers_engine_execute_step_handler from "../workflow_engine/helpers/engine/execute_step_handler.js";
 import type * as workflow_engine_helpers_engine_index from "../workflow_engine/helpers/engine/index.js";
@@ -1266,6 +1267,7 @@ import type * as workflow_engine_types_index from "../workflow_engine/types/inde
 import type * as workflow_engine_types_nodes from "../workflow_engine/types/nodes.js";
 import type * as workflow_engine_types_workflow from "../workflow_engine/types/workflow.js";
 import type * as workflow_engine_types_workflow_types from "../workflow_engine/types/workflow_types.js";
+import type * as workflows_executions_build_variables_inspection from "../workflows/executions/build_variables_inspection.js";
 import type * as workflows_executions_cleanup_execution_storage from "../workflows/executions/cleanup_execution_storage.js";
 import type * as workflows_executions_complete_execution from "../workflows/executions/complete_execution.js";
 import type * as workflows_executions_delete_storage_blob from "../workflows/executions/delete_storage_blob.js";
@@ -1283,6 +1285,7 @@ import type * as workflows_executions_list_executions_cursor from "../workflows/
 import type * as workflows_executions_list_executions_paginated_native from "../workflows/executions/list_executions_paginated_native.js";
 import type * as workflows_executions_patch_execution from "../workflows/executions/patch_execution.js";
 import type * as workflows_executions_persist_execution_output from "../workflows/executions/persist_execution_output.js";
+import type * as workflows_executions_resume_debug_step from "../workflows/executions/resume_debug_step.js";
 import type * as workflows_executions_resume_execution from "../workflows/executions/resume_execution.js";
 import type * as workflows_executions_set_component_workflow from "../workflows/executions/set_component_workflow.js";
 import type * as workflows_executions_types from "../workflows/executions/types.js";
@@ -2512,6 +2515,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/engine/build_steps_config_map": typeof workflow_engine_helpers_engine_build_steps_config_map;
   "workflow_engine/helpers/engine/build_workflow_user_profile": typeof workflow_engine_helpers_engine_build_workflow_user_profile;
   "workflow_engine/helpers/engine/cleanup_component_workflow": typeof workflow_engine_helpers_engine_cleanup_component_workflow;
+  "workflow_engine/helpers/engine/debug_gate": typeof workflow_engine_helpers_engine_debug_gate;
   "workflow_engine/helpers/engine/dynamic_workflow_handler": typeof workflow_engine_helpers_engine_dynamic_workflow_handler;
   "workflow_engine/helpers/engine/execute_step_handler": typeof workflow_engine_helpers_engine_execute_step_handler;
   "workflow_engine/helpers/engine/index": typeof workflow_engine_helpers_engine_index;
@@ -2611,6 +2615,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/types/nodes": typeof workflow_engine_types_nodes;
   "workflow_engine/types/workflow": typeof workflow_engine_types_workflow;
   "workflow_engine/types/workflow_types": typeof workflow_engine_types_workflow_types;
+  "workflows/executions/build_variables_inspection": typeof workflows_executions_build_variables_inspection;
   "workflows/executions/cleanup_execution_storage": typeof workflows_executions_cleanup_execution_storage;
   "workflows/executions/complete_execution": typeof workflows_executions_complete_execution;
   "workflows/executions/delete_storage_blob": typeof workflows_executions_delete_storage_blob;
@@ -2628,6 +2633,7 @@ declare const fullApi: ApiFromModules<{
   "workflows/executions/list_executions_paginated_native": typeof workflows_executions_list_executions_paginated_native;
   "workflows/executions/patch_execution": typeof workflows_executions_patch_execution;
   "workflows/executions/persist_execution_output": typeof workflows_executions_persist_execution_output;
+  "workflows/executions/resume_debug_step": typeof workflows_executions_resume_debug_step;
   "workflows/executions/resume_execution": typeof workflows_executions_resume_execution;
   "workflows/executions/set_component_workflow": typeof workflows_executions_set_component_workflow;
   "workflows/executions/types": typeof workflows_executions_types;
