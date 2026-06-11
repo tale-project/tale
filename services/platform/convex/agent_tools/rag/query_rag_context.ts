@@ -17,6 +17,10 @@ import {
 } from '../../lib/errors/upstream_http_error';
 import { getRagConfig, ragFetch } from '../../lib/helpers/rag_config';
 import {
+  buildRagSearchFilters,
+  type RagMetadataFilters,
+} from '../../lib/helpers/rag_metadata_filters';
+import {
   extractCitationsFromSearchResults,
   formatSearchResults,
   type ContextCitation,
@@ -135,6 +139,16 @@ export interface RagContextOptions {
   /** File storage IDs to scope the search to */
   fileIds?: string[];
   /**
+   * Optional pre-retrieval narrowing filters forwarded as the `/search`
+   * `filters` object: hierarchical folder prefix + flat metadata
+   * equality/IN filters. Narrowing-only — `fileIds` stays the
+   * authorization boundary.
+   */
+  filters?: {
+    folderPath?: string;
+    metadata?: RagMetadataFilters;
+  };
+  /**
    * Org slug for the X-Tale-Org header. Required by the RAG service's
    * `/api/v1/search` endpoint (it picks the org's provider catalog to
    * embed the query). Empty / missing yields HTTP 400 from RAG and is
@@ -222,6 +236,16 @@ export async function queryRagContext(
         return undefined;
       }
       requestPayload.file_ids = options.fileIds;
+
+      if (options.filters) {
+        const searchFilters = buildRagSearchFilters({
+          folderPath: options.filters.folderPath,
+          metadata: options.filters.metadata,
+        });
+        if (searchFilters) {
+          requestPayload.filters = searchFilters;
+        }
+      }
 
       const response = await ragFetch('/api/v1/search', {
         method: 'POST',

@@ -354,6 +354,202 @@ class TestFolderPathScope:
         assert mock_vec.call_args.kwargs["folder_path"] == "contracts"
 
 
+class TestMetadataFilterScope:
+    """Metadata pre-filtering in the scope clause and search() (#1517)."""
+
+    def _service(self):
+        from app.services.search_service import RagSearchService
+
+        return RagSearchService(MagicMock(), MagicMock())
+
+    def test_scope_clause_with_scalar_equality(self):
+        service = self._service()
+
+        clause, params = service._build_scope_clause(
+            TEST_ORG, None, 1, metadata_filters={"department": "legal", "year": 2023}
+        )
+
+        assert "org_slug" in clause
+        assert "SELECT id FROM" in clause
+        assert "metadata @> $3::jsonb" in clause
+        assert params == [TEST_ORG, '{"department": "legal", "year": 2023}']
+
+    def test_scope_clause_with_in_list(self):
+        service = self._service()
+
+        clause, params = service._build_scope_clause(TEST_ORG, None, 1, metadata_filters={"year": [2023, 2024]})
+
+        # Key and values are bound parameters, never interpolated.
+        assert "metadata->>$3 = ANY($4)" in clause
+        assert params == [TEST_ORG, "year", ["2023", "2024"]]
+
+    def test_in_list_values_use_jsonb_text_form(self):
+        service = self._service()
+
+        _clause, params = service._build_scope_clause(
+            TEST_ORG, None, 1, metadata_filters={"flag": [True, False], "name": ["a"]}
+        )
+
+        # Booleans render as jsonb text ('true'), strings stay raw.
+        assert params == [TEST_ORG, "flag", ["true", "false"], "name", ["a"]]
+
+    def test_scope_clause_combines_all_filters_with_offsets(self):
+        service = self._service()
+
+        clause, params = service._build_scope_clause(
+            TEST_ORG,
+            ["doc-a"],
+            3,
+            folder_path="data-room",
+            metadata_filters={"department": "legal", "year": [2023]},
+        )
+
+        # org at $4, file_ids at $5, folder at $6, equality jsonb at $7,
+        # IN-key at $8, IN-values at $9.
+        assert "c.org_slug = $4" in clause
+        assert "ANY($5)" in clause
+        assert "folder_path = $6" in clause
+        assert "metadata @> $7::jsonb" in clause
+        assert "metadata->>$8 = ANY($9)" in clause
+        assert params == [
+            TEST_ORG,
+            ["doc-a"],
+            "data-room",
+            '{"department": "legal"}',
+            "year",
+            ["2023"],
+        ]
+
+    def test_scope_clause_without_metadata_unchanged(self):
+        service = self._service()
+
+        clause, params = service._build_scope_clause(TEST_ORG, None, 1)
+
+        assert "metadata" not in clause
+        assert params == [TEST_ORG]
+
+    async def test_search_passes_metadata_filters_to_fts_and_vector(self):
+        service, *_ = _build_service()
+        service._fts_search = AsyncMock(return_value=[])
+        service._vector_search = AsyncMock(return_value=[])
+
+        await service.search(TEST_ORG, "query", metadata_filters={"department": "legal"})
+
+        assert service._fts_search.call_args.kwargs["metadata_filters"] == {"department": "legal"}
+        assert service._vector_search.call_args.kwargs["metadata_filters"] == {"department": "legal"}
+
+    async def test_semantic_cache_bypassed_when_metadata_filters_set(self):
+        service, *_ = _build_service()
+        service._fts_search = AsyncMock(return_value=[_make_row(1, "hit", "doc-1", 5.0)])
+        service._vector_search = AsyncMock(return_value=[])
+        cache = AsyncMock()
+        cache.lookup = AsyncMock(return_value=None)
+        cache.store = AsyncMock()
+        service._semantic_cache = cache
+
+        results, _usage = await service.search(TEST_ORG, "query", metadata_filters={"year": 2024})
+
+        assert len(results) == 1
+        cache.lookup.assert_not_awaited()
+        cache.store.assert_not_awaited()
+
+    async def test_bm25_fallback_keeps_metadata_filters(self):
+        vector_rows = [_make_row(1, "vec result", "doc-1", 0.9)]
+        service, *_ = _build_service()
+
+        with patch.object(service, "_fts_search", side_effect=asyncpg.InternalServerError("bm25 index not found")):
+            with patch.object(service, "_vector_search", new_callable=AsyncMock) as mock_vec:
+                mock_vec.return_value = vector_rows
+                with patch.object(service._embedding, "embed_query", return_value=[0.1]):
+                    results, _usage = await service.search(TEST_ORG, "query", metadata_filters={"a": "b"})
+
+        assert len(results) == 1
+        assert mock_vec.call_args.kwargs["metadata_filters"] == {"a": "b"}
+
+
+class TestReranking:
+    """Cross-encoder re-ranking wiring: pool widening, fallback, creds."""
+
+    def test_shared_reranker_is_a_singleton_with_creds(self):
+        from app.services.search_service import _get_shared_reranker
+
+        with patch("app.services.search_service._shared_reranker", None):
+            with patch("app.services.search_service.settings") as mock_settings:
+                mock_settings.reranking_model = "model-x"
+                mock_settings.reranking_provider = "api"
+                mock_settings.reranking_api_base_url = "https://rerank.example"
+                mock_settings.reranking_api_key = "key-1"
+
+                first = _get_shared_reranker()
+                second = _get_shared_reranker()
+
+        assert first is second
+        assert first._model_name == "model-x"
+        assert first._provider == "api"
+        assert first._api_base_url == "https://rerank.example"
+        assert first._api_key == "key-1"
+
+    async def test_rerank_failure_falls_back_to_rrf_order(self):
+        fts_rows = [_make_row(i, f"chunk-{i}", "doc-1") for i in range(10)]
+        service, *_ = _build_service()
+        service._fts_search = AsyncMock(return_value=fts_rows)
+        service._vector_search = AsyncMock(return_value=[])
+        service._reranker = AsyncMock()
+        service._reranker.rerank = AsyncMock(side_effect=ImportError("sentence-transformers not installed"))
+
+        results, _usage = await service.search(TEST_ORG, "query", top_k=3)
+
+        # Never 500s; RRF order trimmed to top_k.
+        assert len(results) == 3
+        assert results[0]["content"] == "chunk-0"
+
+    async def test_rerank_rescores_widened_pool_and_trims(self):
+        fts_rows = [_make_row(i, f"chunk-{i}", "doc-1") for i in range(40)]
+        service, *_ = _build_service()
+        service._fts_search = AsyncMock(return_value=fts_rows)
+        service._vector_search = AsyncMock(return_value=[])
+        service._reranker = AsyncMock()
+
+        async def fake_rerank(_query, items, *, top_k):
+            for i, item in enumerate(items):
+                item["reranking_score"] = 1.0 - i * 0.01
+            return list(reversed(items))[:top_k]
+
+        service._reranker.rerank = AsyncMock(side_effect=fake_rerank)
+
+        with patch("app.services.search_service.settings") as mock_settings:
+            mock_settings.recency_boost_enabled = False
+            mock_settings.semantic_cache_enabled = False
+            mock_settings.reranking_candidates = 30
+            mock_settings.reranking_top_k = 10
+
+            results, _usage = await service.search(TEST_ORG, "query", top_k=5)
+
+        # Pool fed to the reranker is the widened RRF pool, not top_k.
+        rerank_items = service._reranker.rerank.call_args[0][1]
+        assert len(rerank_items) == 30
+        # Response respects min(top_k, reranking_top_k).
+        assert service._reranker.rerank.call_args.kwargs["top_k"] == 5
+        assert len(results) == 5
+        # Reranker output order wins over RRF order.
+        assert results[0]["content"] == "chunk-29"
+
+    async def test_rerank_input_carries_content_key(self):
+        rows = [
+            {**_make_row(1, "raw chunk", "doc-1", 5.0), "core_content": "core span"},
+        ]
+        service, *_ = _build_service()
+        service._fts_search = AsyncMock(return_value=rows)
+        service._vector_search = AsyncMock(return_value=[])
+        service._reranker = AsyncMock()
+        service._reranker.rerank = AsyncMock(side_effect=lambda _q, items, top_k: items[:top_k])
+
+        await service.search(TEST_ORG, "query", top_k=5)
+
+        rerank_items = service._reranker.rerank.call_args[0][1]
+        assert rerank_items[0]["content"] == "core span"
+
+
 class TestGracefulFallback:
     """Error handling: BM25 not ready, missing tables/columns."""
 

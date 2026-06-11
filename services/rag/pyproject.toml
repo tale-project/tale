@@ -29,6 +29,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Local cross-encoder re-ranking (RAG_RERANKING_PROVIDER=local). Optional:
+# pulls in torch via sentence-transformers, which is heavy — the Docker
+# image installs it (with the CPU-only torch wheel); plain `uv sync` for
+# dev/test stays light. `provider=api` needs no extra dependency.
+reranking = ["sentence-transformers==5.5.1"]
 dev = [
   "ruff==0.15.10",
   "pytest==9.0.3",

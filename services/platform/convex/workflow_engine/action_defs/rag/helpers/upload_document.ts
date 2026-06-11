@@ -76,18 +76,35 @@ export async function uploadDocument(
     contentType,
   );
 
-  // Resolve the Document Hub folder path so RAG can serve folder-scoped
-  // searches. Explicit option wins; otherwise fall back to the linked Hub
-  // document's denormalized folderPath. Chat uploads (no documentId)
-  // simply carry no folder.
-  let folderPath = normalizeFolderPath(options?.folderPath);
-  if (!folderPath && metadata.documentId) {
-    const document = await ctx.runQuery(
-      internal.documents.internal_queries.getDocumentByIdRaw,
-      { documentId: metadata.documentId },
-    );
-    folderPath = normalizeFolderPath(document?.folderPath);
+  // Resolve the linked Hub document: it carries the denormalized
+  // folderPath for folder-scoped search plus the filterable metadata
+  // fields (team_id / source_provider / extension) RAG stores for
+  // metadata pre-filtering. Chat uploads (no documentId) simply carry
+  // neither.
+  const document = metadata.documentId
+    ? await ctx.runQuery(
+        internal.documents.internal_queries.getDocumentByIdRaw,
+        { documentId: metadata.documentId },
+      )
+    : null;
+
+  // Explicit folderPath option wins; otherwise fall back to the Hub
+  // document's denormalized folderPath.
+  const folderPath =
+    normalizeFolderPath(options?.folderPath) ??
+    normalizeFolderPath(document?.folderPath);
+
+  // Stamp the fixed, platform-controlled metadata set (no free-form
+  // user keys — they would widen the validation and prompt-injection
+  // surface). RAG strips reserved transport keys and re-validates.
+  const documentMetadata: Record<string, unknown> = { ...options?.metadata };
+  if (document?.teamId) documentMetadata.team_id = document.teamId;
+  if (document?.sourceProvider) {
+    documentMetadata.source_provider = document.sourceProvider;
   }
+  const extension = document?.extension ?? extractExtension(fileName);
+  if (extension) documentMetadata.extension = extension;
+  if (folderPath) documentMetadata.folder_path = folderPath;
 
   const orgSlug = await orgSlugFromId(ctx, metadata.organizationId);
 
@@ -96,9 +113,8 @@ export async function uploadDocument(
     filename: fileName,
     contentType,
     fileId,
-    metadata: folderPath
-      ? { ...options?.metadata, folder_path: folderPath }
-      : options?.metadata,
+    metadata:
+      Object.keys(documentMetadata).length > 0 ? documentMetadata : undefined,
     sync: options?.sync ?? false,
     orgSlug,
   });

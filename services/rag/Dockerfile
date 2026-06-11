@@ -47,9 +47,18 @@ RUN uv pip install --system --no-cache-dir \
 
 # Copy pyproject.toml and install service dependencies
 # Fix local package paths: relative ../../packages/* → absolute /packages/* for Docker context
+# The `reranking` extra (sentence-transformers, #1517) ships in the image so
+# RAG_RERANKING_ENABLED=true works without rebuilding; torch comes from the
+# CPU-only index to keep the image free of CUDA payloads. `unsafe-best-match`
+# lets uv consider every index for each package (instead of pinning a package
+# to the first index that lists it), so pinned build deps like
+# `setuptools==82.0.1` still resolve from PyPI while the torch family resolves
+# from the CPU index — both indexes are trusted (no dependency-confusion risk).
 COPY services/rag/pyproject.toml /app/pyproject.toml
 RUN sed -i 's|../../packages/tale_knowledge|/packages/tale_knowledge|g; s|../../packages/tale_shared|/packages/tale_shared|g; s|../../packages/tale_telemetry|/packages/tale_telemetry|g' pyproject.toml \
-    && uv pip install --system --no-cache-dir .
+    && uv pip install --system --no-cache-dir \
+       --index-strategy unsafe-best-match \
+       --extra-index-url https://download.pytorch.org/whl/cpu ".[reranking]"
 
 # Deep cleanup before copying to runtime
 RUN set -eux; \
@@ -142,7 +151,8 @@ ENV TALE_VERSION=${VERSION} \
     RAG_CHUNK_SIZE=2048 \
     RAG_CHUNK_OVERLAP=200 \
     DO_NOT_TRACK=1 \
-    TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
+    TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config \
+    HF_HOME=/app/data/hf
 
 # NOTE: RAG_AUTH_TOKEN is not baked into the image. If set on BOTH the
 # RAG container and the platform/convex container (values must match),
@@ -196,7 +206,8 @@ ENV TALE_VERSION=${VERSION} \
     RAG_CHUNK_SIZE=2048 \
     RAG_CHUNK_OVERLAP=200 \
     DO_NOT_TRACK=1 \
-    TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
+    TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config \
+    HF_HOME=/app/data/hf
 
 # NOTE: RAG_AUTH_TOKEN is not baked into the image — see the runtime
 # stage above for the full rationale.
