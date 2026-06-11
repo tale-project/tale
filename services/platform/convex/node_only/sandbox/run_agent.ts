@@ -27,7 +27,7 @@ import {
   buildAssistantContent,
   type AgentAssistantContent,
 } from './agent_message_parts';
-import { sessionExec } from './helpers/session_client';
+import { drainSessionExecResilient } from './helpers/session_client';
 
 const PROGRESS_FLUSH_MS = 500;
 const RECENT_EVENTS_CAP = 20;
@@ -189,7 +189,11 @@ export async function runAgentInSessionImpl(
   };
 
   const controller = new AbortController();
-  const result = await sessionExec(
+  // Resilient drain: the turn is no longer bound to one HTTP connection — a
+  // dropped SSE re-attaches via sinceSeq (same in-memory parser) until the
+  // terminal result. An explicit Stop yields a terminal 'cancelled' result, so
+  // it returns here rather than looping.
+  const result = await drainSessionExecResilient(
     args.sessionId,
     {
       execId: args.execId,

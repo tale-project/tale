@@ -91,6 +91,11 @@ const EXEC_FETCH_GRACE_MS = 60_000;
 const EXEC_FALLBACK_TIMEOUT_MS = Number(
   process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(25 * 60 * 1000),
 );
+// Resilient-drain reconnect bounds: max CONSECUTIVE failed re-attaches (reset on
+// progress) before giving up, and the linear backoff between them.
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_BACKOFF_MS = 500;
+const MAX_BACKOFF_MS = 5_000;
 
 /** POST /v1/sessions — create + wait for runnerd ready. Throws on 4xx/5xx. */
 export async function sessionCreate(
@@ -209,13 +214,13 @@ export async function sessionExec(
   body: SessionExecBody,
   signal: AbortSignal,
   callbacks: SessionExecCallbacks = {},
+  cursor?: ExecCursor,
 ): Promise<SessionExecResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec`;
   const bodyJson = JSON.stringify(body);
-  // The caller (run_external_agent) passes an explicit per-turn timeoutMs; the
-  // fetch is given that + a grace so the SSE outlives the sandbox-side exec
-  // timeout and receives the terminal result rather than aborting first. The
-  // fallback is only for a caller that omits timeoutMs.
+  // One healthy connection holds for the whole turn (timeoutMs + grace); the
+  // resilient drain only re-attaches when this connection actually DROPS before
+  // the terminal result (network blip / spawner restart), not on a fixed cycle.
   const fetchAbort = AbortSignal.any([
     signal,
     AbortSignal.timeout(
@@ -232,12 +237,107 @@ export async function sessionExec(
   if (!res.ok || !res.body) {
     throw new Error(`sandbox session exec failed (${res.status})`);
   }
-  return consumeExecSse(res.body, callbacks);
+  return consumeExecSse(res.body, callbacks, cursor);
+}
+
+/**
+ * GET /v1/sessions/:id/exec/:execId/attach?sinceSeq= as SSE — reconnect to a
+ * running (or just-finished) exec and resume the stream from `sinceSeq`. Same
+ * event grammar + return as sessionExec; throws on a non-terminal end so the
+ * drain retries. The detach-grace on runnerd keeps the child alive across the
+ * gap, and the seq cursor makes the replay idempotent.
+ */
+export async function sessionAttachExec(
+  sessionId: string,
+  execId: string,
+  sinceSeq: number,
+  signal: AbortSignal,
+  callbacks: SessionExecCallbacks = {},
+  cursor?: ExecCursor,
+  timeoutMs?: number,
+): Promise<SessionExecResult> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/attach`;
+  const query = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
+  const fetchAbort = AbortSignal.any([
+    signal,
+    AbortSignal.timeout(
+      (timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
+    ),
+  ]);
+  const res = await fetch(`${getSpawnerUrl()}${path}${query}`, {
+    method: 'GET',
+    headers: signedHeaders('GET', path, '', 'text/event-stream'),
+    signal: fetchAbort,
+  });
+  if (res.status === 404) throw new Error(`session ${sessionId} not found`);
+  if (!res.ok || !res.body) {
+    throw new Error(`sandbox session attach failed (${res.status})`);
+  }
+  return consumeExecSse(res.body, callbacks, cursor);
+}
+
+/**
+ * Resilient drain: run an exec and, on any NON-terminal end (connection drop,
+ * window timeout, transient error), re-attach via sinceSeq and keep going until
+ * the terminal result — so a single turn is no longer bound to one HTTP
+ * connection. The same callbacks (hence the same in-memory parser) are fed
+ * across reconnects; the cursor guarantees no missed or double-counted events.
+ *
+ * Bounded by MAX_RECONNECT_ATTEMPTS *consecutive* failures (reset whenever a
+ * reconnect makes progress) so a truly-dead exec doesn't loop forever; a
+ * caller-aborted signal stops immediately (an explicit Stop already yields a
+ * terminal 'cancelled' result, so it doesn't reach here).
+ */
+export async function drainSessionExecResilient(
+  sessionId: string,
+  body: SessionExecBody,
+  signal: AbortSignal,
+  callbacks: SessionExecCallbacks = {},
+): Promise<SessionExecResult> {
+  const cursor: ExecCursor = { lastSeq: 0 };
+  let attempt = 0;
+  let seqAtAttemptStart = 0;
+  for (;;) {
+    try {
+      return attempt === 0
+        ? await sessionExec(sessionId, body, signal, callbacks, cursor)
+        : await sessionAttachExec(
+            sessionId,
+            body.execId,
+            cursor.lastSeq,
+            signal,
+            callbacks,
+            cursor,
+            body.timeoutMs,
+          );
+    } catch (err) {
+      if (signal.aborted) throw err;
+      // Progress since the last failure resets the consecutive-failure budget.
+      if (cursor.lastSeq > seqAtAttemptStart) attempt = 0;
+      seqAtAttemptStart = cursor.lastSeq;
+      attempt += 1;
+      if (attempt > MAX_RECONNECT_ATTEMPTS) throw err;
+      console.warn(
+        `[session_client] exec ${body.execId} stream dropped (attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS}, sinceSeq=${cursor.lastSeq}); re-attaching:`,
+        err instanceof Error ? err.message : String(err),
+      );
+      await new Promise((r) =>
+        setTimeout(r, Math.min(RECONNECT_BACKOFF_MS * attempt, MAX_BACKOFF_MS)),
+      );
+    }
+  }
+}
+
+/** Reconnect cursor: the highest runnerd event `seq` consumed so far. A
+ * resilient drain passes this so a re-attach replays only newer events. */
+export interface ExecCursor {
+  lastSeq: number;
 }
 
 async function consumeExecSse(
   body: ReadableStream<Uint8Array>,
   callbacks: SessionExecCallbacks,
+  cursor?: ExecCursor,
 ): Promise<SessionExecResult> {
   const reader = body.getReader();
   const decoder = new TextDecoder('utf-8');
@@ -245,8 +345,17 @@ async function consumeExecSse(
   let result: SessionExecResult | null = null;
   const handleEvent = (event: string, data: string): void => {
     if (event === 'stdout' || event === 'stderr') {
-      const parsed = parseData<{ text?: string }>(data);
+      const parsed = parseData<{ text?: string; seq?: number }>(data);
       const text = parsed?.text ?? '';
+      // Advance the reconnect cursor as each seq'd delta is consumed, so a drop
+      // resumes from exactly here (no missed or replayed bytes).
+      if (
+        cursor &&
+        typeof parsed?.seq === 'number' &&
+        parsed.seq > cursor.lastSeq
+      ) {
+        cursor.lastSeq = parsed.seq;
+      }
       if (event === 'stdout') callbacks.onStdout?.(text);
       else callbacks.onStderr?.(text);
     } else if (event === 'result') {
