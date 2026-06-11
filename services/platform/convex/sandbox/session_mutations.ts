@@ -1,0 +1,306 @@
+// Platform-side mutations for persistent sandbox sessions.
+//
+// The spawner owns the container/Pod lifecycle and is org-aware only; these
+// mutations own the platform record (`sandboxSessions`), the per-owner +
+// per-org concurrency gate, the session virtual-key bookkeeping
+// (`sandboxSessionTokens`), the in-session progress rows
+// (`sandboxSessionOps`), and the credential-access audit
+// (`sandboxCredentialAccess`). Mirrors the one-shot `internal_mutations.ts`
+// reserve/watchdog pattern.
+
+import { ConvexError, v } from 'convex/values';
+
+import type { Id } from '../_generated/dataModel';
+import { internalMutation } from '../_generated/server';
+import {
+  SANDBOX_MAX_SESSIONS_PER_OWNER,
+  SANDBOX_SESSION_MAX_LIFETIME_MS,
+} from './sessions_schema';
+import { sandboxSessionProfileValidator } from './wire';
+
+const SANDBOX_MAX_SESSIONS_PER_ORG = 4;
+
+/**
+ * Atomically check the per-owner + per-org active-session caps and insert a
+ * `creating` row. Serializable OCC makes the count-then-insert race-free, the
+ * same property `reserveSlotAndInsert` relies on for one-shot quota.
+ */
+export const reserveSessionSlotAndInsert = internalMutation({
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    profile: sandboxSessionProfileValidator,
+    ownerType: v.string(),
+    ownerId: v.string(),
+    createdBy: v.string(),
+    agentKind: v.optional(v.string()),
+    ttlMs: v.optional(v.number()),
+  },
+  returns: v.id('sandboxSessions'),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // Per-owner cap (default 1 active session per thread/workflow-run/user).
+    let ownerActive = 0;
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_owner', (q) =>
+        q.eq('ownerType', args.ownerType).eq('ownerId', args.ownerId),
+      )) {
+      if (row.status === 'creating' || row.status === 'active') {
+        ownerActive += 1;
+        if (ownerActive >= SANDBOX_MAX_SESSIONS_PER_OWNER) {
+          throw new ConvexError({
+            code: 'QUOTA_EXCEEDED',
+            message: `This ${args.ownerType} already has an active sandbox session.`,
+          });
+        }
+      }
+    }
+
+    // Per-org cap (defense in depth; the spawner enforces its own cap too).
+    let orgActive = 0;
+    for (const status of ['creating', 'active'] as const) {
+      for await (const _row of ctx.db
+        .query('sandboxSessions')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', status),
+        )) {
+        orgActive += 1;
+        if (orgActive >= SANDBOX_MAX_SESSIONS_PER_ORG) {
+          throw new ConvexError({
+            code: 'QUOTA_EXCEEDED',
+            message: `At most ${SANDBOX_MAX_SESSIONS_PER_ORG} sandbox sessions can be active for this organization.`,
+          });
+        }
+      }
+    }
+
+    const ttlMs = args.ttlMs ?? SANDBOX_SESSION_MAX_LIFETIME_MS;
+    return ctx.db.insert('sandboxSessions', {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      profile: args.profile,
+      status: 'creating',
+      ownerType: args.ownerType,
+      ownerId: args.ownerId,
+      createdBy: args.createdBy,
+      ...(args.agentKind !== undefined && { agentKind: args.agentKind }),
+      createdAt: now,
+      expiresAt: now + ttlMs,
+    });
+  },
+});
+
+/** Flip a session row to a new lifecycle status (creating → active on
+ * runnerd-ready; → degraded/destroyed/expired/failed otherwise). */
+export const setSessionStatus = internalMutation({
+  args: {
+    rowId: v.id('sandboxSessions'),
+    status: v.union(
+      v.literal('active'),
+      v.literal('degraded'),
+      v.literal('destroyed'),
+      v.literal('expired'),
+      v.literal('failed'),
+    ),
+    bifrostKeyId: v.optional(v.string()),
+    lastActivityAt: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const patch: Record<string, unknown> = { status: args.status };
+    if (args.bifrostKeyId !== undefined) patch.bifrostKeyId = args.bifrostKeyId;
+    if (args.lastActivityAt !== undefined) {
+      patch.lastActivityAt = args.lastActivityAt;
+    }
+    if (args.status === 'destroyed' || args.status === 'expired') {
+      patch.destroyedAt = Date.now();
+    }
+    await ctx.db.patch(args.rowId, patch);
+    return null;
+  },
+});
+
+/**
+ * Watchdog: mark sessions past their hard lifetime as `expired` so a leaked
+ * row (a throw between reserve and the spawner create returning) can't pin the
+ * owner/org cap forever. The actual container teardown + token revoke is the
+ * caller's job (an action that reads these and calls the spawner + Bifrost).
+ */
+export const recoverStuckSessions = internalMutation({
+  args: { limit: v.optional(v.number()) },
+  returns: v.array(v.id('sandboxSessions')),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const expired: Id<'sandboxSessions'>[] = [];
+    const limit = args.limit ?? 50;
+    for (const status of ['creating', 'active', 'degraded'] as const) {
+      for await (const row of ctx.db
+        .query('sandboxSessions')
+        .withIndex('by_status', (q) => q.eq('status', status))) {
+        if (now > row.expiresAt) {
+          await ctx.db.patch(row._id, {
+            status: 'expired',
+            destroyedAt: now,
+          });
+          expired.push(row._id);
+          if (expired.length >= limit) return expired;
+        }
+      }
+    }
+    return expired;
+  },
+});
+
+// --- session virtual-key bookkeeping ---------------------------------------
+
+/** Persist a minted session token's sha256 hash + scope (never the plaintext). */
+export const insertSessionToken = internalMutation({
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    tokenHash: v.string(),
+    bifrostKeyId: v.optional(v.string()),
+    scope: v.object({
+      agentKind: v.string(),
+      allowedModels: v.array(v.string()),
+      integrationGrants: v.array(v.string()),
+      budgetCents: v.number(),
+    }),
+    expiresAt: v.number(),
+  },
+  returns: v.id('sandboxSessionTokens'),
+  handler: async (ctx, args) =>
+    ctx.db.insert('sandboxSessionTokens', {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      tokenHash: args.tokenHash,
+      ...(args.bifrostKeyId !== undefined && {
+        bifrostKeyId: args.bifrostKeyId,
+      }),
+      scope: args.scope,
+      createdAt: Date.now(),
+      expiresAt: args.expiresAt,
+    }),
+});
+
+/** Revoke every token for a session (on destroy / watchdog reap). */
+export const revokeTokensForSession = internalMutation({
+  args: { sessionId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    let revoked = 0;
+    for await (const row of ctx.db
+      .query('sandboxSessionTokens')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.revokedAt === undefined) {
+        await ctx.db.patch(row._id, { revokedAt: now });
+        revoked += 1;
+      }
+    }
+    return revoked;
+  },
+});
+
+// --- in-session exec progress ----------------------------------------------
+
+/**
+ * Upsert the progress row for one in-session exec. The progress-bridge action
+ * calls this throttled (text deltas coalesced; tool-use/usage/result events
+ * flushed promptly), so any entry point's reactive `useQuery` renders live
+ * progress without a mutation storm.
+ */
+export const upsertSessionOp = internalMutation({
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    execId: v.string(),
+    kind: v.string(),
+    status: v.union(
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('cancelled'),
+    ),
+    progressText: v.optional(v.string()),
+    recentEvents: v.optional(v.array(v.string())),
+    agentSessionId: v.optional(v.string()),
+    exitCode: v.optional(v.number()),
+    eventLogStorageId: v.optional(v.string()),
+  },
+  returns: v.id('sandboxSessionOps'),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    let existing: Id<'sandboxSessionOps'> | null = null;
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.execId === args.execId) {
+        existing = row._id;
+        break;
+      }
+    }
+    const terminal = args.status !== 'running';
+    const patch: Record<string, unknown> = { status: args.status };
+    if (args.progressText !== undefined) patch.progressText = args.progressText;
+    if (args.recentEvents !== undefined) patch.recentEvents = args.recentEvents;
+    if (args.agentSessionId !== undefined) {
+      patch.agentSessionId = args.agentSessionId;
+    }
+    if (args.exitCode !== undefined) patch.exitCode = args.exitCode;
+    if (args.eventLogStorageId !== undefined) {
+      patch.eventLogStorageId = args.eventLogStorageId;
+    }
+    if (terminal) patch.finishedAt = now;
+
+    if (existing) {
+      await ctx.db.patch(existing, patch);
+      return existing;
+    }
+    return ctx.db.insert('sandboxSessionOps', {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId: args.execId,
+      kind: args.kind,
+      status: args.status,
+      ...(args.progressText !== undefined && {
+        progressText: args.progressText,
+      }),
+      ...(args.recentEvents !== undefined && {
+        recentEvents: args.recentEvents,
+      }),
+      ...(args.agentSessionId !== undefined && {
+        agentSessionId: args.agentSessionId,
+      }),
+      ...(args.exitCode !== undefined && { exitCode: args.exitCode }),
+      ...(args.eventLogStorageId !== undefined && {
+        eventLogStorageId: args.eventLogStorageId,
+      }),
+      startedAt: now,
+      ...(terminal && { finishedAt: now }),
+    });
+  },
+});
+
+/** Audit a Tier-2 credential broker fetch. */
+export const recordCredentialAccess = internalMutation({
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    slug: v.string(),
+    kind: v.union(v.literal('bootstrap'), v.literal('git')),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert('sandboxCredentialAccess', {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      slug: args.slug,
+      kind: args.kind,
+      fetchedAt: Date.now(),
+    });
+    return null;
+  },
+});

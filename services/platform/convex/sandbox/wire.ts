@@ -105,6 +105,13 @@ export const sandboxErrorCodeLiterals = [
   // per-failure codes above because this is the action-side decision
   // that "any failure → fatal", not a single transport-layer cause.
   'UPLOAD_INCOMPLETE',
+  // Session-exec error codes (sessions plan, milestone A). SESSION_LOST: the
+  // session container/Pod (or its runnerd) died mid-exec — the workspace may
+  // survive, so the caller checks GET /v1/sessions/:id to decide retry vs
+  // recreate. INVALID_CWD: an exec cwd failed runnerd's realpath-under-
+  // /workspace check. Spawner-side mirror in services/sandbox/src/wire.ts.
+  'SESSION_LOST',
+  'INVALID_CWD',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];
@@ -126,6 +133,8 @@ export const sandboxErrorCodeValidator = v.union(
   v.literal('UPLOAD_REPORT_FAILED'),
   v.literal('PRE_STAGE_FAILED'),
   v.literal('UPLOAD_INCOMPLETE'),
+  v.literal('SESSION_LOST'),
+  v.literal('INVALID_CWD'),
 );
 
 /**
@@ -153,6 +162,20 @@ export const sandboxSseEventLiterals = [
 ] as const;
 
 export type SandboxSseEvent = (typeof sandboxSseEventLiterals)[number];
+
+/**
+ * Session resource-profile validator (persistent sessions). Mirror of
+ * `services/sandbox/src/wire.ts:sandboxSessionProfileLiterals`. `default`
+ * mirrors the one-shot caps (uid 65534); `agent` is the coding-agent shape
+ * (uid 10001, larger caps). Used by the `sandboxSessions` table + the
+ * platform-side session client.
+ */
+export const sandboxSessionProfileValidator = v.union(
+  v.literal('default'),
+  v.literal('agent'),
+);
+
+export type SandboxSessionProfile = 'default' | 'agent';
 
 export const sandboxPhaseEventLiterals = [
   'preparing',

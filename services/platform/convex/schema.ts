@@ -84,6 +84,12 @@ import {
 import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
 import { reasoningProfilesTable } from './reasoning_profiles/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
+import {
+  sandboxCredentialAccessTable,
+  sandboxSessionOpsTable,
+  sandboxSessionsTable,
+  sandboxSessionTokensTable,
+} from './sandbox/sessions_schema';
 import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
@@ -227,6 +233,10 @@ export default defineSchema({
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,
   sandboxExecutions: sandboxExecutionsTable,
+  sandboxSessions: sandboxSessionsTable,
+  sandboxSessionTokens: sandboxSessionTokensTable,
+  sandboxSessionOps: sandboxSessionOpsTable,
+  sandboxCredentialAccess: sandboxCredentialAccessTable,
   skillUploadClaims: skillUploadClaimTable,
   skillUploadIntents: skillUploadIntentTable,
   videoLinkJobs: videoLinkJobsTable,
