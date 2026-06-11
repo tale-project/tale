@@ -76,6 +76,10 @@ function DashboardRedirect() {
     // reload. Re-check Better Auth directly before doing a hard redirect, and
     // un-stick the provider when the session is actually alive.
     let cancelled = false;
+    // At most one timer is ever pending: a verify() run finishes before it
+    // schedules anything, and it arms exactly one of the two timers (the
+    // re-check backoff in scheduleRecheck or the one-shot reload below) — never
+    // both — overwriting this single handle. Cleanup clears whichever is set.
     let timer: ReturnType<typeof setTimeout> | undefined;
     const MAX_RECHECKS = 8;
 
