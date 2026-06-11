@@ -589,6 +589,37 @@ export async function startAgentChat(
     return { messageAlreadyExists, streamId };
   }
 
+  // External-agent agents (Claude Code / OpenCode in a sandbox session) bypass
+  // the platform tool loop — the whole turn runs in the session and streams
+  // back into the thread. Nothing to prewarm.
+  if (prewarm && enforcedConfig.primaryBehavior === 'external-agent') {
+    return { messageAlreadyExists, streamId };
+  }
+  if (enforcedConfig.primaryBehavior === 'external-agent') {
+    debugLog('SCHEDULE_EXTERNAL_AGENT', {
+      threadId,
+      model,
+      agentKind: enforcedConfig.agentKind ?? 'claude-code',
+    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.agents.external_agent.run_external_agent.runExternalAgentTurn,
+      {
+        threadId,
+        promptMessageId,
+        modelRef: model,
+        rawPrompt: trimmedMessage,
+        systemInstructions: enforcedConfig.instructions || undefined,
+        agentKind: enforcedConfig.agentKind ?? 'claude-code',
+        streamId: streamId || undefined,
+        agentSlug: args.agentSlug,
+        organizationId,
+        userId,
+      },
+    );
+    return { messageAlreadyExists, streamId };
+  }
+
   // Schedule the generic agent action with full configuration
   const scheduledAtMs = Date.now();
   debugLog('SCHEDULE_ACTION', {

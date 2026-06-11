@@ -20,10 +20,14 @@ export interface SerializableAgentConfig {
   /** Agent name identifier */
   name: string;
   /**
-   * Root behavior. Omitted = 'chat'. When 'image-generation', the startAgentChat
-   * helper routes to the direct image-gen action instead of runAgentGeneration.
+   * Root behavior. Omitted = 'chat'. When 'image-generation', startAgentChat
+   * routes to the direct image-gen action; when 'external-agent', it routes to
+   * the external-agent turn (sandbox session) — both instead of
+   * runAgentGeneration.
    */
-  primaryBehavior?: 'chat' | 'image-generation';
+  primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
+  /** External agent runtime for `primaryBehavior: 'external-agent'`. */
+  agentKind?: 'claude-code' | 'opencode';
   /** System instructions for the agent (empty for image-generation agents with no style prefix) */
   instructions: string;
   /** List of Convex tool names to enable */

@@ -153,6 +153,7 @@ import type * as agents_auto_route_helpers from "../agents/auto_route_helpers.js
 import type * as agents_chat_turn from "../agents/chat_turn.js";
 import type * as agents_chat_turn_generate from "../agents/chat_turn_generate.js";
 import type * as agents_config from "../agents/config.js";
+import type * as agents_external_agent_run_external_agent from "../agents/external_agent/run_external_agent.js";
 import type * as agents_file_actions from "../agents/file_actions.js";
 import type * as agents_file_utils from "../agents/file_utils.js";
 import type * as agents_guardrails_budget_guard from "../agents/guardrails/budget_guard.js";
@@ -811,6 +812,7 @@ import type * as node_only_sandbox_helpers_spawner_client from "../node_only/san
 import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sandbox_run_agent from "../node_only/sandbox/run_agent.js";
 import type * as node_only_sandbox_session_credentials from "../node_only/sandbox/session_credentials.js";
+import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
 import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
 import type * as node_only_sql_helpers_execute_postgres_query from "../node_only/sql/helpers/execute_postgres_query.js";
@@ -936,6 +938,7 @@ import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.
 import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
 import type * as sandbox_sandbox_http from "../sandbox/sandbox_http.js";
 import type * as sandbox_session_mutations from "../sandbox/session_mutations.js";
+import type * as sandbox_session_queries from "../sandbox/session_queries.js";
 import type * as sandbox_sessions_schema from "../sandbox/sessions_schema.js";
 import type * as sandbox_wire from "../sandbox/wire.js";
 import type * as skills_audit_mutations from "../skills/audit_mutations.js";
@@ -1553,6 +1556,7 @@ declare const fullApi: ApiFromModules<{
   "agents/chat_turn": typeof agents_chat_turn;
   "agents/chat_turn_generate": typeof agents_chat_turn_generate;
   "agents/config": typeof agents_config;
+  "agents/external_agent/run_external_agent": typeof agents_external_agent_run_external_agent;
   "agents/file_actions": typeof agents_file_actions;
   "agents/file_utils": typeof agents_file_utils;
   "agents/guardrails/budget_guard": typeof agents_guardrails_budget_guard;
@@ -2211,6 +2215,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sandbox/run_agent": typeof node_only_sandbox_run_agent;
   "node_only/sandbox/session_credentials": typeof node_only_sandbox_session_credentials;
+  "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
   "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
   "node_only/sql/helpers/execute_postgres_query": typeof node_only_sql_helpers_execute_postgres_query;
@@ -2336,6 +2341,7 @@ declare const fullApi: ApiFromModules<{
   "sandbox/output_mutations": typeof sandbox_output_mutations;
   "sandbox/sandbox_http": typeof sandbox_sandbox_http;
   "sandbox/session_mutations": typeof sandbox_session_mutations;
+  "sandbox/session_queries": typeof sandbox_session_queries;
   "sandbox/sessions_schema": typeof sandbox_sessions_schema;
   "sandbox/wire": typeof sandbox_wire;
   "skills/audit_mutations": typeof skills_audit_mutations;

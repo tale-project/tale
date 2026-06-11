@@ -48,9 +48,13 @@ export interface AgentJsonConfig {
   avatarUrl?: string;
   /**
    * Root behavior. Omitted = 'chat' (default). 'image-generation' routes the
-   * user's message straight to an image model, bypassing the tool loop.
+   * user's message straight to an image model; 'external-agent' routes the
+   * whole turn to a coding agent in a sandbox session. Both bypass the tool
+   * loop.
    */
-  primaryBehavior?: 'chat' | 'image-generation';
+  primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
+  /** External agent runtime for `primaryBehavior: 'external-agent'`. */
+  agentKind?: 'claude-code' | 'opencode';
   systemInstructions?: string;
   toolNames?: string[];
   integrationBindings?: string[];

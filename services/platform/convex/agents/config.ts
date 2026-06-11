@@ -99,6 +99,7 @@ export function toSerializableConfig(
   return {
     name: agentName,
     primaryBehavior: config.primaryBehavior,
+    agentKind: config.agentKind,
     instructions: resolveInstructions(config, locale),
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are validated on file read; always valid ToolName values
     convexToolNames: config.toolNames as ToolName[],

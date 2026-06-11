@@ -42,8 +42,18 @@ export function isRetrievalMode(value: string): value is RetrievalMode {
 
 const retrievalModeSchema = z.enum(retrievalModeLiterals);
 
-const primaryBehaviorLiterals = ['chat', 'image-generation'] as const;
+const primaryBehaviorLiterals = [
+  'chat',
+  'image-generation',
+  'external-agent',
+] as const;
 const primaryBehaviorSchema = z.enum(primaryBehaviorLiterals);
+
+// Which external agent runtime handles an `external-agent` turn. The turn runs
+// in a sandbox session driven by @tale/agent-adapters; the platform never runs
+// its own tool loop for these.
+const agentKindLiterals = ['claude-code', 'opencode'] as const;
+const agentKindSchema = z.enum(agentKindLiterals);
 
 const composerModeSchema = z.object({
   label: z.string().min(1).max(80),
@@ -185,10 +195,18 @@ export const agentJsonSchema = z
     avatarUrl: z.string().url().optional(),
     /**
      * Root behavior this agent runs. Omitted = 'chat' (default tool-calling chat
-     * loop). When set to 'image-generation', the user message is routed straight
-     * to an image model; toolNames/integrationBindings/workflows are ignored.
+     * loop). 'image-generation' routes the user message straight to an image
+     * model. 'external-agent' routes the whole turn to a coding agent (Claude
+     * Code / OpenCode) running in a sandbox session — the thread IS that
+     * session. In the non-chat cases toolNames/integrationBindings/workflows
+     * are ignored (the agent's tools are its own).
      */
     primaryBehavior: primaryBehaviorSchema.optional(),
+    /**
+     * For `primaryBehavior: 'external-agent'` only — which external agent
+     * runtime handles the turn. Defaults to 'claude-code' at runtime.
+     */
+    agentKind: agentKindSchema.optional(),
     systemInstructions: z.string().optional(),
     toolNames: z.array(z.string()).optional(),
     integrationBindings: z.array(z.string()).optional(),
@@ -390,8 +408,12 @@ export const agentJsonSchema = z
     // tool-grant model and is no longer read at runtime; it remains optional
     // for back-compat reading of historical agent JSON.
 
-    // Image-generation agents have no tool loop — these fields are meaningless.
-    if (data.primaryBehavior === 'image-generation') {
+    // image-generation and external-agent both bypass the platform tool loop,
+    // so the loop-only fields are meaningless for them.
+    if (
+      data.primaryBehavior === 'image-generation' ||
+      data.primaryBehavior === 'external-agent'
+    ) {
       const disallowed: Array<keyof typeof data> = [
         'toolNames',
         'integrationBindings',
@@ -403,9 +425,22 @@ export const agentJsonSchema = z
           ctx.addIssue({
             code: 'custom',
             path: [key],
-            message: `${String(key)} is not supported when primaryBehavior is "image-generation" — the agent bypasses the tool loop.`,
+            message: `${String(key)} is not supported when primaryBehavior is "${data.primaryBehavior}" — the agent bypasses the platform tool loop.`,
           });
         }
       }
+    }
+
+    // agentKind only applies to external-agent.
+    if (
+      data.agentKind !== undefined &&
+      data.primaryBehavior !== 'external-agent'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['agentKind'],
+        message:
+          'agentKind is only valid when primaryBehavior is "external-agent".',
+      });
     }
   });

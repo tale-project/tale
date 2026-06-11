@@ -19,14 +19,6 @@ import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { getDecryptedCredentials } from '../../integrations/get_decrypted_credentials';
 
-interface ResolvedCredential {
-  slug: string;
-  /** Env vars to inject into the session (e.g. { GITHUB_TOKEN, ... }). */
-  env: Record<string, string>;
-  /** Git host metadata so the credential helper knows which hosts it covers. */
-  git?: { hosts: string[]; username: string };
-}
-
 /** Map an integration slug + its decrypted secret to session env. v1 is a
  * small static map (github) + a generic fallback; new integration types add
  * one case here, the pipeline is unchanged. */

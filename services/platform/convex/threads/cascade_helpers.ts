@@ -178,6 +178,35 @@ export async function cascadeDeleteThreadChildren(
     args.holds = holds;
   }
 
+  // 0. Sandbox sessions owned by this thread (external-agent threads). Mark the
+  // rows destroyed now (frees the per-owner/org cap immediately) and schedule
+  // the actual container/token teardown — sessionDestroy + token revoke are
+  // HTTP calls that can't run in a mutation. The spawner's own idle/TTL sweep
+  // is the backstop if the scheduled action fails.
+  const ownedSessions = [];
+  for await (const row of ctx.db
+    .query('sandboxSessions')
+    .withIndex('by_owner', (q) =>
+      q.eq('ownerType', 'thread').eq('ownerId', threadId),
+    )) {
+    if (row.status !== 'destroyed' && row.status !== 'expired') {
+      ownedSessions.push(row);
+    }
+  }
+  if (ownedSessions.length > 0) {
+    for (const row of ownedSessions) {
+      await ctx.db.patch(row._id, {
+        status: 'destroyed',
+        destroyedAt: Date.now(),
+      });
+    }
+    await ctx.scheduler.runAfter(
+      0,
+      internal.node_only.sandbox.session_teardown.teardownThreadSessions,
+      { sessionIds: ownedSessions.map((r) => r.sessionId) },
+    );
+  }
+
   // 1. messageMetadata — paged
   const metadataPage = await ctx.db
     .query('messageMetadata')

@@ -75,6 +75,7 @@ export async function mintVirtualKey(
   if (!res.ok) {
     throw new Error(`bifrost mint key failed (${res.status})`);
   }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { key?: string; id?: string };
   if (!parsed.key || !parsed.id) {
     throw new Error('bifrost mint key returned no key/id');
@@ -118,6 +119,7 @@ export async function getKeyUsage(keyId: string): Promise<KeyUsage | null> {
     },
   );
   if (!res.ok) return null;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const u = (await res.json()) as {
     input_tokens?: number;
     output_tokens?: number;

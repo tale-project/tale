@@ -160,7 +160,17 @@ const serializableAgentConfigValidator = v.object({
    * validation.
    */
   primaryBehavior: v.optional(
-    v.union(v.literal('chat'), v.literal('image-generation')),
+    v.union(
+      v.literal('chat'),
+      v.literal('image-generation'),
+      v.literal('external-agent'),
+    ),
+  ),
+  /** External agent runtime when primaryBehavior is 'external-agent'.
+   * Informational here (external-agent forks out before runAgentGeneration);
+   * declared so the strict validator accepts external-agent configs. */
+  agentKind: v.optional(
+    v.union(v.literal('claude-code'), v.literal('opencode')),
   ),
   instructions: v.string(),
   convexToolNames: v.optional(v.array(v.string())),

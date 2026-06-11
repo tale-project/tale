@@ -100,6 +100,7 @@ export async function sessionCreate(
       `sandbox session create failed (${res.status}): ${await safeText(res)}`,
     );
   }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { session: SessionInfo };
   return parsed.session;
 }
@@ -114,6 +115,7 @@ export async function sessionDestroy(sessionId: string): Promise<boolean> {
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) return false;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { destroyed?: boolean };
   return parsed.destroyed === true;
 }
@@ -135,6 +137,7 @@ export async function sessionEnvPatch(
   if (!res.ok) {
     throw new Error(`sandbox session env patch failed (${res.status})`);
   }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { denied?: string[] };
   return parsed.denied ?? [];
 }
@@ -251,6 +254,7 @@ function parseSseBlock(
 
 function parseData<T>(data: string): T | null {
   try {
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
     return JSON.parse(data) as T;
   } catch {
     return null;
