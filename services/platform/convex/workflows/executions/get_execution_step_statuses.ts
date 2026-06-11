@@ -46,6 +46,7 @@ export interface ExecutionStepStatuses {
     waitingFor?: string;
     loopProgress?: { current: number; total: number };
     error?: string;
+    errorCode?: string;
     startedAt: number;
     completedAt?: number;
   };
@@ -250,6 +251,7 @@ export function deriveStepStatuses(
       waitingFor: execution.waitingFor,
       loopProgress: execution.loopProgress,
       error: execution.error,
+      errorCode: execution.errorCode,
       startedAt: execution.startedAt,
       completedAt: execution.completedAt,
     },

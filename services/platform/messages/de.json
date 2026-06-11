@@ -748,7 +748,16 @@
         "failed": "Ausführung fehlgeschlagen",
         "running": "Läuft …",
         "failedAtStep": "Fehlgeschlagen bei Schritt: {step}",
-        "runningStep": "Aktueller Schritt: {step}"
+        "runningStep": "Aktueller Schritt: {step}",
+        "stepsHeading": "Ausgeführte Schritte",
+        "openStep": "Einstellungen des fehlgeschlagenen Schritts {step} öffnen",
+        "errorCode": {
+          "start_failure": "Die Ausführung konnte nicht gestartet werden",
+          "step_failure": "Ein Schritt ist fehlgeschlagen",
+          "timeout": "Die Ausführung hat das Zeitlimit überschritten",
+          "canceled": "Die Ausführung wurde abgebrochen",
+          "invalid_input": "Die Eingabe war ungültig"
+        }
       },
       "debug": {
         "button": "Debuggen",

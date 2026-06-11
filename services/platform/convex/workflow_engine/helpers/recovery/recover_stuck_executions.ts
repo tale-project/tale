@@ -14,6 +14,7 @@ import type { Doc } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
 import { STORAGE_RETENTION_MS } from '../../../workflows/executions/cleanup_execution_storage';
 import { notifyWorkflowFailedOnce } from '../../../workflows/executions/fail_execution';
+import { mergeExecutionMetadata } from '../../../workflows/executions/update_execution_metadata';
 import { safeShardIndex } from '../engine/shard';
 
 const DEFAULT_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -124,8 +125,11 @@ export async function recoverStuckExecutions(
       const timeoutError = `Execution timed out after ${timeoutMs / 60_000} minutes (stuck recovery)`;
       await ctx.db.patch(execution._id, {
         status: 'failed',
+        error: timeoutError,
+        errorCode: 'timeout',
+        completedAt: execution.completedAt ?? Date.now(),
         updatedAt: Date.now(),
-        metadata: JSON.stringify({
+        metadata: mergeExecutionMetadata(execution.metadata, {
           error: timeoutError,
           recoveredAt: Date.now(),
           previousStatus: 'running',
@@ -153,8 +157,11 @@ export async function recoverStuckExecutions(
       const timeoutError = `Execution timed out in pending state after ${timeoutMs / 60_000} minutes (stuck recovery)`;
       await ctx.db.patch(execution._id, {
         status: 'failed',
+        error: timeoutError,
+        errorCode: 'timeout',
+        completedAt: execution.completedAt ?? Date.now(),
         updatedAt: Date.now(),
-        metadata: JSON.stringify({
+        metadata: mergeExecutionMetadata(execution.metadata, {
           error: timeoutError,
           recoveredAt: Date.now(),
           previousStatus: 'pending',

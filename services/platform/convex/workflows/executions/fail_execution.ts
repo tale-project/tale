@@ -7,6 +7,7 @@ import type { Doc } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { STORAGE_RETENTION_MS } from './cleanup_execution_storage';
 import type { FailExecutionArgs } from './types';
+import { mergeExecutionMetadata } from './update_execution_metadata';
 
 /**
  * Emit a `workflow.failed` notification exactly once for an execution,
@@ -48,7 +49,15 @@ export async function failExecution(
 
   await ctx.db.patch(args.executionId, {
     status: 'failed',
-    metadata: JSON.stringify({ error: args.error }),
+    // Top-level `error` is what getExecutionStatus / the executions table /
+    // the test panel read; the metadata copy is merged (not replaced) so
+    // `componentWorkflowIds` and other keys survive the failure transition.
+    error: args.error,
+    ...(args.errorCode !== undefined ? { errorCode: args.errorCode } : {}),
+    completedAt: execution?.completedAt ?? Date.now(),
+    metadata: mergeExecutionMetadata(execution?.metadata, {
+      error: args.error,
+    }),
     updatedAt: Date.now(),
   });
 

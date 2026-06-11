@@ -172,6 +172,9 @@ export const wfExecutionsTable = defineTable({
   triggeredBy: v.optional(v.string()),
   triggerData: v.optional(jsonValueValidator),
   error: v.optional(v.string()),
+  // Coarse failure classification (see ExecutionErrorCode in executions/types.ts).
+  // Kept a plain string in the schema so adding codes never needs a migration.
+  errorCode: v.optional(v.string()),
   metadata: v.optional(v.string()),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),

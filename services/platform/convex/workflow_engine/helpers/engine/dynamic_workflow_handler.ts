@@ -306,6 +306,7 @@ export async function handleDynamicWorkflow(
         {
           executionId,
           error: errorMsg,
+          errorCode: 'step_failure',
         },
       );
 

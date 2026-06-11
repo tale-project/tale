@@ -1236,6 +1236,7 @@ import type * as workflow_engine_helpers_step_execution_types from "../workflow_
 import type * as workflow_engine_helpers_validation_circular_dependency_validator from "../workflow_engine/helpers/validation/circular_dependency_validator.js";
 import type * as workflow_engine_helpers_validation_constants from "../workflow_engine/helpers/validation/constants.js";
 import type * as workflow_engine_helpers_validation_index from "../workflow_engine/helpers/validation/index.js";
+import type * as workflow_engine_helpers_validation_preflight_test_run_input from "../workflow_engine/helpers/validation/preflight_test_run_input.js";
 import type * as workflow_engine_helpers_validation_steps_action from "../workflow_engine/helpers/validation/steps/action.js";
 import type * as workflow_engine_helpers_validation_steps_condition from "../workflow_engine/helpers/validation/steps/condition.js";
 import type * as workflow_engine_helpers_validation_steps_index from "../workflow_engine/helpers/validation/steps/index.js";
@@ -2584,6 +2585,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/circular_dependency_validator": typeof workflow_engine_helpers_validation_circular_dependency_validator;
   "workflow_engine/helpers/validation/constants": typeof workflow_engine_helpers_validation_constants;
   "workflow_engine/helpers/validation/index": typeof workflow_engine_helpers_validation_index;
+  "workflow_engine/helpers/validation/preflight_test_run_input": typeof workflow_engine_helpers_validation_preflight_test_run_input;
   "workflow_engine/helpers/validation/steps/action": typeof workflow_engine_helpers_validation_steps_action;
   "workflow_engine/helpers/validation/steps/condition": typeof workflow_engine_helpers_validation_steps_condition;
   "workflow_engine/helpers/validation/steps/index": typeof workflow_engine_helpers_validation_steps_index;

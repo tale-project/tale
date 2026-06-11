@@ -88,6 +88,7 @@ export const getExecutionStatus = queryWithRLS({
       loopProgress: exec.loopProgress,
       waitingFor: exec.waitingFor,
       error: exec.error,
+      errorCode: exec.errorCode,
       startedAt: exec.startedAt,
       completedAt: exec.completedAt,
       output: exec.output,

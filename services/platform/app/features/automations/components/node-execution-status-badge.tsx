@@ -4,50 +4,17 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
-import {
-  AlertCircle,
-  Bug,
-  CheckCircle2,
-  CirclePause,
-  Loader2,
-  XCircle,
-} from 'lucide-react';
 
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
-import type { ExecutionNodeStatus } from '@/convex/workflows/executions/get_execution_step_statuses';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { formatDuration } from '@/lib/utils/format/number';
 
+import { EXECUTION_STATUS_ICONS } from '../utils/execution-status-icons';
 import {
   useNodeExecutionStatus,
   useViewedExecution,
 } from './execution-status-context';
-
-const STATUS_ICONS: Record<
-  ExecutionNodeStatus,
-  { Icon: typeof Loader2; className: string }
-> = {
-  running: {
-    Icon: Loader2,
-    className:
-      'animate-spin motion-reduce:animate-none text-blue-600 dark:text-blue-400',
-  },
-  success: {
-    Icon: CheckCircle2,
-    className: 'text-emerald-600 dark:text-emerald-400',
-  },
-  failed: { Icon: AlertCircle, className: 'text-destructive' },
-  waiting: {
-    Icon: CirclePause,
-    className: 'text-amber-600 dark:text-amber-400',
-  },
-  paused: {
-    Icon: Bug,
-    className: 'text-amber-600 dark:text-amber-400',
-  },
-  canceled: { Icon: XCircle, className: 'text-muted-foreground' },
-};
 
 interface NodeExecutionStatusBadgeProps {
   stepSlug: string;
@@ -73,7 +40,8 @@ export function NodeExecutionStatusBadge({
 
   if (!nodeStatus) return null;
 
-  const { Icon, className: iconClassName } = STATUS_ICONS[nodeStatus.status];
+  const { Icon, className: iconClassName } =
+    EXECUTION_STATUS_ICONS[nodeStatus.status];
   const statusLabel = t(`steps.execution.status.${nodeStatus.status}`);
   const durationMs =
     nodeStatus.completedAt !== undefined && nodeStatus.startedAt !== undefined

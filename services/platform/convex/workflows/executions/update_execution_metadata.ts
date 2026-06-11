@@ -2,8 +2,34 @@
  * Update execution metadata (merge)
  */
 
+import { isRecord } from '../../../lib/utils/type-guards';
 import type { MutationCtx } from '../../_generated/server';
 import type { UpdateExecutionMetadataArgs } from './types';
+
+/**
+ * Merge a patch into an execution's serialized metadata without dropping
+ * existing keys (e.g. `componentWorkflowIds`, which the step-journal loader
+ * depends on). Failure paths must use this instead of replacing the JSON
+ * string wholesale.
+ */
+export function mergeExecutionMetadata(
+  current: string | undefined | null,
+  patch: Record<string, unknown>,
+): string {
+  let parsed: Record<string, unknown> = {};
+  if (current) {
+    try {
+      const value: unknown = JSON.parse(current);
+      if (isRecord(value)) parsed = value;
+    } catch (error) {
+      console.warn(
+        'mergeExecutionMetadata: failed to parse existing metadata, replacing it:',
+        error,
+      );
+    }
+  }
+  return JSON.stringify({ ...parsed, ...patch });
+}
 
 export async function updateExecutionMetadata(
   ctx: MutationCtx,
@@ -11,18 +37,8 @@ export async function updateExecutionMetadata(
 ): Promise<null> {
   const current = await ctx.db.get(args.executionId);
 
-  const currentMetadata =
-    current && 'metadata' in current && current.metadata
-      ? JSON.parse(current.metadata)
-      : {};
-
-  const merged = {
-    ...currentMetadata,
-    ...args.metadata,
-  };
-
   await ctx.db.patch(args.executionId, {
-    metadata: JSON.stringify(merged),
+    metadata: mergeExecutionMetadata(current?.metadata, args.metadata),
     updatedAt: Date.now(),
   });
   return null;

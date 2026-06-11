@@ -13,6 +13,18 @@ export type WorkflowExecution = Doc<'wfExecutions'>;
 export type ExecutionStatus = WorkflowExecution['status'];
 export type ExecutionVariables = Record<string, unknown>;
 
+/**
+ * Coarse run-level failure classification, persisted on `wfExecutions` at the
+ * failure chokepoints. `invalid_input` is reserved for the test-run input
+ * preflight, which currently rejects before an execution record exists.
+ */
+export type ExecutionErrorCode =
+  | 'start_failure'
+  | 'step_failure'
+  | 'timeout'
+  | 'canceled'
+  | 'invalid_input';
+
 export interface DeserializedWorkflowExecution extends Omit<
   WorkflowExecution,
   'workflowConfig' | 'stepsConfig' | 'variables' | 'error'
@@ -31,6 +43,7 @@ export interface UpdateExecutionStatusArgs {
   loopProgress?: { current: number; total: number } | null;
   waitingFor?: string;
   error?: string;
+  errorCode?: ExecutionErrorCode;
 }
 
 export interface CompleteExecutionArgs {
@@ -44,6 +57,7 @@ export interface CompleteExecutionArgs {
 export interface FailExecutionArgs {
   executionId: Doc<'wfExecutions'>['_id'];
   error: string;
+  errorCode?: ExecutionErrorCode;
 }
 
 export interface PatchExecutionArgs {
