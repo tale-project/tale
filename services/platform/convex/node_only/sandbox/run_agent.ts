@@ -19,10 +19,12 @@ import {
   type AgentEvent,
   type AgentSlug,
 } from '@tale/agent-adapters';
+import type { AssistantContent } from 'ai';
 import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
+import { buildAssistantContent } from './agent_message_parts';
 import { sessionExec } from './helpers/session_client';
 
 const PROGRESS_FLUSH_MS = 500;
@@ -64,6 +66,11 @@ export interface RunAgentInSessionResult {
     outputTokens: number;
     costEstimateUsd?: number;
   };
+  /** The turn's full tool-call timeline as AI-SDK assistant content (reasoning +
+   * tool-call/tool-result + final text), for persisting into chat history so a
+   * completed turn's tool calls survive (not just the live, capped op buffer).
+   * A plain string when the turn had no timeline. */
+  assistantContent?: AssistantContent;
 }
 
 /**
@@ -97,6 +104,9 @@ export async function runAgentInSessionImpl(
   // Accumulated progress state.
   let progressText = '';
   const recentEvents: string[] = [];
+  // Full ordered timeline (uncapped, unlike recentEvents) — persisted into the
+  // chat message at turn end so completed turns keep their tool history.
+  const timeline: AgentEvent[] = [];
   let capturedSessionId: string | undefined = args.agentSessionId;
   let finalText: string | undefined;
   let usage: RunAgentInSessionResult['usage'];
@@ -121,7 +131,17 @@ export async function runAgentInSessionImpl(
           };
         }
       }
-      // Keep a rolling tail of non-delta events for the UI.
+      // Durable timeline: every text + tool-use/tool-result, in order (the
+      // pieces buildAssistantContent persists). text-delta is excluded (its
+      // coalesced `text` lands at block end).
+      if (
+        e.type === 'text' ||
+        e.type === 'tool-use' ||
+        e.type === 'tool-result'
+      ) {
+        timeline.push(e);
+      }
+      // Keep a rolling tail of non-delta events for the live UI.
       if (e.type !== 'text-delta') {
         recentEvents.push(JSON.stringify(e));
         if (recentEvents.length > RECENT_EVENTS_CAP) recentEvents.shift();
@@ -199,6 +219,8 @@ export async function runAgentInSessionImpl(
     ...(result.exitCode !== null && { exitCode: result.exitCode }),
   });
 
+  const assistantContent = buildAssistantContent(timeline, finalText ?? '');
+
   return {
     status: result.status,
     exitCode: result.exitCode,
@@ -207,6 +229,7 @@ export async function runAgentInSessionImpl(
     }),
     ...(finalText !== undefined && { finalText }),
     ...(usage !== undefined && { usage }),
+    assistantContent,
   };
 }
 

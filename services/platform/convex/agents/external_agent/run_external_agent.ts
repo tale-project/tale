@@ -276,15 +276,27 @@ export const runExternalAgentTurn = internalAction({
         };
       }
 
-      // 7. Save the agent's final reply into the thread (chat UI renders it).
+      // 7. Save the agent's reply into the thread. Persist the FULL tool-call
+      // timeline as the assistant message content (reasoning + tool-call/
+      // tool-result + final text) so a completed turn keeps its tool history in
+      // chat history (listUIMessages reconstructs the tool-<name> UI parts the
+      // renderer shows). Fall back to plain text when there was no timeline
+      // (trivial turn) or none was produced (errored early).
       const finalText =
         result.finalText ??
         (result.status === 'completed'
           ? 'Agent run completed.'
           : `Agent run ${result.status}.`);
+      const content =
+        result.assistantContent !== undefined &&
+        // a non-empty parts array, or a non-empty string
+        (typeof result.assistantContent !== 'string' ||
+          result.assistantContent.length > 0)
+          ? result.assistantContent
+          : finalText;
       await saveMessage(ctx, components.agent, {
         threadId: args.threadId,
-        message: { role: 'assistant', content: finalText },
+        message: { role: 'assistant', content },
         ...(result.status !== 'completed' && {
           metadata: { status: 'failed', error: `agent ${result.status}` },
         }),

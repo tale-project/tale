@@ -806,6 +806,7 @@ import type * as node_only_integration_sandbox_helpers_url_rewrite from "../node
 import type * as node_only_integration_sandbox_helpers_validate_host from "../node_only/integration_sandbox/helpers/validate_host.js";
 import type * as node_only_integration_sandbox_internal_actions from "../node_only/integration_sandbox/internal_actions.js";
 import type * as node_only_integration_sandbox_types from "../node_only/integration_sandbox/types.js";
+import type * as node_only_sandbox_agent_message_parts from "../node_only/sandbox/agent_message_parts.js";
 import type * as node_only_sandbox_bifrost_admin from "../node_only/sandbox/bifrost_admin.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_helpers_spawner_client from "../node_only/sandbox/helpers/spawner_client.js";
@@ -2211,6 +2212,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/integration_sandbox/helpers/validate_host": typeof node_only_integration_sandbox_helpers_validate_host;
   "node_only/integration_sandbox/internal_actions": typeof node_only_integration_sandbox_internal_actions;
   "node_only/integration_sandbox/types": typeof node_only_integration_sandbox_types;
+  "node_only/sandbox/agent_message_parts": typeof node_only_sandbox_agent_message_parts;
   "node_only/sandbox/bifrost_admin": typeof node_only_sandbox_bifrost_admin;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/helpers/spawner_client": typeof node_only_sandbox_helpers_spawner_client;
