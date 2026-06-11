@@ -45,6 +45,12 @@ export function createDeployCommand(): Command {
       'Non-interactive: auto-accept destructive confirmation prompts (e.g. --override-all)',
       false,
     )
+    .option(
+      '--skip-backup',
+      'Skip the automatic pre-deploy volume snapshot (recovery from a failed ' +
+        'migration then falls back to your own external backups)',
+      false,
+    )
     .action(async (options) => {
       try {
         // `--override` and `--override-all` are semantically incompatible:
@@ -121,6 +127,7 @@ export function createDeployCommand(): Command {
           quiet: options.quiet,
           assumeYes: options.yes,
           forceRecreate,
+          skipBackup: options.skipBackup,
         });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));

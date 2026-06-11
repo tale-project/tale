@@ -5,6 +5,8 @@ import { join } from 'node:path';
 
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { createSnapshot } from '../backup/create-snapshot';
+import { rotateSnapshots } from '../backup/rotate-snapshots';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { generateStatefulCompose } from '../compose/generators/generate-stateful-compose';
@@ -34,7 +36,10 @@ import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
-import { legacyLayoutPreflight } from './legacy-layout-preflight';
+import {
+  detectLegacyDirs,
+  legacyLayoutPreflight,
+} from './legacy-layout-preflight';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
 async function ensureInfrastructure(
@@ -93,6 +98,12 @@ interface DeployOptions {
    * until the next manual restart.
    */
   forceRecreate?: boolean;
+  /**
+   * Skip the pre-deploy volume snapshot. Logged loudly — without the
+   * snapshot, recovery from a failed migration falls back to whatever
+   * external backups the operator maintains.
+   */
+  skipBackup?: boolean;
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
@@ -146,24 +157,67 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const prefix = dryRun ? '[DRY-RUN] ' : '';
       logger.header(`${prefix}Deploying Tale ${version}`);
 
+      // Check if this is a first-time deployment
+      const currentColor = await getCurrentColor(env.DEPLOY_DIR);
+      const isFirstDeploy = currentColor === null;
+
+      // Pre-mutation volume snapshot — the recovery point for forward-only
+      // migrations. Taken before `legacyLayoutPreflight` (the first step
+      // that can mutate state) whenever this deploy can change data: a
+      // version change (new images run implicit migrations on first boot),
+      // a host-config push, or a pending legacy-layout migration. First
+      // deploys have nothing to snapshot yet; snapshot failure aborts the
+      // deploy unless the operator opted out via --skip-backup.
+      if (!isFirstDeploy) {
+        const snapshotPrefix = `${getProjectId()}_`;
+        const runningVersion = await getContainerVersion(
+          `${getProjectId()}-platform-${currentColor}`,
+        );
+        const wouldMutate =
+          runningVersion !== version ||
+          Boolean(options.override) ||
+          Boolean(options.overrideAll) ||
+          detectLegacyDirs(env.DEPLOY_DIR).length > 0;
+        if (wouldMutate) {
+          if (dryRun) {
+            logger.info(
+              `${prefix}Would create pre-deploy volume snapshot in ${snapshotPrefix}backups (and rotate old ones)`,
+            );
+          } else if (options.skipBackup) {
+            logger.warn(
+              '--skip-backup: skipping the pre-deploy volume snapshot — if this deploy migrates data, recovery falls back to your own external backups.',
+            );
+          } else {
+            await createSnapshot({
+              prefix: snapshotPrefix,
+              trigger: 'deploy',
+              platformVersion: runningVersion,
+            });
+            await rotateSnapshots({ prefix: snapshotPrefix });
+          }
+        }
+      }
+
       // Detect-and-migrate on legacy flat layout. Only gates host
       // pushes (`--override` / `--override-all`) — a plain container-
       // rotation deploy has no host-config dependency. The preflight
       // prompts (default-No) and runs `migrateConfigLayout` in place
       // on accept; CI / `--yes` migrates without prompting. Replaces
       // the prior hard-fail-with-runbook flow so legacy projects can
-      // be upgraded in one command.
+      // be upgraded in one command. Snapshot policy: on non-first deploys
+      // the pre-deploy snapshot above already covers this path (a pending
+      // legacy layout is one of its triggers) — pass 'skip'. On a first
+      // deploy a dev stack may still own the convex container the
+      // migration rewrites, so let the preflight auto-resolve a prefix
+      // and snapshot if any data volumes exist.
       if (options.override || options.overrideAll) {
         await legacyLayoutPreflight({
           projectDir: env.DEPLOY_DIR,
           assumeYes: options.assumeYes ?? false,
           context: 'deploy',
+          backup: !isFirstDeploy || options.skipBackup ? 'skip' : {},
         });
       }
-
-      // Check if this is a first-time deployment
-      const currentColor = await getCurrentColor(env.DEPLOY_DIR);
-      const isFirstDeploy = currentColor === null;
 
       // Determine which services to deploy
       let rotatableToUpdate: RotatableService[];

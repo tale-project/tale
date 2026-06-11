@@ -15,12 +15,19 @@ export function createStartCommand(): Command {
         'non-interactive: auto-accept the legacy config-layout migration when detected',
       ),
     )
+    .addOption(
+      new Option(
+        '--skip-backup',
+        'skip the volume snapshot taken before the legacy config-layout migration',
+      ),
+    )
     .action(
       async (opts: {
         detach?: boolean;
         port: string;
         host: string;
         yes?: boolean;
+        skipBackup?: boolean;
       }) => {
         try {
           await start({
@@ -28,6 +35,7 @@ export function createStartCommand(): Command {
             port: Number(opts.port),
             host: opts.host,
             assumeYes: opts.yes,
+            skipBackup: opts.skipBackup,
           });
         } catch (err) {
           logger.error(err instanceof Error ? err.message : String(err));

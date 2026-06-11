@@ -86,10 +86,14 @@ export async function update(options: UpdateOptions): Promise<void> {
   // user-visible deadlock. The preflight prompts in interactive runs
   // and requires `--yes` in non-TTY contexts.
   if (!options.dryRun) {
+    // Snapshot policy {}: auto-resolve the volume prefix (prod volumes win
+    // over dev) and snapshot before the migration touches the convex data
+    // volume; warns and proceeds when no data volumes exist yet.
     await legacyLayoutPreflight({
       projectDir,
       assumeYes: options.assumeYes ?? false,
       context: 'update',
+      backup: {},
     });
   }
 

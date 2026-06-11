@@ -27,6 +27,9 @@ import { join } from 'node:path';
 
 import { confirm } from '../../utils/confirm';
 import * as logger from '../../utils/logger';
+import { createSnapshot } from '../backup/create-snapshot';
+import { resolveSnapshotPrefix } from '../backup/resolve-prefix';
+import { rotateSnapshots } from '../backup/rotate-snapshots';
 import { LEGACY_DOMAIN_DIR_NAMES } from './deploy';
 import { migrateConfigLayout } from './migrate-config-layout';
 
@@ -40,6 +43,15 @@ interface LegacyLayoutPreflightOptions {
    * copy — the migration steps are identical across commands.
    */
   context: 'start' | 'deploy' | 'update';
+  /**
+   * Pre-migration volume snapshot policy. `migrateConfigLayout`'s
+   * container-side phase rewrites the convex data volume, so every caller
+   * must either let the preflight snapshot right before the migration or
+   * state that one was already taken / explicitly skipped (`'skip'` —
+   * deploy snapshots earlier in its own flow; `--skip-backup` opts out).
+   * `volumePrefix` omitted = auto-resolve (prod volumes win over dev).
+   */
+  backup: { volumePrefix?: string; platformVersion?: string | null } | 'skip';
 }
 
 interface LegacyLayoutPreflightResult {
@@ -51,7 +63,7 @@ function isInteractive(): boolean {
   return Boolean(process.stdin.isTTY);
 }
 
-function detectLegacyDirs(projectDir: string): string[] {
+export function detectLegacyDirs(projectDir: string): string[] {
   return [...LEGACY_DOMAIN_DIR_NAMES].filter((d) =>
     existsSync(join(projectDir, d)),
   );
@@ -109,6 +121,27 @@ export async function legacyLayoutPreflight(
         `Aborted: legacy layout still present. Re-run \`tale ${context}\` after migrating ` +
           'manually, or pass `--yes` to migrate non-interactively.',
       );
+    }
+  }
+
+  // Pre-migration volume snapshot: `migrateConfigLayout`'s container-side
+  // phase rewrites the convex data volume, so this is the recovery point
+  // if it goes wrong. Snapshot failure aborts the migration (throws).
+  if (options.backup !== 'skip') {
+    const volumePrefix =
+      options.backup.volumePrefix ?? (await resolveSnapshotPrefix());
+    if (!volumePrefix) {
+      logger.warn(
+        'No Tale data volumes found — skipping the pre-migration snapshot.',
+      );
+    } else {
+      await createSnapshot({
+        prefix: volumePrefix,
+        trigger: context,
+        platformVersion: options.backup.platformVersion ?? null,
+        allowMissingVolumes: true,
+      });
+      await rotateSnapshots({ prefix: volumePrefix });
     }
   }
 

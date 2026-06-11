@@ -1,76 +1,73 @@
 ---
 title: Backups et restauration
-description: Backups Postgres via le volume `db-backup`, ce qu'il faut capturer en plus, et le drill de restauration depuis un dump.
+description: Snapshots de volumes via `tale backup`, le snapshot automatique pré-migration, la rétention, la copie hors-hôte et le drill `tale restore`.
 ---
 
-Le volume Postgres `db-data` est le seul morceau stateful dans une instance Tale qui compte pour les backups. Tout le reste — code Convex, définitions d'agents, fichiers téléversés référencés par la base — est soit re-dérivable depuis le repo source, soit logé sous `convex-data`, qui est principalement un cache. Une histoire de backup qui marche capture Postgres plus le répertoire `providers/` et la config opérateur sous `TALE_CONFIG_DIR`. Cette page est le drill.
+L'unité de backup de Tale est le snapshot de volume : un tar checksummé, pris à containers en pause, de chaque volume de données de l'instance, écrit dans un volume `backups` dédié qui vit à côté des données qu'il protège. La CLI en prend un automatiquement avant toute étape de déploiement qui peut migrer des données, et `tale backup` en prend un à la demande. La récupération, c'est `tale restore <snapshot-id>` plus un redéploiement de la version correspondante — cette paire est la réponse à une montée de version échouée, et la raison pour laquelle `tale rollback` peut se permettre de refuser tout ce qui dépasse un pas de patch.
 
-Le contexte d'architecture vit dans [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) ; cette page couvre le snapshot réel, la copie hors-hôte et le walk de restauration.
+Le contexte d'architecture vit dans [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) ; cette page couvre ce qu'un snapshot contient, quand il est pris, comment la copie quitte l'hôte et le walk de restauration.
 
-## Quoi sauvegarder
+## Ce qu'un snapshot contient
 
-| Chemin                | Source                          | Pourquoi                                              |
-| --------------------- | ------------------------------- | ----------------------------------------------------- |
-| Volume `db-data`      | Données Postgres                | Toute la base — agents, runs, audit, fichiers         |
-| Volume `db-backup`    | Dumps Postgres                  | Où le dump planifié écrit                             |
-| `providers/`          | Clés et config des fournisseurs | Secrets chiffrés et listes de modèles par fournisseur |
-| `${TALE_CONFIG_DIR}/` | Branding, bornes de rétention   | Fichiers de config fixés par l'opérateur              |
-| `.env`                | Toutes les variables d'env      | Requis pour redéployer sur un hôte frais              |
+| Volume                       | Contient                                                  |
+| ---------------------------- | --------------------------------------------------------- |
+| `db-data`                    | Postgres — agents, runs, l'audit log                      |
+| `convex-data`                | Config d'org, secrets de fournisseurs, branding téléversé |
+| `rag-data`                   | L'index vectoriel construit depuis tes documents          |
+| `crawler-data`               | Connaissance web crawlée                                  |
+| `caddy-data`, `caddy-config` | Certificats TLS et état du proxy                          |
 
-Les deux volumes sont gérés par Docker ; le répertoire `providers/` et `TALE_CONFIG_DIR` sont montés dans le conteneur plateforme depuis ton système de fichiers hôte. L'outillage de backup qui snapshotte les disques hôtes capture les trois d'un coup ; les outils volume-aware (`restic`, `velero`) ont besoin des deux.
+Chaque snapshot est un répertoire nommé comme `20260611-142530-deploy` dans le volume `backups` du projet : un `.tar.gz` par volume, un sidecar `.sha256` chacun et un `manifest.json` écrit en dernier. Un répertoire sans manifest est un snapshot incomplet — il n'apparaît jamais dans les listings et ne peut jamais être restauré. Deux choses vivent hors des volumes et demandent une capture séparée : le workspace du projet (le répertoire qui contient `tale.json`) et `.env`.
 
-## Dumps Postgres planifiés
+## Quand les snapshots sont pris
 
-Le conteneur `tale-db` ship un cron job qui écrit un `pg_dump` quotidien vers `/var/lib/postgresql/backup` — monté comme le volume `db-backup`. La rétention par défaut est de sept jours ; les dumps plus vieux sont taillés. Le planning convient à la plupart des équipes ; resserre-le en éditant la crontab du conteneur ou en faisant tourner un sidecar.
+`tale deploy` snapshotte avant sa première étape mutante dès que le déploiement peut changer des données : la version cible diffère de celle qui tourne, un push de config hôte (`--override` / `--override-all`) est demandé, ou une migration de layout legacy est en attente. `tale start` et `tale update` snapshottent juste avant de lancer la migration de layout de config. Pendant que chaque volume est mis en tar, les conteneurs qui l'utilisent sont mis en pause quelques secondes pour que l'archive soit cohérente après crash — une copie à chaud d'un répertoire Postgres en marche n'est pas restaurable.
+
+Un snapshot échoué interrompt le déploiement. `--skip-backup` outrepasse cela sur `tale deploy` et `tale start` — tes propres backups externes deviennent alors le seul chemin de récupération, et c'est exactement pour ça que le flag logge un avertissement bien visible.
 
 ```bash
-# Inspecte les dumps que le conteneur a produits
-docker compose exec db ls -lh /var/lib/postgresql/backup
+# Prendre un snapshot tout de suite
+tale backup
 ```
 
-Chaque dump est un fichier SQL compressé nommé `tale-YYYYMMDD-HHMMSS.sql.gz`. Ils ne sont délibérément pas chiffrés au repos — chiffre-les avec ton outillage de backup existant sur le chemin vers hors-hôte.
+## Rétention
+
+La rotation garde les cinq snapshots les plus récents et tout ce qui date des 14 derniers jours — selon ce qui est le plus généreux. Un snapshot n'est supprimé que s'il est à la fois au-delà de la fenêtre de compte et plus vieux que la fenêtre d'âge ; une instance calme garde donc ses derniers snapshots indéfiniment. Ajuste les fenêtres avec `BACKUP_KEEP_COUNT` et `BACKUP_KEEP_DAYS` dans `.env`.
 
 ## Copie hors-hôte
 
-Le pattern supporté est ton outillage de snapshot existant (Restic, Borg, Velero, snapshots de cloud provider) pointé sur le disque hôte ou les volumes nommés. Tale ne ship pas d'étape d'upload — garder la copie hors-hôte sous ton contrat de backup existant est délibéré.
-
-Un exemple Restic minimal qui écrit le volume de dump vers S3 toutes les heures :
+Les snapshots vivent sur le même hôte que les données qu'ils protègent — un disque mort emporte les deux. Pointe ton outillage de backup existant (Restic, Borg, Velero, snapshots de cloud provider) sur le volume `backups`, et capture le workspace du projet et `.env` dans le même job. Tale n'embarque pas d'étape d'upload — garder la copie hors-hôte sous ton contrat de backup existant est délibéré.
 
 ```bash
-# crontab sur l'hôte
+# crontab sur l'hôte — copie Restic horaire du volume backups vers S3
 0 * * * * restic -r s3:s3.amazonaws.com/bucket/tale backup \
-  /var/lib/docker/volumes/tale_db-backup/_data
+  /var/lib/docker/volumes/<project-id>_backups/_data
 ```
 
-Capture `providers/`, `${TALE_CONFIG_DIR}` et `.env` dans le même job. Le premier drill de restauration te dira si le snapshot couvre ce dont tu avais besoin.
+Trouve le chemin hôte du volume avec `docker volume inspect <project-id>_backups` ; l'id du projet vit dans `tale.json`.
 
-## Restaurer depuis un dump
+## Restaurer un snapshot
 
-La restauration remplace toute la base. Mets d'abord les conteneurs plateforme et convex en bas, restaure Postgres isolément, puis remonte tout.
+`tale restore` sans argument liste ce qui est disponible ; avec un id, il vérifie les checksums, vide les volumes de données et extrait le snapshot. Il refuse tant qu'un conteneur du projet tourne — passe `--stop` pour les arrêter — et demande confirmation avant de toucher à quoi que ce soit.
 
 ```bash
-# 1. Arrête tout ce qui écrit dans la DB
-docker compose stop tale-platform tale-convex
+# Voir ce qui est disponible
+tale restore
 
-# 2. Drop la DB existante et recrée-la vide
-docker compose exec db psql -U tale -c "DROP DATABASE tale;"
-docker compose exec db psql -U tale -c "CREATE DATABASE tale;"
+# Arrêter le stack et restaurer
+tale restore 20260611-142530-deploy --stop
 
-# 3. Pipe le dump en retour
-docker compose exec -T db gunzip -c \
-  /var/lib/postgresql/backup/tale-20250126-020000.sql.gz \
-  | docker compose exec -T db psql -U tale -d tale
-
-# 4. Remonte le reste
-docker compose up -d
+# Remonter le stack sur la version qui correspond aux données
+tale upgrade --version 0.9.6
+tale deploy --all
 ```
 
-La première requête après le redémarrage réchauffe les caches de la plateforme ; attends-toi à ce que l'UI se sente lente la première minute. Les entrées d'audit log font partie du dump, donc l'instance restaurée a tout l'historique.
+Le redéploiement de la version correspondante fait partie de la restauration, ce n'est pas un extra optionnel : le snapshot a capturé les données exactement comme cette version de la plateforme les a laissées, et un binaire plus récent relancerait immédiatement ses migrations dessus. La sortie de la restauration imprime la version exacte enregistrée dans le manifest du snapshot.
 
 ## Drill de restauration
 
-Fais tourner le drill trimestriellement sur un hôte non-production. Le drill n'est pas « le dump existe-t-il » — c'est « un hôte frais peut-il être reconstruit depuis le snapshot et un checkout propre en moins d'une heure ». Les deux modes d'échec que le drill attrape : un snapshot `providers/` manquant (clés de fournisseur disparues), et un `.env` périmé qui ne correspond plus aux exigences du binaire courant.
+Fais tourner le drill trimestriellement sur un hôte non-production. Le drill n'est pas « un snapshot existe-t-il » — c'est « un hôte frais peut-il être reconstruit depuis la copie hors-hôte du volume `backups`, le workspace du projet et `.env` en moins d'une heure ». Les modes d'échec que le drill attrape : un job hors-hôte qui n'a jamais capturé le workspace, et un `.env` périmé qui ne correspond plus aux exigences du binaire courant.
 
 ## Où cela s'inscrit
 
-Les backups sont la partie bon marché ; le drill de restauration est la partie chère, et la seule qui prouve que le backup marche. La checklist de hardening qui nomme les backups comme une ligne vit dans [Durcissement](/fr/self-hosted/operate/security/hardening). Si tu conçois un setup multi-hôte, l'architecture vit dans [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture).
+Les snapshots sont la partie bon marché ; le drill de restauration est ce qui prouve qu'ils marchent, et la règle redéployer-la-version-correspondante est la seule chose à retenir — la récupération n'est jamais « faire reculer le binaire », c'est « restaurer les données et déployer la version à laquelle elles appartiennent ». Le flow de montée de version que ces snapshots protègent vit dans [Montées de version](/fr/self-hosted/operate/upgrades) ; la checklist de durcissement qui nomme les backups comme une ligne est dans [Durcissement](/fr/self-hosted/operate/security/hardening).
