@@ -3,8 +3,9 @@
 import datetime as dt
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import BaseModel, BeforeValidator, Field, field_validator
 
+from .utils.document_metadata import MAX_METADATA_KEYS, validate_metadata_object
 from .utils.folder_path import MAX_FOLDER_PATH_LENGTH, normalize_folder_path
 
 
@@ -17,6 +18,8 @@ def _normalize_folder_path_value(value: object) -> object:
 
 
 NormalizedFolderPath = Annotated[str | None, BeforeValidator(_normalize_folder_path_value)]
+
+MetadataScalar = str | int | float | bool
 
 
 # ============================================================================
@@ -223,8 +226,92 @@ class FolderPathUpdateResponse(BaseModel):
 
 
 # ============================================================================
+# Document Metadata Models
+# ============================================================================
+
+
+class DocumentMetadataUpdate(BaseModel):
+    """A single metadata assignment for an indexed document.
+
+    REPLACES the stored metadata object (no merge) so the platform's
+    canonical record always wins.
+    """
+
+    file_id: str = Field(..., min_length=1, description="File ID whose metadata to update")
+    metadata: dict[str, MetadataScalar] = Field(
+        ...,
+        description=(
+            f"Flat scalar metadata map (max {MAX_METADATA_KEYS} keys). "
+            "Replaces the stored object; pass {} to clear it."
+        ),
+    )
+
+    @field_validator("metadata")
+    @classmethod
+    def _validate_metadata(cls, value: dict[str, Any]) -> dict[str, Any]:
+        return validate_metadata_object(value, allow_lists=False)
+
+
+class DocumentMetadataUpdateRequest(BaseModel):
+    """Batch metadata update for already-indexed documents (#1517).
+
+    Lets the platform stamp filterable metadata onto documents indexed
+    before the metadata column existed — no re-extraction/re-embedding.
+    """
+
+    updates: list[DocumentMetadataUpdate] = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Metadata assignments (max 200 per call)",
+    )
+
+
+class DocumentMetadataUpdateResponse(BaseModel):
+    """Response after a batch metadata update."""
+
+    success: bool = Field(..., description="Whether the operation succeeded")
+    updated_count: int = Field(..., description="Number of document rows updated")
+
+
+# ============================================================================
 # Query Models
 # ============================================================================
+
+
+class SearchFilters(BaseModel):
+    """Structured pre-retrieval filters for /search (#1517).
+
+    Applied inside the org-scoped documents subquery so non-matching
+    documents never enter ranking. All filters are narrowing-only within
+    the authorized `file_ids` scope — never an authorization boundary.
+    """
+
+    folder_path: NormalizedFolderPath = Field(
+        default=None,
+        max_length=MAX_FOLDER_PATH_LENGTH,
+        description=(
+            "Folder path prefix filter (hierarchical, boundary-safe). "
+            "Equivalent to the top-level `folder_path`; this form wins "
+            "when both are set."
+        ),
+    )
+    metadata: dict[str, MetadataScalar | list[MetadataScalar]] | None = Field(
+        default=None,
+        description=(
+            f"Flat metadata filters (max {MAX_METADATA_KEYS} keys). A scalar "
+            "value is an equality test; a list is an IN-test "
+            '(e.g. {"department": "legal", "year": [2023, 2024]}). '
+            "Operators beyond equality/IN (ranges, negation) are not supported."
+        ),
+    )
+
+    @field_validator("metadata")
+    @classmethod
+    def _validate_metadata(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        return validate_metadata_object(value, allow_lists=True)
 
 
 class QueryRequest(BaseModel):
@@ -254,6 +341,27 @@ class QueryRequest(BaseModel):
             "within the file_ids scope; it is not an authorization boundary."
         ),
     )
+    filters: SearchFilters | None = Field(
+        default=None,
+        description=(
+            "Structured pre-retrieval filters (folder_path + metadata). "
+            "Supersedes the flat `folder_path` field, which remains "
+            "supported for backward compatibility."
+        ),
+    )
+
+    @property
+    def effective_folder_path(self) -> str | None:
+        """`filters.folder_path` wins over the legacy flat field."""
+        if self.filters and self.filters.folder_path:
+            return self.filters.folder_path
+        return self.folder_path
+
+    @property
+    def metadata_filters(self) -> dict[str, Any] | None:
+        if self.filters and self.filters.metadata:
+            return self.filters.metadata
+        return None
 
 
 class SearchResult(BaseModel):

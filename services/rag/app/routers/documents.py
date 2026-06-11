@@ -28,6 +28,8 @@ from ..models import (
     DocumentCompareResponse,
     DocumentContentResponse,
     DocumentDeleteResponse,
+    DocumentMetadataUpdateRequest,
+    DocumentMetadataUpdateResponse,
     DocumentStatusInfo,
     DocumentStatusRequest,
     DocumentStatusResponse,
@@ -38,6 +40,7 @@ from ..secret_scanner import scan_file_for_secrets
 from ..services.database import SCHEMA, get_pool
 from ..services.rag_service import rag_service
 from ..utils import cleanup_memory
+from ..utils.document_metadata import sanitize_document_metadata
 from ..utils.folder_path import MAX_FOLDER_PATH_LENGTH, normalize_folder_path
 
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
@@ -139,30 +142,33 @@ async def _insert_processing_row(
     file_id: str,
     filename: str,
     folder_path: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     """Insert a processing status row at ingestion start (scoped to org).
 
-    `folder_path` is written here (insert AND conflict-update) because this
-    upsert runs unconditionally per upload — the later `_do_store` /
-    `_do_clone` upserts never touch the column, and `_do_store` skips its
-    UPDATE entirely when content is unchanged.
+    `folder_path` and `metadata` are written here (insert AND
+    conflict-update) because this upsert runs unconditionally per upload —
+    the later `_do_store` / `_do_clone` upserts never touch the columns,
+    and `_do_store` skips its UPDATE entirely when content is unchanged.
     """
     pool = await get_pool()
     async with acquire_with_retry(pool) as conn:
         await conn.execute(
             f"""
-            INSERT INTO {SCHEMA}.documents (org_slug, file_id, filename, status, folder_path)
-            VALUES ($1, $2, $3, 'processing', $4)
+            INSERT INTO {SCHEMA}.documents (org_slug, file_id, filename, status, folder_path, metadata)
+            VALUES ($1, $2, $3, 'processing', $4, $5::jsonb)
             ON CONFLICT (org_slug, file_id)
             DO UPDATE SET status = 'processing', error = NULL, chunks_count = 0,
                          progress_phase = NULL, progress_detail = NULL,
                          folder_path = EXCLUDED.folder_path,
+                         metadata = EXCLUDED.metadata,
                          updated_at = NOW()
             """,
             org_slug,
             file_id,
             filename,
             folder_path,
+            json.dumps(metadata or {}),
         )
 
 
@@ -403,9 +409,11 @@ async def upload_document(
             )
             folder_path = None
 
+        document_metadata = sanitize_document_metadata(parsed_metadata)
+
         doc_id = file_id or f"file-{uuid4().hex}"
 
-        await _insert_processing_row(org_slug, doc_id, file.filename, folder_path)
+        await _insert_processing_row(org_slug, doc_id, file.filename, folder_path, document_metadata)
 
         if sync:
             try:
@@ -512,6 +520,58 @@ async def update_folder_paths(
         updated_count = 0
 
     return FolderPathUpdateResponse(success=True, updated_count=updated_count)
+
+
+@router.patch("/documents/metadata", response_model=DocumentMetadataUpdateResponse)
+async def update_document_metadata(
+    request: DocumentMetadataUpdateRequest,
+    org_slug: str = Depends(require_org_slug),
+):
+    """Batch-update the filterable metadata on indexed documents (#1517).
+
+    REPLACES each document's stored metadata object with the supplied map
+    (no merge) — the platform's canonical record always wins. Lets the
+    platform stamp metadata onto documents indexed before the column
+    existed, without re-extraction or re-embedding. Scoped to the caller's
+    org; foreign-org file_ids update zero rows. Metadata is a narrowing
+    filter only, so a missed update degrades filter precision but never
+    authorization.
+    """
+    # Last occurrence wins for duplicate file_ids so the UPDATE ... FROM
+    # join below stays deterministic.
+    deduped: dict[str, str] = {u.file_id: json.dumps(u.metadata) for u in request.updates}
+    file_ids = list(deduped.keys())
+    metadata_values = list(deduped.values())
+
+    try:
+        pool = await get_pool()
+        async with acquire_with_retry(pool) as conn:
+            tag = await conn.execute(
+                f"""
+                UPDATE {SCHEMA}.documents d
+                SET metadata = u.metadata::jsonb, updated_at = NOW()
+                FROM unnest($2::text[], $3::text[]) AS u(file_id, metadata)
+                WHERE d.org_slug = $1 AND d.file_id = u.file_id
+                """,
+                org_slug,
+                file_ids,
+                metadata_values,
+            )
+    except Exception as e:
+        logger.error("Failed to update document metadata: {}", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update document metadata. Please try again.",
+        ) from e
+
+    # asyncpg returns a command tag like "UPDATE 3".
+    try:
+        updated_count = int(tag.rsplit(" ", 1)[-1])
+    except (ValueError, AttributeError):
+        logger.warning("Unexpected command tag from metadata update: {!r}", tag)
+        updated_count = 0
+
+    return DocumentMetadataUpdateResponse(success=True, updated_count=updated_count)
 
 
 @router.delete("/documents/{file_id}", response_model=DocumentDeleteResponse)

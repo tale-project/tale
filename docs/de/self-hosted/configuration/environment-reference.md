@@ -87,6 +87,22 @@ Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jede
 | `FILE_EVENTS_ENABLED`           | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Integration.                                                                        |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Kommagetrennte E-Mail-Allowlist der Operatoren, die die Datenresidenz bearbeiten dürfen. Leer/nicht gesetzt = nur lesend für alle Admins. |
 
+## RAG-Retrieval-Tuning
+
+Optionale Stellschrauben für die Such-Pipeline des RAG-Service. Alle tragen das `RAG_`-Präfix und werden vom `tale-rag`-Container beim Boot gelesen; nach einer Änderung führe `docker compose restart tale-rag` aus, damit sie wirkt.
+
+| Name                         | Default                                | Beschreibung                                                                                                                                                  |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RAG_RERANKING_ENABLED`      | `false`                                | Bewertet die zusammengeführten BM25- und Vektor-Kandidaten mit einem Cross-Encoder neu, bevor Ergebnisse zurückkommen. Mehr Präzision, mehr Latenz pro Query. |
+| `RAG_RERANKING_MODEL`        | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-Encoder-Modellkennung. Der `local`-Provider lädt sie bei der ersten Nutzung von Hugging Face (rund 90 MB, gecacht im `rag-data`-Volume).                |
+| `RAG_RERANKING_PROVIDER`     | `local`                                | `local` führt das Modell auf der CPU im RAG-Container aus; `api` schickt die Kandidaten an einen externen `/rerank`-Endpoint (Cohere/Jina-kompatibel).        |
+| `RAG_RERANKING_TOP_K`        | `10`                                   | Maximale Anzahl Ergebnisse, die der Reranker zurückgibt. Die Antwort übersteigt nie das `top_k` der Anfrage.                                                  |
+| `RAG_RERANKING_CANDIDATES`   | `30`                                   | Grösse des Kandidaten-Pools für den Reranker. Ein breiterer Pool verbessert die Neubewertung und kostet proportional mehr Zeit pro Query.                     |
+| `RAG_RERANKING_API_BASE_URL` | unset                                  | Basis-URL für `provider=api`; der Service ruft `{base_url}/rerank` auf. Pflicht, wenn der Provider `api` ist.                                                 |
+| `RAG_RERANKING_API_KEY`      | unset                                  | Bearer-Token für den externen Rerank-Endpoint. Unset lassen für unauthentifizierte Endpoints.                                                                 |
+
+Re-Ranking ist standardmässig deaktiviert, weil der lokale Cross-Encoder Speicher kostet (das ~90-MB-Modell bleibt resident) und Latenz pro Query addiert (grob 5–15 ms pro Kandidat auf der CPU). Aktiviere es, wenn Retrieval-Präzision wichtiger ist als Antwortzeit, und bevorzuge `provider=api`, wenn du bereits einen gehosteten Rerank-Service betreibst. Air-Gapped-Deployments müssen den Hugging-Face-Cache im `rag-data`-Volume vorbefüllen — sonst versucht die erste neu bewertete Query, das Modell herunterzuladen, und fällt auf das einfache Hybrid-Ranking zurück.
+
 ## Sitzungen
 
 | Name                           | Default | Beschreibung                                                                                                                                                                                                                     |

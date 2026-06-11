@@ -213,19 +213,23 @@ describe('uploadDocument', () => {
     expect(callArgs.file).toBeInstanceOf(Blob);
   });
 
-  describe('folder path resolution', () => {
-    it('resolves folder_path from the linked Hub document', async () => {
+  describe('folder path and metadata resolution', () => {
+    function createLinkedDocCtx(document: Record<string, unknown> | null) {
       // runQuery order: getByStorageId → getDocumentByIdRaw → org row.
-      const ctx = {
+      return {
         storage: {
           getUrl: vi.fn().mockResolvedValue('https://storage.example.com/file'),
         },
         runQuery: vi
           .fn()
           .mockResolvedValueOnce({ ...DEFAULT_METADATA, documentId: 'doc-1' })
-          .mockResolvedValueOnce({ folderPath: 'contracts/2024' })
+          .mockResolvedValueOnce(document)
           .mockResolvedValueOnce(DEFAULT_ORG_ROW),
       };
+    }
+
+    it('resolves folder_path from the linked Hub document', async () => {
+      const ctx = createLinkedDocCtx({ folderPath: 'contracts/2024' });
       mockFetchOk();
 
       await uploadDocument(ctx as never, FILE_ID);
@@ -237,24 +241,14 @@ describe('uploadDocument', () => {
       );
     });
 
-    it('explicit folderPath option wins and skips the document lookup', async () => {
-      const ctx = {
-        storage: {
-          getUrl: vi.fn().mockResolvedValue('https://storage.example.com/file'),
-        },
-        runQuery: vi
-          .fn()
-          .mockResolvedValueOnce({ ...DEFAULT_METADATA, documentId: 'doc-1' })
-          .mockResolvedValueOnce(DEFAULT_ORG_ROW),
-      };
+    it('explicit folderPath option wins over the document folderPath', async () => {
+      const ctx = createLinkedDocCtx({ folderPath: 'contracts/2024' });
       mockFetchOk();
 
       await uploadDocument(ctx as never, FILE_ID, {
         folderPath: '/reports/',
       });
 
-      // Only two runQuery calls: getByStorageId + org row (no doc lookup).
-      expect(ctx.runQuery).toHaveBeenCalledTimes(2);
       expect(uploadFileMock).toHaveBeenCalledWith(
         expect.objectContaining({
           metadata: expect.objectContaining({ folder_path: 'reports' }),
@@ -262,33 +256,47 @@ describe('uploadDocument', () => {
       );
     });
 
-    it('omits folder_path when the file has no linked document', async () => {
+    it('stamps team_id, source_provider, and extension from the Hub document', async () => {
+      const ctx = createLinkedDocCtx({
+        folderPath: 'contracts',
+        teamId: 'team-7',
+        sourceProvider: 'onedrive',
+        extension: 'docx',
+      });
+      mockFetchOk();
+
+      await uploadDocument(ctx as never, FILE_ID);
+
+      expect(uploadFileMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: {
+            folder_path: 'contracts',
+            team_id: 'team-7',
+            source_provider: 'onedrive',
+            extension: 'docx',
+          },
+        }),
+      );
+    });
+
+    it('derives extension from the filename when the file has no linked document', async () => {
       const ctx = createCtx();
       mockFetchOk();
 
       await uploadDocument(ctx as never, FILE_ID);
 
       const callArgs = uploadFileMock.mock.calls[0][0];
-      expect(callArgs.metadata).toBeUndefined();
+      expect(callArgs.metadata).toEqual({ extension: 'pdf' });
     });
 
-    it('omits folder_path when the linked document has none', async () => {
-      const ctx = {
-        storage: {
-          getUrl: vi.fn().mockResolvedValue('https://storage.example.com/file'),
-        },
-        runQuery: vi
-          .fn()
-          .mockResolvedValueOnce({ ...DEFAULT_METADATA, documentId: 'doc-1' })
-          .mockResolvedValueOnce({ folderPath: undefined })
-          .mockResolvedValueOnce(DEFAULT_ORG_ROW),
-      };
+    it('omits folder_path and team fields when the linked document has none', async () => {
+      const ctx = createLinkedDocCtx({ folderPath: undefined });
       mockFetchOk();
 
       await uploadDocument(ctx as never, FILE_ID);
 
       const callArgs = uploadFileMock.mock.calls[0][0];
-      expect(callArgs.metadata).toBeUndefined();
+      expect(callArgs.metadata).toEqual({ extension: 'pdf' });
     });
   });
 });

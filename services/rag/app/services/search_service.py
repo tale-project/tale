@@ -2,8 +2,9 @@
 
 BM25 full-text (pg_search) + pgvector similarity with RRF fusion.
 Per-tenant scoping by `org_slug` (always applied), optional further
-restriction by `file_ids` and a hierarchical `folder_path` prefix.
-Optional semantic caching and cross-encoder re-ranking.
+restriction by `file_ids`, a hierarchical `folder_path` prefix, and
+flat document-metadata filters. Optional semantic caching and
+cross-encoder re-ranking.
 """
 
 from __future__ import annotations
@@ -25,6 +26,35 @@ from .semantic_cache import SemanticCache
 
 SCHEMA = "private_knowledge"
 
+# Process-wide reranker singleton. `RagSearchService` is constructed per org
+# (rag_service._build_or_refresh_org_clients), so holding the Reranker on the
+# instance would load one cross-encoder copy (~90 MB for the default model)
+# per org. The model is org-independent — share one lazily-built instance.
+_shared_reranker: Reranker | None = None
+
+
+def _get_shared_reranker() -> Reranker:
+    global _shared_reranker
+    if _shared_reranker is None:
+        _shared_reranker = Reranker(
+            model_name=settings.reranking_model,
+            provider=settings.reranking_provider,
+            api_base_url=settings.reranking_api_base_url,
+            api_key=settings.reranking_api_key,
+        )
+    return _shared_reranker
+
+
+def _jsonb_scalar_text(value: Any) -> str:
+    """Render a scalar the way Postgres `jsonb ->> key` renders it.
+
+    Strings are unquoted; numbers and booleans use their JSON text form
+    (`true`, `2023`, `2.5`) so IN-list comparisons match the stored value.
+    """
+    if isinstance(value, str):
+        return value
+    return json.dumps(value)
+
 
 async def _timed(name: str, coro: Any) -> Any:
     t = time.time()
@@ -41,14 +71,7 @@ class RagSearchService:
         self._pool = pool
         self._embedding = embedding_service
         self._semantic_cache: SemanticCache | None = SemanticCache(pool) if settings.semantic_cache_enabled else None
-        self._reranker: Reranker | None = (
-            Reranker(
-                model_name=settings.reranking_model,
-                provider=settings.reranking_provider,
-            )
-            if settings.reranking_enabled
-            else None
-        )
+        self._reranker: Reranker | None = _get_shared_reranker() if settings.reranking_enabled else None
 
     async def search(
         self,
@@ -57,6 +80,7 @@ class RagSearchService:
         *,
         file_ids: list[str] | None = None,
         folder_path: str | None = None,
+        metadata_filters: dict[str, Any] | None = None,
         top_k: int = 10,
         similarity_threshold: float = 0.0,
     ) -> tuple[list[dict[str, Any]], EmbeddingUsage]:
@@ -73,6 +97,10 @@ class RagSearchService:
                 (normalized, no surrounding slashes). Pure narrowing within
                 the already-authorized file_ids scope — never an
                 authorization boundary.
+            metadata_filters: Optional flat document-metadata filters
+                (scalar equality or IN-list per key) applied pre-retrieval
+                in the documents subquery. Same narrowing-only semantics
+                as folder_path.
             top_k: Maximum number of results to return.
             similarity_threshold: Minimum cosine similarity for vector results.
                 Results below this threshold are discarded before RRF merge.
@@ -90,7 +118,14 @@ class RagSearchService:
                 _timed("embed", self._embedding.embed_query_with_usage(query)),
                 _timed(
                     "fts",
-                    self._fts_search(query, org_slug, file_ids, top_k * 3, folder_path=folder_path),
+                    self._fts_search(
+                        query,
+                        org_slug,
+                        file_ids,
+                        top_k * 3,
+                        folder_path=folder_path,
+                        metadata_filters=metadata_filters,
+                    ),
                 ),
             )
             query_embedding = query_result.embedding
@@ -99,10 +134,10 @@ class RagSearchService:
 
             # Semantic cache: check for a cached result before vector search.
             # Cache is org-scoped — see SemanticCache.lookup. Bypassed (both
-            # lookup and store) for folder-filtered queries: the cache key is
-            # (org_slug, embedding) only, so a folder-scoped query would hit
-            # unfiltered cached results and vice versa.
-            if self._semantic_cache and query_embedding and not folder_path:
+            # lookup and store) for filtered queries (folder_path / metadata):
+            # the cache key is (org_slug, embedding) only, so a filtered query
+            # would hit unfiltered cached results and vice versa.
+            if self._semantic_cache and query_embedding and not folder_path and not metadata_filters:
                 cache_t0 = time.time()
                 cached = await self._semantic_cache.lookup(
                     org_slug,
@@ -122,7 +157,12 @@ class RagSearchService:
 
             vec_t0 = time.time()
             vector_results = await self._vector_search(
-                query_embedding, org_slug, file_ids, top_k * 3, folder_path=folder_path
+                query_embedding,
+                org_slug,
+                file_ids,
+                top_k * 3,
+                folder_path=folder_path,
+                metadata_filters=metadata_filters,
             )
             vec_ms = (time.time() - vec_t0) * 1000
             logger.debug("PERF vector search: {:.1f}ms", vec_ms)
@@ -148,7 +188,11 @@ class RagSearchService:
             if not fts_results and not vector_results:
                 return [], usage
 
-            merged = merge_rrf([fts_results, vector_results], top_k)
+            # When reranking is enabled, keep a wider RRF pool so the
+            # cross-encoder actually re-scores candidates beyond the
+            # response size instead of merely reordering the final top_k.
+            rrf_pool_size = max(top_k, settings.reranking_candidates) if self._reranker else top_k
+            merged = merge_rrf([fts_results, vector_results], rrf_pool_size)
 
             if settings.recency_boost_enabled:
                 _apply_recency_boost(
@@ -169,13 +213,22 @@ class RagSearchService:
                     {"content": (item.get("core_content") or item.get("chunk_content") or ""), **item}
                     for item in merged
                 ]
-                merged = await self._reranker.rerank(
-                    query,
-                    rerank_input,
-                    top_k=settings.reranking_top_k,
-                )
+                try:
+                    merged = await self._reranker.rerank(
+                        query,
+                        rerank_input,
+                        top_k=min(top_k, settings.reranking_top_k),
+                    )
+                except Exception as rerank_exc:
+                    # Missing sentence-transformers, model download/load
+                    # failure, … must degrade to RRF order — never 500
+                    # the /search route.
+                    logger.warning("Re-ranking failed, falling back to RRF order: {}", rerank_exc)
+                    merged = merged[:top_k]
                 rerank_ms = (time.time() - rerank_t0) * 1000
                 logger.debug("PERF reranking: {:.1f}ms", rerank_ms)
+            else:
+                merged = merged[:top_k]
 
             results = [
                 {
@@ -190,8 +243,8 @@ class RagSearchService:
             ]
 
             # Semantic cache: store results for future lookups (org-scoped).
-            # Folder-filtered results are never stored — see the lookup bypass.
-            if self._semantic_cache and query_embedding and results and not folder_path:
+            # Filtered results are never stored — see the lookup bypass.
+            if self._semantic_cache and query_embedding and results and not folder_path and not metadata_filters:
                 result_file_ids = [r["file_id"] for r in results if r.get("file_id")]
                 await self._semantic_cache.store(
                     org_slug,
@@ -225,7 +278,12 @@ class RagSearchService:
                 if query_embedding is None:
                     query_embedding = await self._embedding.embed_query(query)
                 vector_results = await self._vector_search(
-                    query_embedding, org_slug, file_ids, top_k, folder_path=folder_path
+                    query_embedding,
+                    org_slug,
+                    file_ids,
+                    top_k,
+                    folder_path=folder_path,
+                    metadata_filters=metadata_filters,
                 )
                 results = [
                     {
@@ -247,16 +305,16 @@ class RagSearchService:
         file_ids: list[str] | None,
         param_offset: int,
         folder_path: str | None = None,
+        metadata_filters: dict[str, Any] | None = None,
     ) -> tuple[str, list[Any]]:
         """Build WHERE clause for per-tenant + optional per-document scoping.
 
         `org_slug` is ALWAYS added as `AND c.org_slug = $N`. Document-level
-        filters (`file_ids`, `folder_path`) are collected into a condition
-        list applied through a single documents subquery that is itself
-        org-scoped (defense in depth — even if the outer chunks filter were
-        ever bypassed by a code mistake, the inner documents lookup also has
-        the org filter). #1517's generic metadata filters extend the same
-        condition list.
+        filters (`file_ids`, `folder_path`, `metadata_filters`) are collected
+        into a condition list applied through a single documents subquery
+        that is itself org-scoped (defense in depth — even if the outer
+        chunks filter were ever bypassed by a code mistake, the inner
+        documents lookup also has the org filter).
 
         `folder_path` is a boundary-safe hierarchical prefix: it matches the
         folder itself and any descendant ('data-room' matches
@@ -264,6 +322,13 @@ class RagSearchService:
         `left()` comparison avoids LIKE-pattern escaping for user-supplied
         paths; it is not index-sargable, which is acceptable because the
         subquery is already org- and file_ids-bounded.
+
+        `metadata_filters` is a flat map over `documents.metadata` (JSONB).
+        Scalar values become one combined `metadata @> $N::jsonb` containment
+        (GIN-indexable); list values become per-key
+        `metadata->>$K = ANY($V)` IN-tests against the jsonb text
+        representation. Keys and values are always bound parameters — never
+        interpolated into the SQL string.
         """
         org_param = param_offset + 1
         clause = f" AND c.org_slug = ${org_param}"
@@ -280,6 +345,18 @@ class RagSearchService:
                 f"(folder_path = {folder_param} "
                 f"OR left(folder_path, char_length({folder_param}) + 1) = {folder_param} || '/')"
             )
+        if metadata_filters:
+            equality = {key: value for key, value in metadata_filters.items() if not isinstance(value, list)}
+            if equality:
+                params.append(json.dumps(equality))
+                doc_conditions.append(f"metadata @> ${param_offset + len(params)}::jsonb")
+            for key, values in metadata_filters.items():
+                if not isinstance(values, list):
+                    continue
+                params.append(key)
+                key_param = param_offset + len(params)
+                params.append([_jsonb_scalar_text(v) for v in values])
+                doc_conditions.append(f"metadata->>${key_param} = ANY(${param_offset + len(params)})")
 
         if doc_conditions:
             clause += (
@@ -307,8 +384,11 @@ class RagSearchService:
         file_ids: list[str] | None,
         limit: int,
         folder_path: str | None = None,
+        metadata_filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        tenant_clause, tenant_params = self._build_scope_clause(org_slug, file_ids, 1, folder_path=folder_path)
+        tenant_clause, tenant_params = self._build_scope_clause(
+            org_slug, file_ids, 1, folder_path=folder_path, metadata_filters=metadata_filters
+        )
 
         sql = f"""
             SELECT c.id, c.chunk_content, c.core_content, c.chunk_index, c.document_id,
@@ -342,9 +422,12 @@ class RagSearchService:
         file_ids: list[str] | None,
         limit: int,
         folder_path: str | None = None,
+        metadata_filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         vec_str = json.dumps(embedding)
-        tenant_clause, tenant_params = self._build_scope_clause(org_slug, file_ids, 1, folder_path=folder_path)
+        tenant_clause, tenant_params = self._build_scope_clause(
+            org_slug, file_ids, 1, folder_path=folder_path, metadata_filters=metadata_filters
+        )
 
         sql = f"""
             SELECT c.id, c.chunk_content, c.core_content, c.chunk_index, c.document_id,

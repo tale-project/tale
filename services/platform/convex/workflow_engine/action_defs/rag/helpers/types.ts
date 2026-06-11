@@ -1,3 +1,5 @@
+import type { RagMetadataFilters } from '../../../../lib/helpers/rag_metadata_filters';
+
 /**
  * RAG Action Parameters
  */
@@ -25,6 +27,18 @@ export type RagActionParams =
       fileIds: string[];
       topK?: number;
       similarityThreshold?: number;
+      /**
+       * Hierarchical Document Hub folder prefix filter
+       * (`parent/child`, no leading slash). Narrowing-only — `fileIds`
+       * stays the authorization boundary.
+       */
+      folderPath?: string;
+      /**
+       * Flat metadata pre-filters (scalar = equality, list = IN), e.g.
+       * `{ department: 'legal', year: [2023, 2024] }`. Applied before
+       * ranking on the RAG side.
+       */
+      metadataFilters?: RagMetadataFilters;
     }
   | {
       operation: 'get_chunks';

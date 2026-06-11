@@ -59,11 +59,18 @@ class Settings(BaseServiceSettings):
     semantic_cache_similarity_threshold: float = 0.95
     semantic_cache_ttl_hours: int = 24
 
-    # Re-ranking (cross-encoder)
+    # Re-ranking (cross-encoder). `provider="local"` needs the optional
+    # `reranking` dependency extra (sentence-transformers); `provider="api"`
+    # posts to `{reranking_api_base_url}/rerank` (Cohere/Jina-compatible
+    # contract). `reranking_candidates` is the RRF pool size fed to the
+    # reranker so it re-scores a wider set than the returned top_k.
     reranking_enabled: bool = False
     reranking_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     reranking_top_k: int = 10
     reranking_provider: str = "local"
+    reranking_api_base_url: str | None = None
+    reranking_api_key: str | None = None
+    reranking_candidates: int = 30
 
     # Feature Flags
     enable_metrics: bool = True

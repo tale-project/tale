@@ -9,6 +9,7 @@ import { stripReservedPromptTags } from '../../../lib/agent_response/sanitize_pr
 import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { ragFetch } from '../../../lib/helpers/rag_config';
+import { buildRagSearchFilters } from '../../../lib/helpers/rag_metadata_filters';
 import { toId } from '../../../lib/type_cast_helpers';
 import { wrapUntrusted } from '../../../lib/untrusted_content';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
@@ -70,6 +71,18 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       fileIds: v.array(v.string()),
       topK: v.optional(v.number()),
       similarityThreshold: v.optional(v.number()),
+      folderPath: v.optional(v.string()),
+      metadataFilters: v.optional(
+        v.record(
+          v.string(),
+          v.union(
+            v.string(),
+            v.number(),
+            v.boolean(),
+            v.array(v.union(v.string(), v.number(), v.boolean())),
+          ),
+        ),
+      ),
     }),
     v.object({
       operation: v.literal('get_chunks'),
@@ -171,6 +184,13 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           migratedParams.fileIds,
         );
         const orgSlug = await orgSlugFromId(ctx, orgId);
+        // Pre-retrieval narrowing filters (#1517): folder prefix +
+        // flat metadata equality/IN. Narrowing-only — `fileIds` (gated
+        // above) stays the authorization boundary.
+        const searchFilters = buildRagSearchFilters({
+          folderPath: migratedParams.folderPath,
+          metadata: migratedParams.metadataFilters,
+        });
         try {
           const response = await ragFetch('/api/v1/search', {
             method: 'POST',
@@ -181,6 +201,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
               top_k: migratedParams.topK ?? 10,
               similarity_threshold: migratedParams.similarityThreshold ?? 0.0,
               include_metadata: true,
+              ...(searchFilters ? { filters: searchFilters } : {}),
             }),
             timeoutMs: SEARCH_TIMEOUT_MS,
             orgSlug,

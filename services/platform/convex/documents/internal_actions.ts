@@ -943,6 +943,75 @@ export const syncRagFolderPaths = internalAction({
 });
 
 /**
+ * Best-effort sync of filterable document metadata (team_id /
+ * source_provider / extension) to the RAG service via
+ * `PATCH /api/v1/documents/metadata` (no re-extraction/re-embedding).
+ * Replaces each document's stored metadata object with the supplied map.
+ *
+ * Metadata on the RAG side is a narrowing filter only — `file_ids`
+ * stays the authorization boundary — so a failed sync degrades filter
+ * precision but never leaks anything. Warn-and-skip on failure.
+ */
+export const syncRagDocumentMetadata = internalAction({
+  args: {
+    organizationId: v.string(),
+    updates: v.array(
+      v.object({
+        fileId: v.id('_storage'),
+        /** Flat scalar map; replaces the stored object ({} clears it). */
+        metadata: v.record(
+          v.string(),
+          v.union(v.string(), v.number(), v.boolean()),
+        ),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    if (args.updates.length === 0) return null;
+
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[syncRagDocumentMetadata] org ${args.organizationId} unresolvable; skipping metadata sync for ${args.updates.length} file(s)`,
+      );
+      return null;
+    }
+
+    for (let i = 0; i < args.updates.length; i += FOLDER_PATH_SYNC_BATCH_SIZE) {
+      const batch = args.updates.slice(i, i + FOLDER_PATH_SYNC_BATCH_SIZE);
+      try {
+        const response = await ragFetch('/api/v1/documents/metadata', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            updates: batch.map((u) => ({
+              file_id: u.fileId,
+              metadata: u.metadata,
+            })),
+          }),
+          timeoutMs: 30_000,
+          orgSlug,
+        });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          console.warn(
+            `[syncRagDocumentMetadata] RAG metadata sync failed (${response.status}) for ${batch.length} file(s): ${errorText.slice(0, 200)}`,
+          );
+        }
+      } catch (error) {
+        console.warn(
+          '[syncRagDocumentMetadata] Error syncing document metadata to RAG:',
+          error,
+        );
+      }
+    }
+
+    return null;
+  },
+});
+
+/**
  * Store raw string content (e.g. HTML) directly as a file in Convex storage.
  * Used by tools that generate content locally without the crawler service.
  */
