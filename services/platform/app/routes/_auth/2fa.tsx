@@ -107,6 +107,33 @@ function TwoFactorVerifyPage() {
     }
   }
 
+  // Passkey escape hatch at the 2FA wall (#1508): a WebAuthn sign-in is
+  // itself phishing-resistant strong auth, so completing the ceremony
+  // issues a full session that supersedes the pending password+TOTP
+  // half-state (the stale `two_factor` cookie is simply never consumed).
+  // Same handler shape as `handlePasskeyLogin` on the log-in page.
+  async function handlePasskeySignIn() {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await authClient.signIn.passkey();
+      if (res?.error) {
+        setError(t('verify.passkeyFailed'));
+        return;
+      }
+      await queryClient
+        .invalidateQueries({ queryKey: ['auth', 'session'] })
+        .catch(() => undefined);
+      void navigate({ to: redirectTo || '/dashboard' });
+    } catch {
+      // Thrown when the user dismisses the prompt or has no matching passkey.
+      setError(t('verify.passkeyFailed'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <AuthFormLayout title={t('verify.title')}>
       <Stack gap={6}>
@@ -161,6 +188,14 @@ function TwoFactorVerifyPage() {
               {useBackup
                 ? t('verify.useAuthenticatorToggle')
                 : t('verify.useBackupCodeToggle')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handlePasskeySignIn}
+              disabled={submitting}
+            >
+              {t('verify.usePasskeyButton')}
             </Button>
           </Stack>
         </Form>

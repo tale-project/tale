@@ -40,6 +40,62 @@ export async function userHasPasskey(
   return (res?.page?.length ?? 0) > 0;
 }
 
+export interface MemberRecord {
+  memberId: string;
+  organizationId: string;
+  userId: string;
+  role: string | undefined;
+}
+
+/**
+ * Resolve a better-auth `member` row by its id. Shared by the admin-facing
+ * 2FA reset / passkey revoke mutations and the admin passkey list query —
+ * typed for both ctx kinds so queries can reuse it.
+ */
+export async function findMember(
+  ctx: QueryCtx | MutationCtx,
+  memberId: string,
+): Promise<MemberRecord | null> {
+  const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+    model: 'member',
+    paginationOpts: { cursor: null, numItems: 1 },
+    where: [{ field: '_id', value: memberId, operator: 'eq' }],
+  });
+  const raw = res?.page?.[0];
+  if (!isRecord(raw)) return null;
+  const organizationId = getString(raw, 'organizationId');
+  const userId = getString(raw, 'userId');
+  if (!organizationId || !userId) return null;
+  return {
+    memberId,
+    organizationId,
+    userId,
+    role: getString(raw, 'role')?.toLowerCase(),
+  };
+}
+
+/**
+ * The caller's own membership in `organizationId`, for the
+ * lookup-then-check authorization pattern (see `resetForUser`).
+ */
+export async function findCallerMembership(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: string,
+  callerUserId: string,
+): Promise<{ role: string | undefined } | null> {
+  const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+    model: 'member',
+    paginationOpts: { cursor: null, numItems: 1 },
+    where: [
+      { field: 'organizationId', value: organizationId, operator: 'eq' },
+      { field: 'userId', value: callerUserId, operator: 'eq' },
+    ],
+  });
+  const raw = res?.page?.[0];
+  if (!isRecord(raw)) return null;
+  return { role: getString(raw, 'role')?.toLowerCase() };
+}
+
 export interface TwoFactorEnforcementResult {
   decision: TwoFactorGraceDecision;
   /**

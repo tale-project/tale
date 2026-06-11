@@ -25,6 +25,7 @@ import { z } from 'zod';
 
 import { Input } from '@/app/components/ui/forms/input';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
+import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
@@ -80,6 +81,7 @@ function TwoFactorEnrollPage() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [passkeyDialogOpen, setPasskeyDialogOpen] = useState(false);
 
   async function beginEnrollment(e: React.FormEvent) {
     e.preventDefault();
@@ -156,26 +158,41 @@ function TwoFactorEnrollPage() {
           </Stack>
 
           {step.kind === 'password' && (
-            <form onSubmit={beginEnrollment}>
-              <Stack gap={4}>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  label={t('confirmPassword.label')}
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setError(null);
-                  }}
-                  errorMessage={error ?? undefined}
-                  disabled={submitting}
-                />
-                <Button type="submit" disabled={!password || submitting}>
-                  {t('enrollment.enableButton')}
-                </Button>
-              </Stack>
-            </form>
+            <Stack gap={4}>
+              <form onSubmit={beginEnrollment}>
+                <Stack gap={4}>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    label={t('confirmPassword.label')}
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setError(null);
+                    }}
+                    errorMessage={error ?? undefined}
+                    disabled={submitting}
+                  />
+                  <Button type="submit" disabled={!password || submitting}>
+                    {t('enrollment.enableButton')}
+                  </Button>
+                </Stack>
+              </form>
+              {/* A passkey is a phishing-resistant second factor and satisfies
+                  the enforced policy exactly like TOTP (#1508). The session is
+                  intentionally kept alive on this wall, so the registration
+                  ceremony can run; on success the enforcement decision flips
+                  to 'ok' via `hasPasskey` and we can leave immediately. */}
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setPasskeyDialogOpen(true)}
+                disabled={submitting}
+              >
+                {t('enroll.usePasskeyButton')}
+              </Button>
+            </Stack>
           )}
 
           {step.kind === 'verify' && (
@@ -254,6 +271,19 @@ function TwoFactorEnrollPage() {
           )}
         </Stack>
       </main>
+
+      <PasskeyRegisterDialog
+        open={passkeyDialogOpen}
+        onOpenChange={setPasskeyDialogOpen}
+        onRegistered={() => {
+          toast({
+            title: t('passkeys.registered'),
+            variant: 'success',
+            position: 'top-center',
+          });
+          void finish();
+        }}
+      />
     </VStack>
   );
 }

@@ -5575,6 +5575,8 @@
           "2fa_reset_by_admin": "Zwei-Faktor-Authentifizierung von Admin zurückgesetzt",
           "passkey_added": "Passkey registriert",
           "passkey_removed": "Passkey entfernt",
+          "passkey_revoked_by_admin": "Passkey von Admin entfernt",
+          "passkey_sign_in": "Passkey-Anmeldung",
           "project.created": "Projekt erstellt",
           "project.updated": "Projekt aktualisiert",
           "project.sharing.changed": "Projektfreigabe geändert",
@@ -6082,6 +6084,12 @@
       "namePromptDescription": "Gib diesem Passkey einen Namen, damit du ihn später wiedererkennst (z. B. \"MacBook Touch ID\").",
       "nameLabel": "Passkey-Name",
       "namePlaceholder": "MacBook Touch ID",
+      "attachment": {
+        "label": "Authenticator-Typ",
+        "any": "Beliebig (empfohlen)",
+        "platform": "Dieses Gerät (Face ID, Touch ID, Windows Hello)",
+        "crossPlatform": "Security-Key oder Smartphone"
+      },
       "errors": {
         "registerFailed": "Passkey konnte nicht registriert werden. Bitte versuche es erneut.",
         "revokeFailed": "Passkey konnte nicht entfernt werden. Bitte versuche es erneut."
@@ -6116,7 +6124,9 @@
       "submitButton": "Prüfen",
       "invalid": "Ungültiger oder abgelaufener Code. Bitte erneut versuchen.",
       "tooManyAttempts": "Zu viele Fehlversuche. Bitte später erneut versuchen.",
-      "backupCodeSuccess": "Backup-Code verwendet. Erwäge, die Backup-Codes in den Einstellungen neu zu erzeugen."
+      "backupCodeSuccess": "Backup-Code verwendet. Erwäge, die Backup-Codes in den Einstellungen neu zu erzeugen.",
+      "usePasskeyButton": "Stattdessen einen Passkey verwenden",
+      "passkeyFailed": "Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es erneut oder verwende einen Code."
     },
     "lowBackupCodes": {
       "body": "Erzeuge einen neuen Satz, damit du dein Konto wiederherstellen kannst, falls du deine Authenticator-App verlierst.",
@@ -6126,7 +6136,8 @@
     },
     "enroll": {
       "title": "Zwei-Faktor erforderlich",
-      "description": "Deine Organisation verlangt Zwei-Faktor-Authentifizierung, um fortzufahren."
+      "description": "Deine Organisation verlangt Zwei-Faktor-Authentifizierung, um fortzufahren.",
+      "usePasskeyButton": "Stattdessen einen Passkey registrieren"
     },
     "grace": {
       "body": "Deine Organisation wird von allen Mitgliedern einen zweiten Faktor verlangen. Richte ihn jetzt ein, um Unterbrechungen zu vermeiden.",
@@ -6137,7 +6148,16 @@
     "admin": {
       "resetButton": "Zwei-Faktor zurücksetzen",
       "confirmTitle": "Zwei-Faktor-Authentifizierung zurücksetzen?",
-      "confirmDescription": "Dies deaktiviert Zwei-Faktor für {name} und beendet alle aktiven Sitzungen. Beim nächsten Anmelden ist eine neue Einrichtung erforderlich."
+      "confirmDescription": "Dies deaktiviert Zwei-Faktor für {name} und beendet alle aktiven Sitzungen. Beim nächsten Anmelden ist eine neue Einrichtung erforderlich.",
+      "passkeys": {
+        "title": "Passkeys",
+        "confirmTitle": "Diesen Passkey entfernen?",
+        "confirmDescription": "Dies entfernt den Passkey \"{name}\" und beendet alle aktiven Sitzungen des Mitglieds. Danach ist eine neue Anmeldung nötig.",
+        "deviceTypes": {
+          "singleDevice": "Gerätegebundener Schlüssel",
+          "multiDevice": "Synchronisierter Passkey"
+        }
+      }
     },
     "errors": {
       "enableFailed": "Einrichtung der Zwei-Faktor-Authentifizierung fehlgeschlagen. Bitte erneut versuchen.",

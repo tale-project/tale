@@ -7,11 +7,17 @@
 import { symmetricDecrypt } from 'better-auth/crypto';
 import { v, type Infer } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { query, type QueryCtx } from '../_generated/server';
 import { getAuthUserIdentity, type AuthenticatedUser } from '../lib/rls';
-import { evaluateTwoFactorEnforcement, userHasPasskey } from './helpers';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import {
+  evaluateTwoFactorEnforcement,
+  findCallerMembership,
+  findMember,
+  userHasPasskey,
+} from './helpers';
 
 /**
  * Count the remaining backup codes for a user by reading the encrypted
@@ -166,4 +172,71 @@ export const getStatus = query({
   returns: twoFactorStatusValidator,
   handler: async (ctx) =>
     computeTwoFactorStatus(ctx, await getAuthUserIdentity(ctx)),
+});
+
+/**
+ * Admin view of a member's registered passkeys (#1508). Drives the
+ * list/revoke control in the member edit dialog so an admin can clean up
+ * credentials when a device is lost or a member leaves with a synced
+ * passkey still live.
+ *
+ * Authorization mirrors `revokePasskeyForMember`: lookup-then-check —
+ * caller must be `owner` or `admin` in the SAME org as the target member.
+ * Only display fields are returned; the credential public key and counter
+ * never leave the server.
+ */
+export const listPasskeysForMember = query({
+  args: { memberId: v.string() },
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      name: v.union(v.string(), v.null()),
+      deviceType: v.string(),
+      backedUp: v.boolean(),
+      createdAt: v.union(v.number(), v.null()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const member = await findMember(ctx, args.memberId);
+    if (!member) throw new Error('Member not found');
+
+    const callerMembership = await findCallerMembership(
+      ctx,
+      member.organizationId,
+      authUser.userId,
+    );
+    if (!callerMembership || !isAdmin(callerMembership.role)) {
+      throw new Error('Only admins can list passkeys for members');
+    }
+
+    const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'passkey',
+      paginationOpts: { cursor: null, numItems: 50 },
+      where: [{ field: 'userId', value: member.userId, operator: 'eq' }],
+    });
+
+    const passkeys: {
+      id: string;
+      name: string | null;
+      deviceType: string;
+      backedUp: boolean;
+      createdAt: number | null;
+    }[] = [];
+    for (const row of res?.page ?? []) {
+      if (!isRecord(row)) continue;
+      const id = getString(row, '_id') ?? getString(row, 'id');
+      if (!id) continue;
+      passkeys.push({
+        id,
+        name: getString(row, 'name') ?? null,
+        deviceType: getString(row, 'deviceType') ?? 'unknown',
+        backedUp: row.backedUp === true,
+        createdAt: typeof row.createdAt === 'number' ? row.createdAt : null,
+      });
+    }
+    return passkeys;
+  },
 });

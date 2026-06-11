@@ -1,9 +1,9 @@
 ---
 title: Two-factor authentication
-description: TOTP enrolment, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator. Read this when wiring 2FA for the org or recovering an account.
+description: TOTP enrolment, passkeys, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator. Read this when wiring 2FA for the org or recovering an account.
 ---
 
-Two-factor authentication adds a second proof of identity on top of the password — a six-digit code from an authenticator app. Tale ships TOTP (time-based one-time passwords) compatible with Google Authenticator, 1Password, Authy, and any other app that follows the standard. The page covers per-user enrolment, the backup codes that recover an account when the phone is gone, the org-wide enforce policy, and the admin reset for a locked-out member.
+Two-factor authentication adds a second proof of identity on top of the password — a six-digit code from an authenticator app, or a WebAuthn passkey. Tale ships TOTP (time-based one-time passwords) compatible with Google Authenticator, 1Password, Authy, and any other app that follows the standard, plus passkeys for a phishing-resistant alternative. The page covers per-user enrolment, passkeys, the backup codes that recover an account when the phone is gone, the org-wide enforce policy, and the admin reset for a locked-out member.
 
 Two-factor is optional by default. Admins can require it for the whole organisation with a grace window so members have time to enrol.
 
@@ -19,6 +19,16 @@ Backup codes are single-use strings the platform mints when 2FA is enabled or re
 
 Treat backup codes like passwords. Store them in a password manager or print them and lock them away. Anyone who has both your password and a backup code can sign in as you.
 
+## Passkeys
+
+A passkey is a WebAuthn credential — Face ID, Touch ID, Windows Hello, or a hardware security key — that signs a per-login challenge instead of producing a typed code. The credential is bound to the site's origin, so a look-alike phishing domain gets nothing to replay; that makes a passkey phishing-resistant in a way TOTP is not, and it satisfies an enforced two-factor policy exactly like TOTP does.
+
+To register one, open **Account > Security** and click **Add a passkey**. Give the credential a name you will recognise later, then pick the **Authenticator type**: **Any (recommended)** lets the browser offer everything available, **This device (Face ID, Touch ID, Windows Hello)** narrows the ceremony to the built-in authenticator, and **Security key or phone** narrows it to a roaming one. The browser runs the registration ceremony from there. The same list carries **Remove** for revoking your own credentials.
+
+A registered passkey works at three doors. On the login screen, **Sign in with a passkey** signs you in without typing the password — the credential is itself strong proof. On the verification screen after a password login, **Use a passkey instead** replaces the six-digit code. And on the enrolment screen an enforced policy routes unenrolled members to, **Register a passkey instead** sits next to the TOTP setup — a member who registers only a passkey, never TOTP, passes the policy.
+
+When a member loses a device with a passkey on it, an Admin revokes the credential: open **Settings > Organization**, click **Edit member** on the member, and remove the credential from the **Passkeys** section of the dialog. Tale deletes the credential and ends every active session of that member, so a lost or stolen authenticator can't keep a session alive. Registration, self-removal, admin revocation, and every passkey sign-in land in the audit log (`passkey_added`, `passkey_removed`, `passkey_revoked_by_admin`, `passkey_sign_in`).
+
 ## The enforce-for-org policy
 
 Admins can require two-factor for every password-authenticated member of the organisation. Open **Settings > Governance > Authentication** and toggle **Require two-factor authentication**. The policy carries a grace period (in days) that gives each member time to enrol from their first sign-in under the policy; set it to zero for immediate enforcement.
@@ -33,7 +43,7 @@ A member inside the grace window sees a count-down banner in the app pointing th
 
 ## Admin reset for a locked-out member
 
-When a member loses their phone and their backup codes, an Admin clears the second factor on their account. Open **Settings > People**, find the member, and click **Reset two-factor** on their row. Tale disables 2FA for the account and ends every active session, so the member re-enrols on their next sign-in.
+When a member loses their phone and their backup codes, an Admin clears the second factor on their account. Open **Settings > Organization**, click **Edit member** on the member, and click **Reset two-factor** in the dialog. Tale disables 2FA for the account and ends every active session, so the member re-enrols on their next sign-in.
 
 The reset is recorded in the audit log under `2fa_reset_by_admin`. Reach for it as a recovery action — the member should re-enrol immediately once they are back in.
 

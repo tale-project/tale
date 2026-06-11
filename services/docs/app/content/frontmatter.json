@@ -269,7 +269,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Zwei-Faktor-Authentifizierung",
-      "description": "TOTP-Registrierung, Backup-Codes, die organisationsweite Erzwingungsrichtlinie und wie ein Admin ein Mitglied zurücksetzt, das seinen Authenticator verloren hat. Lies das, wenn du 2FA für die Org verdrahtest oder einen Account wiederherstellst."
+      "description": "TOTP-Registrierung, Passkeys, Backup-Codes, die organisationsweite Erzwingungsrichtlinie und wie ein Admin ein Mitglied zurücksetzt, das seinen Authenticator verloren hat. Lies das, wenn du 2FA für die Org verdrahtest oder einen Account wiederherstellst."
     }
   },
   "de:platform/admin/integrations": {
@@ -1301,7 +1301,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Authentification à deux facteurs",
-      "description": "Inscription TOTP, codes de secours, la politique d'application org-large et comment un admin réinitialise un membre qui a perdu son authenticator. Lis ceci quand tu câbles la 2FA pour l'org ou que tu récupères un compte."
+      "description": "Inscription TOTP, passkeys, codes de secours, la politique d'application org-large et comment un admin réinitialise un membre qui a perdu son authenticator. Lis ceci quand tu câbles la 2FA pour l'org ou que tu récupères un compte."
     }
   },
   "fr:platform/admin/integrations": {
@@ -2333,7 +2333,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Two-factor authentication",
-      "description": "TOTP enrolment, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator. Read this when wiring 2FA for the org or recovering an account."
+      "description": "TOTP enrolment, passkeys, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator. Read this when wiring 2FA for the org or recovering an account."
     }
   },
   "en:platform/admin/integrations": {

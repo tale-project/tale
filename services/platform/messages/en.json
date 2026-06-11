@@ -5836,6 +5836,8 @@
           "2fa_reset_by_admin": "Two-factor authentication reset by admin",
           "passkey_added": "Passkey registered",
           "passkey_removed": "Passkey removed",
+          "passkey_revoked_by_admin": "Passkey removed by admin",
+          "passkey_sign_in": "Passkey sign-in",
           "project.created": "Project created",
           "project.updated": "Project updated",
           "project.sharing.changed": "Project sharing changed",
@@ -6343,6 +6345,12 @@
       "namePromptDescription": "Give this passkey a name so you can recognize it later (e.g. \"MacBook Touch ID\").",
       "nameLabel": "Passkey name",
       "namePlaceholder": "MacBook Touch ID",
+      "attachment": {
+        "label": "Authenticator type",
+        "any": "Any (recommended)",
+        "platform": "This device (Face ID, Touch ID, Windows Hello)",
+        "crossPlatform": "Security key or phone"
+      },
       "errors": {
         "registerFailed": "Could not register the passkey. Please try again.",
         "revokeFailed": "Could not remove the passkey. Please try again."
@@ -6377,7 +6385,9 @@
       "submitButton": "Verify",
       "invalid": "Invalid or expired code. Please try again.",
       "tooManyAttempts": "Too many failed attempts. Try again later.",
-      "backupCodeSuccess": "Backup code used. Consider regenerating your backup codes in Settings."
+      "backupCodeSuccess": "Backup code used. Consider regenerating your backup codes in Settings.",
+      "usePasskeyButton": "Use a passkey instead",
+      "passkeyFailed": "Passkey sign-in failed or was cancelled. Try again or use a code."
     },
     "lowBackupCodes": {
       "body": "Generate a new batch so you can still recover your account if you lose your authenticator.",
@@ -6387,7 +6397,8 @@
     },
     "enroll": {
       "title": "Two-factor required",
-      "description": "Your organization requires two-factor authentication to continue."
+      "description": "Your organization requires two-factor authentication to continue.",
+      "usePasskeyButton": "Register a passkey instead"
     },
     "grace": {
       "body": "Your organization will require all members to use a second factor. Enrol now to avoid interruption.",
@@ -6398,7 +6409,16 @@
     "admin": {
       "resetButton": "Reset two-factor",
       "confirmTitle": "Reset two-factor authentication?",
-      "confirmDescription": "This disables two-factor for {name} and ends all their active sessions. They will have to enrol again on their next sign-in."
+      "confirmDescription": "This disables two-factor for {name} and ends all their active sessions. They will have to enrol again on their next sign-in.",
+      "passkeys": {
+        "title": "Passkeys",
+        "confirmTitle": "Remove this passkey?",
+        "confirmDescription": "This removes the passkey \"{name}\" and ends all of the member's active sessions. They will have to sign in again.",
+        "deviceTypes": {
+          "singleDevice": "Single-device key",
+          "multiDevice": "Synced passkey"
+        }
+      }
     },
     "errors": {
       "enableFailed": "Failed to start two-factor setup. Please try again.",

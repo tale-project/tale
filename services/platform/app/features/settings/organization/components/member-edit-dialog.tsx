@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -27,10 +28,12 @@ import { createOptionalPasswordSchema } from '@/lib/shared/schemas/password';
 
 import {
   useResetMemberTwoFactor,
+  useRevokeMemberPasskey,
   useSetMemberPassword,
   useUpdateMemberDisplayName,
   useUpdateMemberRole,
 } from '../hooks/mutations';
+import { useMemberPasskeys } from '../hooks/queries';
 import { isMemberRole } from '../utils/role-guards';
 
 type EditMemberFormData = {
@@ -48,6 +51,7 @@ type MemberLite = {
   role?: string;
   email?: string;
   twoFactorEnabled?: boolean;
+  passkeyCount?: number;
 };
 
 interface EditMemberDialogProps {
@@ -324,6 +328,10 @@ export function EditMemberDialog({
           }}
         />
       )}
+
+      {!isEditingSelf && member && (member.passkeyCount ?? 0) > 0 && (
+        <PasskeyAdminControl memberId={member._id} />
+      )}
     </FormDialog>
   );
 }
@@ -363,6 +371,93 @@ function TwoFactorResetControl({
         variant="destructive"
         isLoading={resetting}
         onConfirm={onReset}
+      />
+    </FormSection>
+  );
+}
+
+/**
+ * Admin list/revoke of a member's WebAuthn passkeys (#1508). Mirrors
+ * `TwoFactorResetControl`: per-credential Remove behind a destructive
+ * confirm. Revoking also ends every session of the member, so the copy
+ * says so. Only rendered when the member actually has passkeys (gated on
+ * `passkeyCount` from the members list — no per-row query for the rest).
+ */
+function PasskeyAdminControl({ memberId }: { memberId: string }) {
+  const { t } = useT('twoFactor');
+  const { data: passkeys } = useMemberPasskeys(memberId);
+  const { mutateAsync: revokePasskey } = useRevokeMemberPasskey();
+  const [confirmTarget, setConfirmTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [revoking, setRevoking] = useState(false);
+
+  if (!passkeys || passkeys.length === 0) return null;
+
+  async function handleRevoke() {
+    if (!confirmTarget) return;
+    setRevoking(true);
+    try {
+      await revokePasskey({ memberId, passkeyId: confirmTarget.id });
+      toast({ title: t('passkeys.revoked'), variant: 'success' });
+      setConfirmTarget(null);
+    } catch {
+      toast({
+        title: t('passkeys.errors.revokeFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setRevoking(false);
+    }
+  }
+
+  return (
+    <FormSection className="border-t pt-4">
+      <Text className="text-sm font-medium">{t('admin.passkeys.title')}</Text>
+      <Stack gap={2}>
+        {passkeys.map((pk) => {
+          const name = pk.name?.trim() || t('passkeys.unnamed');
+          return (
+            <HStack
+              key={pk.id}
+              justify="between"
+              align="center"
+              className="rounded-md border px-3 py-2"
+            >
+              <Stack gap={0} className="min-w-0">
+                <Text className="truncate text-sm font-medium">{name}</Text>
+                <Text variant="muted" className="text-xs">
+                  {pk.deviceType === 'multiDevice'
+                    ? t('admin.passkeys.deviceTypes.multiDevice')
+                    : t('admin.passkeys.deviceTypes.singleDevice')}
+                </Text>
+              </Stack>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmTarget({ id: pk.id, name })}
+              >
+                {t('passkeys.revokeButton')}
+              </Button>
+            </HStack>
+          );
+        })}
+      </Stack>
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setConfirmTarget(null);
+        }}
+        title={t('admin.passkeys.confirmTitle')}
+        description={t('admin.passkeys.confirmDescription', {
+          name: confirmTarget?.name ?? '',
+        })}
+        confirmText={t('passkeys.revokeButton')}
+        variant="destructive"
+        isLoading={revoking}
+        onConfirm={handleRevoke}
       />
     </FormSection>
   );

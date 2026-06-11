@@ -53,6 +53,21 @@ Naming: `auth_{test_id}.png` (e.g. `auth_F1.png`).
 | T2  | Login with 2FA  | Sign out, sign in                                        | Prompted for a TOTP code after password           |
 | T3  | Wrong TOTP code | Enter an invalid 6-digit code                            | Rejected; repeated failures contribute to lockout |
 
+## Passkey tests (WebAuthn, #1508)
+
+> These rows need an authenticator: real hardware (Touch ID, Windows Hello, a security key, or a phone) or the Chrome DevTools **WebAuthn** panel / Playwright CDP virtual authenticator. Virtual passes are fine for regression runs, but at least one full pass (P1–P8) must be recorded on a **real** authenticator before the feature is considered device-QA'd — that pass is the SOC 2 manual-procedure evidence for epic #1803.
+
+| ID  | Test                          | Steps                                                                                                                                    | Expected                                                                                                                                        |
+| --- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | Register passkey (platform)   | Settings → Account → Passkeys → **Add a passkey**; name it, pick **This device (Face ID, Touch ID, Windows Hello)**, complete the prompt | Passkey appears in the list under its name; `passkey_added` row in Settings → Logs → Audit                                                      |
+| P2  | Register passkey (roaming)    | **Add a passkey**; pick **Security key or phone**, complete with a security key or phone                                                 | Second passkey listed; `passkey_added` audit row                                                                                                |
+| P3  | Passkey login                 | Sign out → **Sign in with a passkey** on the login page                                                                                  | Signed in without typing the password; `passkey_sign_in` audit row                                                                              |
+| P4  | Passkey at the 2FA wall       | On a TOTP-enrolled account, sign in with email + password → on the verification screen click **Use a passkey instead**                   | WebAuthn prompt replaces the code entry; lands on the dashboard without a TOTP code                                                             |
+| P5  | Enrolment wall offers passkey | Enforce 2FA with zero grace for a member with no TOTP and no passkey; sign in as them → **Register a passkey instead** on /2fa-enroll    | Registration ceremony runs with the session intact; continues straight to the dashboard                                                         |
+| P6  | Passkey-only satisfies policy | With a passkey registered and TOTP never enrolled, sign in with email + password under the enforced policy                               | No enrolment wall; lands on the dashboard                                                                                                       |
+| P7  | Self-revoke                   | Settings → Account → Passkeys → **Remove**                                                                                               | Passkey gone from the list; `passkey_removed` audit row                                                                                         |
+| P8  | Admin revoke ends sessions    | As an admin: Settings → Organization → **Edit member** → Passkeys section → **Remove** → confirm                                         | Credential deleted; every session of the member ends (their open tab bounces to login); `passkey_revoked_by_admin` audit row keyed on the admin |
+
 ## API / integration tests
 
 | ID  | Test                    | Steps                                                  | Expected                                               |
@@ -87,7 +102,7 @@ Naming: `auth_{test_id}.png` (e.g. `auth_F1.png`).
 
 ```
 Module: Authentication
-Functional: ___/10   Boundary: ___/6   2FA: ___/3   API: ___/3   A11y: ___/4   Perf: ___/2
+Functional: ___/10   Boundary: ___/6   2FA: ___/3   Passkeys: ___/8   API: ___/3   A11y: ___/4   Perf: ___/2
 Issues found: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```

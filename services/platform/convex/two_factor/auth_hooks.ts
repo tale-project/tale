@@ -30,6 +30,7 @@ const SIGN_IN_EMAIL_PATH = '/sign-in/email';
 // enroll/revoke events belong in the same security audit trail as TOTP.
 const PASSKEY_VERIFY_REGISTRATION_PATH = '/passkey/verify-registration';
 const PASSKEY_DELETE_PATH = '/passkey/delete-passkey';
+const PASSKEY_VERIFY_AUTH_PATH = '/passkey/verify-authentication';
 
 const VERIFY_PATHS = new Set<string>([
   VERIFY_TOTP_PATH,
@@ -202,7 +203,47 @@ export async function twoFactorAfterHook(
     );
   }
 
+  if (mw.path === PASSKEY_VERIFY_AUTH_PATH) {
+    return passkeySignInAfterHook(ctx, mw, clientIp, userAgent);
+  }
+
   return undefined;
+}
+
+/**
+ * Audit successful passkey sign-ins (#1508), keeping the WebAuthn path on
+ * par with the password path's `login_success`. The endpoint resolves the
+ * user from the credential, so on success the freshly-issued session is
+ * exposed as `mw.context.newSession`. Failures are challenge-based and
+ * unattributable to a user (no userId before verification succeeds), so
+ * only success is recorded.
+ */
+async function passkeySignInAfterHook(
+  ctx: GenericCtx<DataModel>,
+  mw: AuthMiddlewareCtx,
+  clientIp: string | undefined,
+  userAgent: string | undefined,
+): Promise<void> {
+  if (mw.context.returned instanceof APIError) return;
+
+  const newSession = mw.context.newSession;
+  if (!isRecord(newSession)) return;
+  const user = isRecord(newSession.user) ? newSession.user : null;
+  if (!user || typeof user.id !== 'string') return;
+  const email = typeof user.email === 'string' ? user.email : undefined;
+
+  const runCtx = requireRunMutationCtx(ctx);
+  await runCtx.runMutation(
+    internal.two_factor.internal_mutations.logEnrollmentEvent,
+    {
+      userId: user.id,
+      actorId: user.id,
+      actorEmail: email,
+      action: 'passkey_sign_in',
+      ip: clientIp,
+      userAgent,
+    },
+  );
 }
 
 /**

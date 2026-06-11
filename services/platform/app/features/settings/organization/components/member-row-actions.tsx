@@ -22,6 +22,7 @@ type MemberItem = {
   role?: string;
   displayName?: string;
   twoFactorEnabled?: boolean;
+  passkeyCount?: number;
 };
 
 interface MemberRowActionsProps {

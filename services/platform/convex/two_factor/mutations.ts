@@ -11,53 +11,7 @@ import { components, internal } from '../_generated/api';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
-
-interface MemberRecord {
-  memberId: string;
-  organizationId: string;
-  userId: string;
-  role: string | undefined;
-}
-
-async function findMember(
-  ctx: MutationCtx,
-  memberId: string,
-): Promise<MemberRecord | null> {
-  const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'member',
-    paginationOpts: { cursor: null, numItems: 1 },
-    where: [{ field: '_id', value: memberId, operator: 'eq' }],
-  });
-  const raw = res?.page?.[0];
-  if (!isRecord(raw)) return null;
-  const organizationId = getString(raw, 'organizationId');
-  const userId = getString(raw, 'userId');
-  if (!organizationId || !userId) return null;
-  return {
-    memberId,
-    organizationId,
-    userId,
-    role: getString(raw, 'role')?.toLowerCase(),
-  };
-}
-
-async function findCallerMembership(
-  ctx: MutationCtx,
-  organizationId: string,
-  callerUserId: string,
-): Promise<{ role: string | undefined } | null> {
-  const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'member',
-    paginationOpts: { cursor: null, numItems: 1 },
-    where: [
-      { field: 'organizationId', value: organizationId, operator: 'eq' },
-      { field: 'userId', value: callerUserId, operator: 'eq' },
-    ],
-  });
-  const raw = res?.page?.[0];
-  if (!isRecord(raw)) return null;
-  return { role: getString(raw, 'role')?.toLowerCase() };
-}
+import { findCallerMembership, findMember } from './helpers';
 
 /**
  * Delete every session for a user. Forces them to re-authenticate — used
@@ -177,6 +131,91 @@ export const resetForUser = mutation({
         actorEmail: authUser.email,
         action: '2fa_reset_by_admin',
         metadata: { memberId: args.memberId },
+      },
+    );
+
+    return null;
+  },
+});
+
+/**
+ * Admin-triggered passkey revocation (#1508). Deletes a single passkey
+ * credential from the target member's user, kills all of their sessions
+ * (consistent with `resetForUser` — a revoked credential must not keep a
+ * live session alive), and emits an audit-log entry keyed on both the
+ * admin and the target.
+ *
+ * Authorization mirrors `resetForUser`: caller must be `owner` or `admin`
+ * in the SAME org as the target member, and owner targets are only
+ * touchable by a *different* owner. The passkey row itself is verified to
+ * belong to the target user before deletion (IDOR guard — without it, an
+ * admin of org A could delete credentials of users in org B by pairing a
+ * legitimate memberId with a foreign passkeyId).
+ */
+export const revokePasskeyForMember = mutation({
+  args: {
+    memberId: v.string(),
+    passkeyId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const member = await findMember(ctx, args.memberId);
+    if (!member) throw new Error('Member not found');
+
+    const callerMembership = await findCallerMembership(
+      ctx,
+      member.organizationId,
+      authUser.userId,
+    );
+    if (!callerMembership || !isAdmin(callerMembership.role)) {
+      throw new Error('Only admins can revoke passkeys for members');
+    }
+
+    if (
+      member.role === 'owner' &&
+      (callerMembership.role !== 'owner' || authUser.userId === member.userId)
+    ) {
+      throw new Error('Cannot revoke passkeys for this member');
+    }
+
+    // IDOR guard: the passkey must belong to the target member's user.
+    const passkeyRes = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'passkey',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: '_id', value: args.passkeyId, operator: 'eq' }],
+      },
+    );
+    const passkeyRow = passkeyRes?.page?.[0];
+    if (
+      !isRecord(passkeyRow) ||
+      getString(passkeyRow, 'userId') !== member.userId
+    ) {
+      throw new Error('Passkey not found');
+    }
+
+    await ctx.runMutation(components.betterAuth.adapter.deleteMany, {
+      input: {
+        model: 'passkey',
+        where: [{ field: '_id', value: args.passkeyId, operator: 'eq' }],
+      },
+      paginationOpts: { cursor: null, numItems: 1 },
+    });
+
+    await invalidateAllSessions(ctx, member.userId);
+
+    await ctx.runMutation(
+      internal.two_factor.internal_mutations.logEnrollmentEvent,
+      {
+        userId: member.userId,
+        actorId: authUser.userId,
+        actorEmail: authUser.email,
+        action: 'passkey_revoked_by_admin',
+        metadata: { memberId: args.memberId, passkeyId: args.passkeyId },
       },
     );
 

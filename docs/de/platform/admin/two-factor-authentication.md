@@ -1,15 +1,15 @@
 ---
 title: Zwei-Faktor-Authentifizierung
-description: TOTP-Registrierung, Backup-Codes, die organisationsweite Erzwingungsrichtlinie und wie ein Admin ein Mitglied zurücksetzt, das seinen Authenticator verloren hat. Lies das, wenn du 2FA für die Org verdrahtest oder einen Account wiederherstellst.
+description: TOTP-Registrierung, Passkeys, Backup-Codes, die organisationsweite Erzwingungsrichtlinie und wie ein Admin ein Mitglied zurücksetzt, das seinen Authenticator verloren hat. Lies das, wenn du 2FA für die Org verdrahtest oder einen Account wiederherstellst.
 ---
 
-Zwei-Faktor-Authentifizierung legt einen zweiten Identitätsbeweis über das Passwort — einen sechsstelligen Code aus einer Authenticator-App. Tale bringt TOTP (zeitbasierte Einmal-Passwörter) mit, kompatibel zu Google Authenticator, 1Password, Authy und jeder anderen App, die dem Standard folgt. Die Seite deckt die Pro-Benutzer-Registrierung ab, die Backup-Codes, die einen Account wiederherstellen, wenn das Telefon weg ist, die organisationsweite Erzwingungsrichtlinie und das Admin-Reset für ein ausgesperrtes Mitglied.
+Zwei-Faktor-Authentifizierung legt einen zweiten Identitätsbeweis über das Passwort — einen sechsstelligen Code aus einer Authenticator-App oder einen WebAuthn-Passkey. Tale bringt TOTP (zeitbasierte Einmal-Passwörter) mit, kompatibel zu Google Authenticator, 1Password, Authy und jeder anderen App, die dem Standard folgt, plus Passkeys als phishing-resistente Alternative. Die Seite deckt die Pro-Benutzer-Registrierung ab, Passkeys, die Backup-Codes, die einen Account wiederherstellen, wenn das Telefon weg ist, die organisationsweite Erzwingungsrichtlinie und das Admin-Reset für ein ausgesperrtes Mitglied.
 
 Zwei-Faktor ist standardmäßig optional. Admins können sie für die ganze Organisation verpflichtend machen, mit einem Karenzfenster, damit Mitglieder Zeit zum Einrichten haben.
 
 ## Pro-Benutzer-Registrierung
 
-Um 2FA für deinen eigenen Account einzuschalten, öffne **Account > Sicherheit**. Klick auf **Zwei-Faktor aktivieren**, bestätige dein Passwort und scanne den QR-Code mit einer Authenticator-App. Tippe den sechsstelligen Code ein, den die App zeigt, um zu prüfen, dass das Geheimnis aufgenommen wurde, und sichere dann die Backup-Codes, die der nächste Bildschirm zeigt. Die Codes erscheinen einmal — lade oder kopiere sie, bevor du auf **Fertig** klickst.
+Um 2FA für deinen eigenen Account einzuschalten, öffne **Konto > Sicherheit**. Klick auf **Zwei-Faktor aktivieren**, bestätige dein Passwort und scanne den QR-Code mit einer Authenticator-App. Tippe den sechsstelligen Code ein, den die App zeigt, um zu prüfen, dass das Geheimnis aufgenommen wurde, und sichere dann die Backup-Codes, die der nächste Bildschirm zeigt. Die Codes erscheinen einmal — lade oder kopiere sie, bevor du auf **Fertig** klickst.
 
 Derselbe Bildschirm trägt **Deaktivieren** und **Backup-Codes neu erzeugen**. Deaktivieren entfernt den zweiten Faktor; Neu-Erzeugen entwertet jeden vorherigen Backup-Code. Beide Aktionen verlangen das Account-Passwort zur Bestätigung.
 
@@ -18,6 +18,16 @@ Derselbe Bildschirm trägt **Deaktivieren** und **Backup-Codes neu erzeugen**. D
 Backup-Codes sind einmal verwendbare Strings, die die Plattform prägt, wenn 2FA aktiviert oder neu erzeugt wird. Jeder davon ersetzt den Authenticator-Code bei einem einzelnen Sign-in — nützlich, wenn das Telefon verloren ist, der Authenticator deinstalliert wurde oder du irgendwo ohne das Gerät feststeckst. Die Plattform beobachtet die verbleibende Anzahl und zeigt ein Niedrig-Banner, wenn nur noch wenige Codes übrig sind; das Banner verlinkt direkt auf den Neu-Erzeugen-Flow.
 
 Behandle Backup-Codes wie Passwörter. Lege sie in einen Passwort-Manager oder drucke sie und schliesse sie weg. Wer dein Passwort und einen Backup-Code hat, kann sich als du anmelden.
+
+## Passkeys
+
+Ein Passkey ist ein WebAuthn-Credential — Face ID, Touch ID, Windows Hello oder ein Hardware-Security-Key —, das bei jeder Anmeldung eine Challenge signiert, statt einen getippten Code zu liefern. Das Credential ist an die Origin der Site gebunden; eine täuschend ähnliche Phishing-Domain bekommt nichts, was sie wiederverwenden könnte. Ein Passkey ist dadurch phishing-resistent auf eine Art, die TOTP nicht erreicht, und er erfüllt eine erzwungene Zwei-Faktor-Richtlinie genau wie TOTP.
+
+Zum Registrieren öffne **Konto > Sicherheit** und klick auf **Passkey hinzufügen**. Gib dem Credential einen Namen, den du später wiedererkennst, und wähle den **Authenticator-Typ**: **Beliebig (empfohlen)** lässt den Browser alles anbieten, was verfügbar ist, **Dieses Gerät (Face ID, Touch ID, Windows Hello)** beschränkt die Zeremonie auf den eingebauten Authenticator, und **Security-Key oder Smartphone** auf einen externen. Den Rest erledigt der Browser mit der Registrierungszeremonie. Dieselbe Liste trägt **Entfernen** zum Widerrufen deiner eigenen Credentials.
+
+Ein registrierter Passkey funktioniert an drei Türen. Auf dem Login-Bildschirm meldet dich **Mit einem Passkey anmelden** ohne Passwort an — das Credential ist selbst ein starker Nachweis. Auf dem Bestätigungs-Bildschirm nach einem Passwort-Login ersetzt **Stattdessen einen Passkey verwenden** den sechsstelligen Code. Und auf dem Registrierungs-Bildschirm, zu dem eine erzwungene Richtlinie nicht registrierte Mitglieder leitet, sitzt **Stattdessen einen Passkey registrieren** neben der TOTP-Einrichtung — ein Mitglied, das nur einen Passkey registriert und nie TOTP, besteht die Richtlinie.
+
+Verliert ein Mitglied ein Gerät mit einem Passkey darauf, widerruft ein Admin das Credential: Öffne **Einstellungen > Organisation**, klick beim Mitglied auf **Mitglied bearbeiten** und entferne das Credential im Abschnitt **Passkeys** des Dialogs. Tale löscht das Credential und beendet jede aktive Sitzung des Mitglieds, sodass ein verlorener oder gestohlener Authenticator keine Sitzung am Leben hält. Registrierung, Selbst-Entfernen, Admin-Widerruf und jede Passkey-Anmeldung landen im Audit-Log (`passkey_added`, `passkey_removed`, `passkey_revoked_by_admin`, `passkey_sign_in`).
 
 ## Die Erzwingen-für-Org-Richtlinie
 
@@ -33,7 +43,7 @@ Ein Mitglied innerhalb des Karenzfensters sieht ein Countdown-Banner in der App,
 
 ## Admin-Reset für ein ausgesperrtes Mitglied
 
-Wenn ein Mitglied sein Telefon und seine Backup-Codes verliert, entfernt ein Admin den zweiten Faktor auf seinem Account. Öffne **Einstellungen > Mitglieder**, finde das Mitglied und klick auf **Zwei-Faktor zurücksetzen** in seiner Zeile. Tale deaktiviert 2FA für den Account und beendet jede aktive Sitzung, sodass sich das Mitglied beim nächsten Sign-in neu registriert.
+Wenn ein Mitglied sein Telefon und seine Backup-Codes verliert, entfernt ein Admin den zweiten Faktor auf seinem Account. Öffne **Einstellungen > Organisation**, klick beim Mitglied auf **Mitglied bearbeiten** und dann auf **Zwei-Faktor zurücksetzen** im Dialog. Tale deaktiviert 2FA für den Account und beendet jede aktive Sitzung, sodass sich das Mitglied beim nächsten Sign-in neu registriert.
 
 Das Zurücksetzen wird im Audit-Log unter `2fa_reset_by_admin` festgehalten. Greif dazu als Wiederherstellungs-Aktion — das Mitglied sollte sich sofort neu registrieren, wenn es wieder drin ist.
 

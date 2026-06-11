@@ -479,6 +479,7 @@ describe('listByOrganizationHandler', () => {
         displayName: 'Alice',
         email: 'alice@example.com',
         twoFactorEnabled: false,
+        passkeyCount: 0,
       },
     ]);
   });
@@ -533,6 +534,7 @@ describe('listByOrganizationHandler', () => {
         displayName: undefined,
         email: undefined,
         twoFactorEnabled: false,
+        passkeyCount: 0,
       },
       {
         _id: 'm_2',
@@ -543,8 +545,66 @@ describe('listByOrganizationHandler', () => {
         displayName: 'Bob',
         email: 'bob@example.com',
         twoFactorEnabled: false,
+        passkeyCount: 0,
       },
     ]);
+  });
+
+  it('aggregates passkey counts per member from one batched lookup (#1508)', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockResolvedValue({
+      _id: 'om_1',
+      createdAt: 1000,
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'admin',
+    });
+    const ctx = createMockCtx();
+
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'm_1',
+          organizationId: 'org_1',
+          userId: 'u_1',
+          role: 'member',
+          createdAt: 1000,
+        },
+        {
+          _id: 'm_2',
+          organizationId: 'org_1',
+          userId: 'u_2',
+          role: 'admin',
+          createdAt: 2000,
+        },
+      ],
+    });
+
+    // Batched user lookup.
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        { _id: 'u_1', name: 'Alice', email: 'alice@example.com' },
+        { _id: 'u_2', name: 'Bob', email: 'bob@example.com' },
+      ],
+    });
+
+    // Batched passkey lookup: u_1 has two credentials, u_2 has none.
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        { _id: 'pk_1', userId: 'u_1' },
+        { _id: 'pk_2', userId: 'u_1' },
+      ],
+      isDone: true,
+    });
+
+    const result = await listByOrganizationHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    // Exactly three adapter queries — members, users, passkeys. The passkey
+    // count must never become a per-member N+1.
+    expect(ctx.runQuery).toHaveBeenCalledTimes(3);
+    expect(result.map((m) => m.passkeyCount)).toEqual([2, 0]);
   });
 });
 

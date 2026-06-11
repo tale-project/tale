@@ -168,6 +168,41 @@ export async function listByOrganizationHandler(
     }
   }
 
+  // Passkey counts ride the same batched-`in` pattern (NOT per-member N+1).
+  // The count gates the admin list/revoke control in the member edit
+  // dialog (#1508), so the per-member passkey query only fires for members
+  // that actually have credentials.
+  const passkeyCountByUserId = new Map<string, number>();
+  if (userIds.length > 0) {
+    try {
+      let cursor: string | null = null;
+      let isDone = false;
+      while (!isDone) {
+        const passkeysResult: BetterAuthFindManyResult<{
+          _id: string;
+          userId: string;
+        }> = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+          model: 'passkey',
+          paginationOpts: { cursor, numItems: 200 },
+          where: [{ field: 'userId', value: userIds, operator: 'in' }],
+        });
+        for (const row of passkeysResult?.page ?? []) {
+          passkeyCountByUserId.set(
+            row.userId,
+            (passkeyCountByUserId.get(row.userId) ?? 0) + 1,
+          );
+        }
+        // Stop on `isDone` or a missing cursor — a null cursor would
+        // restart from the first page and loop forever.
+        isDone =
+          passkeysResult?.isDone !== false || !passkeysResult.continueCursor;
+        cursor = passkeysResult?.continueCursor ?? null;
+      }
+    } catch (error) {
+      console.warn('[Members] Failed to batch-fetch passkey counts', error);
+    }
+  }
+
   return result.page.map((member) => {
     const user = usersById.get(member.userId);
     const role: MemberRole = isValidRole(member.role) ? member.role : 'member';
@@ -181,6 +216,7 @@ export async function listByOrganizationHandler(
       displayName: user?.name,
       email: user?.email,
       twoFactorEnabled: user?.twoFactorEnabled === true,
+      passkeyCount: passkeyCountByUserId.get(member.userId) ?? 0,
     };
   });
 }
@@ -197,6 +233,7 @@ export const listByOrganization = query({
       displayName: v.optional(v.string()),
       email: v.optional(v.string()),
       twoFactorEnabled: v.boolean(),
+      passkeyCount: v.number(),
     }),
   ),
   handler: listByOrganizationHandler,
