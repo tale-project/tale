@@ -4,10 +4,11 @@ import { t } from '../helpers/i18n';
 import { readRunContext } from '../helpers/test-context';
 
 /**
- * Automation run smoke flow: open the seeded start-only `test` workflow from
- * the automations list, execute it from the test panel, and assert the
- * execution reaches `completed` (reactive status subscription in
- * `automation-tester.tsx`).
+ * Automation run smoke flow: install the seeded start-only `test` workflow
+ * template (config-dir fixtures ship as uninstalled templates — the
+ * automations list only shows *installed* workflows), open it in the editor,
+ * execute it from the test panel, and assert the execution reaches `completed`
+ * (reactive status subscription in `automation-tester.tsx`).
  */
 
 test('runs the seeded test automation to completion', async ({ page }) => {
@@ -15,10 +16,16 @@ test('runs the seeded test automation to completion', async ({ page }) => {
 
   await page.goto(`/dashboard/${organizationId}/automations`);
 
-  // Row click navigates to the workflow editor.
-  const row = page.getByRole('cell', { name: 'test', exact: true }).first();
-  await expect(row).toBeVisible({ timeout: 60_000 });
-  await row.click();
+  // The seeded `test` workflow ships as a template; install it through the
+  // create-automation menu so it lands in the org's installed set and the
+  // editor opens. (Installing also navigates straight to the editor.)
+  await page
+    .getByRole('button', { name: t('automations.createButton') })
+    .click();
+  await page
+    .getByRole('menuitem', { name: t('automations.createDialog.tabTemplate') })
+    .click();
+  await page.getByRole('button', { name: 'test', exact: true }).click();
   await page.waitForURL(/\/automations\/test(?:[/?#]|$)/, { timeout: 60_000 });
 
   // The editor toolbar's flask button opens the test side panel.

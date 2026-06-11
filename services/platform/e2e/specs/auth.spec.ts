@@ -23,9 +23,13 @@ test.describe('login', () => {
     await signUpViaApi(request, credentials);
 
     await page.goto('/log-in');
-    await page.getByLabel(t('auth.email')).fill(credentials.email);
     await page
-      .getByLabel(t('auth.password'))
+      .getByLabel(t('auth.email'), { exact: true })
+      .fill(credentials.email);
+    // Exact match: the password field ships a "Show password" toggle whose
+    // aria-label also contains "Password", so a substring match is ambiguous.
+    await page
+      .getByLabel(t('auth.password'), { exact: true })
       .fill(`${credentials.password}-wrong`);
     await page
       .getByRole('button', { name: t('auth.login.loginButton'), exact: true })
@@ -45,8 +49,12 @@ test.describe('login', () => {
     await signUpViaApi(request, credentials);
 
     await page.goto('/log-in');
-    await page.getByLabel(t('auth.email')).fill(credentials.email);
-    await page.getByLabel(t('auth.password')).fill(credentials.password);
+    await page
+      .getByLabel(t('auth.email'), { exact: true })
+      .fill(credentials.email);
+    await page
+      .getByLabel(t('auth.password'), { exact: true })
+      .fill(credentials.password);
     await page
       .getByRole('button', { name: t('auth.login.loginButton'), exact: true })
       .click();

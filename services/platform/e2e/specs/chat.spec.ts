@@ -24,10 +24,18 @@ test('sends a chat message and receives a streamed reply', async ({ page }) => {
   await expect(composer).toBeVisible({ timeout: 60_000 });
   await expect(composer).toBeEnabled();
 
-  // The composer enables its send button on trusted typing only — use real
-  // key events, not fill().
+  // The composer's draft is keyed on the resolved user id; that key flips once
+  // auth settles, and the flip re-seeds the (controlled) textarea from
+  // storage, dropping characters typed before it lands. So a single
+  // type-then-send can ship a truncated message. Retry the clear+type until
+  // the value actually sticks (the key flips at most once, so a later attempt
+  // always wins), then send — guaranteeing the full message reaches the turn.
   await composer.click();
-  await page.keyboard.type(MESSAGE);
+  await expect(async () => {
+    await composer.fill('');
+    await composer.pressSequentially(MESSAGE);
+    await expect(composer).toHaveValue(MESSAGE);
+  }).toPass({ timeout: 30_000 });
 
   const sendButton = page.getByRole('button', {
     name: t('chat.send'),
