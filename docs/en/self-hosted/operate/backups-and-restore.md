@@ -1,76 +1,73 @@
 ---
 title: Backups and restore
-description: Postgres backups via the `db-backup` volume, what else to capture, and the restore-from-dump drill.
+description: Volume snapshots via `tale backup`, the automatic pre-migration snapshot, retention, the off-host copy, and the `tale restore` drill.
 ---
 
-The Postgres volume `db-data` is the only stateful piece in a Tale instance that matters for backups. Everything else — Convex code, agent definitions, uploaded files referenced by the database — is either re-derivable from the source repo or held under `convex-data`, which is mostly a cache. A working backup story captures Postgres plus the `providers/` directory and the operator config under `TALE_CONFIG_DIR`. This page is the drill.
+Tale's backup unit is the volume snapshot: a paused, checksummed tar of every data volume in the instance, written into a dedicated `backups` volume that lives next to the data it protects. The CLI takes one automatically before any deploy step that can migrate data, and `tale backup` takes one on demand. Recovery is `tale restore <snapshot-id>` plus a redeploy of the matching version — that pair is the answer to a failed upgrade, and the reason `tale rollback` can afford to refuse anything beyond a patch step.
 
-The architecture context lives in [Container architecture](/self-hosted/operate/container-architecture); this page covers the actual snapshot, off-site copy, and restore walk.
+The architecture context lives in [Container architecture](/self-hosted/operate/container-architecture); this page covers what a snapshot contains, when one is taken, how the copy gets off the host, and the restore walk.
 
-## What to back up
+## What a snapshot contains
 
-| Path                  | Source                     | Why                                             |
-| --------------------- | -------------------------- | ----------------------------------------------- |
-| `db-data` volume      | Postgres data              | The whole database — agents, runs, audit, files |
-| `db-backup` volume    | Postgres dumps             | Where the scheduled dump writes                 |
-| `providers/`          | Provider keys + config     | Encrypted secrets and per-provider model lists  |
-| `${TALE_CONFIG_DIR}/` | Branding, retention bounds | Operator-set config files                       |
-| `.env`                | All env vars               | Required to redeploy on a fresh host            |
+| Volume                       | Holds                                           |
+| ---------------------------- | ----------------------------------------------- |
+| `db-data`                    | Postgres — agents, runs, the audit log          |
+| `convex-data`                | Org config, provider secrets, uploaded branding |
+| `rag-data`                   | The vector index built from your documents      |
+| `crawler-data`               | Crawled website knowledge                       |
+| `caddy-data`, `caddy-config` | TLS certificates and proxy state                |
 
-The two volumes are managed by docker; the `providers/` directory and `TALE_CONFIG_DIR` are mounted into the platform container from your host filesystem. Backup tooling that snapshots host disks captures all three at once; volume-aware tools (`restic`, `velero`) need both.
+Each snapshot is a directory named like `20260611-142530-deploy` inside the project's `backups` volume: one `.tar.gz` per volume, a `.sha256` sidecar each, and a `manifest.json` written last. A directory without a manifest is an incomplete snapshot — it never shows up in listings and can never be restored. Two things live outside the volumes and need separate capture: the project workspace (the directory holding `tale.json`) and `.env`.
 
-## Scheduled Postgres dumps
+## When snapshots are taken
 
-The `tale-db` container ships a cron job that writes a daily `pg_dump` to `/var/lib/postgresql/backup` — mounted as the `db-backup` volume. The default retention is seven days; older dumps are pruned. The schedule is fine for most teams; tighten it by editing the container's crontab or running a sidecar.
+`tale deploy` snapshots before its first mutating step whenever the deploy can change data: the target version differs from the running one, a host-config push (`--override` / `--override-all`) is requested, or a legacy-layout migration is pending. `tale start` and `tale update` snapshot right before running the config-layout migration. While each volume is tarred, the containers using it are paused for a few seconds so the archive is crash-consistent — a live copy of a running Postgres directory is not restorable.
+
+A failed snapshot aborts the deploy. `--skip-backup` overrides that on `tale deploy` and `tale start`, which leaves your own external backups as the only recovery path — the flag logs a loud warning for exactly that reason.
 
 ```bash
-# Inspect the dumps the container has produced
-docker compose exec db ls -lh /var/lib/postgresql/backup
+# Take a snapshot right now
+tale backup
 ```
 
-Each dump is a compressed SQL file named `tale-YYYYMMDD-HHMMSS.sql.gz`. They are intentionally not encrypted at rest — encrypt them with your existing backup tooling on the way off-host.
+## Retention
+
+Rotation keeps the newest five snapshots and everything from the last 14 days — whichever is more generous. A snapshot is deleted only when it is both beyond the count window and older than the age window, so a quiet instance keeps its last snapshots indefinitely. Override the windows with `BACKUP_KEEP_COUNT` and `BACKUP_KEEP_DAYS` in `.env`.
 
 ## Off-host copy
 
-The supported pattern is your existing snapshot tooling (Restic, Borg, Velero, cloud-provider snapshots) pointed at the host disk or the named volumes. Tale does not ship an upload step — keeping the off-host copy under your existing backup contract is deliberate.
-
-A minimal Restic example writing the dump volume to S3 once an hour:
+The snapshots live on the same host as the data they protect — a dead disk takes both. Point your existing backup tooling (Restic, Borg, Velero, cloud-provider snapshots) at the `backups` volume, and capture the project workspace and `.env` in the same job. Tale does not ship an upload step — keeping the off-host copy under your existing backup contract is deliberate.
 
 ```bash
-# crontab on the host
+# crontab on the host — hourly Restic copy of the backups volume to S3
 0 * * * * restic -r s3:s3.amazonaws.com/bucket/tale backup \
-  /var/lib/docker/volumes/tale_db-backup/_data
+  /var/lib/docker/volumes/<project-id>_backups/_data
 ```
 
-Capture `providers/`, `${TALE_CONFIG_DIR}`, and `.env` in the same job. The first restore drill will tell you whether the snapshot covers what you needed.
+Find the volume's host path with `docker volume inspect <project-id>_backups`; the project id lives in `tale.json`.
 
-## Restoring from a dump
+## Restoring a snapshot
 
-The restore replaces the entire database. Bring the platform and convex containers down first, restore Postgres in isolation, then bring everything back up.
+`tale restore` without arguments lists what is available; with an id it verifies the checksums, wipes the data volumes, and extracts the snapshot. It refuses while any project container runs — pass `--stop` to stop them — and asks for confirmation before touching anything.
 
 ```bash
-# 1. Stop everything that writes to the DB
-docker compose stop tale-platform tale-convex
+# See what's available
+tale restore
 
-# 2. Drop the existing DB and re-create it empty
-docker compose exec db psql -U tale -c "DROP DATABASE tale;"
-docker compose exec db psql -U tale -c "CREATE DATABASE tale;"
+# Stop the stack and restore
+tale restore 20260611-142530-deploy --stop
 
-# 3. Pipe the dump back in
-docker compose exec -T db gunzip -c \
-  /var/lib/postgresql/backup/tale-20250126-020000.sql.gz \
-  | docker compose exec -T db psql -U tale -d tale
-
-# 4. Bring the rest back up
-docker compose up -d
+# Bring the stack back on the version that matches the data
+tale upgrade --version 0.9.6
+tale deploy --all
 ```
 
-The first request after restart re-warms the platform's caches; expect the UI to feel slow for the first minute. Audit log entries are part of the dump, so the restored instance has the full history.
+The redeploy of the matching version is part of the restore, not an optional extra: the snapshot captured the data exactly as that platform version left it, and a newer binary would immediately re-run its migrations against it. The restore output prints the exact version recorded in the snapshot's manifest.
 
 ## Restore drill
 
-Run the drill quarterly on a non-production host. The drill is not "does the dump exist" — it is "can a fresh host be rebuilt from the snapshot and a clean checkout in under an hour." The two failure modes the drill catches: a missing `providers/` snapshot (provider keys gone), and a stale `.env` that no longer matches the current binary's requirements.
+Run the drill quarterly on a non-production host. The drill is not "does a snapshot exist" — it is "can a fresh host be rebuilt from the off-host copy of the `backups` volume, the project workspace, and `.env` in under an hour." The failure modes the drill catches: an off-host job that never captured the workspace, and a stale `.env` that no longer matches the current binary's requirements.
 
 ## Where this fits
 
-Backups are the cheap part; the restore drill is the expensive part, and the only one that proves the backup works. The hardening checklist that names backups as a row lives in [Hardening](/self-hosted/operate/security/hardening). If you are designing a multi-host setup, the architecture lives in [Container architecture](/self-hosted/operate/container-architecture).
+Snapshots are the cheap part; the restore drill is what proves they work, and the redeploy-the-matching-version rule is the one thing to remember — recovery is never "roll the binary back," it is "restore the data and deploy the version it belongs to." The upgrade flow these snapshots protect lives in [Upgrades](/self-hosted/operate/upgrades); the hardening checklist that names backups as a row is in [Hardening](/self-hosted/operate/security/hardening).

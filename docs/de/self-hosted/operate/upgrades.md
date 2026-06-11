@@ -3,7 +3,7 @@ title: Upgrades
 description: Wie `tale upgrade` und `tale deploy` eine Tale-Instanz vorwärtsbewegen — das Rolling-Restart-Pattern, was vor einem Upgrade zu tun ist und die Versions-Kompatibilitäts-Story.
 ---
 
-Upgrades auf einer self-hosted Tale-Instanz laufen durch das `tale`-CLI in zwei Schritten: `tale upgrade`, um das Binary selbst auf die neue Version zu bewegen, dann `tale deploy`, um die Plattform-Container passend zu rollen. Der Deploy nutzt ein Blue-Green-Pattern — die neue Farbe startet neben der alten, Healthchecks bestehen, der Traffic kippt, die alte Farbe drainet. Zero-Downtime ist der Default; Rollback zur vorherigen Farbe ist ein einzelnes Kommando, wenn ein Smoke-Check scheitert.
+Upgrades auf einer self-hosted Tale-Instanz laufen durch das `tale`-CLI in zwei Schritten: `tale upgrade`, um das Binary selbst auf die neue Version zu bewegen, dann `tale deploy`, um die Plattform-Container passend zu rollen. Der Deploy nutzt ein Blue-Green-Pattern — die neue Farbe startet neben der alten, Healthchecks bestehen, der Traffic kippt, die alte Farbe drainet. Zero-Downtime ist der Default; macht ein Patch-Release Ärger, bringt `tale rollback` den vorherigen Patch in einem Kommando zurück, und alles Größere recovert aus dem Pre-Upgrade-Snapshot.
 
 Die CLI-Installation lebt in [Tale-CLI installieren](/de/self-hosted/install/cli-install). Diese Seite deckt ab, was jedes Subkommando tut und in welcher Reihenfolge sie zu laufen sind.
 
@@ -11,7 +11,7 @@ Die CLI-Installation lebt in [Tale-CLI installieren](/de/self-hosted/install/cli
 
 Zwei Dinge sind es wert, zuerst zu bestätigen:
 
-- Ein funktionierendes Backup ist in den letzten 24 Stunden gelandet — siehe [Backups und Restore](/de/self-hosted/operate/backups-and-restore). Upgrades, die mitten in der Migration scheitern, sind selten, aber der Recovery-Pfad ist „aus Dump wiederherstellen".
+- Deine Off-Host-Kopie des `backups`-Volumes ist aktuell — siehe [Backups und Restore](/de/self-hosted/operate/backups-and-restore). `tale deploy` snapshotet die Daten-Volumes automatisch vor jedem Schritt, der Daten migrieren kann, aber der Snapshot lebt auf demselben Host; die Off-Host-Kopie ist das, was eine tote Platte überlebt.
 - Die Release-Notes für die Zielversion nennen keinen breaking Change. Die Notes sind von der GitHub-Release-Seite verlinkt; breaking Changes sind oben als solche markiert.
 
 Überschreitet das Upgrade eine Major-Version (1.x → 2.x), lies die Migrations-Notes End-to-End, bevor du anfängst. Major-Versionen sind, wo Schema-Migrationen und Config-Datei-Format-Änderungen landen.
@@ -50,7 +50,7 @@ Eine laufende Instanz ist zu jeder Zeit eine der zwei Farben (Blue oder Green). 
 Drei Garantien, die das Pattern dir gibt:
 
 - **Kein Fenster, in dem beide Farben Traffic servieren.** Ein Datenbank-Constraint setzt single-active durch — Caddy routet zur gesunden.
-- **Rollback ist das Zurücksetzen einer State-Datei.** `tale rollback` kippt den Upstream zurück; die alte Farbe läuft nach einem Deploy noch einige Minuten, falls du zurück musst.
+- **Patch-Rollback ist ein Kommando.** `tale rollback` deployt das vorherige Patch-Release auf der inaktiven Farbe neu und kippt den Traffic zurück. Minor- und Major-Downgrades verweigert es — die können die Datenbank vor dem Binary zurücklassen, und ihr Recovery-Pfad ist ein Snapshot-Restore.
 - **Gescheiterte Healthchecks blockieren den Kipp.** Besteht die neue Farbe nicht innerhalb des Timeouts, bricht der Deploy ab und die alte Farbe serviert weiter.
 
 Die vollständige Deploy-Prozedur inklusive der Cleanup-Phase lebt in `tale --help`; das operatorseitige Rezept ist `tale deploy && tale status` und visuelle Bestätigung im Browser.
@@ -58,21 +58,18 @@ Die vollständige Deploy-Prozedur inklusive der Cleanup-Phase lebt in `tale --he
 ## Zurückrollen
 
 ```bash
-# Zurück zur vorherigen Version
+# Zurück zur vorherigen Patch-Version
 tale rollback
-
-# Oder auf eine bestimmte Version pinnen
-tale rollback --version 0.9.0
 ```
 
-Rollback ist schnell (es ist nur das Kippen der Farbe), macht aber Schema-Migrationen nicht rückgängig. Lief das Upgrade eine Migration, die die alte Version nicht versteht, lässt Rollback die Datenbank vor dem Binary — die alte Version weigert sich zu starten. Die Release-Notes nennen, wenn das passiert; für solche Upgrades ist Restore-from-Dump der tatsächliche Rollback-Pfad.
+`tale rollback` ist auf Patch-Schritte begrenzt: Es zielt nur auf die aufgezeichnete vorherige Version und verweigert, wenn diese Version nicht `major.minor` mit der laufenden Plattform teilt. Patch-Releases tragen nie Migrationen, also ist das Redeploy des vorherigen Patches immer sicher. Alles Größere kann Daten vorwärts migriert haben — ein älteres Binary auf migrierten Daten zu deployen korrumpiert die Instanz, statt sie zu retten. Für diese Fälle ist der Recovery-Pfad, den Pre-Upgrade-Snapshot wiederherzustellen und die passende Version neu zu deployen; die Verweigerungs-Meldung druckt die exakten Kommandos, und der volle Walk lebt in [Backups und Restore](/de/self-hosted/operate/backups-and-restore).
 
 ## Versions-Kompatibilität
 
 Tale-Versionen sind semver. Die Kompatibilitäts-Regeln:
 
-- Patch (`0.9.0 → 0.9.1`) — keine Migrationen, keine Config-Änderungen, Rollback ist immer sicher.
-- Minor (`0.9.x → 0.10.x`) — kann forward-only Migrationen enthalten; Rollback stellt das Binary wieder her, aber nicht das Schema.
+- Patch (`0.9.0 → 0.9.1`) — keine Migrationen, keine Config-Änderungen, `tale rollback` ist immer sicher.
+- Minor (`0.9.x → 0.10.x`) — kann forward-only Migrationen enthalten; `tale rollback` verweigert, Recovery ist Snapshot-Restore plus Redeploy.
 - Major (`0.x → 1.x`) — lies die Migrations-Notes, plan das Wartungsfenster, erwarte Überraschungen.
 
 Minor-Versionen zu überspringen (von 0.9 auf 0.11 zu gehen) ist unterstützt, solange die Zwischen-Migrationen noch im Binary sind; die Release-Notes nennen es, wenn das nicht der Fall ist.

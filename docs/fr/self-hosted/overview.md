@@ -27,8 +27,8 @@ Lis ceci avant de `docker compose up`. Reviens-y quand tu débogues un incident 
 
 Trois volumes survivent à un `docker compose down` :
 
-- `db-data` — répertoire de données Postgres. Le seul volume que les sauvegardes doivent capturer.
-- `db-backup` — destination des dumps Postgres que le conteneur écrit selon une planification.
+- `db-data` — répertoire de données Postgres : la base derrière les agents, les runs et l'audit log.
+- `backups` — snapshots de volumes checksummés, écrits par `tale backup` et automatiquement avant les déploiements migrants ; [Backups et restauration](/fr/self-hosted/operate/backups-and-restore) est le drill.
 - Le montage du magasin d'objets de la plateforme — fichiers téléversés, images générées, bundles exportés.
 
 Tout le reste est éphémère. Les conteneurs peuvent être remplacés sans perte de données tant que les volumes survivent.

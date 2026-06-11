@@ -913,7 +913,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Backups und Restore",
-      "description": "Postgres-Backups über das `db-backup`-Volume, was sonst zu erfassen ist und der Restore-from-Dump-Drill."
+      "description": "Volume-Snapshots über `tale backup`, der automatische Pre-Migrations-Snapshot, Retention, die Off-Host-Kopie und der `tale restore`-Drill."
     }
   },
   "de:self-hosted/operate/security/cryptography": {
@@ -1937,7 +1937,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Backups et restauration",
-      "description": "Backups Postgres via le volume `db-backup`, ce qu'il faut capturer en plus, et le drill de restauration depuis un dump."
+      "description": "Snapshots de volumes via `tale backup`, le snapshot automatique pré-migration, la rétention, la copie hors-hôte et le drill `tale restore`."
     }
   },
   "fr:self-hosted/operate/security/cryptography": {
@@ -2961,7 +2961,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Backups and restore",
-      "description": "Postgres backups via the `db-backup` volume, what else to capture, and the restore-from-dump drill."
+      "description": "Volume snapshots via `tale backup`, the automatic pre-migration snapshot, retention, the off-host copy, and the `tale restore` drill."
     }
   },
   "en:self-hosted/operate/security/cryptography": {
