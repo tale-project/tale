@@ -22,7 +22,7 @@ BETTER_AUTH_SECRET=...
 
 ## Microsoft Entra
 
-Der Microsoft-Entra-Modus fügt einen OAuth/OIDC-Button zum Sign-in-Bildschirm hinzu und nimmt Benutzer aus einem Tenant an, den du kontrollierst. Setze `MICROSOFT_AUTH_ENABLED=true`, um den Button zu aktivieren; die per-Tenant Client-ID, der Client-Secret und der Redirect-URI werden in **Einstellungen > Authentifizierung** konfiguriert, sobald die Plattform läuft.
+Der Microsoft-Entra-Modus fügt einen OAuth/OIDC-Button zum Sign-in-Bildschirm hinzu und nimmt Benutzer aus einem Tenant an, den du kontrollierst. Setze `MICROSOFT_AUTH_ENABLED=true`, um den Button zu aktivieren; die per-Tenant Client-ID, der Client-Secret und der Redirect-URI werden auf der **Single Sign-On**-Karte unter **Einstellungen > Integrationen** konfiguriert, sobald die Plattform läuft.
 
 ```bash
 # .env
@@ -33,7 +33,11 @@ Der Redirect-URI, den Entra braucht, ist `${SITE_URL}/api/auth/callback/microsof
 
 ## Generisches OIDC
 
-Generisches OIDC akzeptiert jeden spec-konformen Identitäts-Anbieter — Keycloak, Authentik, Okta, Google Workspace. Der Button-Text ist in **Einstellungen > Authentifizierung** konfigurierbar, und der Flow nutzt den Standard Authorization-Code-Grant mit PKCE. Tale speichert kein Secret auf Platte für OIDC; die Client-ID und die Discovery-URL gehen durch die UI, der Client-Secret durch den verschlüsselten Credential-Store.
+Generisches OIDC akzeptiert jeden spec-konformen Identitäts-Anbieter — Keycloak, Authentik, Okta, Google Workspace. Die Konfiguration lebt auf der **Single Sign-On**-Karte unter **Einstellungen > Integrationen**: Wähle den Anbietertyp **Generisches OIDC**, trag Aussteller-URL, Client-ID und Client-Secret ein, und Tale liest die Authorization-, Token- und Userinfo-Endpunkte aus dem `.well-known/openid-configuration`-Dokument des Ausstellers. Der Flow nutzt den Standard Authorization-Code-Grant mit PKCE (S256). Tale speichert kein Secret auf Platte für OIDC; Client-ID und Client-Secret liegen im verschlüsselten Credential-Store. Der Redirect-URI, den du bei deinem Anbieter registrierst, ist `${SITE_URL}/http_api/api/sso/callback`.
+
+Identitäts-Anbieter sind sich uneins, wo Claims liegen, also lässt dich die Karte auf deine zeigen. Die Felder **E-Mail-Claim**, **Namens-Claim** und **Gruppen-Claim** nehmen einen Claim-Namen oder einen Punktpfad in die Userinfo-Antwort — Keycloaks Realm-Rollen liegen zum Beispiel unter `realm_access.roles`. Rollenzuordnungsregeln weisen Plattformrollen beim Sign-in zu: Eine **Gruppe**-Regel matcht die Gruppen des Benutzers gegen ein Platzhalter-Muster (`platform-admin*` → Admin), eine **Claim**-Regel matcht einen beliebigen per Punktpfad aufgelösten Claim. **Teams automatisch bereitstellen** spiegelt die Gruppen, die dein Anbieter zurückgibt, bei jedem Sign-in als Tale-Teams — abzüglich der Gruppen, die du ausschließt.
+
+Ein durchgerechnetes Keycloak-Beispiel: Lege einen Confidential Client `tale-platform` mit dem Redirect-URI oben an, ergänze einen Group-Membership-Mapper, damit der Client `groups` in Userinfo ausgibt, setze dann in Tale den Aussteller auf `https://keycloak.example.com/realms/<realm>`, füge eine Gruppen-Regel `platform-admin*` → Admin hinzu und klicke **Verbindung testen** — das validiert die Discovery, bevor irgendetwas gespeichert wird.
 
 Das ist der Modus für Teams, die bereits einen IdP betreiben und ihre bestehende Identitäts-Oberfläche in Tale haben wollen.
 

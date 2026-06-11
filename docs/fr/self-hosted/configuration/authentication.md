@@ -22,7 +22,7 @@ BETTER_AUTH_SECRET=...
 
 ## Microsoft Entra
 
-Le mode Microsoft Entra ajoute un bouton OAuth/OIDC à l'écran de sign-in et accepte les utilisateurs d'un tenant que tu contrôles. Mets `MICROSOFT_AUTH_ENABLED=true` pour activer le bouton ; le client ID, le client secret et l'URI de redirection par tenant se configurent dans **Paramètres > Authentification** une fois la plateforme démarrée.
+Le mode Microsoft Entra ajoute un bouton OAuth/OIDC à l'écran de sign-in et accepte les utilisateurs d'un tenant que tu contrôles. Mets `MICROSOFT_AUTH_ENABLED=true` pour activer le bouton ; le client ID, le client secret et l'URI de redirection par tenant se configurent sur la carte **Authentification unique** sous **Paramètres > Intégrations** une fois la plateforme démarrée.
 
 ```bash
 # .env
@@ -33,7 +33,11 @@ L'URI de redirection dont Entra a besoin est `${SITE_URL}/api/auth/callback/micr
 
 ## OIDC générique
 
-L'OIDC générique accepte tout fournisseur d'identité conforme à la spec — Keycloak, Authentik, Okta, Google Workspace. Le libellé du bouton se configure dans **Paramètres > Authentification**, et le flow utilise le grant Authorization Code standard avec PKCE. Tale ne stocke aucun secret sur disque pour OIDC ; le client ID et l'URL de discovery passent par l'UI, le client secret par le credential store chiffré.
+L'OIDC générique accepte tout fournisseur d'identité conforme à la spec — Keycloak, Authentik, Okta, Google Workspace. La configuration vit sur la carte **Authentification unique** sous **Paramètres > Intégrations** : choisis le type de fournisseur **OIDC générique**, saisis l'URL de l'émetteur, le client ID et le client secret, et Tale lit les points de terminaison d'autorisation, de jeton et userinfo depuis le document `.well-known/openid-configuration` de l'émetteur. Le flow utilise le grant Authorization Code standard avec PKCE (S256). Tale ne stocke aucun secret sur disque pour OIDC ; le client ID et le client secret vivent dans le credential store chiffré. L'URI de redirection à enregistrer chez ton fournisseur est `${SITE_URL}/http_api/api/sso/callback`.
+
+Les fournisseurs d'identité ne s'accordent pas sur l'emplacement des claims, donc la carte te laisse pointer Tale vers les tiens. Les champs **Claim d'e-mail**, **Claim de nom** et **Claim de groupes** prennent un nom de claim ou un chemin en notation pointée dans la réponse userinfo — les rôles de realm de Keycloak, par exemple, vivent sous `realm_access.roles`. Les règles de correspondance des rôles attribuent les rôles de la plateforme au sign-in : une règle **Groupe** compare les groupes de l'utilisateur à un motif avec caractère générique (`platform-admin*` → Admin), une règle **Claim** compare n'importe quel claim résolu par chemin pointé. **Provisionnement automatique des équipes** reflète les groupes renvoyés par ton fournisseur comme équipes Tale à chaque sign-in, moins les groupes que tu exclus.
+
+Un exemple Keycloak complet : crée un client confidentiel `tale-platform` avec l'URI de redirection ci-dessus, ajoute un mapper Group Membership pour que le client émette `groups` dans userinfo, puis dans Tale règle l'émetteur sur `https://keycloak.example.com/realms/<realm>`, ajoute une règle de groupe `platform-admin*` → Admin et clique sur **Tester la connexion** — la discovery est validée avant que quoi que ce soit ne soit enregistré.
 
 C'est le mode pour les équipes qui font déjà tourner un IdP et veulent leur surface d'identité existante dans Tale.
 

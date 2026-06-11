@@ -11,6 +11,9 @@ export const handleSsoLogin = internalAction({
     providerId: v.string(),
     jobTitle: v.optional(v.string()),
     appRoles: v.optional(v.array(v.string())),
+    groups: v.optional(v.array(v.string())),
+    // Raw userinfo claims for claim-based role rules; shape is IdP-specific.
+    rawClaims: v.optional(v.record(v.string(), v.any())),
     accessToken: v.string(),
     refreshToken: v.optional(v.string()),
     accessTokenExpiresAt: v.optional(v.number()),

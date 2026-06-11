@@ -46,6 +46,18 @@ const DEFAULT_MAPPING_RULES: RoleMappingRule[] = [
   { source: 'jobTitle', pattern: '*editor*', targetRole: 'editor' },
 ];
 
+// Generic OIDC has no jobTitle/appRole claims — groups are the practical
+// rule source (Keycloak, Auth0, Okta all emit them).
+const GENERIC_DEFAULT_MAPPING_RULES: RoleMappingRule[] = [
+  { source: 'group', pattern: '*admin*', targetRole: 'admin' },
+];
+
+function defaultMappingRulesFor(type: SsoProviderType): RoleMappingRule[] {
+  return type === 'generic-oidc'
+    ? GENERIC_DEFAULT_MAPPING_RULES
+    : DEFAULT_MAPPING_RULES;
+}
+
 interface UseSsoConfigFormParams {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -73,7 +85,8 @@ export function useSsoConfigForm({
     [t],
   );
 
-  const [providerType, setProviderType] = useState<SsoProviderType>('entra-id');
+  const [providerType, setProviderTypeState] =
+    useState<SsoProviderType>('entra-id');
   const [issuer, setIssuer] = useState('');
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
@@ -85,6 +98,9 @@ export function useSsoConfigForm({
   );
   const [defaultRole, setDefaultRole] = useState<PlatformRole>('member');
   const [enableOneDriveAccess, setEnableOneDriveAccess] = useState(false);
+  const [emailClaim, setEmailClaim] = useState('');
+  const [nameClaim, setNameClaim] = useState('');
+  const [groupsClaim, setGroupsClaim] = useState('');
   const [testResult, setTestResult] = useState<{
     valid: boolean;
     error?: string;
@@ -100,7 +116,22 @@ export function useSsoConfigForm({
     roleMappingRules: RoleMappingRule[];
     defaultRole: PlatformRole;
     enableOneDriveAccess: boolean;
+    emailClaim: string;
+    nameClaim: string;
+    groupsClaim: string;
   } | null>(null);
+
+  // Switching the provider type (only possible before the first save) swaps
+  // the rule defaults: jobTitle/appRole sources don't exist on generic OIDC.
+  const setProviderType = useCallback(
+    (type: SsoProviderType) => {
+      setProviderTypeState(type);
+      if (!existingProvider) {
+        setRoleMappingRules(defaultMappingRulesFor(type));
+      }
+    },
+    [existingProvider],
+  );
 
   const { mutateAsync: upsertSSOProvider, isPending: isUpserting } =
     useUpsertSsoProvider();
@@ -130,7 +161,10 @@ export function useSsoConfigForm({
       excludeGroups !== orig.excludeGroups ||
       autoProvisionRole !== orig.autoProvisionRole ||
       defaultRole !== orig.defaultRole ||
-      enableOneDriveAccess !== orig.enableOneDriveAccess;
+      enableOneDriveAccess !== orig.enableOneDriveAccess ||
+      emailClaim !== orig.emailClaim ||
+      nameClaim !== orig.nameClaim ||
+      groupsClaim !== orig.groupsClaim;
 
     if (basicFieldsChanged) return true;
     if (roleMappingRules.length !== orig.roleMappingRules.length) return true;
@@ -140,7 +174,8 @@ export function useSsoConfigForm({
       return (
         curr.source !== origRule.source ||
         curr.pattern !== origRule.pattern ||
-        curr.targetRole !== origRule.targetRole
+        curr.targetRole !== origRule.targetRole ||
+        curr.claim !== origRule.claim
       );
     });
   }, [
@@ -154,6 +189,9 @@ export function useSsoConfigForm({
     roleMappingRules,
     defaultRole,
     enableOneDriveAccess,
+    emailClaim,
+    nameClaim,
+    groupsClaim,
   ]);
 
   useEffect(() => {
@@ -161,25 +199,23 @@ export function useSsoConfigForm({
       getFullConfig({})
         .then((config) => {
           if (config) {
-            const entraFeatures = config.providerFeatures?.entraId;
-            const excludeGroupsStr = (entraFeatures?.excludeGroups || []).join(
-              ', ',
-            );
-            const rules =
-              config.roleMappingRules.length > 0
-                ? config.roleMappingRules.filter(
-                    (r: RoleMappingRule) =>
-                      r.source === 'jobTitle' || r.source === 'appRole',
-                  )
-                : DEFAULT_MAPPING_RULES;
             const loadedType: SsoProviderType =
               config.providerId === 'generic-oidc'
                 ? 'generic-oidc'
                 : 'entra-id';
-            setProviderType(loadedType);
+            const entraFeatures = config.providerFeatures?.entraId;
+            const genericFeatures = config.providerFeatures?.genericOidc;
+            const features =
+              loadedType === 'generic-oidc' ? genericFeatures : entraFeatures;
+            const excludeGroupsStr = (features?.excludeGroups || []).join(', ');
+            const rules =
+              config.roleMappingRules.length > 0
+                ? config.roleMappingRules
+                : defaultMappingRulesFor(loadedType);
+            setProviderTypeState(loadedType);
             setIssuer(config.issuer);
             setClientId(config.clientId);
-            setAutoProvisionTeam(entraFeatures?.autoProvisionTeam ?? false);
+            setAutoProvisionTeam(features?.autoProvisionTeam ?? false);
             setExcludeGroups(excludeGroupsStr);
             setAutoProvisionRole(config.autoProvisionRole);
             setRoleMappingRules(rules);
@@ -187,17 +223,23 @@ export function useSsoConfigForm({
             setEnableOneDriveAccess(
               entraFeatures?.enableOneDriveAccess ?? false,
             );
+            setEmailClaim(genericFeatures?.emailClaim ?? '');
+            setNameClaim(genericFeatures?.nameClaim ?? '');
+            setGroupsClaim(genericFeatures?.groupsClaim ?? '');
             originalConfigRef.current = {
               providerType: loadedType,
               issuer: config.issuer,
               clientId: config.clientId,
-              autoProvisionTeam: entraFeatures?.autoProvisionTeam ?? false,
+              autoProvisionTeam: features?.autoProvisionTeam ?? false,
               excludeGroups: excludeGroupsStr,
               autoProvisionRole: config.autoProvisionRole,
               roleMappingRules: rules,
               defaultRole: config.defaultRole,
               enableOneDriveAccess:
                 entraFeatures?.enableOneDriveAccess ?? false,
+              emailClaim: genericFeatures?.emailClaim ?? '',
+              nameClaim: genericFeatures?.nameClaim ?? '',
+              groupsClaim: genericFeatures?.groupsClaim ?? '',
             };
           }
           setClientSecret('');
@@ -211,7 +253,7 @@ export function useSsoConfigForm({
           });
         });
     } else if (!existingProvider) {
-      setProviderType('entra-id');
+      setProviderTypeState('entra-id');
       setIssuer('');
       setClientId('');
       setClientSecret('');
@@ -221,6 +263,9 @@ export function useSsoConfigForm({
       setRoleMappingRules(DEFAULT_MAPPING_RULES);
       setDefaultRole('member');
       setEnableOneDriveAccess(false);
+      setEmailClaim('');
+      setNameClaim('');
+      setGroupsClaim('');
     }
     setTestResult(null);
   }, [existingProvider, open, getFullConfig, t]);
@@ -237,6 +282,10 @@ export function useSsoConfigForm({
     }
 
     const isGeneric = providerType === 'generic-oidc';
+    const excludeGroupsList = excludeGroups
+      .split(',')
+      .map((g) => g.trim())
+      .filter(Boolean);
 
     try {
       await upsertSSOProvider({
@@ -249,18 +298,23 @@ export function useSsoConfigForm({
         autoProvisionRole,
         roleMappingRules,
         defaultRole,
-        // OneDrive and Entra group→team sync ride Microsoft Graph, so they
-        // apply only to the Entra provider; generic OIDC persists no features.
+        // OneDrive and Graph-based team sync are Entra-only; generic OIDC
+        // persists claim mappings and userinfo-based team sync instead.
         providerFeatures: isGeneric
-          ? undefined
+          ? {
+              genericOidc: {
+                emailClaim: emailClaim.trim() || undefined,
+                nameClaim: nameClaim.trim() || undefined,
+                groupsClaim: groupsClaim.trim() || undefined,
+                autoProvisionTeam,
+                excludeGroups: excludeGroupsList,
+              },
+            }
           : {
               entraId: {
                 enableOneDriveAccess,
                 autoProvisionTeam,
-                excludeGroups: excludeGroups
-                  .split(',')
-                  .map((g) => g.trim())
-                  .filter(Boolean),
+                excludeGroups: excludeGroupsList,
               },
             },
       });
@@ -297,6 +351,9 @@ export function useSsoConfigForm({
     enableOneDriveAccess,
     autoProvisionTeam,
     excludeGroups,
+    emailClaim,
+    nameClaim,
+    groupsClaim,
     upsertSSOProvider,
     onOpenChange,
     t,
@@ -396,9 +453,13 @@ export function useSsoConfigForm({
   const addMappingRule = useCallback(() => {
     setRoleMappingRules((prev) => [
       ...prev,
-      { source: 'jobTitle', pattern: '', targetRole: 'member' },
+      {
+        source: providerType === 'generic-oidc' ? 'group' : 'jobTitle',
+        pattern: '',
+        targetRole: 'member',
+      },
     ]);
-  }, []);
+  }, [providerType]);
 
   const removeMappingRule = useCallback((index: number) => {
     setRoleMappingRules((prev) => prev.filter((_, i) => i !== index));
@@ -436,6 +497,12 @@ export function useSsoConfigForm({
     setDefaultRole,
     enableOneDriveAccess,
     setEnableOneDriveAccess,
+    emailClaim,
+    setEmailClaim,
+    nameClaim,
+    setNameClaim,
+    groupsClaim,
+    setGroupsClaim,
     testResult,
     isSubmitting,
     isTesting,

@@ -125,6 +125,93 @@ describe('generic OIDC adapter (#1506)', () => {
     expect(info.groups).toEqual(['admins', 'engineering']);
   });
 
+  it('carries the full userinfo payload on rawClaims for claim-based rules', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({
+        sub: 'user-1',
+        email: 'user@example.com',
+        realm_access: { roles: ['platform-admin'] },
+      });
+    });
+
+    const info = await genericOidcAdapter.getUserInfo(config, 'at');
+    expect(info.rawClaims).toMatchObject({
+      sub: 'user-1',
+      realm_access: { roles: ['platform-admin'] },
+    });
+  });
+
+  it('resolves operator-configured claim mappings (dot-paths) before the standard claims', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({
+        sub: 'user-1',
+        email: 'standard@example.com',
+        name: 'Standard Name',
+        contact: { email: 'mapped@example.com' },
+        profile: { displayName: 'Mapped Name' },
+        realm_access: { roles: ['admins', 'engineering'] },
+      });
+    });
+
+    const info = await genericOidcAdapter.getUserInfo(
+      {
+        ...config,
+        claimMappings: {
+          email: 'contact.email',
+          name: 'profile.displayName',
+          groups: 'realm_access.roles',
+        },
+      },
+      'at',
+    );
+    expect(info.email).toBe('mapped@example.com');
+    expect(info.name).toBe('Mapped Name');
+    expect(info.groups).toEqual(['admins', 'engineering']);
+  });
+
+  it('falls back to the standard claims when a mapped claim is missing', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({
+        sub: 'user-1',
+        email: 'standard@example.com',
+        name: 'Standard Name',
+        groups: ['standard-group'],
+      });
+    });
+
+    const info = await genericOidcAdapter.getUserInfo(
+      {
+        ...config,
+        claimMappings: { email: 'contact.email', name: 'profile.displayName' },
+      },
+      'at',
+    );
+    expect(info.email).toBe('standard@example.com');
+    expect(info.name).toBe('Standard Name');
+    expect(info.groups).toEqual(['standard-group']);
+  });
+
+  it('feeds mapped groups into getGroups for team sync', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({
+        sub: 'user-1',
+        realm_access: { roles: ['platform-admins'] },
+      });
+    });
+
+    const groups = await genericOidcAdapter.getGroups?.(
+      { ...config, claimMappings: { groups: 'realm_access.roles' } },
+      'at',
+    );
+    expect(groups).toEqual([
+      { id: 'platform-admins', name: 'platform-admins' },
+    ]);
+  });
+
   it('falls back to given/family name then preferred_username', async () => {
     mockFetch((url) => {
       if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
@@ -171,6 +258,58 @@ describe('generic OIDC adapter (#1506)', () => {
     await expect(genericOidcAdapter.getUserInfo(config, 'at')).rejects.toThrow(
       /sub/i,
     );
+  });
+
+  it('advertises PKCE support and puts the S256 challenge on the authorize URL', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    expect(genericOidcAdapter.capabilities.supportsPkce).toBe(true);
+
+    const url = await genericOidcAdapter.buildAuthorizeUrl(config, {
+      redirectUri: 'https://app.example/callback',
+      state: 'state-1',
+      codeChallenge: 'challenge-abc',
+    });
+    expect(url.searchParams.get('code_challenge')).toBe('challenge-abc');
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+  });
+
+  it('omits PKCE params from the authorize URL without a challenge', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const url = await genericOidcAdapter.buildAuthorizeUrl(config, {
+      redirectUri: 'https://app.example/callback',
+      state: 'state-1',
+    });
+    expect(url.searchParams.get('code_challenge')).toBeNull();
+    expect(url.searchParams.get('code_challenge_method')).toBeNull();
+  });
+
+  it('sends the PKCE verifier at the token exchange', async () => {
+    let tokenBody: URLSearchParams | undefined;
+    mockFetch((url, init) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      if (url === DISCOVERY.token_endpoint) {
+        if (init?.body instanceof URLSearchParams) {
+          tokenBody = init.body;
+        }
+        return jsonResponse({ access_token: 'at' });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    await genericOidcAdapter.exchangeCodeForTokens(config, {
+      code: 'auth-code',
+      redirectUri: 'https://app.example/callback',
+      codeVerifier: 'verifier-xyz',
+    });
+    expect(tokenBody?.get('code_verifier')).toBe('verifier-xyz');
   });
 
   it('caches the discovery document across calls in a flow', async () => {

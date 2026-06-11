@@ -2,6 +2,7 @@ import { GenericActionCtx } from 'convex/server';
 
 import { internal } from '../_generated/api';
 import { DataModel } from '../_generated/dataModel';
+import { claimMappingsFromFeatures } from './claims';
 import {
   syncTeamsFromGroups,
   type SyncTeamsFromGroupsArgs,
@@ -16,6 +17,8 @@ type HandleSsoLoginArgs = {
   providerId: string;
   jobTitle?: string;
   appRoles?: string[];
+  groups?: string[];
+  rawClaims?: Record<string, unknown>;
   accessToken: string;
   refreshToken?: string;
   accessTokenExpiresAt?: number;
@@ -55,6 +58,8 @@ export async function handleSsoLogin(
         name: args.name,
         jobTitle: args.jobTitle,
         appRoles: args.appRoles,
+        groups: args.groups,
+        rawClaims: args.rawClaims,
       };
       role = adapter.mapToRole(
         ssoConfig.roleMappingRules,
@@ -82,26 +87,34 @@ export async function handleSsoLogin(
       return { success: false, error: 'Failed to create or find user' };
     }
 
-    const entraFeatures = ssoConfig?.providerFeatures?.entraId;
-    if (ssoConfig && entraFeatures?.autoProvisionTeam && adapter.getGroups) {
+    // Team sync is feature-gated per provider namespace: Entra rides
+    // Microsoft Graph, generic OIDC rides the groups claim on userinfo.
+    const teamSyncFeatures =
+      ssoConfig?.providerId === 'generic-oidc'
+        ? ssoConfig.providerFeatures?.genericOidc
+        : ssoConfig?.providerFeatures?.entraId;
+    if (ssoConfig && teamSyncFeatures?.autoProvisionTeam && adapter.getGroups) {
       try {
         const syncResult = await syncTeamsFromGroups({
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- GenericActionCtx shares the required runQuery/runMutation surface with MutationCtx
           ctx: ctx as unknown as SyncTeamsFromGroupsArgs['ctx'],
           userId: result.userId,
           accessToken: args.accessToken,
-          excludeGroups: entraFeatures.excludeGroups || [],
+          excludeGroups: teamSyncFeatures.excludeGroups || [],
           adapter,
           // Entra's getGroups uses only the access token (Microsoft Graph), so
-          // clientId/secret are unused here; issuer/scopes are carried for
-          // discovery-driven adapters that resolve groups from the userinfo
-          // endpoint.
+          // clientId/secret are unused here; issuer/scopes/claimMappings are
+          // carried for discovery-driven adapters that resolve groups from
+          // the userinfo endpoint.
           config: {
             providerId: ssoConfig.providerId,
             issuer: ssoConfig.issuer,
             clientId: '',
             clientSecret: '',
             scopes: ssoConfig.scopes,
+            claimMappings: claimMappingsFromFeatures(
+              ssoConfig.providerFeatures,
+            ),
           },
         });
 

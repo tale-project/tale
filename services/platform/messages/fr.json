@@ -5096,7 +5096,23 @@
         "clientIdHelpGeneric": "L'ID client fourni par ton fournisseur OIDC",
         "clientSecretHelpGeneric": "Le secret client fourni par ton fournisseur OIDC",
         "connectedToGeneric": "Connecté à ton fournisseur OIDC",
-        "autoProvisionRoleHelpGeneric": "Attribuer automatiquement des rôles selon les claims renvoyés par ton fournisseur OIDC"
+        "autoProvisionRoleHelpGeneric": "Attribuer automatiquement des rôles selon les claims renvoyés par ton fournisseur OIDC",
+        "sourceGroup": "Groupe",
+        "sourceClaim": "Claim",
+        "ruleSourceLabel": "Source de la règle",
+        "rulePatternLabel": "Motif",
+        "ruleTargetRoleLabel": "Rôle cible",
+        "removeRule": "Supprimer la règle",
+        "claimPathLabel": "Chemin du claim",
+        "roleMappingRulesHelpGeneric": "Définis des règles pour associer les groupes ou valeurs de claims aux rôles de la plateforme. Utilise * comme caractère générique (ex., *admin*). Les règles de claim prennent un chemin en notation pointée dans les claims userinfo (ex., realm_access.roles).",
+        "emailClaimLabel": "Claim d'e-mail",
+        "emailClaimHelp": "Claim userinfo qui contient l'e-mail de l'utilisateur. Laisse vide pour utiliser le claim e-mail standard.",
+        "nameClaimLabel": "Claim de nom",
+        "nameClaimHelp": "Claim userinfo qui contient le nom d'affichage de l'utilisateur. Laisse vide pour utiliser le claim de nom standard.",
+        "groupsClaimLabel": "Claim de groupes",
+        "groupsClaimHelp": "Claim userinfo qui contient les groupes de l'utilisateur, en notation pointée (ex., realm_access.roles). Laisse vide pour utiliser le claim groups standard.",
+        "autoProvisionTeamHelpGeneric": "Synchroniser automatiquement les appartenances aux équipes depuis les groupes renvoyés par ton fournisseur OIDC",
+        "excludeGroupsHelpGeneric": "Liste de groupes séparés par des virgules à exclure de la synchronisation des équipes"
       }
     },
     "providers": {
