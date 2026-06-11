@@ -43,6 +43,24 @@ export const authClient = createAuthClient({
   baseURL: basePath
     ? `${window.location.origin}${basePath}/api/auth`
     : undefined,
+  // Retry transient failures (5xx / unreachable backend) inside the fetch
+  // layer. On cold start the backend can briefly answer 502/503 while
+  // functions, env vars and the JWKS bootstrap settle — and two consumers
+  // latch the FIRST result forever: the auth provider's session atom never
+  // refetches on its own, and its Convex token fetch is only rebuilt when the
+  // session id changes. A single failed hop therefore used to strand the
+  // websocket unauthenticated (endless skeletons) until a manual reload.
+  // Retrying here keeps those one-shot fetches pending until the backend is
+  // actually up. 4xx (signed out, bad request) is never retried.
+  fetchOptions: {
+    retry: {
+      type: 'exponential',
+      attempts: 4,
+      baseDelay: 500,
+      maxDelay: 4000,
+      shouldRetry: (response) => response === null || response.status >= 500,
+    },
+  },
   plugins: [
     convexClient(),
     apiKeyClient(),
