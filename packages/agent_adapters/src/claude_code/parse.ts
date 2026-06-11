@@ -1,0 +1,170 @@
+// Claude Code `--output-format stream-json` → normalized AgentEvent[].
+//
+// Event shapes (verified against the headless docs):
+//   { type: "system", subtype: "init", session_id, data: { model } }
+//   { type: "stream_event", event: { delta: { type: "text_delta", text } } }
+//   { type: "assistant", message: { id, usage, content: [ {type:"text"...},
+//                                    {type:"tool_use", id, name, input} ] } }
+//   { type: "user", message: { content: [ {type:"tool_result",
+//                                          tool_use_id, is_error} ] } }
+//   { type: "result", subtype: "success"|"error_max_turns"|..., session_id,
+//                      total_cost_usd, result }
+//   { type: "system", subtype: "api_retry", ... }  → raw
+//
+// Usage rides on assistant messages and is deduped by message.id: when Claude
+// uses tools in parallel the same message id repeats, and counting each would
+// double-bill.
+
+import type {
+  AgentEvent,
+  AgentEventParser,
+  AgentResultStatus,
+} from '../events';
+import { isRecord, LineReassembler, parseJsonLine } from '../jsonl';
+
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' ? v : undefined;
+}
+function num(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+function obj(v: unknown): Record<string, unknown> | undefined {
+  return isRecord(v) ? v : undefined;
+}
+function arr(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+
+function mapResultStatus(subtype: string | undefined): AgentResultStatus {
+  switch (subtype) {
+    case 'success':
+      return 'completed';
+    case 'error_max_turns':
+      return 'max-turns';
+    default:
+      return subtype ? 'error' : 'completed';
+  }
+}
+
+export class ClaudeCodeParser implements AgentEventParser {
+  private readonly lines = new LineReassembler();
+  private readonly seenUsageMsgIds = new Set<string>();
+
+  feed(chunk: string): AgentEvent[] {
+    return this.lines.push(chunk).flatMap((line) => this.line(line));
+  }
+
+  end(): AgentEvent[] {
+    return this.lines.flush().flatMap((line) => this.line(line));
+  }
+
+  private line(line: string): AgentEvent[] {
+    const ev = parseJsonLine(line);
+    if (!ev) return [];
+    const type = str(ev.type);
+
+    if (type === 'system') {
+      const subtype = str(ev.subtype);
+      if (subtype === 'init') {
+        const data = obj(ev.data);
+        const out: AgentEvent = {
+          type: 'run-started',
+          agent: 'claude-code',
+        };
+        const sid = str(ev.session_id);
+        if (sid) out.agentSessionId = sid;
+        const model = str(data?.model);
+        if (model) out.model = model;
+        return [out];
+      }
+      // api_retry and other system events: pass through for observability.
+      return [{ type: 'raw', agent: 'claude-code', payload: ev }];
+    }
+
+    if (type === 'stream_event') {
+      const inner = obj(ev.event);
+      const delta = obj(inner?.delta);
+      if (str(delta?.type) === 'text_delta') {
+        const text = str(delta?.text);
+        if (text) return [{ type: 'text-delta', text }];
+      }
+      return [];
+    }
+
+    if (type === 'assistant') {
+      const message = obj(ev.message);
+      const events: AgentEvent[] = [];
+      for (const block of arr(message?.content)) {
+        const b = obj(block);
+        const bt = str(b?.type);
+        if (bt === 'text') {
+          const text = str(b?.text);
+          if (text) events.push({ type: 'text', text });
+        } else if (bt === 'tool_use') {
+          events.push({
+            type: 'tool-use',
+            toolUseId: str(b?.id) ?? '',
+            toolName: str(b?.name) ?? '',
+            input: b?.input,
+          });
+        }
+      }
+      // Usage, deduped by message id.
+      const msgId = str(message?.id);
+      const usage = obj(message?.usage);
+      if (usage && (!msgId || !this.seenUsageMsgIds.has(msgId))) {
+        if (msgId) this.seenUsageMsgIds.add(msgId);
+        events.push({
+          type: 'usage',
+          ...(str(message?.model) ? { model: str(message?.model) } : {}),
+          inputTokens: num(usage.input_tokens),
+          outputTokens: num(usage.output_tokens),
+          cacheReadTokens: num(usage.cache_read_input_tokens),
+          cacheWriteTokens: num(usage.cache_creation_input_tokens),
+        });
+      }
+      return events;
+    }
+
+    if (type === 'user') {
+      const message = obj(ev.message);
+      const events: AgentEvent[] = [];
+      for (const block of arr(message?.content)) {
+        const b = obj(block);
+        if (str(b?.type) === 'tool_result') {
+          const out: AgentEvent = {
+            type: 'tool-result',
+            toolUseId: str(b?.tool_use_id) ?? '',
+          };
+          if (b?.content !== undefined) out.output = b.content;
+          if (typeof b?.is_error === 'boolean') out.isError = b.is_error;
+          events.push(out);
+        }
+      }
+      return events;
+    }
+
+    if (type === 'result') {
+      const out: AgentEvent = {
+        type: 'result',
+        status: mapResultStatus(str(ev.subtype)),
+      };
+      const sid = str(ev.session_id);
+      if (sid) out.agentSessionId = sid;
+      const finalText = str(ev.result);
+      if (finalText) out.finalText = finalText;
+      if (typeof ev.duration_ms === 'number') out.durationMs = ev.duration_ms;
+      if (typeof ev.total_cost_usd === 'number') {
+        out.usageTotals = {
+          inputTokens: 0,
+          outputTokens: 0,
+          costEstimateUsd: ev.total_cost_usd,
+        };
+      }
+      return [out];
+    }
+
+    // Unmapped event type — forward verbatim so nothing is silently dropped.
+    return [{ type: 'raw', agent: 'claude-code', payload: ev }];
+  }
+}

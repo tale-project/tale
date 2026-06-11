@@ -1,0 +1,17 @@
+{
+  "name": "@tale/agent-adapters",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Entry-agnostic adapters that turn a normalized agent-run request into a sandbox session exec (argv + env + stdin) and parse each coding agent's native event stream into one AgentEvent schema. Consumed by the platform; the sandbox service never imports this.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bunx vitest run",
+    "test:watch": "bunx vitest"
+  }
+}
