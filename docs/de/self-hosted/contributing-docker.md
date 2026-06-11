@@ -45,7 +45,7 @@ Die unterstützten Erweiterungs-Punkte für Forks sind auf der Dockerfile-Ebene.
 - **Caddyfile** — `services/proxy/Caddyfile` steuert Routing und TLS-Terminierung. Custom Header, Custom Subdomains und Custom Rate-Limits landen hier.
 - **Plattform-Plop-Templates** — `services/platform/Dockerfile` läuft einen Build-Schritt, der die Messages, das Schema und die statischen Assets einbäckt. Ein Fork, der Custom-UI-Strings oder zusätzliche Routes ausliefert, baut das Plattform-Image.
 - **RAG-Dokument-Extraktoren** — `services/rag/app/routers/documents.py` ist, wo neue Datei-Formate registrieren; ein Fork, der einen Extraktor für ein proprietäres Datei-Format braucht, patcht hier.
-- **Sandbox-Egress-Allowlist** — `services/sandbox-egress/tinyproxy.conf` ist, was die Runtime-Allowlist kompiliert. Der Runtime-Pfad läuft durch den [Run-Code-Richtlinien](/de/platform/admin/governance/run-code-policy)-Bildschirm; der Build-Zeit-Default lebt hier.
+- **Sandbox-Egress-Proxy** — `services/sandbox-egress/tinyproxy.conf.template` ist die Proxy-Konfiguration, die der Entrypoint beim Start rendert: standardmäßig offenes Egress, oder ein Default-Deny-Hostname-Filter, wenn `SANDBOX_EGRESS_ALLOWLIST` gesetzt ist. Ein Fork, der anderes Proxy-Verhalten braucht, patcht hier.
 
 Was keine unterstützte Naht ist: der Runtime-Code des Plattform-Containers (`services/platform/app/`) — diese Dateien sind Anwendungscode, keine Konfiguration. Patches dort sind ein echter Fork und tragen die Upgrade-Steuer.
 

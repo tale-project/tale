@@ -59,7 +59,15 @@ A backup that has not been restored is a hope, not a backup. The minimum: daily 
 
 ## Sandbox isolation
 
-Run-code is the riskiest surface in the product — the only place where user-supplied input becomes executed code. The defaults are already strict: `tale-sandbox-egress` enforces a host allowlist, `tale-sandbox` runs with no privileged caps, and the network between them is internal-only. The hardening lever is the allowlist itself — keep it short, prefer specific hosts over wildcards, and audit additions through the [run-code policy](/platform/admin/governance/run-code-policy) screen rather than by editing the file directly.
+Run-code is the riskiest surface in the product — the only place where user-supplied input becomes executed code. `tale-sandbox` runs with no privileged caps, its network is internal-only, and `tale-sandbox-egress` is its only outbound path. At the hostname layer that path is open by default: sandboxed code reaches any public host over HTTPS, while cloud-metadata endpoints and private address ranges are always blocked at the IP layer — that floor holds in every configuration.
+
+The hardening lever is `SANDBOX_EGRESS_ALLOWLIST`. Set it in `.env` to a pipe-separated list of hostname regexes and recreate `tale-sandbox-egress`, and the proxy flips to default-deny — only matching hosts are reachable. A registry-only lockdown that keeps pip, npm, uv, and git-over-HTTPS working:
+
+```bash
+SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$|^registry\.npmjs\.org$|^objects\.githubusercontent\.com$|^codeload\.github\.com$|^github\.com$|^api\.github\.com$
+```
+
+Keep the list short and prefer specific hosts over wildcards. Package installs are gated separately, through the [run-code policy](/platform/admin/governance/run-code-policy) screen.
 
 ## Monitoring
 

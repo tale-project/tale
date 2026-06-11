@@ -75,7 +75,7 @@ docker compose ps tale-sandbox-egress
 docker compose logs --tail=100 tale-sandbox-egress
 ```
 
-If the container is healthy, the request hit the allowlist. The list of permitted hosts lives in the [run-code policy](/platform/admin/governance/run-code-policy); add the destination or rewrite the agent's tool call to use an allowed host.
+If the container is healthy and you have set `SANDBOX_EGRESS_ALLOWLIST`, the request hit the allowlist — extend the variable in `.env` and recreate `tale-sandbox-egress`. Without an allowlist the proxy is open at the hostname layer, so check the target instead: only port 443 is tunnelled for HTTPS, and cloud-metadata and private-range addresses are always blocked at the IP layer.
 
 ## Sign-in loops back to the sign-in screen
 

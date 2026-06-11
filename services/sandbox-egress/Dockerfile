@@ -1,11 +1,13 @@
 # Tale Sandbox Egress Proxy
 #
-# HTTPS forward proxy filtering by CONNECT host. Sits on `tale-sandbox-net`
-# (an internal-only Docker bridge); sandbox runtime containers reach pypi/npm
-# via this proxy, all other internet is unreachable.
+# HTTPS forward proxy for sandboxed code. Open egress by default (CONNECT
+# :443 to any public host); the operator can switch to a default-deny
+# hostname allowlist via SANDBOX_EGRESS_ALLOWLIST. Sits on
+# `tale-sandbox-net` (an internal-only Docker bridge), so this proxy is
+# the sandbox runtime containers' only outbound path either way.
 #
-# See plan §2. Verified by R2.1: pip / npm / uv all honor HTTPS_PROXY and
-# fail loud when the proxy denies a host or is unreachable.
+# Verified by R2.1: pip / npm / uv all honor HTTPS_PROXY and fail loud
+# when the proxy denies a host or is unreachable.
 #
 # The Dockerfile-level user stays root so the entrypoint can chown the log
 # file before exec, AND so iptables can install the SSRF firewall rules
@@ -15,8 +17,9 @@
 # REQUIRED CAPABILITY: this container MUST be run with `cap_add: [NET_ADMIN]`
 # (set in compose.yml and the CLI compose generator) so the entrypoint's
 # `iptables -I OUTPUT -j REJECT` rules can install. Without NET_ADMIN the
-# entrypoint logs a warning and continues; the hostname allowlist still
-# applies but the IP-layer DNS-rebind defense is absent.
+# entrypoint refuses to start (fail-closed): the IP-layer IMDS/RFC1918
+# defense is the only hostname-independent egress fence, and the hostname
+# allowlist is opt-in.
 
 # trivy:ignore:AVD-DS-0002 -- entrypoint needs root to chown log + install iptables; tinyproxy drops privs at bind time
 FROM alpine:3.20
@@ -38,9 +41,9 @@ RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
 EXPOSE 3128
 
 # Local readiness probe only — confirms tinyproxy is bound and accepting
-# TCP. We deliberately do NOT call out to pypi every 10s on every host
-# (allow-list regressions are caught by the smoke test). `nc` is part of
-# busybox in alpine; no extra apk install is needed.
+# TCP. We deliberately do NOT call out to an external host every 10s on
+# every host. `nc` is part of busybox in alpine; no extra apk install is
+# needed.
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
   CMD nc -z 127.0.0.1 3128 || exit 1
 

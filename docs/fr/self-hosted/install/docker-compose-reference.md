@@ -46,7 +46,7 @@ Le graphe de base démarre huit conteneurs :
 - `tale-db` — Postgres. Le stockage persistant.
 - `tale-rag` — Python FastAPI. Embeddings, récupération.
 - `tale-crawler` — le service crawler. Sources de connaissances web.
-- `tale-sandbox-egress` et `tale-sandbox` — le plan sandbox. Conteneurs Run-code derrière une liste d'autorisations de sortie.
+- `tale-sandbox-egress` et `tale-sandbox` — le plan sandbox. Conteneurs Run-code derrière un proxy de sortie (ouvert par défaut ; verrouillable avec `SANDBOX_EGRESS_ALLOWLIST`).
 
 [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) creuse qui possède quoi.
 

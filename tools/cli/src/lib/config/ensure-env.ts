@@ -625,10 +625,13 @@ function generateEnvContent(config: EnvConfig): string {
     '# a userspace kernel that mitigates runc-class escape CVEs at the cost',
     '# of ~6x pip-install latency for native-extension packages.',
     '# SANDBOX_RUNTIME=runc',
-    '# Pipe-separated regex allow-list of egress hostnames for the sandbox',
-    '# proxy. Default covers pypi/npm/github package endpoints; extend if',
-    '# your agents need other registries (e.g. private wheel mirrors).',
-    '# SANDBOX_EGRESS_ALLOWLIST=^pypi\\.org$|^files\\.pythonhosted\\.org$|^registry\\.npmjs\\.org$',
+    '# Optional egress lockdown for the sandbox proxy. Unset (default): open',
+    '# egress — sandboxed code may CONNECT to any public host on :443. The',
+    '# IP-layer SSRF firewall (cloud metadata + private ranges) always applies.',
+    '# Set to a pipe-separated regex allow-list to switch the proxy to',
+    '# default-deny; restart sandbox-egress to apply. Suggested registry-only',
+    '# lockdown (pip/npm/uv + git-over-HTTPS/gh):',
+    '# SANDBOX_EGRESS_ALLOWLIST=^pypi\\.org$|^files\\.pythonhosted\\.org$|^registry\\.npmjs\\.org$|^objects\\.githubusercontent\\.com$|^codeload\\.github\\.com$|^github\\.com$|^api\\.github\\.com$',
     '',
   );
 

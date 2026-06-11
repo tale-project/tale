@@ -1,6 +1,8 @@
 # Tale Sandbox Egress — tinyproxy config
-# Rendered at startup by entrypoint.sh (no template vars currently in use,
-# but keep envsubst-ready so we can introduce them without re-tooling).
+# Rendered at startup by entrypoint.sh, which substitutes the FILTER_BLOCK
+# placeholder below via envsubst (explicit SHELL-FORMAT — no other
+# variables are expanded, and this header must never spell the placeholder
+# in dollar-brace form or envsubst would expand it here too).
 
 User nobody
 Group nobody
@@ -17,17 +19,18 @@ PidFile "/tmp/tinyproxy.pid"
 MaxClients 100
 ViaProxyName "tale-sandbox-egress"
 
-# CONNECT method (HTTPS tunneling) — required for pip/npm/uv installs.
-# Only the standard TLS port; nothing else.
+# CONNECT method (HTTPS tunneling) restricted to the standard TLS port in
+# both egress modes — non-443 HTTPS endpoints and SSH-over-CONNECT stay
+# blocked. Note ConnectPort constrains only the CONNECT method; plain
+# proxied HTTP (GET http://…) is forwarded regardless of port, subject to
+# the hostname filter below when one is rendered.
 ConnectPort 443
 
-# Host-name allow-list (default-deny). Allowlist contents are rewritten
-# by entrypoint.sh from SANDBOX_EGRESS_ALLOWLIST or the default registry set.
-FilterDefaultDeny Yes
-FilterCaseSensitive No
-FilterExtended Yes
-FilterURLs Off
-Filter "/etc/tinyproxy/allowlist"
+# Hostname filter — rendered by entrypoint.sh: omitted entirely for open
+# egress (the default), or a default-deny allowlist when the operator sets
+# SANDBOX_EGRESS_ALLOWLIST. In open mode the IP-layer SSRF firewall from
+# docker-entrypoint.sh (REJECT IMDS + RFC1918) is the only egress fence.
+${FILTER_BLOCK}
 
 # Client allow-list (network-layer): only loopback (healthcheck) and the
 # Docker user-network CIDRs that the sandbox runtime containers attach to.
@@ -48,5 +51,6 @@ Allow 172.16.0.0/12
 # NOT apply to CONNECT / HTTPS traffic — the tunnel is end-to-end
 # encrypted between the runtime container and the upstream, so tinyproxy
 # cannot see or rewrite request headers. Header stripping would only
-# matter for plaintext HTTP, which CONNECT-only mode rejects anyway.
+# matter for plain proxied HTTP, which is forwarded (and, when an
+# allowlist is rendered, hostname-filtered like everything else).
 DisableViaHeader Yes

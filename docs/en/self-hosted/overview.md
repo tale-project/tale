@@ -21,7 +21,7 @@ Read this before you `docker compose up`. Come back when you are debugging an ou
 
 **tale-crawler** is the website-knowledge crawler: it fetches and indexes the URLs declared as Website entities.
 
-**tale-sandbox** and **tale-sandbox-egress** run sandboxed code on behalf of the `Run code` tool and skill scripts. The egress container is the only path the sandbox has to the network; the allowlist policy lives in [governance run-code policy](/platform/admin/governance/run-code-policy).
+**tale-sandbox** and **tale-sandbox-egress** run sandboxed code on behalf of the `Run code` tool and skill scripts. The egress container is the only path the sandbox has to the network. Egress is open by default — sandboxed code reaches any public host over HTTPS while cloud-metadata and private-range targets stay blocked at the IP layer; lock it down to a hostname allowlist with `SANDBOX_EGRESS_ALLOWLIST`, described in [Hardening](/self-hosted/operate/security/hardening).
 
 ## Data on disk
 

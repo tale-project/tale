@@ -538,11 +538,10 @@ services:
   # ============================================================================
   # Tale Sandbox Egress (tinyproxy) — HTTPS forward proxy
   # ----------------------------------------------------------------------------
-  # Filters CONNECT host requests against an allow-list of package registries
-  # (pypi.org, files.pythonhosted.org, registry.npmjs.org, github package
-  # endpoints). Sandbox runtime containers reach pypi/npm via this proxy; all
-  # other internet is unreachable because the sandbox bridge is `internal:true`.
-  # See plan §2.
+  # Open egress by default: CONNECT :443 to any public host. Setting
+  # SANDBOX_EGRESS_ALLOWLIST switches it to a default-deny hostname
+  # allowlist. Either way this proxy is the sandbox runtime containers'
+  # only outbound path, because the sandbox bridge is `internal:true`.
   # ============================================================================
   sandbox-egress:
     image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION:-latest}
@@ -555,10 +554,11 @@ services:
       - .env
     restart: unless-stopped
     # NET_ADMIN lets the entrypoint install iptables REJECT rules for
-    # IMDS (169.254.169.254) and RFC1918 ranges as defense-in-depth
-    # against DNS-rebind on an allowlisted hostname. Without this cap
-    # the entrypoint warns and skips the firewall. Mirrors the convex
-    # container — see services/convex/docker-entrypoint.sh.
+    # IMDS (169.254.169.254) and RFC1918 ranges — in the default open
+    # mode this is the only hostname-independent egress fence (it also
+    # covers DNS-rebind when an allowlist is configured). Without this
+    # cap the entrypoint refuses to start (fail-closed). Mirrors the
+    # convex container — see services/convex/docker-entrypoint.sh.
     cap_add:
       - NET_ADMIN
     healthcheck:
@@ -583,11 +583,11 @@ services:
     networks:
       # `sandbox` faces the runtime containers (their only outbound path,
       # since tale-sandbox-net is `--internal`). `internal` provides
-      # outbound NAT to pypi/npmjs/etc — `--internal` networks can't reach
-      # the host bridge. Egress peers on `internal` are NOT a meaningful
-      # new attack surface (the hostname allowlist + RFC1918/IMDS iptables
-      # rules limit them to the same registries they could already reach
-      # directly via their own NAT).
+      # outbound NAT — `--internal` networks can't reach the host bridge.
+      # Egress peers on `internal` are NOT a meaningful new attack
+      # surface: the RFC1918/IMDS iptables rules still apply, and the
+      # proxy only reaches the same internet those peers already reach
+      # directly via their own NAT.
       - sandbox
       - internal
 

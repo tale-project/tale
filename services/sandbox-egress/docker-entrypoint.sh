@@ -18,12 +18,15 @@ set -e
 # ----------------------------------------------------------------------------
 # SSRF firewall (defense-in-depth)
 # ----------------------------------------------------------------------------
-# The tinyproxy allowlist is a hostname-regex filter applied AFTER the proxy
-# resolves the CONNECT target. A short-TTL DNS rebind on an allowlisted host
-# could flip resolution to 169.254.169.254 (cloud IMDS) or RFC1918 (corp VPN,
-# host bridge) between tinyproxy's lookup and the kernel connect(). Block
-# those targets at the IP layer so the entire tunnel surface is fenced
-# regardless of what hostname squeaked past the allowlist.
+# Egress is open at the hostname layer by default (entrypoint.sh only
+# renders a default-deny allowlist when SANDBOX_EGRESS_ALLOWLIST is set),
+# so these IP-layer rules are the ONLY thing keeping tunnels away from
+# 169.254.169.254 (cloud IMDS) and RFC1918 (corp VPN, host bridge). Even
+# with an allowlist they stay load-bearing: the filter is a hostname regex
+# applied AFTER the proxy resolves the target, and a short-TTL DNS rebind
+# could flip resolution to a private IP between tinyproxy's lookup and the
+# kernel connect(). Block those targets at the IP layer so the entire
+# tunnel surface is fenced regardless of hostname.
 #
 # Mirrors services/convex/docker-entrypoint.sh lines 59-83. Requires
 # NET_ADMIN; cap_add: ['NET_ADMIN'] is set in compose.yml and the CLI
@@ -41,9 +44,9 @@ elif ! command -v iptables >/dev/null 2>&1; then
   exit 1
 elif ! iptables -L OUTPUT >/dev/null 2>&1; then
   # Fail-closed: NET_ADMIN is what compose.yml + the CLI compose generator
-  # grant; if it's not effective, the IP-layer DNS-rebind defense is
-  # absent and only the hostname allowlist stands between runtime code
-  # and the cloud IMDS. Don't ship that silently.
+  # grant; if it's not effective, the IP-layer defense is absent and —
+  # since the hostname allowlist is opt-in — nothing stands between
+  # runtime code and the cloud IMDS. Don't ship that silently.
   echo "[sandbox-egress] FATAL: NET_ADMIN unavailable; SSRF firewall cannot install (set TALE_SKIP_SSRF_FIREWALL=1 to override for dev only, or cap_add: [NET_ADMIN] in compose.yml)"
   exit 1
 else

@@ -122,7 +122,8 @@ mkdir -p \
 # (python, node, bash) inherits the same writable paths. The container
 # is the security boundary; install-time guards (--only-binary,
 # --ignore-scripts) added nothing on top of cap-drop=ALL + read-only
-# root + nobody user + egress allowlist, so they're gone.
+# root + nobody user + proxied egress behind the IP-layer SSRF
+# firewall, so they're gone.
 export HOME=/workspace/.home
 # /tmp is a 128 MB tmpfs; pip/npm unpack big dep trees (e.g. markitdown[pptx]
 # pulls python-pptx + pdfminer + magika) and blow it out with ENOSPC. Park the

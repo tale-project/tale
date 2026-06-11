@@ -565,7 +565,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Politique run-code",
-      "description": "La liste d'autorisation de paquets et les contrôles d'egress qui régissent ce que Run code en sandbox peut installer et quelles URLs il peut atteindre. Les Administrateurs et Propriétaires lisent ceci quand un agent a besoin d'une nouvelle bibliothèque ou quand un régulateur nomme les destinations réseau qu'une sandbox peut toucher."
+      "description": "La liste d'autorisation et la liste de blocage de paquets qui régissent ce que Run code en sandbox peut installer. Les Administrateurs et Propriétaires lisent ceci quand un agent a besoin d'une nouvelle bibliothèque ou quand un audit demande pourquoi un paquet était bloqué à un moment donné."
     }
   },
   "fr:platform/admin/integrations": {
@@ -1645,7 +1645,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Run-code policy",
-      "description": "The package allowlist and egress controls that gate what sandboxed Run code can install and which URLs it can reach. Admins and Owners read this when an agent needs a new library or when a regulator names the network destinations a sandbox may touch."
+      "description": "The package allowlist and denylist that gate what sandboxed Run code can install. Admins and Owners read this when an agent needs a new library or when an audit asks why a package was blocked at a given time."
     }
   },
   "en:platform/admin/integrations": {
@@ -2725,7 +2725,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Run-code-Richtlinie",
-      "description": "Die Paket-Zulassungsliste und Egress-Kontrollen, die regeln, was sandgeboxtes Run code installieren und welche URLs es erreichen darf. Admins und Inhaber lesen das, wenn ein Agent eine neue Bibliothek braucht oder wenn ein Regulierer die Netzwerkziele benennt, die eine Sandbox berühren darf."
+      "description": "Die Paket-Zulassungsliste und -Sperrliste, die regeln, was sandgeboxtes Run code installieren darf. Admins und Inhaber lesen das, wenn ein Agent eine neue Bibliothek braucht oder wenn ein Audit fragt, warum ein Paket zu einem bestimmten Zeitpunkt blockiert war."
     }
   },
   "de:platform/admin/integrations": {

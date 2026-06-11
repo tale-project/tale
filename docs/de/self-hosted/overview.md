@@ -21,7 +21,7 @@ Lies das, bevor du `docker compose up` ausführst. Komm zurück, wenn du einen A
 
 **tale-crawler** ist der Crawler für Website-Wissen: er holt und indexiert die URLs, die als Website-Entitäten deklariert sind.
 
-**tale-sandbox** und **tale-sandbox-egress** führen sandboxierten Code für das **Code-ausführen**-Tool und Fähigkeits-Skripte aus. Der Egress-Container ist der einzige Netzwerkweg, den die Sandbox hat; die Allowlist-Richtlinie lebt in der [Governance Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy).
+**tale-sandbox** und **tale-sandbox-egress** führen sandboxierten Code für das **Code-ausführen**-Tool und Fähigkeits-Skripte aus. Der Egress-Container ist der einzige Netzwerkweg, den die Sandbox hat. Egress ist standardmäßig offen — sandboxierter Code erreicht jeden öffentlichen Host über HTTPS, Cloud-Metadaten und private Adressbereiche bleiben auf IP-Ebene blockiert. Einschränken kannst du das mit `SANDBOX_EGRESS_ALLOWLIST` auf eine Hostname-Allowlist; die Anleitung steht in [Hardening](/de/self-hosted/operate/security/hardening).
 
 ## Daten auf dem Storage
 

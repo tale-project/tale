@@ -1,9 +1,9 @@
 ---
 title: Politique run-code
-description: La liste d'autorisation de paquets et les contrôles d'egress qui régissent ce que Run code en sandbox peut installer et quelles URLs il peut atteindre. Les Administrateurs et Propriétaires lisent ceci quand un agent a besoin d'une nouvelle bibliothèque ou quand un régulateur nomme les destinations réseau qu'une sandbox peut toucher.
+description: La liste d'autorisation et la liste de blocage de paquets qui régissent ce que Run code en sandbox peut installer. Les Administrateurs et Propriétaires lisent ceci quand un agent a besoin d'une nouvelle bibliothèque ou quand un audit demande pourquoi un paquet était bloqué à un moment donné.
 ---
 
-Politique run-code est la surface où tu décides quels paquets Python et Node la sandbox peut installer à l'exécution et, par extension, quelles destinations réseau la sandbox peut atteindre à travers ces paquets. Les skills avec scripts et l'outil Run code tournent tous deux dans la même sandbox ; cette politique est la couture unique où tu serres ou desserres ce qu'ils peuvent faire. Les Administrateurs et Propriétaires lisent cette page quand un agent a besoin d'une nouvelle bibliothèque, quand un régulateur nomme les destinations qu'une sandbox peut toucher, ou quand un audit demande pourquoi un paquet était bloqué à un moment donné.
+Politique run-code est la surface où tu décides quels paquets Python et Node la sandbox peut installer à l'exécution. Les skills avec scripts et l'outil Run code tournent tous deux dans la même sandbox ; cette politique est la couture unique où tu serres ou desserres ce qu'ils peuvent installer. Les Administrateurs et Propriétaires lisent cette page quand un agent a besoin d'une nouvelle bibliothèque, ou quand un audit demande pourquoi un paquet était bloqué à un moment donné.
 
 ## Un basculement mis en pratique
 
@@ -28,7 +28,7 @@ Le panneau Test sur la même page permet de coller des spécifications pip ou np
 
 ## Egress réseau et skills
 
-La politique de paquets régit _ce qui_ tourne dans la sandbox. La même sandbox fait tourner les scripts de skill — voir la [page concept Skills](/fr/platform/agents/skills) — et la liste d'autorisation d'egress qui régit le HTTP sortant depuis le code sandbox est configurée dans la même zone Gouvernance pour les déploiements auto-hébergés. Traite la publication d'un skill avec script comme un élargissement de la surface de confiance pour chaque agent qui l'adopte ; la politique de paquets et la liste d'autorisation d'egress décident ensemble ce que le script peut faire.
+La politique de paquets régit _ce qui_ tourne dans la sandbox. La même sandbox fait tourner les scripts de skill — voir la [page concept Skills](/fr/platform/agents/skills). Le réseau sortant depuis le code sandbox est ouvert par défaut, les métadonnées cloud et les plages privées étant toujours bloquées ; sur les déploiements auto-hébergés, l'opérateur peut le restreindre à une allowlist d'hôtes au niveau du déploiement — la marche à suivre vit dans [Durcissement](/fr/self-hosted/operate/security/hardening). Traite la publication d'un skill avec script comme un élargissement de la surface de confiance pour chaque agent qui l'adopte ; la politique de paquets et la politique d'egress du déploiement décident ensemble ce que le script peut faire.
 
 ## Où cela s'inscrit
 

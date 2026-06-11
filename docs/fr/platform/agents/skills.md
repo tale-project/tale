@@ -24,9 +24,9 @@ L'attachement est par agent : deux agents peuvent attacher la même compétence 
 
 ## Scripts de compétence et le sandbox
 
-Les scripts de compétence tournent dans le même sandbox que l'outil **Exécuter du code** : Python ou Node, paquets autorisés déclarés par compétence, sortie réseau contrôlée par la [politique run-code](/fr/platform/admin/governance/run-code-policy) de l'organisation. Le contrat du script est une entrée typée et une sortie typée ; ce qui tourne entre les deux est à toi.
+Les scripts de compétence tournent dans le même sandbox que l'outil **Exécuter du code** : Python ou Node, paquets autorisés déclarés par compétence, installations de paquets régies par la [politique run-code](/fr/platform/admin/governance/run-code-policy) de l'organisation. La sortie réseau du sandbox est ouverte par défaut ; les opérateurs auto-hébergés peuvent la restreindre au niveau du déploiement. Le contrat du script est une entrée typée et une sortie typée ; ce qui tourne entre les deux est à toi.
 
-La frontière de confiance est nette. Un script de compétence peut être invoqué par n'importe quel agent auquel il est attaché. Traite la publication d'une compétence comme l'élargissement de la surface de confiance de chaque agent qui la prend ; la [politique de gouvernance sur run-code](/fr/platform/admin/governance/run-code-policy) régit quels paquets et quelles destinations réseau sont autorisés.
+La frontière de confiance est nette. Un script de compétence peut être invoqué par n'importe quel agent auquel il est attaché. Traite la publication d'une compétence comme l'élargissement de la surface de confiance de chaque agent qui la prend ; la [politique de gouvernance sur run-code](/fr/platform/admin/governance/run-code-policy) régit quels paquets le script peut installer.
 
 ## Versionnage
 

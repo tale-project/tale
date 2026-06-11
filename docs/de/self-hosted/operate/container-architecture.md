@@ -37,7 +37,7 @@ Der heisse Pfad ist kurz. Fühlt sich die Chat-Latenz falsch an, ist der Contain
 
 ## Die Sandbox-Ebene
 
-Sandboxierte Code-Ausführung läuft in `tale-sandbox`, mit `tale-sandbox-egress` als der einzigen Netzwerk-Naht. Die Zwei-Container-Trennung ist Absicht: `tale-sandbox` selbst hat kein ausgehendes Netz; jeder Request, den der sandboxierte Code macht, geht durch `tale-sandbox-egress`, der die Allowlist der [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) anwendet, bevor er ihn durchlässt. Ist der Egress-Container down, scheitert sandboxierter Code, der das Netz braucht, geschlossen mit „Egress denied" — nicht stiller Timeout.
+Sandboxierte Code-Ausführung läuft in `tale-sandbox`, mit `tale-sandbox-egress` als der einzigen Netzwerk-Naht. Die Zwei-Container-Trennung ist Absicht: `tale-sandbox` selbst hat kein ausgehendes Netz; jeder Request, den der sandboxierte Code macht, geht durch `tale-sandbox-egress`, der Cloud-Metadaten und private Adressbereiche auf IP-Ebene blockiert und — wenn der Operator `SANDBOX_EGRESS_ALLOWLIST` setzt — zusätzlich eine Default-Deny-Hostname-Allowlist durchsetzt. Ist der Egress-Container down, scheitert sandboxierter Code, der das Netz braucht, geschlossen mit „Egress denied" — nicht stiller Timeout.
 
 Die Sandbox ist der einzige Container, der nicht-vertrauenswürdigen Code läuft (User-gelieferte Fähigkeits-Skripte, Agent **Code-ausführen**-Aufrufe). Der Rest des Stacks läuft den eigenen Code der Plattform.
 
