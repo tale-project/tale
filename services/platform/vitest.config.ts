@@ -29,6 +29,8 @@ export default defineConfig({
           exclude: [
             'node_modules',
             'dist',
+            // Playwright E2E suite — owned by playwright.config.ts.
+            'e2e/**',
             '**/*.config.{js,ts}',
             '**/.{idea,git,cache,output,temp}/**',
             'app/components/**/*.test.{ts,tsx}',
@@ -58,7 +60,9 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          name: 'browser-e2e',
+          // Component-in-browser tests. Named `browser` (not `browser-e2e`)
+          // so "e2e" unambiguously means the Playwright suite in `e2e/`.
+          name: 'browser',
           browser: {
             enabled: true,
             headless: true,
@@ -66,7 +70,7 @@ export default defineConfig({
             instances: [{ browser: 'chromium' }],
           },
           include: ['**/*.browser.test.{ts,tsx}'],
-          exclude: ['node_modules', 'dist'],
+          exclude: ['node_modules', 'dist', 'e2e/**'],
         },
       },
       {

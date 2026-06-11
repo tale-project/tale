@@ -20,6 +20,10 @@ export default {
         'app/components/**/*.{ts,tsx}',
         'lib/utils/client-utils.ts',
         'reset-owner.ts',
+        // Mock OpenAI-compatible LLM for the Playwright E2E suite — launched
+        // via the `webServer` command in playwright.config.ts, which knip's
+        // playwright plugin doesn't trace.
+        'e2e/mock-llm/server.ts',
       ],
       project: ['**/*.{ts,tsx}'],
       ignoreDependencies: [

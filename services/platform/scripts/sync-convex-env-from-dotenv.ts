@@ -23,6 +23,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 
+import { SECRETS_ENV_REGEX } from '../lib/shared/schemas/providers';
+
 const platformRoot = join(import.meta.dir, '..');
 const repoRoot = join(import.meta.dir, '..', '..', '..');
 
@@ -79,6 +81,24 @@ const ORCHESTRATOR_MANAGED_KEYS = [
   'WEBDAV_APP_PASSWORD_HMAC_KEY',
 ] as const;
 
+// Vars read by Convex functions from the DEPLOYMENT env that are documented
+// as "platform process env" knobs: provider API keys under the reserved
+// TALE_PROVIDER_KEY_ prefix (issue #1711, `secretsEnv`) and the private-host
+// opt-in checked by `checkProviderHostPolicy`. Exporting them in the shell
+// (or in the Playwright E2E webServer env — see playwright.config.ts) must
+// reach the local deployment, so pass them through from process.env when
+// they're not already provided by a dotenv file.
+const PROCESS_ENV_PASSTHROUGH_KEYS = [
+  'TALE_ALLOW_PRIVATE_PROVIDER_HOSTS',
+] as const;
+
+function isPassthroughKey(key: string): boolean {
+  return (
+    SECRETS_ENV_REGEX.test(key) ||
+    PROCESS_ENV_PASSTHROUGH_KEYS.some((managed) => managed === key)
+  );
+}
+
 function findEnv(): Record<string, string> {
   const repoEnvPath = join(repoRoot, '.env');
   const repoEnvLocalPath = join(repoRoot, '.env.local');
@@ -103,6 +123,12 @@ function findEnv(): Record<string, string> {
   for (const key of ORCHESTRATOR_MANAGED_KEYS) {
     if (!merged[key] && process.env[key]) {
       merged[key] = process.env[key];
+    }
+  }
+
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!merged[key] && value && isPassthroughKey(key)) {
+      merged[key] = value;
     }
   }
 
