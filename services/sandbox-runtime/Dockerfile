@@ -63,6 +63,13 @@ COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 # Node 24 LTS. Copy /usr/local from node:24-bookworm-slim into /opt/node.
 COPY --from=node:24-bookworm-slim /usr/local /opt/node
 
+# bun — many JS/TS projects (Tale included) use it for install/test/scripts, so
+# an in-sandbox coding agent needs it on PATH. Reuse the daemon-build stage's
+# already-pulled oven/bun image (Debian/glibc, matches this base); bun is a
+# single self-contained binary. `bunx` is just bun with a subcommand.
+COPY --from=daemon-build /usr/local/bin/bun /usr/local/bin/bun
+RUN ln -sf /usr/local/bin/bun /usr/local/bin/bunx
+
 ENV PATH=/opt/agents/bin:/opt/node/bin:/usr/local/bin:/usr/bin:/bin
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1

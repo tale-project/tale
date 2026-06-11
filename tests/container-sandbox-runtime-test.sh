@@ -72,6 +72,9 @@ echo "--- one-shot role (uid 65534) ---"
 assert_contains "python3 present" 65534 "Python 3" "python3 --version"
 assert_contains "node present" 65534 "v" "node --version"
 assert_ok "uv present" 65534 "command -v uv"
+# bun + bunx — many JS/TS projects (Tale included) use them; an in-sandbox
+# agent needs them on PATH for install/test/scripts.
+assert_ok "bun present" 65534 "command -v bun && command -v bunx"
 
 echo ""
 echo "--- agent session role (uid 10001) ---"
