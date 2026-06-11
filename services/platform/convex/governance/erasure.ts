@@ -69,6 +69,7 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { resolveActorAndSubject } from '../notifications/actor_name';
 import { writeNotificationForOrgs } from '../notifications/helpers';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
 import { getDsarPolicy } from './dsar_policy';
@@ -525,16 +526,26 @@ export const requestErasure = mutation({
           threadsTargetedCount: threadIds.length,
         },
       });
+      const approvalNamed = await resolveActorAndSubject(
+        ctx,
+        callerId,
+        args.userId,
+      );
       await writeNotificationForOrgs(ctx, {
         organizationIds: [args.organizationId],
         category: 'security',
         severity: 'warning',
         titleKey: 'dsarApprovalNeeded',
-        bodyKey: 'dsarApprovalNeededBody',
+        bodyKey: approvalNamed.named
+          ? 'dsarApprovalNeededByBody'
+          : 'dsarApprovalNeededBody',
         params: {
           subjectUserId: args.userId,
           requestedBy: callerId,
           requestId,
+          ...(approvalNamed.named
+            ? { actor: approvalNamed.actor, subject: approvalNamed.subject }
+            : {}),
         },
         subjectUserId: args.userId,
       });
@@ -552,18 +563,28 @@ export const requestErasure = mutation({
         effectiveAt,
         scheduledJobId,
       });
+      const scheduledNamed = await resolveActorAndSubject(
+        ctx,
+        callerId,
+        args.userId,
+      );
       await writeNotificationForOrgs(ctx, {
         organizationIds: [args.organizationId],
         category: 'security',
         severity: 'warning',
         titleKey: 'dsarScheduled',
-        bodyKey: 'dsarScheduledBody',
+        bodyKey: scheduledNamed.named
+          ? 'dsarScheduledByBody'
+          : 'dsarScheduledBody',
         params: {
           subjectUserId: args.userId,
           requestedBy: callerId,
           requestId,
           coolingOffHours: dsarPolicy.coolingOffHours,
           effectiveAt,
+          ...(scheduledNamed.named
+            ? { actor: scheduledNamed.actor, subject: scheduledNamed.subject }
+            : {}),
         },
         subjectUserId: args.userId,
       });
@@ -2359,17 +2380,27 @@ export const cancelErasureRequest = mutation({
     // this subject can proceed.
     await clearErasureClaimByRow(ctx, args.requestId);
 
+    const cancelledNamed = await resolveActorAndSubject(
+      ctx,
+      callerId,
+      row.targetUserId,
+    );
     await writeNotificationForOrgs(ctx, {
       organizationIds: [row.organizationId],
       category: 'security',
       severity: 'warning',
       titleKey: 'dsarCancelled',
-      bodyKey: 'dsarCancelledBody',
+      bodyKey: cancelledNamed.named
+        ? 'dsarCancelledByBody'
+        : 'dsarCancelledBody',
       params: {
         subjectUserId: row.targetUserId,
         cancelledBy: callerId,
         cancellationReason: reason,
         requestId: args.requestId,
+        ...(cancelledNamed.named
+          ? { actor: cancelledNamed.actor, subject: cancelledNamed.subject }
+          : {}),
       },
       subjectUserId: row.targetUserId,
     });
@@ -2438,12 +2469,17 @@ export const confirmAndScheduleErasure = internalMutation({
       scheduledJobId,
     });
 
+    const confirmNamed = await resolveActorAndSubject(
+      ctx,
+      row.requestedBy,
+      row.targetUserId,
+    );
     await writeNotificationForOrgs(ctx, {
       organizationIds: [row.organizationId],
       category: 'security',
       severity: 'warning',
       titleKey: 'dsarScheduled',
-      bodyKey: 'dsarScheduledBody',
+      bodyKey: confirmNamed.named ? 'dsarScheduledByBody' : 'dsarScheduledBody',
       params: {
         subjectUserId: row.targetUserId,
         requestedBy: row.requestedBy,
@@ -2451,6 +2487,9 @@ export const confirmAndScheduleErasure = internalMutation({
         requestId: args.requestId,
         coolingOffHours: dsarPolicy.coolingOffHours,
         effectiveAt,
+        ...(confirmNamed.named
+          ? { actor: confirmNamed.actor, subject: confirmNamed.subject }
+          : {}),
       },
       subjectUserId: row.targetUserId,
     });
@@ -2598,18 +2637,26 @@ export const retryErasureRequest = mutation({
     );
     await ctx.db.patch(args.requestId, { scheduledJobId });
 
+    const retryNamed = await resolveActorAndSubject(
+      ctx,
+      callerId,
+      row.targetUserId,
+    );
     await writeNotificationForOrgs(ctx, {
       organizationIds: [row.organizationId],
       category: 'security',
       severity: 'warning',
       titleKey: 'dsarScheduled',
-      bodyKey: 'dsarScheduledBody',
+      bodyKey: retryNamed.named ? 'dsarScheduledByBody' : 'dsarScheduledBody',
       params: {
         subjectUserId: row.targetUserId,
         requestedBy: callerId,
         requestId: args.requestId,
         coolingOffHours: dsarPolicy.coolingOffHours,
         effectiveAt,
+        ...(retryNamed.named
+          ? { actor: retryNamed.actor, subject: retryNamed.subject }
+          : {}),
       },
       subjectUserId: row.targetUserId,
     });

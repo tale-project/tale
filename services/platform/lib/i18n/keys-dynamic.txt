@@ -26,10 +26,13 @@ notifications.auditIntegrityFailed
 notifications.auditIntegrityFailedDetails
 notifications.dsarScheduled
 notifications.dsarScheduledBody
+notifications.dsarScheduledByBody
 notifications.dsarApprovalNeeded
 notifications.dsarApprovalNeededBody
+notifications.dsarApprovalNeededByBody
 notifications.dsarCancelled
 notifications.dsarCancelledBody
+notifications.dsarCancelledByBody
 notifications.dsarPolicyTightened
 notifications.dsarPolicyTightenedBody
 notifications.dsarPolicyLoosenProposed

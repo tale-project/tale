@@ -9,6 +9,7 @@ import type { Infer } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { resolveUserDisplayName } from '../notifications/actor_name';
 import type {
   notificationTypeValidator,
   subscriptionReasonValidator,
@@ -128,6 +129,21 @@ async function taskSubscriberUserIds(
   return ids;
 }
 
+/**
+ * A locale-independent display name for the actor, or null when we have none
+ * safe to drop into localized copy. A human actor resolves to their name/email
+ * (a proper noun). Agent actors have no locale-safe label here, so they fall
+ * back to the impersonal body rather than leaking an English word into DE/FR.
+ */
+async function resolveActorName(
+  ctx: MutationCtx,
+  actorType: ActorType,
+  actorId: string,
+): Promise<string | null> {
+  if (actorType !== 'user') return null;
+  return resolveUserDisplayName(ctx, actorId);
+}
+
 /** Exclude the actor (only when the actor is a human). */
 function withoutActor(
   ids: Iterable<string>,
@@ -154,17 +170,19 @@ export async function notifyTaskStatusChanged(
     args.actorType,
     args.actorId,
   );
+  const actorName = await resolveActorName(ctx, args.actorType, args.actorId);
   for (const userId of recipients) {
     await writeNotification(ctx, {
       userId,
       organizationId: args.task.organizationId,
       type: 'task_status_changed',
       titleKey: 'taskStatusChanged',
-      bodyKey: 'taskStatusChangedBody',
+      bodyKey: actorName ? 'taskStatusChangedByBody' : 'taskStatusChangedBody',
       params: {
         title: args.task.title,
         from: args.fromStatus,
         to: args.toStatus,
+        ...(actorName ? { actor: actorName } : {}),
       },
       resourceType: 'task',
       resourceId: String(args.task._id),
@@ -194,13 +212,16 @@ export async function notifyTaskAssigned(
   });
   // Don't notify someone who assigned the task to themselves.
   if (args.actorType === 'user' && args.actorId === args.assigneeId) return;
+  const actorName = await resolveActorName(ctx, args.actorType, args.actorId);
   await writeNotification(ctx, {
     userId: args.assigneeId,
     organizationId: args.task.organizationId,
     type: 'task_assigned',
     titleKey: 'taskAssigned',
-    bodyKey: 'taskAssignedBody',
-    params: { title: args.task.title },
+    bodyKey: actorName ? 'taskAssignedByBody' : 'taskAssignedBody',
+    params: actorName
+      ? { title: args.task.title, actor: actorName }
+      : { title: args.task.title },
     resourceType: 'task',
     resourceId: String(args.task._id),
     taskId: args.task._id,
@@ -233,6 +254,8 @@ export async function notifyTaskComment(
     args.mentions.filter((m) => m.type === 'user').map((m) => m.id),
   );
 
+  const actorName = await resolveActorName(ctx, args.actorType, args.actorId);
+
   // Mentioned users: subscribe + a 'mention' notification (takes precedence).
   for (const userId of mentionedUserIds) {
     if (args.actorType === 'user' && userId === args.actorId) continue;
@@ -248,8 +271,10 @@ export async function notifyTaskComment(
       organizationId: args.task.organizationId,
       type: 'mention',
       titleKey: 'mention',
-      bodyKey: 'mentionBody',
-      params: { title: args.task.title },
+      bodyKey: actorName ? 'mentionByBody' : 'mentionBody',
+      params: actorName
+        ? { title: args.task.title, actor: actorName }
+        : { title: args.task.title },
       resourceType: 'comment',
       resourceId: String(args.commentId),
       taskId: args.task._id,
@@ -271,8 +296,10 @@ export async function notifyTaskComment(
       organizationId: args.task.organizationId,
       type: 'task_commented',
       titleKey: 'taskCommented',
-      bodyKey: 'taskCommentedBody',
-      params: { title: args.task.title },
+      bodyKey: actorName ? 'taskCommentedByBody' : 'taskCommentedBody',
+      params: actorName
+        ? { title: args.task.title, actor: actorName }
+        : { title: args.task.title },
       resourceType: 'comment',
       resourceId: String(args.commentId),
       taskId: args.task._id,
