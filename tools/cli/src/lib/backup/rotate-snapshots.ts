@@ -8,7 +8,7 @@ import {
 } from './constants';
 import { listSnapshots } from './list-snapshots';
 
-export interface RotationCandidate {
+interface RotationCandidate {
   id: string;
   createdAt: string;
 }
