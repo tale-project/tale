@@ -29,10 +29,10 @@ import { hasThoughtSteps } from '../utils/thought-predicates';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
+import { ExternalAgentLiveTimeline } from './external-agent-live-timeline';
 import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
-import { ThinkingIndicator } from './thought-timeline';
 import { VirtualizedChatMessageList } from './virtualized-chat-message-list';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
 
@@ -884,8 +884,11 @@ export const ChatMessages = memo(function ChatMessages({
   const responseFooterLive =
     (isLoading || lastUserIsPendingOptimistic) &&
     !hasRenderableAssistantResponse ? (
-      <ThinkingIndicator
-        className="px-4 py-3"
+      // For external-agent (Claude Code / OpenCode) turns this swaps the bare
+      // placeholder for a live tool-use timeline driven by the thread's sandbox
+      // session op; it falls back to the same ThinkingIndicator for normal chat.
+      <ExternalAgentLiveTimeline
+        threadId={threadId}
         phase={isAutoRoute && !liveRoute ? 'routing' : 'thinking'}
         routedAgentName={liveRoute?.agentName}
         routeReason={liveRoute?.reason}

@@ -274,6 +274,20 @@ export function useThreadMessages(threadId: string | null) {
   return results;
 }
 
+/**
+ * Live external-agent (Claude Code / OpenCode) progress for a thread. Returns
+ * the latest in-session `agent-run` op (status + recentEvents) so the chat can
+ * render a real-time tool-use timeline mid-turn. Null for normal chat threads
+ * (no sandbox session ops) — the caller falls back to the plain placeholder.
+ */
+export function useSessionProgress(threadId: string | null | undefined) {
+  const { data } = useConvexQuery(
+    api.sandbox.session_queries_public.getActiveSessionOp,
+    threadId ? { threadId } : 'skip',
+  );
+  return data ?? null;
+}
+
 export function useActiveApprovals(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.approvals.queries.listActiveApprovalsByOrganization,

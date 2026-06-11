@@ -87,4 +87,41 @@ describe('formatToolDetail', () => {
       formatToolDetail(t, 'web', { operation: 'search' }).displayText,
     ).toBe('Web');
   });
+
+  describe('external-agent (Claude Code) tools', () => {
+    it('surfaces the Bash command', () => {
+      expect(
+        formatToolDetail(t, 'Bash', { command: 'gh pr diff 1875' }).displayText,
+      ).toBe('Bash · gh pr diff 1875');
+    });
+
+    it('surfaces the file path for Read/Edit/Write', () => {
+      expect(
+        formatToolDetail(t, 'Read', { file_path: '/repo/a.ts' }).displayText,
+      ).toBe('Read · /repo/a.ts');
+      expect(
+        formatToolDetail(t, 'Edit', { file_path: '/repo/b.ts' }).displayText,
+      ).toBe('Edit · /repo/b.ts');
+    });
+
+    it('surfaces the Grep/Glob pattern and WebFetch host', () => {
+      expect(formatToolDetail(t, 'Grep', { pattern: 'TODO' }).displayText).toBe(
+        'Grep · TODO',
+      );
+      expect(
+        formatToolDetail(t, 'WebFetch', { url: 'https://x.com/y' }).displayText,
+      ).toBe('WebFetch · x.com');
+    });
+
+    it('truncates a long Bash command', () => {
+      const cmd = 'echo ' + 'a'.repeat(200);
+      const out = formatToolDetail(t, 'Bash', { command: cmd }).displayText;
+      expect(out.startsWith('Bash · echo ')).toBe(true);
+      expect(out.endsWith('…')).toBe(true);
+    });
+
+    it('falls back to the title-cased name when the arg is absent', () => {
+      expect(formatToolDetail(t, 'Bash', {}).displayText).toBe('Bash');
+    });
+  });
 });

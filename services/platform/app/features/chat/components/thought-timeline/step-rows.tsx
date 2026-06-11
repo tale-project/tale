@@ -1,12 +1,13 @@
 'use client';
 
 import {
+  ChevronRight,
   Loader2,
   TriangleAlert,
   Waypoints,
   type LucideIcon,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -41,13 +42,20 @@ function StepRow({
   status,
   title,
   detail,
+  expandedContent,
 }: {
   icon: LucideIcon;
   status: StepStatus;
   title: ReactNode;
   /** Optional second line (an error message, or a routing reason). */
   detail?: ReactNode;
+  /** Drill-down detail (e.g. a tool's full input/output). When present the
+   *  title becomes a chevron-led toggle; `detail` hides while expanded since
+   *  the expanded body carries the same information in full. */
+  expandedContent?: ReactNode;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasExpansion = expandedContent != null;
   return (
     <div className="flex items-start gap-2 text-sm">
       <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
@@ -60,8 +68,29 @@ function StepRow({
         )}
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className="text-foreground truncate">{title}</span>
-        {detail != null && (
+        {hasExpansion ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            className={cn(
+              'text-foreground flex items-center gap-1.5 text-left',
+              'hover:text-foreground/80 cursor-pointer',
+            )}
+          >
+            <ChevronRight
+              className={cn(
+                'text-muted-foreground size-3 shrink-0 transition-transform',
+                expanded && 'rotate-90',
+              )}
+            />
+            <span className="truncate">{title}</span>
+          </button>
+        ) : (
+          <span className="text-foreground truncate">{title}</span>
+        )}
+        {expanded && expandedContent}
+        {detail != null && !expanded && (
           <span
             className={cn(
               'text-xs break-words',
@@ -76,6 +105,58 @@ function StepRow({
       </span>
     </div>
   );
+}
+
+/** Full input text for a tool step's expanded detail (the command, file path,
+ *  pattern, or a JSON dump of the args). Distinct from the collapsed one-liner,
+ *  which truncates. */
+function toolInputText(
+  step: Extract<ThoughtStep, { kind: 'tool' }>,
+): string | undefined {
+  const input = step.input;
+  if (!input) return undefined;
+  const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+  const direct =
+    str(input.command) ??
+    str(input.file_path) ??
+    str(input.notebook_path) ??
+    str(input.pattern) ??
+    str(input.url);
+  if (direct) return direct;
+  const keys = Object.keys(input);
+  if (keys.length === 0) return undefined;
+  try {
+    return JSON.stringify(input, null, 2);
+  } catch (error) {
+    console.warn('thought-timeline: unserializable tool input', error);
+    return undefined;
+  }
+}
+
+/** Output/result text for a tool step's expanded detail. */
+function toolOutputText(
+  step: Extract<ThoughtStep, { kind: 'tool' }>,
+): string | undefined {
+  if (step.output === undefined || step.output === null) return undefined;
+  if (typeof step.output === 'string') {
+    return step.output.length > 0 ? step.output : undefined;
+  }
+  try {
+    return JSON.stringify(step.output, null, 2);
+  } catch (error) {
+    console.warn('thought-timeline: unserializable tool output', error);
+    return undefined;
+  }
+}
+
+// Cap the expanded detail so a giant clone/diff output can't blow up the DOM;
+// the scroll box shows the head and notes the truncation.
+const TOOL_DETAIL_MAX = 4000;
+
+function clampDetail(text: string): string {
+  return text.length > TOOL_DETAIL_MAX
+    ? `${text.slice(0, TOOL_DETAIL_MAX)}\n… (truncated)`
+    : text;
 }
 
 export function ToolStepRow({
@@ -93,6 +174,11 @@ export function ToolStepRow({
     active &&
     (step.state === 'input-streaming' || step.state === 'input-available');
   const isError = step.state === 'output-error';
+  const inputText = toolInputText(step);
+  const outputText = toolOutputText(step);
+  // Only the agent-tool steps (Bash/Read/…) carry input+output worth drilling
+  // into; the expander appears when there's detail to show.
+  const hasDetail = Boolean(inputText || outputText);
   return (
     <StepRow
       icon={toolIcon(step.toolName)}
@@ -102,6 +188,29 @@ export function ToolStepRow({
       status={isActive ? 'active' : isError ? 'error' : 'done'}
       title={displayText}
       detail={isError && step.errorText ? step.errorText : undefined}
+      expandedContent={
+        hasDetail ? (
+          <div className="mt-1 ml-4 flex flex-col gap-1.5">
+            {inputText && (
+              <pre className="bg-muted/60 text-muted-foreground max-h-60 overflow-auto rounded p-2 text-xs whitespace-pre-wrap">
+                {clampDetail(inputText)}
+              </pre>
+            )}
+            {outputText && (
+              <pre
+                className={cn(
+                  'max-h-60 overflow-auto rounded p-2 text-xs whitespace-pre-wrap',
+                  isError
+                    ? 'bg-destructive/10 text-destructive/90'
+                    : 'bg-muted/40 text-foreground/80',
+                )}
+              >
+                {clampDetail(outputText)}
+              </pre>
+            )}
+          </div>
+        ) : undefined
+      }
     />
   );
 }
