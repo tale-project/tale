@@ -44,7 +44,7 @@ Maintainers commit to the following timeline from the moment a report lands at `
 
 Reporters can request a delay if they need more time to disclose; maintainers accept up to 90 days before publishing the summary anyway.
 
-On the engineering side, dependency fixes move on a fast track so the patched release lands quickly: Renovate opens a security update PR within 24 hours of an upstream advisory — bypassing the normal release-age delay that applies to routine updates — and CI blocks any merge that introduces a known critical advisory. A disclosed dependency CVE therefore turns into a patched Tale release in days, not on the next routine cadence.
+On the engineering side, dependency fixes move on a fast track so the patched release lands quickly: Renovate opens a security update PR within 24 hours of an upstream advisory — bypassing the normal release-age delay that applies to routine updates — and CI blocks any merge that introduces a known high or critical advisory. A disclosed dependency CVE therefore turns into a patched Tale release in days, not on the next routine cadence.
 
 ## Subscribing
 
