@@ -22,7 +22,9 @@ RUN bun build --target=node src/main.ts --outfile /runnerd.mjs
 FROM python:3.12-slim-bookworm
 
 # Pinned agent + tool versions (sessions plan — upgrade = bump ARG + rebuild).
-ARG CLAUDE_CODE_VERSION=1.0.44
+# 2.x required: the claude_code adapter passes --include-partial-messages,
+# which 1.0.x rejects (exit 1 before the agent even starts).
+ARG CLAUDE_CODE_VERSION=2.1.173
 ARG OPENCODE_VERSION=1.17.3
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
@@ -91,12 +93,12 @@ RUN set -eux; \
       arm64) OC_ARCH=arm64 ;; \
       *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL -o /tmp/opencode.zip \
-      "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-${OC_ARCH}.zip"; \
+    curl -fsSL -o /tmp/opencode.tar.gz \
+      "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-${OC_ARCH}.tar.gz"; \
     mkdir -p /opt/agents/bin; \
-    unzip -o /tmp/opencode.zip -d /opt/agents/bin; \
+    tar -xzf /tmp/opencode.tar.gz -C /opt/agents/bin; \
     chmod +x /opt/agents/bin/opencode; \
-    rm /tmp/opencode.zip; \
+    rm /tmp/opencode.tar.gz; \
     /opt/agents/bin/opencode --version
 
 # gh CLI (pinned) for the issue→PR workflow (GITHUB_TOKEN env auth).
@@ -134,8 +136,9 @@ RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-creden
 # git/ssh have a home + name, and non-root so Claude Code's bypassPermissions
 # is allowed. The one-shot role still runs as 65534 (spawner pins --user per
 # profile); this is just the named account the session profile selects.
-RUN groupadd --gid 10001 agent \
-    && useradd --uid 10001 --gid 10001 --home-dir /workspace/.home \
+# Absolute paths: the ENV PATH override above drops /usr/sbin.
+RUN /usr/sbin/groupadd --gid 10001 agent \
+    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /workspace/.home \
        --shell /bin/bash --no-create-home agent
 
 # Default user is nobody; spawner pins --user per profile at the call site

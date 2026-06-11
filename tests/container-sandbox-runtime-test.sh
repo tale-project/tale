@@ -34,7 +34,12 @@ fail() { echo -e "  ${RED}✗${NC} $1"; FAILED=$((FAILED + 1)); }
 # Run a command in the image as a given uid; print stdout, return exit code.
 run_as() {
   local uid="$1"; shift
-  docker run --rm --user "$uid" --entrypoint sh "$IMAGE" -c "$*"
+  # tmpfs at /workspace mirrors the spawner contract: sessions always get a
+  # writable /workspace (bind mount chowned to the runtime uid) — the baked
+  # image dir is owned by 65534 and HOME=/workspace/.home is unwritable
+  # without it.
+  docker run --rm --user "$uid" --tmpfs "/workspace:uid=${uid},gid=${uid}" \
+    --entrypoint sh "$IMAGE" -c "$*"
 }
 
 # Assert a command in the image (as uid) exits 0.
@@ -98,7 +103,7 @@ echo ""
 echo "--- runnerd boots under the daemon entrypoint ---"
 # Start the daemon (PID 1 via the image entrypoint `daemon` arg) and probe
 # /readyz. No token (unsigned dev mode) so the probe is unauthenticated.
-cid="$(docker run -d --user 10001 "$IMAGE" daemon)"
+cid="$(docker run -d --user 10001 --tmpfs /workspace:uid=10001,gid=10001 "$IMAGE" daemon)"
 trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
 ready=false
 for _ in $(seq 1 20); do

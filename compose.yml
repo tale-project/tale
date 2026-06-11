@@ -688,7 +688,7 @@ services:
   # and an integration test guards the VK auth path before rollout.
   # ============================================================================
   bifrost:
-    image: maximhq/bifrost:${BIFROST_VERSION:-1.4.8}
+    image: maximhq/bifrost:${BIFROST_VERSION:-v1.4.8}
     pull_policy: ${PULL_POLICY:-build}
     container_name: tale-bifrost
     env_file:
@@ -704,7 +704,12 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     healthcheck:
-      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:8080/health || exit 1']
+      # The bifrost image ships busybox wget but no curl.
+      test:
+        [
+          'CMD-SHELL',
+          'wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 3
