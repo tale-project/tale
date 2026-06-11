@@ -457,6 +457,7 @@ import type * as integrations_update_sync_stats from "../integrations/update_syn
 import type * as integrations_utils_get_integration_type from "../integrations/utils/get_integration_type.js";
 import type * as integrations_validators from "../integrations/validators.js";
 import type * as knowledge_entries_constants from "../knowledge_entries/constants.js";
+import type * as knowledge_entries_helpers from "../knowledge_entries/helpers.js";
 import type * as knowledge_entries_internal_actions from "../knowledge_entries/internal_actions.js";
 import type * as knowledge_entries_internal_mutations from "../knowledge_entries/internal_mutations.js";
 import type * as knowledge_entries_internal_queries from "../knowledge_entries/internal_queries.js";
@@ -648,6 +649,7 @@ import type * as lib_helpers_pii_hash from "../lib/helpers/pii_hash.js";
 import type * as lib_helpers_public_storage_url from "../lib/helpers/public_storage_url.js";
 import type * as lib_helpers_rag_config from "../lib/helpers/rag_config.js";
 import type * as lib_helpers_rag_folder_path from "../lib/helpers/rag_folder_path.js";
+import type * as lib_helpers_rag_metadata_filters from "../lib/helpers/rag_metadata_filters.js";
 import type * as lib_helpers_status_priority from "../lib/helpers/status_priority.js";
 import type * as lib_http_safe_fetch from "../lib/http/safe_fetch.js";
 import type * as lib_log_redact from "../lib/log_redact.js";
@@ -794,6 +796,7 @@ import type * as node_only_sql_helpers_execute_query from "../node_only/sql/help
 import type * as node_only_sql_helpers_validate_query from "../node_only/sql/helpers/validate_query.js";
 import type * as node_only_sql_internal_actions from "../node_only/sql/internal_actions.js";
 import type * as node_only_sql_types from "../node_only/sql/types.js";
+import type * as notifications_actor_name from "../notifications/actor_name.js";
 import type * as notifications_dispatch_notification from "../notifications/dispatch_notification.js";
 import type * as notifications_event_catalog from "../notifications/event_catalog.js";
 import type * as notifications_event_catalog_meta from "../notifications/event_catalog_meta.js";
@@ -917,6 +920,7 @@ import type * as skills_file_utils from "../skills/file_utils.js";
 import type * as skills_get_skill_audit_history from "../skills/get_skill_audit_history.js";
 import type * as skills_upload_mutations from "../skills/upload_mutations.js";
 import type * as sso_providers_actions from "../sso_providers/actions.js";
+import type * as sso_providers_claims from "../sso_providers/claims.js";
 import type * as sso_providers_create_user_session from "../sso_providers/create_user_session.js";
 import type * as sso_providers_entra_id_adapter from "../sso_providers/entra_id/adapter.js";
 import type * as sso_providers_entra_id_constants from "../sso_providers/entra_id/constants.js";
@@ -939,6 +943,7 @@ import type * as sso_providers_internal_mutations from "../sso_providers/interna
 import type * as sso_providers_internal_queries from "../sso_providers/internal_queries.js";
 import type * as sso_providers_is_sso_configured from "../sso_providers/is_sso_configured.js";
 import type * as sso_providers_oidc_discovery from "../sso_providers/oidc_discovery.js";
+import type * as sso_providers_pkce from "../sso_providers/pkce.js";
 import type * as sso_providers_queries from "../sso_providers/queries.js";
 import type * as sso_providers_registry from "../sso_providers/registry.js";
 import type * as sso_providers_remove_provider from "../sso_providers/remove_provider.js";
@@ -1815,6 +1820,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/utils/get_integration_type": typeof integrations_utils_get_integration_type;
   "integrations/validators": typeof integrations_validators;
   "knowledge_entries/constants": typeof knowledge_entries_constants;
+  "knowledge_entries/helpers": typeof knowledge_entries_helpers;
   "knowledge_entries/internal_actions": typeof knowledge_entries_internal_actions;
   "knowledge_entries/internal_mutations": typeof knowledge_entries_internal_mutations;
   "knowledge_entries/internal_queries": typeof knowledge_entries_internal_queries;
@@ -2006,6 +2012,7 @@ declare const fullApi: ApiFromModules<{
   "lib/helpers/public_storage_url": typeof lib_helpers_public_storage_url;
   "lib/helpers/rag_config": typeof lib_helpers_rag_config;
   "lib/helpers/rag_folder_path": typeof lib_helpers_rag_folder_path;
+  "lib/helpers/rag_metadata_filters": typeof lib_helpers_rag_metadata_filters;
   "lib/helpers/status_priority": typeof lib_helpers_status_priority;
   "lib/http/safe_fetch": typeof lib_http_safe_fetch;
   "lib/log_redact": typeof lib_log_redact;
@@ -2152,6 +2159,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sql/helpers/validate_query": typeof node_only_sql_helpers_validate_query;
   "node_only/sql/internal_actions": typeof node_only_sql_internal_actions;
   "node_only/sql/types": typeof node_only_sql_types;
+  "notifications/actor_name": typeof notifications_actor_name;
   "notifications/dispatch_notification": typeof notifications_dispatch_notification;
   "notifications/event_catalog": typeof notifications_event_catalog;
   "notifications/event_catalog_meta": typeof notifications_event_catalog_meta;
@@ -2275,6 +2283,7 @@ declare const fullApi: ApiFromModules<{
   "skills/get_skill_audit_history": typeof skills_get_skill_audit_history;
   "skills/upload_mutations": typeof skills_upload_mutations;
   "sso_providers/actions": typeof sso_providers_actions;
+  "sso_providers/claims": typeof sso_providers_claims;
   "sso_providers/create_user_session": typeof sso_providers_create_user_session;
   "sso_providers/entra_id/adapter": typeof sso_providers_entra_id_adapter;
   "sso_providers/entra_id/constants": typeof sso_providers_entra_id_constants;
@@ -2297,6 +2306,7 @@ declare const fullApi: ApiFromModules<{
   "sso_providers/internal_queries": typeof sso_providers_internal_queries;
   "sso_providers/is_sso_configured": typeof sso_providers_is_sso_configured;
   "sso_providers/oidc_discovery": typeof sso_providers_oidc_discovery;
+  "sso_providers/pkce": typeof sso_providers_pkce;
   "sso_providers/queries": typeof sso_providers_queries;
   "sso_providers/registry": typeof sso_providers_registry;
   "sso_providers/remove_provider": typeof sso_providers_remove_provider;

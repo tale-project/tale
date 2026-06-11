@@ -46,28 +46,34 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     lockoutDetails: '{consecutiveFailures} failed sign-in attempts from {ip}.',
     auditIntegrityFailed: 'Audit log integrity check failed',
     auditIntegrityFailedDetails:
-      "The scheduled audit-log integrity check could not verify this organization's chain: {reason}. Investigate immediately — this can indicate tampering.",
+      "We couldn't verify the integrity of this organization's audit log: {reason}. This can indicate tampering — please investigate as soon as possible.",
     dsarScheduled: 'Erasure request scheduled',
     dsarScheduledBody:
-      'An erasure request was filed for a subject in this org. It will execute in {coolingOffHours}h. Open the receipt to review or cancel.',
+      'An erasure request was filed for a member of this organization. It runs in {coolingOffHours} hours — open the receipt to review or cancel it.',
     dsarApprovalNeeded: 'Erasure request awaiting your approval',
     dsarApprovalNeededBody:
-      "An erasure request was filed and requires a second admin's approval before it can run.",
+      "An erasure request needs a second admin's approval before it can run.",
     dsarCancelled: 'Erasure request cancelled',
     dsarCancelledBody:
-      'A pending erasure request was cancelled before its cooling-off window elapsed.',
-    dsarPolicyTightened: 'DSAR governance policy tightened',
+      "A pending erasure request was cancelled during its cooling-off window, so it won't run.",
+    dsarScheduledByBody:
+      '{actor} filed an erasure request for {subject}. It runs in {coolingOffHours} hours — open the receipt to review or cancel it.',
+    dsarApprovalNeededByBody:
+      "{actor} filed an erasure request for {subject}. It needs a second admin's approval before it can run.",
+    dsarCancelledByBody:
+      "{actor} cancelled the pending erasure request for {subject}, so it won't run.",
+    dsarPolicyTightened: 'Data-erasure policy made stricter',
     dsarPolicyTightenedBody:
-      'The DSAR governance policy was changed to a stricter setting. Stricter changes apply immediately.',
-    dsarPolicyLoosenProposed: 'DSAR governance policy weakening proposed',
+      "This organization's data-erasure (DSAR) policy was made stricter. It takes effect immediately.",
+    dsarPolicyLoosenProposed: 'Data-erasure policy weakening proposed',
     dsarPolicyLoosenProposedBody:
-      'A weakening of the DSAR governance policy was proposed. Any admin can cancel before the 24-hour grace window elapses.',
-    dsarPolicyLoosenApplied: 'DSAR governance policy weakened',
+      'A weaker data-erasure (DSAR) policy was proposed. Any admin can cancel it within the 24-hour grace window before it takes effect.',
+    dsarPolicyLoosenApplied: 'Data-erasure policy weakened',
     dsarPolicyLoosenAppliedBody:
-      'The proposed weakening of the DSAR governance policy took effect after the 24-hour grace window.',
-    dsarPolicyLoosenCancelled: 'Pending DSAR policy change cancelled',
+      'A weaker data-erasure (DSAR) policy took effect after the 24-hour grace window.',
+    dsarPolicyLoosenCancelled: 'Pending data-erasure policy change cancelled',
     dsarPolicyLoosenCancelledBody:
-      'The pending weakening of the DSAR governance policy was cancelled before it took effect.',
+      'A pending data-erasure (DSAR) policy change was cancelled before it took effect.',
   },
   de: {
     title: 'Benachrichtigungen',
@@ -88,29 +94,35 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.',
     auditIntegrityFailed: 'Integritätsprüfung des Audit-Logs fehlgeschlagen',
     auditIntegrityFailedDetails:
-      'Die geplante Integritätsprüfung des Audit-Logs konnte die Kette dieser Organisation nicht verifizieren: {reason}. Sofort untersuchen — dies kann auf Manipulation hindeuten.',
+      'Wir konnten die Integrität des Audit-Logs dieser Organisation nicht bestätigen: {reason}. Das kann auf Manipulation hindeuten — untersuche das so schnell wie möglich.',
     dsarScheduled: 'Löschungsanfrage geplant',
     dsarScheduledBody:
-      'Eine Löschungsanfrage wurde für eine Person in dieser Organisation eingereicht. Die Anfrage wird in {coolingOffHours} Stunden ausgeführt. Öffne den Beleg zur Prüfung oder zum Abbruch.',
+      'Eine Löschungsanfrage wurde für ein Mitglied dieser Organisation eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt — öffne den Beleg, um sie zu prüfen oder abzubrechen.',
     dsarApprovalNeeded: 'Löschungsanfrage wartet auf deine Freigabe',
     dsarApprovalNeededBody:
-      'Eine Löschungsanfrage wurde eingereicht und benötigt die Freigabe eines zweiten Admins, bevor sie ausgeführt werden kann.',
+      'Eine Löschungsanfrage benötigt die Freigabe eines zweiten Admins, bevor sie ausgeführt werden kann.',
     dsarCancelled: 'Löschungsanfrage abgebrochen',
     dsarCancelledBody:
-      'Eine offene Löschungsanfrage wurde vor Ablauf der Karenzzeit abgebrochen.',
-    dsarPolicyTightened: 'DSAR-Governance verschärft',
+      'Eine offene Löschungsanfrage wurde während der Karenzzeit abgebrochen und läuft daher nicht.',
+    dsarScheduledByBody:
+      '{actor} hat eine Löschungsanfrage für {subject} eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt — öffne den Beleg, um sie zu prüfen oder abzubrechen.',
+    dsarApprovalNeededByBody:
+      '{actor} hat eine Löschungsanfrage für {subject} eingereicht. Sie benötigt die Freigabe eines zweiten Admins, bevor sie ausgeführt werden kann.',
+    dsarCancelledByBody:
+      '{actor} hat die offene Löschungsanfrage für {subject} abgebrochen; sie läuft daher nicht.',
+    dsarPolicyTightened: 'Löschrichtlinie verschärft',
     dsarPolicyTightenedBody:
-      'Die DSAR-Governance-Richtlinie wurde strenger eingestellt. Strengere Änderungen werden sofort wirksam.',
-    dsarPolicyLoosenProposed: 'Lockerung der DSAR-Governance vorgeschlagen',
+      'Die Löschrichtlinie (DSAR) dieser Organisation wurde verschärft. Sie wird sofort wirksam.',
+    dsarPolicyLoosenProposed: 'Lockerung der Löschrichtlinie vorgeschlagen',
     dsarPolicyLoosenProposedBody:
-      'Eine Lockerung der DSAR-Governance wurde vorgeschlagen. Jeder Admin kann sie vor Ablauf des 24-Stunden-Karenzfensters abbrechen.',
-    dsarPolicyLoosenApplied: 'DSAR-Governance gelockert',
+      'Eine schwächere Löschrichtlinie (DSAR) wurde vorgeschlagen. Jeder Admin kann sie innerhalb des 24-Stunden-Karenzfensters abbrechen, bevor sie wirksam wird.',
+    dsarPolicyLoosenApplied: 'Löschrichtlinie gelockert',
     dsarPolicyLoosenAppliedBody:
-      'Die vorgeschlagene Lockerung der DSAR-Governance wurde nach Ablauf des 24-Stunden-Karenzfensters wirksam.',
+      'Eine schwächere Löschrichtlinie (DSAR) wurde nach dem 24-Stunden-Karenzfenster wirksam.',
     dsarPolicyLoosenCancelled:
-      'Vorgemerkte DSAR-Richtlinienänderung abgebrochen',
+      'Vorgemerkte Änderung der Löschrichtlinie abgebrochen',
     dsarPolicyLoosenCancelledBody:
-      'Die vorgemerkte Lockerung der DSAR-Governance wurde abgebrochen, bevor sie wirksam wurde.',
+      'Eine vorgemerkte Änderung der Löschrichtlinie (DSAR) wurde abgebrochen, bevor sie wirksam wurde.',
   },
   fr: {
     title: 'Notifications',
@@ -132,29 +144,36 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{consecutiveFailures} tentatives de connexion échouées depuis {ip}.',
     auditIntegrityFailed: "Échec du contrôle d'intégrité du journal d'audit",
     auditIntegrityFailedDetails:
-      "Le contrôle d'intégrité planifié du journal d'audit n'a pas pu vérifier la chaîne de cette organisation : {reason}. À examiner immédiatement — cela peut indiquer une altération.",
+      "Nous n'avons pas pu vérifier l'intégrité du journal d'audit de cette organisation : {reason}. Cela peut indiquer une altération — examine la situation dès que possible.",
     dsarScheduled: "Demande d'effacement planifiée",
     dsarScheduledBody:
-      "Une demande d'effacement a été déposée pour une personne dans cette organisation. Elle s'exécutera dans {coolingOffHours} h. Ouvre le reçu pour la consulter ou l'annuler.",
+      "Une demande d'effacement a été déposée concernant un membre de cette organisation. Elle s'exécute dans {coolingOffHours} heures — ouvre le reçu pour la consulter ou l'annuler.",
     dsarApprovalNeeded: "Demande d'effacement en attente de ton approbation",
     dsarApprovalNeededBody:
-      "Une demande d'effacement a été déposée et nécessite l'approbation d'un second admin avant de pouvoir s'exécuter.",
+      "Une demande d'effacement nécessite l'approbation d'un second admin avant de pouvoir s'exécuter.",
     dsarCancelled: "Demande d'effacement annulée",
     dsarCancelledBody:
-      "Une demande d'effacement en attente a été annulée avant l'expiration de son délai de réflexion.",
-    dsarPolicyTightened: 'Gouvernance DSAR renforcée',
+      "Une demande d'effacement en attente a été annulée pendant son délai de réflexion ; elle ne s'exécutera pas.",
+    dsarScheduledByBody:
+      "{actor} a déposé une demande d'effacement concernant {subject}. Elle s'exécute dans {coolingOffHours} heures — ouvre le reçu pour la consulter ou l'annuler.",
+    dsarApprovalNeededByBody:
+      "{actor} a déposé une demande d'effacement concernant {subject}. Elle nécessite l'approbation d'un second admin avant de pouvoir s'exécuter.",
+    dsarCancelledByBody:
+      "{actor} a annulé la demande d'effacement en attente concernant {subject} ; elle ne s'exécutera pas.",
+    dsarPolicyTightened: "Politique d'effacement renforcée",
     dsarPolicyTightenedBody:
-      'La politique de gouvernance DSAR a été modifiée vers un réglage plus strict. Les modifications strictes prennent effet immédiatement.',
-    dsarPolicyLoosenProposed: 'Assouplissement de la gouvernance DSAR proposé',
+      "La politique d'effacement (DSAR) de cette organisation a été renforcée. Elle prend effet immédiatement.",
+    dsarPolicyLoosenProposed:
+      "Assouplissement proposé de la politique d'effacement",
     dsarPolicyLoosenProposedBody:
-      "Un assouplissement de la gouvernance DSAR a été proposé. Tout admin peut l'annuler avant l'expiration du délai de grâce de 24 heures.",
-    dsarPolicyLoosenApplied: 'Gouvernance DSAR assouplie',
+      "Un assouplissement de la politique d'effacement (DSAR) a été proposé. Tout admin peut l'annuler dans le délai de grâce de 24 heures avant qu'il ne prenne effet.",
+    dsarPolicyLoosenApplied: "Politique d'effacement assouplie",
     dsarPolicyLoosenAppliedBody:
-      "L'assouplissement proposé de la gouvernance DSAR a pris effet après le délai de grâce de 24 heures.",
+      "Une politique d'effacement (DSAR) assouplie a pris effet après le délai de grâce de 24 heures.",
     dsarPolicyLoosenCancelled:
-      'Modification de politique DSAR en attente annulée',
+      "Modification en attente de la politique d'effacement annulée",
     dsarPolicyLoosenCancelledBody:
-      "L'assouplissement en attente de la gouvernance DSAR a été annulé avant de prendre effet.",
+      "Une modification en attente de la politique d'effacement (DSAR) a été annulée avant de prendre effet.",
   },
 };
 
