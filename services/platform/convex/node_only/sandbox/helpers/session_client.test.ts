@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
-import { drainSessionExecResilient } from './session_client.ts';
+import { drainSessionExecResilient } from './session_client';
 
 const enc = new TextEncoder();
 
