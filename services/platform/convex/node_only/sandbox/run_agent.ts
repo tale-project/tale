@@ -53,6 +53,14 @@ export interface RunAgentInSessionResult {
   exitCode: number | null;
   agentSessionId?: string;
   finalText?: string;
+  /** Token/cost totals the agent reported in its `result` event — the
+   * authoritative per-turn usage (Bifrost v1.4.8 has no per-VK usage endpoint).
+   * Absent if the run errored before producing a result. */
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    costEstimateUsd?: number;
+  };
 }
 
 /**
@@ -88,6 +96,7 @@ export async function runAgentInSessionImpl(
   const recentEvents: string[] = [];
   let capturedSessionId: string | undefined = args.agentSessionId;
   let finalText: string | undefined;
+  let usage: RunAgentInSessionResult['usage'];
   let lastFlush = 0;
 
   const recordEvents = (events: AgentEvent[]): void => {
@@ -99,6 +108,15 @@ export async function runAgentInSessionImpl(
       } else if (e.type === 'result') {
         if (e.agentSessionId) capturedSessionId = e.agentSessionId;
         if (e.finalText) finalText = e.finalText;
+        if (e.usageTotals) {
+          usage = {
+            inputTokens: e.usageTotals.inputTokens,
+            outputTokens: e.usageTotals.outputTokens,
+            ...(e.usageTotals.costEstimateUsd !== undefined && {
+              costEstimateUsd: e.usageTotals.costEstimateUsd,
+            }),
+          };
+        }
       }
       // Keep a rolling tail of non-delta events for the UI.
       if (e.type !== 'text-delta') {
@@ -183,6 +201,7 @@ export async function runAgentInSessionImpl(
       agentSessionId: capturedSessionId,
     }),
     ...(finalText !== undefined && { finalText }),
+    ...(usage !== undefined && { usage }),
   };
 }
 

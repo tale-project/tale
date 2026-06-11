@@ -36,6 +36,17 @@ export const teardownThreadSessions = internalAction({
           err,
         );
       }
+      try {
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.deleteOpsForSession,
+          { sessionId },
+        );
+      } catch (err) {
+        console.warn(
+          `[teardownThreadSessions] delete ops ${sessionId} failed:`,
+          err,
+        );
+      }
     }
     return null;
   },

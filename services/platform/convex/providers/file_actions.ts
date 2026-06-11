@@ -1128,6 +1128,60 @@ export async function resolveModelDataInline(
   });
 }
 
+/** One upstream provider, ready to push into the Bifrost gateway. */
+export interface GatewayProvider {
+  name: string;
+  baseUrl?: string;
+  apiKey: string;
+  models: string[];
+}
+
+/**
+ * Load the org's configured providers in the shape the Bifrost gateway needs:
+ * `{ name, baseUrl?, apiKey, models }` per provider, including only models
+ * whose API key resolves (env or file). Reuses the same loader + key-resolution
+ * the chat path uses (`loadAllProviders` + `resolveModelApiKeyOrNull`) so the
+ * gateway tracks exactly what the platform would call directly. Returns [] when
+ * the org has no usable providers (caller degrades gracefully).
+ */
+export async function loadOrgGatewayProviders(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<GatewayProvider[]> {
+  const orgSlug = await resolveOrgSlug(ctx, organizationId);
+  let providers: ProviderWithSecrets[];
+  try {
+    providers = await loadAllProviders(orgSlug);
+  } catch {
+    return [];
+  }
+  const out: GatewayProvider[] = [];
+  for (const provider of providers) {
+    // A single upstream key per provider (the file/env apiKey); pick the first
+    // model whose key resolves to anchor it, then expose every model id.
+    let apiKey: string | null = null;
+    const models: string[] = [];
+    for (const model of provider.config.models) {
+      const key = resolveModelApiKeyOrNull(provider, model);
+      if (key) {
+        apiKey ??= key;
+        models.push(model.id);
+      }
+    }
+    if (apiKey && models.length > 0) {
+      out.push({
+        name: provider.name,
+        ...(provider.config.baseUrl
+          ? { baseUrl: provider.config.baseUrl }
+          : {}),
+        apiKey,
+        models,
+      });
+    }
+  }
+  return out;
+}
+
 /**
  * Resolve provider data for the first model matching a tag (chat/vision/embedding).
  */

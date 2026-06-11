@@ -938,7 +938,9 @@ import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.
 import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
 import type * as sandbox_sandbox_http from "../sandbox/sandbox_http.js";
 import type * as sandbox_session_mutations from "../sandbox/session_mutations.js";
+import type * as sandbox_session_naming from "../sandbox/session_naming.js";
 import type * as sandbox_session_queries from "../sandbox/session_queries.js";
+import type * as sandbox_session_queries_public from "../sandbox/session_queries_public.js";
 import type * as sandbox_sessions_schema from "../sandbox/sessions_schema.js";
 import type * as sandbox_wire from "../sandbox/wire.js";
 import type * as skills_audit_mutations from "../skills/audit_mutations.js";
@@ -2341,7 +2343,9 @@ declare const fullApi: ApiFromModules<{
   "sandbox/output_mutations": typeof sandbox_output_mutations;
   "sandbox/sandbox_http": typeof sandbox_sandbox_http;
   "sandbox/session_mutations": typeof sandbox_session_mutations;
+  "sandbox/session_naming": typeof sandbox_session_naming;
   "sandbox/session_queries": typeof sandbox_session_queries;
+  "sandbox/session_queries_public": typeof sandbox_session_queries_public;
   "sandbox/sessions_schema": typeof sandbox_sessions_schema;
   "sandbox/wire": typeof sandbox_wire;
   "skills/audit_mutations": typeof skills_audit_mutations;

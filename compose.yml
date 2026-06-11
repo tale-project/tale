@@ -678,14 +678,19 @@ services:
   # Raw provider API keys live ONLY here + in the platform; the sandbox holds a
   # session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at
   # session destroy. The platform is the source of truth for providers/models;
-  # it provisions Bifrost via the governance API at boot + on config change
-  # (convex/sandbox/bifrost_admin.ts).
+  # it provisions Bifrost via the governance API on session create
+  # (convex/node_only/sandbox/bifrost_admin.ts: provisionProviders +
+  # applyGatewayConfig).
   #
-  # SECURITY: management API is gated by BIFROST_MANAGEMENT_TOKEN (Tier-0 secret,
-  # never in the sandbox); enforce-virtual-keys-on-inference is ON so the data
-  # plane rejects anything but a minted key. No published port. PINNED image —
-  # the project has had virtual-key auth regressions, so the version is fixed
-  # and an integration test guards the VK auth path before rollout.
+  # SECURITY: Bifrost auth is config-store driven (NOT env vars — v1.4.8 never
+  # read the old BIFROST_MANAGEMENT_TOKEN / BIFROST_ENFORCE_VIRTUAL_KEYS).
+  # applyGatewayConfig() pushes, idempotently on session create:
+  #   - client.enforce_auth_on_inference=true → inference rejects anything but a
+  #     minted virtual key (the data-plane gate).
+  #   - auth_config (admin basic-auth over /api/*) when BIFROST_ADMIN_PASSWORD is
+  #     set → the management plane stops being anonymous on the internal network.
+  # No published port (loopback publish lives in compose.bifrost-dev.yml for the
+  # host bun-dev path). PINNED image — the project has had VK auth regressions.
   # ============================================================================
   bifrost:
     image: maximhq/bifrost:${BIFROST_VERSION:-v1.4.8}
@@ -693,13 +698,13 @@ services:
     container_name: tale-bifrost
     env_file:
       - .env
-    environment:
-      # Management-API bearer (provisioning + key mint); shared with platform.
-      BIFROST_MANAGEMENT_TOKEN: ${BIFROST_MANAGEMENT_TOKEN:-}
-      # Reject inference requests that don't carry a minted virtual key.
-      BIFROST_ENFORCE_VIRTUAL_KEYS: 'true'
+    # No bifrost-read env knobs: auth + VK enforcement are config-store fields
+    # the platform pushes via applyGatewayConfig() (admin creds come from the
+    # platform's BIFROST_ADMIN_USERNAME / BIFROST_ADMIN_PASSWORD, never set on
+    # the bifrost container itself).
     volumes:
-      # SQLite config/log store (providers + minted keys survive restarts).
+      # SQLite config/log store (providers + minted keys + auth config survive
+      # restarts). Wipe this volume to re-bootstrap auth from scratch.
       - bifrost-data:/app/data
     restart: unless-stopped
     mem_limit: 512m

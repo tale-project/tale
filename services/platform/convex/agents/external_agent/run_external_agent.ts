@@ -25,8 +25,11 @@ import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
 import {
+  applyGatewayConfig,
+  getVirtualKeySpendCents,
   hashVirtualKey,
   mintVirtualKey,
+  provisionProviders,
   revokeVirtualKey,
   toGatewayModelRef,
 } from '../../node_only/sandbox/bifrost_admin';
@@ -35,6 +38,8 @@ import {
   sessionEnvPatch,
 } from '../../node_only/sandbox/helpers/session_client';
 import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
+import { loadOrgGatewayProviders } from '../../providers/file_actions';
+import { sessionIdForThread } from '../../sandbox/session_naming';
 
 const debugLog = createDebugLog(
   'DEBUG_EXTERNAL_AGENT',
@@ -58,11 +63,6 @@ const TURN_BUDGET_CENTS = Number(
   process.env.EXTERNAL_AGENT_TURN_BUDGET_CENTS ?? '500',
 );
 
-/** Deterministic spawner session id for a thread (ID_ALPHABET_RE-safe). */
-function sessionIdForThread(threadId: string): string {
-  return `thr-${threadId}`.slice(0, 64);
-}
-
 export const runExternalAgentTurn = internalAction({
   args: {
     threadId: v.string(),
@@ -81,6 +81,10 @@ export const runExternalAgentTurn = internalAction({
   handler: async (ctx, args) => {
     const execId = `exec-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     let mintedKeyId: string | null = null;
+    // Token totals the agent reported (often 0 through non-Anthropic gateways);
+    // cost comes from the VK budget in the finally. Captured here so usage is
+    // attributed even if the turn later throws.
+    let turnTokens: { inputTokens: number; outputTokens: number } | null = null;
 
     try {
       // 1. Reuse the thread's active session, or create one (owner = thread).
@@ -89,10 +93,17 @@ export const runExternalAgentTurn = internalAction({
         { ownerType: OWNER_TYPE, ownerId: args.threadId },
       );
       let sessionId: string;
+      // Lower bound for the --resume lookup: ops from a PRIOR session (same
+      // deterministic id, since destroyed) must not be resumed. The reused
+      // session uses its own createdAt; a freshly created one uses now (it
+      // has no ops yet either way).
+      let sessionCreatedAt: number;
       if (existing) {
         sessionId = existing.sessionId;
+        sessionCreatedAt = existing.createdAt;
       } else {
         sessionId = sessionIdForThread(args.threadId);
+        sessionCreatedAt = Date.now();
         const rowId = await ctx.runMutation(
           internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
           {
@@ -122,6 +133,25 @@ export const runExternalAgentTurn = internalAction({
           internal.sandbox.session_mutations.setSessionStatus,
           { rowId, status: 'active', lastActivityAt: Date.now() },
         );
+
+        // Once per session create: push the org's providers + harden the
+        // gateway auth posture (idempotent). Best-effort — a hiccup degrades
+        // to the prior manual-config behavior rather than killing the turn.
+        try {
+          const gatewayProviders = await loadOrgGatewayProviders(
+            ctx,
+            args.organizationId,
+          );
+          if (gatewayProviders.length > 0) {
+            await provisionProviders(gatewayProviders);
+          }
+          await applyGatewayConfig();
+        } catch (provisionErr) {
+          console.warn(
+            '[runExternalAgentTurn] gateway provisioning failed (continuing):',
+            provisionErr,
+          );
+        }
       }
 
       // 2. Inject Tier-2 integration credentials. Per-turn (not just at
@@ -184,7 +214,7 @@ export const runExternalAgentTurn = internalAction({
       // 4. Resume the in-sandbox agent's prior conversation if any.
       const agentSessionId = await ctx.runQuery(
         internal.sandbox.session_queries.latestAgentSessionId,
-        { sessionId },
+        { sessionId, sinceStartedAt: sessionCreatedAt },
       );
 
       debugLog('run', {
@@ -215,7 +245,16 @@ export const runExternalAgentTurn = internalAction({
         gatewayToken: vk.key,
       });
 
-      // 6. Save the agent's final reply into the thread (chat UI renders it).
+      // 6. Capture token totals (cost is read from the VK budget in finally —
+      // see the usage attribution there).
+      if (result.usage) {
+        turnTokens = {
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+        };
+      }
+
+      // 7. Save the agent's final reply into the thread (chat UI renders it).
       const finalText =
         result.finalText ??
         (result.status === 'completed'
@@ -251,8 +290,47 @@ export const runExternalAgentTurn = internalAction({
         );
       }
     } finally {
-      // Per-turn key is single-use; revoke so a leaked key can't be replayed.
+      // Attribute spend + revoke the single-use key. Read the VK's cumulative
+      // budget for cost (the only signal that works through every gateway
+      // path), pair it with the agent's reported tokens (often 0 via
+      // non-Anthropic upstreams), and write ONE usageLedger row. No cron —
+      // the per-turn VK lifecycle is the natural attribution point.
       if (mintedKeyId !== null) {
+        try {
+          // Bifrost v1.4.8 aggregates per-VK spend asynchronously (~seconds of
+          // lag) and exposes no token breakdown — so poll the budget briefly
+          // until it lands. Best-effort and bounded (the user's answer is
+          // already saved above; this only delays VK revoke + status clear).
+          let costCents: number | null = null;
+          for (let attempt = 0; attempt < 5; attempt++) {
+            costCents = await getVirtualKeySpendCents(mintedKeyId);
+            if ((costCents ?? 0) > 0) break;
+            await new Promise((r) => setTimeout(r, 800));
+          }
+          const inputTokens = turnTokens?.inputTokens ?? 0;
+          const outputTokens = turnTokens?.outputTokens ?? 0;
+          if (inputTokens > 0 || outputTokens > 0 || (costCents ?? 0) > 0) {
+            const colon = args.modelRef.indexOf(':');
+            const provider =
+              colon === -1 ? undefined : args.modelRef.slice(0, colon);
+            await ctx.runMutation(
+              internal.governance.internal_mutations.incrementUsageLedger,
+              {
+                organizationId: args.organizationId,
+                userId: args.userId ?? 'system',
+                inputTokens,
+                outputTokens,
+                costEstimateCents: costCents ?? 0,
+                timestamp: Date.now(),
+                agentSlug: args.agentSlug ?? args.agentKind,
+                model: args.modelRef,
+                ...(provider ? { provider } : {}),
+              },
+            );
+          }
+        } catch (usageErr) {
+          console.warn('[runExternalAgentTurn] usage sync failed:', usageErr);
+        }
         try {
           await revokeVirtualKey(mintedKeyId);
         } catch (revokeErr) {

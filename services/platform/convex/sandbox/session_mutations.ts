@@ -204,6 +204,27 @@ export const revokeTokensForSession = internalMutation({
   },
 });
 
+/**
+ * Delete all progress/op rows for a session. Called on teardown so a future
+ * session reusing the same deterministic id (`thr-<threadId>`) can't inherit a
+ * stale `agentSessionId` (the query also scopes by the new session's createdAt,
+ * but purging keeps the table from accumulating dead ops). Returns the count.
+ */
+export const deleteOpsForSession = internalMutation({
+  args: { sessionId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let deleted = 0;
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      await ctx.db.delete(row._id);
+      deleted += 1;
+    }
+    return deleted;
+  },
+});
+
 // --- in-session exec progress ----------------------------------------------
 
 /**
