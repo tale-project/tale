@@ -36,8 +36,69 @@ export function loadConfig(): SpawnerConfig {
     );
   }
   const runtime: 'runc' | 'runsc' = rawRuntime;
+  const rawBackend = process.env.SANDBOX_BACKEND ?? 'docker';
+  if (rawBackend !== 'docker' && rawBackend !== 'kubernetes') {
+    throw new Error(
+      `SANDBOX_BACKEND must be 'docker' or 'kubernetes'; got: ${JSON.stringify(rawBackend)}`,
+    );
+  }
+  const backend: 'docker' | 'kubernetes' = rawBackend;
+  const rawCacheMode = process.env.SANDBOX_CACHE ?? 'none';
+  if (rawCacheMode !== 'none' && rawCacheMode !== 'pvc') {
+    throw new Error(
+      `SANDBOX_CACHE must be 'none' or 'pvc'; got: ${JSON.stringify(rawCacheMode)}`,
+    );
+  }
+  const cacheMode: 'none' | 'pvc' = rawCacheMode;
   const rawToken = process.env.SANDBOX_TOKEN;
+
+  // Cross-backend env combos are accepted (so a single env file can serve
+  // both deployment shapes) but warn — a silently-ignored knob reads like a
+  // misconfiguration to the operator who set it.
+  const K8S_ONLY_ENVS = [
+    'SANDBOX_K8S_NAMESPACE',
+    'SANDBOX_SPAWNER_IMAGE',
+    'SANDBOX_K8S_WORKSPACE_SIZE_LIMIT',
+    'SANDBOX_K8S_CACHE_STORAGECLASS',
+    'SANDBOX_K8S_SERVER',
+    'SANDBOX_K8S_TOKEN',
+    'SANDBOX_K8S_CAFILE',
+  ];
+  // (The cache-volume prefixes are NOT docker-only — k8s reuses them as PVC
+  // name prefixes.)
+  const DOCKER_ONLY_ENVS = [
+    'SANDBOX_HOST_SESSION_ROOT',
+    'SANDBOX_EGRESS_NETWORK',
+  ];
+  const inert =
+    backend === 'docker'
+      ? K8S_ONLY_ENVS
+      : backend === 'kubernetes'
+        ? DOCKER_ONLY_ENVS
+        : [];
+  for (const name of inert) {
+    const v = process.env[name];
+    if (v !== undefined && v.trim() !== '') {
+      console.warn(
+        `[sandbox.config] ${name} is set but has no effect with SANDBOX_BACKEND=${backend}`,
+      );
+    }
+  }
+  if (backend === 'docker' && cacheMode === 'pvc') {
+    console.warn(
+      '[sandbox.config] SANDBOX_CACHE=pvc has no effect with SANDBOX_BACKEND=docker (docker always uses named volumes)',
+    );
+  }
+
   return {
+    backend,
+    k8s: {
+      namespace: process.env.SANDBOX_K8S_NAMESPACE ?? 'tale-sandbox',
+      runtimeClassName: process.env.SANDBOX_RUNTIME_CLASS ?? 'gvisor',
+      spawnerImage: process.env.SANDBOX_SPAWNER_IMAGE ?? 'tale-sandbox:latest',
+      cacheMode,
+      workspaceSizeLimit: process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT ?? '4Gi',
+    },
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),
     // Token policy: opt-in verification. Unset (or empty-string) = HMAC
     // disabled; set = enforced. `authorize()` returns null when this is

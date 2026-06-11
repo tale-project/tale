@@ -30,7 +30,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { stageWorkspace } from './spawn.ts';
+import { stageWorkspace } from './exec-common.ts';
 import type { ExecuteRequest } from './types.ts';
 
 // Fixture HTTP server — each test registers `{name: bytes}` on the

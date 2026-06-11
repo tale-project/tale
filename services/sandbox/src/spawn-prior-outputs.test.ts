@@ -20,7 +20,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { stagePriorOutputDownloads } from './spawn.ts';
+import { stagePriorOutputDownloads } from './exec-common.ts';
 
 // Minimal ephemeral file-server backed by an in-memory map. Each test sets
 // the map's `{name: Uint8Array}` entries and computes URLs against the

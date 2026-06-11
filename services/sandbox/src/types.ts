@@ -257,6 +257,10 @@ export interface ExecuteResponse {
 }
 
 export interface SpawnerConfig {
+  // Execution backend (env SANDBOX_BACKEND). 'docker' spawns sibling
+  // containers via the host docker socket (Compose, the default);
+  // 'kubernetes' runs each execution as a Pod (Helm, Phase 2).
+  backend: 'docker' | 'kubernetes';
   port: number;
   // Token policy: opt-in verification. When null, the spawner skips HMAC
   // checks on every route (a single warn at boot logs the state). When
@@ -265,6 +269,31 @@ export interface SpawnerConfig {
   sandboxToken: string | null;
   runtimeImage: string;
   runtime: 'runc' | 'runsc';
+  // Kubernetes-backend settings (env SANDBOX_K8S_* / SANDBOX_CACHE). Always
+  // populated by loadConfig; consumed only when backend === 'kubernetes'.
+  k8s: {
+    // Namespace the per-execution runtime Pods are created in.
+    namespace: string;
+    // RuntimeClass applied to runtime Pods when runtime === 'runsc' (gVisor).
+    runtimeClassName: string;
+    // The SPAWNER's own image ref, used for the per-exec Pod's `stage`
+    // initContainer + `harvest` sidecar (which run the spawner image's in-Pod
+    // entry modes to do presigned-URL workspace I/O). Defaults to a dev tag;
+    // the Helm chart must set SANDBOX_SPAWNER_IMAGE to the deployed image so
+    // the helper containers match the running spawner version.
+    spawnerImage: string;
+    // 'none' (default) installs deps fresh each run via the egress proxy;
+    // 'pvc' mounts per-org ReadWriteMany cache PVCs (operator must provide
+    // an RWX storage class).
+    cacheMode: 'none' | 'pvc';
+    // sizeLimit on the per-exec /workspace emptyDir (K8s quantity string,
+    // env SANDBOX_K8S_WORKSPACE_SIZE_LIMIT). Everything the execution
+    // writes — dependency installs, temp files, outputs — lands on this
+    // volume, so without a limit a runaway run can fill the node disk.
+    // Exceeding it gets the pod evicted (classified via the runner-dead
+    // path), the K8s analogue of docker's fsize ulimit.
+    workspaceSizeLimit: string;
+  };
   defaultTimeoutMs: number;
   maxTimeoutMs: number;
   maxConcurrent: number;

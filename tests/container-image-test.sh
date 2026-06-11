@@ -36,7 +36,11 @@ declare -A SIZE_BUDGETS=(
     [db]=1200
     [proxy]=100
     [convex]=2500
-    [sandbox]=300
+    # sandbox carries @kubernetes/client-node for the native K8s backend
+    # (declarations/sourcemaps + bun cache are stripped in the runner stage;
+    # ~294 MB optimized — keep the budget below the un-stripped ~330 MB so a
+    # silently broken strip still trips this check)
+    [sandbox]=320
     [sandbox-egress]=80
     [sandbox-runtime]=900
 )

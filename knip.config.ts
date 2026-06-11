@@ -51,7 +51,14 @@ export default {
       // Standalone Bun HTTP service. `src/server.ts` is the runtime entry,
       // auto-detected from `dev`/`start` scripts; tests anchor the dead-code
       // sweep for unit-only helpers.
-      entry: ['src/**/*.test.ts'],
+      entry: [
+        'src/**/*.test.ts',
+        // In-Pod entry scripts for the Kubernetes backend — launched by
+        // absolute path inside the Pod (STAGE_ENTRY / HARVEST_ENTRY in
+        // k8s-pod-spec.ts), never imported, so knip can't trace them.
+        'src/backend/kubernetes/k8s-stage.ts',
+        'src/backend/kubernetes/k8s-harvest.ts',
+      ],
       project: ['src/**/*.ts'],
     },
     'services/docs': {

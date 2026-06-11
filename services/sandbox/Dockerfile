@@ -62,8 +62,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Production install: skip devDependencies to keep the runtime image small.
 # Lockfile is already validated in the builder stage; --frozen-lockfile here
 # guards against a drifted package.json slipping into the runner image.
+# TypeScript declarations + sourcemaps in production deps are never read at
+# runtime (typecheck runs in CI with full deps, never inside this image) and
+# @kubernetes/client-node alone ships tens of MB of them — strip to keep the
+# image inside its size budget. Bun hardlinks node_modules out of its install
+# cache, so the cache must be removed in the SAME layer or the stripped files
+# survive as cache inodes and the image doesn't actually shrink.
 COPY services/sandbox/package.json services/sandbox/bun.lock ./
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile --production \
+    && find node_modules -type f \( -name '*.d.ts' -o -name '*.d.mts' -o -name '*.d.cts' -o -name '*.map' \) -delete \
+    && rm -rf /root/.bun/install/cache
 
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
