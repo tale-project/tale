@@ -708,7 +708,7 @@ export function mimeToExtension(mime: string): string | undefined {
  * usable inline in chat but must not be queued for indexing — RAG rejects
  * them with HTTP 400, which used to surface as a permanent "Index failed".
  */
-export const RAG_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set([
+const RAG_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set([
   // Documents
   'pdf',
   'docx',
