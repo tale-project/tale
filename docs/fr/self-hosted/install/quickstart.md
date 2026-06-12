@@ -1,82 +1,82 @@
 ---
 title: Démarrage rapide auto-hébergé
-description: Une instance Tale sur un seul hôte sur un serveur neuf en vingt minutes — cloner, configurer deux variables, docker compose up, créer le premier admin.
+description: Fais tourner une instance Tale sur ta machine en trois commandes avec la CLI tale — installer, tale init, tale start, puis se connecter.
 ---
 
-Ce démarrage rapide pose une instance Tale fonctionnelle sur un seul hôte sur un serveur neuf en environ vingt minutes. Le résultat est ta propre organisation qui tourne sur ta propre machine, joignable sur une URL que tu contrôles. C'est le plus petit ensemble de gestes qui te mène à un écran de connexion ; le durcissement pour la production vit sur la page [Linux serveur](/fr/self-hosted/install/linux-server).
+C'est le chemin le plus rapide vers un Tale qui tourne : installe la CLI `tale`, puis deux commandes. Le résultat est ta propre organisation qui tourne sur ta propre machine, joignable dans le navigateur. C'est pensé pour un laptop ou un hôte unique sur lequel tu veux essayer Tale ; quand tu es prêt à le faire tourner pour de vrai, le parcours [Linux serveur](/fr/self-hosted/install/linux-server) couvre une installation de production durcie.
 
-Il te faut un hôte avec Docker et Docker Compose installés, un nom DNS qui pointe vers l'hôte (ou la volonté d'utiliser l'IP de l'hôte pour le moment), et les ports 80 et 443 ouverts. Le parcours utilise les fichiers compose fournis tels quels — pas d'édits au-delà des deux variables d'environnement `HOST` et `SITE_URL`.
+Il te faut deux choses :
 
-## Avant de commencer
+- **[Docker Desktop](https://www.docker.com/products/docker-desktop)** (v24+) en marche, ou Docker Engine plus le plugin Compose sous Linux.
+- Une **[clé API OpenRouter](https://openrouter.ai)** pour que les agents aient un modèle à qui parler. Tu pourras brancher n'importe quel fournisseur plus tard.
 
-Vérifie que l'hôte est prêt :
+## Étape 1 — Installer la CLI
 
-```bash
-docker --version
-docker compose version
-```
-
-Les deux commandes doivent imprimer des chaînes de version. Si l'une manque, installe Docker Engine plus le plugin Compose depuis la doc officielle Docker avant de continuer. Les hôtes de production tournent un Ubuntu LTS récent, un Debian récent ou un Fedora récent ; les runtimes de conteneurs autres que Docker ne sont pas pris en charge.
-
-## Étape 1 — Cloner et régler HOST et SITE_URL
+Sous macOS ou Linux :
 
 ```bash
-git clone https://github.com/tale-project/tale.git
-cd tale
-cp .env.example .env
+curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
 ```
 
-Ouvre `.env` dans ton éditeur et règle deux variables :
+Sous Windows (PowerShell) :
 
-- `HOST` — le nom d'hôte auquel les utilisateurs joindront l'instance (par exemple `tale.example.com` ou l'IP publique de l'hôte pour des tests locaux).
-- `SITE_URL` — l'URL complète avec schéma (`https://tale.example.com` ou `http://<host>:80` en local).
+```powershell
+irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
+```
 
-Laisse le reste tranquille pour l'instant. Les autres variables ont des défauts sensés ; la [référence d'environnement](/fr/self-hosted/configuration/environment-reference) les nomme toutes.
-
-## Étape 2 — Générer les secrets
-
-Le premier démarrage a besoin de trois secrets initialisés. Le `.env.example` livre des placeholders ; remplace-les par des valeurs issues d'`openssl` :
+L'installateur détecte ton OS, dépose le binaire `tale` sur ton `PATH`, et c'est la seule étape qui touche ton système. Confirme qu'il a atterri :
 
 ```bash
-echo "BETTER_AUTH_SECRET=$(openssl rand -base64 48)" >> .env
-echo "ENCRYPTION_SECRET_HEX=$(openssl rand -hex 32)" >> .env
-echo "DB_PASSWORD=$(openssl rand -base64 24)" >> .env
-echo "INSTANCE_SECRET=$(openssl rand -base64 48)" >> .env
+tale --version
 ```
 
-Ceux-ci sont intégrés aux conteneurs au premier démarrage. Garde le `.env` dans un endroit sûr ; tu ne peux pas récupérer les données si tu perds `ENCRYPTION_SECRET_HEX` ou `DB_PASSWORD`.
-
-## Étape 3 — Lancer docker compose up
+## Étape 2 — Créer un projet
 
 ```bash
-docker compose up -d
+tale init my-project
+cd my-project
 ```
 
-Le premier passage récupère chaque image et construit le graphe de conteneurs. Compte cinq à dix minutes sur une machine neuve. Quand `docker compose ps` montre chaque service à l'état `running` (ou `healthy`), la plateforme est en route. Les services exposés sont Caddy sur 80 et 443 ; tout le reste est interne.
+`tale init` échafaude un répertoire de projet et te guide à travers l'essentiel : il demande ta clé API OpenRouter, génère chaque secret de sécurité pour toi et écrit le `.env`, de sorte qu'il n'y a rien à éditer à la main. Il dépose aussi des agents, workflows et intégrations d'exemple sous `default/`, et génère la configuration d'éditeur pour Claude Code, Cursor, Copilot et Windsurf afin qu'un éditeur IA puisse construire des configurations en pleine connaissance du schéma.
 
-## Étape 4 — Créer le premier admin
-
-Le premier compte sur une instance toute neuve a besoin d'une clé de bootstrap. L'helper livré en génère une :
+## Étape 3 — Démarrer Tale
 
 ```bash
-./scripts/get-admin-key.sh
+tale start
 ```
 
-Copie la clé que le script imprime. Visite `SITE_URL`, clique **Sign up**, remplis tes nom, e-mail et mot de passe. Sur l'écran suivant, colle la clé admin et crée l'**Organisation**. Tu atterris dans le dashboard avec le rôle **Owner**.
+Le premier passage récupère les images et construit le graphe de conteneurs — compte cinq à dix minutes sur une machine neuve. Dès que la plateforme se signale prête (`Tale Platform is running`), `tale start` ouvre ton navigateur automatiquement. S'il ne peut pas, il imprime l'URL à visiter.
 
-Pour la marche plus profonde sur la règle de bootstrap, voir [Premier admin](/fr/self-hosted/install/first-admin).
+> Ton navigateur affiche un avertissement de certificat pour le certificat auto-signé local. C'est attendu — accepte-le pour continuer.
 
-## Étape 5 — Visiter SITE_URL
+Ta configuration sous `default/` est montée dans l'instance en marche, donc les édits aux agents, workflows et intégrations rechargent à chaud. Arrête la stack avec `Ctrl-C` (ou `tale start --detach` pour la faire tourner en arrière-plan).
 
-Ouvre `SITE_URL` dans un navigateur. Tu devrais voir le dashboard de ton organisation, la sidebar et une liste d'agents vide. Ajoute un fournisseur sous **Paramètres > Providers**, publie un agent (voir [Créer un agent](/fr/platform/agents/create)), et tu fais la même chose que sur la fin de l'onboarding Cloud.
+## Étape 4 — Créer ton compte
+
+Sur l'écran de connexion, clique **Sign up** et remplis tes nom, e-mail et mot de passe. Le premier compte sur une instance toute neuve revendique le rôle **Owner** et crée ton **Organisation**. Tu atterris dans le dashboard.
+
+> Si l'écran d'inscription demande une clé admin à usage unique, [Premier admin](/fr/self-hosted/install/first-admin) est la courte marche qui l'imprime et explique comment fermer l'inscription une fois ton équipe entrée.
+
+## Étape 5 — Ajouter un modèle et publier un agent
+
+Tu as maintenant une organisation vide. Deux gestes t'amènent à quelque chose d'utile :
+
+1. Ouvre **Paramètres > Providers** et confirme que ta clé OpenRouter est connectée (la CLI l'a ajoutée pendant `tale init`).
+2. Publie ton premier agent — [Créer un agent](/fr/platform/agents/create) le mène d'un rôle et de quelques instructions à un spécialiste fonctionnel.
+
+À partir de là, la doc [Platform](/fr/platform) est la référence canonique pour chaque fonctionnalité, et elle est identique à Cloud.
+
+## Plutôt du Docker Compose brut ?
+
+La CLI enveloppe `docker compose` pour que tu n'aies pas à le faire. Si tu préfères faire tourner la stack depuis un clone du dépôt et gérer Compose toi-même — pour la transparence, des builds air-gapped ou ta propre automation — clone le dépôt, copie `.env.example` vers `.env`, règle `HOST` et `SITE_URL`, génère les secrets et `docker compose up -d`. Le parcours [Linux serveur](/fr/self-hosted/install/linux-server) et la [référence Docker Compose](/fr/self-hosted/install/docker-compose-reference) couvrent ce chemin de bout en bout.
 
 ## Dépannage
 
-- **`docker compose up` se termine sur un conflit de port.** Un autre service sur l'hôte lie déjà 80 ou 443. Arrête-le (`sudo systemctl stop nginx` et compagnie) ou règle `TLS_MODE=external` dans `.env` et place ton reverse-proxy existant devant Tale.
-- **La page d'inscription charge mais la clé admin est rejetée.** Relance `./scripts/get-admin-key.sh` — les clés tournent par démarrage. Si le script échoue avec « container not running », le conteneur platform n'a pas encore démarré ; `docker compose ps` te dira quel service est unhealthy.
-- **Erreurs HTTPS au premier passage.** Let's Encrypt a besoin que le DNS soit vivant et que le port 80 soit joignable depuis l'internet public avant de pouvoir émettre un certificat. Le temps que la propagation se fasse, navigue en `http://` ou règle `TLS_MODE=selfsigned` dans `.env`.
-- **Les conteneurs crash-loopent au démarrage neuf.** Presque toujours des secrets manquants. `docker compose logs platform` nommera la variable manquante telle quelle.
+- **`tale` introuvable après l'installation.** L'installateur nomme le répertoire de destination dans sa sortie ; assure-toi que ce répertoire est sur ton `PATH` (sous Linux, c'est généralement `/usr/local/bin`).
+- **`tale start` se termine sur un conflit de port.** Un autre service lie déjà 443 sur l'hôte. Libère-le, ou démarre sur un autre port avec `tale start --port 8443`.
+- **Docker ne tourne pas.** `tale start` a besoin du démon Docker en route. Démarre Docker Desktop (ou `sudo systemctl start docker` sous Linux) et réessaie.
+- **Un conteneur crash-loope au premier démarrage.** Presque toujours un secret manquant — relance `tale start`, qui relance la configuration d'environnement, ou inspecte les logs avec `tale logs platform`.
 
 ## Où ça s'utilise
 
-Tu as maintenant une instance Tale qui marche, mais l'hôte n'est pas durci pour la production. Le parcours [Linux serveur](/fr/self-hosted/install/linux-server) couvre TLS, pare-feu, utilisateur non-root et les crochets opérationnels que tu veux avant que le vrai trafic n'arrive. Si tu veux gérer l'hôte avec la CLI `tale` plutôt qu'avec `docker compose`, [Installation de la CLI](/fr/self-hosted/install/cli-install) est la lecture suivante.
+Tu as maintenant une instance Tale qui marche sur ta machine. Pour la faire tourner pour de vrai, le parcours [Linux serveur](/fr/self-hosted/install/linux-server) couvre TLS, pare-feu, un utilisateur non-root et les crochets opérationnels que tu veux avant que le vrai trafic n'arrive ; [Installation de la CLI](/fr/self-hosted/install/cli-install) configure la CLI pour déployer et mettre à jour une instance distante depuis ta workstation.

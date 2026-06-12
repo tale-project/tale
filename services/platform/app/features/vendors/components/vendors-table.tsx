@@ -2,11 +2,12 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
-import { Store } from 'lucide-react';
+import { Plus, Store } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -129,6 +130,10 @@ export function VendorsTable({
 
   const [viewingVendor, setViewingVendor] = useState<Vendor | null>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
+  // Lifted so the action menu and the empty-state CTA share one dialog.
+  const [createOpen, setCreateOpen] = useState(false);
   const deleteVendor = useDeleteVendor();
 
   const handleRowClick = useCallback((row: Row<Vendor>) => {
@@ -179,11 +184,24 @@ export function VendorsTable({
         enableRowSelection
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
-        actionMenu={<VendorsActionMenu organizationId={organizationId} />}
+        actionMenu={
+          <VendorsActionMenu
+            organizationId={organizationId}
+            createOpen={createOpen}
+            onCreateOpenChange={setCreateOpen}
+          />
+        }
         emptyState={{
           icon: Store,
           title: tEmpty('vendors.title'),
           description: tEmpty('vendors.description'),
+          action: canWrite
+            ? {
+                label: tVendors('addButton'),
+                icon: Plus,
+                onClick: () => setCreateOpen(true),
+              }
+            : undefined,
         }}
         footer={
           <BulkDeleteBar

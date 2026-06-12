@@ -1,8 +1,8 @@
 {
   "seo": {
     "home": {
-      "title": "Tale: The Orchestration Layer for AI Agents",
-      "description": "Self-hosted AI platform for data-sensitive organizations — local AI models, agents, and automations on your own infrastructure. ISO 27001 & SOC 2 certified."
+      "title": "Tale: The Orchestrator for AI Agents",
+      "description": "Connect the AI agents and CLIs your team already uses, pool their knowledge, and delegate work across them — self-hosted on your own infrastructure. ISO 27001 & SOC 2 certified."
     },
     "pricing": {
       "title": "Pricing",
@@ -69,10 +69,10 @@
   },
   "home": {
     "hero": {
-      "title": "All the Power of AI. None of the Risk.",
-      "subtitle": "Tale is the open source AI platform for chat, agents, and automations — running on your servers, trained on your data, built in Switzerland.",
+      "title": "The Orchestrator for AI Agents",
+      "subtitle": "Connect the agents and CLIs your team already uses — Claude Code, Codex, Cursor, and more. Pool their knowledge, delegate tasks, and run the whole swarm on your own infrastructure: your data, your rules, built in Switzerland.",
       "ctaPrimary": "Request demo",
-      "ctaSecondary": "Read docs",
+      "ctaSecondary": "Get started",
       "footNote": "We integrate with {logos} and more — our expertise covers the rest.",
       "integrationsPrefix": "We integrate with",
       "integrationsSuffix": "and more — our expertise covers the rest.",
@@ -170,7 +170,7 @@
     },
     "cta": {
       "title": "Get Started with Tale",
-      "description": "Run a sovereign AI stack on your own infrastructure — get in touch.",
+      "description": "Orchestrate your AI agents on a sovereign stack you run yourself — get in touch, or spin one up in three commands.",
       "primary": "Request demo",
       "secondary": "See how it works"
     }

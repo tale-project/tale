@@ -25,7 +25,7 @@ Depuis la racine du dépôt :
 ./scripts/get-admin-key.sh
 ```
 
-Le script imprime une clé à usage unique sur stdout. Copie-la — le script ne l'enregistre nulle part.
+Le script imprime une clé à usage unique sur stdout. Copie-la — le script ne l'enregistre nulle part. Si tu as installé avec la CLI `tale` plutôt qu'avec un clone, le script n'est pas dans ton arbre, mais il ne fait qu'envelopper un générateur qui vit dans le conteneur platform — lance-le directement avec `docker exec -it $(docker ps --format '{{.Names}}' | grep platform | head -1) ./generate-admin-key.sh`.
 
 ## Étape 2 — S'inscrire via SITE_URL
 

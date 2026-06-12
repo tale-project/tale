@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
+import type { DeployMode } from '../config/ensure-env';
 import { computeContentHash, writeChecksums } from '../project/checksums';
 import {
   fetchReference,
@@ -39,9 +40,12 @@ const GITIGNORE_ENTRIES = [
   '**/*.secrets.json',
 ];
 
-export async function init(options: InitOptions): Promise<void> {
+export async function init(
+  options: InitOptions,
+): Promise<DeployMode | undefined> {
   let directory = options.directory;
   let force = options.force ?? false;
+  let mode: DeployMode | undefined;
 
   // Check if cwd is already a Tale project before prompting for project name
   const cwdTaleJson = join(process.cwd(), 'tale.json');
@@ -131,12 +135,18 @@ export async function init(options: InitOptions): Promise<void> {
   // Fetch reference code
   logger.step('Copying reference code to .tale/reference/...');
   await mkdir(join(target, '.tale'), { recursive: true });
+  // Real organizations (created in-app) are runtime data and live here, kept
+  // out of the committed `default/` template. Created up front so the
+  // location is discoverable and so `tale deploy` has a stable sync target.
+  await mkdir(join(target, '.tale', 'orgs'), { recursive: true });
   await fetchReference(target);
 
-  // Host workspace mirrors the uniform org-first layout: scaffold under
-  // `default/<domain>/...`. The default org is the canonical template;
-  // operators can add `<otherOrg>/<domain>/...` subtrees alongside and
-  // `tale deploy --override` will push each `<org>` it finds at root.
+  // Host workspace mirrors the uniform org-first layout: scaffold the
+  // committed `default/<domain>/...` template at the project root. `default`
+  // is the canonical seed for every new organization — never a deployable
+  // org itself. Real organizations are created in-app and live as runtime
+  // data under `.tale/orgs/<orgSlug>/<domain>/`, which `tale deploy
+  // --override` pushes.
   const defaultOrgDir = join(target, 'default');
 
   // Copy agents from embedded examples
@@ -287,6 +297,7 @@ export async function init(options: InitOptions): Promise<void> {
     const { ensureEnv } = await import('../config/ensure-env');
     logger.blank();
     const envResult = await ensureEnv({ deployDir: target });
+    mode = envResult.mode;
 
     // Persist the OpenRouter API key collected during env setup as a SOPS-
     // encrypted file. `ensureEnv` always provisions a SOPS age keypair at
@@ -338,12 +349,22 @@ export async function init(options: InitOptions): Promise<void> {
     logger.info(`  ${step++}. Run "cd ${target}" to enter your project`);
   }
   logger.info(
-    `  ${step++}. Edit default/agents/, default/workflows/, default/integrations/, default/skills/, and default/branding/ to customize your setup`,
+    `  ${step++}. Edit the default/ template (agents, workflows, integrations, skills, branding) — it seeds every new organization you create`,
   );
   logger.info(
     `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,
   );
-  logger.info(`  ${step++}. Run "tale start" to launch the platform locally`);
+  // The same project is ready for both a local trial and a real deployment;
+  // surface whichever the operator just chose as the obvious next command.
+  if (mode === 'production') {
+    logger.info(
+      `  ${step++}. Run "tale deploy" to launch the platform on your domain`,
+    );
+  } else {
+    logger.info(`  ${step++}. Run "tale start" to launch the platform locally`);
+  }
+
+  return mode;
 }
 
 // Top-level markers indicating a Tale project. Under the uniform org-first

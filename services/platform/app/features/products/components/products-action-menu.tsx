@@ -12,15 +12,22 @@ import { ProductsImportDialog } from './products-import-dialog';
 
 interface ProductsActionMenuProps {
   organizationId: string;
+  /** Optionally lift the manual-create dialog state so the empty-state CTA can open it. */
+  createOpen?: boolean;
+  onCreateOpenChange?: (open: boolean) => void;
 }
 
 export function ProductsActionMenu({
   organizationId,
+  createOpen: controlledCreateOpen,
+  onCreateOpenChange,
 }: ProductsActionMenuProps) {
   const { t: tProducts } = useT('products');
   const ability = useAbility();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [internalCreateOpen, setInternalCreateOpen] = useState(false);
+  const isCreateDialogOpen = controlledCreateOpen ?? internalCreateOpen;
+  const setIsCreateDialogOpen = onCreateOpenChange ?? setInternalCreateOpen;
 
   const handleUploadClick = useCallback(() => {
     setIsUploadDialogOpen(true);
@@ -28,7 +35,7 @@ export function ProductsActionMenu({
 
   const handleManualEntryClick = useCallback(() => {
     setIsCreateDialogOpen(true);
-  }, []);
+  }, [setIsCreateDialogOpen]);
 
   if (ability.cannot('write', 'knowledgeWrite')) {
     return null;

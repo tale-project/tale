@@ -49,6 +49,8 @@ type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
     isInvalid?: boolean;
     label?: string;
     description?: ReactNode;
+    /** Optional hover/focus tooltip on the label (the deeper "why/format"). */
+    labelInfo?: ReactNode;
     required?: boolean;
     wrapperClassName?: string;
   };
@@ -68,6 +70,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
       isInvalid,
       label,
       description,
+      labelInfo,
       required,
       wrapperClassName,
       id: providedId,
@@ -112,7 +115,12 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
       return (
         <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
           {label && (
-            <Label htmlFor={id} required={required} error={hasError}>
+            <Label
+              htmlFor={id}
+              required={required}
+              error={hasError}
+              info={labelInfo}
+            >
               {label}
             </Label>
           )}
@@ -184,7 +192,12 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
     return (
       <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
         {label && (
-          <Label htmlFor={id} required={required} error={hasError}>
+          <Label
+            htmlFor={id}
+            required={required}
+            error={hasError}
+            info={labelInfo}
+          >
             {label}
           </Label>
         )}

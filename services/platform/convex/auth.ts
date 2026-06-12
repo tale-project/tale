@@ -611,37 +611,17 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
             // Refuse reserved slugs ("default", "agents", "branding",
             // "providers", "retention", "skills", "workflows",
             // "integrations") — the platform pins on-disk and DB
-            // resources to these names. Without this, an open-signup
-            // user could claim e.g. "branding" before the platform's
-            // first-run seed runs and lock the operator out.
-            //
-            // Narrow first-run bypass: ONLY `default` is auto-claimed
-            // by the platform on first signup; the other reserved
-            // slugs have no legitimate "user wants this on a fresh
-            // deploy" path. A wider bypass (any reserved slug when
-            // anyOrg.length === 0) would let a racing first user claim
-            // e.g. `providers` before the operator creates `default`,
-            // wedging the deployment in `findOrgDirs`' legacy-artifact
-            // trap.
+            // resources to these names. `default` in particular is a
+            // scaffold TEMPLATE, never a user organization: every new org
+            // is seeded from the on-disk `default/` tree, and the
+            // governance/branding baselines key off the literal slug
+            // string (not a `default` org row). The first user picks their
+            // own workspace name via the onboarding wizard, so there is no
+            // longer any first-run path that needs to mint `default`.
             if (isReservedOrgSlug(normalizedSlug)) {
-              if (normalizedSlug !== 'default') {
-                throw new APIError('BAD_REQUEST', {
-                  message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
-                });
-              }
-              const anyOrg = await ctx.runQuery(
-                components.betterAuth.adapter.findMany,
-                {
-                  model: 'organization',
-                  paginationOpts: { cursor: null, numItems: 1 },
-                  where: [],
-                },
-              );
-              if (anyOrg && anyOrg.page.length > 0) {
-                throw new APIError('BAD_REQUEST', {
-                  message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
-                });
-              }
+              throw new APIError('BAD_REQUEST', {
+                message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
+              });
             }
             // Convex has no unique-index primitive, so enforce slug uniqueness
             // at application level before Better Auth's adapter writes the row.

@@ -15,6 +15,7 @@ import { createMigrateCommand } from './commands/migrate';
 import { createResetCommand } from './commands/reset';
 import { createRestoreCommand } from './commands/restore';
 import { createRollbackCommand } from './commands/rollback';
+import { createSetupCommand } from './commands/setup';
 import { createStartCommand } from './commands/start';
 import { createStatusCommand } from './commands/status';
 import { createUpgradeCommand } from './commands/upgrade';
@@ -35,23 +36,58 @@ process.on('unhandledRejection', (reason) => {
 program
   .name('tale')
   .description('Tale CLI - deployment and management tools')
-  .version(pkg.version);
+  .version(pkg.version)
+  .showHelpAfterError('(add --help for a list of commands)');
 
-program.addCommand(createAuthCommand());
-program.addCommand(createInitCommand());
-program.addCommand(createStartCommand());
-program.addCommand(createUpgradeCommand());
-program.addCommand(createConfigCommand());
-program.addCommand(createConvexCommand());
-program.addCommand(createDeployCommand());
-program.addCommand(createStatusCommand());
-program.addCommand(createLogsCommand());
-program.addCommand(createRollbackCommand());
-program.addCommand(createBackupCommand());
-program.addCommand(createRestoreCommand());
-program.addCommand(createResetCommand());
-program.addCommand(createCleanupCommand());
-program.addCommand(createDoctorCommand());
-program.addCommand(createMigrateCommand());
+// Group headings keep the command list scannable. Commander renders each
+// command under its `helpGroup` heading instead of one flat list.
+const SETUP = 'Setup:';
+const OPERATE = 'Operate:';
+const MAINTAIN = 'Maintain:';
+const ADVANCED = 'Advanced:';
+
+program.addCommand(createSetupCommand().helpGroup(SETUP));
+program.addCommand(createInitCommand().helpGroup(SETUP));
+program.addCommand(createStartCommand().helpGroup(SETUP));
+program.addCommand(createDeployCommand().helpGroup(SETUP));
+
+program.addCommand(createStatusCommand().helpGroup(OPERATE));
+program.addCommand(createLogsCommand().helpGroup(OPERATE));
+program.addCommand(createBackupCommand().helpGroup(OPERATE));
+program.addCommand(createRestoreCommand().helpGroup(OPERATE));
+program.addCommand(createRollbackCommand().helpGroup(OPERATE));
+
+program.addCommand(createUpgradeCommand().helpGroup(MAINTAIN));
+program.addCommand(createCleanupCommand().helpGroup(MAINTAIN));
+program.addCommand(createResetCommand().helpGroup(MAINTAIN));
+program.addCommand(createDoctorCommand().helpGroup(MAINTAIN));
+program.addCommand(createConfigCommand().helpGroup(MAINTAIN));
+
+program.addCommand(createAuthCommand().helpGroup(ADVANCED));
+program.addCommand(createConvexCommand().helpGroup(ADVANCED));
+program.addCommand(createMigrateCommand().helpGroup(ADVANCED));
+
+// Branded wordmark above the help, and a few real examples below it.
+program.addHelpText('beforeAll', () => `\n${logger.bannerText(pkg.version)}\n`);
+program.addHelpText(
+  'after',
+  [
+    '',
+    'Examples:',
+    '  $ tale setup                 Install Docker (if needed) and scaffold a project',
+    '  $ tale init                  Create a project — pick local trial or production',
+    '  $ tale start                 Launch locally (self-signed TLS)',
+    '  $ tale deploy                Deploy to your domain (zero-downtime)',
+    '',
+    'Docs: https://docs.tale.dev',
+    '',
+  ].join('\n'),
+);
+
+// Bare `tale` shows the branded, grouped overview instead of an error.
+if (process.argv.length <= 2) {
+  program.outputHelp();
+  process.exit(0);
+}
 
 await program.parseAsync();

@@ -572,6 +572,7 @@
       "title": "Create automation",
       "tabBlank": "Blank",
       "tabTemplate": "From template",
+      "nameTooltip": "Becomes the automation's id in its URL. Keep it short — you can change the display name later.",
       "namePlaceholder": "e.g., Social media workflow",
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
@@ -1409,6 +1410,8 @@
       "close": "Close",
       "confirm": "Confirm",
       "back": "Back",
+      "next": "Next",
+      "skip": "Skip",
       "loading": "Loading...",
       "done": "Done",
       "duplicate": "Duplicate",
@@ -1509,6 +1512,7 @@
       "system": "System",
       "debug": "Debug"
     },
+    "stepProgress": "Step {current} of {total}: {label}",
     "validation": {
       "required": "{field} is required",
       "email": "Please enter a valid email address",
@@ -1541,6 +1545,7 @@
       "agentsNavigation": "Agents navigation",
       "knowledgeNavigation": "Knowledge navigation",
       "actionsMenu": "Actions menu",
+      "moreInfo": "More information",
       "required": "required",
       "valid": "valid",
       "invalid": "invalid",
@@ -1809,6 +1814,7 @@
     },
     "editCustomer": "Edit customer",
     "deleteCustomer": "Delete customer",
+    "addButton": "Add customer",
     "importMenu": {
       "importCustomers": "Import customers",
       "fromDevice": "From your device",
@@ -2157,6 +2163,40 @@
       "sharePoint": "SharePoint",
       "sharePointSynced": "SharePoint (synced)",
       "uploaded": "Upload"
+    }
+  },
+  "onboarding": {
+    "title": "Set up your workspace",
+    "subtitle": "A few quick steps and you're ready to go.",
+    "stepsAriaLabel": "Onboarding steps",
+    "progress": "Step {current} of {total}: {label}",
+    "steps": {
+      "workspace": "Workspace",
+      "provider": "AI provider",
+      "team": "Team",
+      "finish": "Finish"
+    },
+    "workspace": {
+      "heading": "Name your workspace",
+      "why": "This is how your team will recognize this workspace."
+    },
+    "provider": {
+      "heading": "Connect an AI provider",
+      "why": "Agents and chat need a provider. Add one now or later in Settings — most features stay locked until you do.",
+      "cta": "Open provider settings"
+    },
+    "team": {
+      "heading": "Invite your team",
+      "why": "Add teammates now, or invite them anytime from Settings.",
+      "cta": "Manage people"
+    },
+    "finish": {
+      "heading": "You're all set",
+      "subtitle": "Here's what you can do next:",
+      "providerItem": "Connect an AI provider to power agents and chat.",
+      "agentItem": "Create your first agent.",
+      "inviteItem": "Invite teammates to collaborate.",
+      "goToDashboard": "Go to dashboard"
     }
   },
   "emptyStates": {
@@ -4134,6 +4174,14 @@
         "error": "Failed to create product"
       }
     },
+    "createWizard": {
+      "steps": {
+        "basics": "Basics",
+        "pricing": "Pricing & inventory",
+        "review": "Review"
+      },
+      "reviewHint": "Review the details, then create the product."
+    },
     "import": {
       "uploadProducts": "Upload products",
       "uploadFile": "Please upload a file",
@@ -4711,13 +4759,11 @@
       "addMember": "Add member",
       "createOrganization": "Create organization",
       "organizationName": "Organization name",
-      "companyNameRequired": "Company name is required",
       "companyNameCharacterError": "Use letters, digits, spaces, hyphens, and underscores only, starting with a letter or digit.",
       "nameReserved": "This name is reserved by the platform.",
       "identifierPreview": "Identifier: {slug}",
       "enterCompanyName": "Enter your company name",
       "organizationCreated": "Organization created successfully!",
-      "creating": "Creating...",
       "switching": "Switching…",
       "switchingTo": "Switching to {name}…",
       "switchingLabel": "Switching organization",
@@ -4906,8 +4952,10 @@
         "name": "Name",
         "namePlaceholder": "my-agent",
         "nameHelp": "Unique identifier (lowercase letters, numbers, hyphens, and underscores only)",
+        "nameTooltip": "A unique, URL-safe id used in links and the API. You can't change it later.",
         "namePatternError": "Must start with a letter or number and contain only lowercase letters, numbers, hyphens, and underscores",
         "displayName": "Display name",
+        "displayNameTooltip": "The friendly name people see in chat. Change it anytime.",
         "displayNamePlaceholder": "My Agent",
         "description": "Description",
         "descriptionPlaceholder": "What does this agent do?",
@@ -5484,6 +5532,7 @@
       "editProvider": "Edit provider",
       "deleteProvider": "Delete provider",
       "apiKey": "API Key",
+      "apiKeyTooltip": "Stored encrypted and used only to call this provider.",
       "apiKeyConfigured": "API key configured",
       "apiKeyNotConfigured": "Not configured",
       "models": "Models",
@@ -5497,6 +5546,7 @@
       "displayName": "Display name",
       "description_field": "Description",
       "baseUrl": "Base URL",
+      "baseUrlTooltip": "The OpenAI-compatible API endpoint, e.g. https://api.openai.com/v1",
       "tags": "Tags",
       "defaultModels": "Default Models",
       "defaultModelsDescription": "Default models used by crawler, RAG, and other services for each capability.",
@@ -6655,6 +6705,7 @@
     },
     "editVendor": "Edit vendor",
     "deleteVendor": "Delete vendor",
+    "addButton": "Add vendor",
     "importMenu": {
       "importVendors": "Import vendors",
       "fromDevice": "From your device",

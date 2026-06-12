@@ -1,8 +1,8 @@
 {
   "seo": {
     "home": {
-      "title": "Tale: Die Orchestrierungsebene für KI-Agents",
-      "description": "Selbst gehostete KI-Plattform für datensensible Organisationen — lokale KI-Modelle, Agenten und Automatisierungen auf deiner eigenen Infrastruktur. ISO-27001- und SOC-2-zertifiziert."
+      "title": "Tale: Der Orchestrator für KI-Agents",
+      "description": "Verbinde die KI-Agents und CLIs, die dein Team bereits nutzt, bündle ihr Wissen und delegiere Arbeit über sie hinweg — selbst gehostet auf deiner eigenen Infrastruktur. ISO-27001- und SOC-2-zertifiziert."
     },
     "pricing": {
       "title": "Preise",
@@ -69,10 +69,10 @@
   },
   "home": {
     "hero": {
-      "title": "Die volle KI-Power. Ohne das Risiko.",
-      "subtitle": "Tale ist die Open-Source-KI-Plattform für Chat, Agenten und Automatisierungen — läuft auf deinen Servern, trainiert mit deinen Daten, entwickelt in der Schweiz.",
+      "title": "Der Orchestrator für KI-Agents",
+      "subtitle": "Verbinde die Agents und CLIs, die dein Team bereits nutzt — Claude Code, Codex, Cursor und mehr. Bündle ihr Wissen, delegiere Aufgaben und betreib den ganzen Schwarm auf deiner eigenen Infrastruktur: deine Daten, deine Regeln, entwickelt in der Schweiz.",
       "ctaPrimary": "Demo anfragen",
-      "ctaSecondary": "Dokumentation lesen",
+      "ctaSecondary": "Loslegen",
       "footNote": "Wir integrieren mit {logos} und mehr — unsere Expertise deckt den Rest ab.",
       "integrationsPrefix": "Wir integrieren mit",
       "integrationsSuffix": "und mehr — unsere Expertise deckt den Rest ab.",
@@ -170,7 +170,7 @@
     },
     "cta": {
       "title": "Mit Tale loslegen",
-      "description": "Betreib einen souveränen KI-Stack auf deiner eigenen Infrastruktur — nimm Kontakt auf.",
+      "description": "Orchestriere deine KI-Agents auf einem souveränen Stack, den du selbst betreibst — nimm Kontakt auf oder leg in drei Befehlen los.",
       "primary": "Demo anfragen",
       "secondary": "So funktioniert's"
     }

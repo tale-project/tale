@@ -92,6 +92,7 @@ async function setFeatureEnabled(
   patch: {
     customInstructionsEnabled?: boolean;
     memoriesEnabled?: boolean;
+    onboardingCompleted?: boolean;
   },
 ) {
   const now = Date.now();
@@ -148,6 +149,25 @@ export const setMemoriesEnabled = mutation({
     );
     return setFeatureEnabled(ctx, authUser.userId, args.organizationId, {
       memoriesEnabled: args.enabled,
+    });
+  },
+});
+
+export const setOnboardingCompleted = mutation({
+  args: {
+    organizationId: v.string(),
+    completed: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await requireAuthenticatedUser(ctx);
+    await assertSelfAndOrgMember(
+      ctx,
+      authUser,
+      authUser.userId,
+      args.organizationId,
+    );
+    return setFeatureEnabled(ctx, authUser.userId, args.organizationId, {
+      onboardingCompleted: args.completed,
     });
   },
 });

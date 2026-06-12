@@ -1,5 +1,5 @@
 import { lstatSync } from 'node:fs';
-import { cp, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -31,6 +31,7 @@ import { pullImage } from '../docker/pull-image';
 import { removeContainer } from '../docker/remove-container';
 import { stopContainer } from '../docker/stop-container';
 import { waitForHealthy } from '../docker/wait-for-healthy';
+import { discoverOrgs } from '../project/org-dirs';
 import { getCurrentColor } from '../state/get-current-color';
 import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
@@ -727,55 +728,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
 // without it, the deploy-side enumerator would accept slugs the platform
 // itself refuses to mint. Duplicated here because the CLI ships in a
 // single compiled binary that does not import convex sources at runtime.
-const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-
-// Top-level names under the project root that are legitimate per-domain
-// dirs from the OLD flat layout (`agents/`, `workflows/`, …). Under
-// org-first these don't belong at the root anymore — if any are present
-// it's a legacy project that hasn't been re-init'd. Refuse to push (would
-// silently land in `/app/data/agents/` etc., which the new resolvers don't
-// read) and point the operator at `tale init --force`.
-export const LEGACY_DOMAIN_DIR_NAMES = new Set([
-  'agents',
-  'workflows',
-  'integrations',
-  'branding',
-  'providers',
-  'skills',
-  'retention',
-]);
-
-function isValidOrgSlug(name: string): boolean {
-  // Mirrors `validateOrgSlug` in shared/constants/org-slug.ts — no length
-  // cap (the canonical validator imposes none, and adding one here would
-  // silently drop legitimate long slugs from compose mounts).
-  return name === 'default' || ORG_SLUG_REGEX.test(name);
-}
-
-async function findOrgDirs(
-  projectDir: string,
-): Promise<{ orgDirs: string[]; legacyDirs: string[] }> {
-  const orgDirs: string[] = [];
-  const legacyDirs: string[] = [];
-  let entries: import('node:fs').Dirent[];
-  try {
-    entries = await readdir(projectDir, { withFileTypes: true });
-  } catch {
-    return { orgDirs, legacyDirs };
-  }
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const name = entry.name;
-    if (name.startsWith('.')) continue; // skips .tale, .git, .vscode, .DS_Store etc.
-    if (LEGACY_DOMAIN_DIR_NAMES.has(name)) {
-      legacyDirs.push(name);
-      continue;
-    }
-    if (!isValidOrgSlug(name)) continue;
-    orgDirs.push(name);
-  }
-  return { orgDirs, legacyDirs };
-}
+// Re-exported so `migrate-config-layout.ts` and `legacy-layout-preflight.ts`
+// keep importing it from `./deploy`. Canonical definition + the rest of the
+// org-discovery logic now lives in `../project/org-dirs.ts`.
+export { LEGACY_DOMAIN_DIR_NAMES } from '../project/org-dirs';
 
 async function syncProjectFiles(
   containerName: string,
@@ -799,20 +755,31 @@ async function syncProjectFiles(
     return;
   }
 
-  const { orgDirs, legacyDirs } = await findOrgDirs(projectDir);
+  const { orgs, legacyRootDirs, staleRootOrgDirs } = discoverOrgs(projectDir);
 
-  if (legacyDirs.length > 0) {
+  if (legacyRootDirs.length > 0) {
     throw new Error(
-      `Legacy flat layout detected at project root (${legacyDirs.join(', ')}/). ` +
+      `Legacy flat layout detected at project root (${legacyRootDirs.join(', ')}/). ` +
         `Run 'tale migrate config-layout' then 'tale deploy --override-all -y' ` +
         `(see docs/self-hosted/operate/upgrades.md).`,
     );
   }
 
-  if (orgDirs.length === 0) {
+  if (staleRootOrgDirs.length > 0) {
+    // Pre-`.tale/orgs/` layout: orgs used to sit at the project root. They are
+    // no longer pushed from there — real orgs live under `.tale/orgs/<slug>/`.
+    logger.warn(
+      `${prefix}Found org-shaped director${staleRootOrgDirs.length === 1 ? 'y' : 'ies'} at the project root (${staleRootOrgDirs.join(', ')}/). ` +
+        `Real organizations now live under .tale/orgs/<slug>/ and these will NOT be pushed. ` +
+        `Move them under .tale/orgs/ to deploy them.`,
+    );
+  }
+
+  if (orgs.length === 0) {
     logger.blank();
     logger.info(
-      `${prefix}Nothing to push: no org directories found at host root (expected e.g. 'default/').`,
+      `${prefix}Nothing to push: no organizations found under .tale/orgs/. ` +
+        `Real orgs are created in-app; the container self-seeds from the builtin catalog.`,
     );
     return;
   }
@@ -847,23 +814,22 @@ async function syncProjectFiles(
   tempStageDirs.add(stageDir);
 
   try {
-    for (const orgName of orgDirs) {
-      const orgSrc = join(projectDir, orgName);
-      const orgDst = join(stageDir, orgName);
+    for (const org of orgs) {
+      const orgDst = join(stageDir, org.slug);
 
       if (dryRun) {
         logger.info(
-          `${prefix}Would push ${orgName}/ → ${containerName}:/app/data/${orgName}/ (excluding *.secrets.json, .history/, symlinks)`,
+          `${prefix}Would push .tale/orgs/${org.slug}/ → ${containerName}:/app/data/${org.slug}/ (excluding *.secrets.json, .history/, symlinks)`,
         );
         continue;
       }
 
-      await stageOrgIntoDir(orgSrc, orgDst);
+      await stageOrgIntoDir(org.srcDir, orgDst);
     }
 
     if (dryRun) {
       logger.info(
-        `${prefix}Skipped at root: tale.json, .tale/, .env, .git/, dotfiles, ${legacyDirs.length ? `legacy ${legacyDirs.join(', ')}/, ` : ''}any other non-org-shaped entries`,
+        `${prefix}Skipped: the default/ template, tale.json, .env, .git/, dotfiles, ${legacyRootDirs.length ? `legacy ${legacyRootDirs.join(', ')}/, ` : ''}any non-org entries`,
       );
       return;
     }
@@ -910,7 +876,7 @@ async function syncProjectFiles(
     }
 
     logger.success(
-      `Overrode ${orgDirs.length} org${orgDirs.length === 1 ? '' : 's'}: ${orgDirs.join(', ')}`,
+      `Overrode ${orgs.length} org${orgs.length === 1 ? '' : 's'}: ${orgs.map((o) => o.slug).join(', ')}`,
     );
   } finally {
     tempStageDirs.delete(stageDir);

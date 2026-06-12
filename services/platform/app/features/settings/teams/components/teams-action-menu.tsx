@@ -10,11 +10,20 @@ import { TeamCreateDialog } from './team-create-dialog';
 
 interface TeamsActionMenuProps {
   organizationId: string;
+  /** Optionally lift create-dialog state so the list's empty-state CTA can open it. */
+  createOpen?: boolean;
+  onCreateOpenChange?: (open: boolean) => void;
 }
 
-export function TeamsActionMenu({ organizationId }: TeamsActionMenuProps) {
+export function TeamsActionMenu({
+  organizationId,
+  createOpen: controlledCreateOpen,
+  onCreateOpenChange,
+}: TeamsActionMenuProps) {
   const { t: tSettings } = useT('settings');
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [internalCreateOpen, setInternalCreateOpen] = useState(false);
+  const isCreateDialogOpen = controlledCreateOpen ?? internalCreateOpen;
+  const setIsCreateDialogOpen = onCreateOpenChange ?? setInternalCreateOpen;
 
   return (
     <>

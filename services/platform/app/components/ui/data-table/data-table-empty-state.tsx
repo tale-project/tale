@@ -1,6 +1,16 @@
+import { Button } from '@tale/ui/button';
 import { VStack, Center } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import type { LucideIcon } from 'lucide-react';
 import type { ComponentType, ReactNode } from 'react';
+
+/** A single primary call-to-action shown under the empty-state copy. */
+export interface DataTableEmptyStateAction {
+  label: string;
+  onClick: () => void;
+  // Matches Button's `icon` prop; the empty-state CTA renders a Button.
+  icon?: LucideIcon;
+}
 
 export interface DataTableEmptyStateProps {
   /** Icon to display */
@@ -9,6 +19,11 @@ export interface DataTableEmptyStateProps {
   title: string;
   /** Description text or rich content */
   description?: ReactNode;
+  /**
+   * Optional primary action (e.g. "Create your first agent"). Keep it to a
+   * single obvious next step — an empty list should point at one clear thing.
+   */
+  action?: DataTableEmptyStateAction;
 }
 
 /**
@@ -19,6 +34,7 @@ export function DataTableEmptyState({
   icon: Icon,
   title,
   description,
+  action,
 }: DataTableEmptyStateProps) {
   return (
     <Center className="flex-[1_1_0] py-12">
@@ -37,6 +53,17 @@ export function DataTableEmptyState({
           <Text as="div" variant="muted">
             {description}
           </Text>
+        )}
+        {action && (
+          <Button
+            variant="primary"
+            size="sm"
+            icon={action.icon}
+            onClick={action.onClick}
+            className="mt-3"
+          >
+            {action.label}
+          </Button>
         )}
       </VStack>
     </Center>

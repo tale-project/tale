@@ -41,6 +41,12 @@ export const userPreferencesTable = defineTable({
    * `threadMetadata.voiceOutputOverride`.
    */
   voiceOutput: v.optional(v.boolean()),
+  /**
+   * Whether this user has finished the onboarding wizard for this org.
+   * `undefined` / row missing → not yet completed. Drives the "what's next"
+   * checklist and avoids re-nagging; we never force re-entry into the wizard.
+   */
+  onboardingCompleted: v.optional(v.boolean()),
   updatedAt: v.number(),
 })
   .index('by_userId_organizationId', ['userId', 'organizationId'])

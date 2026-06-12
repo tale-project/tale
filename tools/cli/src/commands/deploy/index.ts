@@ -2,6 +2,7 @@ import { Command } from 'commander';
 
 import pkg from '../../../package.json';
 import { deploy } from '../../lib/actions/deploy';
+import { runDeployPreflight } from '../../lib/actions/deploy-preflight';
 import {
   type ServiceName,
   ALL_SERVICES,
@@ -9,6 +10,7 @@ import {
   isValidService,
 } from '../../lib/compose/types';
 import { ensureEnv } from '../../lib/config/ensure-env';
+import { ensureDocker } from '../../lib/docker/ensure-docker';
 import { requireProject } from '../../lib/project/find-project';
 import { resolveOrAssignProjectContext } from '../../lib/project/project-context';
 import { loadEnv } from '../../utils/load-env';
@@ -71,6 +73,14 @@ export function createDeployCommand(): Command {
         }
         const projectDir = requireProject();
         await resolveOrAssignProjectContext(projectDir);
+
+        // Zero-prerequisite: make sure Docker is usable before anything else.
+        const docker = await ensureDocker({ assumeYes: options.yes });
+        if (docker.status === 'refused' || docker.status === 'failed') {
+          logger.error(docker.detail);
+          process.exit(1);
+        }
+
         const { success: envSetupSuccess, regeneratedAutoSecrets } =
           await ensureEnv({
             deployDir: projectDir,
@@ -90,6 +100,10 @@ export function createDeployCommand(): Command {
             regeneratedAutoSecrets.length > 0) ||
           (options.overrideAll ?? false);
         const env = loadEnv(projectDir);
+
+        // Catch fixable problems (daemon down, letsencrypt misconfig) before
+        // mutating any container. Throws on a real deploy; warns on --dry-run.
+        await runDeployPreflight({ dryRun: options.dryRun });
 
         const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;
         if (version === 'latest') {

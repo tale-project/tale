@@ -1,10 +1,18 @@
 'use client';
 
 import * as LabelPrimitive from '@radix-ui/react-label';
-import { forwardRef, ComponentRef, ComponentPropsWithoutRef } from 'react';
+import { Info } from 'lucide-react';
+import {
+  forwardRef,
+  ComponentRef,
+  ComponentPropsWithoutRef,
+  type ReactNode,
+} from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+import { Tooltip } from '../overlays/tooltip';
 
 interface LabelProps extends ComponentPropsWithoutRef<
   typeof LabelPrimitive.Root
@@ -19,14 +27,20 @@ interface LabelProps extends ComponentPropsWithoutRef<
    */
   required?: boolean;
   error?: boolean;
+  /**
+   * Optional hover/focus tooltip surfaced as a small `?`/info button after the
+   * label. Convention: the always-visible field `description` says *what to
+   * type*; `info` carries the deeper *why / format / example*. Keep it short.
+   */
+  info?: ReactNode;
 }
 
 export const Label = forwardRef<
   ComponentRef<typeof LabelPrimitive.Root>,
   LabelProps
->(({ className, required, error, children, ...props }, ref) => {
+>(({ className, required, error, info, children, ...props }, ref) => {
   const { t } = useT('common');
-  return (
+  const labelEl = (
     <LabelPrimitive.Root
       ref={ref}
       className={cn(
@@ -50,6 +64,27 @@ export const Label = forwardRef<
         </span>
       ) : null}
     </LabelPrimitive.Root>
+  );
+
+  if (!info) return labelEl;
+
+  // Render the info affordance as a SIBLING of the <label>, not a child:
+  // an interactive control inside a <label> pollutes the associated field's
+  // accessible name (and steals label clicks). The tooltip is hover/focus
+  // driven, so the button does no work on click.
+  return (
+    <span className="inline-flex items-center gap-1">
+      {labelEl}
+      <Tooltip content={info}>
+        <button
+          type="button"
+          aria-label={t('aria.moreInfo')}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex rounded align-middle focus-visible:ring-1 focus-visible:outline-none"
+        >
+          <Info className="size-3.5" aria-hidden="true" />
+        </button>
+      </Tooltip>
+    </span>
   );
 });
 Label.displayName = LabelPrimitive.Root.displayName;

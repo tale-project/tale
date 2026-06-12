@@ -3,9 +3,9 @@ title: Install the tale CLI
 description: Install the tale CLI on macOS, Linux, or Windows — and configure it against your self-hosted instance for deploys and upgrades.
 ---
 
-The `tale` CLI is the operator's tool for driving a self-hosted instance from a workstation. It wraps the most common operations — deploying a new version, running migrations, capturing diagnostics — so you do not have to remember every `docker compose` invocation. This walk installs it on the three supported platforms and points it at your instance.
+The `tale` CLI is the recommended way to run and operate Tale. The [quickstart](/self-hosted/install/quickstart) already uses it to stand an instance up locally with `tale init` and `tale start`; this page is the other half — installing the CLI on a workstation so it can drive a _remote_ instance: deploying new versions, running migrations, and capturing diagnostics without you remembering every `docker compose` invocation.
 
-The CLI is optional. Everything it does can be done with `docker compose` and `ssh` directly; the CLI is a convenience for teams that prefer a single command surface. If the team is already deep in their own automation, skip this page and stay with compose.
+Everything the CLI does can also be done with `docker compose` and `ssh` directly, so a team already deep in its own automation can stay on compose. For everyone else the CLI is the shorter path, and the rest of the self-hosted docs assume it is installed.
 
 ## Before you begin
 
@@ -63,6 +63,97 @@ tale deploy
 ```
 
 `tale deploy` pulls the latest images for the configured `TALE_VERSION`, restarts the affected containers in the right order, and runs schema migrations. It is the supported replacement for the longer `docker compose pull && docker compose up -d` dance. If you prefer compose directly, the same effect lives in [Upgrades](/self-hosted/operate/upgrades).
+
+## Command reference
+
+The CLI groups its commands by what you are doing, the same way `tale --help` does. Each command and its arguments are listed below. How to read the notation:
+
+- A positional argument in `[square brackets]` is **optional**; one in `<angle brackets>` is **required**.
+- Every flag is **optional** — omit it to get the default behaviour.
+- A flag written `--flag <value>` **requires a value** when you use it (e.g. `--port 8443`); a bare flag like `--detach` is a boolean switch.
+- **Defaults** are shown in parentheses after the description. No default means the flag is off, or the command resolves the value from `.env` / context.
+
+Run `tale <command> --help` for the authoritative list at your installed version.
+
+### Setup
+
+`tale setup [directory]` — guided first run: installs Docker if it is missing, then scaffolds a project. `directory` is optional (default: the current directory).
+
+- `-y, --yes` — accept the Docker install and defaults without prompting (for CI / non-interactive shells).
+
+`tale init [directory]` — create a project. Asks one question — local trial or production domain — and generates TLS settings, all secrets, and AI-editor files. `directory` is optional (default: the current directory).
+
+- `-f, --force` — overwrite an existing `tale.json` instead of aborting.
+- `--no-env` — scaffold the project but skip `.env` generation.
+
+`tale start` — launch all services locally with a self-signed certificate.
+
+- `-d, --detach` — run in the background instead of streaming logs.
+- `-p, --port <port>` — HTTPS port to expose (default `443`).
+- `--host <hostname>` — host alias for the proxy (default `tale.local`).
+- `-y, --yes` — auto-accept the legacy config-layout migration if one is detected.
+- `--skip-backup` — skip the volume snapshot taken before that migration.
+
+`tale deploy` — blue-green, zero-downtime deploy of the current CLI version.
+
+- `-a, --all` — also update the stateful infrastructure services, not just the rotatable ones.
+- `-s, --services <list>` — update only these comma-separated services (default: all rotatable services).
+- `--host <hostname>` — host alias for the proxy (default: the `HOST` value from `.env`).
+- `--override` — overwrite container config from the host workspace (encrypted `*.secrets.json` and `.history/` are always preserved).
+- `--override-all` — factory-reseed the builtin catalog into every org server-side; implies `--all`.
+- `-q, --quiet` — suppress container logs during the deploy.
+- `-y, --yes` — auto-accept destructive confirmation prompts (e.g. `--override-all`).
+- `--skip-backup` — skip the automatic pre-deploy volume snapshot.
+- `--dry-run` — preview what would change without touching anything.
+
+### Operate
+
+`tale status` — show the current deployment status. No arguments.
+
+`tale logs <service>` — stream a service's logs (`service` is one of the running services).
+
+- `-f, --follow` — follow log output as it is written.
+- `-n, --tail <lines>` — show only the last N lines.
+- `--since <duration>` — show logs since a relative time (e.g. `1h`, `30m`).
+- `-c, --color <color>` — target a specific deployment colour (`blue` or `green`).
+
+`tale backup` — snapshot all data volumes into the project backups volume. No arguments.
+
+`tale restore [snapshot-id]` — restore a snapshot; omit the id to list available snapshots.
+
+- `--stop` — stop running project containers before restoring.
+- `-y, --yes` — skip the confirmation prompt.
+
+`tale rollback` — roll back to the previous patch version (patch-level only). No arguments.
+
+### Maintain
+
+`tale upgrade` — upgrade the CLI to the latest release and sync project files.
+
+- `-v, --version <version>` — install this exact version (e.g. `0.9.0`) instead of the latest; allows downgrades.
+- `-f, --force` — force re-download and overwrite locally modified files.
+- `--dry-run` — show what would change without modifying anything.
+
+`tale cleanup` — remove inactive (non-current colour) containers. No arguments.
+
+`tale reset` — remove all blue-green containers.
+
+- `-f, --force` — skip the confirmation prompt.
+- `-a, --all` — also remove the stateful infrastructure containers.
+- `--dry-run` — preview the reset without making changes.
+
+`tale doctor` — run host preflight checks (Docker, daemon, gVisor, userns-remap, sandbox token). No arguments.
+
+`tale config` — manage CLI configuration. Use the `show` subcommand to print the resolved config.
+
+### Advanced
+
+`tale auth reset-owner` — reset the owner account credentials.
+
+- `-e, --email <email>` — set a new owner email address.
+- `-p, --password <password>` — set a new owner password.
+
+`tale convex admin` — generate a Convex dashboard admin key. No arguments.
 
 ## Troubleshooting
 

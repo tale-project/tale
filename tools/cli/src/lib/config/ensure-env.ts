@@ -36,6 +36,71 @@ function generatePassword(): string {
   return randomBytes(16).toString('base64url');
 }
 
+/** How the operator intends to run Tale — the single up-front question. */
+export type DeployMode = 'trial' | 'production';
+
+export interface DomainTlsConfig {
+  mode: DeployMode;
+  host: string;
+  siteUrl: string;
+  tlsMode: 'selfsigned' | 'letsencrypt';
+  tlsEmail: string;
+}
+
+/**
+ * A hostname that can never receive a public Let's Encrypt certificate:
+ * loopback, `*.local`/`*.localhost`, or a bare IP. Used to downgrade a
+ * "production" choice to self-signed instead of failing the ACME challenge.
+ */
+export function isLocalHostname(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  if (!h) return true;
+  if (h === 'localhost' || h === '::1') return true;
+  if (h.endsWith('.local') || h.endsWith('.localhost')) return true;
+  // IPv4 (any address — public certs are issued for names, not IPs).
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return true;
+  return false;
+}
+
+/**
+ * Pure derivation of the domain + TLS settings from the chosen mode. Both
+ * `tale init` and CI flag-driven setup route through this so the `.env` is
+ * identical regardless of how the inputs were collected. Production against a
+ * local host is automatically downgraded to self-signed (footgun guard).
+ */
+export function deriveDomainTls(input: {
+  mode: DeployMode;
+  host?: string;
+  email?: string;
+}): DomainTlsConfig {
+  if (input.mode === 'trial') {
+    return {
+      mode: 'trial',
+      host: 'localhost',
+      siteUrl: 'https://localhost',
+      tlsMode: 'selfsigned',
+      tlsEmail: '',
+    };
+  }
+  const host = (input.host ?? '').trim();
+  if (isLocalHostname(host)) {
+    return {
+      mode: 'production',
+      host,
+      siteUrl: `https://${host}`,
+      tlsMode: 'selfsigned',
+      tlsEmail: '',
+    };
+  }
+  return {
+    mode: 'production',
+    host,
+    siteUrl: `https://${host}`,
+    tlsMode: 'letsencrypt',
+    tlsEmail: input.email ?? '',
+  };
+}
+
 const OPENROUTER_KEY_PREFIX = 'sk-or-';
 
 async function warnIfInvalidKeyFormat(key: string): Promise<boolean> {
@@ -90,6 +155,66 @@ interface EnvSetupResult {
    * the HMAC handshake until the next manual restart.
    */
   regeneratedAutoSecrets?: readonly string[];
+  /**
+   * The deployment intent chosen during a fresh `.env` setup. Lets `tale
+   * init` tailor its closing "next steps" (trial → `tale start`, production
+   * → `tale deploy`). Absent on the gap-fill / headless paths.
+   */
+  mode?: DeployMode;
+}
+
+/**
+ * Ask the single "how will you run Tale?" question and collect any follow-up
+ * needed (domain + Let's Encrypt email for production). Shared so trial and
+ * production produce the same deploy-ready `.env`.
+ */
+async function promptDomainAndTls(): Promise<DomainTlsConfig> {
+  const { select, input } = await import('@inquirer/prompts');
+  const mode = await select<DeployMode>({
+    message: 'How will you run Tale?',
+    choices: [
+      {
+        name: 'Local trial — localhost with a self-signed certificate',
+        value: 'trial',
+        description: 'Try Tale in minutes. No domain needed.',
+      },
+      {
+        name: 'Production — your own domain with an automatic certificate',
+        value: 'production',
+        description: "Public domain + free Let's Encrypt TLS.",
+      },
+    ],
+    default: 'trial',
+  });
+
+  if (mode === 'trial') return deriveDomainTls({ mode });
+
+  const host = await input({
+    message: 'Enter your domain (without protocol):',
+    validate: (value) => {
+      if (!value.trim()) return 'Domain cannot be empty';
+      if (value.includes('://'))
+        return 'Enter domain only, without protocol (e.g., demo.tale.dev)';
+      return true;
+    },
+  });
+
+  if (isLocalHostname(host)) {
+    logger.notice(
+      "That's a local address — using a self-signed certificate (Let's Encrypt needs a public domain).",
+    );
+    return deriveDomainTls({ mode, host });
+  }
+
+  const email = await input({
+    message: "Enter email for Let's Encrypt notifications:",
+    validate: (value) => {
+      if (!value.trim()) return "Email is required for Let's Encrypt";
+      if (!value.includes('@')) return 'Please enter a valid email address';
+      return true;
+    },
+  });
+  return deriveDomainTls({ mode, host, email });
 }
 
 export async function ensureEnv(
@@ -384,7 +509,7 @@ function warnIfOpenrouterSecretMissing(deployDir: string): void {
 }
 
 async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
-  const { input, password, select } = await import('@inquirer/prompts');
+  const { password } = await import('@inquirer/prompts');
 
   const existingVolumes = listTaleVolumes();
 
@@ -427,54 +552,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
   logger.info("Let's configure your deployment environment.");
   logger.blank();
 
-  const host = await input({
-    message: 'Enter your domain (without protocol):',
-    default: 'localhost',
-    validate: (value) => {
-      if (!value.trim()) {
-        return 'Domain cannot be empty';
-      }
-      if (value.includes('://')) {
-        return 'Enter domain only, without protocol (e.g., demo.tale.dev)';
-      }
-      return true;
-    },
-  });
-
-  const siteUrl = `https://${host}`;
-
-  const tlsMode = await select({
-    message: 'Select TLS/SSL mode:',
-    choices: [
-      {
-        name: 'selfsigned (development)',
-        value: 'selfsigned',
-        description: 'Self-signed certificates, browser will show warning',
-      },
-      {
-        name: 'letsencrypt (production)',
-        value: 'letsencrypt',
-        description: 'Free trusted certificates, requires public domain',
-      },
-    ],
-    default: 'selfsigned',
-  });
-
-  let tlsEmail = '';
-  if (tlsMode === 'letsencrypt') {
-    tlsEmail = await input({
-      message: "Enter email for Let's Encrypt notifications:",
-      validate: (value) => {
-        if (!value.trim()) {
-          return "Email is required for Let's Encrypt";
-        }
-        if (!value.includes('@')) {
-          return 'Please enter a valid email address';
-        }
-        return true;
-      },
-    });
-  }
+  const { host, siteUrl, tlsMode, tlsEmail, mode } = await promptDomainAndTls();
 
   logger.blank();
   logger.header('API Configuration');
@@ -531,7 +609,12 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
   logger.info('You can modify the .env file later to customize settings.');
   logger.blank();
 
-  return { success: true, agePublicKey: ageKeypair.publicKey, openrouterKey };
+  return {
+    success: true,
+    agePublicKey: ageKeypair.publicKey,
+    openrouterKey,
+    mode,
+  };
 }
 
 interface EnvConfig {

@@ -3,9 +3,9 @@ title: Installer la CLI tale
 description: Installer la CLI tale sur macOS, Linux ou Windows — et la configurer contre ton instance auto-hébergée pour les déploiements et les mises à jour.
 ---
 
-La CLI `tale` est l'outil de l'opérateur pour piloter une instance auto-hébergée depuis une station de travail. Elle enveloppe les opérations les plus fréquentes — déployer une nouvelle version, lancer des migrations, capturer des diagnostics — pour t'éviter de te souvenir de chaque invocation `docker compose`. Ce parcours l'installe sur les trois plateformes prises en charge et la pointe vers ton instance.
+La CLI `tale` est la façon recommandée de faire tourner et d'exploiter Tale. Le [démarrage rapide](/fr/self-hosted/install/quickstart) l'utilise déjà pour monter une instance en local avec `tale init` et `tale start` ; cette page est l'autre moitié — installer la CLI sur une station de travail pour qu'elle puisse piloter une instance _distante_ : déployer de nouvelles versions, lancer des migrations et capturer des diagnostics sans que tu aies à te souvenir de chaque invocation `docker compose`.
 
-La CLI est optionnelle. Tout ce qu'elle fait peut être fait avec `docker compose` et `ssh` directement ; la CLI est une commodité pour les équipes qui préfèrent une surface de commandes unique. Si l'équipe est déjà profondément dans sa propre automatisation, saute cette page et reste sur compose.
+Tout ce que fait la CLI peut aussi se faire directement avec `docker compose` et `ssh`, donc une équipe déjà profondément dans sa propre automatisation peut rester sur compose. Pour tous les autres, la CLI est le chemin le plus court, et le reste de la doc auto-hébergée suppose qu'elle est installée.
 
 ## Avant de commencer
 
@@ -63,6 +63,97 @@ tale deploy
 ```
 
 `tale deploy` récupère les dernières images pour la `TALE_VERSION` configurée, redémarre les conteneurs affectés dans le bon ordre, et lance les migrations de schéma. C'est le remplacement pris en charge pour la danse plus longue `docker compose pull && docker compose up -d`. Si tu préfères compose directement, le même effet vit dans [Mises à jour](/fr/self-hosted/operate/upgrades).
+
+## Référence des commandes
+
+Le CLI regroupe ses commandes selon ce que tu fais, comme le fait `tale --help`. Chaque commande et ses arguments sont listés ci-dessous. Comment lire la notation :
+
+- Un argument positionnel entre `[crochets]` est **optionnel** ; entre `<chevrons>`, il est **requis**.
+- Chaque option est **optionnelle** — l'omettre donne le comportement par défaut.
+- Une option de la forme `--option <valeur>` **exige une valeur** quand tu l'utilises (p. ex. `--port 8443`) ; une option seule comme `--detach` est un commutateur booléen.
+- Les **valeurs par défaut** figurent entre parenthèses après la description. Aucune valeur par défaut signifie que l'option est désactivée, ou que la valeur est résolue depuis `.env` / le contexte.
+
+Lance `tale <commande> --help` pour la liste de référence de ta version installée.
+
+### Installation
+
+`tale setup [directory]` — premier lancement guidé : installe Docker s'il est absent, puis échafaude un projet. `directory` est optionnel (par défaut : le répertoire courant).
+
+- `-y, --yes` — accepter l'installation de Docker et les valeurs par défaut sans confirmation (pour la CI / les shells non interactifs).
+
+`tale init [directory]` — créer un projet. Pose une question — essai local ou domaine de production — et génère les réglages TLS, tous les secrets et les fichiers pour éditeurs IA. `directory` est optionnel (par défaut : le répertoire courant).
+
+- `-f, --force` — écraser un `tale.json` existant au lieu d'abandonner.
+- `--no-env` — échafauder le projet mais ignorer la génération du `.env`.
+
+`tale start` — démarrer tous les services localement avec un certificat auto-signé.
+
+- `-d, --detach` — s'exécuter en arrière-plan au lieu de diffuser les logs.
+- `-p, --port <port>` — port HTTPS à exposer (par défaut `443`).
+- `--host <hostname>` — alias d'hôte pour le proxy (par défaut `tale.local`).
+- `-y, --yes` — accepter automatiquement la migration de l'ancien agencement de config si elle est détectée.
+- `--skip-backup` — ignorer le snapshot de volume pris avant cette migration.
+
+`tale deploy` — déploiement blue-green sans interruption de la version actuelle du CLI.
+
+- `-a, --all` — mettre aussi à jour les services d'infrastructure avec état, pas seulement ceux qui tournent par roulement.
+- `-s, --services <list>` — ne mettre à jour que ces services séparés par des virgules (par défaut : tous les services rotatifs).
+- `--host <hostname>` — alias d'hôte pour le proxy (par défaut : la valeur `HOST` de `.env`).
+- `--override` — écraser la config du conteneur depuis le workspace local (les `*.secrets.json` chiffrés et `.history/` sont toujours préservés).
+- `--override-all` — réinitialiser le catalogue intégré dans chaque organisation côté serveur ; implique `--all`.
+- `-q, --quiet` — masquer les logs des conteneurs pendant le déploiement.
+- `-y, --yes` — accepter automatiquement les confirmations destructives (p. ex. `--override-all`).
+- `--skip-backup` — ignorer le snapshot de volume automatique d'avant déploiement.
+- `--dry-run` — prévisualiser sans rien modifier.
+
+### Exploitation
+
+`tale status` — afficher l'état actuel du déploiement. Aucun argument.
+
+`tale logs <service>` — diffuser les logs d'un service (`service` est l'un des services en cours d'exécution).
+
+- `-f, --follow` — suivre la sortie des logs au fil de l'écriture.
+- `-n, --tail <lines>` — n'afficher que les N dernières lignes.
+- `--since <duration>` — afficher les logs depuis une durée relative (p. ex. `1h`, `30m`).
+- `-c, --color <color>` — cibler une couleur de déploiement précise (`blue` ou `green`).
+
+`tale backup` — snapshot de tous les volumes de données vers le volume de sauvegardes du projet. Aucun argument.
+
+`tale restore [snapshot-id]` — restaurer un snapshot ; sans id, la liste des snapshots disponibles s'affiche.
+
+- `--stop` — arrêter les conteneurs du projet avant la restauration.
+- `-y, --yes` — ignorer l'invite de confirmation.
+
+`tale rollback` — revenir à la version patch précédente (niveau patch uniquement). Aucun argument.
+
+### Maintenance
+
+`tale upgrade` — mettre à jour le CLI vers la dernière version et synchroniser les fichiers projet.
+
+- `-v, --version <version>` — installer exactement cette version (p. ex. `0.9.0`) au lieu de la dernière ; autorise les rétrogradations.
+- `-f, --force` — forcer le re-téléchargement et écraser les fichiers modifiés localement.
+- `--dry-run` — montrer ce qui changerait sans rien modifier.
+
+`tale cleanup` — supprimer les conteneurs inactifs (couleur non courante). Aucun argument.
+
+`tale reset` — supprimer tous les conteneurs blue-green.
+
+- `-f, --force` — ignorer l'invite de confirmation.
+- `-a, --all` — supprimer aussi les conteneurs d'infrastructure avec état.
+- `--dry-run` — prévisualiser la réinitialisation sans rien modifier.
+
+`tale doctor` — exécuter les vérifications préalables de l'hôte (Docker, daemon, gVisor, userns-remap, jeton sandbox). Aucun argument.
+
+`tale config` — gérer la configuration du CLI. Utilise le sous-commande `show` pour afficher la configuration résolue.
+
+### Avancé
+
+`tale auth reset-owner` — réinitialiser les identifiants du compte propriétaire.
+
+- `-e, --email <email>` — définir une nouvelle adresse e-mail du propriétaire.
+- `-p, --password <password>` — définir un nouveau mot de passe du propriétaire.
+
+`tale convex admin` — générer une clé admin pour le tableau de bord Convex. Aucun argument.
 
 ## Dépannage
 

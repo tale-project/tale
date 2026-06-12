@@ -1,8 +1,8 @@
 import { execSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 
 import { Command } from 'commander';
 
+import { daemonReachable } from '../lib/docker/daemon-reachable';
 import { findProject } from '../lib/project/find-project';
 import { loadEnv } from '../utils/load-env';
 import * as logger from '../utils/logger';
@@ -16,7 +16,7 @@ import * as logger from '../utils/logger';
  * for the sandbox-foundation rollout.
  */
 
-interface Check {
+export interface Check {
   name: string;
   status: 'ok' | 'warn' | 'fail';
   detail: string;
@@ -33,7 +33,7 @@ function tryRun(cmd: string): string | undefined {
   }
 }
 
-function checkDocker(): Check {
+export function checkDocker(): Check {
   const version = tryRun('docker --version');
   if (!version) {
     return {
@@ -46,19 +46,19 @@ function checkDocker(): Check {
   return { name: 'docker', status: 'ok', detail: version };
 }
 
-function checkSocket(): Check {
-  if (!existsSync('/var/run/docker.sock')) {
-    return {
-      name: 'docker socket',
-      status: 'fail',
-      detail: '/var/run/docker.sock not present',
-      fix: 'Start the Docker daemon (systemctl start docker) or open Docker Desktop',
-    };
+export async function checkDaemon(): Promise<Check> {
+  const status = await daemonReachable();
+  if (status.reachable) {
+    return { name: 'docker daemon', status: 'ok', detail: status.detail };
   }
   return {
-    name: 'docker socket',
-    status: 'ok',
-    detail: '/var/run/docker.sock present',
+    name: 'docker daemon',
+    status: 'fail',
+    detail: `not reachable — ${status.detail}`,
+    fix:
+      process.platform === 'linux'
+        ? 'Start the Docker daemon (systemctl start docker) or open Docker Desktop'
+        : 'Start Docker Desktop',
   };
 }
 
@@ -118,7 +118,7 @@ function checkApparmor(): Check {
   };
 }
 
-function checkSandboxToken(env: NodeJS.ProcessEnv): Check {
+export function checkSandboxToken(env: NodeJS.ProcessEnv): Check {
   // Token policy is opt-in (audit follow-up F1) — unset = HMAC disabled,
   // valid for dev / internal-trust deployments. Report informationally:
   // a short value is suspicious (probably truncated), but missing is OK.
@@ -175,7 +175,7 @@ export function createDoctorCommand(): Command {
       const env = process.env;
       const checks: Check[] = [
         checkDocker(),
-        checkSocket(),
+        await checkDaemon(),
         checkRunsc(),
         checkUserns(),
         checkApparmor(),

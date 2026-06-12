@@ -10,11 +10,20 @@ import { ApiKeyCreateDialog } from './api-key-create-dialog';
 
 interface ApiKeysActionMenuProps {
   organizationId: string;
+  /** Optionally lift create-dialog state so the list's empty-state CTA can open it. */
+  createOpen?: boolean;
+  onCreateOpenChange?: (open: boolean) => void;
 }
 
-export function ApiKeysActionMenu({ organizationId }: ApiKeysActionMenuProps) {
+export function ApiKeysActionMenu({
+  organizationId,
+  createOpen: controlledCreateOpen,
+  onCreateOpenChange,
+}: ApiKeysActionMenuProps) {
   const { t: tSettings } = useT('settings');
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [internalCreateOpen, setInternalCreateOpen] = useState(false);
+  const isCreateDialogOpen = controlledCreateOpen ?? internalCreateOpen;
+  const setIsCreateDialogOpen = onCreateOpenChange ?? setInternalCreateOpen;
 
   return (
     <>

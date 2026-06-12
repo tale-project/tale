@@ -1,14 +1,34 @@
-# Tale
+<div align="center">
 
-> **Read this in:** [English](README.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
+  <img alt="Tale" src=".github/assets/logo-light.svg" width="150">
+</picture>
 
-Build AI-powered applications in minutes, not months.
+### The Orchestrator for AI Agents
 
-Tale is a self-hosted AI platform with custom agents, a knowledge base, workflow automation, integrations, and a unified inbox. Install the CLI and run a single command to get started.
+Connect **OpenClaw**, **Hermes Agent**, **Claude Code**, **Codex**, **Cursor**, **Gemini CLI**, **OpenCode**, and **Pi**.<br/>
+Pool their knowledge, delegate tasks, and build your swarm of agents.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-tale-0a0a0a.svg)](docs/en/index.md)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-Docker-2496ed.svg)](docs/en/self-hosted/install/quickstart.md)
+
+[Quick start](#quick-start) · [What you can do](#what-can-you-do) · [Commands](#command-reference) · [Documentation](#documentation) · [Contributing](#contributing)
+
+**Read this in:** [English](README.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
+
+</div>
+
+---
+
+Tale is a **self-hosted AI platform** that turns the agents and CLIs your team already uses into one coordinated workforce. Give them a shared knowledge base, wire up your tools and integrations, and delegate work across them — agents, automations, and a unified inbox, all running on your own infrastructure. Install the CLI and run a single command to get started.
 
 ## Quick start
 
-**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop) (v24+) and an [OpenRouter API key](https://openrouter.ai).
+Get Tale running on your machine in three commands — install the CLI, scaffold a project, start it. The CLI installs Docker if it's missing and generates every secret for you, so there is nothing to set up first and nothing to hand-edit.
+
+**Prerequisites:** none. The installer provisions Docker for you. Bring an [OpenRouter API key](https://openrouter.ai) (or any OpenAI-compatible provider) when you want to connect a model — the in-app setup wizard walks you through it, and you can add it later.
 
 > **Windows with Hyper-V backend:** Ensure your project drive is shared in Docker Desktop Settings > Resources > File Sharing. WSL2 backend (default) requires no extra configuration.
 
@@ -33,7 +53,7 @@ tale init my-project
 cd my-project
 ```
 
-The CLI prompts for your domain, API key, and TLS mode. Security secrets are generated automatically. It also generates AI editor configuration files and extracts the platform source code to `.tale/reference/` so AI-powered editors can create and edit configs with full platform awareness.
+The CLI asks one question — **local trial** or **production domain** — and configures everything for that target: TLS, all security secrets, AI-editor config files, and the platform source extracted to `.tale/reference/` so AI-powered editors can create and edit configs with full platform awareness. The same project works for both a local trial and a real deployment.
 
 ### 3. Start Tale
 
@@ -67,6 +87,7 @@ All files in `agents/`, `workflows/`, and `integrations/` are live-reloaded — 
 ### Development
 
 ```bash
+tale setup                         # Guided first run: installs Docker (if missing), scaffolds a project
 tale init [directory]              # Create a new project with example configs
 tale start                         # Start all services locally
 tale start --detach                # Start in background
@@ -155,7 +176,8 @@ cd services/crawler && uv sync --extra dev
 
 The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) plus regional variants where local wording differs (today: `de-CH`; the loader picks up any new `xx-YY` bundle automatically). Variants carry only the strings that differ from their base; missing keys fall back through the base to English. Start at [`docs/en/index.md`](docs/en/index.md) to pick an entry point by persona.
 
-### For everyday users
+<details>
+<summary><strong>For everyday users</strong></summary>
 
 - **[Chat overview](docs/en/platform/chat/overview.md)** — the four parts of the screen, where to read deeper
 - **[AI chat basics](docs/en/platform/chat/basics.md)** — composer, agents, model picker, streaming, citations
@@ -164,7 +186,10 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 - **[Shared chats](docs/en/platform/chat/shared-threads.md)** — share a chat with the org, fork into your own
 - **[Approvals](docs/en/platform/approvals/concepts.md)** — review AI actions
 
-### For builders (agents, automations, integrations)
+</details>
+
+<details>
+<summary><strong>For builders (agents, automations, integrations)</strong></summary>
 
 - **[Agent concepts](docs/en/platform/agents/concepts.md)** — the four-knob model behind every agent
 - **[Create an agent](docs/en/platform/agents/create.md)** — specialised AI assistants end to end
@@ -174,14 +199,20 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 - **[Integrations overview](docs/en/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
 - **[Models out of the box](docs/en/platform/models.md)** — OpenRouter, OpenAI, Vercel AI Gateway plus the shipped model lists
 
-### For admins
+</details>
+
+<details>
+<summary><strong>For admins</strong></summary>
 
 - **[Members and roles](docs/en/platform/admin/members-and-roles.md)** — user management and permission matrix
 - **[Models out of the box](docs/en/platform/models.md)** — which models the defaults ship with; swap or add providers
 - **[Integrations overview](docs/en/platform/integrations/overview.md)** — third-party connectors, MCP servers, custom configs
 - **[Cloud trust and compliance](docs/en/cloud/trust-and-compliance.md)** — frameworks, shared responsibility, evidence to hand auditors
 
-### For operators
+</details>
+
+<details>
+<summary><strong>For operators</strong></summary>
 
 - **[Self-hosted overview](docs/en/self-hosted/overview.md)** — architecture and services
 - **[Quickstart](docs/en/self-hosted/install/quickstart.md)** — single-host install in twenty minutes
@@ -191,11 +222,16 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 - **[Environment reference](docs/en/self-hosted/configuration/environment-reference.md)** — all environment variables
 - **[Container architecture](docs/en/self-hosted/operate/container-architecture.md)** — seven containers, what owns what
 
-### For developers
+</details>
+
+<details>
+<summary><strong>For developers</strong></summary>
 
 - **[API reference](docs/en/develop/api-reference.md)** — REST API for RAG, Crawler, and Platform
 - **[Webhooks](docs/en/develop/webhooks.md)** — workflow and agent webhooks with signature verification
 - **[Develop overview](docs/en/develop/overview.md)** — the developer surface end to end
+
+</details>
 
 ## Need help?
 

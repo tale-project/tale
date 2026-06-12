@@ -9,6 +9,7 @@ import { findComposeOverride } from '../compose/find-compose-override';
 import { DEV_VOLUME_NAMES } from '../compose/generators/constants';
 import { generateDevCompose } from '../compose/generators/generate-dev-compose';
 import { dockerCompose } from '../docker/docker-compose';
+import { ensureDocker } from '../docker/ensure-docker';
 import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
@@ -195,6 +196,12 @@ export async function start(options: StartOptions): Promise<void> {
       : { volumePrefix: `${getProjectId()}-dev_` },
   });
 
+  // Zero-prerequisite: install/start Docker if needed, then fall back to the
+  // strict assertion for the residual "still not usable" case.
+  const docker = await ensureDocker({ assumeYes: options.assumeYes });
+  if (docker.status === 'refused' || docker.status === 'failed') {
+    logger.warn(docker.detail);
+  }
   await assertDockerAvailable();
 
   // Ensure dev infrastructure under a project-scoped lock so parallel

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { OrganizationForm } from '@/app/features/organization/components/organization-form';
+import { OnboardingWizard } from '@/app/features/organization/components/onboarding/onboarding-wizard';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
 import { DashboardShellFrame } from '@/app/routes/dashboard/$id';
 import { seo } from '@/lib/utils/seo';
@@ -33,5 +33,5 @@ function CreateOrganizationPage() {
     return <DashboardShellFrame />;
   }
 
-  return <OrganizationForm />;
+  return <OnboardingWizard />;
 }

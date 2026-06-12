@@ -1,14 +1,34 @@
-# Tale
+<div align="center">
 
-> **Lies das auf:** [English](README.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
+  <img alt="Tale" src=".github/assets/logo-light.svg" width="150">
+</picture>
 
-Bau KI-gestützte Anwendungen in Minuten, nicht Monaten.
+### Der Orchestrator für KI-Agents
 
-Tale ist eine selbstgehostete KI-Plattform mit eigenen Agents, einer Wissensdatenbank, Workflow-Automatisierungen, Integrationen und einem gemeinsamen Posteingang. Installiere die CLI und starte mit einem einzigen Befehl.
+Verbinde **OpenClaw**, **Hermes Agent**, **Claude Code**, **Codex**, **Cursor**, **Gemini CLI**, **OpenCode** und **Pi**.<br/>
+Bündle ihr Wissen, delegiere Aufgaben und bau deinen Schwarm aus Agents.
+
+[![Lizenz: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-tale-0a0a0a.svg)](docs/de/index.md)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-Docker-2496ed.svg)](docs/de/self-hosted/install/quickstart.md)
+
+[Schnellstart](#schnellstart) · [Was kannst du tun?](#was-kannst-du-tun) · [Befehle](#befehlsreferenz) · [Dokumentation](#dokumentation) · [Mitwirken](#mitwirken)
+
+**Lies das auf:** [English](README.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
+
+</div>
+
+---
+
+Tale ist eine **selbstgehostete KI-Plattform**, die die Agents und CLIs, die dein Team bereits nutzt, zu einer koordinierten Belegschaft verbindet. Gib ihnen eine gemeinsame Wissensdatenbank, binde deine Tools und Integrationen an und delegiere Arbeit über sie hinweg — Agents, Automatisierungen und ein gemeinsamer Posteingang, alles auf deiner eigenen Infrastruktur. Installiere die CLI und starte mit einem einzigen Befehl.
 
 ## Schnellstart
 
-**Voraussetzungen:** [Docker Desktop](https://www.docker.com/products/docker-desktop) (v24+) und ein [OpenRouter-API-Key](https://openrouter.ai).
+Bring Tale in drei Befehlen auf deine Maschine — CLI installieren, Projekt anlegen, starten. Die CLI installiert Docker, falls es fehlt, und generiert jedes Secret für dich, sodass nichts vorab einzurichten und nichts von Hand zu editieren ist.
+
+**Voraussetzungen:** keine. Der Installer richtet Docker für dich ein. Bring einen [OpenRouter-API-Key](https://openrouter.ai) (oder einen beliebigen OpenAI-kompatiblen Anbieter) mit, wenn du ein Modell verbinden möchtest — der In-App-Einrichtungsassistent führt dich hindurch, und du kannst ihn auch später hinzufügen.
 
 > **Windows mit Hyper-V-Backend:** Stelle sicher, dass dein Projekt-Laufwerk in den Docker-Desktop-Einstellungen unter Resources > File Sharing freigegeben ist. Das WSL2-Backend (Standard) braucht keine zusätzliche Konfiguration.
 
@@ -33,7 +53,7 @@ tale init my-project
 cd my-project
 ```
 
-Die CLI fragt nach Domain, API-Key und TLS-Modus. Sicherheits-Secrets werden automatisch generiert. Sie legt ausserdem Konfigurationsdateien für KI-Editoren an und entpackt den Plattform-Quellcode nach `.tale/reference/`, damit KI-Editoren Configs mit voller Plattform-Kenntnis erstellen und ändern können.
+Die CLI stellt eine Frage — **lokaler Test** oder **Produktiv-Domain** — und konfiguriert alles für dieses Ziel: TLS, alle Sicherheits-Secrets, Konfigurationsdateien für KI-Editoren und den nach `.tale/reference/` entpackten Plattform-Quellcode, damit KI-Editoren Configs mit voller Plattform-Kenntnis erstellen und ändern können. Dasselbe Projekt funktioniert für einen lokalen Test und ein echtes Deployment.
 
 ### 3. Tale starten
 
@@ -67,6 +87,7 @@ Alle Dateien in `agents/`, `workflows/` und `integrations/` werden live neu gela
 ### Entwicklung
 
 ```bash
+tale setup                         # Geführter Erststart: installiert Docker (falls nötig), legt ein Projekt an
 tale init [directory]              # Neues Projekt mit Beispiel-Configs anlegen
 tale start                         # Alle Dienste lokal starten
 tale start --detach                # Im Hintergrund starten
@@ -155,7 +176,8 @@ cd services/crawler && uv sync --extra dev
 
 Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plus regionalen Varianten, wo lokale Formulierungen abweichen (heute: `de-CH`; der Loader erkennt jedes neue `xx-YY`-Bundle automatisch). Varianten tragen nur die Strings, die von ihrer Basis abweichen; fehlende Keys fallen über die Basis bis auf Englisch zurück. Start unter [`docs/de/index.md`](docs/de/index.md), um nach Persona einzusteigen.
 
-### Für alltägliche Nutzer
+<details>
+<summary><strong>Für alltägliche Nutzer</strong></summary>
 
 - **[Chat-Übersicht](docs/de/platform/chat/overview.md)** — die vier Bereiche des Bildschirms, wo es tiefer geht
 - **[KI-Chat-Grundlagen](docs/de/platform/chat/basics.md)** — Composer, Agents, Modell-Picker, Streaming, Zitate
@@ -164,7 +186,10 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 - **[Geteilte Chats](docs/de/platform/chat/shared-threads.md)** — Chat per Link mit der Org teilen, in einen eigenen forken
 - **[Genehmigungen](docs/de/platform/approvals/concepts.md)** — KI-Aktionen prüfen
 
-### Für Bauende (Agents, Automatisierungen, Integrationen)
+</details>
+
+<details>
+<summary><strong>Für Bauende (Agents, Automatisierungen, Integrationen)</strong></summary>
 
 - **[Agent-Konzepte](docs/de/platform/agents/concepts.md)** — das Vier-Knöpfe-Modell hinter jedem Agent
 - **[Einen Agent erstellen](docs/de/platform/agents/create.md)** — spezialisierte KI-Assistenten von Anfang bis Ende
@@ -174,14 +199,20 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 - **[Integrationen-Übersicht](docs/de/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
 - **[Modelle out of the box](docs/de/platform/models.md)** — OpenRouter, OpenAI, Vercel AI Gateway plus die ausgelieferten Modelllisten
 
-### Für Admins
+</details>
+
+<details>
+<summary><strong>Für Admins</strong></summary>
 
 - **[Mitglieder und Rollen](docs/de/platform/admin/members-and-roles.md)** — Userverwaltung und Berechtigungs-Matrix
 - **[Modelle out of the box](docs/de/platform/models.md)** — welche Modelle die Defaults mitbringen; Provider tauschen oder hinzufügen
 - **[Integrationen-Übersicht](docs/de/platform/integrations/overview.md)** — Drittanbieter-Konnektoren, MCP-Server, eigene Konfigurationen
 - **[Cloud-Trust und Compliance](docs/de/cloud/trust-and-compliance.md)** — Frameworks, geteilte Verantwortung, Belege für Auditoren
 
-### Für Operators
+</details>
+
+<details>
+<summary><strong>Für Operators</strong></summary>
 
 - **[Self-hosted-Übersicht](docs/de/self-hosted/overview.md)** — Architektur und Dienste
 - **[Quickstart](docs/de/self-hosted/install/quickstart.md)** — Single-Host-Installation in zwanzig Minuten
@@ -191,11 +222,16 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 - **[Environment-Referenz](docs/de/self-hosted/configuration/environment-reference.md)** — alle Environment-Variablen
 - **[Container-Architektur](docs/de/self-hosted/operate/container-architecture.md)** — sieben Container, was was besitzt
 
-### Für Developer
+</details>
+
+<details>
+<summary><strong>Für Developer</strong></summary>
 
 - **[API-Referenz](docs/de/develop/api-reference.md)** — REST-API für RAG, Crawler und Platform
 - **[Webhooks](docs/de/develop/webhooks.md)** — Workflow- und Agent-Webhooks mit Signaturprüfung
 - **[Develop-Übersicht](docs/de/develop/overview.md)** — die Entwickler-Oberfläche von Anfang bis Ende
+
+</details>
 
 ## Brauchst du Hilfe?
 

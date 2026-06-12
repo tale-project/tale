@@ -4,7 +4,7 @@ import { LinkButton } from '@tale/ui/button';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
-import { BarChart3, Bot, Network } from 'lucide-react';
+import { BarChart3, Bot, Network, Plus } from 'lucide-react';
 import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -75,6 +75,8 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
 
   const { mutateAsync: deleteAgent } = useDeleteAgent();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  // Lifted so both the action menu and the empty-state CTA open the one dialog.
+  const [createOpen, setCreateOpen] = useState(false);
 
   const invalidateAgents = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['config', 'agents'] });
@@ -215,13 +217,22 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
           >
             {tSettings('agents.organigram.menuItem')}
           </LinkButton>
-          <AgentsActionMenu organizationId={organizationId} />
+          <AgentsActionMenu
+            organizationId={organizationId}
+            createOpen={createOpen}
+            onCreateOpenChange={setCreateOpen}
+          />
         </div>
       }
       emptyState={{
         icon: Bot,
         title: tEmpty('agents.title'),
         description: tEmpty('agents.description'),
+        action: {
+          label: tSettings('agents.createAgent'),
+          icon: Plus,
+          onClick: () => setCreateOpen(true),
+        },
       }}
       footer={
         <BulkDeleteBar

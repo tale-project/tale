@@ -572,6 +572,7 @@
       "title": "Automatisierung erstellen",
       "tabBlank": "Leer",
       "tabTemplate": "Aus Vorlage",
+      "nameTooltip": "Wird zur ID der Automation in ihrer URL. Halte sie kurz — den Anzeigenamen kannst du später ändern.",
       "namePlaceholder": "z. B. Social-Media-Workflow",
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
       "creating": "Erstelle...",
@@ -1409,6 +1410,8 @@
       "close": "Schließen",
       "confirm": "Bestätigen",
       "back": "Zurück",
+      "next": "Weiter",
+      "skip": "Überspringen",
       "loading": "Lädt...",
       "done": "Fertig",
       "duplicate": "Duplizieren",
@@ -1509,6 +1512,7 @@
       "system": "System",
       "debug": "Debug"
     },
+    "stepProgress": "Schritt {current} von {total}: {label}",
     "validation": {
       "required": "{field} ist erforderlich",
       "email": "Bitte gib eine gültige E-Mail-Adresse ein",
@@ -1541,6 +1545,7 @@
       "agentsNavigation": "Agents-Navigation",
       "knowledgeNavigation": "Wissen-Navigation",
       "actionsMenu": "Aktionsmenü",
+      "moreInfo": "Weitere Informationen",
       "required": "erforderlich",
       "valid": "gültig",
       "invalid": "ungültig",
@@ -1809,6 +1814,7 @@
     },
     "editCustomer": "Kunde bearbeiten",
     "deleteCustomer": "Kunde löschen",
+    "addButton": "Kunde hinzufügen",
     "importMenu": {
       "importCustomers": "Kunden importieren",
       "fromDevice": "Von deinem Gerät",
@@ -2157,6 +2163,40 @@
       "sharePoint": "SharePoint",
       "sharePointSynced": "SharePoint (synchronisiert)",
       "uploaded": "Upload"
+    }
+  },
+  "onboarding": {
+    "title": "Richte deinen Arbeitsbereich ein",
+    "subtitle": "Ein paar schnelle Schritte und du bist startklar.",
+    "stepsAriaLabel": "Onboarding-Schritte",
+    "progress": "Schritt {current} von {total}: {label}",
+    "steps": {
+      "workspace": "Arbeitsbereich",
+      "provider": "KI-Anbieter",
+      "team": "Team",
+      "finish": "Fertig"
+    },
+    "workspace": {
+      "heading": "Benenne deinen Arbeitsbereich",
+      "why": "So erkennt dein Team diesen Arbeitsbereich."
+    },
+    "provider": {
+      "heading": "KI-Anbieter verbinden",
+      "why": "Agenten und Chat brauchen einen Anbieter. Füge jetzt oder später in den Einstellungen einen hinzu — die meisten Funktionen bleiben bis dahin gesperrt.",
+      "cta": "Anbieter-Einstellungen öffnen"
+    },
+    "team": {
+      "heading": "Lade dein Team ein",
+      "why": "Füge jetzt Teammitglieder hinzu oder lade sie jederzeit in den Einstellungen ein.",
+      "cta": "Personen verwalten"
+    },
+    "finish": {
+      "heading": "Alles bereit",
+      "subtitle": "Das kannst du als Nächstes tun:",
+      "providerItem": "Verbinde einen KI-Anbieter für Agenten und Chat.",
+      "agentItem": "Erstelle deinen ersten Agenten.",
+      "inviteItem": "Lade Teammitglieder zur Zusammenarbeit ein.",
+      "goToDashboard": "Zum Dashboard"
     }
   },
   "emptyStates": {
@@ -4134,6 +4174,14 @@
         "error": "Produkt konnte nicht erstellt werden"
       }
     },
+    "createWizard": {
+      "steps": {
+        "basics": "Grundlagen",
+        "pricing": "Preis & Bestand",
+        "review": "Überprüfen"
+      },
+      "reviewHint": "Überprüfe die Angaben und erstelle dann das Produkt."
+    },
     "import": {
       "uploadProducts": "Produkte hochladen",
       "uploadFile": "Bitte lade eine Datei hoch",
@@ -4450,13 +4498,11 @@
       "addMember": "Mitglied hinzufügen",
       "createOrganization": "Organisation erstellen",
       "organizationName": "Organisationsname",
-      "companyNameRequired": "Firmenname ist erforderlich",
       "companyNameCharacterError": "Verwende nur Buchstaben, Ziffern, Leerzeichen, Bindestriche und Unterstriche und beginne mit einem Buchstaben oder einer Ziffer.",
       "nameReserved": "Dieser Name ist von der Plattform reserviert.",
       "identifierPreview": "Kennung: {slug}",
       "enterCompanyName": "Gib deinen Firmennamen ein",
       "organizationCreated": "Organisation erstellt!",
-      "creating": "Erstelle...",
       "switching": "Wird gewechselt…",
       "switchingTo": "Wechsle zu {name}…",
       "switchingLabel": "Organisation wird gewechselt",
@@ -4645,8 +4691,10 @@
         "name": "Name",
         "namePlaceholder": "mein-agent",
         "nameHelp": "Eindeutige Kennung (nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche)",
+        "nameTooltip": "Eine eindeutige, URL-sichere ID für Links und die API. Später nicht änderbar.",
         "namePatternError": "Muss mit einem Buchstaben oder einer Zahl beginnen und darf nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche enthalten",
         "displayName": "Anzeigename",
+        "displayNameTooltip": "Der freundliche Name, den andere im Chat sehen. Jederzeit änderbar.",
         "displayNamePlaceholder": "Mein Agent",
         "description": "Beschreibung",
         "descriptionPlaceholder": "Was macht dieser Agent?",
@@ -5223,6 +5271,7 @@
       "editProvider": "Anbieter bearbeiten",
       "deleteProvider": "Anbieter löschen",
       "apiKey": "API-Schlüssel",
+      "apiKeyTooltip": "Verschlüsselt gespeichert und nur zum Aufruf dieses Anbieters verwendet.",
       "apiKeyConfigured": "API-Schlüssel konfiguriert",
       "apiKeyNotConfigured": "Nicht konfiguriert",
       "models": "Modelle",
@@ -5236,6 +5285,7 @@
       "displayName": "Anzeigename",
       "description_field": "Beschreibung",
       "baseUrl": "Basis-URL",
+      "baseUrlTooltip": "Der OpenAI-kompatible API-Endpunkt, z. B. https://api.openai.com/v1",
       "tags": "Tags",
       "defaultModels": "Standardmodelle",
       "defaultModelsDescription": "Standardmodelle, die von Crawler, RAG und anderen Diensten für jede Fähigkeit verwendet werden.",
@@ -6394,6 +6444,7 @@
     },
     "editVendor": "Lieferant bearbeiten",
     "deleteVendor": "Lieferant löschen",
+    "addButton": "Lieferant hinzufügen",
     "importMenu": {
       "importVendors": "Lieferanten importieren",
       "fromDevice": "Von deinem Gerät",

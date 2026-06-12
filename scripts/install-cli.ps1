@@ -109,6 +109,36 @@ function Download-File {
     }
 }
 
+# Verify the downloaded binary against the release's SHA256SUMS file. Releases
+# that predate checksum publishing won't have one — warn and continue rather
+# than hard-fail, so the installer keeps working against older tags.
+function Verify-Checksum {
+    param($file, $tag)
+    $asset = "tale_${Platform}.exe"
+    $sumsUrl = "https://github.com/$Repo/releases/download/$tag/tale_checksums.txt"
+    try {
+        $sums = (Invoke-WebRequest -Uri $sumsUrl -UseBasicParsing `
+            -Headers @{ "User-Agent" = "tale-installer/1.0" } -ErrorAction Stop).Content
+    } catch {
+        Write-Info "No checksum file published for $tag; skipping verification."
+        return
+    }
+    $expected = $null
+    foreach ($line in ($sums -split "`n")) {
+        $parts = ($line.Trim() -split "\s+")
+        if ($parts.Length -ge 2 -and $parts[1] -eq $asset) { $expected = $parts[0]; break }
+    }
+    if (-not $expected) {
+        Write-Info "No checksum entry for $asset; skipping verification."
+        return
+    }
+    $actual = (Get-FileHash -Path $file -Algorithm SHA256).Hash.ToLower()
+    if ($actual -ne $expected.ToLower()) {
+        Write-Err "Checksum mismatch for $asset (expected $expected, got $actual). Aborting."
+    }
+    Write-Ok "Checksum verified"
+}
+
 # Find the first release whose assets include our platform binary.
 function Get-LatestTag {
     $assetName = "tale_${Platform}.exe"
@@ -183,6 +213,7 @@ function Install-Binary {
     if ($RequestedVersion) { Verify-ReleaseExists $binaryUrl }
 
     Download-File $binaryUrl $tmpFile
+    Verify-Checksum $tmpFile $tag
 
     if (-not (Test-Path $script:InstallDir)) {
         New-Item -ItemType Directory -Path $script:InstallDir -Force | Out-Null
@@ -226,10 +257,12 @@ function Main {
     Install-Binary
     Verify-Installation
 
-    Write-Ok "Run 'tale --help' to get started."
     if (-not $script:ExistingTale) {
         Write-Info "Restart your terminal for PATH changes to take effect."
     }
+    # Hand off to the guided, TypeScript-driven setup: it installs Docker if
+    # needed and scaffolds a project — zero prerequisites from here.
+    Write-Ok "Next: run 'tale setup' to install Docker (if needed) and create your project."
 }
 
 Main
