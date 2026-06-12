@@ -156,6 +156,13 @@ export const sandboxSessionOpsTable = defineTable({
    * 'budget' (the org's rolling cap was reached). Distinguishes a clean
    * budget pause from a completed/failed/cancelled op on the management page. */
   pausedReason: v.optional(v.string()),
+  /** Steer ordering: stamped by markDelivered when queued user message(s) are
+   * staged into this RUNNING exec. The drain consumes it (exactly-once) and
+   * trips an S4 seam so the turn's subsequent output renders in a fresh
+   * message BELOW the queued user message instead of growing the bubble above
+   * it. Cleared on consume; harmless if the turn ends first (the unconsumed
+   * messages re-queue at finalize). */
+  steerSeamRequestedAt: v.optional(v.number()),
 })
   .index('by_sessionId', ['sessionId'])
   .index('by_threadId', ['threadId'])

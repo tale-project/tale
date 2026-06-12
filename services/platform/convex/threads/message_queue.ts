@@ -324,7 +324,10 @@ export const listDeliveredForExec = internalQuery({
 /** Flip staged rows queued → delivered. Skips rows no longer 'queued' (a turn
  * boundary claimed them first) and refuses entirely when the exec is no longer
  * running (its finalize may already have reconciled — the staged files are
- * inert garbage in a dead exec's dir, cleaned on container restart). */
+ * inert garbage in a dead exec's dir, cleaned on container restart). Also
+ * stamps the op row's steerSeamRequestedAt so the drain seals the current
+ * message segment — the turn's subsequent output then renders BELOW the
+ * delivered user message(s), keeping the timeline in conversational order. */
 export const markDelivered = internalMutation({
   args: {
     threadId: v.string(),
@@ -333,17 +336,18 @@ export const markDelivered = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    let execRunning = false;
+    let opId: Doc<'sandboxSessionOps'>['_id'] | null = null;
     for await (const op of ctx.db
       .query('sandboxSessionOps')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
       if (op.execId === args.execId && op.status === 'running') {
-        execRunning = true;
+        opId = op._id;
         break;
       }
     }
-    if (!execRunning) return null;
+    if (opId === null) return null;
     const now = Date.now();
+    let delivered = false;
     for (const queueId of args.queueIds) {
       const row = await ctx.db.get(queueId);
       if (row && row.status === 'queued') {
@@ -352,7 +356,11 @@ export const markDelivered = internalMutation({
           deliveredExecId: args.execId,
           deliveredAt: now,
         });
+        delivered = true;
       }
+    }
+    if (delivered) {
+      await ctx.db.patch(opId, { steerSeamRequestedAt: now });
     }
     return null;
   },

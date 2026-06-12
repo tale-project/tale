@@ -305,7 +305,10 @@ export async function handleTurnOutcome(
     // conversation continuous — only the rendered message is segmented.
     // A quiet handoff (this segment produced nothing — e.g. the 25min window
     // elapsed during one long, silent tool) reuses the same message instead of
-    // littering an empty bubble.
+    // littering an empty bubble — EXCEPT at a steer seam: there the whole point
+    // is conversational order (the fresh message must sit BELOW the user
+    // message that was just steered in), so an empty segment's bubble is
+    // replaced (created fresh, the empty one deleted) rather than reused.
     let nextMessageId = turn.assistantMessageId;
     if (!isContentEmpty(result.assistantContent)) {
       await patchStreamingMessage(
@@ -320,6 +323,23 @@ export async function handleTurnOutcome(
         metadata: { status: 'pending' },
       });
       nextMessageId = created.messageId;
+    } else if (result.steerSeam === true) {
+      const created = await saveMessage(ctx, components.agent, {
+        threadId: turn.threadId,
+        message: { role: 'assistant', content: '' },
+        metadata: { status: 'pending' },
+      });
+      nextMessageId = created.messageId;
+      await ctx
+        .runMutation(components.agent.messages.deleteByIds, {
+          messageIds: [turn.assistantMessageId],
+        })
+        .catch((err: unknown) =>
+          console.warn(
+            '[handleTurnOutcome] empty steer-seam bubble delete failed:',
+            err,
+          ),
+        );
     }
 
     // Checkpoint is now just the resume cursor (+ captured agent session id) —

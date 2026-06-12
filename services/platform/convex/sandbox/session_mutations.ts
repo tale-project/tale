@@ -461,6 +461,28 @@ export const claimSessionOpFinalize = internalMutation({
   },
 });
 
+/**
+ * Steer ordering: consume the op's seam request, exactly-once (mutation
+ * atomicity). The drain polls this on its progress-flush throttle; `true`
+ * trips an S4 handoff so the next message segment opens BELOW the user
+ * message that was just steered into the running exec.
+ */
+export const consumeSteerSeamRequest = internalMutation({
+  args: { sessionId: v.string(), execId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.execId !== args.execId) continue;
+      if (row.steerSeamRequestedAt === undefined) return false;
+      await ctx.db.patch(row._id, { steerSeamRequestedAt: undefined });
+      return true;
+    }
+    return false;
+  },
+});
+
 /** Audit a Tier-2 credential broker fetch. */
 export const recordCredentialAccess = internalMutation({
   args: {

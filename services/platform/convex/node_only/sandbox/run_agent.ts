@@ -108,6 +108,11 @@ export interface RunAgentInSessionResult {
    * action re-attaches from. The timeline is NOT carried — each segment renders
    * into its own message (S4). */
   lastSeq?: number;
+  /** status==='continued' only: this seam was tripped by a steer delivery —
+   * a queued user message was staged into the running exec, so the next
+   * segment must open a FRESH message (even if this segment is empty) so the
+   * turn's subsequent output renders BELOW that user message. */
+  steerSeam?: boolean;
 }
 
 /**
@@ -168,6 +173,10 @@ export async function runAgentInSessionImpl(
   // and the caller segments (finalizes this message, opens a fresh one).
   const controller = new AbortController();
   let handoff = false;
+  // Set when the handoff was tripped by a steer delivery (queued user message
+  // staged into this exec) — the continuation must open a fresh message so
+  // subsequent output renders below that user message.
+  let steerSeam = false;
 
   const recordEvents = (events: AgentEvent[]): void => {
     for (const e of events) {
@@ -266,6 +275,27 @@ export async function runAgentInSessionImpl(
       handoff = true;
       controller.abort();
     }
+    // Steer seam: a queued user message was just staged into this exec
+    // (markDelivered stamped the op row). Trip the same handoff so the next
+    // segment's message opens BELOW that user message — without this the
+    // reply to the steered message keeps growing the bubble ABOVE it.
+    // Consume is exactly-once (mutation-atomic) and best-effort: a failed
+    // poll just retries on the next flush.
+    if (!handoff && args.threadId !== undefined) {
+      try {
+        const seam = await ctx.runMutation(
+          internal.sandbox.session_mutations.consumeSteerSeamRequest,
+          { sessionId: args.sessionId, execId: args.execId },
+        );
+        if (seam) {
+          steerSeam = true;
+          handoff = true;
+          controller.abort();
+        }
+      } catch (seamErr) {
+        console.warn('[run_agent] steer seam poll failed:', seamErr);
+      }
+    }
   };
 
   const callbacks = {
@@ -359,6 +389,9 @@ export async function runAgentInSessionImpl(
         ...(usage !== undefined && { usage }),
         assistantContent: buildAssistantContent(timeline, finalText ?? ''),
         lastSeq: cursor.lastSeq,
+        // Ternary (not &&): steerSeam is only assigned inside the flush
+        // closure, so TS narrows the `let` to its `false` initializer here.
+        ...(steerSeam ? { steerSeam: true } : {}),
       };
     }
     throw err;
