@@ -31,6 +31,7 @@ import {
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
+  type RunnerdStdinWriteRequest,
 } from './protocol.ts';
 
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
@@ -163,6 +164,7 @@ async function handleExec(
 
 const EXEC_CANCEL_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/cancel$/;
 const EXEC_ATTACH_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/attach$/;
+const EXEC_STDIN_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/stdin$/;
 const EXEC_STATUS_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})$/;
 
 async function handleAttach(
@@ -241,6 +243,22 @@ async function router(
   if (req.method === 'GET' && attachMatch) {
     const sinceSeq = Number(url.searchParams.get('sinceSeq') ?? '0') || 0;
     await handleAttach(req, res, attachMatch[1] ?? '', sinceSeq);
+    return;
+  }
+  const stdinMatch = path.match(EXEC_STDIN_RE);
+  if (req.method === 'POST' && stdinMatch) {
+    let body: RunnerdStdinWriteRequest;
+    try {
+      // writeStdin validates the payload (single NDJSON line, size cap).
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      body = JSON.parse(await readBody(req)) as RunnerdStdinWriteRequest;
+    } catch {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
+    // 200 with a structured body in every reachable case (mirrors /cancel's
+    // killed:false) — the caller branches on `reason`, not the status code.
+    sendJson(res, 200, execManager.writeStdin(stdinMatch[1] ?? '', body));
     return;
   }
   const statusMatch = path.match(EXEC_STATUS_RE);

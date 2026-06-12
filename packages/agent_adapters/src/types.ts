@@ -52,6 +52,11 @@ export interface SessionExecSpec {
   env: Record<string, string>;
   cwd: string;
   stdin?: string;
+  /** 'hold' keeps the process stdin open so the platform can push further
+   * NDJSON lines mid-run (Claude Code --input-format stream-json steering);
+   * the drain closes it (EOF) once the turn's result event arrives and no
+   * background tasks or queued messages remain. Default 'close'. */
+  stdinMode?: 'close' | 'hold';
 }
 
 export interface AgentAdapter {

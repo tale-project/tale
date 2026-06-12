@@ -40,6 +40,12 @@ export const deliverSteerMessages = internalAction({
     // turn boundary instead. No running exec → boundary drain handles it too.
     if (!target || target.agentKind !== 'claude-code') return null;
 
+    // Lingering exec (per-turn result in, process idle on its held-open
+    // stdin): a staged file would sit unconsumed — no tool/stop boundaries
+    // fire while the model idles. Leave the rows queued; the drain's linger
+    // loop (run_agent) delivers them via stdin within one tick.
+    if (target.agentIdleAt !== undefined) return null;
+
     const rows = await ctx.runQuery(
       internal.threads.message_queue.listQueuedForDelivery,
       { threadId: args.threadId },
@@ -82,6 +88,7 @@ export const deliverSteerMessages = internalAction({
         threadId: args.threadId,
         queueIds: deliveredIds,
         execId: target.execId,
+        channel: 'file',
       });
     }
     return null;

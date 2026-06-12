@@ -77,6 +77,28 @@ export class ClaudeCodeParser implements AgentEventParser {
         if (model) out.model = model;
         return [out];
       }
+      // Background-task ledger (verified on 2.1.173): task_started opens an
+      // entry; task_notification (status completed|stopped) settles it. The
+      // drain balances these to know whether a post-`result` process is
+      // lingering on background work (no stdin EOF yet) or safe to close.
+      if (subtype === 'task_started') {
+        const taskId = str(ev.task_id);
+        if (taskId) {
+          const out: AgentEvent = { type: 'task-started', taskId };
+          const description = str(ev.description);
+          if (description) out.description = description;
+          return [out];
+        }
+      }
+      if (subtype === 'task_notification') {
+        const taskId = str(ev.task_id);
+        if (taskId) {
+          const out: AgentEvent = { type: 'task-settled', taskId };
+          const status = str(ev.status);
+          if (status) out.status = status;
+          return [out];
+        }
+      }
       // api_retry and other system events: pass through for observability.
       return [{ type: 'raw', agent: 'claude-code', payload: ev }];
     }

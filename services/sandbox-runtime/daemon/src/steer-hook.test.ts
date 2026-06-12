@@ -150,4 +150,27 @@ describe('tale-steer-hook', () => {
       'steer-002-m2.json',
     ]);
   });
+
+  test('empty-text tombstone is consumed silently (marker, no injection)', () => {
+    // The platform blanks a file it re-delivered over the held-open stdin
+    // (lingering delivery) — the hook must mark it consumed WITHOUT injecting
+    // a second copy or emitting an empty payload.
+    stageMessage('m1', '');
+    const { status, stdout } = runHook('post', MAIN_PAYLOAD);
+    expect(status).toBe(0);
+    expect(stdout).toBe('');
+    expect(readdirSync(steerDir)).toEqual(['consumed.steer-001-m1.json']);
+  });
+
+  test('tombstone alongside a real message: only the real one injects', () => {
+    stageMessage('m1', '');
+    stageMessage('m2', 'real message');
+    const { stdout } = runHook('post', MAIN_PAYLOAD);
+    expect(stdout).toContain('[TALE_STEER ids=m2]');
+    expect(stdout).not.toContain('m1,');
+    expect(readdirSync(steerDir).sort()).toEqual([
+      'consumed.steer-001-m1.json',
+      'consumed.steer-001-m2.json',
+    ]);
+  });
 });

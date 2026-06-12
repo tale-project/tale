@@ -94,6 +94,10 @@ export const getRunningAgentRunByThread = internalQuery({
       sessionId: v.string(),
       execId: v.string(),
       agentKind: v.optional(v.string()),
+      /** Set while the exec lingers idle post-result (held-open stdin) —
+       * steer_delivery must NOT file-stage into it (no hook boundaries fire
+       * while the model idles); the drain's linger loop delivers via stdin. */
+      agentIdleAt: v.optional(v.number()),
     }),
     v.null(),
   ),
@@ -102,6 +106,7 @@ export const getRunningAgentRunByThread = internalQuery({
       sessionId: string;
       execId: string;
       startedAt: number;
+      agentIdleAt?: number;
     } | null = null;
     for await (const row of ctx.db
       .query('sandboxSessionOps')
@@ -112,6 +117,9 @@ export const getRunningAgentRunByThread = internalQuery({
           sessionId: row.sessionId,
           execId: row.execId,
           startedAt: row.startedAt,
+          ...(row.agentIdleAt !== undefined && {
+            agentIdleAt: row.agentIdleAt,
+          }),
         };
       }
     }
@@ -127,6 +135,9 @@ export const getRunningAgentRunByThread = internalQuery({
       sessionId: latest.sessionId,
       execId: latest.execId,
       ...(agentKind !== undefined && { agentKind }),
+      ...(latest.agentIdleAt !== undefined && {
+        agentIdleAt: latest.agentIdleAt,
+      }),
     };
   },
 });

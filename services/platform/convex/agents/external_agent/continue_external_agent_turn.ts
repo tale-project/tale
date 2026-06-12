@@ -106,6 +106,13 @@ export const continueExternalAgentTurn = internalAction({
           ...(checkpoint.toolNames !== undefined && {
             toolNames: checkpoint.toolNames,
           }),
+          ...(checkpoint.agentResultSeen === true && {
+            agentResultSeen: true,
+          }),
+          ...(checkpoint.agentIdle === true && { agentIdle: true }),
+          ...(checkpoint.pendingTaskIds !== undefined && {
+            pendingTaskIds: checkpoint.pendingTaskIds,
+          }),
         },
         onTimeline: async (content) => {
           await patchStreamingMessage(ctx, args.assistantMessageId, content);

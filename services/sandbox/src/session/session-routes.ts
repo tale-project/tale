@@ -17,6 +17,7 @@ import {
   runnerdListDir,
   runnerdReadFile,
   runnerdStageFiles,
+  runnerdWriteStdin,
 } from './runnerd-client.ts';
 import type { RunnerdExecEvent } from './runnerd-protocol.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
@@ -387,6 +388,7 @@ export class SessionRoutes {
             ...(execReq.stdinBase64
               ? { stdinBase64: execReq.stdinBase64 }
               : {}),
+            ...(execReq.stdinMode ? { stdinMode: execReq.stdinMode } : {}),
             timeoutMs: execReq.timeoutMs,
             stdoutMaxBytes: this.cfg.stdoutMaxBytes,
             stderrMaxBytes: this.cfg.stderrMaxBytes,
@@ -453,6 +455,54 @@ export class SessionRoutes {
       );
     }
     return jsonResponse({ killed }, 200);
+  }
+
+  /** POST /v1/sessions/:id/exec/:execId/stdin — append a line to a held-open
+   * exec stdin (stdinMode:'hold') or close it. Transport failures return 502
+   * (after gone-backend eviction) so the platform can distinguish "session
+   * lost" from runnerd's structured STDIN_CLOSED/NOT_FOUND refusals (200). */
+  async handleExecStdin(
+    sessionId: string,
+    execId: string,
+    body: string,
+  ): Promise<Response> {
+    const session = this.registry.get(sessionId);
+    if (!session) return jsonResponse({ error: 'not_found' }, 404);
+    let parsed: { b64?: string; eof?: boolean };
+    try {
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      parsed = JSON.parse(body) as { b64?: string; eof?: boolean };
+    } catch (err) {
+      return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
+    }
+    if (parsed.b64 !== undefined && typeof parsed.b64 !== 'string') {
+      return jsonResponse(
+        { error: 'bad_request', message: 'b64 must be a string' },
+        400,
+      );
+    }
+    try {
+      const result = await runnerdWriteStdin(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        execId,
+        {
+          ...(typeof parsed.b64 === 'string' ? { b64: parsed.b64 } : {}),
+          ...(parsed.eof === true ? { eof: true } : {}),
+        },
+      );
+      return jsonResponse(result, 200);
+    } catch (err) {
+      if (await this.evictIfBackendGone(sessionId)) {
+        return jsonResponse({ error: 'not_found' }, 404);
+      }
+      return jsonResponse(
+        {
+          error: 'upstream_error',
+          message: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
   }
 
   /** GET /v1/sessions/:id/exec/:execId/attach — reconnect to a running or

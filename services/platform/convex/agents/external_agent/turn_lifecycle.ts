@@ -179,22 +179,32 @@ async function reconcileSteeredMessages(
     );
     if (delivered.length === 0) return;
 
+    // Marker evidence only applies to file-channel rows. A stdin-channel row
+    // is confirmed by the drain (next agent result) or not at all — its
+    // tombstoned file may carry a consumed.* marker that says nothing about
+    // whether the stdin push was processed, so trusting it could lose the
+    // message. Unconfirmed stdin rows fall into reconcileDelivered's rollback
+    // branch (re-queued, at-least-once).
+    const fileRows = delivered.filter((row) => row.channel === 'file');
+
     let entries: Awaited<ReturnType<typeof sessionListFiles>> = null;
-    try {
-      entries = await sessionListFiles(
-        turn.sessionId,
-        steerDirFor(turn.execId),
-      );
-    } catch (listErr) {
-      console.warn(
-        '[finalizeTurn] steer dir listing failed (re-queueing):',
-        listErr,
-      );
+    if (fileRows.length > 0) {
+      try {
+        entries = await sessionListFiles(
+          turn.sessionId,
+          steerDirFor(turn.execId),
+        );
+      } catch (listErr) {
+        console.warn(
+          '[finalizeTurn] steer dir listing failed (re-queueing):',
+          listErr,
+        );
+      }
     }
 
     // null listing (dir/session gone or the catch above) ⇒ [] ⇒ everything
     // rolls back to 'queued' — identical failure semantics to before.
-    const consumedMessageIds = matchConsumedSteerFiles(delivered, entries);
+    const consumedMessageIds = matchConsumedSteerFiles(fileRows, entries);
     await ctx.runMutation(internal.threads.message_queue.reconcileDelivered, {
       threadId: turn.threadId,
       execId: turn.execId,
@@ -350,6 +360,16 @@ export async function handleTurnOutcome(
       // rendering them as a bare "Tool" (long parallel subagent calls
       // routinely straddle seams).
       ...(result.toolNames !== undefined && { toolNames: result.toolNames }),
+      // stdin-hold lifecycle (claude-code): whether the per-turn agent result
+      // already streamed (pre-seam) and which background tasks were still
+      // pending — the continuation's linger loop must not EOF a process whose
+      // pending tasks it never saw start.
+      ...(result.agentResultSeen === true && { agentResultSeen: true }),
+      ...(result.agentIdle === true && { agentIdle: true }),
+      ...(result.pendingTaskIds !== undefined &&
+        result.pendingTaskIds.length > 0 && {
+          pendingTaskIds: result.pendingTaskIds,
+        }),
     });
     // An untyped Blob sends an empty content-type header that self-hosted
     // Convex storage rejects ("Bad header for content-type") — set it.
@@ -596,6 +616,9 @@ export async function loadCheckpoint(
   agentSessionId?: string;
   planText?: string;
   toolNames?: Record<string, string>;
+  agentResultSeen?: boolean;
+  agentIdle?: boolean;
+  pendingTaskIds?: string[];
 } | null> {
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const blob = await ctx.storage.get(storageId as Id<'_storage'>);
@@ -607,6 +630,9 @@ export async function loadCheckpoint(
       agentSessionId?: string;
       planText?: string;
       toolNames?: Record<string, string>;
+      agentResultSeen?: boolean;
+      agentIdle?: boolean;
+      pendingTaskIds?: string[];
     };
   } catch (err) {
     console.error('[turn_lifecycle] bad checkpoint blob:', err);

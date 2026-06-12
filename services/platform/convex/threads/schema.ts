@@ -316,6 +316,13 @@ export const chatMessageQueueTable = defineTable({
   ),
   claimedByStreamId: v.optional(v.string()),
   deliveredExecId: v.optional(v.string()),
+  /** Which channel carried a 'delivered' row: 'file' = staged steer-*.json the
+   * in-image hook consumes at a tool/stop boundary (consumed.* marker is the
+   * evidence); 'stdin' = pushed into the held-open stream-json stdin while the
+   * exec lingered idle (the next agent result is the evidence — there is no
+   * marker, so terminal reconciliation must NOT trust markers for these).
+   * Cleared whenever the row rolls back to 'queued'. */
+  deliveredChannel: v.optional(v.union(v.literal('file'), v.literal('stdin'))),
   createdAt: v.number(),
   claimedAt: v.optional(v.number()),
   deliveredAt: v.optional(v.number()),

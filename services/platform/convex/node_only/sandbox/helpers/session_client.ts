@@ -317,7 +317,46 @@ export interface SessionExecBody {
   cwd?: string;
   env?: Record<string, string>;
   stdinBase64?: string;
+  /** 'hold' keeps the child's stdin open for sessionWriteExecStdin pushes
+   * (Claude Code --input-format stream-json). Default 'close'. */
+  stdinMode?: 'close' | 'hold';
   timeoutMs?: number;
+}
+
+export interface SessionStdinWriteResult {
+  ok: boolean;
+  /** Structured refusal from runnerd: NOT_FOUND (exec not live) /
+   * STDIN_CLOSED (close-mode exec or EOF already sent) / BAD_LINE /
+   * WRITE_FAILED. Callers fall back to file staging on any refusal. */
+  reason?: string;
+}
+
+/** POST /v1/sessions/:id/exec/:execId/stdin — append one NDJSON line to a
+ * held-open exec stdin and/or close it (eof). 404 (session gone) throws
+ * SessionNotFoundError; other transport/HTTP failures throw plain errors;
+ * structured refusals come back as {ok:false, reason}. */
+export async function sessionWriteExecStdin(
+  sessionId: string,
+  execId: string,
+  write: { dataBase64?: string; eof?: boolean },
+): Promise<SessionStdinWriteResult> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/stdin`;
+  const bodyJson = JSON.stringify({
+    ...(write.dataBase64 !== undefined ? { b64: write.dataBase64 } : {}),
+    ...(write.eof === true ? { eof: true } : {}),
+  });
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'POST',
+    headers: signedHeaders('POST', path, bodyJson),
+    body: bodyJson,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (res.status === 404) throw new SessionNotFoundError(sessionId);
+  if (!res.ok) {
+    throw new Error(`sandbox session stdin write failed (${res.status})`);
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as SessionStdinWriteResult;
 }
 
 export interface SessionExecResult {

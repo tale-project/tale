@@ -33,6 +33,7 @@ export interface ExecSessionRequest {
   cwd?: string;
   env?: Record<string, string>;
   stdinBase64?: string;
+  stdinMode?: 'close' | 'hold';
   timeoutMs: number;
 }
 
@@ -156,6 +157,14 @@ export function validateExecSession(
   if (stdinBase64 !== undefined && typeof stdinBase64 !== 'string') {
     return { ok: false, error: 'stdinBase64 must be a string' };
   }
+  const stdinMode = raw.stdinMode;
+  if (
+    stdinMode !== undefined &&
+    stdinMode !== 'close' &&
+    stdinMode !== 'hold'
+  ) {
+    return { ok: false, error: 'stdinMode must be close|hold' };
+  }
   const env = validateEnv(raw.env);
   if (!env.ok) return env;
   const timeoutMs = clampPositive(
@@ -172,6 +181,7 @@ export function validateExecSession(
   if (typeof shell === 'string') value.shell = shell;
   if (typeof cwd === 'string') value.cwd = cwd;
   if (typeof stdinBase64 === 'string') value.stdinBase64 = stdinBase64;
+  if (stdinMode === 'hold') value.stdinMode = stdinMode;
   return { ok: true, value };
 }
 

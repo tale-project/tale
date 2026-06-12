@@ -38,9 +38,37 @@ export interface RunnerdExecRequest {
   cwd?: string;
   env?: Record<string, string>;
   stdinBase64?: string;
+  /** 'hold' keeps the child's stdin open after writing stdinBase64 so the
+   * caller can push further NDJSON lines via POST /execs/:id/stdin (Claude
+   * Code --input-format stream-json). Default 'close' = write-then-end. */
+  stdinMode?: 'close' | 'hold';
   timeoutMs: number;
   stdoutMaxBytes: number;
   stderrMaxBytes: number;
+}
+
+/** Cap on one decoded stdin line. Steer batches are hook-capped at 16 KB; the
+ * headroom covers JSON envelope + base64 slack without permitting floods. */
+export const RUNNERD_STDIN_MAX_BYTES = 64 * 1024;
+
+export interface RunnerdStdinWriteRequest {
+  /** Base64 bytes appended to the held-open stdin. The decoded bytes must be
+   * exactly one newline-terminated valid-JSON line: Claude Code's stream-json
+   * reader exits the whole process on a malformed line (verified 2.1.173), so
+   * the daemon fail-closes instead of forwarding garbage. Optional when `eof`
+   * alone closes the pipe. */
+  b64?: string;
+  /** Close stdin after writing — the stream-json CLI exits shortly after EOF
+   * (and abandons any background tasks it still tracks). */
+  eof?: boolean;
+}
+
+export interface RunnerdStdinWriteResponse {
+  ok: boolean;
+  /** NOT_FOUND: exec not live. STDIN_CLOSED: exec spawned in 'close' mode or
+   * EOF already sent. BAD_LINE: payload failed the single-NDJSON-line check
+   * (or exceeded RUNNERD_STDIN_MAX_BYTES). WRITE_FAILED: pipe write threw. */
+  reason?: 'NOT_FOUND' | 'STDIN_CLOSED' | 'BAD_LINE' | 'WRITE_FAILED';
 }
 
 export type RunnerdExecEvent = (

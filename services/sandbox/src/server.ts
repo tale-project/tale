@@ -275,6 +275,9 @@ const SESSION_EXEC_CANCEL_RE = new RegExp(
 const SESSION_EXEC_ATTACH_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/exec/${EXEC_ID}/attach$`,
 );
+const SESSION_EXEC_STDIN_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/exec/${EXEC_ID}/stdin$`,
+);
 const SESSION_ENV_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/env$`);
 const SESSION_PIN_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/pin$`);
 const SESSION_FILES_STAGE_RE = new RegExp(
@@ -359,6 +362,17 @@ async function handleSessionRoutes(
       req,
       attachMatch[1] ?? '',
       attachMatch[2] ?? '',
+    );
+  }
+  // POST /v1/sessions/:id/exec/:execId/stdin (held-open stdin append/EOF)
+  const stdinMatch = path.match(SESSION_EXEC_STDIN_RE);
+  if (req.method === 'POST' && stdinMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleExecStdin(
+      stdinMatch[1] ?? '',
+      stdinMatch[2] ?? '',
+      r.body,
     );
   }
   // PATCH /v1/sessions/:id/env

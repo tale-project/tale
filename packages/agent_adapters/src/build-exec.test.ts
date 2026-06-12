@@ -17,11 +17,14 @@ const base: AgentRunSpec = {
 
 describe('ClaudeCodeAdapter.buildExec', () => {
   it('builds the headless stream-json invocation with gateway env', () => {
-    const { argv, env, cwd, stdin } = new ClaudeCodeAdapter().buildExec(base);
-    expect(argv.slice(0, 9)).toEqual([
+    const { argv, env, cwd, stdin, stdinMode } =
+      new ClaudeCodeAdapter().buildExec(base);
+    expect(argv.slice(0, 11)).toEqual([
       'claude',
       '-p',
       '--output-format',
+      'stream-json',
+      '--input-format',
       'stream-json',
       '--verbose',
       '--include-partial-messages',
@@ -29,6 +32,8 @@ describe('ClaudeCodeAdapter.buildExec', () => {
       'bypassPermissions',
       '--max-turns',
     ]);
+    // stdin is held open for mid-run steering pushes; the drain closes it.
+    expect(stdinMode).toBe('hold');
     expect(argv).toContain('40'); // default max turns
     expect(argv).toContain('--model');
     expect(argv).toContain('claude-sonnet-4-6');
@@ -47,8 +52,16 @@ describe('ClaudeCodeAdapter.buildExec', () => {
       '--isolated',
       '--no-sandbox',
     ]);
-    // prompt rides stdin, never argv.
-    expect(stdin).toBe(base.prompt);
+    // prompt rides stdin as ONE stream-json user-message NDJSON line (a
+    // malformed line kills the CLI's stream-json reader), never argv.
+    expect(stdin).toBe(`${stdin?.trimEnd()}\n`);
+    expect(JSON.parse(stdin ?? '')).toEqual({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: base.prompt }],
+      },
+    });
     expect(argv).not.toContain(base.prompt);
     // gateway env + key + blanked API key + default-model slots.
     expect(env.ANTHROPIC_BASE_URL).toBe('http://bifrost:8080/anthropic');

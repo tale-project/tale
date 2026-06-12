@@ -141,6 +141,13 @@ export const sandboxSessionOpsTable = defineTable({
    * background task) — the UI uses the gap to label the tail indicator
    * honestly instead of showing "Thinking" forever. */
   lastEventAt: v.optional(v.number()),
+  /** Set while the exec is LINGERING: its per-turn agent result has arrived
+   * but the stream-json process is alive (held-open stdin), waiting on
+   * background tasks or steer messages. steer_delivery skips file staging in
+   * this state — the drain's linger loop delivers via stdin instead (a file
+   * staged into a lingering exec would sit unconsumed: no tool/stop
+   * boundaries fire while the model idles). Cleared when activity resumes. */
+  agentIdleAt: v.optional(v.number()),
   /** Resume cursor: highest runnerd event seq consumed (for the continuation
    * action to re-attach without missing/duplicating events). */
   lastSeq: v.optional(v.number()),

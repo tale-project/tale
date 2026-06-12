@@ -144,6 +144,30 @@ export async function runnerdCancelExec(
   }
 }
 
+/** POST /execs/:id/stdin — append an NDJSON line to a held-open stdin and/or
+ * close it. Throws on transport failure; structured refusals (NOT_FOUND /
+ * STDIN_CLOSED / BAD_LINE / WRITE_FAILED) come back in the response body. */
+export async function runnerdWriteStdin(
+  opts: RunnerdClientOptions,
+  execId: string,
+  write: { b64?: string; eof?: boolean },
+): Promise<{ ok: boolean; reason?: string }> {
+  const res = await fetch(
+    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/stdin`,
+    {
+      method: 'POST',
+      headers: {
+        ...authHeaders(opts.token),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(write),
+    },
+  );
+  if (!res.ok) throw new Error(`runnerd /stdin ${res.status}`);
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as { ok: boolean; reason?: string };
+}
+
 /** GET /execs/:id/attach — reconnect to a live/recent exec; same NDJSON event
  * stream as runnerdExec. Returns false with no events if the exec is unknown
  * (404). */

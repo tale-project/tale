@@ -50,8 +50,13 @@ for f in "${files[@]}"; do
     continue
   fi
   id=$(jq -r '.messageId // empty' "$claimed" 2> /dev/null)
-  msgs+="$text"$'\n\n'
-  ids+="${id},"
+  # Empty text = a tombstone: the platform re-delivered this message over the
+  # exec's held-open stdin (lingering delivery) and blanked the file so we
+  # don't inject it a second time. Consume silently — marker only, no payload.
+  if [ -n "$text" ]; then
+    msgs+="$text"$'\n\n'
+    ids+="${id},"
+  fi
   mv -- "$claimed" "$TALE_STEER_DIR/consumed.$base" 2> /dev/null || true
 done
 [ -n "$msgs" ] || exit 0

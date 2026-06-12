@@ -19,5 +19,9 @@ export { DEFAULT_MAX_TURNS } from './types';
 export { getAgentAdapter, SUPPORTED_AGENTS } from './registry';
 export { ClaudeCodeAdapter } from './claude_code/adapter';
 export { ClaudeCodeParser } from './claude_code/parse';
+export {
+  buildSteerStdinPayload,
+  buildStdinUserMessage,
+} from './claude_code/stdin';
 export { OpenCodeAdapter } from './opencode/adapter';
 export { OpenCodeParser } from './opencode/parse';

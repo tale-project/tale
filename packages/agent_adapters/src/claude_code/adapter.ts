@@ -6,6 +6,7 @@ import type { AgentEventParser } from '../events';
 import type { AgentAdapter, AgentRunSpec, SessionExecSpec } from '../types';
 import { DEFAULT_MAX_TURNS } from '../types';
 import { ClaudeCodeParser } from './parse';
+import { buildStdinUserMessage } from './stdin';
 
 /** In-container Playwright MCP launch (stdio). `--strict-mcp-config` isolates
  * the user repo's own .mcp.json so a run is reproducible regardless of repo
@@ -42,6 +43,14 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       'claude',
       '-p',
       '--output-format',
+      'stream-json',
+      // stdin is a held-open NDJSON channel (stdinMode:'hold'): the prompt is
+      // the first user-message line; the platform pushes steer messages as
+      // further lines while the process lingers on background tasks. In this
+      // mode the CLI emits a per-turn `result` and keeps running until stdin
+      // EOF (verified 2.1.173) — the drain sends EOF once the result is in
+      // and no background tasks / queued messages remain.
+      '--input-format',
       'stream-json',
       '--verbose',
       '--include-partial-messages',
@@ -88,7 +97,13 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       env.ANTHROPIC_DEFAULT_HAIKU_MODEL = spec.model;
     }
 
-    return { argv, env, cwd: spec.workdir, stdin: spec.prompt };
+    return {
+      argv,
+      env,
+      cwd: spec.workdir,
+      stdin: buildStdinUserMessage(spec.prompt),
+      stdinMode: 'hold',
+    };
   }
 
   createParser(): AgentEventParser {

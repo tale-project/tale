@@ -49,6 +49,7 @@ let fakeServer: ReturnType<typeof Bun.serve>;
 let fakeBaseUrl = '';
 const created = new Set<string>();
 const destroyed = new Set<string>();
+const stdinWrites: Array<{ execId: string; b64?: string; eof?: boolean }> = [];
 // Mutable so the sweepExpired tests can drive runnerd's reported activity/liveExecs.
 const fakeHealth = { lastActivityAtMs: 0, liveExecs: 0 };
 
@@ -96,6 +97,18 @@ beforeAll(() => {
       }
       if (url.pathname === '/env' && req.method === 'POST') {
         return Response.json({ ok: true, denied: ['HOME'] });
+      }
+      if (url.pathname.endsWith('/stdin') && req.method === 'POST') {
+        // Echo runnerd's structured response shape; "closed-" execs simulate
+        // a write against an already-EOF'd / close-mode stdin.
+        const execId = url.pathname.split('/')[2] ?? '';
+        if (execId.startsWith('closed')) {
+          return Response.json({ ok: false, reason: 'STDIN_CLOSED' });
+        }
+        // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+        const body = (await req.json()) as { b64?: string; eof?: boolean };
+        stdinWrites.push({ execId, ...body });
+        return Response.json({ ok: true });
       }
       if (url.pathname === '/files/stage' && req.method === 'POST') {
         return Response.json({
@@ -493,6 +506,69 @@ describe('SessionRoutes (fake runnerd)', () => {
       backendGone.add('dead-z5');
       expect(await routes.sweepExpired()).toBe(1);
       expect(destroyed.has('dead-z5')).toBe(true);
+    });
+  });
+
+  describe('exec stdin (held-open stream-json channel)', () => {
+    test('forwards a write + eof to runnerd and returns its response', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'sess-stdin', organizationId: 'org_s' }),
+      );
+      const b64 = Buffer.from('{"type":"user"}\n').toString('base64');
+      const res = await routes.handleExecStdin(
+        'sess-stdin',
+        'e-hold',
+        JSON.stringify({ b64, eof: true }),
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true });
+      expect(stdinWrites.at(-1)).toEqual({ execId: 'e-hold', b64, eof: true });
+    });
+
+    test('runnerd structured refusal passes through as 200 {ok:false}', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'sess-stdin2', organizationId: 'org_s' }),
+      );
+      const res = await routes.handleExecStdin(
+        'sess-stdin2',
+        'closed-e1',
+        JSON.stringify({ eof: true }),
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: false, reason: 'STDIN_CLOSED' });
+    });
+
+    test('unknown session 404s; malformed body 400s', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      expect((await routes.handleExecStdin('nope', 'e1', '{}')).status).toBe(
+        404,
+      );
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'sess-stdin3', organizationId: 'org_s' }),
+      );
+      expect(
+        (await routes.handleExecStdin('sess-stdin3', 'e1', '{not json')).status,
+      ).toBe(400);
+    });
+
+    test('zombie backend → 404 + eviction; transient runnerd blip → 502, kept', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'dead-s1', organizationId: 'org_s' }),
+      );
+      backendGone.add('dead-s1');
+      const gone = await routes.handleExecStdin('dead-s1', 'e1', '{}');
+      expect(gone.status).toBe(404);
+      expect(destroyed.has('dead-s1')).toBe(true);
+
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'dead-s2', organizationId: 'org_s' }),
+      );
+      const blip = await routes.handleExecStdin('dead-s2', 'e1', '{}');
+      expect(blip.status).toBe(502);
+      expect(destroyed.has('dead-s2')).toBe(false);
     });
   });
 });

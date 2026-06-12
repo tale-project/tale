@@ -378,6 +378,9 @@ export const upsertSessionOp = internalMutation({
     continuationCount: v.optional(v.number()),
     spentCents: v.optional(v.number()),
     pausedReason: v.optional(v.string()),
+    /** Lingering transition (claude-code stdin-hold): true stamps agentIdleAt,
+     * false clears it. Omitted ⇒ untouched (the usual throttled flush). */
+    agentIdle: v.optional(v.boolean()),
   },
   returns: v.id('sandboxSessionOps'),
   handler: async (ctx, args) => {
@@ -432,7 +435,15 @@ export const upsertSessionOp = internalMutation({
     ) {
       delete patch.lastEventAt;
     }
-    if (terminal) patch.finishedAt = now;
+    // Lingering flag: an explicit boolean sets/clears the timestamp (patching
+    // undefined unsets the field). A terminal status always clears it.
+    if (args.agentIdle !== undefined) {
+      patch.agentIdleAt = args.agentIdle ? now : undefined;
+    }
+    if (terminal) {
+      patch.finishedAt = now;
+      patch.agentIdleAt = undefined;
+    }
 
     if (existing) {
       await ctx.db.patch(existing, patch);

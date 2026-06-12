@@ -61,6 +61,15 @@ export type AgentEvent =
    * to stdout) — the platform's terminal reconciliation stays authoritative;
    * this event just flips the UI pill early when it does appear. */
   | { type: 'steer-injected'; messageIds: string[]; text: string }
+  /** A background task the agent launched (Claude Code Bash run_in_background,
+   * background Workflow, …) started/settled. The platform balances these as a
+   * ledger: a turn whose `result` arrived but whose ledger is non-empty is
+   * LINGERING — the process stays alive, the model gets re-invoked when the
+   * task settles — so the drain must not close the held-open stdin yet.
+   * `task-settled` covers completed AND stopped/abandoned (the CLI emits a
+   * `stopped` notification when it kills tasks at shutdown). */
+  | { type: 'task-started'; taskId: string; description?: string }
+  | { type: 'task-settled'; taskId: string; status?: string }
   /** Forward-compat: an unmapped native event, passed through verbatim so a
    * new agent-side event type is never silently dropped. */
   | { type: 'raw'; agent: AgentSlug; payload: unknown };

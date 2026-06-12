@@ -166,4 +166,57 @@ describe('ClaudeCodeParser', () => {
     const result = events.find((e) => e.type === 'result');
     expect(result).toMatchObject({ type: 'result', status: 'completed' });
   });
+
+  it('maps the background-task ledger events (recorded from CLI 2.1.173)', () => {
+    // Shapes captured live: task_started opens a ledger entry,
+    // task_notification (status completed|stopped) settles it.
+    const parser = new ClaudeCodeParser();
+    const started = JSON.stringify({
+      type: 'system',
+      subtype: 'task_started',
+      task_id: 'b30iiqn5g',
+      tool_use_id: 'toolu_01X',
+      description: 'sleep 90',
+      task_type: 'local_bash',
+      session_id: 's-1',
+    });
+    const settled = JSON.stringify({
+      type: 'system',
+      subtype: 'task_notification',
+      task_id: 'b30iiqn5g',
+      tool_use_id: 'toolu_01X',
+      status: 'stopped',
+      output_file: '',
+      summary: 'sleep 90',
+      session_id: 's-1',
+    });
+    expect(parser.feed(`${started}\n`)).toEqual([
+      { type: 'task-started', taskId: 'b30iiqn5g', description: 'sleep 90' },
+    ]);
+    expect(parser.feed(`${settled}\n`)).toEqual([
+      { type: 'task-settled', taskId: 'b30iiqn5g', status: 'stopped' },
+    ]);
+  });
+
+  it('handles a second init (model re-invoked after a background task)', () => {
+    // In stream-json input mode the process emits a fresh `system init` when
+    // a settled background task re-invokes the model — must map to another
+    // run-started, not break the parser.
+    const parser = new ClaudeCodeParser();
+    const init = JSON.stringify({
+      type: 'system',
+      subtype: 'init',
+      session_id: 's-1',
+      data: { model: 'claude-sonnet-4-6' },
+    });
+    expect(parser.feed(`${init}\n`)).toHaveLength(1);
+    expect(parser.feed(`${init}\n`)).toEqual([
+      {
+        type: 'run-started',
+        agent: 'claude-code',
+        agentSessionId: 's-1',
+        model: 'claude-sonnet-4-6',
+      },
+    ]);
+  });
 });

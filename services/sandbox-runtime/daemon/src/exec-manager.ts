@@ -13,9 +13,12 @@ import type { EnvStore } from './env-store.ts';
 import {
   ID_ALPHABET_RE,
   RUNNERD_RING_BUFFER_BYTES,
+  RUNNERD_STDIN_MAX_BYTES,
   WORKSPACE_ROOT,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
+  type RunnerdStdinWriteRequest,
+  type RunnerdStdinWriteResponse,
 } from './protocol.ts';
 
 const SIGKILL_GRACE_MS = 5_000;
@@ -43,6 +46,9 @@ interface LiveExec {
   /** Detach-grace timer: armed when the consumer connection drops, cleared by a
    * reconnecting attach(); fires SIGTERM if no one reattaches in time. */
   graceTimer: ReturnType<typeof setTimeout> | null;
+  /** Held-open stdin pipe (stdinMode:'hold'), written via writeStdin(). Null
+   * for 'close'-mode execs and after EOF — writes then report STDIN_CLOSED. */
+  stdin: NodeJS.WritableStream | null;
 }
 
 export class ExecManager {
@@ -228,6 +234,7 @@ export class ExecManager {
       done,
       seq: 0,
       graceTimer: null,
+      stdin: null,
       kill: (signal) => {
         try {
           // Negative pid → signal the whole process group.
@@ -268,7 +275,23 @@ export class ExecManager {
 
     ringEmit({ t: 'start', execId: req.execId, startedAtMs });
 
-    if (req.stdinBase64) {
+    if (req.stdinMode === 'hold') {
+      // Held-open stdin: the initial payload is written but NOT ended; later
+      // POST /execs/:id/stdin calls append lines until eof. A child that exits
+      // first makes pending writes EPIPE — swallow via the error handler so an
+      // unhandled stream error can't crash the daemon.
+      child.stdin.on('error', (err) => {
+        console.warn('[runnerd] held stdin pipe error:', err.message);
+      });
+      record.stdin = child.stdin;
+      if (req.stdinBase64) {
+        try {
+          child.stdin.write(Buffer.from(req.stdinBase64, 'base64'));
+        } catch (err) {
+          console.warn('[runnerd] initial stdin write failed:', err);
+        }
+      }
+    } else if (req.stdinBase64) {
       try {
         child.stdin.end(Buffer.from(req.stdinBase64, 'base64'));
       } catch {
@@ -361,6 +384,54 @@ export class ExecManager {
     if (!rec) return null;
     return { state: 'running', startedAtMs: rec.startedAtMs };
   }
+
+  /** Append a line to a held-open stdin (stdinMode:'hold') and/or close it.
+   * Always answers with a structured response — the platform turns
+   * STDIN_CLOSED/NOT_FOUND into its file-staging fallback. */
+  writeStdin(
+    execId: string,
+    req: RunnerdStdinWriteRequest,
+  ): RunnerdStdinWriteResponse {
+    const rec = this.live.get(execId);
+    if (!rec) return { ok: false, reason: 'NOT_FOUND' };
+    if (!rec.stdin) return { ok: false, reason: 'STDIN_CLOSED' };
+    let buf: Buffer | null = null;
+    if (req.b64 !== undefined && req.b64 !== '') {
+      buf = Buffer.from(req.b64, 'base64');
+      if (!isSingleNdjsonLine(buf)) return { ok: false, reason: 'BAD_LINE' };
+    }
+    try {
+      if (buf) rec.stdin.write(buf);
+      if (req.eof) {
+        rec.stdin.end();
+        rec.stdin = null;
+      }
+    } catch (err) {
+      console.warn('[runnerd] stdin write failed:', err);
+      return { ok: false, reason: 'WRITE_FAILED' };
+    }
+    this.onActivity();
+    return { ok: true };
+  }
+}
+
+/** Exactly one newline-terminated, interior-newline-free, valid-JSON line.
+ * Claude Code's stream-json reader exits the whole process on a malformed
+ * line (verified 2.1.173) — fail closed rather than kill the agent. */
+function isSingleNdjsonLine(buf: Buffer): boolean {
+  if (buf.byteLength === 0 || buf.byteLength > RUNNERD_STDIN_MAX_BYTES) {
+    return false;
+  }
+  const text = buf.toString('utf8');
+  if (!text.endsWith('\n')) return false;
+  const line = text.slice(0, -1);
+  if (line.includes('\n')) return false;
+  try {
+    JSON.parse(line);
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 /** Parse a retained ring line (NDJSON) back to an event for attach replay,

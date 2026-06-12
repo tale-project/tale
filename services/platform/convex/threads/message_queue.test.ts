@@ -40,7 +40,14 @@ vi.mock('../_generated/server', async (importOriginal) => {
   };
 });
 
-import { markConsumed, settleQueueOnTurnEnd } from './message_queue';
+import {
+  listDeliveredForExec,
+  markConsumed,
+  markDelivered,
+  markStdinRedelivered,
+  reconcileDelivered,
+  settleQueueOnTurnEnd,
+} from './message_queue';
 
 interface MutationDef<TArgs, TReturn> {
   handler: (ctx: unknown, args: TArgs) => Promise<TReturn>;
@@ -367,5 +374,174 @@ describe('settleQueueOnTurnEnd', () => {
       message: 'hello',
       queuedPromptMessageId: 'm1',
     });
+  });
+});
+
+// --- delivery channel (stdin steering) --------------------------------------
+
+interface QueryDef<TArgs, TReturn> {
+  handler: (ctx: unknown, args: TArgs) => Promise<TReturn>;
+}
+
+const markDeliveredHandler = (
+  markDelivered as unknown as MutationDef<
+    {
+      threadId: string;
+      queueIds: string[];
+      execId: string;
+      channel?: 'file' | 'stdin';
+    },
+    null
+  >
+).handler;
+const markStdinRedeliveredHandler = (
+  markStdinRedelivered as unknown as MutationDef<
+    { threadId: string; queueIds: string[] },
+    null
+  >
+).handler;
+const reconcileDeliveredHandler = (
+  reconcileDelivered as unknown as MutationDef<
+    { threadId: string; execId: string; consumedMessageIds: string[] },
+    null
+  >
+).handler;
+const listDeliveredForExecHandler = (
+  listDeliveredForExec as unknown as QueryDef<
+    { threadId: string; execId: string },
+    Array<{ messageId: string; text: string; channel: string }>
+  >
+).handler;
+
+describe('delivery channel stamping', () => {
+  const opsTable = [
+    { _id: 'op_1', threadId: 'thread_1', execId: 'exec_1', status: 'running' },
+  ];
+
+  it('markDelivered stamps the channel (and defaults to file)', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({ messageId: 'm1' }),
+        queueRow({ messageId: 'm2' }),
+      ],
+      sandboxSessionOps: [...opsTable],
+    };
+    const { ctx } = makeCtx(tables);
+    ctx.db.get.mockImplementation((id: string) =>
+      Promise.resolve(tables.chatMessageQueue.find((r) => r._id === id)),
+    );
+    await markDeliveredHandler(ctx, {
+      threadId: 'thread_1',
+      queueIds: ['q_m1'],
+      execId: 'exec_1',
+      channel: 'stdin',
+    });
+    await markDeliveredHandler(ctx, {
+      threadId: 'thread_1',
+      queueIds: ['q_m2'],
+      execId: 'exec_1',
+    });
+    const m1 = tables.chatMessageQueue.find((r) => r.messageId === 'm1');
+    const m2 = tables.chatMessageQueue.find((r) => r.messageId === 'm2');
+    expect(m1).toMatchObject({
+      status: 'delivered',
+      deliveredChannel: 'stdin',
+    });
+    expect(m2).toMatchObject({ status: 'delivered', deliveredChannel: 'file' });
+  });
+
+  it('markStdinRedelivered converts delivered rows only', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({
+          messageId: 'm1',
+          status: 'delivered',
+          deliveredExecId: 'exec_1',
+          deliveredChannel: 'file',
+        }),
+        queueRow({ messageId: 'm2', status: 'queued' }),
+      ],
+    };
+    const { ctx } = makeCtx(tables);
+    ctx.db.get.mockImplementation((id: string) =>
+      Promise.resolve(tables.chatMessageQueue.find((r) => r._id === id)),
+    );
+    await markStdinRedeliveredHandler(ctx, {
+      threadId: 'thread_1',
+      queueIds: ['q_m1', 'q_m2'],
+    });
+    const m1 = tables.chatMessageQueue.find((r) => r.messageId === 'm1');
+    const m2 = tables.chatMessageQueue.find((r) => r.messageId === 'm2');
+    expect(m1?.deliveredChannel).toBe('stdin');
+    expect(m2?.deliveredChannel).toBeUndefined();
+    expect(m2?.status).toBe('queued');
+  });
+
+  it('listDeliveredForExec surfaces text + channel (file default for legacy rows)', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({
+          messageId: 'm1',
+          status: 'delivered',
+          deliveredExecId: 'exec_1',
+          deliveredChannel: 'stdin',
+          text: 'via stdin',
+        }),
+        queueRow({
+          messageId: 'm2',
+          status: 'delivered',
+          deliveredExecId: 'exec_1',
+          text: 'legacy file row',
+        }),
+        queueRow({
+          messageId: 'm3',
+          status: 'delivered',
+          deliveredExecId: 'exec_other',
+        }),
+      ],
+    };
+    const { ctx } = makeCtx(tables);
+    const rows = await listDeliveredForExecHandler(ctx, {
+      threadId: 'thread_1',
+      execId: 'exec_1',
+    });
+    expect(rows.map((r) => [r.messageId, r.channel, r.text])).toEqual([
+      ['m1', 'stdin', 'via stdin'],
+      ['m2', 'file', 'legacy file row'],
+    ]);
+  });
+
+  it('reconcileDelivered rollback clears the channel; confirm keeps consumed', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({
+          messageId: 'm1',
+          status: 'delivered',
+          deliveredExecId: 'exec_1',
+          deliveredChannel: 'stdin',
+          deliveredAt: 5,
+        }),
+        queueRow({
+          messageId: 'm2',
+          status: 'delivered',
+          deliveredExecId: 'exec_1',
+          deliveredChannel: 'file',
+          deliveredAt: 5,
+        }),
+      ],
+    };
+    const { ctx } = makeCtx(tables);
+    await reconcileDeliveredHandler(ctx, {
+      threadId: 'thread_1',
+      execId: 'exec_1',
+      consumedMessageIds: ['m2'],
+    });
+    const m1 = tables.chatMessageQueue.find((r) => r.messageId === 'm1');
+    const m2 = tables.chatMessageQueue.find((r) => r.messageId === 'm2');
+    // Unconfirmed stdin row rolls back clean — re-queued for the boundary drain.
+    expect(m1).toMatchObject({ status: 'queued' });
+    expect(m1?.deliveredChannel).toBeUndefined();
+    expect(m1?.deliveredExecId).toBeUndefined();
+    expect(m2?.status).toBe('consumed');
   });
 });

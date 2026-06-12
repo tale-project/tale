@@ -277,3 +277,123 @@ describe('ExecManager', () => {
     await Promise.all([done, stream]);
   });
 });
+
+describe('ExecManager stdinMode hold + writeStdin', () => {
+  const line = (obj: unknown) =>
+    Buffer.from(`${JSON.stringify(obj)}\n`).toString('base64');
+
+  test('hold: initial payload + appended lines reach the child; eof exits', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    const done = mgr.run(
+      {
+        ...base,
+        execId: 'h1',
+        command: ['cat'],
+        cwd: ROOT,
+        stdinMode: 'hold',
+        stdinBase64: line({ n: 1 }),
+      },
+      emit,
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    expect(mgr.writeStdin('h1', { b64: line({ n: 2 }) })).toEqual({
+      ok: true,
+    });
+    expect(mgr.writeStdin('h1', { eof: true })).toEqual({ ok: true });
+    await done;
+    expect(decode(events, 'stdout')).toBe('{"n":1}\n{"n":2}\n');
+    expect(events[events.length - 1]).toMatchObject({ t: 'exit', exitCode: 0 });
+  });
+
+  test('write after eof reports STDIN_CLOSED; after exit reports NOT_FOUND', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { emit } = collect();
+    const done = mgr.run(
+      { ...base, execId: 'h2', command: ['cat'], cwd: ROOT, stdinMode: 'hold' },
+      emit,
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    expect(mgr.writeStdin('h2', { eof: true })).toEqual({ ok: true });
+    expect(mgr.writeStdin('h2', { b64: line({ late: true }) })).toEqual({
+      ok: false,
+      reason: 'STDIN_CLOSED',
+    });
+    await done;
+    expect(mgr.writeStdin('h2', { b64: line({}) })).toEqual({
+      ok: false,
+      reason: 'NOT_FOUND',
+    });
+  });
+
+  test('close-mode exec refuses writes (legacy semantics unchanged)', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    const done = mgr.run(
+      { ...base, execId: 'h3', shell: 'sleep 5', cwd: ROOT },
+      emit,
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    expect(mgr.writeStdin('h3', { b64: line({}) })).toEqual({
+      ok: false,
+      reason: 'STDIN_CLOSED',
+    });
+    mgr.cancel('h3');
+    await done;
+    expect(events[events.length - 1]).toMatchObject({
+      t: 'exit',
+      cancelled: true,
+    });
+  });
+
+  test('BAD_LINE: missing newline, interior newline, invalid JSON, oversized', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { emit } = collect();
+    const done = mgr.run(
+      { ...base, execId: 'h4', command: ['cat'], cwd: ROOT, stdinMode: 'hold' },
+      emit,
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    const bad = (raw: string) => Buffer.from(raw).toString('base64');
+    expect(mgr.writeStdin('h4', { b64: bad('{"a":1}') })).toEqual({
+      ok: false,
+      reason: 'BAD_LINE',
+    });
+    expect(mgr.writeStdin('h4', { b64: bad('{"a":\n1}\n') })).toEqual({
+      ok: false,
+      reason: 'BAD_LINE',
+    });
+    expect(mgr.writeStdin('h4', { b64: bad('{not json\n') })).toEqual({
+      ok: false,
+      reason: 'BAD_LINE',
+    });
+    const huge = `${JSON.stringify({ pad: 'x'.repeat(70 * 1024) })}\n`;
+    expect(mgr.writeStdin('h4', { b64: bad(huge) })).toEqual({
+      ok: false,
+      reason: 'BAD_LINE',
+    });
+    // The exec is unharmed by rejected writes.
+    expect(mgr.writeStdin('h4', { eof: true })).toEqual({ ok: true });
+    await done;
+  });
+
+  test('cancel while stdin held cleans up (no wedge, cancelled exit)', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    const done = mgr.run(
+      { ...base, execId: 'h5', command: ['cat'], cwd: ROOT, stdinMode: 'hold' },
+      emit,
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    expect(mgr.cancel('h5')).toBe(true);
+    await done;
+    expect(events[events.length - 1]).toMatchObject({
+      t: 'exit',
+      cancelled: true,
+    });
+    expect(mgr.writeStdin('h5', { eof: true })).toEqual({
+      ok: false,
+      reason: 'NOT_FOUND',
+    });
+  });
+});

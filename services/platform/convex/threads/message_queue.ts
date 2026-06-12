@@ -155,6 +155,7 @@ export async function settleQueueOnTurnEnd(
         status: 'queued' as const,
         deliveredExecId: undefined,
         deliveredAt: undefined,
+        deliveredChannel: undefined,
       });
     }
   }
@@ -319,14 +320,20 @@ export const countSteerInFlight = internalQuery({
   },
 });
 
-/** Rows delivered into a specific exec (for the terminal reconciliation). */
+/** Rows delivered into a specific exec (for the drain's consumption poll, the
+ * linger loop's stdin redelivery, and the terminal reconciliation). `channel`
+ * tells the consumers which evidence applies (consumed.* markers for 'file',
+ * the next agent result for 'stdin'); `text` lets the linger loop rebuild the
+ * stdin payload when it converts a stranded file delivery. */
 export const listDeliveredForExec = internalQuery({
   args: { threadId: v.string(), execId: v.string() },
   returns: v.array(
     v.object({
       queueId: v.id('chatMessageQueue'),
       messageId: v.string(),
+      text: v.string(),
       createdAt: v.number(),
+      channel: v.union(v.literal('file'), v.literal('stdin')),
     }),
   ),
   handler: async (ctx, args) => {
@@ -341,7 +348,10 @@ export const listDeliveredForExec = internalQuery({
       .map((r) => ({
         queueId: r._id,
         messageId: r.messageId,
+        text: r.text,
         createdAt: r.createdAt,
+        // Rows delivered before this field existed were all file-staged.
+        channel: r.deliveredChannel ?? ('file' as const),
       }));
   },
 });
@@ -363,6 +373,11 @@ export const markDelivered = internalMutation({
     threadId: v.string(),
     queueIds: v.array(v.id('chatMessageQueue')),
     execId: v.string(),
+    /** 'file' = staged steer-*.json (hook consumes, markers are evidence);
+     * 'stdin' = pushed into the held-open stdin by the drain's linger loop
+     * (the next agent result is the evidence). Optional for the deploy
+     * window — pre-deploy steer_delivery omits it, and those are files. */
+    channel: v.optional(v.union(v.literal('file'), v.literal('stdin'))),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -385,12 +400,36 @@ export const markDelivered = internalMutation({
           status: 'delivered' as const,
           deliveredExecId: args.execId,
           deliveredAt: now,
+          deliveredChannel: args.channel ?? ('file' as const),
         });
         delivered = true;
       }
     }
     if (delivered) {
       await ctx.db.patch(opId, { steerSeamRequestedAt: now });
+    }
+    return null;
+  },
+});
+
+/** Linger-loop channel conversion: a row file-staged just before the exec went
+ * idle would sit unconsumed forever (no hook boundaries fire while the model
+ * idles), so the drain tombstones the file and re-pushes the content via
+ * stdin. This flips the evidence contract for those rows — the tombstone's
+ * consumed.* marker must NOT count (see reconcileSteeredMessages), only the
+ * next agent result does. */
+export const markStdinRedelivered = internalMutation({
+  args: { threadId: v.string(), queueIds: v.array(v.id('chatMessageQueue')) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    for (const queueId of args.queueIds) {
+      const row = await ctx.db.get(queueId);
+      if (row && row.status === 'delivered') {
+        await ctx.db.patch(queueId, {
+          deliveredChannel: 'stdin' as const,
+          deliveredAt: Date.now(),
+        });
+      }
     }
     return null;
   },
@@ -444,6 +483,7 @@ export const reconcileDelivered = internalMutation({
           status: 'queued' as const,
           deliveredExecId: undefined,
           deliveredAt: undefined,
+          deliveredChannel: undefined,
         });
       }
     }

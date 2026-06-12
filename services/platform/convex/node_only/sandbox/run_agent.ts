@@ -15,6 +15,7 @@
 // this action owns the stream→event→row plumbing once, for all of them.
 
 import {
+  buildSteerStdinPayload,
   getAgentAdapter,
   type AgentEvent,
   type AgentSlug,
@@ -22,6 +23,7 @@ import {
 import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
+import type { Id } from '../../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
   buildAssistantContent,
@@ -31,11 +33,18 @@ import {
 } from './agent_message_parts';
 import {
   drainSessionExecResilient,
+  sessionCancelExec,
   sessionListFiles,
+  sessionStageFiles,
+  sessionWriteExecStdin,
   type ExecCursor,
   type SessionExecResult,
 } from './helpers/session_client';
-import { matchConsumedSteerFiles, steerDirFor } from './steer_files';
+import {
+  matchConsumedSteerFiles,
+  steerDirFor,
+  steerFileName,
+} from './steer_files';
 
 const PROGRESS_FLUSH_MS = 500;
 const RECENT_EVENTS_CAP = 20;
@@ -48,6 +57,18 @@ const STEER_POLL_INTERVAL_MS = 2_000;
 // Liveness heartbeat cadence (independent of output) — the recovery watchdog's
 // staleness threshold must be a comfortable multiple of this.
 const HEARTBEAT_INTERVAL_MS = 20_000;
+// Linger-loop cadence (claude-code stdin-hold): after the per-turn agent
+// result, the process stays alive on its held-open stdin. The loop delivers
+// queued steer messages via stdin (the CLI processes idle-state stdin
+// messages within seconds — verified 2.1.173) and sends EOF once nothing is
+// pending: no background tasks (ledger balanced), no queued/delivered rows.
+const LINGER_TICK_MS = 2_000;
+// Post-EOF watchdog: the CLI normally exits well under a second after stdin
+// EOF (≤7s observed while abandoning background tasks). A process still alive
+// past this is wedged — reap it and report the agent's own result status.
+const STDIN_EOF_GRACE_MS = Number(
+  process.env.EXTERNAL_AGENT_STDIN_EOF_GRACE_MS ?? 30_000,
+);
 
 export interface RunAgentInSessionArgs {
   organizationId: string;
@@ -106,6 +127,14 @@ export interface RunAgentInSessionArgs {
     /** toolUseId → toolName for every tool-use seen by earlier segments, so a
      * result landing after the seam still renders under its real tool name. */
     toolNames?: Record<string, string>;
+    /** stdin-hold lifecycle carried across the seam: whether the per-turn
+     * agent result already streamed pre-seam, whether the model was idle at
+     * the seam, and which background tasks were still pending. Without these
+     * a continuation could EOF a process whose pending tasks it never saw
+     * start (the re-attach replays only events after lastSeq). */
+    agentResultSeen?: boolean;
+    agentIdle?: boolean;
+    pendingTaskIds?: string[];
   };
 }
 
@@ -150,6 +179,12 @@ export interface RunAgentInSessionResult {
    * denial and kept working — a stale plan must not surface as a pending
    * approval card). Turn-end detection turns this into a plan-approval row. */
   planText?: string;
+  /** status==='continued' only — stdin-hold lifecycle for the checkpoint (see
+   * resumeFrom): result-seen flag, idle flag, and the unbalanced background-
+   * task ledger at the seam. */
+  agentResultSeen?: boolean;
+  agentIdle?: boolean;
+  pendingTaskIds?: string[];
 }
 
 /**
@@ -248,6 +283,27 @@ export async function runAgentInSessionImpl(
   let lastSteerPoll = 0;
   let drainActive = true;
 
+  // --- stdin-hold lifecycle (claude-code) -----------------------------------
+  // In stream-json input mode the CLI emits a per-turn `result` and keeps
+  // running until stdin EOF, so the drain owns the close decision. After the
+  // result the process is LINGERING: alive, model idle, kept open for pending
+  // background tasks (whose completion re-invokes the model) and for steer
+  // messages (idle-state stdin lines are processed within seconds — verified
+  // 2.1.173). EOF is sent only when the bg ledger is balanced AND no steer
+  // rows are queued/in flight — EOF ABANDONS still-running background tasks.
+  const stdinHold = args.agentSlug === 'claude-code';
+  const pendingTasks = new Set<string>(args.resumeFrom?.pendingTaskIds ?? []);
+  let agentResultSeen = args.resumeFrom?.agentResultSeen === true;
+  let agentResultStatus: string | undefined;
+  // Model idle (result seen, no newer activity). Mirrored to the op row
+  // (agentIdleAt) so steer_delivery knows to leave rows for the linger loop.
+  let agentIdle = args.resumeFrom?.agentIdle === true;
+  let agentIdleDirty = false;
+  let eofSent = false;
+  let platformReap = false;
+  let eofWatchdog: ReturnType<typeof setTimeout> | undefined;
+  let lingerBusy = false;
+
   const tripSteerSeam = (): void => {
     // drainActive guards a stray late trip (e.g. a sentinel parsed out of
     // parser.end() after a terminal result) from aborting a finished drain.
@@ -260,10 +316,245 @@ export async function runAgentInSessionImpl(
     }
   };
 
+  const setAgentIdle = (idle: boolean): void => {
+    if (agentIdle === idle) return;
+    agentIdle = idle;
+    agentIdleDirty = true;
+  };
+
+  /** Close the held-open stdin (the process exits ~instantly) and arm the
+   * reap watchdog. Refusals are benign: a legacy close-mode exec exits on its
+   * own; NOT_FOUND means it already did. */
+  const sendEof = async (): Promise<void> => {
+    if (eofSent || !drainActive) return;
+    eofSent = true;
+    try {
+      const res = await sessionWriteExecStdin(args.sessionId, args.execId, {
+        eof: true,
+      });
+      if (!res.ok) {
+        console.warn(
+          `[run_agent] stdin EOF refused (${res.reason ?? 'unknown'}) for exec ${args.execId}`,
+        );
+        return;
+      }
+    } catch (err) {
+      console.warn('[run_agent] stdin EOF failed (will retry):', err);
+      eofSent = false;
+      return;
+    }
+    eofWatchdog = setTimeout(() => {
+      if (!drainActive) return;
+      platformReap = true;
+      console.warn(
+        `[run_agent] exec ${args.execId} still alive ${STDIN_EOF_GRACE_MS}ms after stdin EOF — reaping`,
+      );
+      void sessionCancelExec(args.sessionId, args.execId).catch(
+        (err: unknown) =>
+          console.warn('[run_agent] post-EOF reap failed:', err),
+      );
+    }, STDIN_EOF_GRACE_MS);
+  };
+
+  /** Push steer rows into the lingering process's stdin as ONE combined user
+   * message and seal the current segment immediately: nothing more is coming
+   * for it (the model is idle), and the steered turn's output must render in
+   * a FRESH message below the user bubble. File-channel rows (staged just
+   * before the result landed — no boundary ever fired for them) are
+   * tombstoned first so the in-image hook can't double-inject them at the
+   * steered turn's first tool boundary. */
+  const deliverViaStdin = async (
+    queuedRows: Array<{
+      queueId: Id<'chatMessageQueue'>;
+      messageId: string;
+      text: string;
+      createdAt: number;
+    }>,
+    fileRows: Array<{
+      queueId: Id<'chatMessageQueue'>;
+      messageId: string;
+      text: string;
+      createdAt: number;
+    }>,
+    threadId: string,
+  ): Promise<void> => {
+    if (fileRows.length > 0) {
+      // Tombstone = same path, empty text. The hook consumes empty-text files
+      // silently (marker only, no injection); reconciliation ignores markers
+      // for stdin-channel rows. Failure → retry next tick, nothing delivered.
+      const dir = steerDirFor(args.execId);
+      await sessionStageFiles(
+        args.sessionId,
+        fileRows.map((row) => ({
+          path: `${dir}/${steerFileName(row.createdAt, row.messageId)}`,
+          contentBase64: Buffer.from(
+            JSON.stringify({
+              messageId: row.messageId,
+              text: '',
+              createdAt: row.createdAt,
+            }),
+            'utf8',
+          ).toString('base64'),
+        })),
+      );
+    }
+    const rows = [...fileRows, ...queuedRows].sort(
+      (a, b) => a.createdAt - b.createdAt,
+    );
+    const line = buildSteerStdinPayload(rows);
+    const res = await sessionWriteExecStdin(args.sessionId, args.execId, {
+      dataBase64: Buffer.from(line, 'utf8').toString('base64'),
+    });
+    if (!res.ok) {
+      // STDIN_CLOSED ⇒ legacy close-mode exec (pre-deploy image): its hook
+      // path still works, so hand the queued rows back to the file stager.
+      console.warn(
+        `[run_agent] steer stdin write refused (${res.reason ?? 'unknown'}); falling back to file staging`,
+      );
+      if (queuedRows.length > 0) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.node_only.sandbox.steer_delivery.deliverSteerMessages,
+          { threadId },
+        );
+      }
+      return;
+    }
+    if (queuedRows.length > 0) {
+      await ctx.runMutation(internal.threads.message_queue.markDelivered, {
+        threadId,
+        queueIds: queuedRows.map((r) => r.queueId),
+        execId: args.execId,
+        channel: 'stdin',
+      });
+    }
+    if (fileRows.length > 0) {
+      await ctx.runMutation(
+        internal.threads.message_queue.markStdinRedelivered,
+        { threadId, queueIds: fileRows.map((r) => r.queueId) },
+      );
+    }
+    // Seal NOW (not at consumption): the steered response starts streaming
+    // within seconds and must land in the continuation's fresh message below
+    // the user bubble, not append to this finished segment above it.
+    tripSteerSeam();
+  };
+
+  /** One linger evaluation. Runs after the per-turn agent result: delivers
+   * pending steer messages via stdin while the model idles, re-routes rows to
+   * the file stager when a background-task turn resumed activity, and sends
+   * EOF when nothing is pending. Re-armed by the interval below — failures
+   * just wait for the next tick. */
+  const lingerTick = async (): Promise<void> => {
+    if (
+      !stdinHold ||
+      !drainActive ||
+      handoff ||
+      eofSent ||
+      !agentResultSeen ||
+      lingerBusy
+    ) {
+      return;
+    }
+    lingerBusy = true;
+    try {
+      if (args.threadId === undefined) {
+        // No thread ⇒ no steering; just close once background work drains.
+        if (pendingTasks.size === 0) await sendEof();
+        return;
+      }
+      const threadId = args.threadId;
+      const wasIdle = agentIdle;
+      const [queuedRows, deliveredRows] = await Promise.all([
+        ctx.runQuery(internal.threads.message_queue.listQueuedForDelivery, {
+          threadId,
+        }),
+        ctx.runQuery(internal.threads.message_queue.listDeliveredForExec, {
+          threadId,
+          execId: args.execId,
+        }),
+      ]);
+      if (!drainActive || handoff || eofSent) return;
+      const fileRows = deliveredRows.filter((r) => r.channel === 'file');
+      if (wasIdle && (queuedRows.length > 0 || fileRows.length > 0)) {
+        await deliverViaStdin(queuedRows, fileRows, threadId);
+        return;
+      }
+      if (!wasIdle) {
+        // A background-task turn resumed activity — active turns steer via
+        // the proven file+hook path.
+        if (queuedRows.length > 0) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.node_only.sandbox.steer_delivery.deliverSteerMessages,
+            { threadId },
+          );
+        }
+        return;
+      }
+      // Idle with stdin rows still awaiting their confirmation result.
+      if (deliveredRows.length > 0) return;
+      if (pendingTasks.size === 0) await sendEof();
+    } catch (err) {
+      console.warn('[run_agent] linger tick failed (will retry):', err);
+    } finally {
+      lingerBusy = false;
+    }
+  };
+
+  /** Confirm stdin-delivered steer rows on the next agent result: in idle
+   * delivery the very next turn IS the steered one, so its result means the
+   * content reached the transcript (--resume carries it). A background-task
+   * turn racing the delivery can confirm one result early — the CLI's FIFO
+   * still consumes the line moments later; only a process death inside that
+   * sub-second window could lose it (same at-least-once posture as the
+   * hook's crash-mid-consume window). No seam trip here — the seam already
+   * happened at delivery. */
+  const confirmStdinDelivered = (): void => {
+    if (args.threadId === undefined) return;
+    const threadId = args.threadId;
+    void (async () => {
+      try {
+        const delivered = await ctx.runQuery(
+          internal.threads.message_queue.listDeliveredForExec,
+          { threadId, execId: args.execId },
+        );
+        const stdinIds = delivered
+          .filter((r) => r.channel === 'stdin')
+          .map((r) => r.messageId);
+        if (stdinIds.length === 0) return;
+        await ctx.runMutation(internal.threads.message_queue.markConsumed, {
+          threadId,
+          messageIds: stdinIds,
+        });
+      } catch (err) {
+        console.warn('[run_agent] stdin steer confirmation failed:', err);
+      }
+    })();
+  };
+
   const recordEvents = (events: AgentEvent[]): void => {
     if (events.length > 0) lastEventAt = Date.now();
     const injectedIds: string[] = [];
     for (const e of events) {
+      // stdin-hold lifecycle: any model/tool activity ends the idle state; a
+      // result (re-)enters it. Ledger events track background tasks.
+      if (
+        e.type === 'text-delta' ||
+        e.type === 'text' ||
+        e.type === 'tool-use' ||
+        e.type === 'tool-result' ||
+        e.type === 'run-started'
+      ) {
+        setAgentIdle(false);
+      } else if (e.type === 'task-started') {
+        pendingTasks.add(e.taskId);
+      } else if (e.type === 'task-settled') {
+        pendingTasks.delete(e.taskId);
+        // A settle with the model already idle can be the last blocker — let
+        // the linger loop's immediate check decide (it may EOF).
+        if (stdinHold && agentResultSeen) void lingerTick();
+      }
       if (e.type === 'text-delta' || e.type === 'text') {
         progressText += e.text;
       } else if (e.type === 'run-started' && e.agentSessionId) {
@@ -279,6 +570,13 @@ export async function runAgentInSessionImpl(
               costEstimateUsd: e.usageTotals.costEstimateUsd,
             }),
           };
+        }
+        agentResultSeen = true;
+        agentResultStatus = e.status;
+        setAgentIdle(true);
+        if (stdinHold) {
+          confirmStdinDelivered();
+          void lingerTick();
         }
       } else if (e.type === 'tool-use') {
         if (e.toolUseId && e.toolName) toolNames.set(e.toolUseId, e.toolName);
@@ -356,6 +654,11 @@ export async function runAgentInSessionImpl(
     const now = Date.now();
     if (!force && now - lastFlush < PROGRESS_FLUSH_MS) return;
     lastFlush = now;
+    // Lingering flag for steer_delivery: reset the dirty bit before the await
+    // (optimistic — a failed flush re-marks on the next transition or is
+    // simply retried by the next flush carrying the same value).
+    const sendIdle = agentIdleDirty;
+    agentIdleDirty = false;
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
@@ -371,6 +674,7 @@ export async function runAgentInSessionImpl(
       heartbeatAt: now,
       ...(lastEventAt !== undefined && { lastEventAt }),
       lastSeq: cursor.lastSeq,
+      ...(sendIdle && { agentIdle }),
       ...(capturedSessionId !== undefined && {
         agentSessionId: capturedSessionId,
       }),
@@ -424,7 +728,12 @@ export async function runAgentInSessionImpl(
           internal.threads.message_queue.listDeliveredForExec,
           { threadId, execId: args.execId },
         );
-        if (delivered.length > 0) {
+        // Marker evidence only applies to file-channel rows: a stdin row's
+        // tombstoned file also grows a consumed.* marker, but that says
+        // nothing about the stdin push — and must not trip a spurious seam
+        // mid-steered-turn. stdin rows are confirmed by the next result.
+        const fileDelivered = delivered.filter((r) => r.channel === 'file');
+        if (fileDelivered.length > 0) {
           // A null listing means the dir (or session) is gone ⇒ treat as
           // nothing consumed; never infer session death here — the drain's
           // own attach surfaces that and feeds the existing self-heal.
@@ -432,7 +741,7 @@ export async function runAgentInSessionImpl(
             args.sessionId,
             steerDirFor(args.execId),
           );
-          const consumedIds = matchConsumedSteerFiles(delivered, entries);
+          const consumedIds = matchConsumedSteerFiles(fileDelivered, entries);
           if (consumedIds.length > 0) {
             const flipped = await ctx.runMutation(
               internal.threads.message_queue.markConsumed,
@@ -490,6 +799,17 @@ export async function runAgentInSessionImpl(
     );
   }
 
+  // Linger loop (claude-code stdin-hold): inert until the per-turn agent
+  // result, then delivers steer messages via stdin / sends EOF when drained.
+  // Interval (vs one-shot) because it is also the retry path for transient
+  // query/transport failures and the pickup path for rows enqueued while the
+  // process lingers on background tasks.
+  const lingerTimer = stdinHold
+    ? setInterval(() => {
+        void lingerTick();
+      }, LINGER_TICK_MS)
+    : undefined;
+
   // Liveness heartbeat: bump the op row on a fixed interval (independent of
   // output) so the recovery watchdog can distinguish a live action from a dead
   // one even during a long, quiet tool call that produces no stdout flush.
@@ -545,6 +865,8 @@ export async function runAgentInSessionImpl(
   } catch (err) {
     drainActive = false;
     if (budgetTimer) clearTimeout(budgetTimer);
+    if (lingerTimer) clearInterval(lingerTimer);
+    if (eofWatchdog) clearTimeout(eofWatchdog);
     clearInterval(heartbeatTimer);
     if (handoff) {
       // Action window elapsed mid-turn → hand off. Do NOT parser.end() (the
@@ -579,12 +901,18 @@ export async function runAgentInSessionImpl(
         // Ternary (not &&): steerSeam is only assigned inside the flush
         // closure, so TS narrows the `let` to its `false` initializer here.
         ...(steerSeam ? { steerSeam: true } : {}),
+        // stdin-hold lifecycle for the continuation (see resumeFrom).
+        ...(agentResultSeen ? { agentResultSeen: true } : {}),
+        ...(agentIdle ? { agentIdle: true } : {}),
+        ...(pendingTasks.size > 0 && { pendingTaskIds: [...pendingTasks] }),
       };
     }
     throw err;
   }
   drainActive = false;
   if (budgetTimer) clearTimeout(budgetTimer);
+  if (lingerTimer) clearInterval(lingerTimer);
+  if (eofWatchdog) clearTimeout(eofWatchdog);
   clearInterval(heartbeatTimer);
   // A sentinel surfacing only here (parser.end after the terminal result)
   // still flips the pill via the batch-end markConsumed task, but its
@@ -599,6 +927,15 @@ export async function runAgentInSessionImpl(
     console.warn(
       `[run_agent] steer injection observed but the turn reached a terminal result before the seam (execId=${args.execId})`,
     );
+  }
+
+  // Post-EOF reap: the cancel was OURS (a wedged process after stdin EOF),
+  // not a user Stop — report the agent's own result, which already streamed.
+  if (platformReap && result.status === 'cancelled') {
+    result = {
+      ...result,
+      status: agentResultStatus === 'completed' ? 'completed' : 'failed',
+    };
   }
 
   const opStatus =
