@@ -6972,8 +6972,8 @@
     },
     "task": {
       "none": "Keine aktive Aufgabe",
-      "thread": "Thread {{id}}",
-      "continuations": "{{count}} Fortsetzungen"
+      "thread": "Thread",
+      "continuations": "Fortsetzungen"
     },
     "actions": {
       "stop": "Stoppen",

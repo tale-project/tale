@@ -6973,8 +6973,8 @@
     },
     "task": {
       "none": "Aucune tâche active",
-      "thread": "Thread {{id}}",
-      "continuations": "{{count}} continuations"
+      "thread": "Thread",
+      "continuations": "continuations"
     },
     "actions": {
       "stop": "Arrêter",

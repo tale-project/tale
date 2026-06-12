@@ -6972,8 +6972,8 @@
     },
     "task": {
       "none": "No active task",
-      "thread": "Thread {{id}}",
-      "continuations": "{{count}} continuations"
+      "thread": "Thread",
+      "continuations": "continuations"
     },
     "actions": {
       "stop": "Stop",

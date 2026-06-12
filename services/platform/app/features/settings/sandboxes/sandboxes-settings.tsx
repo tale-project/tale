@@ -82,9 +82,24 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {
         accessorKey: 'createdBy',
         header: t('columns.owner'),
-        cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.original.createdBy}</span>
-        ),
+        cell: ({ row }) => {
+          const s = row.original;
+          // Name + email when resolved; fall back to the raw id (system-owned /
+          // deleted user). Constrained width + truncate so a long id/email can't
+          // bleed into the Agent column.
+          return (
+            <div className="flex max-w-[220px] min-w-0 flex-col">
+              <span className="truncate font-medium">
+                {s.ownerName ?? s.ownerEmail ?? s.createdBy}
+              </span>
+              {s.ownerEmail && s.ownerName && (
+                <span className="text-muted-foreground truncate text-xs">
+                  {s.ownerEmail}
+                </span>
+              )}
+            </div>
+          );
+        },
       },
       {
         accessorKey: 'agentKind',
@@ -125,13 +140,14 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           return (
             <div className="flex flex-col">
               {op.threadId && (
-                <span className="font-mono text-xs">
-                  {t('task.thread', { id: op.threadId.slice(0, 8) })}
+                <span className="text-xs">
+                  {t('task.thread')}{' '}
+                  <span className="font-mono">{op.threadId.slice(0, 8)}</span>
                 </span>
               )}
               {count > 0 && (
                 <span className="text-muted-foreground text-xs">
-                  {t('task.continuations', { count })}
+                  {count} {t('task.continuations')}
                 </span>
               )}
             </div>

@@ -6,10 +6,15 @@
 import { v } from 'convex/values';
 
 import { defineAbilityFor } from '../../lib/permissions/ability';
+import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import type {
+  BetterAuthFindManyResult,
+  BetterAuthUser,
+} from '../members/types';
 
 /**
  * Latest in-session `agent-run` op for a thread, for live tool-use/text
@@ -180,6 +185,8 @@ export const listSandboxesForOrg = query({
         ownerType: s.ownerType,
         ownerId: s.ownerId,
         createdBy: s.createdBy,
+        ownerName: null as string | null,
+        ownerEmail: null as string | null,
         agentKind: s.agentKind ?? null,
         status: s.status,
         pinned: s.pinned === true,
@@ -189,6 +196,34 @@ export const listSandboxesForOrg = query({
         busy,
         currentOp: current,
       });
+    }
+
+    // Resolve owner ids → display name + email in ONE batched Better Auth `in`
+    // query (a Map join, no N+1). `createdBy` is the user id; a session with no
+    // resolvable user (system-owned / deleted user) keeps the id fallback.
+    const userIds = [...new Set(sessions.map((s) => s.createdBy))].filter(
+      Boolean,
+    );
+    if (userIds.length > 0) {
+      try {
+        const usersResult: BetterAuthFindManyResult<BetterAuthUser> =
+          await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'user',
+            paginationOpts: { cursor: null, numItems: userIds.length },
+            where: [{ field: '_id', value: userIds, operator: 'in' }],
+          });
+        const byId = new Map<string, BetterAuthUser>();
+        for (const u of usersResult?.page ?? []) byId.set(u._id, u);
+        for (const s of sessions) {
+          const u = byId.get(s.createdBy);
+          if (u) {
+            s.ownerName = u.name ?? null;
+            s.ownerEmail = u.email ?? null;
+          }
+        }
+      } catch (err) {
+        console.warn('[listSandboxesForOrg] owner resolution failed:', err);
+      }
     }
 
     sessions.sort((a, b) => {
