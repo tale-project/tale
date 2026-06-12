@@ -25,6 +25,8 @@ import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
   buildAssistantContent,
+  estimateContentBytes,
+  MAX_MESSAGE_BYTES,
   type AgentAssistantContent,
 } from './agent_message_parts';
 import {
@@ -72,11 +74,11 @@ export interface RunAgentInSessionArgs {
    * status 'continued' + a checkpoint instead of finishing, and the caller
    * schedules a continuation action that resumes via `resumeFrom`. */
   budgetDeadlineMs?: number;
-  /** Resume a turn a prior action handed off: re-attach at `lastSeq` with the
-   * timeline rebuilt so far — no new exec is started (the same exec keeps
-   * running in the sandbox under the detach-grace). */
+  /** Resume a turn a prior action handed off: re-attach at `lastSeq` — no new
+   * exec is started (the same exec keeps running under the detach-grace). The
+   * timeline is NOT carried over: each segment renders into its OWN message (S4
+   * segmentation), so a resumed segment starts with an empty timeline. */
   resumeFrom?: {
-    timeline: AgentEvent[];
     lastSeq: number;
     agentSessionId?: string;
   };
@@ -102,9 +104,9 @@ export interface RunAgentInSessionResult {
    * completed turn's tool calls survive (not just the live, capped op buffer).
    * A plain string when the turn had no timeline. */
   assistantContent?: AgentAssistantContent;
-  /** Handoff checkpoint (status==='continued' only): the accumulated timeline +
-   * the resume cursor the continuation action re-attaches from. */
-  timeline?: AgentEvent[];
+  /** Handoff cursor (status==='continued' only): the seq the continuation
+   * action re-attaches from. The timeline is NOT carried — each segment renders
+   * into its own message (S4). */
   lastSeq?: number;
 }
 
@@ -138,19 +140,18 @@ export async function runAgentInSessionImpl(
         gateway: { baseUrl: args.gatewayBaseUrl, token: args.gatewayToken },
         workdir: args.workdir ?? '/workspace/repo',
       });
-  // Fresh parser each (continuation) action. Re-feeding isn't needed: the prior
-  // timeline is restored below and the re-attach resumes from lastSeq (at most
-  // one line straddling the seam is skipped — harmless). Usage isn't summed
-  // from per-message events here (cost comes from the VK budget), so the
+  // Fresh parser each (continuation) action. The re-attach resumes from lastSeq
+  // (at most one line straddling the seam is skipped — harmless). Usage isn't
+  // summed from per-message events here (cost comes from the VK budget), so the
   // parser's dedup state resetting across the seam is a no-op.
   const parser = adapter.createParser();
 
-  // Accumulated progress state (restored from the handoff checkpoint on resume).
+  // Per-SEGMENT progress state. Each continuation renders into its OWN message
+  // (S4 segmentation), so a resumed segment starts with an EMPTY timeline — only
+  // the cursor + captured session id carry across the handoff.
   let progressText = '';
   const recentEvents: string[] = [];
-  const timeline: AgentEvent[] = args.resumeFrom
-    ? [...args.resumeFrom.timeline]
-    : [];
+  const timeline: AgentEvent[] = [];
   // Reconnect cursor: starts at the handoff seq on resume so the re-attach skips
   // already-consumed events. Updated by the drain as new deltas arrive.
   const cursor: ExecCursor = { lastSeq: args.resumeFrom?.lastSeq ?? 0 };
@@ -159,6 +160,11 @@ export async function runAgentInSessionImpl(
   let finalText: string | undefined;
   let usage: RunAgentInSessionResult['usage'];
   let lastFlush = 0;
+  // Handoff control (hoisted so flushProgress can trip it): the budget deadline
+  // OR the per-message byte budget aborts the drain → the run returns 'continued'
+  // and the caller segments (finalizes this message, opens a fresh one).
+  const controller = new AbortController();
+  let handoff = false;
 
   const recordEvents = (events: AgentEvent[]): void => {
     for (const e of events) {
@@ -223,12 +229,24 @@ export async function runAgentInSessionImpl(
     // on the same throttle. This is the record that survives an early end (the
     // op buffer is capped + cleared); best-effort so a transient patch failure
     // never aborts the live run.
+    const content = buildAssistantContent(timeline, finalText ?? '');
     if (args.onTimeline) {
       try {
-        await args.onTimeline(buildAssistantContent(timeline, finalText ?? ''));
+        await args.onTimeline(content);
       } catch (err) {
         console.warn('[run_agent] onTimeline patch failed (continuing):', err);
       }
+    }
+    // Per-message byte budget (S4 segmentation): a long task accumulates an
+    // unbounded number of tool-call parts. Before this segment's serialized
+    // content nears Convex's 1 MB doc cap, trip the SAME handoff the budget
+    // deadline uses → the drain aborts, the run returns 'continued', and the
+    // caller finalizes this message and opens a fresh one for the next segment.
+    // The agent's exec keeps running (detach-grace) and `--resume` keeps the
+    // conversation continuous; only the rendered message is segmented.
+    if (!handoff && estimateContentBytes(content) > MAX_MESSAGE_BYTES) {
+      handoff = true;
+      controller.abort();
     }
   };
 
@@ -260,8 +278,8 @@ export async function runAgentInSessionImpl(
 
   // Budget guard: abort the drain when THIS action's window elapses so we hand
   // off (vs being hard-killed at the Convex ceiling with the finally skipped).
-  const controller = new AbortController();
-  let handoff = false;
+  // The `controller`/`handoff` pair is hoisted above (flushProgress also trips
+  // it via the per-message byte budget).
   let budgetTimer: ReturnType<typeof setTimeout> | undefined;
   if (args.budgetDeadlineMs !== undefined) {
     budgetTimer = setTimeout(
@@ -322,7 +340,6 @@ export async function runAgentInSessionImpl(
         ...(finalText !== undefined && { finalText }),
         ...(usage !== undefined && { usage }),
         assistantContent: buildAssistantContent(timeline, finalText ?? ''),
-        timeline,
         lastSeq: cursor.lastSeq,
       };
     }

@@ -1,7 +1,11 @@
 import type { AgentEvent } from '@tale/agent-adapters';
 import { describe, it, expect } from 'vitest';
 
-import { buildAssistantContent } from './agent_message_parts';
+import {
+  buildAssistantContent,
+  estimateContentBytes,
+  MAX_MESSAGE_BYTES,
+} from './agent_message_parts';
 
 describe('buildAssistantContent', () => {
   it('returns a plain string when the turn made no tool calls', () => {
@@ -107,5 +111,62 @@ describe('buildAssistantContent', () => {
       toolCallId: 'solo',
       toolName: 'tool',
     });
+  });
+});
+
+describe('estimateContentBytes (S4 segmentation guard)', () => {
+  it('measures a plain string by UTF-8 byte length, not char count', () => {
+    expect(estimateContentBytes('abc')).toBe(3);
+    // a multi-byte char counts its real encoded size (ä = 2 bytes)
+    expect(estimateContentBytes('ä')).toBe(2);
+  });
+
+  it('measures structured content by serialized size (inputs + outputs)', () => {
+    const content = buildAssistantContent(
+      [
+        { type: 'tool-use', toolUseId: 't1', toolName: 'Bash', input: {} },
+        {
+          type: 'tool-result',
+          toolUseId: 't1',
+          output: 'x'.repeat(1000),
+          isError: false,
+        },
+      ],
+      'done',
+    );
+    // The 1000-char tool output dominates → well over the bare text length.
+    expect(estimateContentBytes(content)).toBeGreaterThan(1000);
+  });
+
+  it('a long tool-call timeline crosses MAX_MESSAGE_BYTES (the seam premise)', () => {
+    // ~5000 tool calls, each with a sizeable clamped output — the accumulation
+    // a long task would produce in ONE message. The guard trips well before the
+    // 1 MB doc cap, so the run hands off and segments.
+    const events: AgentEvent[] = [];
+    for (let i = 0; i < 5000; i++) {
+      events.push({
+        type: 'tool-use',
+        toolUseId: `t${i}`,
+        toolName: 'Bash',
+        input: { command: `step-${i}` },
+      });
+      events.push({
+        type: 'tool-result',
+        toolUseId: `t${i}`,
+        output: `output-${i}-${'y'.repeat(200)}`,
+        isError: false,
+      });
+    }
+    const content = buildAssistantContent(events, 'all done');
+    expect(estimateContentBytes(content)).toBeGreaterThan(MAX_MESSAGE_BYTES);
+  });
+
+  it('a single segment under the cap does NOT trip the guard', () => {
+    const events: AgentEvent[] = [
+      { type: 'tool-use', toolUseId: 't1', toolName: 'Bash', input: {} },
+      { type: 'tool-result', toolUseId: 't1', output: 'ok', isError: false },
+    ];
+    const content = buildAssistantContent(events, 'short answer');
+    expect(estimateContentBytes(content)).toBeLessThan(MAX_MESSAGE_BYTES);
   });
 });

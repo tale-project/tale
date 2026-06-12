@@ -26,6 +26,20 @@ export type AgentAssistantContent = Infer<typeof vAssistantContent>;
 // separately; this bounds what we store.
 const MAX_OUTPUT_CHARS = 16_000;
 
+// Per-MESSAGE cap (the whole assistant message doc). A long task accumulates an
+// unbounded NUMBER of tool-call parts; once a segment approaches this, the run
+// hands off to a continuation that opens a FRESH message (see S4 segmentation).
+// Safely under Convex's 1 MB doc cap to leave room for the patch envelope.
+export const MAX_MESSAGE_BYTES = 700_000;
+
+/** Serialized byte size of assistant content (tool inputs + JSON outputs, not
+ * just text) — the basis for the per-message segmentation guard. */
+export function estimateContentBytes(content: AgentAssistantContent): number {
+  return typeof content === 'string'
+    ? Buffer.byteLength(content, 'utf8')
+    : Buffer.byteLength(JSON.stringify(content), 'utf8');
+}
+
 function clamp(text: string): string {
   return text.length > MAX_OUTPUT_CHARS
     ? `${text.slice(0, MAX_OUTPUT_CHARS)}\n… (truncated)`

@@ -12,7 +12,7 @@
 //    finalize; 'continued' ⇒ checkpoint to _storage + schedule the continuation
 //    action (the cross-30-min-ceiling handoff).
 
-import type { AgentEvent } from '@tale/agent-adapters';
+import { saveMessage } from '@convex-dev/agent';
 
 import { components, internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
@@ -167,11 +167,36 @@ export async function handleTurnOutcome(
       await finalizeTurnSideEffects(ctx, turn, turnTokensOf(result));
       return;
     }
+    // S4 segmentation: seal the current segment's message (success) and open a
+    // FRESH streaming message for the next segment, so one long task renders as
+    // an ordered sequence of bubbles, none of which approaches Convex's 1 MB doc
+    // cap. The agent's exec keeps running (detach-grace) and `--resume` keeps the
+    // conversation continuous — only the rendered message is segmented.
+    // A quiet handoff (this segment produced nothing — e.g. the 25min window
+    // elapsed during one long, silent tool) reuses the same message instead of
+    // littering an empty bubble.
+    let nextMessageId = turn.assistantMessageId;
+    if (!isContentEmpty(result.assistantContent)) {
+      await patchStreamingMessage(
+        ctx,
+        turn.assistantMessageId,
+        result.assistantContent ?? '',
+        'success',
+      );
+      const created = await saveMessage(ctx, components.agent, {
+        threadId: turn.threadId,
+        message: { role: 'assistant', content: '' },
+        metadata: { status: 'pending' },
+      });
+      nextMessageId = created.messageId;
+    }
+
+    // Checkpoint is now just the resume cursor (+ captured agent session id) —
+    // the timeline is NOT carried across the seam (each segment owns its own
+    // message), which keeps the blob tiny and the handoff cheap.
     const checkpoint = JSON.stringify({
-      timeline: result.timeline ?? [],
       lastSeq: result.lastSeq ?? 0,
       agentSessionId: result.agentSessionId,
-      finalText: result.finalText,
     });
     // An untyped Blob sends an empty content-type header that self-hosted
     // Convex storage rejects ("Bad header for content-type") — set it.
@@ -189,6 +214,9 @@ export async function handleTurnOutcome(
       lastSeq: result.lastSeq ?? 0,
       checkpointStorageId: storageId,
       continuationCount: turn.continuationCount + 1,
+      // The continuation streams into the fresh segment message — mirror it on
+      // the op so the recovery watchdog finalizes the right (current) bubble.
+      assistantMessageId: nextMessageId,
       ...(result.agentSessionId !== undefined && {
         agentSessionId: result.agentSessionId,
       }),
@@ -204,7 +232,7 @@ export async function handleTurnOutcome(
         threadId: turn.threadId,
         agentKind: turn.agentKind,
         modelRef: turn.modelRef,
-        assistantMessageId: turn.assistantMessageId,
+        assistantMessageId: nextMessageId,
         mintedKeyId: turn.mintedKeyId,
         continuationCount: turn.continuationCount + 1,
         checkpointStorageId: storageId,
@@ -248,26 +276,30 @@ function turnTokensOf(
     : null;
 }
 
-/** Load + parse a turn checkpoint blob ({timeline, lastSeq, ...}) from _storage. */
+/** A continued segment that produced no renderable content — reuse its message
+ * across the seam rather than sealing an empty bubble. */
+function isContentEmpty(content: AgentAssistantContent | undefined): boolean {
+  if (content === undefined) return true;
+  return typeof content === 'string'
+    ? content.trim().length === 0
+    : content.length === 0;
+}
+
+/** Load + parse a turn checkpoint blob ({lastSeq, agentSessionId}) from _storage.
+ * Post-S4 the timeline is no longer carried — each segment renders into its own
+ * message, so the checkpoint is just the resume cursor. */
 export async function loadCheckpoint(
   ctx: ActionCtx,
   storageId: string,
-): Promise<{
-  timeline: AgentEvent[];
-  lastSeq: number;
-  agentSessionId?: string;
-  finalText?: string;
-} | null> {
+): Promise<{ lastSeq: number; agentSessionId?: string } | null> {
   // oxlint-disable-next-line typescript-eslint/no-explicit-any
   const blob = await ctx.storage.get(storageId as any);
   if (!blob) return null;
   try {
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
     return JSON.parse(await blob.text()) as {
-      timeline: AgentEvent[];
       lastSeq: number;
       agentSessionId?: string;
-      finalText?: string;
     };
   } catch (err) {
     console.error('[turn_lifecycle] bad checkpoint blob:', err);

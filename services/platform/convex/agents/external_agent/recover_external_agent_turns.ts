@@ -71,7 +71,9 @@ export const recoverStuckExternalAgentTurns = internalAction({
         // Kill the (possibly still-running) exec so it doesn't linger to the
         // runnerd timeout. Best-effort; the detach-grace likely already reaped
         // it once the action's connection dropped.
-        await sessionCancelExec(op.sessionId, op.execId).catch(() => {});
+        await sessionCancelExec(op.sessionId, op.execId).catch((e) =>
+          console.warn('[recoverStuckExternalAgentTurns] cancel exec:', e),
+        );
         recovered += 1;
       } catch (err) {
         console.warn(

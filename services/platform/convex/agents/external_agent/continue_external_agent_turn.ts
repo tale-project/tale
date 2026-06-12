@@ -1,10 +1,11 @@
 'use node';
 
 // Continuation action — resumes an external-agent turn a prior action handed
-// off when its ~25min window elapsed (the >30min-ceiling path). It re-attaches
-// to the still-running sandbox exec from the checkpoint cursor (no new exec, no
-// new VK) and keeps building the SAME streaming message. On terminal it
-// finalizes; on another handoff it schedules the next continuation.
+// off when its ~25min window elapsed (the >30min-ceiling path) OR when the
+// current segment's message neared the 1MB doc cap. It re-attaches to the
+// still-running sandbox exec from the checkpoint cursor (no new exec, no new VK)
+// and streams into the FRESH segment message the handoff opened (S4). On
+// terminal it finalizes; on another handoff it schedules the next continuation.
 
 import { v } from 'convex/values';
 
@@ -82,7 +83,6 @@ export const continueExternalAgentTurn = internalAction({
         timeoutMs: TURN_TIMEOUT_MS,
         budgetDeadlineMs: Date.now() + ACTION_WINDOW_MS,
         resumeFrom: {
-          timeline: checkpoint.timeline,
           lastSeq: checkpoint.lastSeq,
           ...(checkpoint.agentSessionId !== undefined && {
             agentSessionId: checkpoint.agentSessionId,
@@ -97,14 +97,20 @@ export const continueExternalAgentTurn = internalAction({
       console.error('[continueExternalAgentTurn] failed:', err);
       // Preserve the partial timeline already on the message; just flip status.
       await markMessageStatus(ctx, args.assistantMessageId, 'failed').catch(
-        () => {},
+        (e) => console.warn('[continueExternalAgentTurn] mark failed:', e),
       );
-      await finalizeTurnSideEffects(ctx, turn).catch(() => {});
+      await finalizeTurnSideEffects(ctx, turn).catch((e) =>
+        console.warn('[continueExternalAgentTurn] finalize failed:', e),
+      );
     } finally {
       // The consumed checkpoint blob is superseded (a fresh handoff wrote a new
       // one, or the turn ended) — best-effort cleanup.
-      // oxlint-disable-next-line typescript-eslint/no-explicit-any
-      await ctx.storage.delete(args.checkpointStorageId as any).catch(() => {});
+      await ctx.storage
+        // oxlint-disable-next-line typescript-eslint/no-explicit-any
+        .delete(args.checkpointStorageId as any)
+        .catch((e) =>
+          console.warn('[continueExternalAgentTurn] checkpoint cleanup:', e),
+        );
     }
     return null;
   },
