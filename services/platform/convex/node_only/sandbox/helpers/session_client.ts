@@ -96,9 +96,11 @@ const CREATE_TIMEOUT_MS = 200_000; // create polls runnerd readiness (≤180s)
 // instead of aborting first (the old code hardcoded 60s here too).
 const EXEC_FETCH_GRACE_MS = 60_000;
 // Fallback fetch deadline when a caller omits timeoutMs. Env-tunable; the
-// real value is supplied per-turn by run_external_agent (TURN_TIMEOUT_MS).
+// real value is supplied per-turn by run_external_agent (TURN_TIMEOUT_MS). The
+// per-action window (ACTION_WINDOW_MS) aborts the fetch far sooner via the
+// budget controller, so this is just the outer bound.
 const EXEC_FALLBACK_TIMEOUT_MS = Number(
-  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(25 * 60 * 1000),
+  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(24 * 60 * 60 * 1000),
 );
 // Resilient-drain reconnect bounds: max CONSECUTIVE failed re-attaches (reset on
 // progress) before giving up, and the linear backoff between them.

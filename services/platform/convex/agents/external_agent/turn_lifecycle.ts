@@ -23,9 +23,11 @@ import {
 } from '../../node_only/sandbox/bifrost_admin';
 import type { RunAgentInSessionResult } from '../../node_only/sandbox/run_agent';
 
-/** Cap on cross-action handoffs (the runnerd exec timeout bounds a turn well
- * before this; a backstop against a handoff loop). */
-const MAX_CONTINUATIONS = 12;
+/** Pure runaway backstop on cross-action handoffs. The real bound on a long
+ * task is the exec timeout (24h) + the rolling budget gate, not a count — at a
+ * ~25min action window a 24h task is ~58 handoffs, so this is set well above
+ * any legitimate run. */
+const MAX_CONTINUATIONS = 1000;
 
 /** Everything the lifecycle needs to finalize or continue a turn — carried in
  * action args and mirrored onto the op row so the recovery path has it too. */

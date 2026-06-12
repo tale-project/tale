@@ -170,9 +170,12 @@ export function loadConfig(): SpawnerConfig {
         10 * 60 * 1000,
         { min: 1_000 },
       ),
+      // Per-exec hard ceiling. Raised from 2h to 24h so a long agent task isn't
+      // SIGKILLed mid-run by runnerd; a single task is bounded by budget /
+      // completion / manual stop, not a wall clock. Env-tunable higher.
       execMaxTimeoutMs: numEnv(
         'SANDBOX_SESSION_EXEC_MAX_TIMEOUT_MS',
-        2 * 60 * 60 * 1000,
+        24 * 60 * 60 * 1000,
         { min: 1_000 },
       ),
       createHealthTimeoutMs: numEnv(

@@ -23,7 +23,7 @@ const ACTION_WINDOW_MS = Number(
   process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(25 * 60 * 1000),
 );
 const TURN_TIMEOUT_MS = Number(
-  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(2 * 60 * 60 * 1000),
+  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(24 * 60 * 60 * 1000),
 );
 
 export const continueExternalAgentTurn = internalAction({

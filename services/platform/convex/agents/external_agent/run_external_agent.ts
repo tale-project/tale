@@ -81,9 +81,10 @@ const TURN_BUDGET_CENTS = Number(
 // Total wall-clock a turn may run, threaded down as the exec `timeoutMs` so
 // runnerd keeps the child alive this long. Decoupled from the Convex action
 // ceiling via the cross-action continuation, so it can be the full sandbox
-// `execMaxTimeoutMs` (2h) — the turn is no longer one held connection.
+// `execMaxTimeoutMs` (24h) — a long task runs to completion / budget / manual
+// stop, not a wall clock.
 const TURN_TIMEOUT_MS = Number(
-  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(2 * 60 * 60 * 1000),
+  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(24 * 60 * 60 * 1000),
 );
 // Per-ACTION window: how long one action drains before handing off to a
 // continuation action (kept under the 30min ACTIONS_USER_TIMEOUT_SECS ceiling
