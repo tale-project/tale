@@ -167,6 +167,27 @@ export async function sessionEnvPatch(
   return parsed.denied ?? [];
 }
 
+/** PATCH /v1/sessions/:id/pin — toggle the spawner-side "always-on" reaper
+ * exemption. Best-effort; the platform `sandboxSessions.pinned` row is the
+ * durable truth (re-pushed on the next turn after a spawner restart). */
+export async function sessionSetPinned(
+  sessionId: string,
+  pinned: boolean,
+): Promise<boolean> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/pin`;
+  const bodyJson = JSON.stringify({ pinned });
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'PATCH',
+    headers: signedHeaders('PATCH', path, bodyJson),
+    body: bodyJson,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) return false;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = (await res.json()) as { pinned?: boolean };
+  return parsed.pinned === pinned;
+}
+
 /** POST /v1/sessions/:id/exec/:execId/cancel — SIGTERM→SIGKILL the exec's
  * process group in the sandbox. Idempotent (false if the exec/session is gone).
  * The Stop-button path for external-agent turns; the run's own finalize then

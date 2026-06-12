@@ -37,6 +37,7 @@ import {
   SessionNotFoundError,
   sessionCreate,
   sessionEnvPatch,
+  sessionSetPinned,
 } from '../../node_only/sandbox/helpers/session_client';
 import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
@@ -163,6 +164,13 @@ export const runExternalAgentTurn = internalAction({
       if (existing) {
         sessionId = existing.sessionId;
         sessionCreatedAt = existing.createdAt;
+        // Re-push pin to the spawner: its registry is in-memory, so a spawner
+        // restart loses the always-on exemption — the platform row is the truth.
+        if (existing.pinned === true) {
+          await sessionSetPinned(sessionId, true).catch((err) =>
+            console.warn('[runExternalAgentTurn] re-pin failed:', err),
+          );
+        }
       } else {
         sessionId = args.userId
           ? sessionIdForUser(args.organizationId, args.userId)

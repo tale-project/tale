@@ -22,6 +22,9 @@ export interface RegistrySession {
   endpoint: string;
   /** Live exec abort controllers, keyed execId. */
   liveExecs: Map<string, AbortController>;
+  /** "Always-on": the idle/TTL reaper skips this session. In-memory only
+   * (re-derived from the platform row after a spawner restart). */
+  pinned?: boolean;
 }
 
 export class SessionRegistry {

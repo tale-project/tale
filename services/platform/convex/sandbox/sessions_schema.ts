@@ -49,6 +49,11 @@ export const sandboxSessionsTable = defineTable({
   expiresAt: v.number(),
   lastActivityAt: v.optional(v.number()),
   destroyedAt: v.optional(v.number()),
+  /** "Always-on": exempt from the idle reaper + the hard TTL (platform side
+   * raises expiresAt; the spawner reaper skips it). Opt-in per session from the
+   * sandbox-management page, so the warm-container cost is bounded. */
+  pinned: v.optional(v.boolean()),
+  pinnedAt: v.optional(v.number()),
 })
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_owner', ['ownerType', 'ownerId'])

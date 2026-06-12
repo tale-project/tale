@@ -88,6 +88,8 @@ export class SessionRoutes {
   async sweepExpired(nowMs: number = Date.now()): Promise<number> {
     let reaped = 0;
     for (const s of this.registry.list()) {
+      // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
+      if (s.pinned) continue;
       // A session with a live exec is NEVER reaped — a long, QUIET tool (no
       // stdout for >idleTimeout) would otherwise be idle-killed mid-task, and a
       // running task shouldn't be cut at the hard TTL either. The registry
@@ -431,6 +433,29 @@ export class SessionRoutes {
       { set: parsed.set, unset: parsed.unset },
     );
     return jsonResponse({ ok: true, denied }, 200);
+  }
+
+  /** PATCH /v1/sessions/:id/pin — toggle "always-on". Pinned sessions are
+   * exempt from the idle/TTL reaper; unpinning restores a fresh normal TTL.
+   * In-memory only (the platform row is the durable truth; re-pushed on the
+   * next turn after a spawner restart). */
+  handleSetPinned(sessionId: string, body: string): Response {
+    const session = this.registry.get(sessionId);
+    if (!session) return jsonResponse({ error: 'not_found' }, 404);
+    let parsed: { pinned?: boolean };
+    try {
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      parsed = JSON.parse(body) as { pinned?: boolean };
+    } catch (err) {
+      return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
+    }
+    const pinned = parsed.pinned === true;
+    session.pinned = pinned;
+    if (!pinned) {
+      // Give an unpinned session a fresh lifetime so it isn't reaped instantly.
+      session.expiresAtMs = Date.now() + this.cfg.session.maxLifetimeMs;
+    }
+    return jsonResponse({ ok: true, pinned }, 200);
   }
 
   /** POST /v1/sessions/:id/files/stage — fetch presigned URLs into /workspace. */

@@ -272,6 +272,7 @@ const SESSION_EXEC_ATTACH_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/exec/${EXEC_ID}/attach$`,
 );
 const SESSION_ENV_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/env$`);
+const SESSION_PIN_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/pin$`);
 const SESSION_FILES_STAGE_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/files/stage$`,
 );
@@ -362,6 +363,13 @@ async function handleSessionRoutes(
     const r = await readAndAuth(req);
     if ('error' in r) return r.error;
     return getSessionRoutes().handleEnvPatch(envMatch[1] ?? '', r.body);
+  }
+  // PATCH /v1/sessions/:id/pin — toggle always-on (idle/TTL reaper exemption)
+  const pinMatch = path.match(SESSION_PIN_RE);
+  if (req.method === 'PATCH' && pinMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleSetPinned(pinMatch[1] ?? '', r.body);
   }
   // POST /v1/sessions/:id/files/stage
   const stageMatch = path.match(SESSION_FILES_STAGE_RE);

@@ -361,4 +361,26 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(routes.handleGet('idle1').status).toBe(404);
     fakeHealth.lastActivityAtMs = 0;
   });
+
+  test('sweepExpired skips a PINNED session (always-on)', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'pin1', organizationId: 'org_pin' }),
+    );
+    expect(
+      routes.handleSetPinned('pin1', JSON.stringify({ pinned: true })).status,
+    ).toBe(200);
+
+    // Stale + no live exec → would normally idle-reap, but pinned exempts it.
+    fakeHealth.liveExecs = 0;
+    fakeHealth.lastActivityAtMs = 0;
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(routes.handleGet('pin1').status).toBe(200);
+
+    // Unpin → reaped on the next sweep.
+    routes.handleSetPinned('pin1', JSON.stringify({ pinned: false }));
+    expect(await routes.sweepExpired()).toBe(1);
+    expect(routes.handleGet('pin1').status).toBe(404);
+    fakeHealth.lastActivityAtMs = 0;
+  });
 });

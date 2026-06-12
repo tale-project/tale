@@ -125,6 +125,36 @@ export const setSessionStatus = internalMutation({
   },
 });
 
+// A pinned ("always-on") session shouldn't expire platform-side — push its
+// expiresAt far out (the spawner reaper is exempted separately).
+const PINNED_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Pin / unpin a session ("always-on"). Pinned: raise expiresAt far out so the
+ * platform watchdog won't expire it. Unpinned: give it a fresh normal lifetime.
+ * The spawner-side reaper exemption is pushed separately (sessionSetPinned).
+ */
+export const setSessionPinned = internalMutation({
+  args: { sessionId: v.string(), pinned: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.status === 'destroyed' || row.status === 'expired') continue;
+      await ctx.db.patch(row._id, {
+        pinned: args.pinned,
+        pinnedAt: args.pinned ? now : undefined,
+        expiresAt: args.pinned
+          ? now + PINNED_LIFETIME_MS
+          : now + SANDBOX_SESSION_MAX_LIFETIME_MS,
+      });
+    }
+    return null;
+  },
+});
+
 /**
  * Watchdog: mark sessions past their hard lifetime as `expired` so a leaked
  * row (a throw between reserve and the spawner create returning) can't pin the
