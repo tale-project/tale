@@ -69,6 +69,13 @@ const LINGER_TICK_MS = 2_000;
 const STDIN_EOF_GRACE_MS = Number(
   process.env.EXTERNAL_AGENT_STDIN_EOF_GRACE_MS ?? 30_000,
 );
+// Quiet-idle debounce: how long the MAIN loop must stay silent (background
+// task_* traffic aside) after a completed text block, with background tasks
+// pending and no tool results outstanding, before the drain treats the exec
+// as lingering. Needed because `local_workflow` background tasks gate the
+// per-turn result until they settle (verified 2.1.173) — unlike `local_bash`,
+// which lets the result through immediately.
+const QUIET_IDLE_MS = Number(process.env.EXTERNAL_AGENT_QUIET_IDLE_MS ?? 5_000);
 
 export interface RunAgentInSessionArgs {
   organizationId: string;
@@ -295,14 +302,47 @@ export async function runAgentInSessionImpl(
   const pendingTasks = new Set<string>(args.resumeFrom?.pendingTaskIds ?? []);
   let agentResultSeen = args.resumeFrom?.agentResultSeen === true;
   let agentResultStatus: string | undefined;
-  // Model idle (result seen, no newer activity). Mirrored to the op row
-  // (agentIdleAt) so steer_delivery knows to leave rows for the linger loop.
+  // Model idle: the per-turn result arrived, OR quiet-idle — background tasks
+  // pending and the main loop has gone silent after a completed text block
+  // (a `local_workflow` task gates the result until it settles, so waiting
+  // for one would re-create the very blind spot this exists to fix).
+  // Mirrored to the op row (agentIdleAt) so steer_delivery knows to leave
+  // rows for the linger loop.
   let agentIdle = args.resumeFrom?.agentIdle === true;
   let agentIdleDirty = false;
   let eofSent = false;
   let platformReap = false;
   let eofWatchdog: ReturnType<typeof setTimeout> | undefined;
   let lingerBusy = false;
+  // Quiet-idle inputs: when the MAIN loop last produced anything (background
+  // task_* traffic excluded), whether its last word was a completed text
+  // block, and which main-loop tool calls still await results. On resume the
+  // text flag seeds TRUE: a continuation that re-attaches into a quiet
+  // workflow wait replays no main-loop events (only task_* chatter), so it
+  // could never re-derive the flag — and a wrong TRUE merely queues the
+  // delivery at the CLI's next boundary (lossless), while a wrong FALSE
+  // re-creates the unsteerable blind spot.
+  let lastMainActivityAt = Date.now();
+  let lastMainEventWasText = args.resumeFrom !== undefined;
+  const inflightToolUses = new Set<string>();
+  // Unconfirmed stdin steer rows may exist whenever we delivered (set below)
+  // or resumed mid-turn (a prior segment may have delivered) — the next
+  // completed text/result is the consumption evidence (a steered exchange
+  // during a workflow wait produces NO result of its own; verified 2.1.173).
+  let awaitingStdinConfirm = args.resumeFrom !== undefined;
+
+  /** Background-task chatter: ledger events plus raw system task_* passthrough
+   * (task_progress heartbeats etc). Everything else — text, tools, thinking
+   * tokens, api_retry — counts as main-loop activity for quiet-idle. */
+  const isBackgroundTraffic = (e: AgentEvent): boolean => {
+    if (e.type === 'task-started' || e.type === 'task-settled') return true;
+    if (e.type !== 'raw') return false;
+    const p = e.payload;
+    if (typeof p !== 'object' || p === null || !('subtype' in p)) return false;
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const subtype = (p as { subtype?: unknown }).subtype;
+    return typeof subtype === 'string' && subtype.startsWith('task_');
+  };
 
   const tripSteerSeam = (): void => {
     // drainActive guards a stray late trip (e.g. a sentinel parsed out of
@@ -434,33 +474,50 @@ export async function runAgentInSessionImpl(
         { threadId, queueIds: fileRows.map((r) => r.queueId) },
       );
     }
+    // The next completed text/result is the consumption evidence (a steered
+    // exchange during a workflow wait produces no result of its own).
+    awaitingStdinConfirm = true;
     // Seal NOW (not at consumption): the steered response starts streaming
     // within seconds and must land in the continuation's fresh message below
     // the user bubble, not append to this finished segment above it.
     tripSteerSeam();
   };
 
-  /** One linger evaluation. Runs after the per-turn agent result: delivers
-   * pending steer messages via stdin while the model idles, re-routes rows to
-   * the file stager when a background-task turn resumed activity, and sends
-   * EOF when nothing is pending. Re-armed by the interval below — failures
-   * just wait for the next tick. */
+  /** One linger evaluation. Armed by the per-turn agent result OR by pending
+   * background tasks (a `local_workflow` task gates the result until it
+   * settles — verified 2.1.173 — so waiting for one would blind this loop for
+   * exactly the workflow case it exists for). Delivers pending steer messages
+   * via stdin while the model idles, re-routes rows to the file stager when a
+   * background-task turn resumed activity, and sends EOF once the result is
+   * in and nothing is pending. Re-armed by the interval below — failures just
+   * wait for the next tick. */
   const lingerTick = async (): Promise<void> => {
-    if (
-      !stdinHold ||
-      !drainActive ||
-      handoff ||
-      eofSent ||
-      !agentResultSeen ||
-      lingerBusy
-    ) {
-      return;
-    }
+    if (!stdinHold || !drainActive || handoff || eofSent || lingerBusy) return;
+    if (!agentResultSeen && pendingTasks.size === 0) return;
     lingerBusy = true;
     try {
+      // Quiet-idle transition: background work pending, the main loop's last
+      // word was a completed text block, no tool results outstanding, and
+      // nothing but task_* chatter for the debounce window — the model is
+      // waiting on the background task. Stdin messages ARE processed in this
+      // state (verified: ~5s round-trip mid-workflow), so flag the exec idle
+      // and let the delivery branch below take over. The op-row flush makes
+      // steer_delivery leave future enqueues to this loop too — forced,
+      // because no stdout flows here to trigger the throttled flush.
+      if (
+        !agentIdle &&
+        !agentResultSeen &&
+        pendingTasks.size > 0 &&
+        inflightToolUses.size === 0 &&
+        lastMainEventWasText &&
+        Date.now() - lastMainActivityAt >= QUIET_IDLE_MS
+      ) {
+        setAgentIdle(true);
+        await flushProgress(true);
+      }
       if (args.threadId === undefined) {
         // No thread ⇒ no steering; just close once background work drains.
-        if (pendingTasks.size === 0) await sendEof();
+        if (agentResultSeen && pendingTasks.size === 0) await sendEof();
         return;
       }
       const threadId = args.threadId;
@@ -492,9 +549,11 @@ export async function runAgentInSessionImpl(
         }
         return;
       }
-      // Idle with stdin rows still awaiting their confirmation result.
+      // Idle with stdin rows still awaiting their confirmation evidence.
       if (deliveredRows.length > 0) return;
-      if (pendingTasks.size === 0) await sendEof();
+      // EOF stays gated on the result: in the workflow case it arrives after
+      // the task settles and the model wraps up — never close before it.
+      if (agentResultSeen && pendingTasks.size === 0) await sendEof();
     } catch (err) {
       console.warn('[run_agent] linger tick failed (will retry):', err);
     } finally {
@@ -502,14 +561,16 @@ export async function runAgentInSessionImpl(
     }
   };
 
-  /** Confirm stdin-delivered steer rows on the next agent result: in idle
-   * delivery the very next turn IS the steered one, so its result means the
-   * content reached the transcript (--resume carries it). A background-task
-   * turn racing the delivery can confirm one result early — the CLI's FIFO
-   * still consumes the line moments later; only a process death inside that
-   * sub-second window could lose it (same at-least-once posture as the
-   * hook's crash-mid-consume window). No seam trip here — the seam already
-   * happened at delivery. */
+  /** Confirm stdin-delivered steer rows. Trigger = the first completed
+   * text/result after delivery (awaitingStdinConfirm): in idle delivery the
+   * very next main-loop output IS the steered exchange, so its completed text
+   * means the content reached the transcript (--resume carries it) — and a
+   * workflow-wait exchange emits no result of its own, so text must count.
+   * A background-task turn racing the delivery can confirm one block early —
+   * the CLI's FIFO still consumes the line moments later; only a process
+   * death inside that sub-second window could lose it (same at-least-once
+   * posture as the hook's crash-mid-consume window). No seam trip here — the
+   * seam already happened at delivery. */
   const confirmStdinDelivered = (): void => {
     if (args.threadId === undefined) return;
     const threadId = args.threadId;
@@ -537,23 +598,32 @@ export async function runAgentInSessionImpl(
     if (events.length > 0) lastEventAt = Date.now();
     const injectedIds: string[] = [];
     for (const e of events) {
-      // stdin-hold lifecycle: any model/tool activity ends the idle state; a
-      // result (re-)enters it. Ledger events track background tasks.
-      if (
-        e.type === 'text-delta' ||
-        e.type === 'text' ||
-        e.type === 'tool-use' ||
-        e.type === 'tool-result' ||
-        e.type === 'run-started'
-      ) {
+      // stdin-hold lifecycle: any MAIN-loop activity ends the idle state; a
+      // result (re-)enters it (quiet-idle re-enters it from the linger loop).
+      // Background task_* chatter must not look like activity — during a
+      // workflow wait it is the ONLY traffic, and it must not mask idleness.
+      if (stdinHold && !isBackgroundTraffic(e)) {
+        lastMainActivityAt = Date.now();
         setAgentIdle(false);
-      } else if (e.type === 'task-started') {
+        lastMainEventWasText = e.type === 'text' || e.type === 'result';
+        if (awaitingStdinConfirm && lastMainEventWasText) {
+          // The steered exchange answered (completed text) or the turn
+          // resolved (result) — flip the delivered-stdin rows to consumed.
+          awaitingStdinConfirm = false;
+          confirmStdinDelivered();
+        }
+      }
+      if (e.type === 'task-started') {
         pendingTasks.add(e.taskId);
       } else if (e.type === 'task-settled') {
         pendingTasks.delete(e.taskId);
         // A settle with the model already idle can be the last blocker — let
         // the linger loop's immediate check decide (it may EOF).
         if (stdinHold && agentResultSeen) void lingerTick();
+      } else if (e.type === 'tool-use' && e.toolUseId) {
+        inflightToolUses.add(e.toolUseId);
+      } else if (e.type === 'tool-result' && e.toolUseId) {
+        inflightToolUses.delete(e.toolUseId);
       }
       if (e.type === 'text-delta' || e.type === 'text') {
         progressText += e.text;
@@ -574,10 +644,9 @@ export async function runAgentInSessionImpl(
         agentResultSeen = true;
         agentResultStatus = e.status;
         setAgentIdle(true);
-        if (stdinHold) {
-          confirmStdinDelivered();
-          void lingerTick();
-        }
+        // Stdin confirmation rides the awaiting flag (handled above); here
+        // only the close evaluation needs to run.
+        if (stdinHold) void lingerTick();
       } else if (e.type === 'tool-use') {
         if (e.toolUseId && e.toolName) toolNames.set(e.toolUseId, e.toolName);
         if (e.toolName === 'ExitPlanMode') {
