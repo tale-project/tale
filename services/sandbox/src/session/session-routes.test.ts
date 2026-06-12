@@ -137,13 +137,22 @@ beforeAll(() => {
 
 afterAll(() => fakeServer.stop(true));
 
+// Sessions whose backend object has "disappeared" out-of-band (zombie tests):
+// sessionExists answers false for these. `backendCheckThrows` simulates a
+// backend that can't answer (daemon hiccup) — the routes must treat that as
+// "unknown", never as "gone".
+const backendGone = new Set<string>();
+let backendCheckThrows = false;
+
 const fakeBackend: SessionBackend = {
   kind: 'docker',
   async createSession(spec: SessionSpec) {
     created.add(spec.sessionId);
   },
-  async resolveEndpoint() {
-    return fakeBaseUrl;
+  async resolveEndpoint(sessionId: string) {
+    // `dead-`-prefixed sessions get an unreachable runnerd — the zombie tests
+    // need the runnerd hop to fail at the transport level.
+    return sessionId.startsWith('dead-') ? 'http://127.0.0.1:9' : fakeBaseUrl;
   },
   async destroySession(sessionId: string) {
     const had = created.has(sessionId);
@@ -152,6 +161,10 @@ const fakeBackend: SessionBackend = {
   },
   async listSessions(): Promise<BackendSession[]> {
     return [];
+  },
+  async sessionExists(sessionId: string) {
+    if (backendCheckThrows) throw new Error('docker daemon hiccup');
+    return !backendGone.has(sessionId);
   },
 };
 
@@ -202,7 +215,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(created.has('sess1')).toBe(true);
 
     // get
-    expect(routes.handleGet('sess1').status).toBe(200);
+    expect((await routes.handleGet('sess1')).status).toBe(200);
 
     // exec echo
     const execReq = new Request('http://x/v1/sessions/sess1/exec', {
@@ -236,7 +249,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(await destroyRes.json()).toMatchObject({ destroyed: true });
     expect(destroyed.has('sess1')).toBe(true);
     // gone from registry
-    expect(routes.handleGet('sess1').status).toBe(404);
+    expect((await routes.handleGet('sess1')).status).toBe(404);
   });
 
   test('per-org session cap returns 429', async () => {
@@ -353,12 +366,12 @@ describe('SessionRoutes (fake runnerd)', () => {
     fakeHealth.liveExecs = 1;
     fakeHealth.lastActivityAtMs = 0; // epoch → far past the idle window
     expect(await routes.sweepExpired()).toBe(0);
-    expect(routes.handleGet('idle1').status).toBe(200);
+    expect((await routes.handleGet('idle1')).status).toBe(200);
 
     // No live exec + stale activity → idle-reaped.
     fakeHealth.liveExecs = 0;
     expect(await routes.sweepExpired()).toBe(1);
-    expect(routes.handleGet('idle1').status).toBe(404);
+    expect((await routes.handleGet('idle1')).status).toBe(404);
     fakeHealth.lastActivityAtMs = 0;
   });
 
@@ -375,12 +388,111 @@ describe('SessionRoutes (fake runnerd)', () => {
     fakeHealth.liveExecs = 0;
     fakeHealth.lastActivityAtMs = 0;
     expect(await routes.sweepExpired()).toBe(0);
-    expect(routes.handleGet('pin1').status).toBe(200);
+    expect((await routes.handleGet('pin1')).status).toBe(200);
 
     // Unpin → reaped on the next sweep.
     routes.handleSetPinned('pin1', JSON.stringify({ pinned: false }));
     expect(await routes.sweepExpired()).toBe(1);
-    expect(routes.handleGet('pin1').status).toBe(404);
+    expect((await routes.handleGet('pin1')).status).toBe(404);
     fakeHealth.lastActivityAtMs = 0;
+  });
+
+  // Zombie sessions: the backend object disappeared OUT-OF-BAND (manual
+  // docker rm, OOM teardown, K8s Pod eviction) while the registry cache still
+  // routes to it. Without eviction the platform sees transport errors instead
+  // of the definitive 404 its phantom self-heal keys on.
+  describe('zombie-session eviction', () => {
+    test('aliveness probe (handleGet) 404s + evicts when the backend object is gone', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'dead-z1', organizationId: 'org_z' }),
+      );
+      expect((await routes.handleGet('dead-z1')).status).toBe(200);
+
+      backendGone.add('dead-z1');
+      const res = await routes.handleGet('dead-z1');
+      expect(res.status).toBe(404);
+      // Evicted + leftovers reaped: the registry entry is gone for good.
+      expect(destroyed.has('dead-z1')).toBe(true);
+      expect((await routes.handleGet('dead-z1')).status).toBe(404);
+    });
+
+    test('a throwing backend check is "unknown", never "gone" — session survives', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'blip1', organizationId: 'org_z' }),
+      );
+      backendCheckThrows = true;
+      try {
+        expect((await routes.handleGet('blip1')).status).toBe(200);
+        expect(destroyed.has('blip1')).toBe(false);
+      } finally {
+        backendCheckThrows = false;
+      }
+    });
+
+    test('env patch against a zombie → 404 + eviction; against a live-but-blipping runnerd → 502, kept', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      // Zombie: runnerd unreachable AND backend confirms gone.
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'dead-z2', organizationId: 'org_z' }),
+      );
+      backendGone.add('dead-z2');
+      const gone = await routes.handleEnvPatch(
+        'dead-z2',
+        JSON.stringify({ set: { A: 'b' } }),
+      );
+      expect(gone.status).toBe(404);
+      expect(destroyed.has('dead-z2')).toBe(true);
+
+      // Transient: runnerd unreachable but the backend object is alive.
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'dead-z3', organizationId: 'org_z' }),
+      );
+      const blip = await routes.handleEnvPatch(
+        'dead-z3',
+        JSON.stringify({ set: { A: 'b' } }),
+      );
+      expect(blip.status).toBe(502);
+      expect(destroyed.has('dead-z3')).toBe(false);
+      expect((await routes.handleGet('dead-z3')).status).toBe(200);
+    });
+
+    test('exec transport failure on a zombie evicts it so the reconnect 404s', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'dead-z4', organizationId: 'org_z' }),
+      );
+      backendGone.add('dead-z4');
+      const execRes = routes.handleExec(
+        new Request('http://x', { method: 'POST' }),
+        'dead-z4',
+        JSON.stringify({ execId: 'e1', command: ['echo', 'hi'] }),
+      );
+      const { events } = await readSse(execRes);
+      expect(events.some((e) => e.event === 'error')).toBe(true);
+      // The drain's re-attach now hits a registry miss — the phantom signal.
+      expect(
+        routes.handleExecAttach(
+          new Request('http://x', { method: 'GET' }),
+          'dead-z4',
+          'e1',
+        ).status,
+      ).toBe(404);
+    });
+
+    test('sweepExpired reaps a zombie instead of skipping it until TTL', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'dead-z5', organizationId: 'org_z' }),
+      );
+      // runnerd unreachable + backend object alive → transient, kept.
+      expect(await routes.sweepExpired()).toBe(0);
+      expect((await routes.handleGet('dead-z5')).status).toBe(200);
+      // Backend object gone → reaped this sweep.
+      backendGone.add('dead-z5');
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(destroyed.has('dead-z5')).toBe(true);
+    });
   });
 });

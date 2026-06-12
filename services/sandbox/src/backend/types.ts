@@ -296,6 +296,16 @@ export interface SessionBackend {
    * Resolved per call — on K8s the Pod IP can change across container
    * restarts. Throws if the backend object doesn't exist. */
   resolveEndpoint(sessionId: string): Promise<string>;
+  /**
+   * DEFINITIVE liveness check of the backend object: true only when the
+   * container/Pod exists AND is running. Returns false on a confirmed
+   * "object gone/dead" answer (docker "No such object", K8s 404, exited
+   * container) — the zombie-registry-eviction signal. THROWS when the
+   * backend can't answer (daemon/API hiccup): callers MUST treat a throw as
+   * "unknown", never as "gone" — a transient backend blip must not get a
+   * live session destroyed.
+   */
+  sessionExists(sessionId: string): Promise<boolean>;
   /** Tear down container/Pod (+ Secret on K8s) and the workspace. Idempotent;
    * returns false when nothing existed. */
   destroySession(sessionId: string): Promise<boolean>;

@@ -120,6 +120,22 @@ export class KubernetesSessionBackend implements SessionBackend {
     return `http://${ip}:${RUNNERD_PORT}`;
   }
 
+  async sessionExists(sessionId: string): Promise<boolean> {
+    let pod;
+    try {
+      pod = await this.readPod(sessionId);
+    } catch (err) {
+      // Only a definitive 404 means "gone"; any other API failure is
+      // "unknown" and must propagate per the interface contract.
+      if (httpStatusCode(err) === 404) return false;
+      throw err;
+    }
+    // A terminating or non-Running Pod (Succeeded/Failed after eviction, node
+    // loss) is dead for session purposes — session Pods never restart.
+    if (pod.metadata?.deletionTimestamp) return false;
+    return pod.status?.phase === 'Running';
+  }
+
   async destroySession(sessionId: string): Promise<boolean> {
     const podName = sessionPodNameFor(sessionId);
     let existed = false;

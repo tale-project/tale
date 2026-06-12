@@ -107,8 +107,11 @@ export class SessionRoutes {
           if (health.liveExecs > 0) continue; // busy (cold-cache backstop)
           expired = nowMs - health.lastActivityAtMs > s.idleTimeoutMs;
         } catch {
-          // runnerd unreachable — leave for a later sweep (a transient blip
-          // shouldn't reap a session; the TTL is the hard backstop).
+          // runnerd unreachable. Distinguish a transient blip (leave for a
+          // later sweep; the TTL is the hard backstop) from a ZOMBIE — the
+          // backend object is gone but the cache entry survived. Without
+          // this, a dead session lingers routable-but-unreachable until TTL.
+          if (await this.evictIfBackendGone(s.sessionId)) reaped += 1;
         }
       }
       if (expired) {
@@ -139,6 +142,49 @@ export class SessionRoutes {
       expiresAtMs: s.expiresAtMs,
       idleTimeoutMs: s.idleTimeoutMs,
     };
+  }
+
+  /**
+   * Zombie-registry eviction. The registry is a cache; the backend object can
+   * disappear underneath it without any spawner involvement (manual
+   * `docker rm`, OOM teardown, K8s Pod eviction / node loss). A zombie entry
+   * then routes runnerd calls at a dead address — the platform sees transport
+   * errors instead of the definitive 404 its phantom self-heal keys on, so
+   * every turn fails without recovery.
+   *
+   * Called from runnerd-failure paths and the aliveness probe: verifies the
+   * backend object with the DEFINITIVE `sessionExists` check; on
+   * confirmed-gone it best-effort destroys (reaps the leftover workspace /
+   * Secret) and evicts the registry entry so this and subsequent calls
+   * resolve to 404 → `SessionNotFoundError` → the platform recreates the
+   * session in place. A THROWING check means "can't judge" (backend hiccup):
+   * keep the entry — a transient blip must never get a live session
+   * destroyed. Returns true when a zombie was evicted.
+   */
+  private async evictIfBackendGone(sessionId: string): Promise<boolean> {
+    if (!this.registry.has(sessionId)) return false;
+    let alive: boolean;
+    try {
+      alive = await this.backend.sessionExists(sessionId);
+    } catch (err) {
+      console.warn(
+        `[sandbox.session] liveness check for ${sessionId} failed (treating as alive):`,
+        err instanceof Error ? err.message : err,
+      );
+      return false;
+    }
+    if (alive) return false;
+    console.warn(
+      `[sandbox.session] ${sessionId} backend object gone; evicting zombie registry entry`,
+    );
+    await this.backend.destroySession(sessionId).catch((err) => {
+      console.warn(
+        `[sandbox.session] zombie cleanup for ${sessionId} failed:`,
+        err,
+      );
+    });
+    this.registry.delete(sessionId);
+    return true;
   }
 
   async handleCreate(body: string): Promise<Response> {
@@ -213,7 +259,14 @@ export class SessionRoutes {
     return jsonResponse({ session: this.toInfo(req.sessionId, 'ready') }, 201);
   }
 
-  handleGet(sessionId: string): Response {
+  /** GET /v1/sessions/:id — the platform's pre-turn aliveness probe keys its
+   * phantom-recreate on this route's 404, so a registry hit must be verified
+   * against the backend object: answering from the cache alone turns a dead
+   * container into "alive" and the turn then fails on a dead address. */
+  async handleGet(sessionId: string): Promise<Response> {
+    if (await this.evictIfBackendGone(sessionId)) {
+      return jsonResponse({ error: 'not_found' }, 404);
+    }
     const info = this.toInfo(sessionId, 'ready');
     if (!info) return jsonResponse({ error: 'not_found' }, 404);
     return jsonResponse({ session: info }, 200);
@@ -355,11 +408,19 @@ export class SessionRoutes {
             errorCode: 'SESSION_LOST',
             errorMessage: 'runnerd stream ended without a terminal event',
           } satisfies SessionExecResponse);
+          // Mid-exec container death: evict the zombie now so the platform's
+          // reconnect/next turn gets the definitive 404 instead of retrying a
+          // dead address.
+          await this.evictIfBackendGone(sessionId);
         }
       } catch (err) {
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });
+        // A transport-level runnerd failure on a gone container must convert
+        // the platform's resilient-drain retry into a 404 (registry miss),
+        // not another connection error.
+        await this.evictIfBackendGone(sessionId);
       } finally {
         this.registry.unregisterExec(sessionId, execReq.execId);
         req.signal.removeEventListener('abort', abortHandler);
@@ -372,10 +433,25 @@ export class SessionRoutes {
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     // Local abort (ends the SSE proxy) + tell runnerd to kill the process group.
     this.registry.getExec(sessionId, execId)?.abort();
-    const killed = await runnerdCancelExec(
-      { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
-      execId,
-    );
+    let killed: boolean;
+    try {
+      killed = await runnerdCancelExec(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        execId,
+      );
+    } catch (err) {
+      if (await this.evictIfBackendGone(sessionId)) {
+        // Container gone → nothing left to kill; the cancel is moot.
+        return jsonResponse({ error: 'not_found' }, 404);
+      }
+      return jsonResponse(
+        {
+          error: 'upstream_error',
+          message: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
     return jsonResponse({ killed }, 200);
   }
 
@@ -407,6 +483,9 @@ export class SessionRoutes {
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });
+        // See handleExec: a dead backend object must surface as 404 on the
+        // next reconnect, not as an endless transport error.
+        await this.evictIfBackendGone(sessionId);
       } finally {
         req.signal.removeEventListener('abort', onAbort);
       }
@@ -428,10 +507,24 @@ export class SessionRoutes {
     } catch (err) {
       return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
     }
-    const denied = await runnerdEnvPatch(
-      { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
-      { set: parsed.set, unset: parsed.unset },
-    );
+    let denied: string[];
+    try {
+      denied = await runnerdEnvPatch(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        { set: parsed.set, unset: parsed.unset },
+      );
+    } catch (err) {
+      if (await this.evictIfBackendGone(sessionId)) {
+        return jsonResponse({ error: 'not_found' }, 404);
+      }
+      return jsonResponse(
+        {
+          error: 'upstream_error',
+          message: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
     return jsonResponse({ ok: true, denied }, 200);
   }
 
@@ -474,10 +567,25 @@ export class SessionRoutes {
     } catch (err) {
       return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
     }
-    const result = await runnerdStageFiles(
-      { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
-      parsed.files ?? [],
-    );
+    let result;
+    try {
+      result = await runnerdStageFiles(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        parsed.files ?? [],
+      );
+    } catch (err) {
+      // Evict a zombie but answer 502, NOT 404 — the file routes' 404 already
+      // means "path not found" platform-side; a session-gone 404 here would
+      // be misread. The eviction makes the next aliveness probe 404 instead.
+      await this.evictIfBackendGone(sessionId);
+      return jsonResponse(
+        {
+          error: 'upstream_error',
+          message: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
     return jsonResponse(result, 200);
   }
 
@@ -485,10 +593,23 @@ export class SessionRoutes {
   async handleFilesList(sessionId: string, path: string): Promise<Response> {
     const session = this.registry.get(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
-    const entries = await runnerdListDir(
-      { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
-      path,
-    );
+    let entries;
+    try {
+      entries = await runnerdListDir(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        path,
+      );
+    } catch (err) {
+      // 502 not 404 — see handleFilesStage.
+      await this.evictIfBackendGone(sessionId);
+      return jsonResponse(
+        {
+          error: 'upstream_error',
+          message: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
     if (entries === null) return jsonResponse({ error: 'not_found' }, 404);
     return jsonResponse({ entries }, 200);
   }
@@ -498,10 +619,23 @@ export class SessionRoutes {
   async handleFileContent(sessionId: string, path: string): Promise<Response> {
     const session = this.registry.get(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
-    const bytes = await runnerdReadFile(
-      { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
-      path,
-    );
+    let bytes;
+    try {
+      bytes = await runnerdReadFile(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        path,
+      );
+    } catch (err) {
+      // 502 not 404 — see handleFilesStage.
+      await this.evictIfBackendGone(sessionId);
+      return jsonResponse(
+        {
+          error: 'upstream_error',
+          message: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
     if (bytes === null) return jsonResponse({ error: 'not_found' }, 404);
     return new Response(bytes, {
       status: 200,

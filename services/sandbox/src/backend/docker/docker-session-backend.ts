@@ -131,6 +131,22 @@ export class DockerSessionBackend implements SessionBackend {
     return `http://${sessionContainerName(sessionId)}:${RUNNERD_PORT}`;
   }
 
+  async sessionExists(sessionId: string): Promise<boolean> {
+    const containerName = sessionContainerName(sessionId);
+    const inspect = await runDocker(
+      ['inspect', '--format', '{{.State.Running}}', containerName],
+      { timeoutMs: 5_000 },
+    );
+    if (inspect.exitCode === 0) return inspect.stdout.trim() === 'true';
+    // Only a definitive "the object is gone" answer may return false; any
+    // other inspect failure (daemon hiccup, timeout) is "unknown" and must
+    // throw per the interface contract.
+    if (/no such (object|container)/i.test(inspect.stderr)) return false;
+    throw new Error(
+      `docker inspect ${containerName} failed: ${inspect.stderr.trim() || inspect.stdout.trim()}`,
+    );
+  }
+
   async destroySession(sessionId: string): Promise<boolean> {
     const containerName = sessionContainerName(sessionId);
     let existed = false;
