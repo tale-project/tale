@@ -38,6 +38,7 @@ export const getActiveSessionOp = query({
       agentSessionId: v.optional(v.string()),
       startedAt: v.number(),
       finishedAt: v.optional(v.number()),
+      lastEventAt: v.optional(v.number()),
     }),
     v.null(),
   ),
@@ -58,6 +59,7 @@ export const getActiveSessionOp = query({
       agentSessionId?: string;
       startedAt: number;
       finishedAt?: number;
+      lastEventAt?: number;
     } | null = null;
     for await (const row of ctx.db
       .query('sandboxSessionOps')
@@ -77,6 +79,9 @@ export const getActiveSessionOp = query({
           }),
           startedAt: row.startedAt,
           ...(row.finishedAt !== undefined && { finishedAt: row.finishedAt }),
+          ...(row.lastEventAt !== undefined && {
+            lastEventAt: row.lastEventAt,
+          }),
         };
       }
     }

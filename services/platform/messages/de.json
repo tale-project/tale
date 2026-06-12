@@ -847,7 +847,8 @@
       "skillsCount": "{count, plural, one {# Skill} other {# Skills}}",
       "tokensCount": "{count, plural, one {# Token} other {# Tokens}}",
       "summaryReasoningOnly": "Hat den Gedankengang gezeigt",
-      "responding": "Antwortet"
+      "responding": "Antwortet",
+      "working": "Arbeitet weiter — länger laufender Schritt"
     },
     "routing": {
       "routedTo": "An {agent} weitergeleitet",
@@ -963,7 +964,7 @@
       "deleteFailed": "Eingereihte Nachricht konnte nicht entfernt werden",
       "badgeQueued": "Eingereiht",
       "badgeSending": "Wird gesendet…",
-      "badgeDelivered": "An den Agenten übergeben",
+      "badgeDelivered": "Wartet auf den Agenten",
       "badgePickedUp": "Übernommen",
       "deleteQueued": "Eingereihte Nachricht entfernen"
     },

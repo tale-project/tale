@@ -327,10 +327,15 @@ export const listDeliveredForExec = internalQuery({
 /** Flip staged rows queued → delivered. Skips rows no longer 'queued' (a turn
  * boundary claimed them first) and refuses entirely when the exec is no longer
  * running (its finalize may already have reconciled — the staged files are
- * inert garbage in a dead exec's dir, cleaned on container restart). Also
- * stamps the op row's steerSeamRequestedAt so the drain seals the current
- * message segment — the turn's subsequent output then renders BELOW the
- * delivered user message(s), keeping the timeline in conversational order. */
+ * inert garbage in a dead exec's dir, cleaned on container restart).
+ *
+ * The delivered rows themselves are the drain's "steer pending" signal: it
+ * watches the steer dir for the hook's consumed.* markers (and the stream for
+ * the Stop-hook sentinel) and seals the current message segment only at the
+ * OBSERVED injection — staging time would strand the rest of the current
+ * answer below the steered user message. The steerSeamRequestedAt stamp is
+ * still written for the deploy window only (in-flight pre-deploy actions
+ * consume it via the old per-flush poll); see its @deprecated schema note. */
 export const markDelivered = internalMutation({
   args: {
     threadId: v.string(),
@@ -369,20 +374,27 @@ export const markDelivered = internalMutation({
   },
 });
 
-/** Live consumption signal (parser-detected Stop-hook injection): flip
- * delivered rows → consumed so the UI pill updates mid-turn. */
+/** Live consumption signal (Stop-hook stream sentinel or the drain's
+ * consumed.* dir poll): flip delivered rows → consumed so the UI pill updates
+ * mid-turn. Returns the number of rows actually flipped — the drain trips the
+ * steer seam only on a count > 0, which is what makes the trip exactly-once
+ * across replayed sentinels, double detection (a Stop-hook consumption leaves
+ * BOTH the marker file and the stream sentinel), and racing continuations:
+ * the scan is delivered-only, so a second call for the same ids returns 0. */
 export const markConsumed = internalMutation({
   args: { threadId: v.string(), messageIds: v.array(v.string()) },
-  returns: v.null(),
+  returns: v.number(),
   handler: async (ctx, args) => {
     const wanted = new Set(args.messageIds);
     const delivered = await listByStatus(ctx, args.threadId, 'delivered');
+    let flipped = 0;
     for (const row of delivered) {
       if (wanted.has(row.messageId)) {
         await ctx.db.patch(row._id, { status: 'consumed' as const });
+        flipped += 1;
       }
     }
-    return null;
+    return flipped;
   },
 });
 

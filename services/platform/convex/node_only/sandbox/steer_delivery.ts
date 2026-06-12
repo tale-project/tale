@@ -8,27 +8,25 @@
 // Delivery state machine (chatMessageQueue.status):
 //   queued → delivered   here, only after the spawner confirms the file staged
 //                        AND the exec is still running (markDelivered guard).
-//   delivered → consumed live (parser sees the Stop-hook injection) or at the
-//                        terminal reconciliation in finalizeTurnSideEffects.
+//   delivered → consumed live (the parser sees the Stop-hook injection, or the
+//                        drain's consumed.* dir poll observes the PostToolUse
+//                        one) or at the terminal reconciliation in
+//                        finalizeTurnSideEffects.
 //   delivered → queued   terminal reconciliation, when the turn died before
 //                        the hook consumed the file (at-least-once).
+//
+// Seam timing: staging only makes the message AVAILABLE to the hook. The
+// message-segment seam (seal the current bubble, open a fresh one below the
+// steered user message) trips when the drain OBSERVES the injection — never
+// at staging time, which would strand the rest of the current answer below
+// the steered message.
 
 import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { sessionStageFiles } from './helpers/session_client';
-
-/** Filename for a staged steer message. The hook consumes `steer-*.json` and
- * renames to `consumed.<name>`, so the platform can reconcile from a directory
- * listing alone. createdAt prefix keeps the hook's glob-sort in send order. */
-export function steerFileName(createdAt: number, messageId: string): string {
-  return `steer-${String(createdAt).padStart(15, '0')}-${messageId}.json`;
-}
-
-export function steerDirFor(execId: string): string {
-  return `.tale/steer/${execId}`;
-}
+import { steerDirFor, steerFileName } from './steer_files';
 
 export const deliverSteerMessages = internalAction({
   args: { threadId: v.string() },

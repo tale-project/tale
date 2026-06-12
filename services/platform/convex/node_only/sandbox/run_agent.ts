@@ -31,12 +31,20 @@ import {
 } from './agent_message_parts';
 import {
   drainSessionExecResilient,
+  sessionListFiles,
   type ExecCursor,
   type SessionExecResult,
 } from './helpers/session_client';
+import { matchConsumedSteerFiles, steerDirFor } from './steer_files';
 
 const PROGRESS_FLUSH_MS = 500;
 const RECENT_EVENTS_CAP = 20;
+// Consumption-poll cadence while steer message(s) are delivered-but-unconsumed
+// (PostToolUse injections leave no stream signal — only consumed.* markers).
+// A tool-result in the stream bypasses this throttle: the hook fires at that
+// boundary, so polling right then catches the consumption within one listing
+// round-trip instead of up to a full interval later.
+const STEER_POLL_INTERVAL_MS = 2_000;
 // Liveness heartbeat cadence (independent of output) — the recovery watchdog's
 // staleness threshold must be a comfortable multiple of this.
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -122,10 +130,12 @@ export interface RunAgentInSessionResult {
    * action re-attaches from. The timeline is NOT carried — each segment renders
    * into its own message (S4). */
   lastSeq?: number;
-  /** status==='continued' only: this seam was tripped by a steer delivery —
-   * a queued user message was staged into the running exec, so the next
-   * segment must open a FRESH message (even if this segment is empty) so the
-   * turn's subsequent output renders BELOW that user message. */
+  /** status==='continued' only: this seam was tripped by an OBSERVED steer
+   * injection — the in-sandbox hook delivered queued user message(s) into the
+   * running turn (Stop-hook stream sentinel, or consumed.* markers found by
+   * the dir poll). The next segment must open a FRESH message (even if this
+   * segment is empty) so the turn's subsequent output renders BELOW that
+   * user message. */
   steerSeam?: boolean;
   /** The plan the agent proposed via ExitPlanMode (input.plan — verified
    * present on CLI 2.1.173, alongside planFilePath). In execute mode it is
@@ -195,17 +205,51 @@ export async function runAgentInSessionImpl(
   let planText: string | undefined = args.resumeFrom?.planText;
   let usage: RunAgentInSessionResult['usage'];
   let lastFlush = 0;
+  // When the agent last emitted ANY stream event. Stays frozen while the CLI
+  // idles (e.g. waiting on an in-session background task) even though the
+  // heartbeat keeps bumping — the UI uses the gap to label the tail honestly.
+  // No resume seed needed: upsertSessionOp only patches defined fields, so a
+  // silent continuation segment leaves the row's pre-seam value in place.
+  let lastEventAt: number | undefined;
   // Handoff control (hoisted so flushProgress can trip it): the budget deadline
   // OR the per-message byte budget aborts the drain → the run returns 'continued'
   // and the caller segments (finalizes this message, opens a fresh one).
   const controller = new AbortController();
   let handoff = false;
-  // Set when the handoff was tripped by a steer delivery (queued user message
-  // staged into this exec) — the continuation must open a fresh message so
-  // subsequent output renders below that user message.
+  // Set when the handoff was tripped by an OBSERVED steer injection (the
+  // in-sandbox hook delivered queued user message(s) into the running turn) —
+  // the continuation must open a fresh message so subsequent output renders
+  // below that user message. Detection is dual: the Stop-hook path surfaces
+  // in-stream as a steer-injected event; the PostToolUse path only leaves
+  // consumed.* markers, watched by the flush's throttled dir poll.
   let steerSeam = false;
+  // Steer-detection state. Trips are gated on markConsumed flipping > 0 rows
+  // (delivered-only scan ⇒ a replayed sentinel or a second detector finds 0),
+  // which makes the seam exactly-once across continuation replays and the
+  // marker+sentinel double signal a Stop-hook consumption leaves behind.
+  let steerSeamTripped = false;
+  let sawSteerInjected = false;
+  let steerPollNow = false;
+  // 0 ⇒ a continuation's first flush polls immediately — that's also what
+  // catches a sentinel that straddled the re-attach boundary.
+  let lastSteerPoll = 0;
+  let drainActive = true;
+
+  const tripSteerSeam = (): void => {
+    // drainActive guards a stray late trip (e.g. a sentinel parsed out of
+    // parser.end() after a terminal result) from aborting a finished drain.
+    if (steerSeamTripped || !drainActive) return;
+    steerSeamTripped = true;
+    steerSeam = true;
+    if (!handoff) {
+      handoff = true;
+      controller.abort();
+    }
+  };
 
   const recordEvents = (events: AgentEvent[]): void => {
+    if (events.length > 0) lastEventAt = Date.now();
+    const injectedIds: string[] = [];
     for (const e of events) {
       if (e.type === 'text-delta' || e.type === 'text') {
         progressText += e.text;
@@ -241,18 +285,15 @@ export async function runAgentInSessionImpl(
       } else if (e.type === 'steer-injected') {
         // Live confirmation that the steer hook injected queued user
         // message(s) into this running turn (only the Stop-hook delivery
-        // surfaces in the stream). Best-effort early pill flip — the terminal
-        // reconciliation in finalizeTurnSideEffects stays authoritative.
-        if (args.threadId !== undefined && e.messageIds.length > 0) {
-          void ctx
-            .runMutation(internal.threads.message_queue.markConsumed, {
-              threadId: args.threadId,
-              messageIds: e.messageIds,
-            })
-            .catch((err: unknown) =>
-              console.warn('[run_agent] steer markConsumed failed:', err),
-            );
-        }
+        // surfaces in the stream; PostToolUse injections are caught by the
+        // flush's consumed.* dir poll). Collected per batch — consumption +
+        // seam trip happen at batch end, below.
+        injectedIds.push(...e.messageIds);
+      } else if (e.type === 'tool-result') {
+        // A tool boundary just passed — exactly where the PostToolUse steer
+        // hook fires. Let the next flush poll the steer dir immediately
+        // instead of waiting out the poll throttle.
+        steerPollNow = true;
       }
       // Durable timeline: every text + tool-use/tool-result, in order (the
       // pieces buildAssistantContent persists). text-delta is excluded (its
@@ -269,6 +310,31 @@ export async function runAgentInSessionImpl(
         recentEvents.push(JSON.stringify(e));
         if (recentEvents.length > RECENT_EVENTS_CAP) recentEvents.shift();
       }
+    }
+    // Steer seam at the ACTUAL injection point (Stop-hook path). Deferred to
+    // batch end: cursor.lastSeq already covers this whole chunk (seq advances
+    // per stdout chunk before parser.feed), so the batch must be fully
+    // recorded before the abort — same-chunk events after the sentinel stay
+    // in this pre-injection segment, which the model round-trip between
+    // injection and response makes practically empty. The trip is gated on
+    // markConsumed flipping > 0 rows, so a sentinel replayed across a
+    // re-attach (or the dir poll winning the same consumption) can't seam
+    // twice; a flip that loses the staging race (rows not yet 'delivered')
+    // is picked up by the next dir poll instead.
+    if (injectedIds.length > 0 && args.threadId !== undefined) {
+      const threadId = args.threadId;
+      sawSteerInjected = true;
+      void ctx
+        .runMutation(internal.threads.message_queue.markConsumed, {
+          threadId,
+          messageIds: injectedIds,
+        })
+        .then((flipped) => {
+          if (flipped > 0) tripSteerSeam();
+        })
+        .catch((err: unknown) =>
+          console.warn('[run_agent] steer markConsumed failed:', err),
+        );
     }
   };
 
@@ -289,6 +355,7 @@ export async function runAgentInSessionImpl(
       // draining action from a dead one, and a continuation knows where to
       // re-attach.
       heartbeatAt: now,
+      ...(lastEventAt !== undefined && { lastEventAt }),
       lastSeq: cursor.lastSeq,
       ...(capturedSessionId !== undefined && {
         agentSessionId: capturedSessionId,
@@ -317,25 +384,53 @@ export async function runAgentInSessionImpl(
       handoff = true;
       controller.abort();
     }
-    // Steer seam: a queued user message was just staged into this exec
-    // (markDelivered stamped the op row). Trip the same handoff so the next
-    // segment's message opens BELOW that user message — without this the
-    // reply to the steered message keeps growing the bubble ABOVE it.
-    // Consume is exactly-once (mutation-atomic) and best-effort: a failed
-    // poll just retries on the next flush.
-    if (!handoff && args.threadId !== undefined) {
+    // Steer seam at the ACTUAL injection point (PostToolUse path — that
+    // injection never reaches stdout; only the hook's consumed.* renames are
+    // observable). The delivered queue rows themselves are the pending
+    // signal: while any exist, watch the steer dir (throttled — a tool-result
+    // bypasses the throttle since that's the boundary the hook fires at) and
+    // seal only on observed consumption. Sealing at staging time stranded the
+    // rest of the current answer below the steered user message. Stop-hook
+    // injections are caught earlier, in-stream, by recordEvents. The !handoff
+    // guard also keeps the forced flush in the handoff path from blocking on
+    // a (up to 30s) directory listing.
+    if (
+      !handoff &&
+      !steerSeamTripped &&
+      args.threadId !== undefined &&
+      args.agentSlug === 'claude-code' &&
+      (steerPollNow || now - lastSteerPoll >= STEER_POLL_INTERVAL_MS)
+    ) {
+      // Reset before the awaits so an overlapping flush doesn't double-poll.
+      steerPollNow = false;
+      lastSteerPoll = now;
+      const threadId = args.threadId;
       try {
-        const seam = await ctx.runMutation(
-          internal.sandbox.session_mutations.consumeSteerSeamRequest,
-          { sessionId: args.sessionId, execId: args.execId },
+        const delivered = await ctx.runQuery(
+          internal.threads.message_queue.listDeliveredForExec,
+          { threadId, execId: args.execId },
         );
-        if (seam) {
-          steerSeam = true;
-          handoff = true;
-          controller.abort();
+        if (delivered.length > 0) {
+          // A null listing means the dir (or session) is gone ⇒ treat as
+          // nothing consumed; never infer session death here — the drain's
+          // own attach surfaces that and feeds the existing self-heal.
+          const entries = await sessionListFiles(
+            args.sessionId,
+            steerDirFor(args.execId),
+          );
+          const consumedIds = matchConsumedSteerFiles(delivered, entries);
+          if (consumedIds.length > 0) {
+            const flipped = await ctx.runMutation(
+              internal.threads.message_queue.markConsumed,
+              { threadId, messageIds: consumedIds },
+            );
+            if (flipped > 0) tripSteerSeam();
+          }
         }
       } catch (seamErr) {
-        console.warn('[run_agent] steer seam poll failed:', seamErr);
+        // Transport error: the rows stay 'delivered', so pending isn't lost —
+        // retry on a later flush. Never fatal to the drain.
+        console.warn('[run_agent] steer consumption poll failed:', seamErr);
       }
     }
   };
@@ -393,6 +488,7 @@ export async function runAgentInSessionImpl(
       kind: 'agent-run',
       status: 'running',
       heartbeatAt: Date.now(),
+      ...(lastEventAt !== undefined && { lastEventAt }),
       lastSeq: cursor.lastSeq,
     });
     // Same tick, second write: keep the thread-level generation-stale guard
@@ -433,6 +529,7 @@ export async function runAgentInSessionImpl(
       },
     );
   } catch (err) {
+    drainActive = false;
     if (budgetTimer) clearTimeout(budgetTimer);
     clearInterval(heartbeatTimer);
     if (handoff) {
@@ -440,6 +537,15 @@ export async function runAgentInSessionImpl(
       // continuation re-attaches mid-line via sinceSeq); persist the latest
       // timeline so the continuation + UI have it, then return the checkpoint.
       await flushProgress(true);
+      if (sawSteerInjected && !steerSeam) {
+        // Injection observed but a non-steer handoff won the race to abort
+        // and markConsumed hadn't confirmed yet. Usually self-corrects at the
+        // top of the continuation (replayed sentinel → rows still delivered);
+        // logged so the rare empty-segment misplacement is traceable.
+        console.warn(
+          `[run_agent] steer injection observed but handoff returned without steerSeam (execId=${args.execId})`,
+        );
+      }
       return {
         status: 'continued',
         exitCode: null,
@@ -458,9 +564,23 @@ export async function runAgentInSessionImpl(
     }
     throw err;
   }
+  drainActive = false;
   if (budgetTimer) clearTimeout(budgetTimer);
   clearInterval(heartbeatTimer);
+  // A sentinel surfacing only here (parser.end after the terminal result)
+  // still flips the pill via the batch-end markConsumed task, but its
+  // tripSteerSeam is inert (drainActive=false) — a finished drain must not
+  // be aborted.
   recordEvents(parser.end());
+  if (sawSteerInjected && !steerSeam) {
+    // The injection landed close enough to the turn's natural end that the
+    // terminal result won the race against the seam abort. Ordering above
+    // the steered message may be off for this one turn; rows reconcile
+    // normally. Observability only — never retro-split persisted content.
+    console.warn(
+      `[run_agent] steer injection observed but the turn reached a terminal result before the seam (execId=${args.execId})`,
+    );
+  }
 
   const opStatus =
     result.status === 'completed'

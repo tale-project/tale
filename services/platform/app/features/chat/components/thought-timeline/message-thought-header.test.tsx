@@ -20,6 +20,7 @@ vi.mock('@/lib/i18n/client', () => ({
         'thoughtProcess.skillsCount': plural('count', 'skill', 'skills'),
         'thoughtProcess.tokensCount': plural('count', 'token', 'tokens'),
         'thoughtProcess.summaryReasoningOnly': 'Showed its reasoning',
+        'thoughtProcess.working': 'Still working',
       };
       return map[key] ?? key;
     },
@@ -96,6 +97,46 @@ describe('MessageThoughtHeader', () => {
       />,
     );
     expect(screen.getByText(/1234 tokens/)).toBeInTheDocument();
+  });
+
+  it('swaps a stale "Thinking" for the honest-silence label', () => {
+    render(
+      <MessageThoughtHeader
+        {...base}
+        isStreaming
+        hasAnswerStarted={false}
+        activity={{ type: 'thinking' }}
+        lastEventAt={Date.now() - 120_000}
+      />,
+    );
+    expect(screen.getByText(/Still working/)).toBeInTheDocument();
+  });
+
+  it('keeps a specific live label even when events are stale', () => {
+    render(
+      <MessageThoughtHeader
+        {...base}
+        isStreaming
+        hasAnswerStarted={false}
+        activity={{ type: 'tool', toolName: 'Bash' }}
+        lastEventAt={Date.now() - 120_000}
+      />,
+    );
+    expect(screen.queryByText(/Still working/)).not.toBeInTheDocument();
+  });
+
+  it('keeps "Thinking" while events are fresh', () => {
+    render(
+      <MessageThoughtHeader
+        {...base}
+        isStreaming
+        hasAnswerStarted={false}
+        activity={{ type: 'thinking' }}
+        lastEventAt={Date.now() - 5_000}
+      />,
+    );
+    expect(screen.getByText(/Thinking/)).toBeInTheDocument();
+    expect(screen.queryByText(/Still working/)).not.toBeInTheDocument();
   });
 
   it('falls back to the reasoning-only label when nothing is measurable', () => {

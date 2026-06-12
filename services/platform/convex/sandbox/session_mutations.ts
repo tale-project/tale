@@ -368,6 +368,7 @@ export const upsertSessionOp = internalMutation({
     streamId: v.optional(v.string()),
     deadlineMs: v.optional(v.number()),
     heartbeatAt: v.optional(v.number()),
+    lastEventAt: v.optional(v.number()),
     lastSeq: v.optional(v.number()),
     checkpointStorageId: v.optional(v.string()),
     continuationCount: v.optional(v.number()),
@@ -378,11 +379,13 @@ export const upsertSessionOp = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     let existing: Id<'sandboxSessionOps'> | null = null;
+    let existingLastEventAt: number | undefined;
     for await (const row of ctx.db
       .query('sandboxSessionOps')
       .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
       if (row.execId === args.execId) {
         existing = row._id;
+        existingLastEventAt = row.lastEventAt;
         break;
       }
     }
@@ -404,6 +407,7 @@ export const upsertSessionOp = internalMutation({
       'streamId',
       'deadlineMs',
       'heartbeatAt',
+      'lastEventAt',
       'lastSeq',
       'checkpointStorageId',
       'continuationCount',
@@ -412,6 +416,17 @@ export const upsertSessionOp = internalMutation({
     ] as const;
     for (const k of optional) {
       if (args[k] !== undefined) patch[k] = args[k];
+    }
+    // lastEventAt is sent by two unawaited racers (the 500ms progress flush and
+    // the 20s heartbeat tick), so a stale in-flight write can commit after a
+    // fresher one. Keep the field monotonic — a regression would re-trip the
+    // UI's silence threshold right after events resumed.
+    if (
+      typeof patch.lastEventAt === 'number' &&
+      existingLastEventAt !== undefined &&
+      patch.lastEventAt < existingLastEventAt
+    ) {
+      delete patch.lastEventAt;
     }
     if (terminal) patch.finishedAt = now;
 
@@ -462,10 +477,11 @@ export const claimSessionOpFinalize = internalMutation({
 });
 
 /**
- * Steer ordering: consume the op's seam request, exactly-once (mutation
- * atomicity). The drain polls this on its progress-flush throttle; `true`
- * trips an S4 handoff so the next message segment opens BELOW the user
- * message that was just steered into the running exec.
+ * @deprecated Kept callable for the deploy window only: in-flight pre-deploy
+ * drains still poll this per flush. New drains derive steer-pending from the
+ * delivered queue rows and trip the seam at the OBSERVED injection instead
+ * (see run_agent's consumption poll + steer-injected handling). Remove
+ * together with the schema field's deprecation note.
  */
 export const consumeSteerSeamRequest = internalMutation({
   args: { sessionId: v.string(), execId: v.string() },

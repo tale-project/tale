@@ -30,8 +30,9 @@ interface ExternalAgentLiveTimelineProps {
    *  timeline is already rendering inside the still-streaming assistant
    *  bubble ABOVE the queued user message, so rendering it here too would
    *  duplicate that turn's activity below the steer and visibly "jump"
-   *  upward at the seam. When true, skip the running-timeline branch (and
-   *  its session-op subscription) and render only the placeholder. */
+   *  upward at the seam. When true, skip the running-timeline branch and
+   *  render only the placeholder (the session-op subscription stays — its
+   *  lastEventAt drives the placeholder's honest-silence label). */
   placeholderOnly?: boolean;
 }
 
@@ -52,13 +53,13 @@ export function ExternalAgentLiveTimeline({
   routeReason,
   placeholderOnly,
 }: ExternalAgentLiveTimelineProps) {
-  const progress = useSessionProgress(placeholderOnly ? undefined : threadId);
+  const progress = useSessionProgress(threadId);
   const parts = useMemo(
     () =>
-      progress?.status === 'running'
+      !placeholderOnly && progress?.status === 'running'
         ? buildExternalAgentParts(progress.recentEvents)
         : [],
-    [progress?.status, progress?.recentEvents],
+    [placeholderOnly, progress?.status, progress?.recentEvents],
   );
   const { segments, toolCount, skillCount, hasReasoning } = useMemo(
     () => buildMessageSegments(parts),
@@ -67,6 +68,12 @@ export function ExternalAgentLiveTimeline({
   // The agent's narration maps to reasoning parts and the final answer arrives
   // as the saved message, so only the thought rows render here — no text runs.
   const thoughtSegments = segments.filter((s) => s.kind !== 'text');
+  // Anchor on startedAt before the first event lands — a turn that wedges at
+  // CLI boot is exactly the silent-but-alive case the honest label exists for.
+  const lastEventAt =
+    progress?.status === 'running'
+      ? (progress.lastEventAt ?? progress.startedAt)
+      : undefined;
 
   if (
     !placeholderOnly &&
@@ -83,6 +90,7 @@ export function ExternalAgentLiveTimeline({
           hasReasoning={hasReasoning}
           activity={deriveActivity(segments)}
           {...(turnStartMs !== undefined && { turnStartMs })}
+          {...(lastEventAt !== undefined && { lastEventAt })}
         />
         {thoughtSegments.map((segment) =>
           segment.kind === 'reasoning' ? (
@@ -104,6 +112,7 @@ export function ExternalAgentLiveTimeline({
       {...(routedAgentName !== undefined && { routedAgentName })}
       {...(routeReason !== undefined && { routeReason })}
       {...(turnStartMs !== undefined && { turnStartMs })}
+      {...(lastEventAt !== undefined && { lastEventAt })}
     />
   );
 }

@@ -13,7 +13,9 @@ vi.mock('./thought-timeline', () => ({
   MessageThoughtHeader: () => <div data-testid="thought-header" />,
   InlineReasoning: () => <div data-testid="reasoning-row" />,
   ToolStepRow: () => <div data-testid="tool-row" />,
-  ThinkingIndicator: () => <div data-testid="thinking" />,
+  ThinkingIndicator: ({ lastEventAt }: { lastEventAt?: number }) => (
+    <div data-testid="thinking" data-last-event-at={lastEventAt} />
+  ),
 }));
 
 const mockedUseSessionProgress = vi.mocked(useSessionProgress);
@@ -21,6 +23,7 @@ const mockedUseSessionProgress = vi.mocked(useSessionProgress);
 const runningProgress = {
   status: 'running' as const,
   startedAt: 1718000000000,
+  lastEventAt: 1718000001000,
   recentEvents: [
     JSON.stringify({
       type: 'tool-use',
@@ -56,8 +59,32 @@ describe('ExternalAgentLiveTimeline', () => {
     expect(screen.getByTestId('thinking')).toBeInTheDocument();
     expect(screen.queryByTestId('thought-header')).not.toBeInTheDocument();
     expect(screen.queryByTestId('tool-row')).not.toBeInTheDocument();
-    // The session-op subscription is skipped entirely, not just unrendered.
-    expect(mockedUseSessionProgress).toHaveBeenCalledWith(undefined);
+    // The subscription stays live even in placeholder mode — the op's
+    // lastEventAt drives the placeholder's honest-silence label.
+    expect(mockedUseSessionProgress).toHaveBeenCalledWith('thread-1');
+    expect(screen.getByTestId('thinking').dataset['lastEventAt']).toBe(
+      String(runningProgress.lastEventAt),
+    );
+  });
+
+  it('anchors the silence signal on startedAt before the first event', () => {
+    const { lastEventAt: _omitted, ...withoutLastEvent } = runningProgress;
+    mockedUseSessionProgress.mockReturnValue({
+      ...withoutLastEvent,
+      recentEvents: [],
+    });
+
+    render(
+      <ExternalAgentLiveTimeline
+        threadId="thread-1"
+        phase="thinking"
+        placeholderOnly
+      />,
+    );
+
+    expect(screen.getByTestId('thinking').dataset['lastEventAt']).toBe(
+      String(runningProgress.startedAt),
+    );
   });
 
   it('falls back to the placeholder when there is no running op', () => {

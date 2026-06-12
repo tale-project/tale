@@ -40,6 +40,7 @@ import {
   useChatAgents,
   useMessageMetadata,
   useFileUrls,
+  useSessionProgress,
   useThreadLiveRoute,
   useThreadGenerationStart,
   type ThreadLiveRoute,
@@ -213,6 +214,20 @@ function MessageBubbleComponent({
   const isUser = message.role === 'user';
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
+  // External-agent silence signal for the in-bubble header: once the answer
+  // text lands, this bubble is the only live "Thinking" surface (the footer
+  // timeline unmounts), so it needs the op's lastEventAt to swap a long-silent
+  // "Thinking" for the honest "Still working" label. Subscribed only for the
+  // last streaming assistant bubble; normal chat threads have no op → null.
+  const sessionProgress = useSessionProgress(
+    isAssistantStreaming && isLastAssistantMessage
+      ? message.threadId
+      : undefined,
+  );
+  const lastEventAt =
+    sessionProgress?.status === 'running'
+      ? (sessionProgress.lastEventAt ?? sessionProgress.startedAt)
+      : undefined;
   const voiceMode = useVoiceModeEffective(message.threadId);
   useVoiceOutputChunker({
     // Gate on assistant role explicitly. `!isUser` would let system
@@ -558,6 +573,7 @@ function MessageBubbleComponent({
           hasReasoning={messageSegments.hasReasoning}
           turnStartMs={turnStartMs}
           activity={activity}
+          {...(lastEventAt !== undefined && { lastEventAt })}
         />
       ) : null,
     [
@@ -570,6 +586,7 @@ function MessageBubbleComponent({
       messageSegments,
       turnStartMs,
       activity,
+      lastEventAt,
     ],
   );
 

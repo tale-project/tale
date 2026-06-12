@@ -820,6 +820,7 @@ import type * as node_only_sandbox_session_admin_actions from "../node_only/sand
 import type * as node_only_sandbox_session_credentials from "../node_only/sandbox/session_credentials.js";
 import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
 import type * as node_only_sandbox_steer_delivery from "../node_only/sandbox/steer_delivery.js";
+import type * as node_only_sandbox_steer_files from "../node_only/sandbox/steer_files.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
 import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
 import type * as node_only_sql_helpers_execute_postgres_query from "../node_only/sql/helpers/execute_postgres_query.js";
@@ -2233,6 +2234,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/session_credentials": typeof node_only_sandbox_session_credentials;
   "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
   "node_only/sandbox/steer_delivery": typeof node_only_sandbox_steer_delivery;
+  "node_only/sandbox/steer_files": typeof node_only_sandbox_steer_files;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
   "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
   "node_only/sql/helpers/execute_postgres_query": typeof node_only_sql_helpers_execute_postgres_query;

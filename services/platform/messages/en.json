@@ -847,7 +847,8 @@
       "skillsCount": "{count, plural, one {# skill} other {# skills}}",
       "tokensCount": "{count, plural, one {# token} other {# tokens}}",
       "summaryReasoningOnly": "Showed its reasoning",
-      "responding": "Responding"
+      "responding": "Responding",
+      "working": "Still working — long-running step"
     },
     "routing": {
       "routedTo": "Routed to {agent}",
@@ -963,7 +964,7 @@
       "deleteFailed": "Could not remove the queued message",
       "badgeQueued": "Queued",
       "badgeSending": "Sending…",
-      "badgeDelivered": "Sent to agent",
+      "badgeDelivered": "Waiting for agent",
       "badgePickedUp": "Picked up",
       "deleteQueued": "Remove queued message"
     },

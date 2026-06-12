@@ -208,7 +208,13 @@ export type ThoughtActivity =
   | { type: 'routing' }
   | { type: 'thinking' }
   | { type: 'tool'; toolName: string; input?: Record<string, unknown> }
-  | { type: 'responding' };
+  | { type: 'responding' }
+  // The turn is alive (heartbeat fresh) but the agent has emitted nothing for
+  // a while — e.g. an external agent idle-waiting on an in-session background
+  // task. Replaces the bare "Thinking" so a long silent stretch reads as
+  // deliberate work, not a hang. Set by the header components from the op's
+  // lastEventAt gap, never by deriveActivity (segments can't see silence).
+  | { type: 'working' };
 
 export function deriveActivity(
   segments: readonly MessageSegment[],

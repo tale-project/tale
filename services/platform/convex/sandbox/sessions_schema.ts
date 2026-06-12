@@ -136,6 +136,11 @@ export const sandboxSessionOpsTable = defineTable({
   /** Last drain heartbeat — distinguishes a live draining action from a dead
    * one (the watchdog only reaps rows whose heartbeat went stale). */
   heartbeatAt: v.optional(v.number()),
+  /** When the agent last emitted a stream event. Diverges from heartbeatAt
+   * when the CLI is alive but silent (e.g. idle-waiting on an in-session
+   * background task) — the UI uses the gap to label the tail indicator
+   * honestly instead of showing "Thinking" forever. */
+  lastEventAt: v.optional(v.number()),
   /** Resume cursor: highest runnerd event seq consumed (for the continuation
    * action to re-attach without missing/duplicating events). */
   lastSeq: v.optional(v.number()),
@@ -156,12 +161,13 @@ export const sandboxSessionOpsTable = defineTable({
    * 'budget' (the org's rolling cap was reached). Distinguishes a clean
    * budget pause from a completed/failed/cancelled op on the management page. */
   pausedReason: v.optional(v.string()),
-  /** Steer ordering: stamped by markDelivered when queued user message(s) are
-   * staged into this RUNNING exec. The drain consumes it (exactly-once) and
-   * trips an S4 seam so the turn's subsequent output renders in a fresh
-   * message BELOW the queued user message instead of growing the bubble above
-   * it. Cleared on consume; harmless if the turn ends first (the unconsumed
-   * messages re-queue at finalize). */
+  /** @deprecated Steer seams now trip on the OBSERVED injection (Stop-hook
+   * stream sentinel / consumed.* dir poll), with the delivered queue rows as
+   * the pending signal — a single re-stampable timestamp could lose a second
+   * steer's seam. markDelivered still writes this for the deploy window only
+   * (in-flight pre-deploy actions consume it via the old per-flush poll);
+   * nothing in new code reads it. A stale stamp on a terminal op row is dead,
+   * exec-scoped data purged with the op. Remove with the next schema sweep. */
   steerSeamRequestedAt: v.optional(v.number()),
 })
   .index('by_sessionId', ['sessionId'])

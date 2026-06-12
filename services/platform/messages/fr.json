@@ -848,7 +848,8 @@
       "skillsCount": "{count, plural, one {# skill} other {# skills}}",
       "tokensCount": "{count, plural, one {# token} other {# tokens}}",
       "summaryReasoningOnly": "A montré son raisonnement",
-      "responding": "Réponse"
+      "responding": "Réponse",
+      "working": "Toujours en cours — opération longue"
     },
     "routing": {
       "routedTo": "Dirigé vers {agent}",
@@ -964,7 +965,7 @@
       "deleteFailed": "Impossible de retirer le message en attente",
       "badgeQueued": "En attente",
       "badgeSending": "Envoi…",
-      "badgeDelivered": "Transmis à l'agent",
+      "badgeDelivered": "En attente de l'agent",
       "badgePickedUp": "Pris en compte",
       "deleteQueued": "Retirer le message en attente"
     },

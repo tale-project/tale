@@ -29,7 +29,29 @@ vi.mock('../streaming/helpers', () => ({
   },
 }));
 
-import { settleQueueOnTurnEnd } from './message_queue';
+// Identity factory so registered functions expose their raw config (same
+// pattern as session_queries.test.ts) — lets tests call handlers directly.
+vi.mock('../_generated/server', async (importOriginal) => {
+  const mod = await importOriginal<Record<string, unknown>>();
+  return {
+    ...mod,
+    internalMutation: (config: Record<string, unknown>) => config,
+    internalQuery: (config: Record<string, unknown>) => config,
+  };
+});
+
+import { markConsumed, settleQueueOnTurnEnd } from './message_queue';
+
+interface MutationDef<TArgs, TReturn> {
+  handler: (ctx: unknown, args: TArgs) => Promise<TReturn>;
+}
+
+const markConsumedHandler = (
+  markConsumed as unknown as MutationDef<
+    { threadId: string; messageIds: string[] },
+    number
+  >
+).handler;
 
 type Row = Record<string, unknown> & { _id: string };
 
@@ -109,6 +131,72 @@ const meta = {
   _id: 'meta_1',
   threadId: 'thread_1',
 } as unknown as Doc<'threadMetadata'>;
+
+describe('markConsumed', () => {
+  it('flips matching delivered rows and returns the count', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({ messageId: 'm1', status: 'delivered' }),
+        queueRow({ messageId: 'm2', status: 'delivered' }),
+      ],
+    };
+    const { ctx } = makeCtx(tables);
+    const flipped = await markConsumedHandler(ctx, {
+      threadId: 'thread_1',
+      messageIds: ['m1', 'm2'],
+    });
+    expect(flipped).toBe(2);
+    for (const row of tables.chatMessageQueue) {
+      expect(row.status).toBe('consumed');
+    }
+  });
+
+  it('returns 0 on a second call for the same ids — the seam-trip gate', async () => {
+    // The drain trips the steer seam only on flipped > 0; the delivered-only
+    // scan is what makes a replayed sentinel (or the marker+sentinel double
+    // signal of a Stop-hook consumption) unable to seam twice.
+    const tables = {
+      chatMessageQueue: [queueRow({ messageId: 'm1', status: 'delivered' })],
+    };
+    const { ctx } = makeCtx(tables);
+    expect(
+      await markConsumedHandler(ctx, {
+        threadId: 'thread_1',
+        messageIds: ['m1'],
+      }),
+    ).toBe(1);
+    expect(
+      await markConsumedHandler(ctx, {
+        threadId: 'thread_1',
+        messageIds: ['m1'],
+      }),
+    ).toBe(0);
+    expect(tables.chatMessageQueue[0]?.status).toBe('consumed');
+  });
+
+  it('counts only delivered rows among the requested ids', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({ messageId: 'm1', status: 'delivered' }),
+        queueRow({ messageId: 'm2', status: 'queued' }),
+        queueRow({ messageId: 'm3', status: 'consumed' }),
+      ],
+    };
+    const { ctx } = makeCtx(tables);
+    const flipped = await markConsumedHandler(ctx, {
+      threadId: 'thread_1',
+      messageIds: ['m1', 'm2', 'm3', 'm_unknown'],
+    });
+    expect(flipped).toBe(1);
+    expect(tables.chatMessageQueue.map((r) => [r.messageId, r.status])).toEqual(
+      [
+        ['m1', 'consumed'],
+        ['m2', 'queued'],
+        ['m3', 'consumed'],
+      ],
+    );
+  });
+});
 
 describe('settleQueueOnTurnEnd', () => {
   beforeEach(() => {

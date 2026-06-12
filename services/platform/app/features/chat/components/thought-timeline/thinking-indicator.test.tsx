@@ -15,6 +15,7 @@ vi.mock('@/lib/i18n/client', () => ({
         'thoughtProcess.seconds': `${p('seconds')}s`,
         'routing.routedTo': `Routed to ${p('agent')}`,
         'routing.reason.classified': 'Best match for this request',
+        'thoughtProcess.working': 'Still working',
       };
       return map[key] ?? key;
     },
@@ -50,6 +51,29 @@ describe('ThinkingIndicator', () => {
   it('omits the routed-to chip before the route resolves', () => {
     render(<ThinkingIndicator phase="routing" />);
     expect(screen.queryByText(/Routed to/)).not.toBeInTheDocument();
+  });
+
+  it('swaps to "Still working" once the silence passes the stall threshold', () => {
+    render(
+      <ThinkingIndicator phase="thinking" lastEventAt={Date.now() - 120_000} />,
+    );
+    expect(screen.getByText(/Still working/)).toBeInTheDocument();
+    expect(screen.queryByText(/Thinking/)).not.toBeInTheDocument();
+  });
+
+  it('keeps "Thinking" while events are fresh', () => {
+    render(
+      <ThinkingIndicator phase="thinking" lastEventAt={Date.now() - 5_000} />,
+    );
+    expect(screen.getByText(/Thinking/)).toBeInTheDocument();
+  });
+
+  it('never overrides the routing phase', () => {
+    render(
+      <ThinkingIndicator phase="routing" lastEventAt={Date.now() - 120_000} />,
+    );
+    expect(screen.getByText(/Routing/)).toBeInTheDocument();
+    expect(screen.queryByText(/Still working/)).not.toBeInTheDocument();
   });
 
   it('passes an accessibility audit', async () => {

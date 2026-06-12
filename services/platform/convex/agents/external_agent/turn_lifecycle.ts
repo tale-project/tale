@@ -28,9 +28,9 @@ import {
 } from '../../node_only/sandbox/helpers/session_client';
 import type { RunAgentInSessionResult } from '../../node_only/sandbox/run_agent';
 import {
+  matchConsumedSteerFiles,
   steerDirFor,
-  steerFileName,
-} from '../../node_only/sandbox/steer_delivery';
+} from '../../node_only/sandbox/steer_files';
 
 /** Pure runaway backstop on cross-action handoffs. The real bound on a long
  * task is the exec timeout (24h) + the rolling budget gate, not a count — at a
@@ -179,19 +179,12 @@ async function reconcileSteeredMessages(
     );
     if (delivered.length === 0) return;
 
-    let consumedNames = new Set<string>();
+    let entries: Awaited<ReturnType<typeof sessionListFiles>> = null;
     try {
-      const entries = await sessionListFiles(
+      entries = await sessionListFiles(
         turn.sessionId,
         steerDirFor(turn.execId),
       );
-      if (entries !== null) {
-        consumedNames = new Set(
-          entries
-            .filter((e) => e.type === 'file' && e.name.startsWith('consumed.'))
-            .map((e) => e.name),
-        );
-      }
     } catch (listErr) {
       console.warn(
         '[finalizeTurn] steer dir listing failed (re-queueing):',
@@ -199,13 +192,9 @@ async function reconcileSteeredMessages(
       );
     }
 
-    const consumedMessageIds = delivered
-      .filter((row) =>
-        consumedNames.has(
-          `consumed.${steerFileName(row.createdAt, row.messageId)}`,
-        ),
-      )
-      .map((row) => row.messageId);
+    // null listing (dir/session gone or the catch above) ⇒ [] ⇒ everything
+    // rolls back to 'queued' — identical failure semantics to before.
+    const consumedMessageIds = matchConsumedSteerFiles(delivered, entries);
     await ctx.runMutation(internal.threads.message_queue.reconcileDelivered, {
       threadId: turn.threadId,
       execId: turn.execId,
