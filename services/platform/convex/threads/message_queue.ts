@@ -297,6 +297,28 @@ export const listQueuedForDelivery = internalQuery({
   },
 });
 
+/** Count of rows mid-steer for a thread: staged into a running exec
+ * ('delivered') or already injected by it ('consumed'). The empty-turn
+ * auto-retry refuses to run while any exist — a consumed row's content lives
+ * only in the abandoned attempt's transcript, so retrying would drop it. */
+export const countSteerInFlight = internalQuery({
+  args: { threadId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let count = 0;
+    for (const status of ['delivered', 'consumed'] as const) {
+      const rows = await ctx.db
+        .query('chatMessageQueue')
+        .withIndex('by_threadId_status', (q) =>
+          q.eq('threadId', args.threadId).eq('status', status),
+        )
+        .collect();
+      count += rows.length;
+    }
+    return count;
+  },
+});
+
 /** Rows delivered into a specific exec (for the terminal reconciliation). */
 export const listDeliveredForExec = internalQuery({
   args: { threadId: v.string(), execId: v.string() },

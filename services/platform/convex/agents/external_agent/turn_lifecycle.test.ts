@@ -51,7 +51,9 @@ vi.mock('../../node_only/sandbox/helpers/session_client', () => ({
 
 import type { RunAgentInSessionResult } from '../../node_only/sandbox/run_agent';
 import {
+  EMPTY_TURN_MESSAGE,
   handleTurnOutcome,
+  isEmptyCompletedTurn,
   resolvePlanText,
   type TurnContext,
 } from './turn_lifecycle';
@@ -217,6 +219,72 @@ describe('handleTurnOutcome — terminal status mapping', () => {
     });
   });
 
+  it('completed with zero output → honest failed bubble (empty-but-200 model response)', async () => {
+    const ctx = createMockCtx();
+    const result: RunAgentInSessionResult = {
+      status: 'completed',
+      exitCode: 0,
+      assistantContent: '',
+    };
+
+    await handleTurnOutcome(ctx as unknown as ActionCtx, makeTurn(), result);
+
+    const calls = updateMessageCalls(ctx);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toEqual({
+      messageId: 'msg_1',
+      patch: {
+        status: 'failed',
+        message: { role: 'assistant', content: EMPTY_TURN_MESSAGE },
+      },
+    });
+    // Finalize still runs exactly once.
+    const claims = ctx.runMutation.mock.calls.filter(
+      ([ref]) => ref === 'mock-claimFinalize',
+    );
+    expect(claims).toHaveLength(1);
+  });
+
+  it('an empty FINAL segment of a continued turn keeps the success fallback', async () => {
+    const ctx = createMockCtx();
+    const turn: TurnContext = { ...makeTurn(), continuationCount: 2 };
+    await handleTurnOutcome(ctx as unknown as ActionCtx, turn, {
+      status: 'completed',
+      exitCode: 0,
+      assistantContent: '',
+    });
+
+    const calls = updateMessageCalls(ctx);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toEqual({
+      messageId: 'msg_1',
+      patch: {
+        status: 'success',
+        message: { role: 'assistant', content: 'Agent run completed.' },
+      },
+    });
+  });
+
+  it('a plan-only completed turn is NOT treated as empty (approval card still lands)', async () => {
+    const ctx = createMockCtx();
+    const turn: TurnContext = { ...makeTurn(), permissionMode: 'plan' };
+    await handleTurnOutcome(ctx as unknown as ActionCtx, turn, {
+      status: 'completed',
+      exitCode: 0,
+      assistantContent: '',
+      planText: '# Plan: do the thing',
+    });
+
+    const calls = updateMessageCalls(ctx);
+    expect(calls[0]?.[1]).toMatchObject({
+      patch: expect.objectContaining({ status: 'success' }),
+    });
+    const approvals = ctx.runMutation.mock.calls.filter(
+      ([ref]) => ref === 'mock-createPlanApproval',
+    );
+    expect(approvals).toHaveLength(1);
+  });
+
   it('terminal outcomes run the finalize side-effects exactly once', async () => {
     const ctx = createMockCtx();
     await handleTurnOutcome(ctx as unknown as ActionCtx, makeTurn(), {
@@ -229,6 +297,61 @@ describe('handleTurnOutcome — terminal status mapping', () => {
     );
     expect(claims).toHaveLength(1);
     expect(claims[0]?.[1]).toEqual({ sessionId: 'sess_1', execId: 'exec_1' });
+  });
+});
+
+describe('isEmptyCompletedTurn', () => {
+  it('true only for a completed result with no text, no timeline, no plan', () => {
+    expect(isEmptyCompletedTurn({ status: 'completed' }, undefined)).toBe(true);
+    expect(
+      isEmptyCompletedTurn(
+        { status: 'completed', finalText: '  ', assistantContent: '' },
+        undefined,
+      ),
+    ).toBe(true);
+  });
+
+  it('false for non-completed statuses', () => {
+    expect(isEmptyCompletedTurn({ status: 'failed' }, undefined)).toBe(false);
+    expect(isEmptyCompletedTurn({ status: 'cancelled' }, undefined)).toBe(
+      false,
+    );
+    expect(isEmptyCompletedTurn({ status: 'continued' }, undefined)).toBe(
+      false,
+    );
+  });
+
+  it('false when anything renderable exists', () => {
+    expect(
+      isEmptyCompletedTurn({ status: 'completed', finalText: 'hi' }, undefined),
+    ).toBe(false);
+    expect(
+      isEmptyCompletedTurn(
+        {
+          status: 'completed',
+          assistantContent: [{ type: 'text', text: 'tool ran' }],
+        },
+        undefined,
+      ),
+    ).toBe(false);
+  });
+
+  it('false when a plan was captured (any mode) or finalText doubles as a plan', () => {
+    expect(
+      isEmptyCompletedTurn(
+        { status: 'completed', planText: '# plan' },
+        'execute',
+      ),
+    ).toBe(false);
+    // Plan-mode: finalText IS the plan, so a text-bearing plan turn is not
+    // empty — already excluded by the finalText check; the plan check is the
+    // belt for ExitPlanMode-only captures.
+    expect(
+      isEmptyCompletedTurn(
+        { status: 'completed', planText: '# plan', assistantContent: '' },
+        'plan',
+      ),
+    ).toBe(false);
   });
 });
 

@@ -52,6 +52,7 @@ import {
 import {
   finalizeTurnSideEffects,
   handleTurnOutcome,
+  isEmptyCompletedTurn,
   patchStreamingMessage,
   type TurnContext,
 } from './turn_lifecycle';
@@ -149,7 +150,9 @@ export const runExternalAgentTurn = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const execId = `exec-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    // Mutable: the one-shot empty-turn retry below swaps to a fresh exec id
+    // (the catch path finalizes whichever exec is current).
+    let execId = `exec-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     let mintedKeyId: string | null = null;
     // The streaming assistant message, created BEFORE the run so the turn's tool
     // timeline is persisted incrementally into it (onTimeline below) and survives
@@ -396,7 +399,7 @@ export const runExternalAgentTurn = internalAction({
       });
       assistantMessageId = created.messageId;
 
-      const turn: TurnContext = {
+      let turn: TurnContext = {
         organizationId: args.organizationId,
         sessionId,
         execId,
@@ -414,16 +417,21 @@ export const runExternalAgentTurn = internalAction({
         ...(args.streamId !== undefined && { streamId: args.streamId }),
       };
 
+      // Narrowed copy for the closures below — flow narrowing on the mutable
+      // outer `sessionId` (string | null, hoisted for the catch) doesn't
+      // survive into function bodies.
+      const liveSessionId: string = sessionId;
+
       // Stamp the durable-job fields on the op row up front so a continuation
       // action OR the recovery watchdog can resume/finalize THIS turn even if
-      // this action dies (crash / 30min ceiling).
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.upsertSessionOp,
-        {
+      // this action dies (crash / 30min ceiling). Also re-stamped for the
+      // retry exec below — keep the shape in stampTurnOpRow.
+      const stampTurnOpRow = (id: string) =>
+        ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
           organizationId: args.organizationId,
-          sessionId,
+          sessionId: liveSessionId,
           threadId: args.threadId,
-          execId,
+          execId: id,
           kind: 'agent-run',
           status: 'running',
           heartbeatAt: Date.now(),
@@ -435,8 +443,8 @@ export const runExternalAgentTurn = internalAction({
           ...(mintedKeyId !== null && { mintedKeyId }),
           ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
           ...(args.streamId !== undefined && { streamId: args.streamId }),
-        },
-      );
+        });
+      await stampTurnOpRow(execId);
 
       // Plan turns append the plan-mode addendum to the agent's own
       // instructions (composed, never clobbered).
@@ -447,33 +455,145 @@ export const runExternalAgentTurn = internalAction({
         .filter((s): s is string => s !== undefined && s !== '')
         .join('\n\n');
 
-      const result = await runAgentInSessionImpl(ctx, {
-        organizationId: args.organizationId,
-        sessionId,
-        threadId: args.threadId,
-        ...(args.streamId !== undefined && { streamId: args.streamId }),
-        execId,
-        agentSlug: args.agentKind,
-        prompt: args.rawPrompt,
-        // The agent CLI sends this verbatim to the gateway, which rejects
-        // the colon-qualified Tale form — translate at the boundary.
-        model: toGatewayModelRef(args.modelRef),
-        ...(agentSessionId !== null && { agentSessionId }),
-        ...(systemPromptAppend !== '' && { systemPromptAppend }),
-        ...(args.permissionMode !== undefined && {
-          permissionMode: args.permissionMode,
-        }),
-        gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
-        gatewayToken: vk.key,
-        timeoutMs: TURN_TIMEOUT_MS,
-        budgetDeadlineMs: Date.now() + ACTION_WINDOW_MS,
-        // Durable per-flush mirror: patch the streaming message with the
-        // timeline-so-far. This is the record that survives cancel/timeout.
-        onTimeline: async (content) => {
-          lastContent = content;
-          await patchStreamingMessage(ctx, created.messageId, content);
-        },
-      });
+      // Both attempts share ONE absolute action deadline — a fresh window for
+      // the retry could cross the 30-min action ceiling, whose hard kill
+      // skips the catch entirely.
+      const actionDeadlineMs = Date.now() + ACTION_WINDOW_MS;
+      const runAttempt = (id: string) =>
+        runAgentInSessionImpl(ctx, {
+          organizationId: args.organizationId,
+          sessionId: liveSessionId,
+          threadId: args.threadId,
+          ...(args.streamId !== undefined && { streamId: args.streamId }),
+          execId: id,
+          agentSlug: args.agentKind,
+          prompt: args.rawPrompt,
+          // The agent CLI sends this verbatim to the gateway, which rejects
+          // the colon-qualified Tale form — translate at the boundary.
+          model: toGatewayModelRef(args.modelRef),
+          ...(agentSessionId !== null && { agentSessionId }),
+          ...(systemPromptAppend !== '' && { systemPromptAppend }),
+          ...(args.permissionMode !== undefined && {
+            permissionMode: args.permissionMode,
+          }),
+          gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
+          gatewayToken: vk.key,
+          timeoutMs: TURN_TIMEOUT_MS,
+          budgetDeadlineMs: actionDeadlineMs,
+          // Durable per-flush mirror: patch the streaming message with the
+          // timeline-so-far. This is the record that survives cancel/timeout.
+          onTimeline: async (content) => {
+            lastContent = content;
+            await patchStreamingMessage(ctx, created.messageId, content);
+          },
+        });
+
+      let result = await runAttempt(execId);
+
+      // One-shot automatic retry for a zero-output completion (empty-but-200
+      // model response: the CLI exits 0 having produced nothing). Gated so it
+      // can never fight the Stop flow, lose a steered message, or outrun the
+      // action window; a second empty lands in handleTurnOutcome's honest
+      // failure rendering.
+      if (isEmptyCompletedTurn(result, args.permissionMode)) {
+        const meta = await ctx.runQuery(
+          internal.threads.internal_queries.getThreadMetadata,
+          { threadId: args.threadId },
+        );
+        // Still THIS turn's live generation (a Stop flips status to idle; a
+        // superseding turn rotates streamId).
+        const stillLive =
+          meta !== null &&
+          meta.generationStatus === 'generating' &&
+          (args.streamId === undefined || meta.streamId === args.streamId);
+        // A consumed steer row's content lives only in the abandoned
+        // attempt's transcript — retrying without it would drop the message.
+        const steerInFlight = await ctx.runQuery(
+          internal.threads.message_queue.countSteerInFlight,
+          { threadId: args.threadId },
+        );
+        const windowLeftMs = actionDeadlineMs - Date.now();
+        if (stillLive && steerInFlight === 0 && windowLeftMs > 2 * 60_000) {
+          console.warn(
+            '[runExternalAgentTurn] empty completed result — retrying once:',
+            { threadId: args.threadId, execId, exitCode: result.exitCode },
+          );
+          const firstExecId = execId;
+          const retryExecId = `exec-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+          // Order matters (crash safety): stamp exec-B's row FIRST, swap the
+          // turn to it (the catch then finalizes B: VK revoke + gen clear),
+          // and only then fence exec-A. The fence keeps the watchdog off A's
+          // going-stale 'running' row — left unfenced it would run the FULL
+          // side-effects in ~3min, revoking the VK under the live retry.
+          await stampTurnOpRow(retryExecId);
+          execId = retryExecId;
+          turn = { ...turn, execId: retryExecId };
+          try {
+            // Claim A so no finalizer ever runs side-effects for it, then
+            // park the row as terminal (status 'completed' + finishedAt).
+            await ctx.runMutation(
+              internal.sandbox.session_mutations.claimSessionOpFinalize,
+              { sessionId, execId: firstExecId },
+            );
+            await ctx.runMutation(
+              internal.sandbox.session_mutations.upsertSessionOp,
+              {
+                organizationId: args.organizationId,
+                sessionId,
+                threadId: args.threadId,
+                execId: firstExecId,
+                kind: 'agent-run',
+                status: 'completed',
+                ...(result.exitCode !== null && { exitCode: result.exitCode }),
+              },
+            );
+            result = await runAttempt(retryExecId);
+          } catch (fenceErr) {
+            // Fence failed → A may still be claimable by the watchdog, so the
+            // retry MUST not run. Park B instead and fall through with the
+            // attempt-1 result (honest empty failure).
+            console.warn(
+              '[runExternalAgentTurn] empty-turn retry fence failed — skipping retry:',
+              fenceErr,
+            );
+            try {
+              await ctx.runMutation(
+                internal.sandbox.session_mutations.claimSessionOpFinalize,
+                { sessionId, execId: retryExecId },
+              );
+              await ctx.runMutation(
+                internal.sandbox.session_mutations.upsertSessionOp,
+                {
+                  organizationId: args.organizationId,
+                  sessionId,
+                  threadId: args.threadId,
+                  execId: retryExecId,
+                  kind: 'agent-run',
+                  status: 'completed',
+                },
+              );
+            } catch (parkErr) {
+              console.warn(
+                '[runExternalAgentTurn] empty-turn retry park failed:',
+                parkErr,
+              );
+            }
+            execId = firstExecId;
+            turn = { ...turn, execId: firstExecId };
+          }
+        } else {
+          console.warn(
+            '[runExternalAgentTurn] empty completed result — not retrying:',
+            {
+              threadId: args.threadId,
+              execId,
+              stillLive,
+              steerInFlight,
+              windowLeftMs,
+            },
+          );
+        }
+      }
 
       // 6. Dispatch: TERMINAL → finalize the message + VK revoke + usage ledger;
       // 'continued' → checkpoint to _storage + schedule the continuation action

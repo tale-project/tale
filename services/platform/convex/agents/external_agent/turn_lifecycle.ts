@@ -430,6 +430,26 @@ export async function handleTurnOutcome(
     return;
   }
 
+  // Zero-output completion (empty-but-200 model response): render an honest
+  // failed bubble instead of a success "Agent run completed." — the run did
+  // nothing the user can use, and the failed state carries the Try-again
+  // affordance. Only for a single-segment turn: a continued turn's empty
+  // FINAL segment is normal (earlier segments hold the work) and keeps the
+  // fallback below. run_external_agent retries once before this is reached.
+  if (
+    turn.continuationCount === 0 &&
+    isEmptyCompletedTurn(result, turn.permissionMode)
+  ) {
+    await patchStreamingMessage(
+      ctx,
+      turn.assistantMessageId,
+      EMPTY_TURN_MESSAGE,
+      'failed',
+    );
+    await finalizeTurnSideEffects(ctx, turn, turnTokensOf(result));
+    return;
+  }
+
   const finalText =
     result.finalText ??
     (result.status === 'completed'
@@ -498,6 +518,36 @@ export function resolvePlanText(
   }
   return null;
 }
+
+/**
+ * A terminal 'completed' result that produced literally nothing: no final
+ * text, no tool timeline, no plan. Seen when the model API returns an
+ * empty-but-200 completion — the CLI treats it as success and exits 0.
+ * Shared by the honest-failure rendering (handleTurnOutcome) and the
+ * one-shot automatic retry (run_external_agent) so the two can't drift.
+ * NOTE: usage tokens are NOT a discriminator — the claude-code result
+ * mapping reports 0/0 for every turn (only cost is carried).
+ */
+export function isEmptyCompletedTurn(
+  result: Pick<
+    RunAgentInSessionResult,
+    'status' | 'finalText' | 'assistantContent' | 'planText'
+  >,
+  permissionMode: 'plan' | 'execute' | undefined,
+): boolean {
+  return (
+    result.status === 'completed' &&
+    (result.finalText ?? '').trim() === '' &&
+    isContentEmpty(result.assistantContent) &&
+    resolvePlanText(result, permissionMode) === null
+  );
+}
+
+/** Stored message text for a turn that completed with zero output (see
+ * isEmptyCompletedTurn) — rendered as a failed bubble so the Try-again
+ * affordance shows. */
+export const EMPTY_TURN_MESSAGE =
+  'The agent returned no output — the model response came back empty. Please try again.';
 
 function turnTokensOf(
   result: RunAgentInSessionResult,
