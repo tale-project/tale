@@ -5,7 +5,9 @@
     "openrouter:anthropic/claude-sonnet-4.6",
     "openrouter:anthropic/claude-opus-4.6",
     "openrouter:anthropic/claude-haiku-4.5",
-    "openrouter:deepseek/deepseek-v4-flash"
+    "openrouter:deepseek/deepseek-v4-flash",
+    "openrouter:moonshotai/kimi-k2.6",
+    "openrouter:z-ai/glm-5.1"
   ],
   "timeoutMs": 1800000,
   "composerMode": {
