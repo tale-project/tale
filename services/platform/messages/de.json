@@ -6860,6 +6860,7 @@
     "title": "Workforce",
     "subtitle": "Wie deine KI-Workforce arbeitet: Ergebnisse, menschliche Eingriffe und Kosten — immer zusammen.",
     "period": {
+      "label": "Zeitraum",
       "last7Days": "Letzte 7 Tage",
       "last30Days": "Letzte 30 Tage",
       "last90Days": "Letzte 90 Tage"

@@ -6861,6 +6861,7 @@
     "title": "Workforce",
     "subtitle": "Les performances de votre workforce IA : résultats, interventions humaines et coûts — toujours ensemble.",
     "period": {
+      "label": "Période",
       "last7Days": "7 derniers jours",
       "last30Days": "30 derniers jours",
       "last90Days": "90 derniers jours"

@@ -217,13 +217,14 @@ export function WorkforceDashboard({
         id: 'agent',
         header: t('leaderboard.agent'),
         cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="label"
-            className="block max-w-[320px] truncate text-sm"
+          <Link
+            to="/dashboard/$id/agents/$agentId"
+            params={{ id: organizationId, agentId: row.original.agentSlug }}
+            className="text-foreground block max-w-[320px] truncate text-sm font-medium underline-offset-2 hover:underline focus-visible:underline"
+            onClick={(event) => event.stopPropagation()}
           >
             {row.original.agentSlug}
-          </Text>
+          </Link>
         ),
         size: 320,
       },
@@ -284,7 +285,7 @@ export function WorkforceDashboard({
         meta: { align: 'right' as const },
       },
     ],
-    [t],
+    [t, organizationId],
   );
 
   const onToggle = (enabled: boolean) => {
@@ -430,6 +431,7 @@ export function WorkforceDashboard({
       <div className="flex flex-col gap-3">
         <h2 className="text-base font-semibold">{t('leaderboard.title')}</h2>
         <DataTable
+          caption={t('leaderboard.title')}
           columns={leaderboardColumns}
           data={leaderboardRows}
           getRowId={(row) => row.agentSlug}

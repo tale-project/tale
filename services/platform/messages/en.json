@@ -6860,6 +6860,7 @@
     "title": "Workforce",
     "subtitle": "How your AI workforce performs: outcomes, human intervention, and cost — always together.",
     "period": {
+      "label": "Period",
       "last7Days": "Last 7 days",
       "last30Days": "Last 30 days",
       "last90Days": "Last 90 days"

@@ -83,6 +83,7 @@ function AgentsMetricsPage() {
         </div>
         <div className="w-44 shrink-0">
           <Select
+            aria-label={t('period.label')}
             options={periodOptions}
             value={String(periodDays)}
             onValueChange={(v) => {

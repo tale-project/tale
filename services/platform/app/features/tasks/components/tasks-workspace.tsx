@@ -62,6 +62,13 @@ export function TasksWorkspace({
   const [openTaskId, setOpenTaskIdState] = useState(
     openTaskParam ? asTaskId(openTaskParam) : null,
   );
+  // Re-sync from the URL when `?task=` changes while mounted (e.g. an inbox
+  // link clicked from this page) — render-time state adjustment, no effect.
+  const [prevOpenTaskParam, setPrevOpenTaskParam] = useState(openTaskParam);
+  if (openTaskParam !== prevOpenTaskParam) {
+    setPrevOpenTaskParam(openTaskParam);
+    setOpenTaskIdState(openTaskParam ? asTaskId(openTaskParam) : null);
+  }
   const setOpenTaskId = (taskId: Id<'tasks'> | null) => {
     setOpenTaskIdState(taskId);
     onOpenTaskParamChange?.(taskId);

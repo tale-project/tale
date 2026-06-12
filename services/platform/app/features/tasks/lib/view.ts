@@ -9,8 +9,10 @@ export type TaskView = 'board' | 'list';
 
 export const TASK_VIEWS: readonly TaskView[] = ['board', 'list'];
 
+const TASK_VIEW_SET: ReadonlySet<string> = new Set(TASK_VIEWS);
+
 export function isTaskView(value: string): value is TaskView {
-  return (TASK_VIEWS as readonly string[]).includes(value);
+  return TASK_VIEW_SET.has(value);
 }
 
 /** Same key (and JSON encoding) `usePersistedState` used before the routes
