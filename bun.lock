@@ -63,6 +63,10 @@
         "@tailwindcss/oxide-linux-x64-gnu": "4.2.2",
       },
     },
+    "packages/agent_adapters": {
+      "name": "@tale/agent-adapters",
+      "version": "0.1.0",
+    },
     "packages/tale_daemon": {
       "name": "tale-daemon",
       "version": "0.1.0",
@@ -343,6 +347,15 @@
       },
       "devDependencies": {
         "@types/bun": "^1.1.0",
+        "typescript": "^5.6.0",
+      },
+    },
+    "services/sandbox-runtime/daemon": {
+      "name": "@tale/sandbox-runtime-daemon",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "^1.1.0",
+        "@types/node": "^22.0.0",
         "typescript": "^5.6.0",
       },
     },
@@ -1817,6 +1830,8 @@
 
     "@tailwindcss/postcss": ["@tailwindcss/postcss@4.2.2", "", { "dependencies": { "@alloc/quick-lru": "^5.2.0", "@tailwindcss/node": "4.2.2", "@tailwindcss/oxide": "4.2.2", "postcss": "^8.5.6", "tailwindcss": "4.2.2" } }, "sha512-n4goKQbW8RVXIbNKRB/45LzyUqN451deQK0nzIeauVEqjlI49slUlgKYJM2QyUzap/PcpnS7kzSUmPb1sCRvYQ=="],
 
+    "@tale/agent-adapters": ["@tale/agent-adapters@workspace:packages/agent_adapters"],
+
     "@tale/cli": ["@tale/cli@workspace:tools/cli"],
 
     "@tale/controller": ["@tale/controller@workspace:services/controller"],
@@ -1838,6 +1853,8 @@
     "@tale/rag": ["@tale/rag@workspace:services/rag"],
 
     "@tale/sandbox": ["@tale/sandbox@workspace:services/sandbox"],
+
+    "@tale/sandbox-runtime-daemon": ["@tale/sandbox-runtime-daemon@workspace:services/sandbox-runtime/daemon"],
 
     "@tale/shared": ["@tale/shared@workspace:packages/tale_shared"],
 
@@ -4470,6 +4487,8 @@
     "@tale/controller/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@tale/sandbox/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "@tale/sandbox-runtime-daemon/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@tanstack/router-generator/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
