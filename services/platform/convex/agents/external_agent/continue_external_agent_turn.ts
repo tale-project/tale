@@ -75,6 +75,7 @@ export const continueExternalAgentTurn = internalAction({
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         threadId: args.threadId,
+        ...(args.streamId !== undefined && { streamId: args.streamId }),
         execId: args.execId,
         agentSlug: args.agentKind,
         // Unused on resume — no new exec is built (we re-attach).

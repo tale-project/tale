@@ -382,6 +382,7 @@ export const markGenerating = internalMutation({
       generationStatus: 'generating' as const,
       streamId,
       generationStartTime: Date.now(),
+      generationHeartbeatAt: undefined,
       updatedAt: Date.now(),
       cancelledAt: undefined,
       cancelledMessageId: undefined,
@@ -416,6 +417,7 @@ export const clearGenerationStatus = internalMutation({
       await ctx.db.patch(meta._id, {
         generationStatus: 'idle',
         streamId: undefined,
+        generationHeartbeatAt: undefined,
         // Generation ended → mark "new activity" for the unread badge. The
         // sidebar compares this against the per-user `lastReadAt`.
         lastReplyAt: Date.now(),
@@ -424,6 +426,31 @@ export const clearGenerationStatus = internalMutation({
         liveRoute: undefined,
       });
     }
+  },
+});
+
+/**
+ * Liveness heartbeat for a long-running generation. External-agent turns can
+ * legitimately outlive `GENERATION_STALE_THRESHOLD_MS` measured from
+ * `generationStartTime` (always-on runs, cross-action continuation); the
+ * sandbox runner calls this on its ~20s liveness tick so the stale checks in
+ * `isThreadGenerating` / `getThreadMeta` judge against the latest sign of
+ * life. Deliberately does NOT touch `generationStartTime` — that stays fixed
+ * as the live-timer anchor.
+ */
+export const bumpGenerationHeartbeat = internalMutation({
+  args: { threadId: v.string(), streamId: v.optional(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const meta = await getThreadMetadataRow(ctx, args.threadId);
+    if (!meta || meta.generationStatus !== 'generating') return null;
+    // Only bump the generation this caller owns — a stale action's heartbeat
+    // must not keep a NEWER turn's staleness window open.
+    if (args.streamId !== undefined && meta.streamId !== args.streamId) {
+      return null;
+    }
+    await ctx.db.patch(meta._id, { generationHeartbeatAt: Date.now() });
+    return null;
   },
 });
 

@@ -276,6 +276,7 @@ export async function startAgentChat(
         generationStatus: 'generating' as const,
         streamId,
         generationStartTime: Date.now(),
+        generationHeartbeatAt: undefined,
         updatedAt: Date.now(),
         cancelledAt: undefined,
         cancelledMessageId: undefined,

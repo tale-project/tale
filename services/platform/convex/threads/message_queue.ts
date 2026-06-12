@@ -68,6 +68,7 @@ async function startQueuedTurn(
     generationStatus: 'generating' as const,
     streamId,
     generationStartTime: now,
+    generationHeartbeatAt: undefined,
     updatedAt: now,
     // The prior turn did end — bump the unread badge like clearGenerationStatus
     // would have.

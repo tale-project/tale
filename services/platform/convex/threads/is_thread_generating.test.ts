@@ -21,6 +21,7 @@ function createMockCtx(
     userId?: string;
     generationStatus?: string;
     generationStartTime?: number;
+    generationHeartbeatAt?: number;
   } | null,
 ) {
   const meta = threadMeta ? { userId: 'user_1', ...threadMeta } : null;
@@ -118,6 +119,49 @@ describe('isThreadGenerating', () => {
       createMockCtx({
         generationStatus: 'generating',
         generationStartTime: thirtyFiveMinutesAgo,
+      }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(true);
+  });
+
+  // Long external-agent turns outlive the threshold measured from the start
+  // time alone; the sandbox runner's ~20s `generationHeartbeatAt` bump must
+  // keep the generation fresh (staleness is judged on the LATEST sign of
+  // life).
+  it('returns true when the start time is stale but the heartbeat is fresh', async () => {
+    const now = Date.now();
+    const result = await isThreadGenerating(
+      createMockCtx({
+        generationStatus: 'generating',
+        generationStartTime: now - 90 * 60 * 1000,
+        generationHeartbeatAt: now - 15_000,
+      }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(true);
+  });
+
+  it('returns false when both the start time and the heartbeat are stale', async () => {
+    const now = Date.now();
+    const result = await isThreadGenerating(
+      createMockCtx({
+        generationStatus: 'generating',
+        generationStartTime: now - 90 * 60 * 1000,
+        generationHeartbeatAt: now - 40 * 60 * 1000,
+      }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('returns true when the start time is fresh and a leftover heartbeat is stale', async () => {
+    const now = Date.now();
+    const result = await isThreadGenerating(
+      createMockCtx({
+        generationStatus: 'generating',
+        generationStartTime: now - 5000,
+        generationHeartbeatAt: now - 40 * 60 * 1000,
       }),
       { threadId: 'thread_1' },
     );

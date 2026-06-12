@@ -405,6 +405,7 @@ export const runExternalAgentTurn = internalAction({
         organizationId: args.organizationId,
         sessionId,
         threadId: args.threadId,
+        ...(args.streamId !== undefined && { streamId: args.streamId }),
         execId,
         agentSlug: args.agentKind,
         prompt: args.rawPrompt,

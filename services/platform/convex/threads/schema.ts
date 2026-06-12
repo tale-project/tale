@@ -41,6 +41,15 @@ export const threadMetadataTable = defineTable({
   cancelledMessageId: v.optional(v.string()),
   generationStartTime: v.optional(v.number()),
   /**
+   * Liveness heartbeat for long-running generations. External-agent turns can
+   * legitimately outlive the stale threshold measured from
+   * `generationStartTime` alone (always-on runs, cross-action continuation);
+   * the sandbox runner bumps this every ~20s so staleness is judged against
+   * the most recent sign of life, while `generationStartTime` stays fixed as
+   * the turn's wall-clock anchor for the live "Thinking · Ns" timer.
+   */
+  generationHeartbeatAt: v.optional(v.number()),
+  /**
    * Adaptive Reasoning Governor (Layer C) per-thread learning state: per
    * difficulty-class Welford statistics of observed reasoning tokens plus an
    * "under-resourced" EMA, letting the governor learn a difficulty→need curve

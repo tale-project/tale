@@ -47,6 +47,12 @@ export interface RunAgentInSessionArgs {
   /** Chat thread this run belongs to — stamped on the op so a per-user
    * sandbox's per-thread resume + live-progress query can scope by thread. */
   threadId?: string;
+  /** The turn's generation streamId. When set (with threadId), the liveness
+   * heartbeat also bumps the thread's `generationHeartbeatAt` so the UI's
+   * generation-stale guard survives runs longer than the threshold; the
+   * streamId scopes the bump to THIS turn (a stale action must not keep a
+   * newer turn's window open). */
+  streamId?: string;
   execId: string;
   agentSlug: 'claude-code' | 'opencode';
   prompt: string;
@@ -353,6 +359,25 @@ export async function runAgentInSessionImpl(
       heartbeatAt: Date.now(),
       lastSeq: cursor.lastSeq,
     });
+    // Same tick, second write: keep the thread-level generation-stale guard
+    // open for runs longer than its threshold. Deliberately NOT folded into
+    // upsertSessionOp — that mutation is also called by the 500ms progress
+    // flush, and patching threadMetadata at that cadence would re-run every
+    // thread-meta subscriber 2×/second.
+    if (args.threadId !== undefined) {
+      const threadId = args.threadId;
+      void ctx
+        .runMutation(
+          internal.threads.internal_mutations.bumpGenerationHeartbeat,
+          {
+            threadId,
+            ...(args.streamId !== undefined && { streamId: args.streamId }),
+          },
+        )
+        .catch((err) => {
+          console.warn('[runAgentInSession] generation heartbeat failed:', err);
+        });
+    }
   }, HEARTBEAT_INTERVAL_MS);
 
   // Resilient drain: the turn is no longer bound to one HTTP connection — a

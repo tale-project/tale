@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-import { useStableStreamText } from './typewriter-text';
+import { useStableStreamText, useRevealCompletion } from './typewriter-text';
 
 describe('useStableStreamText', () => {
   it('passes text through when not streaming', () => {
@@ -150,5 +150,56 @@ describe('useStableStreamText', () => {
     expect(result.current).toBe(
       'Hello world, this is streaming. And it continues!',
     );
+  });
+});
+
+describe('useRevealCompletion', () => {
+  it('fires onComplete once when a non-streaming reveal finishes', () => {
+    const onComplete = vi.fn();
+    const { rerender } = renderHook(
+      ({ progress, isStreaming }) =>
+        useRevealCompletion(progress, isStreaming, onComplete),
+      { initialProps: { progress: 0.5, isStreaming: false } },
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender({ progress: 1, isStreaming: false });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    // Stays latched while nothing changes.
+    rerender({ progress: 1, isStreaming: false });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fire while streaming, fires when the stream ends drained', () => {
+    const onComplete = vi.fn();
+    const { rerender } = renderHook(
+      ({ progress, isStreaming }) =>
+        useRevealCompletion(progress, isStreaming, onComplete),
+      { initialProps: { progress: 1, isStreaming: true } },
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender({ progress: 1, isStreaming: false });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-fires after a done-state text segment grows without a streaming phase (external-agent flushes)', () => {
+    const onComplete = vi.fn();
+    const { rerender } = renderHook(
+      ({ progress, isStreaming }) =>
+        useRevealCompletion(progress, isStreaming, onComplete),
+      { initialProps: { progress: 1, isStreaming: false } },
+    );
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    // A persisted flush appends text: the coalesced segment grows, progress
+    // regresses below 1 while isStreaming stays false.
+    rerender({ progress: 0.6, isStreaming: false });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    // The drain catches up — completion must fire AGAIN for the grown tail.
+    rerender({ progress: 1, isStreaming: false });
+    expect(onComplete).toHaveBeenCalledTimes(2);
   });
 });

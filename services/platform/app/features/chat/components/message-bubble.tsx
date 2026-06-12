@@ -72,7 +72,7 @@ import { MessageFeedback } from './message-feedback';
 import { MessageInfoDialog } from './message-info-dialog';
 import { MessageSegments } from './message-segments';
 import { SourceCards } from './source-cards';
-import { MessageThoughtHeader } from './thought-timeline';
+import { MessageThoughtHeader, ThinkingDots } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
@@ -432,6 +432,23 @@ function MessageBubbleComponent({
   // `hasAnswerStarted` is the boolean `!!displayContent`, which flips once
   // (empty → non-empty) and then stays stable through the answer stream.
   const hasAnswerStarted = !!displayContent;
+  // Trailing "still working" affordance: while the turn streams but EVERY
+  // segment is SETTLED — `messageSegments.isStreaming` is the any-segment-live
+  // predicate (in-flight tool, streaming reasoning/text anywhere, not just the
+  // tail; parallel tool calls can settle out of order, leaving an in-flight
+  // spinner mid-list behind a settled tail) — show pulsing dots at the end of
+  // the bubble so a long external-agent turn never reads as finished between
+  // tool calls. When any segment is itself active, that element is the
+  // affordance and the dots stay hidden: exactly one live signal per bubble.
+  // `isFinalReveal` excludes the one-cycle isStreaming carry-over a native
+  // turn uses to mount its typewriter animated — the turn is already done.
+  const showTrailingLoader =
+    !isUser &&
+    !!isAssistantStreaming &&
+    !message.isFinalReveal &&
+    !isBlocked &&
+    messageSegments.segments.length > 0 &&
+    !messageSegments.isStreaming;
 
   // Post-answer toolbar gating: the toolbar appears only after the typewriter
   // has fully REVEALED the answer, not merely when the server stream ends —
@@ -802,6 +819,14 @@ function MessageBubbleComponent({
                       threadId={message.threadId}
                       messageId={message.id}
                     />
+                  )}
+                  {showTrailingLoader && (
+                    <div
+                      className="mt-2 flex h-5 items-center"
+                      aria-hidden="true"
+                    >
+                      <ThinkingDots />
+                    </div>
                   )}
                 </CitationsContext.Provider>
               )}
