@@ -148,6 +148,14 @@ export const sandboxSessionOpsTable = defineTable({
   finalizedAt: v.optional(v.number()),
   /** How many cross-action handoffs this turn has done (runaway cap). */
   continuationCount: v.optional(v.number()),
+  /** Cumulative in-task LLM spend (cents) polled from the turn's Bifrost VK,
+   * stamped at each continuation seam so the management page can show live
+   * rolling spend without polling the gateway from a reactive query. */
+  spentCents: v.optional(v.number()),
+  /** Set when the turn stopped at a seam for a non-error reason — currently
+   * 'budget' (the org's rolling cap was reached). Distinguishes a clean
+   * budget pause from a completed/failed/cancelled op on the management page. */
+  pausedReason: v.optional(v.string()),
 })
   .index('by_sessionId', ['sessionId'])
   .index('by_threadId', ['threadId'])

@@ -75,9 +75,14 @@ const EXTERNAL_AGENT_GATEWAY_URL =
 // one is active) so they can clone/push/open PRs. The broker audits every
 // fetch; a missing credential degrades to an anonymous session.
 const SESSION_GRANTS = ['github'];
-// Per-turn LLM budget for an external-agent run (cents). Operator-tunable.
+// Per-turn LLM budget CEILING for an external-agent run (cents), used only when
+// the org has NO rolling cost cap (uncapped). When a cost cap IS configured the
+// VK is sized to the rolling-remaining instead (see the mint below), so a long
+// task is bounded by the org budget, not this flat default. Raised from the
+// original $5 — a multi-hour task reuses ONE VK across all its continuations,
+// and $5 would hard-reject a legitimate long run mid-task. Operator-tunable.
 const TURN_BUDGET_CENTS = Number(
-  process.env.EXTERNAL_AGENT_TURN_BUDGET_CENTS ?? '500',
+  process.env.EXTERNAL_AGENT_TURN_BUDGET_CENTS ?? '10000',
 );
 // Total wall-clock a turn may run, threaded down as the exec `timeoutMs` so
 // runnerd keeps the child alive this long. Decoupled from the Convex action
@@ -259,8 +264,34 @@ export const runExternalAgentTurn = internalAction({
       }
 
       // 3. Mint a per-turn, model-scoped gateway key (revoked in finally).
+      // Size its hard budget to the org's rolling-remaining cost (when a cost
+      // cap applies) so Bifrost's own ceiling can't exceed the rolling cap even
+      // between the seam-level budget checks; fall back to the flat per-turn
+      // default when the org is uncapped. The turn-start gate in
+      // start_agent_chat.ts already blocked a fully-exhausted budget, so a
+      // started turn's remaining is > 0.
+      let vkBudgetCents = TURN_BUDGET_CENTS;
+      if (args.userId) {
+        try {
+          const budget = await ctx.runQuery(
+            internal.governance.internal_queries.evaluateExternalAgentBudget,
+            { organizationId: args.organizationId, userId: args.userId },
+          );
+          if (budget.rollingRemainingCents !== null) {
+            vkBudgetCents = Math.max(
+              1,
+              Math.floor(budget.rollingRemainingCents),
+            );
+          }
+        } catch (budgetErr) {
+          console.warn(
+            '[runExternalAgentTurn] budget sizing failed (using default):',
+            budgetErr,
+          );
+        }
+      }
       const vk = await mintVirtualKey({
-        budgetCents: TURN_BUDGET_CENTS,
+        budgetCents: vkBudgetCents,
         allowedModels: [args.modelRef],
         organizationId: args.organizationId,
         sessionId,
@@ -277,7 +308,7 @@ export const runExternalAgentTurn = internalAction({
             agentKind: args.agentKind,
             allowedModels: [args.modelRef],
             integrationGrants: grantedSlugs,
-            budgetCents: TURN_BUDGET_CENTS,
+            budgetCents: vkBudgetCents,
           },
           expiresAt: Date.now() + 2 * 60 * 60 * 1000,
         },

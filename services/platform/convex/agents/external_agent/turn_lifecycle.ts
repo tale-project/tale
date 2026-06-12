@@ -21,6 +21,7 @@ import {
   getVirtualKeySpendCents,
   revokeVirtualKey,
 } from '../../node_only/sandbox/bifrost_admin';
+import { sessionCancelExec } from '../../node_only/sandbox/helpers/session_client';
 import type { RunAgentInSessionResult } from '../../node_only/sandbox/run_agent';
 
 /** Pure runaway backstop on cross-action handoffs. The real bound on a long
@@ -167,6 +168,70 @@ export async function handleTurnOutcome(
       await finalizeTurnSideEffects(ctx, turn, turnTokensOf(result));
       return;
     }
+
+    // Rolling-budget gate at the seam (never mid-exec). Poll the turn's VK for
+    // cumulative in-task spend and re-check the org's rolling cap WITH that
+    // spend folded in (prospectiveCostCents), so a long task's own burn counts
+    // toward the cap continuously — not just via the retrospective ledger row
+    // written at finalize. Over budget → seal the current segment cleanly and
+    // STOP (the in-sandbox step already finished at this seam; we just don't
+    // hand off). The clean alternative to a mid-exec SIGKILL. Userless/system
+    // turns skip the gate (no per-user budget — matches the turn-start gate).
+    let spentCents: number | undefined;
+    if (turn.userId) {
+      if (turn.mintedKeyId) {
+        try {
+          const polled = await getVirtualKeySpendCents(turn.mintedKeyId);
+          if (polled !== null) spentCents = polled;
+        } catch (spendErr) {
+          console.warn('[handleTurnOutcome] VK spend poll failed:', spendErr);
+        }
+      }
+      const verdict = await ctx.runQuery(
+        internal.governance.internal_queries.evaluateExternalAgentBudget,
+        {
+          organizationId: turn.organizationId,
+          userId: turn.userId,
+          ...(spentCents !== undefined && { prospectiveCostCents: spentCents }),
+        },
+      );
+      if (!verdict.allowed) {
+        // Stop the in-sandbox agent FIRST: at a seam its exec is still running
+        // under the detach-grace (the action just stopped draining). Without an
+        // explicit cancel the agent keeps making LLM calls on the VK past the
+        // cap until the grace reaps it. Best-effort; the VK revoke below + the
+        // detach-grace are the backstops.
+        await sessionCancelExec(turn.sessionId, turn.execId).catch((e) =>
+          console.warn('[handleTurnOutcome] pause cancel exec failed:', e),
+        );
+        // Seal the current bubble (preserve its tool timeline) with a pause note
+        // so the user sees why it stopped; the op carries pausedReason for the
+        // management page. Then finalize (usage ledger + VK revoke + clear gen).
+        await patchStreamingMessage(
+          ctx,
+          turn.assistantMessageId,
+          appendPauseNote(result.assistantContent, verdict.reason),
+          'success',
+        );
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.upsertSessionOp,
+          {
+            organizationId: turn.organizationId,
+            sessionId: turn.sessionId,
+            threadId: turn.threadId,
+            execId: turn.execId,
+            kind: 'agent-run',
+            status: 'cancelled',
+            heartbeatAt: Date.now(),
+            pausedReason: 'budget',
+            ...(spentCents !== undefined && { spentCents }),
+          },
+        );
+        await finalizeTurnSideEffects(ctx, turn, turnTokensOf(result));
+        return;
+      }
+    }
+
     // S4 segmentation: seal the current segment's message (success) and open a
     // FRESH streaming message for the next segment, so one long task renders as
     // an ordered sequence of bubbles, none of which approaches Convex's 1 MB doc
@@ -217,6 +282,8 @@ export async function handleTurnOutcome(
       // The continuation streams into the fresh segment message — mirror it on
       // the op so the recovery watchdog finalizes the right (current) bubble.
       assistantMessageId: nextMessageId,
+      // Live in-task spend for the management page (refreshed each seam).
+      ...(spentCents !== undefined && { spentCents }),
       ...(result.agentSessionId !== undefined && {
         agentSessionId: result.agentSessionId,
       }),
@@ -283,6 +350,21 @@ function isContentEmpty(content: AgentAssistantContent | undefined): boolean {
   return typeof content === 'string'
     ? content.trim().length === 0
     : content.length === 0;
+}
+
+/** Append a non-error pause note to the segment-so-far WITHOUT discarding its
+ * tool timeline (mirror of run_external_agent's withErrorNote, for a clean
+ * budget stop). The user resumes by sending a new message once budget frees. */
+function appendPauseNote(
+  content: AgentAssistantContent | undefined,
+  reason?: string,
+): AgentAssistantContent {
+  const note = `\n\n⏸️ Paused — ${
+    reason ?? 'usage limit reached for this period'
+  }. Send a new message once budget is available to continue.`;
+  if (content === undefined || isContentEmpty(content)) return note.trimStart();
+  if (typeof content === 'string') return content + note;
+  return [...content, { type: 'text', text: note.trimStart() }];
 }
 
 /** Load + parse a turn checkpoint blob ({lastSeq, agentSessionId}) from _storage.

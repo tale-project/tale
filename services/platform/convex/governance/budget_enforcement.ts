@@ -596,3 +596,91 @@ export async function checkBudget(
     warnings: allWarnings.length > 0 ? allWarnings : undefined,
   };
 }
+
+/**
+ * The tightest remaining COST headroom (cents) across every applicable budget
+ * period/scope — for sizing a per-task hard ceiling (the external-agent Bifrost
+ * VK budget) so the gateway's own cap can't exceed the rolling cap, even
+ * between the seam-level budget checks.
+ *
+ * Returns `null` when no cost-based cap applies (the org is uncapped, or only
+ * token/request caps exist) — the caller falls back to its flat default. A
+ * non-null result is clamped to ≥ 0; 0 means already at the cap (the turn-start
+ * gate blocks before minting, so in practice a started turn sees > 0). Only
+ * cost caps map to a cents VK budget; token/request caps stay enforced by
+ * `checkBudget` at the seam.
+ */
+export async function computeRollingRemainingCostCents(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationId: string,
+  userId: string,
+  userTeamIds: string[],
+  userRole?: string,
+): Promise<number | null> {
+  const config = await readPolicyConfig<BudgetConfig>(
+    ctx,
+    organizationId,
+    'budgets',
+  );
+  if (!config || !config.enabled || config.rules.length === 0) return null;
+
+  const applicableRules = collectAllApplicableRules(
+    config.rules,
+    userId,
+    userTeamIds,
+    userRole,
+  );
+  if (applicableRules.length === 0) return null;
+
+  type Period = 'daily' | 'weekly' | 'monthly';
+  const rulesByPeriod = new Map<Period, BudgetRule[]>();
+  for (const rule of applicableRules) {
+    const existing = rulesByPeriod.get(rule.period);
+    if (existing) existing.push(rule);
+    else rulesByPeriod.set(rule.period, [rule]);
+  }
+
+  let remaining: number | null = null;
+  const tighten = (left: number): void => {
+    remaining = remaining === null ? left : Math.min(remaining, left);
+  };
+
+  for (const [period, periodRules] of rulesByPeriod) {
+    const periodKey = buildPeriodKey(period);
+    const limits = resolveEffectiveLimits(
+      periodRules,
+      userId,
+      userTeamIds,
+      userRole,
+    );
+
+    if (limits.maxCostCents != null) {
+      const userUsage = await getUserPeriodUsage(
+        ctx,
+        organizationId,
+        userId,
+        periodKey,
+      );
+      tighten(Math.max(0, limits.maxCostCents - userUsage.costEstimate));
+
+      // Team caps are shared — the user's headroom is bounded by every team
+      // whose rule contributed the effective limit.
+      for (const teamId of limits.effectiveTeamIds) {
+        const teamUsage = await getTeamPeriodUsage(
+          ctx,
+          organizationId,
+          teamId,
+          periodKey,
+        );
+        tighten(Math.max(0, limits.maxCostCents - teamUsage.costEstimate));
+      }
+    }
+
+    if (limits.orgMaxCostCents != null) {
+      const orgUsage = await getOrgPeriodUsage(ctx, organizationId, periodKey);
+      tighten(Math.max(0, limits.orgMaxCostCents - orgUsage.costEstimate));
+    }
+  }
+
+  return remaining;
+}

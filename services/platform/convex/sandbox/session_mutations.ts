@@ -344,6 +344,8 @@ export const upsertSessionOp = internalMutation({
     lastSeq: v.optional(v.number()),
     checkpointStorageId: v.optional(v.string()),
     continuationCount: v.optional(v.number()),
+    spentCents: v.optional(v.number()),
+    pausedReason: v.optional(v.string()),
   },
   returns: v.id('sandboxSessionOps'),
   handler: async (ctx, args) => {
@@ -378,6 +380,8 @@ export const upsertSessionOp = internalMutation({
       'lastSeq',
       'checkpointStorageId',
       'continuationCount',
+      'spentCents',
+      'pausedReason',
     ] as const;
     for (const k of optional) {
       if (args[k] !== undefined) patch[k] = args[k];
