@@ -29,6 +29,7 @@ import {
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { MentionizedText } from '@/app/features/tasks/components/mention-text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -728,7 +729,18 @@ function MessageBubbleComponent({
             >
               {isUser ? (
                 <p className="break-words whitespace-pre-wrap">
-                  {displayContent}
+                  {/* Resolvable @handles (members, agents) render as
+                      display-name pills — `@chat-agent` reads as @Assistant.
+                      Plain fallback when the bubble has no org context (the
+                      directory queries must never fire with an empty id). */}
+                  {organizationId ? (
+                    <MentionizedText
+                      body={displayContent}
+                      organizationId={organizationId}
+                    />
+                  ) : (
+                    displayContent
+                  )}
                 </p>
               ) : (
                 <CitationsContext.Provider value={citationsContextValue}>

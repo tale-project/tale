@@ -46,12 +46,18 @@ export function parseMentionTokens(body: string): string[] {
 }
 
 /**
- * Resolve parsed tokens against a directory to `{type,id}` refs. Unknown tokens
- * are dropped; each resolved actor appears at most once (de-duped by type+id).
+ * Resolve parsed tokens against a directory to `{type,id}` refs. Unknown
+ * tokens are dropped — unless `permissiveAgents` is set, in which case they
+ * resolve as `{type:'agent', id: token}`. That is the 'all'-agent-mode path:
+ * the file-based agent roster can't be enumerated from the V8 runtime, and a
+ * token that names no real agent is a quiet no-op at run admission
+ * (`agent_not_found`, no run row, no comment). Each resolved actor appears at
+ * most once (de-duped by type+id).
  */
 export function resolveMentions(
   tokens: string[],
   directory: MentionDirectoryEntry[],
+  permissiveAgents = false,
 ): ResolvedMention[] {
   if (tokens.length === 0) return [];
 
@@ -66,11 +72,14 @@ export function resolveMentions(
   const seen = new Set<string>();
   for (const token of tokens) {
     const entry = handleToEntry.get(token);
-    if (!entry) continue;
-    const key = `${entry.type}:${entry.id}`;
+    if (!entry && !permissiveAgents) continue;
+    const resolved: ResolvedMention = entry
+      ? { type: entry.type, id: entry.id }
+      : { type: 'agent', id: token };
+    const key = `${resolved.type}:${resolved.id}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    result.push({ type: entry.type, id: entry.id });
+    result.push(resolved);
   }
   return result;
 }
@@ -79,6 +88,20 @@ export function resolveMentions(
 export function extractMentions(
   body: string,
   directory: MentionDirectoryEntry[],
+  permissiveAgents = false,
 ): ResolvedMention[] {
-  return resolveMentions(parseMentionTokens(body), directory);
+  return resolveMentions(parseMentionTokens(body), directory, permissiveAgents);
+}
+
+/**
+ * Mentions present in `next` but not `previous` — what a description EDIT
+ * newly introduces. Editing prose around an existing `@mention` must not
+ * re-notify (or re-trigger) the actors already mentioned before the edit.
+ */
+export function addedMentions(
+  previous: ResolvedMention[],
+  next: ResolvedMention[],
+): ResolvedMention[] {
+  const seen = new Set(previous.map((m) => `${m.type}:${m.id}`));
+  return next.filter((m) => !seen.has(`${m.type}:${m.id}`));
 }

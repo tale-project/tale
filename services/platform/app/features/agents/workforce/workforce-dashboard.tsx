@@ -1,17 +1,21 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { EmptyState } from '@tale/ui/empty-state';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
+import type { ColumnDef, Row } from '@tanstack/react-table';
 import {
   AlertTriangle,
-  CheckCircle2,
-  CircleDollarSign,
+  BarChart3,
   Eye,
   Hourglass,
   PauseCircle,
   Power,
 } from 'lucide-react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import {
   Bar,
   BarChart,
@@ -22,18 +26,23 @@ import {
   YAxis,
 } from 'recharts';
 
+import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { formatNumber } from '@/lib/utils/format/number';
 
 import {
   useNeedsAttention,
   useSetTaskAutomation,
   useWorkforceHealth,
   useWorkforceMetrics,
+  type WorkforceLeaderboardRow,
 } from './hooks';
+
+export type PeriodDays = 7 | 30 | 90;
 
 function formatCents(cents: number): string {
   return (cents / 100).toLocaleString(undefined, {
@@ -51,22 +60,75 @@ function shortDay(dateKey: string): string {
 }
 
 /**
- * The workforce dashboard: master automation toggle, operational health
- * strip, paired KPI cards (outcome + intervention + cost — never cost
- * alone), the activity trend, the agent leaderboard, and the
- * needs-attention queues with task deep links.
+ * One bordered chart card — same chrome as the project metrics page: the
+ * title always renders; the chart slot masks itself while loading and falls
+ * back to an `EmptyState` when the period has no data.
+ */
+function ChartCard({
+  title,
+  heightClassName,
+  isLoading,
+  isEmpty,
+  emptyTitle,
+  emptyDescription,
+  children,
+}: {
+  title: string;
+  heightClassName: string;
+  isLoading: boolean;
+  isEmpty: boolean;
+  emptyTitle: string;
+  emptyDescription: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-border bg-card rounded-lg border p-4">
+      <Text as="h3" variant="label">
+        {title}
+      </Text>
+      <div className={`mt-3 ${heightClassName}`}>
+        {isLoading ? (
+          <SkeletonBox fullWidth>
+            <div className={`w-full ${heightClassName}`} />
+          </SkeletonBox>
+        ) : isEmpty ? (
+          <EmptyState
+            icon={BarChart3}
+            title={emptyTitle}
+            description={emptyDescription}
+            className="h-full py-0"
+          />
+        ) : (
+          children
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The workforce dashboard (mirrors the automations / project metrics pages):
+ * master automation toggle, operational health strip, paired KPI stat cards
+ * (outcome + intervention + cost — never cost alone), the activity trend
+ * chart, the agent leaderboard, and the needs-attention queues with task
+ * deep links.
  */
 export function WorkforceDashboard({
   organizationId,
   canToggle,
+  periodDays,
 }: {
   organizationId: string;
   canToggle: boolean;
+  periodDays: PeriodDays;
 }) {
   const { t } = useT('workforce');
   const { formatRelative } = useFormatDate();
-  const days = 30;
-  const { metrics } = useWorkforceMetrics(organizationId, days);
+  const navigate = useNavigate();
+  const { metrics, isLoading } = useWorkforceMetrics(
+    organizationId,
+    periodDays,
+  );
   const { health } = useWorkforceHealth(organizationId);
   const { attention } = useNeedsAttention(organizationId);
   const setAutomation = useSetTaskAutomation();
@@ -90,6 +152,141 @@ export function WorkforceDashboard({
     totals && totals.cycleTimeCount > 0
       ? formatHours(totals.cycleTimeSumMs / totals.cycleTimeCount)
       : undefined;
+
+  const stats = [
+    {
+      label: t('kpi.completed', { days: periodDays }),
+      value: String(totals?.tasksCompleted ?? 0),
+      detail: t('kpi.completedDetail', {
+        agent: totals?.agentCompleted ?? 0,
+        human: totals?.humanCompleted ?? 0,
+      }),
+    },
+    {
+      label: t('kpi.intervention'),
+      value: `${interventionRate}%`,
+      detail:
+        reviewPassRate !== undefined
+          ? t('kpi.reviewPassRate', { pct: reviewPassRate })
+          : t('kpi.noReviews'),
+    },
+    {
+      label: t('kpi.cycleTime'),
+      value: avgCycleHours !== undefined ? `${avgCycleHours}h` : '—',
+      detail: t('kpi.runs', {
+        started: totals?.agentRunsStarted ?? 0,
+        failed: totals?.agentRunsFailed ?? 0,
+      }),
+    },
+    {
+      label: t('kpi.cost', { days: periodDays }),
+      value: formatCents(totals?.totalCostCents ?? 0),
+      detail: t('kpi.costDetail', {
+        perTask:
+          totals && totals.tasksCompleted > 0
+            ? formatCents(totals.totalCostCents / totals.tasksCompleted)
+            : '0.00',
+      }),
+    },
+  ];
+
+  const trendData = (metrics?.trend ?? []).map((point) => ({
+    label: shortDay(point.dateKey),
+    tasksCompleted: point.tasksCompleted,
+    agentRunsFailed: point.agentRunsFailed,
+  }));
+
+  const leaderboardRows = useMemo(
+    () => (metrics?.leaderboard ?? []).slice(0, 10),
+    [metrics],
+  );
+
+  const handleLeaderboardRowClick = useCallback(
+    (row: Row<WorkforceLeaderboardRow>) => {
+      void navigate({
+        to: '/dashboard/$id/agents/$agentId',
+        params: { id: organizationId, agentId: row.original.agentSlug },
+      });
+    },
+    [navigate, organizationId],
+  );
+
+  const leaderboardColumns = useMemo<ColumnDef<WorkforceLeaderboardRow>[]>(
+    () => [
+      {
+        id: 'agent',
+        header: t('leaderboard.agent'),
+        cell: ({ row }) => (
+          <Link
+            to="/dashboard/$id/agents/$agentId"
+            params={{ id: organizationId, agentId: row.original.agentSlug }}
+            className="text-foreground block max-w-[320px] truncate text-sm font-medium underline-offset-2 hover:underline focus-visible:underline"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {row.original.agentSlug}
+          </Link>
+        ),
+        size: 320,
+      },
+      {
+        id: 'completed',
+        header: () => (
+          <div className="text-right">{t('leaderboard.completed')}</div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-right font-mono text-xs">
+            {formatNumber(row.original.tasksCompleted)}
+          </div>
+        ),
+        meta: { align: 'right' as const },
+      },
+      {
+        id: 'runs',
+        header: () => <div className="text-right">{t('leaderboard.runs')}</div>,
+        cell: ({ row }) => (
+          <div className="text-right font-mono text-xs">
+            {formatNumber(row.original.runsStarted)}
+            {row.original.runsFailed > 0 && (
+              <span className="text-red-600 dark:text-red-400">
+                {' '}
+                ({formatNumber(row.original.runsFailed)})
+              </span>
+            )}
+          </div>
+        ),
+        meta: { align: 'right' as const },
+      },
+      {
+        id: 'bounceRate',
+        header: () => (
+          <div className="text-right">{t('leaderboard.bounceRate')}</div>
+        ),
+        cell: ({ row }) => {
+          const reviews =
+            row.original.reviewsPassed + row.original.reviewsChangesRequested;
+          const bounce =
+            reviews > 0
+              ? Math.round(
+                  (row.original.reviewsChangesRequested / reviews) * 100,
+                )
+              : 0;
+          return <div className="text-right font-mono text-xs">{bounce}%</div>;
+        },
+        meta: { align: 'right' as const },
+      },
+      {
+        id: 'cost',
+        header: () => <div className="text-right">{t('leaderboard.cost')}</div>,
+        cell: ({ row }) => (
+          <div className="text-right font-mono text-xs">
+            {formatCents(row.original.costCents)}
+          </div>
+        ),
+        meta: { align: 'right' as const },
+      },
+    ],
+    [t, organizationId],
+  );
 
   const onToggle = (enabled: boolean) => {
     setAutomation.mutate(
@@ -163,169 +360,91 @@ export function WorkforceDashboard({
                 })}
               </span>
             )}
-            {totals?.capped && (
-              <span className="text-amber-600 dark:text-amber-400">
-                {t('health.capped')}
-              </span>
-            )}
           </div>
         )}
       </section>
 
-      {/* Paired KPI cards */}
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard
-          icon={CheckCircle2}
-          label={t('kpi.completed', { days })}
-          value={String(totals?.tasksCompleted ?? 0)}
-          detail={t('kpi.completedDetail', {
-            agent: totals?.agentCompleted ?? 0,
-            human: totals?.humanCompleted ?? 0,
-          })}
-        />
-        <KpiCard
-          icon={Eye}
-          label={t('kpi.intervention')}
-          value={`${interventionRate}%`}
-          detail={
-            reviewPassRate !== undefined
-              ? t('kpi.reviewPassRate', { pct: reviewPassRate })
-              : t('kpi.noReviews')
-          }
-        />
-        <KpiCard
-          icon={Hourglass}
-          label={t('kpi.cycleTime')}
-          value={avgCycleHours !== undefined ? `${avgCycleHours}h` : '—'}
-          detail={t('kpi.runs', {
-            started: totals?.agentRunsStarted ?? 0,
-            failed: totals?.agentRunsFailed ?? 0,
-          })}
-        />
-        <KpiCard
-          icon={CircleDollarSign}
-          label={t('kpi.cost', { days })}
-          value={formatCents(totals?.totalCostCents ?? 0)}
-          detail={t('kpi.costDetail', {
-            perTask:
-              totals && totals.tasksCompleted > 0
-                ? formatCents(totals.totalCostCents / totals.tasksCompleted)
-                : '0.00',
-          })}
-        />
-      </section>
+      {!isLoading && totals?.capped ? (
+        <div className="border-border bg-muted/40 rounded-md border px-3 py-2 text-xs">
+          {t('cappedNotice')}
+        </div>
+      ) : null}
 
-      {/* Trend */}
-      {metrics && metrics.trend.length > 0 && (
-        <section className="border-border bg-card rounded-lg border p-4">
-          <Text as="h3" variant="label">
-            {t('trend.title')}
-          </Text>
-          <div className="mt-3 h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={metrics.trend.map((point) => ({
-                  ...point,
-                  label: shortDay(point.dateKey),
-                }))}
-              >
-                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                <XAxis dataKey="label" fontSize={11} />
-                <YAxis allowDecimals={false} fontSize={11} width={28} />
-                <Tooltip />
-                <Bar
-                  dataKey="tasksCompleted"
-                  name={t('trend.completed')}
-                  fill="var(--color-chart-success, #10b981)"
-                  radius={[2, 2, 0, 0]}
-                />
-                <Bar
-                  dataKey="agentRunsFailed"
-                  name={t('trend.failedRuns')}
-                  fill="var(--color-chart-failure, #ef4444)"
-                  radius={[2, 2, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+      <Skeletonize loading={isLoading} className="flex flex-col gap-4">
+        {/* Paired KPI stat cards */}
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className="border-border bg-card flex flex-col gap-1 rounded-lg border p-3"
+            >
+              <Text as="p" variant="muted" className="text-xs">
+                {stat.label}
+              </Text>
+              <SkeletonBox>
+                <Text as="p" className="text-xl font-semibold tabular-nums">
+                  {stat.value}
+                </Text>
+              </SkeletonBox>
+              <SkeletonBox>
+                <Text as="p" variant="muted" className="text-xs">
+                  {stat.detail}
+                </Text>
+              </SkeletonBox>
+            </div>
+          ))}
         </section>
-      )}
+
+        {/* Trend */}
+        <ChartCard
+          title={t('trend.title')}
+          heightClassName="h-52"
+          isLoading={isLoading}
+          isEmpty={trendData.length === 0}
+          emptyTitle={t('noData')}
+          emptyDescription={t('noDataDescription')}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={trendData}>
+              <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+              <XAxis dataKey="label" fontSize={11} />
+              <YAxis allowDecimals={false} fontSize={11} width={28} />
+              <Tooltip />
+              <Bar
+                dataKey="tasksCompleted"
+                name={t('trend.completed')}
+                fill="var(--color-chart-success, #10b981)"
+                radius={[2, 2, 0, 0]}
+              />
+              <Bar
+                dataKey="agentRunsFailed"
+                name={t('trend.failedRuns')}
+                fill="var(--color-chart-failure, #ef4444)"
+                radius={[2, 2, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </Skeletonize>
 
       {/* Leaderboard */}
-      {metrics && metrics.leaderboard.length > 0 && (
-        <section className="border-border bg-card rounded-lg border p-4">
-          <Text as="h3" variant="label">
-            {t('leaderboard.title')}
-          </Text>
-          <table className="mt-2 w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-border border-b text-left text-xs">
-                <th className="py-1.5 pr-2 font-medium">
-                  {t('leaderboard.agent')}
-                </th>
-                <th className="px-2 py-1.5 text-right font-medium">
-                  {t('leaderboard.completed')}
-                </th>
-                <th className="px-2 py-1.5 text-right font-medium">
-                  {t('leaderboard.runs')}
-                </th>
-                <th className="px-2 py-1.5 text-right font-medium">
-                  {t('leaderboard.bounceRate')}
-                </th>
-                <th className="px-2 py-1.5 text-right font-medium">
-                  {t('leaderboard.cost')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {metrics.leaderboard.slice(0, 10).map((row) => {
-                const reviews = row.reviewsPassed + row.reviewsChangesRequested;
-                const bounce =
-                  reviews > 0
-                    ? Math.round((row.reviewsChangesRequested / reviews) * 100)
-                    : 0;
-                return (
-                  <tr
-                    key={row.agentSlug}
-                    className="border-border/50 border-b last:border-0"
-                  >
-                    <td className="py-1.5 pr-2">
-                      <Link
-                        to="/dashboard/$id/agents/$agentId"
-                        params={{
-                          id: organizationId,
-                          agentId: row.agentSlug,
-                        }}
-                        className="hover:underline"
-                      >
-                        {row.agentSlug}
-                      </Link>
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">
-                      {row.tasksCompleted}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">
-                      {row.runsStarted}
-                      {row.runsFailed > 0 && (
-                        <span className="text-red-600 dark:text-red-400">
-                          {' '}
-                          ({row.runsFailed})
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">
-                      {bounce}%
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">
-                      {formatCents(row.costCents)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </section>
-      )}
+      <div className="flex flex-col gap-3">
+        <h2 className="text-base font-semibold">{t('leaderboard.title')}</h2>
+        <DataTable
+          caption={t('leaderboard.title')}
+          columns={leaderboardColumns}
+          data={leaderboardRows}
+          getRowId={(row) => row.agentSlug}
+          isLoading={isLoading}
+          approxRowCount={isLoading ? 5 : leaderboardRows.length}
+          onRowClick={handleLeaderboardRowClick}
+          emptyState={{
+            icon: BarChart3,
+            title: t('noData'),
+            description: t('noDataDescription'),
+          }}
+        />
+      </div>
 
       {/* Needs attention */}
       {attention && (
@@ -382,33 +501,6 @@ export function WorkforceDashboard({
           />
         </section>
       )}
-    </div>
-  );
-}
-
-function KpiCard({
-  icon: Icon,
-  label,
-  value,
-  detail,
-}: {
-  icon: typeof CheckCircle2;
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <div className="border-border bg-card flex flex-col gap-1 rounded-lg border p-4">
-      <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-        <Icon className="size-3.5" aria-hidden />
-        {label}
-      </div>
-      <Text as="p" className="text-2xl font-semibold tabular-nums">
-        {value}
-      </Text>
-      <Text as="p" variant="muted" className="text-xs">
-        {detail}
-      </Text>
     </div>
   );
 }

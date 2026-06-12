@@ -20,6 +20,7 @@ import { createAuditLog } from '../audit_logs/helpers';
 import {
   notifyTaskAssigned,
   notifyTaskComment,
+  notifyTaskMentions,
   notifyTaskStatusChanged,
 } from '../collab/notify';
 import { emitEvent } from '../workflows/triggers/emit_event';
@@ -40,7 +41,7 @@ import {
   TASK_TITLE_MAX,
   TERMINAL_STATUSES,
 } from './helpers';
-import { extractMentions } from './mentions';
+import { extractMentions, parseMentionTokens } from './mentions';
 import {
   taskActorTypeValidator,
   taskPriorityValidator,
@@ -164,11 +165,12 @@ export const agentCreateTask = internalMutation({
     const now = Date.now();
     const rank = await computeEndRank(ctx, args.projectId, status);
     const number = await nextTaskNumber(ctx, project);
+    const description = args.description?.trim() || undefined;
     const taskId = await ctx.db.insert('tasks', {
       organizationId: args.organizationId,
       projectId: args.projectId,
       title,
-      description: args.description?.trim() || undefined,
+      description,
       status,
       priority: args.priority,
       labels: args.labels,
@@ -196,6 +198,40 @@ export const agentCreateTask = internalMutation({
         eventType: 'task.created',
         eventData: { task, ...eventActor(args.actorId) },
       });
+      // Description @mentions fan out like comment mentions (notify humans,
+      // `task.mentioned` for the automation pack — whose workflow-actor guard
+      // keeps engine-authored creates inert). External sync upserts
+      // (`agentUpsertTaskByExternalRef`) deliberately do NOT do this: synced
+      // bodies are full of foreign @handles that must never trigger anyone.
+      if (description && parseMentionTokens(description).length > 0) {
+        const directory = await buildMentionDirectory(ctx, {
+          organizationId: args.organizationId,
+          project,
+        });
+        const mentions = extractMentions(
+          description,
+          directory.entries,
+          directory.permissiveAgents,
+        );
+        if (mentions.length > 0) {
+          await notifyTaskMentions(ctx, {
+            task,
+            mentions,
+            actorType: 'agent',
+            actorId: args.actorId,
+          });
+          await emitEvent(ctx, {
+            organizationId: args.organizationId,
+            eventType: 'task.mentioned',
+            eventData: {
+              task,
+              taskId: String(taskId),
+              mentions,
+              ...eventActor(args.actorId),
+            },
+          });
+        }
+      }
     }
     await agentAudit(ctx, {
       organizationId: args.organizationId,
@@ -609,7 +645,11 @@ export const agentAddComment = internalMutation({
       organizationId: args.organizationId,
       project,
     });
-    const mentions = extractMentions(body, directory);
+    const mentions = extractMentions(
+      body,
+      directory.entries,
+      directory.permissiveAgents,
+    );
 
     const now = Date.now();
     const commentId = await ctx.db.insert('taskComments', {

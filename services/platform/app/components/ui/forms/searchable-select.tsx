@@ -114,6 +114,14 @@ export interface SearchableSelectProps {
   tooltip?: ReactNode;
   /** Side the tooltip opens on. @default 'top' */
   tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
+  /**
+   * Render the popover as a Radix modal layer. Required when the select sits
+   * inside a modal Dialog: the dialog's scroll lock swallows wheel events over
+   * the (portaled) popover, so a long option list won't wheel-scroll. A modal
+   * popover registers its own scroll-lock shard, restoring scrolling.
+   * @default false
+   */
+  modal?: boolean;
 }
 
 const CONTENT_CLASSES =
@@ -175,6 +183,7 @@ function SearchableSelectBase({
   descriptionMode = 'inline',
   tooltip,
   tooltipSide = 'top',
+  modal = false,
 }: SearchableSelectProps) {
   const instanceId = useId();
   const listboxId = `${instanceId}-listbox`;
@@ -347,7 +356,11 @@ function SearchableSelectBase({
   );
 
   const popover = (
-    <PopoverPrimitive.Root open={isOpen} onOpenChange={handleOpenChange}>
+    <PopoverPrimitive.Root
+      open={isOpen}
+      onOpenChange={handleOpenChange}
+      modal={modal}
+    >
       {tooltip ? (
         // Radix's documented "tooltip on a popover trigger" composition: both
         // `asChild` triggers collapse onto the same node, so the popover opens

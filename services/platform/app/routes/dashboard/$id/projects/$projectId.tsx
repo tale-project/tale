@@ -65,9 +65,11 @@ function ProjectDetailLayout() {
         label: tTasks('title'),
         href: `/dashboard/${organizationId}/projects/${projectId}/tasks`,
         matchMode: 'exact',
-        // The project metrics page is a sub-view of Tasks (reached from the
-        // tasks workspace, not its own tab), so keep Tasks highlighted there.
+        // The per-view pages (/tasks/board, /tasks/list — prefix-matched via
+        // the bare /tasks entry) and the project metrics page are sub-views
+        // of Tasks, so keep the tab highlighted there.
         additionalActivePaths: [
+          `/dashboard/${organizationId}/projects/${projectId}/tasks`,
           `/dashboard/${organizationId}/projects/${projectId}/metrics`,
         ],
       },

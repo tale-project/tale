@@ -5023,8 +5023,8 @@
       "organigram": {
         "menuItem": "Organigram"
       },
-      "workforce": {
-        "menuItem": "Workforce"
+      "metrics": {
+        "link": "Metrics"
       }
     },
     "skills": {
@@ -6353,6 +6353,10 @@
       "breakerPaused": "{slug} won't respond — agent runs are paused on this task",
       "budgetPaused": "{slug} won't respond — monthly budget exhausted"
     },
+    "mentionPicker": {
+      "title": "Mention a member or agent",
+      "empty": "No matches"
+    },
     "metrics": {
       "link": "Metrics",
       "title": "Task metrics",
@@ -6855,7 +6859,15 @@
   "workforce": {
     "title": "Workforce",
     "subtitle": "How your AI workforce performs: outcomes, human intervention, and cost — always together.",
-    "backToAgents": "Agents",
+    "period": {
+      "label": "Period",
+      "last7Days": "Last 7 days",
+      "last30Days": "Last 30 days",
+      "last90Days": "Last 90 days"
+    },
+    "cappedNotice": "Some numbers in this window are lower bounds — the scan hit its cap.",
+    "noData": "No data",
+    "noDataDescription": "Metrics appear after the first daily rollup.",
     "toggle": {
       "title": "Task automation",
       "onHint": "The task-ops pack is live: assignments run agents, reviews gate completion.",
@@ -6866,8 +6878,7 @@
       "runs24h": "{count} runs (24h)",
       "failures24h": "{count} failed/timed out",
       "packFailures24h": "{count} automation failures",
-      "oldestQueued": "oldest queued run {age}",
-      "capped": "some numbers are lower bounds (scan capped)"
+      "oldestQueued": "oldest queued run {age}"
     },
     "kpi": {
       "completed": "Completed ({days}d)",

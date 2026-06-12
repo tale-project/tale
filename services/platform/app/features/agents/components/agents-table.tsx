@@ -4,7 +4,7 @@ import { LinkButton } from '@tale/ui/button';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
-import { Bot, Network } from 'lucide-react';
+import { BarChart3, Bot, Network } from 'lucide-react';
 import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -196,9 +196,17 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
       onRowMouseEnter={handleRowMouseEnter}
       actionMenu={
         <div className="flex items-center gap-2">
-          {/* Standalone entry — same pattern as the automations list's
-              Metrics button — so the chart is one click away, not buried
+          {/* Standalone entries — same pattern as the automations list's
+              Metrics button — so each chart is one click away, not buried
               in the create menu. */}
+          <LinkButton
+            href="/dashboard/$id/agents/metrics"
+            params={{ id: organizationId }}
+            variant="secondary"
+            icon={BarChart3}
+          >
+            {tSettings('agents.metrics.link')}
+          </LinkButton>
           <LinkButton
             href="/dashboard/$id/agents/organigram"
             params={{ id: organizationId }}

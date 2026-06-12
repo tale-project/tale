@@ -147,6 +147,19 @@ export const EVENT_TYPES: Record<string, EventTypeDef> = {
       },
     ],
   },
+  // Emitted when a task DESCRIPTION gains new @mentions (on create, or the
+  // newly-added set on a description edit). eventData: { task, taskId,
+  // mentions, actorType, actorId } — same `mentions` shape as
+  // comment.mentioned.
+  'task.mentioned': {
+    category: 'tasks',
+    label: 'Task description mention',
+    description:
+      'Triggered when a user or agent is @mentioned in a task description',
+    filterFields: [
+      { key: 'task.projectId', label: 'Project', inputType: 'text' },
+    ],
+  },
   'task.deleted': {
     category: 'tasks',
     label: 'Task deleted',

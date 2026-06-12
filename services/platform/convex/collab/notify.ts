@@ -252,6 +252,49 @@ export async function notifyTaskAssigned(
   });
 }
 
+/**
+ * Mention fan-out for the task BODY (description) — the counterpart of the
+ * mention half of {@link notifyTaskComment} for `@`s typed into the task
+ * description on create/edit. Callers pass only the NEWLY added mentions so
+ * an unrelated description edit never re-notifies everyone already mentioned.
+ */
+export async function notifyTaskMentions(
+  ctx: MutationCtx,
+  args: {
+    task: Doc<'tasks'>;
+    mentions: Array<{ type: 'user' | 'agent'; id: string }>;
+    actorType: ActorType;
+    actorId: string;
+  },
+): Promise<void> {
+  const actorName = await resolveActorName(ctx, args.actorType, args.actorId);
+  for (const mention of args.mentions) {
+    if (mention.type !== 'user') continue;
+    if (args.actorType === 'user' && mention.id === args.actorId) continue;
+    await autoSubscribe(ctx, {
+      task: args.task,
+      subscriberType: 'user',
+      subscriberId: mention.id,
+      reason: 'mention',
+    });
+    await writeNotification(ctx, {
+      userId: mention.id,
+      organizationId: args.task.organizationId,
+      type: 'mention',
+      titleKey: 'mention',
+      bodyKey: actorName ? 'mentionByBody' : 'mentionBody',
+      params: actorName
+        ? { title: args.task.title, actor: actorName }
+        : { title: args.task.title },
+      resourceType: 'task',
+      resourceId: String(args.task._id),
+      taskId: args.task._id,
+      actorType: args.actorType,
+      actorId: args.actorId,
+    });
+  }
+}
+
 export async function notifyTaskComment(
   ctx: MutationCtx,
   args: {

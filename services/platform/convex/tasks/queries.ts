@@ -494,15 +494,19 @@ export const listTaskAgentRuns = query({
 });
 
 /**
- * Mention trigger preview for the comment composer (Multica-style): for each
- * @-mentioned agent slug in the draft, whether posting the comment WILL put
- * that agent to work — and if not, why (project gate, automation kill
- * switch, circuit breaker, exhausted budget, or a queue wait). Read-only and
- * cheap: one task + policy read plus two notice lookups per slug (≤10).
+ * Mention trigger preview for the comment and description composers
+ * (Multica-style): for each @-mentioned agent slug in the draft, whether
+ * saving WILL put that agent to work — and if not, why (project gate,
+ * automation kill switch, circuit breaker, exhausted budget, or a queue
+ * wait). Read-only and cheap: one task + policy read plus two notice lookups
+ * per slug (≤10). Pass `taskId` for an existing task, or `projectId` alone
+ * for create mode (no task yet — the per-task breaker/queue checks are
+ * skipped).
  */
 export const mentionTriggerPreview = query({
   args: {
-    taskId: v.id('tasks'),
+    taskId: v.optional(v.id('tasks')),
+    projectId: v.optional(v.id('projects')),
     slugs: v.array(v.string()),
   },
   returns: v.array(
@@ -520,14 +524,26 @@ export const mentionTriggerPreview = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const task = await ctx.db.get(args.taskId);
-    if (!task) throw new Error('TASK_NOT_FOUND');
-    const { project } = await loadAccessibleProject(ctx, task.projectId);
-    const organizationId = task.organizationId;
+    let task: Doc<'tasks'> | null = null;
+    if (args.taskId) {
+      task = await ctx.db.get(args.taskId);
+      if (!task) throw new Error('TASK_NOT_FOUND');
+    }
+    const projectId = task?.projectId ?? args.projectId;
+    if (!projectId) throw new Error('TASK_OR_PROJECT_REQUIRED');
+    const { project } = await loadAccessibleProject(ctx, projectId);
+    const organizationId = project.organizationId;
 
     const slugs = [...new Set(args.slugs)].slice(0, 10);
     if (slugs.length === 0) return [];
 
+    // Workforce agent gate (mirrors `buildMentionDirectory`): 'restricted'
+    // projects limit mentionable agents to their explicit lists; the default
+    // 'all' mode exposes every org agent. The roster itself is file-based and
+    // not enumerable here, so in 'all' mode existence isn't verified — the
+    // composer only offers real slugs, and a fabricated one no-ops quietly at
+    // run admission.
+    const restricted = (project.agentMode ?? 'all') === 'restricted';
     const mentionable = new Set<string>([
       ...(project.allowedAgentSlugs ?? []),
       ...(project.recommendedAgentSlugs ?? []),
@@ -539,7 +555,7 @@ export const mentionTriggerPreview = query({
       'task_automation',
     );
     const packEnabled = automationRaw?.enabled !== false;
-    const breakerPaused = task.agentRunsPausedAt !== undefined;
+    const breakerPaused = task ? task.agentRunsPausedAt !== undefined : false;
     const monthKey = buildPeriodKeyFromTimestamp('monthly', Date.now());
 
     const rows: Array<{
@@ -554,7 +570,7 @@ export const mentionTriggerPreview = query({
         | 'budget_paused';
     }> = [];
     for (const slug of slugs) {
-      if (!mentionable.has(slug)) {
+      if (restricted && !mentionable.has(slug)) {
         rows.push({ slug, willTrigger: false, reason: 'not_mentionable' });
         continue;
       }
@@ -580,16 +596,18 @@ export const mentionTriggerPreview = query({
         rows.push({ slug, willTrigger: false, reason: 'budget_paused' });
         continue;
       }
-      const queuedNotice = await ctx.db
-        .query('agentGuardrailNotices')
-        .withIndex('by_org_agent_kind_period', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('agentSlug', slug)
-            .eq('kind', 'concurrency_queued')
-            .eq('periodKey', String(args.taskId)),
-        )
-        .first();
+      const queuedNotice = task
+        ? await ctx.db
+            .query('agentGuardrailNotices')
+            .withIndex('by_org_agent_kind_period', (q) =>
+              q
+                .eq('organizationId', organizationId)
+                .eq('agentSlug', slug)
+                .eq('kind', 'concurrency_queued')
+                .eq('periodKey', String(task._id)),
+            )
+            .first()
+        : null;
       if (queuedNotice && queuedNotice.resolvedAt === undefined) {
         rows.push({ slug, willTrigger: true, reason: 'queued_likely' });
         continue;
