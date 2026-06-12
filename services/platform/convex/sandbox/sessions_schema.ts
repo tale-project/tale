@@ -194,3 +194,26 @@ export const sandboxCredentialAccessTable = defineTable({
 export const SANDBOX_MAX_SESSIONS_PER_OWNER = 1;
 export const SANDBOX_SESSION_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;
 export const SANDBOX_SESSION_MAX_IDLE_MS = 30 * 60 * 1000;
+
+/**
+ * Statuses under which a session row is LIVE: the incarnation the reused
+ * deterministic sessionId currently refers to, and the rows the management
+ * page lists / its controls act on. Terminal rows (destroyed | expired |
+ * failed) are historical incarnations kept for audit — the by_sessionId index
+ * yields them oldest-first, so every sessionId-keyed read/patch must skip them.
+ *
+ * NOT the same set as the reuse/quota checks (creating|active — a degraded
+ * sandbox isn't reused and doesn't hold the cap) or the owner-cascade teardown
+ * (which includes `failed` to reap leaked containers).
+ */
+export const SANDBOX_SESSION_LIVE_STATUSES = [
+  'creating',
+  'active',
+  'degraded',
+] as const;
+
+export function isLiveSessionStatus(
+  status: string,
+): status is (typeof SANDBOX_SESSION_LIVE_STATUSES)[number] {
+  return (SANDBOX_SESSION_LIVE_STATUSES as readonly string[]).includes(status);
+}

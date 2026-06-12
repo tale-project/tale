@@ -14,7 +14,9 @@ import { ConvexError, v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
 import {
+  isLiveSessionStatus,
   SANDBOX_MAX_SESSIONS_PER_OWNER,
+  SANDBOX_SESSION_LIVE_STATUSES,
   SANDBOX_SESSION_MAX_LIFETIME_MS,
 } from './sessions_schema';
 import { sandboxSessionProfileValidator } from './wire';
@@ -147,7 +149,7 @@ export const setSessionPinned = internalMutation({
       // create/destroy cycles, so `by_sessionId` returns many historical rows.
       // Pin only the LIVE one — pinning a stale `failed`/`destroyed` record is
       // meaningless and would leak a pinned dead row onto the management page.
-      if (row.status !== 'active' && row.status !== 'creating') continue;
+      if (!isLiveSessionStatus(row.status)) continue;
       await ctx.db.patch(row._id, {
         pinned: args.pinned,
         pinnedAt: args.pinned ? now : undefined,
@@ -173,7 +175,7 @@ export const recoverStuckSessions = internalMutation({
     const now = Date.now();
     const expired: Id<'sandboxSessions'>[] = [];
     const limit = args.limit ?? 50;
-    for (const status of ['creating', 'active', 'degraded'] as const) {
+    for (const status of SANDBOX_SESSION_LIVE_STATUSES) {
       for await (const row of ctx.db
         .query('sandboxSessions')
         .withIndex('by_status', (q) => q.eq('status', status))) {
@@ -218,25 +220,27 @@ export const destroyActiveSessionsByOwner = internalMutation({
   },
 });
 
-/** Mark ONE session row destroyed, scoped to its org (the management-page
- * Destroy control). Org-guarded so a control call can't touch another tenant's
- * session even if the spawner id were guessed. Returns whether a row flipped. */
+/** Mark the LIVE session row(s) for a sessionId destroyed, scoped to its org
+ * (the management-page Destroy control). Org-guarded so a control call can't
+ * touch another tenant's session even if the spawner id were guessed. The
+ * reused deterministic sessionId makes by_sessionId yield historical terminal
+ * rows oldest-first — skip them (an early return on one would leave the live
+ * row untouched). Returns whether any row flipped. */
 export const markSessionRowDestroyed = internalMutation({
   args: { organizationId: v.string(), sessionId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {
+    const now = Date.now();
+    let destroyed = false;
     for await (const row of ctx.db
       .query('sandboxSessions')
       .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
       if (row.organizationId !== args.organizationId) continue;
-      if (row.status === 'destroyed' || row.status === 'expired') return false;
-      await ctx.db.patch(row._id, {
-        status: 'destroyed',
-        destroyedAt: Date.now(),
-      });
-      return true;
+      if (!isLiveSessionStatus(row.status)) continue;
+      await ctx.db.patch(row._id, { status: 'destroyed', destroyedAt: now });
+      destroyed = true;
     }
-    return false;
+    return destroyed;
   },
 });
 

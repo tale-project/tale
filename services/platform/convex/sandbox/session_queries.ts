@@ -3,6 +3,7 @@
 import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
+import { isLiveSessionStatus } from './sessions_schema';
 
 /** The active (creating|active) session owned by an entity, or null. Used by
  * the external-agent turn to reuse a thread's session across turns. */
@@ -197,9 +198,13 @@ export const listActiveSessionsByOwner = internalQuery({
   },
 });
 
-/** The session row for a spawner session id, or null. The management-page
+/** The LIVE session row for a spawner session id, or null. The management-page
  * controls fetch it to confirm the session belongs to the caller's org before
- * acting (defense in depth — the public id is org-scoped at the UI). */
+ * acting (defense in depth — the public id is org-scoped at the UI). The
+ * reused deterministic sessionId leaves historical terminal rows ahead of the
+ * live one in by_sessionId — skip them, so the guard vets the row the control
+ * will act on, and a control targeting an id with no live incarnation fails
+ * loudly instead of matching an old destroyed record. */
 export const getSessionBySessionId = internalQuery({
   args: { sessionId: v.string() },
   returns: v.union(
@@ -216,6 +221,7 @@ export const getSessionBySessionId = internalQuery({
     for await (const row of ctx.db
       .query('sandboxSessions')
       .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (!isLiveSessionStatus(row.status)) continue;
       return {
         organizationId: row.organizationId,
         ownerType: row.ownerType,

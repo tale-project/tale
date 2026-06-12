@@ -15,6 +15,7 @@ import type {
   BetterAuthFindManyResult,
   BetterAuthUser,
 } from '../members/types';
+import { isLiveSessionStatus } from './sessions_schema';
 
 /**
  * Latest in-session `agent-run` op for a thread, for live tool-use/text
@@ -123,13 +124,7 @@ export const listSandboxesForOrg = query({
       // sessionId is reused across incarnations, so the table holds many
       // historical destroyed/expired/failed rows for the same id — exclude all
       // of them (a never-created `failed` record isn't a sandbox you can act on).
-      if (
-        s.status !== 'active' &&
-        s.status !== 'creating' &&
-        s.status !== 'degraded'
-      ) {
-        continue;
-      }
+      if (!isLiveSessionStatus(s.status)) continue;
 
       // Current op = the running one if any, else the most recent by startedAt.
       // Bounded by the session lifetime (idle/TTL-reaped ~24h), so the per-
