@@ -131,6 +131,23 @@ export async function sessionCreate(
 }
 
 /** DELETE /v1/sessions/:id — idempotent teardown. */
+/** GET /v1/sessions/:id — is the session alive spawner-side? `false` ONLY on
+ * a definitive 404 (the phantom-session signal); transport errors throw so a
+ * spawner blip is never misread as "session gone". */
+export async function sessionIsAlive(sessionId: string): Promise<boolean> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'GET',
+    headers: signedHeaders('GET', path, ''),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (res.status === 404) return false;
+  if (!res.ok) {
+    throw new Error(`sandbox session get failed (${res.status})`);
+  }
+  return true;
+}
+
 export async function sessionDestroy(sessionId: string): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
   const headers = signedHeaders('DELETE', path, '');

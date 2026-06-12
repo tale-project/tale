@@ -37,6 +37,7 @@ import {
   SessionNotFoundError,
   sessionCreate,
   sessionEnvPatch,
+  sessionIsAlive,
   sessionSetPinned,
 } from '../../node_only/sandbox/helpers/session_client';
 import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
@@ -157,10 +158,28 @@ export const runExternalAgentTurn = internalAction({
       const ownerId = args.userId
         ? userOwnerId(args.organizationId, args.userId)
         : args.threadId;
-      const existing = await ctx.runQuery(
+      let existing = await ctx.runQuery(
         internal.sandbox.session_queries.getActiveSessionByOwner,
         { ownerType, ownerId },
       );
+      // Phantom check BEFORE reuse: the spawner reaps sessions (idle/TTL) and
+      // its registry is in-memory, so an `active` platform row can point at a
+      // session that no longer exists — previously that 404'd the turn and
+      // only healed the row for the NEXT send. Probe first: a definitive 404
+      // clears the stale rows and falls through to the create path below, so
+      // the turn recreates the session transparently. Transport errors throw
+      // (a spawner blip must not trigger a spurious recreate).
+      if (existing && !(await sessionIsAlive(existing.sessionId))) {
+        console.warn(
+          '[runExternalAgentTurn] phantom session, recreating in place:',
+          existing.sessionId,
+        );
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.destroyActiveSessionsByOwner,
+          { ownerType, ownerId },
+        );
+        existing = null;
+      }
       // Lower bound for the --resume lookup: ops from a PRIOR session (same
       // deterministic id, since destroyed) must not be resumed. The reused
       // session uses its own createdAt; a freshly created one uses now (it
