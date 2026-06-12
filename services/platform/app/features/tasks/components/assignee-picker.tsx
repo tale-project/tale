@@ -148,6 +148,10 @@ export function AssigneePicker({
           open={open}
           onOpenChange={setOpen}
           align={align}
+          // The picker opens inside the (modal) task dialog: without a modal
+          // popover the dialog's scroll lock eats wheel events over the list
+          // and a long member+agent roster can't be scrolled.
+          modal
           trigger={trigger}
           searchPlaceholder={t('assignee.search')}
           emptyText={tCommon('search.noResults')}

@@ -1,7 +1,6 @@
 'use client';
 
-import { useNavigate } from '@tanstack/react-router';
-import { Gauge, Plus, Upload } from 'lucide-react';
+import { Plus, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import {
@@ -24,7 +23,6 @@ export function AgentsActionMenu({ organizationId }: AgentsActionMenuProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const { t } = useT('settings');
-  const navigate = useNavigate();
   const { mutateAsync: saveAgent } = useSaveAgent();
   const { agents } = useListAgents(organizationId);
   const existingNames = useMemo(
@@ -44,17 +42,8 @@ export function AgentsActionMenu({ organizationId }: AgentsActionMenuProps) {
         icon: Upload,
         onClick: () => setUploadOpen(true),
       },
-      {
-        label: t('agents.workforce.menuItem'),
-        icon: Gauge,
-        onClick: () =>
-          void navigate({
-            to: '/dashboard/$id/agents/workforce',
-            params: { id: organizationId },
-          }),
-      },
     ],
-    [t, navigate, organizationId],
+    [t],
   );
 
   return (

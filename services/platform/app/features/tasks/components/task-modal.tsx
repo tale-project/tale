@@ -43,6 +43,9 @@ import { subtaskProgress } from '../lib/subtasks';
 import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
 import { LabelEditor } from './label-editor';
+import { MentionText } from './mention-text';
+import { MentionTextarea } from './mention-textarea';
+import { MentionTriggerChips } from './mention-trigger-chips';
 import { PriorityPicker } from './priority-picker';
 import { StatusPicker } from './status-picker';
 import { TaskAgentRuns } from './task-agent-runs';
@@ -134,10 +137,14 @@ function ModalLayout({
       <div className="shrink-0">{header}</div>
       {/* Inside the fixed-height edit dialog each column owns its scroll; in
           the auto-height create dialog these min-h/overflow rules are inert.
-          The negative-margin + padding pairs widen each scrollport slightly so
-          focus rings on full-width fields aren't clipped at the column edge. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col gap-5 md:-mx-2 md:min-h-0 md:overflow-y-auto md:px-2 md:py-0.5">
+          The column gutter is the main column's PADDING (md:pr-6), not a row
+          gap — padding lives inside the scrollport, so the main scrollbar
+          renders flush against the panel divider instead of floating
+          mid-gutter. The negative-margin + padding pair on the left widens
+          the scrollport slightly so focus rings on full-width fields aren't
+          clipped at the column edge. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row md:gap-0">
+        <div className="flex min-w-0 flex-1 flex-col gap-5 md:-ml-2 md:min-h-0 md:overflow-y-auto md:py-0.5 md:pr-6 md:pl-2">
           {main}
         </div>
         <aside className="flex shrink-0 flex-col gap-4 md:-mr-2 md:min-h-0 md:w-[15.5rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6">
@@ -265,13 +272,21 @@ function CreateTaskBody({
               }
             }}
           />
-          <Textarea
+          <MentionTextarea
             id="task-description"
+            organizationId={organizationId}
+            projectId={projectId}
             label={t('fields.description')}
             rows={5}
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onValueChange={setDescription}
             disabled={submitting}
+            placement="below"
+          />
+          <MentionTriggerChips
+            organizationId={organizationId}
+            target={{ projectId }}
+            draft={description}
           />
         </>
       }
@@ -447,6 +462,9 @@ function EditTaskBody({
             {canEdit ? (
               <EditableDescription
                 key={task._id}
+                taskId={task._id}
+                organizationId={task.organizationId}
+                projectId={task.projectId}
                 value={task.description ?? ''}
                 placeholder={t('detail.addDescription')}
                 onSave={(description) =>
@@ -459,9 +477,12 @@ function EditTaskBody({
                 }
               />
             ) : task.description ? (
-              <Text as="p" variant="body" className="whitespace-pre-wrap">
-                {task.description}
-              </Text>
+              <MentionText
+                body={task.description}
+                organizationId={task.organizationId}
+                projectId={task.projectId}
+                className="whitespace-pre-wrap"
+              />
             ) : (
               <Text as="p" variant="muted">
                 {t('detail.noDescription')}
@@ -770,29 +791,78 @@ function EditableTitle({
   );
 }
 
-/** Inline-editable description; commits on blur when changed. */
+/** Inline-editable description with an explicit Save / Discard pair that
+ *  appears while the draft is dirty (⌘/Ctrl+Enter saves, Escape discards).
+ *  New @mentions in the draft preview their agent-trigger effect
+ *  (`MentionTriggerChips`). */
 function EditableDescription({
+  taskId,
+  organizationId,
+  projectId,
   value,
   placeholder,
   onSave,
 }: {
+  taskId: Id<'tasks'>;
+  organizationId: string;
+  projectId: Id<'projects'>;
   value: string;
   placeholder: string;
   onSave: (value: string) => void;
 }) {
+  const { t: tCommon } = useT('common');
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
 
+  // Explicit commit instead of save-on-blur: a blur-save would fire on any
+  // click-away (incl. reaching for Discard) and silently persist half-edited
+  // text. The buttons appear only while the draft differs from the saved
+  // value and vanish once the server echoes the update back into `value`.
+  const isDirty = draft.trim() !== value.trim();
+  const save = () => {
+    if (isDirty) onSave(draft.trim());
+  };
+  const discard = () => setDraft(value);
+
   return (
-    <Textarea
-      id="detail-description"
-      rows={3}
-      value={draft}
-      placeholder={placeholder}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        if (draft.trim() !== value.trim()) onSave(draft.trim());
-      }}
-    />
+    <>
+      <MentionTextarea
+        id="detail-description"
+        organizationId={organizationId}
+        projectId={projectId}
+        rows={3}
+        value={draft}
+        placeholder={placeholder}
+        onValueChange={setDraft}
+        onKeyDown={(e) => {
+          // ⌘/Ctrl+Enter saves, Escape discards (the mention picker consumes
+          // both first while it is open).
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            save();
+          } else if (e.key === 'Escape' && isDirty) {
+            e.preventDefault();
+            discard();
+          }
+        }}
+        placement="below"
+      />
+      <MentionTriggerChips
+        organizationId={organizationId}
+        target={{ taskId }}
+        draft={draft}
+        baseline={value}
+      />
+      {isDirty && (
+        <div className="flex gap-2">
+          <Button size="sm" onClick={save}>
+            {tCommon('actions.save')}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={discard}>
+            {tCommon('actions.discard')}
+          </Button>
+        </div>
+      )}
+    </>
   );
 }

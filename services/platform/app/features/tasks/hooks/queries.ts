@@ -119,17 +119,18 @@ export function useTaskAgentRuns(taskId: Id<'tasks'> | undefined) {
 }
 
 /**
- * Trigger preview for @-mentions in the comment composer: per mentioned
- * agent slug, will posting put it to work — and if not, why. Pass an empty
- * slug list to skip the query entirely (no draft mentions).
+ * Trigger preview for @-mentions in the comment and description composers:
+ * per mentioned agent slug, will saving put it to work — and if not, why.
+ * Pass an empty slug list to skip the query entirely (no draft mentions).
+ * Create mode (no task yet) passes `projectId` instead of `taskId`.
  */
 export function useMentionTriggerPreview(
-  taskId: Id<'tasks'> | undefined,
+  target: { taskId: Id<'tasks'> } | { projectId: Id<'projects'> } | undefined,
   slugs: string[],
 ) {
   const { data, isLoading } = useConvexQuery(
     api.tasks.queries.mentionTriggerPreview,
-    taskId && slugs.length > 0 ? { taskId, slugs } : 'skip',
+    target && slugs.length > 0 ? { ...target, slugs } : 'skip',
   );
   return { previews: data ?? [], isLoading };
 }

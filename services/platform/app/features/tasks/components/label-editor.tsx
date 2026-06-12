@@ -140,6 +140,9 @@ export function LabelEditor({
             setHighlighted(0);
             setColorEditing(null);
           }}
+          // Opens inside the (modal) task dialog: without a modal popover the
+          // dialog's scroll lock eats wheel events over the label list.
+          modal
           contentClassName="w-60 p-0"
           trigger={
             <Button

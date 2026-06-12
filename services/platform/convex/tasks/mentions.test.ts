@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import {
+  addedMentions,
   extractMentions,
   parseMentionTokens,
   resolveMentions,
@@ -71,5 +72,57 @@ describe('extractMentions', () => {
       { type: 'user', id: 'user-alice' },
       { type: 'agent', id: 'researcher' },
     ]);
+  });
+});
+
+describe('resolveMentions (permissiveAgents)', () => {
+  it("resolves unknown tokens as agent handles ('all' agent mode)", () => {
+    expect(resolveMentions(['marketing-bot'], directory, true)).toEqual([
+      { type: 'agent', id: 'marketing-bot' },
+    ]);
+  });
+
+  it('member handles still win over the permissive agent fallback', () => {
+    expect(resolveMentions(['alice', 'unknown'], directory, true)).toEqual([
+      { type: 'user', id: 'user-alice' },
+      { type: 'agent', id: 'unknown' },
+    ]);
+  });
+
+  it('stays strict when permissiveAgents is off', () => {
+    expect(resolveMentions(['marketing-bot'], directory, false)).toEqual([]);
+  });
+});
+
+describe('addedMentions', () => {
+  it('returns only mentions absent from the previous set', () => {
+    const previous = extractMentions('@alice owns this', directory);
+    const next = extractMentions(
+      '@alice owns this, @researcher dig in',
+      directory,
+    );
+    expect(addedMentions(previous, next)).toEqual([
+      { type: 'agent', id: 'researcher' },
+    ]);
+  });
+
+  it('returns nothing when an edit only rewords prose around a mention', () => {
+    const previous = extractMentions('@researcher dig in', directory);
+    const next = extractMentions('@researcher please dig in soon', directory);
+    expect(addedMentions(previous, next)).toEqual([]);
+  });
+
+  it('treats same id with different type as distinct', () => {
+    expect(
+      addedMentions(
+        [{ type: 'user', id: 'researcher' }],
+        [{ type: 'agent', id: 'researcher' }],
+      ),
+    ).toEqual([{ type: 'agent', id: 'researcher' }]);
+  });
+
+  it('returns everything when previous is empty (create)', () => {
+    const next = extractMentions('@alice and @bob', directory);
+    expect(addedMentions([], next)).toEqual(next);
   });
 });

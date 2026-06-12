@@ -8,9 +8,9 @@
  * invariants the design relies on:
  *
  *  (ii)  review-gate is the ONLY workflow that sets a task to `done`;
- *  (iii) automation-authored comments are inert: every path from a
- *        `comment.mentioned` trigger to an agent run crosses the
- *        workflow-actor guard;
+ *  (iii) automation-authored writes are inert: every path from a mention
+ *        trigger (`comment.mentioned` / `task.mentioned`) to an agent run
+ *        crosses the workflow-actor guard;
  *  (iv)  every agent run goes through `run_on_task`/`decompose_task`
  *        (admission-gated server-side) — asserted here as the GATE used by
  *        the cycle analysis;
@@ -209,9 +209,15 @@ describe('task-ops pack: loop-safety invariants', () => {
     }
   });
 
-  it('(iii) every path from a comment.mentioned trigger to an agent run crosses the workflow-actor guard', () => {
+  it('(iii) every path from a mention trigger (comment.mentioned / task.mentioned) to an agent run crosses the workflow-actor guard', () => {
     for (const wf of pack) {
-      if (!wf.events.some((e) => e.eventType === 'comment.mentioned')) {
+      if (
+        !wf.events.some(
+          (e) =>
+            e.eventType === 'comment.mentioned' ||
+            e.eventType === 'task.mentioned',
+        )
+      ) {
         continue;
       }
       // Reachability without expanding the actor-guard's true side: BFS that
@@ -296,6 +302,10 @@ describe('task-ops pack: loop-safety invariants', () => {
           switch (action.op) {
             case 'create':
             case 'upsert_external':
+              // Workflow-actor creates may also emit task.mentioned
+              // (description @mentions), but every pack subscriber of that
+              // event guards the workflow actor (asserted in (iii)) — inert,
+              // skip. External upserts never extract mentions at all.
               list.push({ eventType: 'task.created', gated });
               break;
             case 'update_status':

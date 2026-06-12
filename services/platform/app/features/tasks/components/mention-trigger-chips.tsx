@@ -9,29 +9,45 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useMentionTriggerPreview } from '../hooks/queries';
+import { useActorDirectory } from '../hooks/use-actor-directory';
 
 const DEBOUNCE_MS = 400;
 
 /**
- * Live trigger preview under the comment composer: for each @-mentioned
- * agent in the draft, whether posting will put it to work (⚡) or why not
- * (⛔ — automation off, breaker, budget). Tokens that resolve to nothing
- * actionable (human mentions, typos, agents outside this project) render no
- * chip — the server can't tell them apart and the comment mutation drops
- * unresolvable mentions anyway.
+ * Live trigger preview under a mention-aware composer (comment OR task
+ * description): for each @-mentioned agent in the draft, whether saving will
+ * put it to work (⚡) or why not (⛔ — automation off, breaker, budget).
+ * Only tokens that name a real org agent are queried — human mentions and
+ * typos render no chip (the server can't verify slug existence itself; the
+ * file-based roster is enumerable only client-side and at run admission).
+ * Create mode (no task yet) passes `projectId` instead of `taskId`.
  */
 export function MentionTriggerChips({
-  taskId,
+  organizationId,
+  target,
   draft,
+  baseline,
 }: {
-  taskId: Id<'tasks'>;
+  organizationId: string;
+  target: { taskId: Id<'tasks'> } | { projectId: Id<'projects'> };
   draft: string;
+  /** Saved text the draft edits (description edit mode): tokens already in
+   *  it won't re-trigger on save, so they get no chip — mirrors the server's
+   *  newly-added-mentions diff. */
+  baseline?: string;
 }) {
   const { t } = useT('tasks');
+  const { agents } = useActorDirectory(organizationId);
 
   // Parse per keystroke (cheap), query only when the settled token set
   // changes — typing "@mar…" must not refire the query per character.
-  const tokensKey = useMemo(() => parseMentionTokens(draft).join(','), [draft]);
+  const tokensKey = useMemo(() => {
+    const agentSlugs = new Set(agents.map((a) => a.id.toLowerCase()));
+    const existing = new Set(baseline ? parseMentionTokens(baseline) : []);
+    return parseMentionTokens(draft)
+      .filter((token) => agentSlugs.has(token) && !existing.has(token))
+      .join(',');
+  }, [draft, baseline, agents]);
   const [debouncedKey, setDebouncedKey] = useState('');
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedKey(tokensKey), DEBOUNCE_MS);
@@ -42,24 +58,28 @@ export function MentionTriggerChips({
     [debouncedKey],
   );
 
-  const { previews } = useMentionTriggerPreview(taskId, slugs);
+  const { previews } = useMentionTriggerPreview(target, slugs);
   const visible = previews.filter((p) => p.reason !== 'not_mentionable');
   if (visible.length === 0) return null;
 
   const label = (preview: (typeof visible)[number]): string => {
+    // The chip names the agent by its display name, not the raw slug.
+    const name =
+      agents.find((a) => a.id.toLowerCase() === preview.slug)?.name ??
+      preview.slug;
     switch (preview.reason) {
       case 'ok':
-        return t('mentionPreview.willRespond', { slug: preview.slug });
+        return t('mentionPreview.willRespond', { slug: name });
       case 'queued_likely':
-        return t('mentionPreview.willQueue', { slug: preview.slug });
+        return t('mentionPreview.willQueue', { slug: name });
       case 'pack_disabled':
-        return t('mentionPreview.packDisabled', { slug: preview.slug });
+        return t('mentionPreview.packDisabled', { slug: name });
       case 'breaker_paused':
-        return t('mentionPreview.breakerPaused', { slug: preview.slug });
+        return t('mentionPreview.breakerPaused', { slug: name });
       case 'budget_paused':
-        return t('mentionPreview.budgetPaused', { slug: preview.slug });
+        return t('mentionPreview.budgetPaused', { slug: name });
       default:
-        return preview.slug;
+        return name;
     }
   };
 

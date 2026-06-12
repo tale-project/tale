@@ -1057,16 +1057,20 @@ export function DataTable<TData, TValue = unknown>({
       >
         <div className={cn('space-y-4', className)}>
           {headerContent}
-          {/* Scroll container holds no border; the bordered wrapper inside is
-              `w-fit min-w-full` so it grows to the full table width and scrolls
-              with the content — the border frames the whole table, not just the
-              visible slice. `overflow-hidden` clips the rounded corners (safe
-              here: this layout has no sticky header). */}
-          <div className="overflow-x-auto">
-            <div className="border-border w-fit min-w-full overflow-hidden rounded-lg border">
-              {tableContent}
-              {infiniteScrollContent}
-              {entityCountFooter}
+          {/* The bordered frame stays at the container's width — its rounded
+              border is always fully visible — while the table scrolls inside
+              the `overflow-x-auto` scrollport. The borderless `w-fit
+              min-w-full` wrapper spans the full table width so full-width
+              children (infinite-scroll footer separators) cover overflowing
+              content too. `overflow-hidden` on the frame clips the rounded
+              corners (safe here: this layout has no sticky header). */}
+          <div className="border-border overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto">
+              <div className="w-fit min-w-full">
+                {tableContent}
+                {infiniteScrollContent}
+                {entityCountFooter}
+              </div>
             </div>
           </div>
           {paginationContent}
@@ -1090,20 +1094,24 @@ export function DataTable<TData, TValue = unknown>({
     >
       <div className={cn('flex flex-col flex-1 min-h-0 min-w-0', className)}>
         {headerContent && <div className="shrink-0 pb-4">{headerContent}</div>}
-        {/* The scroll container itself carries no border so the bordered,
-            `w-fit min-w-full` wrapper inside grows to the full table width and
-            scrolls with it (border frames the whole table, not just the visible
-            slice). No `overflow-hidden` on the wrapper here — that would make it
-            the scrollport and break the sticky header, which must stick to the
-            outer `scrollContainerRef`. */}
-        <div
-          ref={scrollContainerRef}
-          className="min-h-0 overflow-auto overscroll-contain"
-        >
-          <div className="border-border w-fit min-w-full rounded-lg border">
-            {tableContent}
-            {infiniteScrollContent}
-            {entityCountFooter}
+        {/* The bordered frame stays at the container's width — its rounded
+            border is always fully visible — while both axes scroll inside
+            `scrollContainerRef`. The sticky header/footer keep working because
+            they stick to that inner scrollport, not the frame; the frame's
+            `overflow-hidden` only clips the rounded corners. The borderless
+            `w-fit min-w-full` wrapper spans the full table width so full-width
+            children (infinite-scroll footer separators) cover overflowing
+            content too. */}
+        <div className="border-border flex min-h-0 flex-col overflow-hidden rounded-lg border">
+          <div
+            ref={scrollContainerRef}
+            className="min-h-0 overflow-auto overscroll-contain"
+          >
+            <div className="w-fit min-w-full">
+              {tableContent}
+              {infiniteScrollContent}
+              {entityCountFooter}
+            </div>
           </div>
         </div>
         {paginationContent && (

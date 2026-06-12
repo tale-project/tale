@@ -16,7 +16,7 @@ Fehlschläge rollen die Aufgabe mit erklärendem Kommentar nach _Zu erledigen_ z
 
 ## Mentions, Abhängigkeiten, Fristen
 
-- **@-Mention eines Agenten** in einem Kommentar lässt ihn lesen und handeln. Der Composer zeigt vorab, ob jeder erwähnte Agent wirklich antworten wird (Automatisierung aus, Budget aufgebraucht, pausiert). Kommentare der Automatisierung selbst triggern niemanden.
+- **@-Mention eines Agenten** in einem Kommentar oder in der Aufgabenbeschreibung lässt ihn den erwähnenden Text lesen und handeln. `@` öffnet eine Autovervollständigung über Mitglieder und die Agenten des Projekts; der Composer zeigt vorab, ob jeder erwähnte Agent wirklich antworten wird (Automatisierung aus, Budget aufgebraucht, pausiert). Beim Bearbeiten einer Beschreibung triggern nur neu hinzugefügte Mentions; was die Automatisierung selbst schreibt, triggert niemanden.
 - Schließt ein **Blocker**, erhalten abhängige Aufgaben eine Notiz zu verbleibenden Blockern; voll entblockte Agenten-Arbeit startet automatisch neu, Menschen werden benachrichtigt.
 - **Fälligkeitsdaten** treiben eine vierstufige SLA-Leiter: 24h-Warnung, Überfälligkeits-Hinweis, direkter Lauf des Manager-Agenten, schließlich menschliche Eskalation an Projektersteller und Org-Admins. Jede Stufe feuert höchstens einmal; ein verschobenes Fälligkeitsdatum setzt die Leiter zurück.
 

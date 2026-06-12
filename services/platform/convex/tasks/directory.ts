@@ -2,11 +2,16 @@
  * Mention/assignee directory for tasks.
  *
  * Builds the set of `@`-mentionable actors for a project: organization members
- * (humans) and the agent slugs the project exposes. Used by the comment
- * mutation to resolve `@token` mentions to `{type,id}` refs (see
- * `tasks/mentions.ts`). The richer directory UI + autocomplete and human↔agent
- * chat directory arrive in the collaboration milestone; this is the minimal
- * server-side resolver M0 needs.
+ * (humans) and the agents the project exposes. Used by the task mutations to
+ * resolve `@token` mentions to `{type,id}` refs (see `tasks/mentions.ts`).
+ *
+ * Agent scoping follows the workforce semantics (`workforce_ops.ts`):
+ * `agentMode: 'restricted'` limits mentionable agents to the project's
+ * `allowedAgentSlugs`; the default `'all'` exposes every org agent. The agent
+ * roster is file-based and only enumerable from the Node runtime, so in 'all'
+ * mode the directory can't list agents — it sets `permissiveAgents` instead
+ * and the resolver accepts any unmatched token as an agent handle (nonexistent
+ * slugs are quiet no-ops at run admission).
  */
 
 import type { Doc } from '../_generated/dataModel';
@@ -36,6 +41,13 @@ function memberHandles(member: {
   return [...handles];
 }
 
+export interface MentionDirectory {
+  entries: MentionDirectoryEntry[];
+  /** 'all'-agent-mode projects: any token that resolves to no member is
+   *  treated as an agent handle (see module docstring). */
+  permissiveAgents: boolean;
+}
+
 /**
  * Build the directory of mentionable actors for a project. Degrades gracefully
  * to whatever can be resolved (members or agents alone) rather than throwing.
@@ -43,7 +55,7 @@ function memberHandles(member: {
 export async function buildMentionDirectory(
   ctx: QueryCtx | MutationCtx,
   args: { organizationId: string; project: Doc<'projects'> },
-): Promise<MentionDirectoryEntry[]> {
+): Promise<MentionDirectory> {
   const entries: MentionDirectoryEntry[] = [];
 
   try {
@@ -61,8 +73,8 @@ export async function buildMentionDirectory(
     console.warn('[tasks] buildMentionDirectory: member listing failed', error);
   }
 
-  // Agents the project exposes (slug is its own handle). Full agent directory
-  // enumeration lands with the collaboration milestone.
+  // Explicitly listed agents resolve by slug in both modes; in the default
+  // 'all' mode the rest of the org roster resolves via `permissiveAgents`.
   const agentSlugs = new Set<string>([
     ...(args.project.allowedAgentSlugs ?? []),
     ...(args.project.recommendedAgentSlugs ?? []),
@@ -71,5 +83,8 @@ export async function buildMentionDirectory(
     entries.push({ type: 'agent', id: slug, handles: [slug.toLowerCase()] });
   }
 
-  return entries;
+  return {
+    entries,
+    permissiveAgents: (args.project.agentMode ?? 'all') !== 'restricted',
+  };
 }

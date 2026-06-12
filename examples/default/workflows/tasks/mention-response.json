@@ -1,6 +1,6 @@
 {
   "name": "Task mention response",
-  "description": "@-mentioning an agent in a task comment puts it to work: the agent reads the task and the mentioning comment, acts with its task tools, and posts its reply as a comment. Both humans AND agents may trigger via mentions (agent-to-agent collaboration, incl. escalations to a manager agent) — runaway chains are bounded by the per-task circuit breaker (runs per hour), and comments written by the automation engine itself ('workflow' actor, e.g. nudges and rollup notes) are inert and never trigger anyone. Agents also never trigger themselves.",
+  "description": "@-mentioning an agent in a task comment OR in the task description puts it to work: the agent reads the task and the mentioning text, acts with its task tools, and posts its reply as a comment. Both humans AND agents may trigger via mentions (agent-to-agent collaboration, incl. escalations to a manager agent) — runaway chains are bounded by the per-task circuit breaker (runs per hour), and writes by the automation engine itself ('workflow' actor, e.g. nudges and rollup notes) are inert and never trigger anyone. Agents also never trigger themselves.",
   "version": "1.0.0",
   "metadata": {
     "pack": "task-ops",
@@ -10,6 +10,9 @@
     "events": [
       {
         "eventType": "comment.mentioned"
+      },
+      {
+        "eventType": "task.mentioned"
       }
     ]
   },
@@ -35,7 +38,7 @@
       "stepType": "condition",
       "config": {
         "expression": "input.actorType != 'workflow' && (input.mentions | length) > 0",
-        "description": "Comments posted by the automation engine itself (nudges, rollups, failure notes) are inert by design — only human- and agent-authored mentions trigger runs. This is loop-safety invariant (iii)."
+        "description": "Writes by the automation engine itself (nudges, rollups, failure notes, engine-created tasks) are inert by design — only human- and agent-authored mentions trigger runs. This is loop-safety invariant (iii)."
       },
       "nextSteps": {
         "true": "loop_mentions",
@@ -80,8 +83,8 @@
           "agentSlug": "{{loop.item.id}}",
           "taskId": "{{input.taskId}}",
           "trigger": "mention",
-          "instructions": "You were @-mentioned in a comment on this task (the mentioning comment is in the trigger context below). Read it, do what it asks of you using your task tools, and post your reply as a task comment. If it asks something outside your abilities, reply with a comment saying so precisely. If the request conflicts with your working agreement, decline politely in a comment.",
-          "promptContext": "{{input.comment.body || ''}}"
+          "instructions": "You were @-mentioned on this task — in a comment or in the task description (the mentioning text is in the trigger context below). Read it, do what it asks of you using your task tools, and post your reply as a task comment. If it asks something outside your abilities, reply with a comment saying so precisely. If the request conflicts with your working agreement, decline politely in a comment.",
+          "promptContext": "{{input.comment.body || input.task.description || ''}}"
         }
       },
       "nextSteps": {

@@ -27,6 +27,7 @@ function AgentsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('settings');
   const { t: tOrganigram } = useT('organigram');
+  const { t: tWorkforce } = useT('workforce');
   const { t: tAccessDenied } = useT('accessDenied');
   const navigate = useNavigate();
 
@@ -38,14 +39,22 @@ function AgentsLayout() {
     shouldThrow: false,
   });
 
-  // The organigram is a sibling page opened from the list's own button —
-  // same breadcrumb-in-header navigation as the automations Metrics page:
-  // "Agents › Organigram" with the parent clickable.
+  // Organigram and Metrics are sibling pages opened from the list's own
+  // buttons — same breadcrumb-in-header navigation as the automations
+  // Metrics page: "Agents › Organigram" with the parent clickable.
   const isOrganigram = useMatch({
     from: '/dashboard/$id/agents/organigram',
     shouldThrow: false,
   });
-  const breadcrumbLeaf = isOrganigram ? tOrganigram('title') : null;
+  const isMetrics = useMatch({
+    from: '/dashboard/$id/agents/metrics',
+    shouldThrow: false,
+  });
+  const breadcrumbLeaf = isOrganigram
+    ? tOrganigram('title')
+    : isMetrics
+      ? tWorkforce('title')
+      : null;
 
   // Access is only knowable once the ability has loaded. Until then render the
   // SAME PageLayout chrome (the header doesn't depend on the ability) so it

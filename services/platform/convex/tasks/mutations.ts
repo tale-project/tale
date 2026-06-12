@@ -22,6 +22,7 @@ import {
   autoSubscribe,
   notifyTaskAssigned,
   notifyTaskComment,
+  notifyTaskMentions,
   notifyTaskStatusChanged,
 } from '../collab/notify';
 import { getUserTeamIds } from '../lib/get_user_teams';
@@ -52,7 +53,13 @@ import {
   TASK_TITLE_MAX,
   TERMINAL_STATUSES,
 } from './helpers';
-import { extractMentions } from './mentions';
+import {
+  addedMentions,
+  extractMentions,
+  parseMentionTokens,
+  resolveMentions,
+  type ResolvedMention,
+} from './mentions';
 import { rankBetween } from './rank';
 import {
   boardViewFiltersValidator,
@@ -174,6 +181,41 @@ function validateLabels(labels: string[] | undefined): string[] | undefined {
     }
   }
   return normalized.length > 0 ? normalized : undefined;
+}
+
+/**
+ * Fan-out for `@mentions` in a task DESCRIPTION — the description-side mirror
+ * of the comment mention pipeline: subscribe + notify mentioned humans
+ * (`notifyTaskMentions`) and emit `task.mentioned` so the mention-response
+ * automation can put mentioned agents to work. Callers pass only the mentions
+ * the write NEWLY introduced (see `addedMentions`).
+ */
+async function fanOutDescriptionMentions(
+  ctx: MutationCtx,
+  args: {
+    task: Doc<'tasks'>;
+    mentions: ResolvedMention[];
+    actorId: string;
+  },
+): Promise<void> {
+  if (args.mentions.length === 0) return;
+  await notifyTaskMentions(ctx, {
+    task: args.task,
+    mentions: args.mentions,
+    actorType: 'user',
+    actorId: args.actorId,
+  });
+  await emitEvent(ctx, {
+    organizationId: args.task.organizationId,
+    eventType: 'task.mentioned',
+    eventData: {
+      task: args.task,
+      taskId: String(args.task._id),
+      mentions: args.mentions,
+      actorType: 'user',
+      actorId: args.actorId,
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -304,6 +346,23 @@ export const createTask = mutation({
         eventType: 'task.created',
         eventData: { task, actorType: 'user', actorId: auth.userId },
       });
+      // @mentions in the description work like comment mentions. The token
+      // pre-check keeps the (org-wide) directory build off the common path.
+      if (description && parseMentionTokens(description).length > 0) {
+        const directory = await buildMentionDirectory(ctx, {
+          organizationId: args.organizationId,
+          project,
+        });
+        await fanOutDescriptionMentions(ctx, {
+          task,
+          mentions: extractMentions(
+            description,
+            directory.entries,
+            directory.permissiveAgents,
+          ),
+          actorId: auth.userId,
+        });
+      }
     }
 
     return taskId;
@@ -365,6 +424,40 @@ export const updateTask = mutation({
     if (changedFields.length === 0) return null;
 
     await ctx.db.patch(args.taskId, patch);
+
+    // A description edit fans out its NEWLY added @mentions only — reworded
+    // prose around an existing mention must not re-notify or re-trigger.
+    const nextDescription = patch.description ?? '';
+    if (
+      changedFields.includes('description') &&
+      parseMentionTokens(nextDescription).length > 0
+    ) {
+      const directory = await buildMentionDirectory(ctx, {
+        organizationId: task.organizationId,
+        project,
+      });
+      const mentions = addedMentions(
+        extractMentions(
+          task.description ?? '',
+          directory.entries,
+          directory.permissiveAgents,
+        ),
+        resolveMentions(
+          parseMentionTokens(nextDescription),
+          directory.entries,
+          directory.permissiveAgents,
+        ),
+      );
+      const updated = await ctx.db.get(args.taskId);
+      if (updated) {
+        await fanOutDescriptionMentions(ctx, {
+          task: updated,
+          mentions,
+          actorId: auth.userId,
+        });
+      }
+    }
+
     await recordActivity(ctx, {
       task,
       actorType: 'user',
@@ -853,7 +946,11 @@ export const addTaskComment = mutation({
       organizationId: task.organizationId,
       project,
     });
-    const mentions = extractMentions(body, directory);
+    const mentions = extractMentions(
+      body,
+      directory.entries,
+      directory.permissiveAgents,
+    );
 
     const now = Date.now();
     const commentId = await ctx.db.insert('taskComments', {
@@ -980,7 +1077,11 @@ export const editTaskComment = mutation({
       organizationId: comment.organizationId,
       project,
     });
-    const mentions = extractMentions(body, directory);
+    const mentions = extractMentions(
+      body,
+      directory.entries,
+      directory.permissiveAgents,
+    );
 
     const now = Date.now();
     await ctx.db.patch(args.commentId, {

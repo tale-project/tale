@@ -4763,8 +4763,8 @@
       "organigram": {
         "menuItem": "Organigramme"
       },
-      "workforce": {
-        "menuItem": "Workforce"
+      "metrics": {
+        "link": "Voir les métriques"
       }
     },
     "skills": {
@@ -6093,6 +6093,10 @@
       "breakerPaused": "{slug} ne répondra pas — les exécutions d'agents sont en pause sur cette tâche",
       "budgetPaused": "{slug} ne répondra pas — budget mensuel épuisé"
     },
+    "mentionPicker": {
+      "title": "Mentionner un membre ou un agent",
+      "empty": "Aucun résultat"
+    },
     "metrics": {
       "link": "Voir les métriques",
       "title": "Métriques des tâches",
@@ -6856,7 +6860,14 @@
   "workforce": {
     "title": "Workforce",
     "subtitle": "Les performances de votre workforce IA : résultats, interventions humaines et coûts — toujours ensemble.",
-    "backToAgents": "Agents",
+    "period": {
+      "last7Days": "7 derniers jours",
+      "last30Days": "30 derniers jours",
+      "last90Days": "90 derniers jours"
+    },
+    "cappedNotice": "Certains chiffres de cette période sont des bornes basses — le scan a atteint sa limite.",
+    "noData": "Aucune donnée",
+    "noDataDescription": "Les métriques apparaissent après le premier rollup quotidien.",
     "toggle": {
       "title": "Automatisation des tâches",
       "onHint": "Le pack task-ops est actif : les affectations lancent les agents, les revues protègent la clôture.",
@@ -6867,8 +6878,7 @@
       "runs24h": "{count} exécutions (24h)",
       "failures24h": "{count} en échec/expirées",
       "packFailures24h": "{count} échecs d'automatisation",
-      "oldestQueued": "plus ancienne exécution en file {age}",
-      "capped": "certains chiffres sont des bornes basses (scan plafonné)"
+      "oldestQueued": "plus ancienne exécution en file {age}"
     },
     "kpi": {
       "completed": "Terminées ({days} j)",

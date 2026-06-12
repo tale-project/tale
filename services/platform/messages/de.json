@@ -4762,8 +4762,8 @@
       "organigram": {
         "menuItem": "Organigramm"
       },
-      "workforce": {
-        "menuItem": "Workforce"
+      "metrics": {
+        "link": "Metriken anzeigen"
       }
     },
     "skills": {
@@ -6092,6 +6092,10 @@
       "breakerPaused": "{slug} antwortet nicht — Agenten-Läufe sind auf dieser Aufgabe pausiert",
       "budgetPaused": "{slug} antwortet nicht — Monatsbudget aufgebraucht"
     },
+    "mentionPicker": {
+      "title": "Mitglied oder Agent erwähnen",
+      "empty": "Keine Treffer"
+    },
     "metrics": {
       "link": "Metriken anzeigen",
       "title": "Aufgaben-Metriken",
@@ -6855,7 +6859,14 @@
   "workforce": {
     "title": "Workforce",
     "subtitle": "Wie deine KI-Workforce arbeitet: Ergebnisse, menschliche Eingriffe und Kosten — immer zusammen.",
-    "backToAgents": "Agenten",
+    "period": {
+      "last7Days": "Letzte 7 Tage",
+      "last30Days": "Letzte 30 Tage",
+      "last90Days": "Letzte 90 Tage"
+    },
+    "cappedNotice": "Einige Zahlen in diesem Zeitraum sind Untergrenzen — der Scan war begrenzt.",
+    "noData": "Keine Daten",
+    "noDataDescription": "Metriken erscheinen nach dem ersten täglichen Rollup.",
     "toggle": {
       "title": "Aufgaben-Automatisierung",
       "onHint": "Das Task-Ops-Paket ist aktiv: Zuweisungen starten Agenten, Reviews schützen den Abschluss.",
@@ -6866,8 +6877,7 @@
       "runs24h": "{count} Läufe (24h)",
       "failures24h": "{count} fehlgeschlagen/Zeitüberschreitung",
       "packFailures24h": "{count} Automatisierungs-Fehler",
-      "oldestQueued": "ältester wartender Lauf {age}",
-      "capped": "einige Zahlen sind Untergrenzen (Scan begrenzt)"
+      "oldestQueued": "ältester wartender Lauf {age}"
     },
     "kpi": {
       "completed": "Abgeschlossen ({days} T.)",

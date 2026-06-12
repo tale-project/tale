@@ -4,7 +4,6 @@ import { Button } from '@tale/ui/button';
 import { Text } from '@tale/ui/text';
 import { useMemo, useState } from 'react';
 
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import type { Doc, Id } from '@/convex/_generated/dataModel';
@@ -19,6 +18,8 @@ import {
 import { useTaskComments } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { AssigneeAvatar } from './assignee-avatar';
+import { MentionText } from './mention-text';
+import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
 
 type CommentDoc = Doc<'taskComments'>;
@@ -40,7 +41,7 @@ export function TaskComments({
 }: {
   taskId: Id<'tasks'>;
   organizationId: string;
-  projectId: string;
+  projectId: Id<'projects'>;
   canEdit: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
@@ -170,11 +171,13 @@ export function TaskComments({
 
           {isEditing ? (
             <div className="mt-1 flex flex-col gap-2">
-              <Textarea
+              <MentionTextarea
                 id={`edit-comment-${c._id}`}
+                organizationId={organizationId}
+                projectId={projectId}
                 rows={2}
                 value={editDraft}
-                onChange={(e) => setEditDraft(e.target.value)}
+                onValueChange={setEditDraft}
                 onKeyDown={onModEnter(() => void submitEdit(c._id))}
                 autoFocus
               />
@@ -196,13 +199,12 @@ export function TaskComments({
               </div>
             </div>
           ) : (
-            <Text
-              as="p"
-              variant="body"
+            <MentionText
+              body={c.body}
+              organizationId={organizationId}
+              projectId={projectId}
               className="mt-0.5 wrap-break-word whitespace-pre-wrap"
-            >
-              {c.body}
-            </Text>
+            />
           )}
 
           {!isEditing && canEdit && (
@@ -270,16 +272,22 @@ export function TaskComments({
               )}
               {replyTo === root._id && canEdit && (
                 <div className="ml-8 flex flex-col gap-2">
-                  <Textarea
+                  <MentionTextarea
                     id={`reply-${root._id}`}
+                    organizationId={organizationId}
+                    projectId={projectId}
                     rows={2}
                     value={replyDraft}
-                    onChange={(e) => setReplyDraft(e.target.value)}
+                    onValueChange={setReplyDraft}
                     onKeyDown={onModEnter(() => void submitReply(root._id))}
                     placeholder={t('actions.reply')}
                     autoFocus
                   />
-                  <MentionTriggerChips taskId={taskId} draft={replyDraft} />
+                  <MentionTriggerChips
+                    organizationId={organizationId}
+                    target={{ taskId }}
+                    draft={replyDraft}
+                  />
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -313,15 +321,21 @@ export function TaskComments({
             />
           )}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <Textarea
+            <MentionTextarea
               id="new-comment"
+              organizationId={organizationId}
+              projectId={projectId}
               rows={2}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onValueChange={setDraft}
               onKeyDown={onModEnter(() => void submitNew())}
               placeholder={t('actions.comment')}
             />
-            <MentionTriggerChips taskId={taskId} draft={draft} />
+            <MentionTriggerChips
+              organizationId={organizationId}
+              target={{ taskId }}
+              draft={draft}
+            />
             <div className="flex justify-end">
               <Button
                 size="sm"
