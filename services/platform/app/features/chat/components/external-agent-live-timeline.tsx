@@ -26,6 +26,13 @@ interface ExternalAgentLiveTimelineProps {
   phase: 'routing' | 'thinking';
   routedAgentName?: string;
   routeReason?: RouteReason;
+  /** Mid-turn steer (external-agent queue mode): the running turn's live
+   *  timeline is already rendering inside the still-streaming assistant
+   *  bubble ABOVE the queued user message, so rendering it here too would
+   *  duplicate that turn's activity below the steer and visibly "jump"
+   *  upward at the seam. When true, skip the running-timeline branch (and
+   *  its session-op subscription) and render only the placeholder. */
+  placeholderOnly?: boolean;
 }
 
 /**
@@ -43,8 +50,9 @@ export function ExternalAgentLiveTimeline({
   phase,
   routedAgentName,
   routeReason,
+  placeholderOnly,
 }: ExternalAgentLiveTimelineProps) {
-  const progress = useSessionProgress(threadId);
+  const progress = useSessionProgress(placeholderOnly ? undefined : threadId);
   const parts = useMemo(
     () =>
       progress?.status === 'running'
@@ -60,7 +68,11 @@ export function ExternalAgentLiveTimeline({
   // as the saved message, so only the thought rows render here — no text runs.
   const thoughtSegments = segments.filter((s) => s.kind !== 'text');
 
-  if (progress?.status === 'running' && thoughtSegments.length > 0) {
+  if (
+    !placeholderOnly &&
+    progress?.status === 'running' &&
+    thoughtSegments.length > 0
+  ) {
     return (
       <div className="px-4 py-3">
         <MessageThoughtHeader

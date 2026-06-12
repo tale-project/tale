@@ -343,6 +343,26 @@ export const ChatMessages = memo(function ChatMessages({
     return item.type === 'message' ? item.data.key : null;
   }, [items, lastUserIdx]);
 
+  // A still-streaming assistant bubble ABOVE the last user message means that
+  // message is a queued mid-turn steer: the running turn keeps patching the
+  // bubble above until the steer seam opens a fresh one below. The post-send
+  // footer must then NOT render the live exec timeline — it would duplicate
+  // the running turn's activity below the steer, then visibly "jump" up when
+  // the seam opens the real reply bubble. Scoped to the MOST RECENT assistant
+  // before the last user message so a stale streaming flag deep in history
+  // can't suppress a normal turn; non-assistant items in between (user rows,
+  // approval cards) are skipped so multiple queued steers still gate. Reads
+  // raw items (not painted bubbles) so an empty streaming shell — hidden by
+  // `shouldShow` — also suppresses.
+  const streamingAssistantAboveLastUser = useMemo(() => {
+    for (let i = lastUserIdx - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.type !== 'message' || item.data.role !== 'assistant') continue;
+      return item.data.isStreaming === true;
+    }
+    return false;
+  }, [items, lastUserIdx]);
+
   // The thread's last ASSISTANT message keeps an always-visible toolbar;
   // every other bubble reveals its toolbar on hover/focus only.
   const lastAssistantMessageKey = useMemo(() => {
@@ -917,6 +937,7 @@ export const ChatMessages = memo(function ChatMessages({
         routedAgentName={liveRoute?.agentName}
         routeReason={liveRoute?.reason}
         turnStartMs={generationStartMs ?? undefined}
+        placeholderOnly={streamingAssistantAboveLastUser}
       />
     ) : null;
   // Approval cards own internal live regions for their executing/error
