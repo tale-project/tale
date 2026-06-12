@@ -1252,28 +1252,27 @@ export function ChatInput({
                 onTranscript={handleTranscript}
               />
               {(() => {
-                // Queue mode: the send button keeps its send identity (the
-                // separate Stop control below covers stopping) and gates on
-                // text-only input.
-                const queueSend = queueModeActive && isLoading;
-                const sendDisabled =
-                  isLoading && !queueSend
-                    ? !onStopGenerating
-                    : queueSend
-                      ? !value.trim() ||
-                        attachments.length > 0 ||
-                        disabled ||
-                        sendBlocked
-                      : (!value.trim() && attachments.length === 0) ||
-                        inputDisabled ||
-                        isUploading ||
-                        isIndexing ||
-                        isTranscribing ||
-                        isProcessingVideo ||
-                        hasFailedVideoJobs ||
-                        hasFailedAudioJobs ||
-                        pasteIngestPending ||
-                        sendBlocked;
+                // Queue mode shares the single button slot: while the turn
+                // runs the button is the familiar Stop-with-spinner; the
+                // moment the user types, it flips to Send (queue the text).
+                // Backspacing to empty flips it back — Stop stays reachable.
+                const queueSend =
+                  queueModeActive && isLoading && !!value.trim();
+                const stopMode = isLoading && !queueSend;
+                const sendDisabled = stopMode
+                  ? !onStopGenerating
+                  : queueSend
+                    ? attachments.length > 0 || disabled || sendBlocked
+                    : (!value.trim() && attachments.length === 0) ||
+                      inputDisabled ||
+                      isUploading ||
+                      isIndexing ||
+                      isTranscribing ||
+                      isProcessingVideo ||
+                      hasFailedVideoJobs ||
+                      hasFailedAudioJobs ||
+                      pasteIngestPending ||
+                      sendBlocked;
                 const tooltipContent =
                   isTranscribing && !isLoading
                     ? tChat('transcription.inProgressTooltip')
@@ -1295,15 +1294,15 @@ export function ChatInput({
                 // itself stays semantically `aria-disabled` so screen
                 // readers and keyboard activation still observe the
                 // disabled state.
-                const stopMode = isLoading && !queueSend;
                 const button = (
                   <span className="relative inline-flex">
                     {/* Generation in progress: a spinner ring orbits the
                         (now Stop) button so the composer itself signals the
                         in-flight turn. Purely decorative — the live status
-                        is announced by the thinking indicator. In queue mode
-                        the ring moves to the separate Stop control instead. */}
-                    {isLoading && !queueSend && (
+                        is announced by the thinking indicator. Hidden while
+                        the button shows Send (queue-mode typing) to keep the
+                        single slot calm. */}
+                    {stopMode && (
                       <span
                         aria-hidden="true"
                         className="border-primary/30 border-t-primary pointer-events-none absolute -inset-1 animate-spin rounded-full border-2"
@@ -1328,51 +1327,29 @@ export function ChatInput({
                   </span>
                 );
                 return (
-                  <HStack gap={1} align="center">
-                    {/* Queue mode: the send button stays a send button, so
-                        Stop gets its own control with the spinner ring. */}
-                    {queueSend && onStopGenerating && (
-                      <span className="relative inline-flex">
-                        <span
-                          aria-hidden="true"
-                          className="border-primary/30 border-t-primary pointer-events-none absolute -inset-1 animate-spin rounded-full border-2"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={onStopGenerating}
-                          className="focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:ring-inset"
-                          aria-label={tChat('stopGenerating')}
-                        >
-                          <CircleStop className="size-4" />
-                        </Button>
+                  <Tooltip content={tooltipContent} side="top">
+                    {sendDisabled && tooltipContent ? (
+                      // role="group" + tabIndex=0 makes the wrapper a
+                      // focusable region that the Tooltip's Radix
+                      // pointer/focus listeners can attach to —
+                      // browsers swallow pointer events on a `disabled`
+                      // native button, so the Tooltip would otherwise
+                      // never fire in exactly the states the tooltip
+                      // is meant to explain. The inner Button still
+                      // carries the semantic `disabled` state.
+                      <span
+                        role="group"
+                        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable wrapper required so Tooltip works on a disabled child button
+                        tabIndex={0}
+                        aria-disabled="true"
+                        className="inline-flex"
+                      >
+                        {button}
                       </span>
+                    ) : (
+                      button
                     )}
-                    <Tooltip content={tooltipContent} side="top">
-                      {sendDisabled && tooltipContent ? (
-                        // role="group" + tabIndex=0 makes the wrapper a
-                        // focusable region that the Tooltip's Radix
-                        // pointer/focus listeners can attach to —
-                        // browsers swallow pointer events on a `disabled`
-                        // native button, so the Tooltip would otherwise
-                        // never fire in exactly the states the tooltip
-                        // is meant to explain. The inner Button still
-                        // carries the semantic `disabled` state.
-                        <span
-                          role="group"
-                          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable wrapper required so Tooltip works on a disabled child button
-                          tabIndex={0}
-                          aria-disabled="true"
-                          className="inline-flex"
-                        >
-                          {button}
-                        </span>
-                      ) : (
-                        button
-                      )}
-                    </Tooltip>
-                  </HStack>
+                  </Tooltip>
                 );
               })()}
             </HStack>
