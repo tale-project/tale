@@ -9,6 +9,7 @@
 
 import { v } from 'convex/values';
 
+import type { Id } from '../../_generated/dataModel';
 import { internalAction } from '../../_generated/server';
 import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
 import {
@@ -106,8 +107,8 @@ export const continueExternalAgentTurn = internalAction({
       // The consumed checkpoint blob is superseded (a fresh handoff wrote a new
       // one, or the turn ended) — best-effort cleanup.
       await ctx.storage
-        // oxlint-disable-next-line typescript-eslint/no-explicit-any
-        .delete(args.checkpointStorageId as any)
+        // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+        .delete(args.checkpointStorageId as Id<'_storage'>)
         .catch((e) =>
           console.warn('[continueExternalAgentTurn] checkpoint cleanup:', e),
         );

@@ -15,6 +15,7 @@
 import { saveMessage } from '@convex-dev/agent';
 
 import { components, internal } from '../../_generated/api';
+import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import {
@@ -374,8 +375,8 @@ export async function loadCheckpoint(
   ctx: ActionCtx,
   storageId: string,
 ): Promise<{ lastSeq: number; agentSessionId?: string } | null> {
-  // oxlint-disable-next-line typescript-eslint/no-explicit-any
-  const blob = await ctx.storage.get(storageId as any);
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const blob = await ctx.storage.get(storageId as Id<'_storage'>);
   if (!blob) return null;
   try {
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion

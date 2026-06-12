@@ -52,7 +52,10 @@ function stringifyOutput(output: unknown): string {
   try {
     return JSON.stringify(output);
   } catch {
-    return String(output);
+    // JSON.stringify only throws on a circular ref / BigInt — output is a
+    // non-serializable object here, so String() would just yield
+    // "[object Object]"; a marker is more honest than that.
+    return '[unserializable output]';
   }
 }
 

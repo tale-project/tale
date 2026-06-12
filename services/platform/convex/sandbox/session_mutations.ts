@@ -8,9 +8,10 @@
 // (`sandboxCredentialAccess`). Mirrors the one-shot `internal_mutations.ts`
 // reserve/watchdog pattern.
 
+import type { WithoutSystemFields } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
 import {
   SANDBOX_MAX_SESSIONS_PER_OWNER,
@@ -415,13 +416,18 @@ export const upsertSessionOp = internalMutation({
       return existing;
     }
     return ctx.db.insert('sandboxSessionOps', {
+      // `patch` is built by dynamic key assignment from the `optional` list, so
+      // it can't be statically tied to the doc shape; assert to the doc's
+      // insert fields (a specific type, not `any`). It carries `status` (always
+      // set) + the optional fields; the required identity fields below override
+      // the asserted-but-absent ones it claims.
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      ...(patch as WithoutSystemFields<Doc<'sandboxSessionOps'>>),
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       execId: args.execId,
       kind: args.kind,
       startedAt: now,
-      // oxlint-disable-next-line typescript-eslint/no-explicit-any
-      ...(patch as any),
       ...(args.threadId !== undefined && { threadId: args.threadId }),
     });
   },
