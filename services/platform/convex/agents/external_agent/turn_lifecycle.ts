@@ -313,6 +313,28 @@ export async function handleTurnOutcome(
   }
 
   // Terminal: finalize the message in place + run the side-effects.
+  //
+  // 'cancelled' is a user Stop, not an error — mirror the SDK cancel semantics
+  // (threads/cancel_generation.ts): keep whatever streamed as a normal success
+  // bubble; if nothing renderable streamed, flip status only so the UI renders
+  // the clean aborted bubble (status failed + empty text), never the
+  // "Something went wrong" error card.
+  if (result.status === 'cancelled') {
+    const streamed = result.assistantContent;
+    if (streamed === undefined || isContentEmpty(streamed)) {
+      await markMessageStatus(ctx, turn.assistantMessageId, 'failed');
+    } else {
+      await patchStreamingMessage(
+        ctx,
+        turn.assistantMessageId,
+        streamed,
+        'success',
+      );
+    }
+    await finalizeTurnSideEffects(ctx, turn, turnTokensOf(result));
+    return;
+  }
+
   const finalText =
     result.finalText ??
     (result.status === 'completed'
