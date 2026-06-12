@@ -34,6 +34,17 @@ export class SessionNotFoundError extends Error {
   }
 }
 
+/** Spawner already owns a live session under this id (HTTP 409 on create).
+ * With deterministic per-(org,user) ids this means an orphan the platform no
+ * longer tracks (e.g. a destroy that raced provisioning) — callers reap it
+ * and retry rather than failing the turn. */
+export class SessionDuplicateError extends Error {
+  constructor(sessionId: string) {
+    super(`session ${sessionId} already exists spawner-side`);
+    this.name = 'SessionDuplicateError';
+  }
+}
+
 function getSpawnerUrl(): string {
   return process.env.SANDBOX_URL ?? 'http://localhost:8003';
 }
@@ -120,6 +131,7 @@ export async function sessionCreate(
     body: bodyJson,
     signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
   });
+  if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
   if (!res.ok) {
     throw new Error(
       `sandbox session create failed (${res.status}): ${await safeText(res)}`,
@@ -148,6 +160,11 @@ export async function sessionIsAlive(sessionId: string): Promise<boolean> {
   return true;
 }
 
+/** Returns true when the spawner destroyed a live session, false when it had
+ * nothing under that id (both mean "backend is gone"). THROWS on any non-2xx
+ * so callers can't mistake a failed teardown for a clean one — flipping the
+ * platform row while the backend survives leaves the deterministic sessionId
+ * 409ing on every future create. */
 export async function sessionDestroy(sessionId: string): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
   const headers = signedHeaders('DELETE', path, '');
@@ -156,7 +173,9 @@ export async function sessionDestroy(sessionId: string): Promise<boolean> {
     headers,
     signal: AbortSignal.timeout(30_000),
   });
-  if (!res.ok) return false;
+  if (!res.ok) {
+    throw new Error(`sandbox session destroy failed (${res.status})`);
+  }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { destroyed?: boolean };
   return parsed.destroyed === true;

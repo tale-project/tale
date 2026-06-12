@@ -81,18 +81,18 @@ export const destroySandbox = action({
     await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     await requireSessionInOrg(ctx, args.organizationId, args.sessionId);
 
+    // Backend teardown FIRST, and only flip the platform row once it
+    // succeeded. The reverse order split-brains on a failed/raced teardown:
+    // the row reads destroyed (the page shows nothing) while the spawner
+    // still owns a live session, so the deterministic per-(org,user)
+    // sessionId 409s on every future create. sessionDestroy throws on any
+    // non-2xx — surfacing the failure to the page (the row stays live, the
+    // user retries) instead of swallowing it.
+    await sessionDestroy(args.sessionId);
     const destroyed = await ctx.runMutation(
       internal.sandbox.session_mutations.markSessionRowDestroyed,
       { organizationId: args.organizationId, sessionId: args.sessionId },
     );
-    // Out-of-band teardown (HTTP a mutation can't make). Best-effort — a
-    // spawner sweep that already reaped the container is harmless, and the row
-    // is already flipped so future turns recreate.
-    try {
-      await sessionDestroy(args.sessionId);
-    } catch (err) {
-      console.warn(`[destroySandbox] sessionDestroy ${args.sessionId}:`, err);
-    }
     try {
       await ctx.runMutation(
         internal.sandbox.session_mutations.revokeTokensForSession,

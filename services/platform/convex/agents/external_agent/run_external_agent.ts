@@ -34,8 +34,10 @@ import {
   toGatewayModelRef,
 } from '../../node_only/sandbox/bifrost_admin';
 import {
+  SessionDuplicateError,
   SessionNotFoundError,
   sessionCreate,
+  sessionDestroy,
   sessionEnvPatch,
   sessionIsAlive,
   sessionSetPinned,
@@ -227,11 +229,29 @@ export const runExternalAgentTurn = internalAction({
           },
         );
         try {
-          await sessionCreate({
-            sessionId,
-            organizationId: args.organizationId,
-            profile: 'agent',
-          });
+          try {
+            await sessionCreate({
+              sessionId,
+              organizationId: args.organizationId,
+              profile: 'agent',
+            });
+          } catch (createErr) {
+            // 409 duplicate: the spawner still owns a session under this
+            // deterministic id that the platform no longer tracks (e.g. a
+            // destroy that raced provisioning). Platform-side creation is
+            // serialized by the per-owner reserve, so a duplicate can only be
+            // an orphan — reap it and retry once instead of failing the turn.
+            if (!(createErr instanceof SessionDuplicateError)) throw createErr;
+            console.warn(
+              `[runExternalAgentTurn] reaping orphan spawner session ${sessionId} (create 409)`,
+            );
+            await sessionDestroy(sessionId);
+            await sessionCreate({
+              sessionId,
+              organizationId: args.organizationId,
+              profile: 'agent',
+            });
+          }
         } catch (createErr) {
           await ctx.runMutation(
             internal.sandbox.session_mutations.setSessionStatus,
