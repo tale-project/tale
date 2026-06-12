@@ -14,7 +14,7 @@ import type { DaemonConfig } from './config.ts';
 
 const execFileAsync = promisify(execFile);
 
-export interface RunWorkspace {
+interface RunWorkspace {
   /** Directory the CLI executes in. */
   cwd: string;
   branchName?: string;

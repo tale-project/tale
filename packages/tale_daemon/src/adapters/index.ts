@@ -8,7 +8,7 @@ import type { AdapterDetection, RuntimeAdapter } from './types.ts';
 
 const execFileAsync = promisify(execFile);
 
-export const ADAPTERS: RuntimeAdapter[] = [
+const ADAPTERS: RuntimeAdapter[] = [
   claudeCodeAdapter,
   codexAdapter,
   opencodeAdapter,

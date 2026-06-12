@@ -26,7 +26,7 @@ export interface DaemonConfig {
   permissionCeiling: PermissionMode;
 }
 
-export function configDir(): string {
+function configDir(): string {
   return process.env.TALE_DAEMON_HOME ?? path.join(homedir(), '.tale-daemon');
 }
 

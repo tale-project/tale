@@ -69,7 +69,7 @@ const requiresSchema = z.object({
  * provisioner (`workflows/provision_defaults.ts`) can create the rows once
  * per org, create-if-absent — org edits and deactivations always win.
  */
-export const workflowTriggersSchema = z.object({
+const workflowTriggersSchema = z.object({
   events: z
     .array(
       z.object({
@@ -88,7 +88,6 @@ export const workflowTriggersSchema = z.object({
     )
     .optional(),
 });
-export type WorkflowTriggers = z.infer<typeof workflowTriggersSchema>;
 
 export const workflowJsonSchema = z.object({
   name: z.string().min(1).max(200),
