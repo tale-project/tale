@@ -11,6 +11,8 @@ C'est la même idée que de lancer l'un de ces outils sur une machine distante, 
 
 Choisissez **Claude Code** ou **OpenCode** dans le sélecteur de chat et décrivez une tâche en langage clair — « écris un petit outil CLI en Python et teste-le », « clone ce dépôt et corrige le bug de l'issue #42 ». L'agent travaille dans son bac à sable : il planifie, écrit des fichiers, lance des commandes shell et installe des paquets au besoin, puis répond avec ce qu'il a fait. Pendant qu'il travaille, vous voyez un indicateur de réflexion ; la réponse arrive quand le tour se termine.
 
+Inutile d'attendre la fin d'un tour. Le champ de saisie reste ouvert pendant que l'agent travaille : tout ce que vous envoyez est mis en file d'attente, apparaît immédiatement dans le fil avec un badge **En attente**, puis est transmis à l'agent en cours à sa prochaine occasion — pour Claude Code, c'est en plein tour, à la prochaine frontière d'outil, si bien qu'une correction comme « utilise pnpm, pas npm » arrive pendant que le travail se poursuit. Un message en attente peut être retiré (le × à côté du badge) tant que l'agent ne l'a pas pris en compte. Appuyer sur **Stop** termine le tour en cours ; les messages encore en attente sont envoyés automatiquement quelques secondes plus tard comme tour suivant, avec le contexte de l'agent intact.
+
 Chaque fil de discussion est adossé à une session de bac à sable persistante. Les messages de suivi réutilisent la même session et les mêmes fichiers, et l'agent reprend son raisonnement antérieur au lieu de repartir de zéro. La session appartient au fil — supprimer ou archiver le fil démonte le bac à sable et libère ses ressources.
 
 ## Ce que le bac à sable peut atteindre

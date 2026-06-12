@@ -20,6 +20,7 @@ import { cleanupOrphanedSubThreads as cleanupOrphanedSubThreadsHandler } from '.
 import { createChatThread as createHelper } from './create_chat_thread';
 import { deleteChatThread as deleteHelper } from './delete_chat_thread';
 import { getOrCreateSubThread } from './get_or_create_sub_thread';
+import { settleQueueOnTurnEnd } from './message_queue';
 import { updateChatThread as updateHelper } from './update_chat_thread';
 
 /**
@@ -407,6 +408,11 @@ export const clearGenerationStatus = internalMutation({
     // Only clear if the streamId matches — prevents a stale action from
     // clearing a newer generation's 'generating' status.
     if (meta && meta.streamId === args.streamId) {
+      // Turn boundary: settle this turn's queued-message batch and, if more
+      // messages queued up while it ran, drain them as the next turn instead
+      // of going idle (the thread stays generating with a fresh streamId).
+      const { drained } = await settleQueueOnTurnEnd(ctx, meta, args.streamId);
+      if (drained) return;
       await ctx.db.patch(meta._id, {
         generationStatus: 'idle',
         streamId: undefined,

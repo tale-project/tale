@@ -11,6 +11,8 @@ It is the same idea as running one of those tools on a remote machine, except th
 
 Pick **Claude Code** or **OpenCode** in the chat picker and describe a task in plain language — "write a small Python CLI and test it", "clone this repo and fix the bug in issue #42". The agent works inside its sandbox: it plans, writes files, runs shell commands, and installs packages as needed, then replies with what it did. While it works you see a thinking indicator; the reply lands when the turn finishes.
 
+You do not have to wait for a turn to finish. The composer stays open while the agent works: anything you send is queued, appears in the thread immediately with a **Queued** badge, and is handed to the running agent at its next opportunity — for Claude Code that is mid-turn, at the agent's next tool boundary, so a correction like "use pnpm, not npm" lands while the work is still going. A queued message can be removed (the × next to the badge) until the agent picks it up. Pressing **Stop** ends the current turn; messages still queued are sent automatically a few seconds later as the next turn, with the agent's context intact.
+
 Each chat thread is backed by one persistent sandbox session. Follow-up messages reuse the same session and the same files, and the agent resumes its earlier reasoning rather than starting cold. The session is the thread's — deleting or archiving the thread tears the sandbox down and frees its resources.
 
 ## What the sandbox can reach

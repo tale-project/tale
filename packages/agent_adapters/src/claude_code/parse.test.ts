@@ -94,4 +94,40 @@ describe('ClaudeCodeParser', () => {
     const parser = new ClaudeCodeParser();
     expect(parser.feed('{not json\n')).toEqual([]);
   });
+
+  it('maps a steer-hook injection user event to steer-injected', () => {
+    // Real shape from CLI 2.1.173: a Stop-hook decision:block surfaces as a
+    // synthetic user message "Stop hook feedback:\n<reason>".
+    const parser = new ClaudeCodeParser();
+    const line = JSON.stringify({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'Stop hook feedback:\n[TALE_STEER ids=m1,m2] The user sent the following message(s) while you were working. Adjust your current work to incorporate them now:\n\nalso add tests',
+          },
+        ],
+      },
+    });
+    const events = parser.feed(`${line}\n`);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'steer-injected',
+      messageIds: ['m1', 'm2'],
+    });
+  });
+
+  it('drops user text blocks without the steer sentinel (previous behavior)', () => {
+    const parser = new ClaudeCodeParser();
+    const line = JSON.stringify({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'plain synthetic user text' }],
+      },
+    });
+    expect(parser.feed(`${line}\n`)).toEqual([]);
+  });
 });

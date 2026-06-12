@@ -818,6 +818,7 @@ import type * as node_only_sandbox_run_agent from "../node_only/sandbox/run_agen
 import type * as node_only_sandbox_session_admin_actions from "../node_only/sandbox/session_admin_actions.js";
 import type * as node_only_sandbox_session_credentials from "../node_only/sandbox/session_credentials.js";
 import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
+import type * as node_only_sandbox_steer_delivery from "../node_only/sandbox/steer_delivery.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
 import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
 import type * as node_only_sql_helpers_execute_postgres_query from "../node_only/sql/helpers/execute_postgres_query.js";
@@ -1052,6 +1053,7 @@ import type * as threads_internal_mutations from "../threads/internal_mutations.
 import type * as threads_internal_queries from "../threads/internal_queries.js";
 import type * as threads_list_archived_threads from "../threads/list_archived_threads.js";
 import type * as threads_list_threads from "../threads/list_threads.js";
+import type * as threads_message_queue from "../threads/message_queue.js";
 import type * as threads_mutations from "../threads/mutations.js";
 import type * as threads_queries from "../threads/queries.js";
 import type * as threads_rest_api from "../threads/rest_api.js";
@@ -2228,6 +2230,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/session_admin_actions": typeof node_only_sandbox_session_admin_actions;
   "node_only/sandbox/session_credentials": typeof node_only_sandbox_session_credentials;
   "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
+  "node_only/sandbox/steer_delivery": typeof node_only_sandbox_steer_delivery;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
   "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
   "node_only/sql/helpers/execute_postgres_query": typeof node_only_sql_helpers_execute_postgres_query;
@@ -2462,6 +2465,7 @@ declare const fullApi: ApiFromModules<{
   "threads/internal_queries": typeof threads_internal_queries;
   "threads/list_archived_threads": typeof threads_list_archived_threads;
   "threads/list_threads": typeof threads_list_threads;
+  "threads/message_queue": typeof threads_message_queue;
   "threads/mutations": typeof threads_mutations;
   "threads/queries": typeof threads_queries;
   "threads/rest_api": typeof threads_rest_api;

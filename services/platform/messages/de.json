@@ -956,6 +956,17 @@
     "send": "Nachricht senden",
     "stopGenerating": "Generierung stoppen",
     "generationStopped": "Generierung gestoppt",
+    "queue": {
+      "placeholder": "Der Agent arbeitet — neue Nachrichten werden für ihn eingereiht…",
+      "full": "Die Nachrichten-Warteschlange ist voll",
+      "alreadyPickedUp": "Der Agent hat diese Nachricht bereits übernommen",
+      "deleteFailed": "Eingereihte Nachricht konnte nicht entfernt werden",
+      "badgeQueued": "Eingereiht",
+      "badgeSending": "Wird gesendet…",
+      "badgeDelivered": "An den Agenten übergeben",
+      "badgePickedUp": "Übernommen",
+      "deleteQueued": "Eingereihte Nachricht entfernen"
+    },
     "errorGenerating": "Etwas ist schiefgelaufen",
     "retryGeneration": "Erneut versuchen",
     "showMore": "Mehr anzeigen",

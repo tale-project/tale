@@ -11,6 +11,8 @@ Es ist dieselbe Idee, als würde man eines dieser Werkzeuge auf einer entfernten
 
 Wähle im Chat-Auswahlmenü **Claude Code** oder **OpenCode** und beschreibe eine Aufgabe in normaler Sprache — „schreibe ein kleines Python-CLI und teste es", „klone dieses Repo und behebe den Fehler in Issue #42". Der Agent arbeitet in seiner Sandbox: Er plant, schreibt Dateien, führt Shell-Befehle aus und installiert bei Bedarf Pakete, dann antwortet er mit dem, was er getan hat. Während er arbeitet, siehst du eine Denkanzeige; die Antwort erscheint, wenn die Runde abgeschlossen ist.
 
+Du musst nicht warten, bis eine Runde fertig ist. Das Eingabefeld bleibt offen, während der Agent arbeitet: Alles, was du sendest, wird eingereiht, erscheint sofort mit dem Hinweis **Eingereiht** im Thread und wird dem laufenden Agenten bei nächster Gelegenheit übergeben — bei Claude Code mitten in der Runde, an der nächsten Werkzeuggrenze, sodass eine Korrektur wie „nimm pnpm statt npm" ankommt, während die Arbeit noch läuft. Eine eingereihte Nachricht lässt sich entfernen (das × neben dem Hinweis), bis der Agent sie übernimmt. Mit **Stopp** beendest du die aktuelle Runde; noch eingereihte Nachrichten werden wenige Sekunden später automatisch als nächste Runde gesendet, mit unverändertem Kontext des Agenten.
+
 Jeder Chat-Thread wird von einer dauerhaften Sandbox-Sitzung getragen. Folgenachrichten verwenden dieselbe Sitzung und dieselben Dateien wieder, und der Agent setzt seine frühere Überlegung fort, statt bei null zu beginnen. Die Sitzung gehört dem Thread — wird der Thread gelöscht oder archiviert, wird die Sandbox abgebaut und ihre Ressourcen werden freigegeben.
 
 ## Was die Sandbox erreichen kann

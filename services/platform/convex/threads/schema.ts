@@ -257,3 +257,49 @@ export const threadMetadataTable = defineTable({
   // Projects feature: "my chats in this project" — used by the Threads tab's
   // "Your chats" segment without scanning all threads in the project first.
   .index('by_projectId_and_userId', ['projectId', 'userId']);
+
+/**
+ * Messages sent while a turn is running (Claude-Code-TUI-style "keep typing
+ * while it works"). Each row pairs a timeline user message (already saved at
+ * enqueue, so it renders immediately) with delivery state:
+ *
+ *   queued    — waiting; drained into one combined turn at the next terminal
+ *               turn boundary (`settleQueueOnTurnEnd`).
+ *   claimed   — picked up by a drain batch; `claimedByStreamId` is the drain
+ *               turn's stream. Rows are deleted when that turn ends.
+ *   delivered — staged into the RUNNING exec's steer dir (external-agent
+ *               mid-turn steering); `deliveredExecId` keys the terminal
+ *               reconciliation that flips it to consumed or back to queued.
+ *   consumed  — the in-sandbox hook injected it into the running turn; the
+ *               content is in the agent transcript. Deleted at turn end.
+ *
+ * Identity/audit fields are denormalized because the drain runs from internal
+ * mutations with no auth context.
+ */
+export const chatMessageQueueTable = defineTable({
+  organizationId: v.string(),
+  threadId: v.string(),
+  userId: v.string(),
+  userEmail: v.string(),
+  userName: v.string(),
+  /** Thread's agent slug at enqueue — the drain turn re-enters the normal
+   * generation pipeline under this slug. */
+  agentSlug: v.string(),
+  /** Agent-component message _id of the timeline row saved at enqueue. */
+  messageId: v.string(),
+  /** Exact persisted content; drain prompt source. */
+  text: v.string(),
+  status: v.union(
+    v.literal('queued'),
+    v.literal('claimed'),
+    v.literal('delivered'),
+    v.literal('consumed'),
+  ),
+  claimedByStreamId: v.optional(v.string()),
+  deliveredExecId: v.optional(v.string()),
+  createdAt: v.number(),
+  claimedAt: v.optional(v.number()),
+  deliveredAt: v.optional(v.number()),
+})
+  .index('by_threadId_status', ['threadId', 'status'])
+  .index('by_organizationId', ['organizationId']);

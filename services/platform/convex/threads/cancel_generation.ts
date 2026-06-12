@@ -25,6 +25,16 @@ export async function cancelGeneration(
   userId: string,
   threadId: string,
   displayedLength?: number | null,
+  opts?: {
+    /**
+     * User-facing Stop: after the cancel settles, auto-resume any queued
+     * messages as the next turn (threads/message_queue.ts). The drain is
+     * scheduled a few seconds out so the exec-cancel cascade finishes first.
+     * The supersede path (chat_turn.ts) leaves this off — its own new turn is
+     * the successor and queued rows drain at THAT turn's boundary.
+     */
+    drainQueue?: boolean;
+  },
 ): Promise<void> {
   const thread = await ctx.runQuery(components.agent.threads.getThread, {
     threadId,
@@ -148,5 +158,32 @@ export async function cancelGeneration(
       '[cancelGeneration] scheduler.runAfter(cancelSessionExecsForThread) failed:',
       err,
     );
+  }
+
+  // User Stop with messages still queued → auto-resume them as the next turn
+  // (--resume keeps the agent context). Deferred so the cancel cascade above
+  // kills the running exec before the drain turn spawns a new one; the drain
+  // mutation re-checks the thread is still idle and the rows still queued.
+  if (opts?.drainQueue) {
+    const queued = await ctx.db
+      .query('chatMessageQueue')
+      .withIndex('by_threadId_status', (q) =>
+        q.eq('threadId', threadId).eq('status', 'queued'),
+      )
+      .first();
+    if (queued) {
+      try {
+        await ctx.scheduler.runAfter(
+          3000,
+          internal.threads.message_queue.drainQueuedMessages,
+          { threadId },
+        );
+      } catch (err) {
+        console.warn(
+          '[cancelGeneration] scheduler.runAfter(drainQueuedMessages) failed:',
+          err,
+        );
+      }
+    }
   }
 }

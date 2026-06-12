@@ -22,8 +22,15 @@ import {
   getVirtualKeySpendCents,
   revokeVirtualKey,
 } from '../../node_only/sandbox/bifrost_admin';
-import { sessionCancelExec } from '../../node_only/sandbox/helpers/session_client';
+import {
+  sessionCancelExec,
+  sessionListFiles,
+} from '../../node_only/sandbox/helpers/session_client';
 import type { RunAgentInSessionResult } from '../../node_only/sandbox/run_agent';
+import {
+  steerDirFor,
+  steerFileName,
+} from '../../node_only/sandbox/steer_delivery';
 
 /** Pure runaway backstop on cross-action handoffs. The real bound on a long
  * task is the exec timeout (24h) + the rolling budget gate, not a count — at a
@@ -94,6 +101,13 @@ export async function finalizeTurnSideEffects(
   );
   if (!claimed) return false;
 
+  // Steer reconciliation — MUST run before clearGenerationStatus below, whose
+  // queue drain has to see any rows this rolls back to 'queued'. A staged file
+  // the hook consumed is in the agent transcript (--resume carries it); an
+  // unconsumed one re-queues for the boundary drain. On any doubt (session
+  // gone, listing failed) we re-queue: at-least-once across turns.
+  await reconcileSteeredMessages(ctx, turn);
+
   if (turn.mintedKeyId) {
     try {
       // Bifrost aggregates per-VK spend asynchronously (~seconds); poll briefly.
@@ -145,6 +159,57 @@ export async function finalizeTurnSideEffects(
     }
   }
   return true;
+}
+
+/** Terminal steer-delivery reconciliation: flip rows whose staged file the
+ * in-sandbox hook consumed to 'consumed', roll everything else back to
+ * 'queued'. Best-effort transport; the safe default on failure is re-queue. */
+async function reconcileSteeredMessages(
+  ctx: ActionCtx,
+  turn: TurnContext,
+): Promise<void> {
+  try {
+    const delivered = await ctx.runQuery(
+      internal.threads.message_queue.listDeliveredForExec,
+      { threadId: turn.threadId, execId: turn.execId },
+    );
+    if (delivered.length === 0) return;
+
+    let consumedNames = new Set<string>();
+    try {
+      const entries = await sessionListFiles(
+        turn.sessionId,
+        steerDirFor(turn.execId),
+      );
+      if (entries !== null) {
+        consumedNames = new Set(
+          entries
+            .filter((e) => e.type === 'file' && e.name.startsWith('consumed.'))
+            .map((e) => e.name),
+        );
+      }
+    } catch (listErr) {
+      console.warn(
+        '[finalizeTurn] steer dir listing failed (re-queueing):',
+        listErr,
+      );
+    }
+
+    const consumedMessageIds = delivered
+      .filter((row) =>
+        consumedNames.has(
+          `consumed.${steerFileName(row.createdAt, row.messageId)}`,
+        ),
+      )
+      .map((row) => row.messageId);
+    await ctx.runMutation(internal.threads.message_queue.reconcileDelivered, {
+      threadId: turn.threadId,
+      execId: turn.execId,
+      consumedMessageIds,
+    });
+  } catch (err) {
+    console.warn('[finalizeTurn] steer reconciliation failed:', err);
+  }
 }
 
 /**

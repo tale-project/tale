@@ -187,10 +187,11 @@ export interface RunnerdStageResult {
   skipped: Array<{ path: string; reason: string }>;
 }
 
-/** POST /files/stage — fetch each URL into the workspace. */
+/** POST /files/stage — write each item into the workspace (inline base64
+ * bytes, or fetched by the daemon from its URL). */
 export async function runnerdStageFiles(
   opts: RunnerdClientOptions,
-  files: Array<{ path: string; url: string }>,
+  files: Array<{ path: string; url?: string; contentBase64?: string }>,
 ): Promise<RunnerdStageResult> {
   const res = await fetch(`${opts.baseUrl}/files/stage`, {
     method: 'POST',

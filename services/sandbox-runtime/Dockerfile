@@ -139,8 +139,15 @@ RUN set -eux; \
 COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
 
 # Claude Code managed settings (highest precedence on Linux): disable
-# auto-update + telemetry. NOT permission rules — those are per-run flags.
+# auto-update + telemetry, and register the steer hook (mid-turn message
+# injection — hooks merge across settings sources, so /workspace configs
+# can't shadow it). NOT permission rules — those are per-run flags.
 COPY services/sandbox-runtime/managed-settings.json /etc/claude-code/managed-settings.json
+
+# Steer hook: injects platform-queued user messages into a RUNNING Claude
+# Code turn at the next tool-use / stop boundary. Reads the per-exec
+# $TALE_STEER_DIR the adapter sets; inert (fast no-op) for every other run.
+COPY services/sandbox-runtime/tale-steer-hook /usr/local/bin/tale-steer-hook
 
 # Git credential helper for the Tier 2 broker (fetches per-operation creds
 # from runnerd's local credential endpoint). Installed for the `agent` user
@@ -155,7 +162,7 @@ COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright
 COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
-      /usr/local/bin/tale-playwright-mcp
+      /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-steer-hook
 
 # Session role runs as the `agent` user (uid 10001) — a real passwd entry so
 # git/ssh have a home + name, and non-root so Claude Code's bypassPermissions

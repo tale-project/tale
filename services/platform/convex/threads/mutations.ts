@@ -224,6 +224,8 @@ export const cancelGeneration = mutation({
       authUser.userId,
       args.threadId,
       args.displayedLength,
+      // User-facing Stop: queued messages auto-resume as the next turn.
+      { drainQueue: true },
     );
     return null;
   },

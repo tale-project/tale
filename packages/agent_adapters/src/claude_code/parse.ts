@@ -131,7 +131,8 @@ export class ClaudeCodeParser implements AgentEventParser {
       const events: AgentEvent[] = [];
       for (const block of arr(message?.content)) {
         const b = obj(block);
-        if (str(b?.type) === 'tool_result') {
+        const bt = str(b?.type);
+        if (bt === 'tool_result') {
           const out: AgentEvent = {
             type: 'tool-result',
             toolUseId: str(b?.tool_use_id) ?? '',
@@ -139,6 +140,21 @@ export class ClaudeCodeParser implements AgentEventParser {
           if (b?.content !== undefined) out.output = b.content;
           if (typeof b?.is_error === 'boolean') out.isError = b.is_error;
           events.push(out);
+        } else if (bt === 'text') {
+          // Steer-hook injection surfacing as a synthetic user message. Only
+          // the Stop-hook path emits this ("Stop hook feedback:\n[TALE_STEER
+          // ids=...] ..." — verified against CLI 2.1.173); PostToolUse
+          // additionalContext never reaches stdout. Non-matching user text
+          // blocks keep the previous behavior (dropped).
+          const text = str(b?.text);
+          const match = text?.match(/\[TALE_STEER ids=([^\]]*)\]/);
+          if (text && match?.[1]) {
+            events.push({
+              type: 'steer-injected',
+              messageIds: match[1].split(',').filter(Boolean),
+              text,
+            });
+          }
         }
       }
       return events;

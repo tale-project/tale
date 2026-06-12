@@ -35,6 +35,32 @@ describe('file-ops', () => {
     expect(await readWorkspaceFile('hello.txt', 2)).toBeNull(); // oversize
   });
 
+  test('stageFiles writes inline contentBase64 without a fetch', async () => {
+    const result = await stageFiles([
+      {
+        path: '.tale/steer/exec-1/steer-1.json',
+        contentBase64: Buffer.from('{"text":"hi"}', 'utf8').toString('base64'),
+      },
+      { path: 'no-source.txt' },
+      {
+        path: 'too-big.bin',
+        contentBase64: Buffer.alloc(2 * 1024 * 1024).toString('base64'),
+      },
+    ]);
+    expect(result.staged).toEqual([
+      { path: '.tale/steer/exec-1/steer-1.json', bytes: 13 },
+    ]);
+    expect(result.skipped).toEqual([
+      { path: 'no-source.txt', reason: 'no_source' },
+      { path: 'too-big.bin', reason: 'too_large' },
+    ]);
+    expect(
+      (
+        await readWorkspaceFile('.tale/steer/exec-1/steer-1.json', 1_000)
+      )?.toString(),
+    ).toBe('{"text":"hi"}');
+  });
+
   test('stageFiles fetches a URL and writes under the workspace', async () => {
     // Stand up a tiny server serving the file bytes.
     const server = Bun.serve({

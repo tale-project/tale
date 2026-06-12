@@ -31,6 +31,13 @@ export interface AgentRunSpec {
    * agent profile; entry points pass false for headless/no-browser tasks to
    * save the per-turn tool-definition token overhead. */
   browserMcp?: boolean;
+  /** Platform exec id of this run. When set, adapters that support mid-turn
+   * steering (Claude Code via tale-steer-hook) export a per-exec queue dir
+   * (TALE_STEER_DIR=/workspace/.tale/steer/<execId>) the platform stages
+   * queued user messages into; the in-image hook injects them at the next
+   * tool-use / stop boundary. execId-keyed so concurrent turns from other
+   * threads sharing the workspace never see each other's messages. */
+  execId?: string;
 }
 
 /** The generic session-exec request the sandbox /v1/sessions/:id/exec API

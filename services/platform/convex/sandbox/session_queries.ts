@@ -83,6 +83,53 @@ export const listRunningOpsByThread = internalQuery({
   },
 });
 
+/** The thread's currently-running agent-run op joined with its session's
+ * agentKind — the steer-delivery target. Null when no turn is running. When
+ * several ops race (supersede window), the most recently started wins. */
+export const getRunningAgentRunByThread = internalQuery({
+  args: { threadId: v.string() },
+  returns: v.union(
+    v.object({
+      sessionId: v.string(),
+      execId: v.string(),
+      agentKind: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    let latest: {
+      sessionId: string;
+      execId: string;
+      startedAt: number;
+    } | null = null;
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
+      if (row.kind !== 'agent-run' || row.status !== 'running') continue;
+      if (latest === null || row.startedAt > latest.startedAt) {
+        latest = {
+          sessionId: row.sessionId,
+          execId: row.execId,
+          startedAt: row.startedAt,
+        };
+      }
+    }
+    if (latest === null) return null;
+    let agentKind: string | undefined;
+    for await (const session of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', latest.sessionId))) {
+      agentKind = session.agentKind;
+      break;
+    }
+    return {
+      sessionId: latest.sessionId,
+      execId: latest.execId,
+      ...(agentKind !== undefined && { agentKind }),
+    };
+  },
+});
+
 /** Abandoned agent-run ops: `running`, not yet finalized, with a heartbeat
  * gone stale (the draining action died — crash / redeploy / 30min ceiling). The
  * recovery watchdog finalizes these exactly-once. The heartbeat (not the

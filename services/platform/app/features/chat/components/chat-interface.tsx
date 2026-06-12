@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { useNavigate, useSearch } from '@tanstack/react-router';
+import { ConvexError } from 'convex/values';
 import { m, AnimatePresence } from 'framer-motion';
 import { Archive, ArrowDown, Share } from 'lucide-react';
 import {
@@ -34,7 +35,9 @@ import { useListProviders } from '../../settings/providers/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
 import {
+  useDeleteQueuedMessage,
   useEditAndBranch,
+  useEnqueueMessage,
   useForkOwnThread,
   useMarkThreadRead,
   useUnarchiveThread,
@@ -303,6 +306,10 @@ export function ChatInterface({
   );
   const isImageGenAgent =
     activeAgentMeta?.primaryBehavior === 'image-generation';
+  // External-agent (sandbox session) threads support queue mode: the composer
+  // stays usable while a turn runs and sends enqueue for the running agent.
+  const isExternalAgentThread =
+    activeAgentMeta?.primaryBehavior === 'external-agent';
   const threadImages = useThreadImages(isImageGenAgent ? messages : undefined);
   const { providers: providersForEdit } = useListProviders(organizationId);
   const activeModelRef = effectiveAgent?.name
@@ -437,6 +444,55 @@ export function ChatInterface({
   // button below reads real `isGenerating` via `onStopGenerating` gating.
   const isSendPending = useIsSendPending(dataThreadId);
   const isLoading = (isGenerating ?? false) || isSendPending;
+
+  // Queue mode: external-agent thread with a server-confirmed in-flight turn.
+  // Keyed on real `isGenerating` (not the optimistic isSendPending) so an
+  // enqueue can only race a turn the server actually started — during the
+  // optimistic window the composer behaves exactly as before.
+  const queueModeActive = isExternalAgentThread && (isGenerating ?? false);
+
+  // Queued-message rows for this thread (pill + delete affordance on the
+  // already-rendered user bubbles). Skipped entirely for non-external threads.
+  const { data: queuedMessages } = useConvexQuery(
+    api.threads.message_queue.listQueuedMessages,
+    isExternalAgentThread && dataThreadId
+      ? { threadId: dataThreadId, organizationId }
+      : 'skip',
+  );
+  const queuedMessageMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        queueId: Id<'chatMessageQueue'>;
+        status: 'queued' | 'claimed' | 'delivered' | 'consumed';
+      }
+    >();
+    for (const q of queuedMessages ?? []) {
+      map.set(q.messageId, { queueId: q.queueId, status: q.status });
+    }
+    return map;
+  }, [queuedMessages]);
+
+  const { mutateAsync: enqueueMessage } = useEnqueueMessage();
+  const { mutateAsync: deleteQueuedMessage } = useDeleteQueuedMessage();
+
+  const handleDeleteQueuedMessage = useCallback(
+    (messageId: string) => {
+      const row = queuedMessageMap.get(messageId);
+      if (!row || row.status !== 'queued') return;
+      void deleteQueuedMessage({ queueId: row.queueId })
+        .then((result) => {
+          if (!result.deleted) {
+            toast({ title: t('queue.alreadyPickedUp') });
+          }
+        })
+        .catch((err: unknown) => {
+          console.error('[chat] deleteQueuedMessage failed:', err);
+          toast({ title: t('queue.deleteFailed'), variant: 'destructive' });
+        });
+    },
+    [queuedMessageMap, deleteQueuedMessage, toast, t],
+  );
 
   // Hand off to the authoritative signal the moment it arrives: clear the
   // optimistic flag once the server reports generating, so a fast response
@@ -634,6 +690,38 @@ export function ChatInterface({
     sentAttachments?: FileAttachment[],
     kbReferences?: KbMention[],
   ) => {
+    // Queue mode: a turn is running on this external-agent thread — enqueue
+    // instead of dispatching. Text-only (ChatInput blocks attachment sends in
+    // queue mode); the message lands in the timeline immediately server-side
+    // and is steered into the running turn / drained at the next boundary.
+    if (queueModeActive && dataThreadId && effectiveAgent?.name) {
+      const draftSnapshot = inputValue;
+      clearInputValue();
+      try {
+        await enqueueMessage({
+          threadId: dataThreadId,
+          organizationId,
+          message,
+          agentSlug: effectiveAgent.name,
+        });
+      } catch (err) {
+        setInputValue(draftSnapshot);
+        const data: unknown = err instanceof ConvexError ? err.data : null;
+        const code =
+          typeof data === 'object' &&
+          data !== null &&
+          'code' in data &&
+          typeof data.code === 'string'
+            ? data.code
+            : undefined;
+        toast({
+          title:
+            code === 'QUEUE_FULL' ? t('queue.full') : t('toast.sendFailed'),
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
     // Scroll-intent now set inside `useSendMessage` adjacent to each
     // setPendingMessage call — see `scrollIntentRef` prop above. Setting
     // it here would re-introduce the video-link race window where a
@@ -1083,6 +1171,8 @@ export function ChatInterface({
                     onSavePrompt={handleSavePromptFromMessage}
                     onUnsavePrompt={handleUnsavePrompt}
                     savedMessageMap={savedMessageMap}
+                    queuedMessageMap={queuedMessageMap}
+                    onDeleteQueuedMessage={handleDeleteQueuedMessage}
                     onRetry={isArchived || readOnly ? undefined : handleRetry}
                     onRegenerate={
                       isArchived || readOnly
@@ -1181,17 +1271,20 @@ export function ChatInterface({
               <ChatInput
                 className="mx-auto w-full max-w-(--chat-max-width)"
                 placeholder={
-                  isImageGenAgent
-                    ? activeEditingImage && currentModelSupportsEdit
-                      ? t('imageEdit.placeholder')
-                      : t('imageEdit.placeholderCreate')
-                    : t('placeholder')
+                  queueModeActive
+                    ? t('queue.placeholder')
+                    : isImageGenAgent
+                      ? activeEditingImage && currentModelSupportsEdit
+                        ? t('imageEdit.placeholder')
+                        : t('imageEdit.placeholderCreate')
+                      : t('placeholder')
                 }
                 value={inputValue}
                 onChange={setInputValue}
                 onSendMessage={handleSendMessage}
                 onStopGenerating={isGenerating ? stopGenerating : undefined}
                 isLoading={isLoading}
+                queueModeActive={queueModeActive}
                 disabled={hasNoAgents || hasActiveApproval}
                 disabledReason={
                   hasNoAgents

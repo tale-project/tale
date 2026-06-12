@@ -157,6 +157,16 @@ export function useCancelGeneration() {
   return useConvexMutation(api.threads.mutations.cancelGeneration);
 }
 
+/** Queue a message while an external-agent turn is running (queue mode). */
+export function useEnqueueMessage() {
+  return useConvexMutation(api.threads.message_queue.enqueueMessage);
+}
+
+/** Delete a still-queued message (bubble X) before the agent picks it up. */
+export function useDeleteQueuedMessage() {
+  return useConvexMutation(api.threads.message_queue.deleteQueuedMessage);
+}
+
 export function useShareThread() {
   return useConvexMutation(api.threads.mutations.shareThread);
 }

@@ -458,15 +458,18 @@ export class SessionRoutes {
     return jsonResponse({ ok: true, pinned }, 200);
   }
 
-  /** POST /v1/sessions/:id/files/stage — fetch presigned URLs into /workspace. */
+  /** POST /v1/sessions/:id/files/stage — write files into /workspace (inline
+   * base64 content, or presigned URLs the daemon fetches). */
   async handleFilesStage(sessionId: string, body: string): Promise<Response> {
     const session = this.registry.get(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
-    let parsed: { files?: Array<{ path: string; url: string }> };
+    let parsed: {
+      files?: Array<{ path: string; url?: string; contentBase64?: string }>;
+    };
     try {
       // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
       parsed = JSON.parse(body) as {
-        files?: Array<{ path: string; url: string }>;
+        files?: Array<{ path: string; url?: string; contentBase64?: string }>;
       };
     } catch (err) {
       return jsonResponse({ error: 'bad_request', message: String(err) }, 400);

@@ -70,6 +70,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       CLAUDE_CONFIG_DIR: '/workspace/.home/.claude',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     };
+    if (spec.execId) {
+      // Mid-turn steering: the in-image tale-steer-hook (registered via
+      // managed-settings PostToolUse/Stop hooks) reads this per-exec dir and
+      // injects any platform-staged user messages at the next boundary.
+      env.TALE_STEER_DIR = `/workspace/.tale/steer/${spec.execId}`;
+    }
     if (spec.model) {
       // Set all three default-model slots to the gateway model so Claude Code
       // doesn't intermittently 404 resolving opus/sonnet/haiku aliases.

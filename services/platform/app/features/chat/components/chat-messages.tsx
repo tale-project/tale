@@ -201,6 +201,15 @@ interface ChatMessagesProps {
   onUnsavePrompt?: (messageId: string) => void;
   /** Map of messageId → promptId for messages that have been saved as prompts. */
   savedMessageMap?: Map<string, string>;
+  /** Queue mode (external-agent threads): messageId → queue row state for
+   *  user messages sent while a turn was running. Drives the bubble pill +
+   *  delete affordance. */
+  queuedMessageMap?: Map<
+    string,
+    { queueId: string; status: 'queued' | 'claimed' | 'delivered' | 'consumed' }
+  >;
+  /** Delete a still-queued message (bubble X) before the agent picks it up. */
+  onDeleteQueuedMessage?: (messageId: string) => void;
   onRetry?: () => void;
   /** Regenerate a specific assistant message as a new branch (3-dots menu). */
   onRegenerate?: (messageId: string) => void;
@@ -254,6 +263,8 @@ export const ChatMessages = memo(function ChatMessages({
   onSavePrompt,
   onUnsavePrompt,
   savedMessageMap,
+  queuedMessageMap,
+  onDeleteQueuedMessage,
   onRetry,
   onRegenerate,
   editingMessageId,
@@ -707,6 +718,18 @@ export const ChatMessages = memo(function ChatMessages({
                 isUserMessage && savedMessageMap
                   ? savedMessageMap.has(message.id)
                   : false
+              }
+              queuedStatus={
+                isUserMessage
+                  ? queuedMessageMap?.get(message.id)?.status
+                  : undefined
+              }
+              onDeleteQueued={
+                isUserMessage &&
+                onDeleteQueuedMessage &&
+                queuedMessageMap?.get(message.id)?.status === 'queued'
+                  ? () => onDeleteQueuedMessage(message.id)
+                  : undefined
               }
               isLastAssistantMessage={
                 !isUserMessage && message.key === lastAssistantMessageKey

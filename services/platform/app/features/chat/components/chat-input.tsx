@@ -83,6 +83,14 @@ interface ChatInputProps extends Omit<
   ) => void;
   onStopGenerating?: () => void;
   isLoading?: boolean;
+  /**
+   * Queue mode (external-agent threads with a running turn): the textarea
+   * stays usable while `isLoading` — sends enqueue for the running agent.
+   * The send button keeps its send identity and a separate Stop control
+   * renders next to it. Attachments / dictation / voice / `@`-mentions stay
+   * blocked (queue sends are text-only in v1).
+   */
+  queueModeActive?: boolean;
   disabled?: boolean;
   disabledReason?: 'no-agents' | 'pending-approval' | 'archived';
   placeholder?: string;
@@ -195,6 +203,7 @@ export function ChatInput({
   onSendMessage,
   onStopGenerating,
   isLoading = false,
+  queueModeActive = false,
   disabled = false,
   disabledReason,
   placeholder,
@@ -282,7 +291,11 @@ export function ChatInput({
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
   const isUploading = uploadingFiles.length > 0;
-  const inputDisabled = disabled || isLoading;
+  // Queue mode keeps the textarea usable during a running turn; non-text
+  // affordances (attachments, dictation, voice, `@`-mentions) keep the old
+  // "blocked while loading" gate — queue sends are text-only in v1.
+  const attachDisabled = disabled || isLoading;
+  const inputDisabled = disabled || (isLoading && !queueModeActive);
 
   const { quotedText, setQuotedText } = useChatLayout();
 
@@ -303,7 +316,7 @@ export function ChatInput({
   const [mentionHighlight, setMentionHighlight] = useState(0);
   const mentionListboxId = `${textareaId}-kb-mentions`;
   const mentionPickerOpen =
-    kbMentionsEnabled && mentionTrigger !== null && !inputDisabled;
+    kbMentionsEnabled && mentionTrigger !== null && !attachDisabled;
 
   // SearchSource contract: stable identity, called unconditionally every
   // render (it is a hook); inactive renders pass 'skip' to Convex.
@@ -412,9 +425,13 @@ export function ChatInput({
       return;
     }
 
+    // Queue mode: text-only enqueue while the turn runs. Attachments staged
+    // before the turn started stay in the composer for the next normal send.
+    const queueSend = queueModeActive && isLoading;
     if (
       (!value.trim() && attachments.length === 0) ||
-      isLoading ||
+      (isLoading && !queueModeActive) ||
+      (queueSend && (!value.trim() || attachments.length > 0)) ||
       disabled ||
       isUploading ||
       isIndexing ||
@@ -426,6 +443,19 @@ export function ChatInput({
       sendBlocked
     )
       return;
+
+    if (queueSend) {
+      // Plain-text path: no attachment/KB-chip consumption — those stay for
+      // the next normal send. Quote prefix still applies.
+      const trimmedQueue = value.trim();
+      const queueMessage = quotedText
+        ? `> ${quotedText.replace(/\n/g, '\n> ')}\n\n${trimmedQueue}`
+        : trimmedQueue;
+      if (quotedText) setQuotedText(null);
+      dictationRef.current?.stop();
+      onSendMessage(queueMessage);
+      return;
+    }
 
     const attachmentsToSend =
       attachments.length > 0 ? clearAttachments() : undefined;
@@ -553,7 +583,9 @@ export function ChatInput({
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
-    if (inputDisabled || fileUploadDisabled) return;
+    // attachDisabled (not inputDisabled): pasting in queue mode types plain
+    // text only — no file/video-link ingest into a turn-in-flight composer.
+    if (attachDisabled || fileUploadDisabled) return;
     // Bail when an IME composition is mid-flight. The paste handler would
     // otherwise enqueue an ingest mutation AND the chip-cancel strip path
     // could later `value.replace(token, '')` while the IME is still
@@ -685,7 +717,7 @@ export function ChatInput({
             : undefined
         }
         clickable={false}
-        disabled={inputDisabled || fileUploadDisabled}
+        disabled={attachDisabled || fileUploadDisabled}
       >
         <FileUpload.Overlay className="mx-2 rounded-t-3xl" />
         <input
@@ -1175,7 +1207,7 @@ export function ChatInput({
                     : undefined
                 }
                 fileUploadDisabled={fileUploadDisabled}
-                disabled={inputDisabled}
+                disabled={attachDisabled}
               />
               {onSavePrompt && onOpenPromptLibrary && (
                 <SavePromptMenu
@@ -1209,29 +1241,39 @@ export function ChatInput({
                 <VoiceModeToggle
                   threadId={threadId}
                   organizationId={organizationId}
-                  disabled={inputDisabled}
+                  disabled={attachDisabled}
                 />
               )}
               <DictationButton
                 ref={dictationRef}
                 organizationId={organizationId}
-                disabled={inputDisabled}
+                disabled={attachDisabled}
                 lang={speechLang}
                 onTranscript={handleTranscript}
               />
               {(() => {
-                const sendDisabled = isLoading
-                  ? !onStopGenerating
-                  : (!value.trim() && attachments.length === 0) ||
-                    inputDisabled ||
-                    isUploading ||
-                    isIndexing ||
-                    isTranscribing ||
-                    isProcessingVideo ||
-                    hasFailedVideoJobs ||
-                    hasFailedAudioJobs ||
-                    pasteIngestPending ||
-                    sendBlocked;
+                // Queue mode: the send button keeps its send identity (the
+                // separate Stop control below covers stopping) and gates on
+                // text-only input.
+                const queueSend = queueModeActive && isLoading;
+                const sendDisabled =
+                  isLoading && !queueSend
+                    ? !onStopGenerating
+                    : queueSend
+                      ? !value.trim() ||
+                        attachments.length > 0 ||
+                        disabled ||
+                        sendBlocked
+                      : (!value.trim() && attachments.length === 0) ||
+                        inputDisabled ||
+                        isUploading ||
+                        isIndexing ||
+                        isTranscribing ||
+                        isProcessingVideo ||
+                        hasFailedVideoJobs ||
+                        hasFailedAudioJobs ||
+                        pasteIngestPending ||
+                        sendBlocked;
                 const tooltipContent =
                   isTranscribing && !isLoading
                     ? tChat('transcription.inProgressTooltip')
@@ -1253,13 +1295,15 @@ export function ChatInput({
                 // itself stays semantically `aria-disabled` so screen
                 // readers and keyboard activation still observe the
                 // disabled state.
+                const stopMode = isLoading && !queueSend;
                 const button = (
                   <span className="relative inline-flex">
                     {/* Generation in progress: a spinner ring orbits the
                         (now Stop) button so the composer itself signals the
                         in-flight turn. Purely decorative — the live status
-                        is announced by the thinking indicator. */}
-                    {isLoading && (
+                        is announced by the thinking indicator. In queue mode
+                        the ring moves to the separate Stop control instead. */}
+                    {isLoading && !queueSend && (
                       <span
                         aria-hidden="true"
                         className="border-primary/30 border-t-primary pointer-events-none absolute -inset-1 animate-spin rounded-full border-2"
@@ -1267,15 +1311,15 @@ export function ChatInput({
                     )}
                     <Button
                       type="button"
-                      onClick={isLoading ? onStopGenerating : handleSendMessage}
+                      onClick={stopMode ? onStopGenerating : handleSendMessage}
                       disabled={sendDisabled}
                       size="icon"
                       className="focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:ring-inset"
                       aria-label={
-                        isLoading ? tChat('stopGenerating') : tChat('send')
+                        stopMode ? tChat('stopGenerating') : tChat('send')
                       }
                     >
-                      {isLoading ? (
+                      {stopMode ? (
                         <CircleStop className="size-4" />
                       ) : (
                         <ArrowUp className="size-4" />
@@ -1284,29 +1328,51 @@ export function ChatInput({
                   </span>
                 );
                 return (
-                  <Tooltip content={tooltipContent} side="top">
-                    {sendDisabled && tooltipContent ? (
-                      // role="group" + tabIndex=0 makes the wrapper a
-                      // focusable region that the Tooltip's Radix
-                      // pointer/focus listeners can attach to —
-                      // browsers swallow pointer events on a `disabled`
-                      // native button, so the Tooltip would otherwise
-                      // never fire in exactly the states the tooltip
-                      // is meant to explain. The inner Button still
-                      // carries the semantic `disabled` state.
-                      <span
-                        role="group"
-                        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable wrapper required so Tooltip works on a disabled child button
-                        tabIndex={0}
-                        aria-disabled="true"
-                        className="inline-flex"
-                      >
-                        {button}
+                  <HStack gap={1} align="center">
+                    {/* Queue mode: the send button stays a send button, so
+                        Stop gets its own control with the spinner ring. */}
+                    {queueSend && onStopGenerating && (
+                      <span className="relative inline-flex">
+                        <span
+                          aria-hidden="true"
+                          className="border-primary/30 border-t-primary pointer-events-none absolute -inset-1 animate-spin rounded-full border-2"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={onStopGenerating}
+                          className="focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:ring-inset"
+                          aria-label={tChat('stopGenerating')}
+                        >
+                          <CircleStop className="size-4" />
+                        </Button>
                       </span>
-                    ) : (
-                      button
                     )}
-                  </Tooltip>
+                    <Tooltip content={tooltipContent} side="top">
+                      {sendDisabled && tooltipContent ? (
+                        // role="group" + tabIndex=0 makes the wrapper a
+                        // focusable region that the Tooltip's Radix
+                        // pointer/focus listeners can attach to —
+                        // browsers swallow pointer events on a `disabled`
+                        // native button, so the Tooltip would otherwise
+                        // never fire in exactly the states the tooltip
+                        // is meant to explain. The inner Button still
+                        // carries the semantic `disabled` state.
+                        <span
+                          role="group"
+                          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable wrapper required so Tooltip works on a disabled child button
+                          tabIndex={0}
+                          aria-disabled="true"
+                          className="inline-flex"
+                        >
+                          {button}
+                        </span>
+                      ) : (
+                        button
+                      )}
+                    </Tooltip>
+                  </HStack>
                 );
               })()}
             </HStack>

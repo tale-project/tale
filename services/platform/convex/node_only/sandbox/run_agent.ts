@@ -139,6 +139,9 @@ export async function runAgentInSessionImpl(
         }),
         gateway: { baseUrl: args.gatewayBaseUrl, token: args.gatewayToken },
         workdir: args.workdir ?? '/workspace/repo',
+        // Mid-turn steering: keys the per-exec TALE_STEER_DIR the platform
+        // stages queued user messages into (claude_code adapter only).
+        execId: args.execId,
       });
   // Fresh parser each (continuation) action. The re-attach resumes from lastSeq
   // (at most one line straddling the seam is skipped — harmless). Usage isn't
@@ -183,6 +186,21 @@ export async function runAgentInSessionImpl(
               costEstimateUsd: e.usageTotals.costEstimateUsd,
             }),
           };
+        }
+      } else if (e.type === 'steer-injected') {
+        // Live confirmation that the steer hook injected queued user
+        // message(s) into this running turn (only the Stop-hook delivery
+        // surfaces in the stream). Best-effort early pill flip — the terminal
+        // reconciliation in finalizeTurnSideEffects stays authoritative.
+        if (args.threadId !== undefined && e.messageIds.length > 0) {
+          void ctx
+            .runMutation(internal.threads.message_queue.markConsumed, {
+              threadId: args.threadId,
+              messageIds: e.messageIds,
+            })
+            .catch((err: unknown) =>
+              console.warn('[run_agent] steer markConsumed failed:', err),
+            );
         }
       }
       // Durable timeline: every text + tool-use/tool-result, in order (the

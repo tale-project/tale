@@ -1,0 +1,61 @@
+#!/bin/bash
+# tale-steer-hook <post|stop> — inject platform-queued user messages into the
+# RUNNING Claude Code turn at a tool-use / stop boundary.
+#
+# Registered in /etc/claude-code/managed-settings.json (PostToolUse + Stop).
+# The platform stages queue files as $TALE_STEER_DIR/steer-<seq>-<msgId>.json
+# ({messageId, text, createdAt}) via the session files/stage API; this script
+# claims each file with an atomic rename, emits the combined text back to the
+# model, and leaves a consumed.<name> marker the platform's terminal
+# reconciliation reads (consumed ⇒ in the transcript; still steer-*.json ⇒
+# re-queued for the next turn).
+#
+# This runs after EVERY tool call of every turn in the session container — the
+# empty-dir fast path must stay microseconds, and no failure mode may break a
+# normal turn (always exit 0, never exit 2: exit 2 feeds stderr to the model).
+trap 'exit 0' ERR
+EVENT="${1:-post}"
+cat > /dev/null 2>&1 || true # drain hook stdin; payload is unused
+[ -n "$TALE_STEER_DIR" ] || exit 0
+[ -d "$TALE_STEER_DIR" ] || exit 0
+shopt -s nullglob
+files=("$TALE_STEER_DIR"/steer-*.json)
+[ ${#files[@]} -gt 0 ] || exit 0
+
+msgs=""
+ids=""
+for f in "${files[@]}"; do
+  base=$(basename "$f")
+  claimed="$TALE_STEER_DIR/.claimed.$$.$base"
+  # Atomic claim: rename wins exactly once even when parallel tool calls run
+  # two hook instances concurrently. A crash mid-consume leaves the file in
+  # .claimed.* — no consumed marker — so the platform re-queues it (at-least-
+  # once across turns, at-most-once within one turn).
+  mv -- "$f" "$claimed" 2> /dev/null || continue
+  if ! text=$(jq -er '.text' "$claimed" 2> /dev/null); then
+    # Partial write (stage still in flight): restore for the next boundary.
+    mv -- "$claimed" "$f" 2> /dev/null || true
+    continue
+  fi
+  id=$(jq -r '.messageId // empty' "$claimed" 2> /dev/null)
+  msgs+="$text"$'\n\n'
+  ids+="${id},"
+  mv -- "$claimed" "$TALE_STEER_DIR/consumed.$base" 2> /dev/null || true
+done
+[ -n "$msgs" ] || exit 0
+
+# The [TALE_STEER ids=...] sentinel is parsed by the platform when the
+# injection surfaces in stream-json output (Stop-hook path) to flip the UI
+# "picked up" state early; PostToolUse additionalContext never reaches stdout
+# and is reconciled from the consumed.* markers instead.
+payload="[TALE_STEER ids=${ids%,}] The user sent the following message(s) while you were working. Adjust your current work to incorporate them now:
+
+${msgs}"
+payload=${payload:0:16000}
+if [ "$EVENT" = "stop" ]; then
+  jq -cn --arg r "$payload" '{decision:"block", reason:$r}'
+else
+  jq -cn --arg r "$payload" \
+    '{hookSpecificOutput:{hookEventName:"PostToolUse", additionalContext:$r}}'
+fi
+exit 0

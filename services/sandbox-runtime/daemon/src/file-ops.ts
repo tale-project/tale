@@ -45,8 +45,12 @@ async function realpathUnderRoot(abs: string): Promise<string | null> {
 export interface StageItem {
   /** Workspace-relative destination path. */
   path: string;
-  /** URL the daemon GETs to fetch the bytes. */
-  url: string;
+  /** URL the daemon GETs to fetch the bytes. Exactly one of `url` /
+   * `contentBase64` must be set. */
+  url?: string;
+  /** Inline bytes, base64. For small control files the platform pushes
+   * directly (e.g. mid-turn steer messages) — no URL round-trip. */
+  contentBase64?: string;
 }
 
 export interface StageResult {
@@ -55,9 +59,11 @@ export interface StageResult {
 }
 
 const FETCH_MAX_BYTES = 100 * 1024 * 1024;
+const INLINE_MAX_BYTES = 1 * 1024 * 1024;
 
-/** Fetch each URL and write it under the workspace. Skips (never throws) on a
- * bad path, fetch failure, or oversize, reporting a structured reason. */
+/** Write each item under the workspace (inline bytes, or fetched from its
+ * URL). Skips (never throws) on a bad path, fetch failure, or oversize,
+ * reporting a structured reason. */
 export async function stageFiles(items: StageItem[]): Promise<StageResult> {
   const staged: StageResult['staged'] = [];
   const skipped: StageResult['skipped'] = [];
@@ -68,14 +74,26 @@ export async function stageFiles(items: StageItem[]): Promise<StageResult> {
       continue;
     }
     try {
-      const res = await fetch(item.url);
-      if (!res.ok) {
-        skipped.push({ path: item.path, reason: `http_${res.status}` });
-        continue;
-      }
-      const buf = Buffer.from(await res.arrayBuffer());
-      if (buf.byteLength > FETCH_MAX_BYTES) {
-        skipped.push({ path: item.path, reason: 'too_large' });
+      let buf: Buffer;
+      if (item.contentBase64 !== undefined) {
+        buf = Buffer.from(item.contentBase64, 'base64');
+        if (buf.byteLength > INLINE_MAX_BYTES) {
+          skipped.push({ path: item.path, reason: 'too_large' });
+          continue;
+        }
+      } else if (item.url !== undefined) {
+        const res = await fetch(item.url);
+        if (!res.ok) {
+          skipped.push({ path: item.path, reason: `http_${res.status}` });
+          continue;
+        }
+        buf = Buffer.from(await res.arrayBuffer());
+        if (buf.byteLength > FETCH_MAX_BYTES) {
+          skipped.push({ path: item.path, reason: 'too_large' });
+          continue;
+        }
+      } else {
+        skipped.push({ path: item.path, reason: 'no_source' });
         continue;
       }
       await mkdir(dirname(abs), { recursive: true });

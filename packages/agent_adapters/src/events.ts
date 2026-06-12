@@ -55,6 +55,12 @@ export type AgentEvent =
       >;
     }
   | { type: 'error'; message: string; raw?: unknown }
+  /** A queued user message was injected into the RUNNING turn by the
+   * in-sandbox steer hook (tale-steer-hook). Only the Stop-hook delivery path
+   * surfaces in the output stream (PostToolUse additionalContext is invisible
+   * to stdout) — the platform's terminal reconciliation stays authoritative;
+   * this event just flips the UI pill early when it does appear. */
+  | { type: 'steer-injected'; messageIds: string[]; text: string }
   /** Forward-compat: an unmapped native event, passed through verbatim so a
    * new agent-side event type is never silently dropped. */
   | { type: 'raw'; agent: AgentSlug; payload: unknown };

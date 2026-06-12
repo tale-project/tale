@@ -172,9 +172,11 @@ export interface ChatAgent {
   /**
    * Root behavior. Omitted = 'chat'. 'image-generation' flips the composer
    * into direct image-gen mode (model picker filters on image tag, EditingBanner
-   * activates when the thread has images).
+   * activates when the thread has images). 'external-agent' (Claude Code /
+   * OpenCode in a sandbox session) enables queue mode: the composer stays
+   * usable while a turn runs and messages queue for the running agent.
    */
-  primaryBehavior?: 'chat' | 'image-generation';
+  primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
   supportedModels?: string[];
   toolNames?: string[];
   integrationBindings?: string[];
@@ -218,7 +220,8 @@ export function useChatAgents(organizationId: string) {
           primaryBehavior:
             'primaryBehavior' in a &&
             (a.primaryBehavior === 'chat' ||
-              a.primaryBehavior === 'image-generation')
+              a.primaryBehavior === 'image-generation' ||
+              a.primaryBehavior === 'external-agent')
               ? a.primaryBehavior
               : undefined,
           supportedModels: a.supportedModels,

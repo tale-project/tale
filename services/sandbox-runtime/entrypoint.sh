@@ -61,6 +61,11 @@ if [ "$1" = "daemon" ]; then
     /workspace/.deps/python \
     /workspace/.deps/node \
     /workspace/.tmp
+  # Stale per-exec steer queues (mid-turn message injection): a container
+  # (re)start means no exec is live, so leftover steer/consumed files are
+  # garbage from a previous incarnation — drop them. The platform re-queues
+  # anything it hadn't reconciled.
+  rm -rf /workspace/.tale/steer
   # Same install env the one-shot path exports, so inline pip/npm from a
   # session exec lands in the writable, on-PYTHONPATH/NODE_PATH location.
   export HOME=/workspace/.home

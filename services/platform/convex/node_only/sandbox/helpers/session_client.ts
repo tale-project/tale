@@ -209,6 +209,71 @@ export async function sessionCancelExec(
   return parsed.killed === true;
 }
 
+export interface SessionStageFile {
+  /** Workspace-relative destination path. */
+  path: string;
+  /** Presigned URL the daemon fetches (exactly one of url/contentBase64). */
+  url?: string;
+  /** Inline bytes, base64 — for small control files (steer messages). */
+  contentBase64?: string;
+}
+
+export interface SessionStageResult {
+  staged: Array<{ path: string; bytes: number }>;
+  skipped: Array<{ path: string; reason: string }>;
+}
+
+/** POST /v1/sessions/:id/files/stage — write files into the session workspace.
+ * Throws on transport/HTTP failure; per-file failures come back in `skipped`. */
+export async function sessionStageFiles(
+  sessionId: string,
+  files: SessionStageFile[],
+): Promise<SessionStageResult> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/stage`;
+  const bodyJson = JSON.stringify({ files });
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'POST',
+    headers: signedHeaders('POST', path, bodyJson),
+    body: bodyJson,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (res.status === 404) throw new SessionNotFoundError(sessionId);
+  if (!res.ok) {
+    throw new Error(`sandbox session files stage failed (${res.status})`);
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as SessionStageResult;
+}
+
+export interface SessionFsEntry {
+  name: string;
+  type: 'file' | 'dir' | 'other';
+  size: number;
+  mtimeMs: number;
+}
+
+/** GET /v1/sessions/:id/files?path= — workspace directory listing. Returns
+ * null when the path (or the session) is gone — callers treat that as "nothing
+ * to reconcile", not an error. */
+export async function sessionListFiles(
+  sessionId: string,
+  dirPath: string,
+): Promise<SessionFsEntry[] | null> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files?path=${encodeURIComponent(dirPath)}`;
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'GET',
+    headers: signedHeaders('GET', path, ''),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`sandbox session files list failed (${res.status})`);
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = (await res.json()) as { entries?: SessionFsEntry[] };
+  return parsed.entries ?? [];
+}
+
 export interface SessionExecBody {
   execId: string;
   command?: string[];

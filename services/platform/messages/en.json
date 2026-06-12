@@ -956,6 +956,17 @@
     "send": "Send message",
     "stopGenerating": "Stop generating",
     "generationStopped": "Generation stopped",
+    "queue": {
+      "placeholder": "The agent is working — new messages are queued for it…",
+      "full": "Message queue is full",
+      "alreadyPickedUp": "The agent already picked this message up",
+      "deleteFailed": "Could not remove the queued message",
+      "badgeQueued": "Queued",
+      "badgeSending": "Sending…",
+      "badgeDelivered": "Sent to agent",
+      "badgePickedUp": "Picked up",
+      "deleteQueued": "Remove queued message"
+    },
     "errorGenerating": "Something went wrong",
     "retryGeneration": "Try again",
     "showMore": "Show more",
