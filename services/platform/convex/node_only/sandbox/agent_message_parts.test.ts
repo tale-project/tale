@@ -112,6 +112,52 @@ describe('buildAssistantContent', () => {
       toolName: 'tool',
     });
   });
+
+  it('names a cross-seam orphan result from the knownToolNames seed', () => {
+    // The tool-use happened in a PREVIOUS segment (S4 seam) — this segment's
+    // timeline only has the result. The seed carried via the checkpoint must
+    // name it; without it the row would render as a bare "Tool".
+    const events: AgentEvent[] = [
+      {
+        type: 'tool-result',
+        toolUseId: 'pre1',
+        output: 'done',
+        isError: false,
+      },
+      {
+        type: 'tool-result',
+        toolUseId: 'mystery',
+        output: '?',
+        isError: false,
+      },
+    ];
+    const parts = buildAssistantContent(
+      events,
+      '',
+      new Map([['pre1', 'Agent']]),
+    ) as Array<Record<string, unknown>>;
+    expect(parts[0]).toMatchObject({ toolCallId: 'pre1', toolName: 'Agent' });
+    // Unknown ids still fall back rather than throw.
+    expect(parts[1]).toMatchObject({ toolCallId: 'mystery', toolName: 'tool' });
+  });
+
+  it('lets a same-segment tool-use refresh a stale seed entry', () => {
+    const events: AgentEvent[] = [
+      {
+        type: 'tool-use',
+        toolUseId: 't1',
+        toolName: 'WebFetch',
+        input: { url: 'https://example.com' },
+      },
+      { type: 'tool-result', toolUseId: 't1', output: 'ok', isError: false },
+    ];
+    const parts = buildAssistantContent(
+      events,
+      '',
+      new Map([['t1', 'StaleName']]),
+    ) as Array<Record<string, unknown>>;
+    expect(parts[1]).toMatchObject({ toolCallId: 't1', toolName: 'WebFetch' });
+  });
 });
 
 describe('estimateContentBytes (S4 segmentation guard)', () => {

@@ -345,6 +345,11 @@ export async function handleTurnOutcome(
       // its capture state from this so the terminal segment's detection sees
       // it (still subject to run_agent's execute-mode reset rule).
       ...(result.planText !== undefined && { planText: result.planText }),
+      // toolUseId → toolName across the whole turn so far, so a post-seam
+      // segment can name the orphan results of pre-seam tool calls instead of
+      // rendering them as a bare "Tool" (long parallel subagent calls
+      // routinely straddle seams).
+      ...(result.toolNames !== undefined && { toolNames: result.toolNames }),
     });
     // An untyped Blob sends an empty content-type header that self-hosted
     // Convex storage rejects ("Bad header for content-type") — set it.
@@ -529,10 +534,10 @@ function appendPauseNote(
   return [...content, { type: 'text', text: note.trimStart() }];
 }
 
-/** Load + parse a turn checkpoint blob ({lastSeq, agentSessionId, planText})
- * from _storage. Post-S4 the timeline is no longer carried — each segment
- * renders into its own message, so the checkpoint is just the resume cursor
- * (+ the plan captured so far, if any). */
+/** Load + parse a turn checkpoint blob ({lastSeq, agentSessionId, planText,
+ * toolNames}) from _storage. Post-S4 the timeline is no longer carried — each
+ * segment renders into its own message, so the checkpoint is the resume cursor
+ * (+ the plan captured so far and the turn's toolUseId → toolName map). */
 export async function loadCheckpoint(
   ctx: ActionCtx,
   storageId: string,
@@ -540,6 +545,7 @@ export async function loadCheckpoint(
   lastSeq: number;
   agentSessionId?: string;
   planText?: string;
+  toolNames?: Record<string, string>;
 } | null> {
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const blob = await ctx.storage.get(storageId as Id<'_storage'>);
@@ -550,6 +556,7 @@ export async function loadCheckpoint(
       lastSeq: number;
       agentSessionId?: string;
       planText?: string;
+      toolNames?: Record<string, string>;
     };
   } catch (err) {
     console.error('[turn_lifecycle] bad checkpoint blob:', err);

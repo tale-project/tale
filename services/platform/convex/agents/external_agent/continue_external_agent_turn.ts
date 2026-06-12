@@ -103,6 +103,9 @@ export const continueExternalAgentTurn = internalAction({
           ...(checkpoint.planText !== undefined && {
             planText: checkpoint.planText,
           }),
+          ...(checkpoint.toolNames !== undefined && {
+            toolNames: checkpoint.toolNames,
+          }),
         },
         onTimeline: async (content) => {
           await patchStreamingMessage(ctx, args.assistantMessageId, content);

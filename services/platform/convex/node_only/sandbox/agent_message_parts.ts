@@ -74,6 +74,11 @@ function stringifyOutput(output: unknown): string {
 export function buildAssistantContent(
   events: readonly AgentEvent[],
   finalText: string,
+  // toolUseId → toolName seed carried across S4 segment seams: a long tool
+  // call (parallel subagents especially) issues its tool-use in one segment
+  // and lands its result in a later one, whose own timeline never saw the
+  // use — without the seed those orphan results all render as a bare "Tool".
+  knownToolNames?: ReadonlyMap<string, string>,
 ): AgentAssistantContent {
   const hasToolTimeline = events.some(
     (e) => e.type === 'tool-use' || e.type === 'tool-result',
@@ -84,7 +89,7 @@ export function buildAssistantContent(
   const parts: Exclude<AgentAssistantContent, string> = [];
   // toolUseId → toolName, so a tool-result (which carries no toolName) pairs
   // with its call under the same name for toUIMessages' merge.
-  const toolNames = new Map<string, string>();
+  const toolNames = new Map<string, string>(knownToolNames);
   let lastText: string | undefined;
 
   for (const e of events) {

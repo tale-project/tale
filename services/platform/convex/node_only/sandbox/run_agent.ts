@@ -103,6 +103,9 @@ export interface RunAgentInSessionArgs {
     /** Plan captured by an earlier segment (ExitPlanMode) — carried across
      * the seam and still subject to the execute-mode reset rule. */
     planText?: string;
+    /** toolUseId → toolName for every tool-use seen by earlier segments, so a
+     * result landing after the seam still renders under its real tool name. */
+    toolNames?: Record<string, string>;
   };
 }
 
@@ -130,6 +133,10 @@ export interface RunAgentInSessionResult {
    * action re-attaches from. The timeline is NOT carried — each segment renders
    * into its own message (S4). */
   lastSeq?: number;
+  /** status==='continued' only: toolUseId → toolName for every tool-use this
+   * turn has seen so far, checkpointed so a continuation segment can name the
+   * orphan results of pre-seam tool calls. */
+  toolNames?: Record<string, string>;
   /** status==='continued' only: this seam was tripped by an OBSERVED steer
    * injection — the in-sandbox hook delivered queued user message(s) into the
    * running turn (Stop-hook stream sentinel, or consumed.* markers found by
@@ -211,6 +218,12 @@ export async function runAgentInSessionImpl(
   // No resume seed needed: upsertSessionOp only patches defined fields, so a
   // silent continuation segment leaves the row's pre-seam value in place.
   let lastEventAt: number | undefined;
+  // Every toolUseId → toolName this TURN has seen, seeded from the checkpoint
+  // on resume. Unlike the per-segment timeline this map crosses seams, so a
+  // result landing segments after its use still renders under its real name.
+  const toolNames = new Map<string, string>(
+    Object.entries(args.resumeFrom?.toolNames ?? {}),
+  );
   // Handoff control (hoisted so flushProgress can trip it): the budget deadline
   // OR the per-message byte budget aborts the drain → the run returns 'continued'
   // and the caller segments (finalizes this message, opens a fresh one).
@@ -268,6 +281,7 @@ export async function runAgentInSessionImpl(
           };
         }
       } else if (e.type === 'tool-use') {
+        if (e.toolUseId && e.toolName) toolNames.set(e.toolUseId, e.toolName);
         if (e.toolName === 'ExitPlanMode') {
           // The proposed plan rides the tool input (input.plan — verified on
           // CLI 2.1.173; the call itself is denied by plan mode / the
@@ -365,7 +379,7 @@ export async function runAgentInSessionImpl(
     // on the same throttle. This is the record that survives an early end (the
     // op buffer is capped + cleared); best-effort so a transient patch failure
     // never aborts the live run.
-    const content = buildAssistantContent(timeline, finalText ?? '');
+    const content = buildAssistantContent(timeline, finalText ?? '', toolNames);
     if (args.onTimeline) {
       try {
         await args.onTimeline(content);
@@ -555,8 +569,13 @@ export async function runAgentInSessionImpl(
         ...(finalText !== undefined && { finalText }),
         ...(planText !== undefined && { planText }),
         ...(usage !== undefined && { usage }),
-        assistantContent: buildAssistantContent(timeline, finalText ?? ''),
+        assistantContent: buildAssistantContent(
+          timeline,
+          finalText ?? '',
+          toolNames,
+        ),
         lastSeq: cursor.lastSeq,
+        toolNames: Object.fromEntries(toolNames),
         // Ternary (not &&): steerSeam is only assigned inside the flush
         // closure, so TS narrows the `let` to its `false` initializer here.
         ...(steerSeam ? { steerSeam: true } : {}),
@@ -605,7 +624,11 @@ export async function runAgentInSessionImpl(
     ...(result.exitCode !== null && { exitCode: result.exitCode }),
   });
 
-  const assistantContent = buildAssistantContent(timeline, finalText ?? '');
+  const assistantContent = buildAssistantContent(
+    timeline,
+    finalText ?? '',
+    toolNames,
+  );
 
   return {
     status: result.status,
