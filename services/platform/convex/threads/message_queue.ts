@@ -93,6 +93,11 @@ export async function startQueuedTurn(
       userEmail: last.userEmail,
       userName: last.userName,
       requestStartMs: now,
+      // Preserve the model the user picked: without it runChatTurnGeneration
+      // resolves the org default, swapping the selection (and 403'ing when the
+      // session VK only allows the picked model). The last row's pick wins —
+      // a drain combines rows enqueued under one composer state.
+      ...(last.modelId !== undefined && { modelId: last.modelId }),
       // The user messages are already persisted (saved at enqueue) — the
       // pipeline must not save the combined text as a new user message.
       queuedPromptMessageId: last.messageId,
@@ -198,6 +203,10 @@ export const enqueueMessage = mutation({
     organizationId: v.string(),
     message: v.string(),
     agentSlug: v.string(),
+    /** Thread's selected model id — carried onto the queue row so the
+     * boundary drain re-enters generation with the user's pick, not the org
+     * default. Omitted for Auto. */
+    modelId: v.optional(v.string()),
   },
   returns: v.object({
     /** false ⇒ the thread was idle (raced a finalize) and a turn started now. */
@@ -239,6 +248,7 @@ export const enqueueMessage = mutation({
       userEmail: authUser.email ?? '',
       userName: authUser.name ?? '',
       agentSlug: args.agentSlug,
+      ...(args.modelId !== undefined && { modelId: args.modelId }),
       messageId,
       text: trimmed,
       status: 'queued' as const,

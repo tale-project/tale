@@ -700,11 +700,16 @@ export function ChatInterface({
       const draftSnapshot = inputValue;
       clearInputValue();
       try {
+        const queuedModelId = selectedModelOverrides[effectiveAgent.name];
         await enqueueMessage({
           threadId: dataThreadId,
           organizationId,
           message,
           agentSlug: effectiveAgent.name,
+          // Carry the picked model so the boundary drain re-enters generation
+          // with it, not the org default (a single-model session VK 403s on
+          // the wrong one).
+          ...(queuedModelId !== undefined && { modelId: queuedModelId }),
         });
       } catch (err) {
         setInputValue(draftSnapshot);

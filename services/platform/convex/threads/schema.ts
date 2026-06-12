@@ -304,6 +304,11 @@ export const chatMessageQueueTable = defineTable({
   /** Thread's agent slug at enqueue — the drain turn re-enters the normal
    * generation pipeline under this slug. */
   agentSlug: v.string(),
+  /** Thread's selected model id at enqueue. The boundary-drain turn re-enters
+   * runChatTurnGeneration, which otherwise resolves modelId=undefined → the
+   * org default — silently swapping the user's pick (and 403'ing outright
+   * when the session VK is single-model). Optional: legacy rows + Auto. */
+  modelId: v.optional(v.string()),
   /** Agent-component message _id of the timeline row saved at enqueue. */
   messageId: v.string(),
   /** Exact persisted content; drain prompt source. */

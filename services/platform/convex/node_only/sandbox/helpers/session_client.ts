@@ -428,17 +428,21 @@ export async function sessionAttachExec(
   cursor?: ExecCursor,
   timeoutMs?: number,
 ): Promise<SessionExecResult> {
-  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/attach`;
   const query = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
+  // The spawner verifies the HMAC over pathname+search, so the signed string
+  // MUST include the query — signing the bare path 401s every re-attach with
+  // a non-zero cursor (i.e. every real continuation), which silently killed
+  // the resilient drain + the stdin-steering continuation path.
+  const signedPath = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/attach${query}`;
   const fetchAbort = AbortSignal.any([
     signal,
     AbortSignal.timeout(
       (timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await fetch(`${getSpawnerUrl()}${path}${query}`, {
+  const res = await fetch(`${getSpawnerUrl()}${signedPath}`, {
     method: 'GET',
-    headers: signedHeaders('GET', path, '', 'text/event-stream'),
+    headers: signedHeaders('GET', signedPath, '', 'text/event-stream'),
     signal: fetchAbort,
   });
   if (res.status === 404) throw new SessionNotFoundError(sessionId);
