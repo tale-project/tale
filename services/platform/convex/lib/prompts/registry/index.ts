@@ -10,6 +10,8 @@ import {
   delegationHeaderEntry,
   delegationIntroEntry,
   delegationOutroEntry,
+  escalationSectionEntry,
+  escalationSectionRootEntry,
   plannerFooterEntry,
   plannerHeaderEntry,
   routerScaffoldFooterEntry,
@@ -56,6 +58,8 @@ const ENTRIES = [
   delegationHeaderEntry,
   delegationIntroEntry,
   delegationOutroEntry,
+  escalationSectionEntry,
+  escalationSectionRootEntry,
 ] as const;
 
 export type PromptKey = (typeof ENTRIES)[number]['key'];

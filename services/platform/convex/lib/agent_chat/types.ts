@@ -56,8 +56,20 @@ export interface SerializableAgentConfig {
   agentTeamIds?: string[];
   /** Pre-resolved completed file IDs from agent-specific knowledge files */
   knowledgeFileIds?: string[];
-  /** Agent slugs of delegate agents (file-based agent names) */
-  delegateSlugs?: string[];
+  /**
+   * Hard off-switch for delegation tools (the orchestrator's
+   * double-delegation guard). Delegates are derived from the org chart at
+   * tool-build time, so only this flag reliably disables delegation for a
+   * stripped sub-agent.
+   */
+  delegationDisabled?: boolean;
+  /** External runtime binding (task runs dispatch to a tale-daemon). */
+  runtime?: {
+    adapterType: string;
+    daemonId?: string;
+    permissionMode: 'safe' | 'auto_edits' | 'full_auto';
+    workspaceKey?: string;
+  };
   /**
    * Hard allowlist of skill slugs the agent may use. Empty / omitted = no
    * skills available; the runtime emits no `expand_skill` tool and no
@@ -94,6 +106,18 @@ export interface SerializableAgentConfig {
    * Consumed by the model-tier router and the speculative cascade.
    */
   routing?: AgentRoutingConfig;
+  /**
+   * Monthly spend guardrail (mirrors `agentJsonSchema.budget`). Rides the
+   * serializable config because the enforcement points (chat-turn mutation,
+   * delegation sub-steps, run admission) cannot read agent JSON files.
+   */
+  budget?: {
+    monthlyCents: number;
+    warnPct?: number;
+    pausePct?: number;
+  };
+  /** Max concurrent task runs (mirrors `agentJsonSchema.maxConcurrentTasks`). */
+  maxConcurrentTasks?: number;
 }
 
 /**

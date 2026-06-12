@@ -736,6 +736,7 @@ const perCategoryValidator = v.object({
   userNotifications: rowsAndHoldValidator,
   notificationPreferences: rowsAndHoldValidator,
   taskSubscriptions: rowsAndHoldValidator,
+  taskReviewDecisions: rowsAndHoldValidator,
   wfExecutions: rowsAndHoldValidator,
   promptTemplates: rowsAndHoldValidator,
 });
@@ -1154,6 +1155,74 @@ export const eraseSubjectTaskSubscriptions = internalMutation({
     let rows = 0;
     for await (const row of iter()) {
       await ctx.db.delete(row._id);
+      rows++;
+    }
+    return { rows, skippedByHold: 0 };
+  },
+});
+
+/**
+ * Workforce review decisions: PSEUDONYMIZE (not delete) the subject's
+ * identity on `task_review` approvals — the approve/request-changes
+ * DECISION is org compliance state the review gate's audit trail needs,
+ * but `approvedBy` and the reviewer/responder ids inside `metadata` are
+ * subject PII. Replaced with the `erased-user` sentinel.
+ */
+export const eraseSubjectTaskReviewDecisions = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
+  handler: async (ctx, args) => {
+    const SENTINEL = 'erased-user';
+    const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+      value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- structural narrowing of a jsonRecord
+          (value as Record<string, unknown>)
+        : undefined;
+    const matches = (row: {
+      approvedBy?: string;
+      metadata?: unknown;
+    }): boolean => {
+      if (row.approvedBy === args.userId) return true;
+      const m = asRecord(row.metadata);
+      if (!m) return false;
+      if (m.requestedFor === args.userId) return true;
+      const response = asRecord(m.response);
+      return response?.respondedBy === args.userId;
+    };
+    const iter = () =>
+      ctx.db
+        .query('approvals')
+        .withIndex('by_org_resourceType', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('resourceType', 'task_review'),
+        );
+    const guard = await countOrSkip(
+      ctx,
+      args.organizationId,
+      args.userId,
+      iter,
+    );
+    if (guard.heldByOrgOrUser)
+      return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
+      if (!matches(row)) continue;
+      const original = asRecord(row.metadata);
+      const metadata = original ? { ...original } : undefined;
+      if (metadata) {
+        if (metadata.requestedFor === args.userId) {
+          metadata.requestedFor = SENTINEL;
+        }
+        const response = asRecord(metadata.response);
+        if (response && response.respondedBy === args.userId) {
+          metadata.response = { ...response, respondedBy: SENTINEL };
+        }
+      }
+      await ctx.db.patch(row._id, {
+        ...(row.approvedBy === args.userId ? { approvedBy: SENTINEL } : {}),
+        ...(metadata ? { metadata } : {}),
+      });
       rows++;
     }
     return { rows, skippedByHold: 0 };
@@ -1846,6 +1915,7 @@ export const processErasureRequest = internalAction({
       userNotifications: { rows: 0, skippedByHold: 0 },
       notificationPreferences: { rows: 0, skippedByHold: 0 },
       taskSubscriptions: { rows: 0, skippedByHold: 0 },
+      taskReviewDecisions: { rows: 0, skippedByHold: 0 },
       wfExecutions: { rows: 0, skippedByHold: 0 },
       promptTemplates: { rows: 0, skippedByHold: 0 },
     };
@@ -1994,6 +2064,13 @@ export const processErasureRequest = internalAction({
       );
       perCategory.taskSubscriptions = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectTaskSubscriptions,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      perCategory.taskReviewDecisions = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectTaskReviewDecisions,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
@@ -2224,6 +2301,7 @@ interface PerCategoryCounts {
   userNotifications: RowsAndHold;
   notificationPreferences: RowsAndHold;
   taskSubscriptions: RowsAndHold;
+  taskReviewDecisions: RowsAndHold;
   wfExecutions: RowsAndHold;
   promptTemplates: RowsAndHold;
 }

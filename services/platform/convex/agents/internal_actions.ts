@@ -51,6 +51,16 @@ const agentListCache = new Map<
   { entries: unknown[]; expiresAt: number }
 >();
 
+/**
+ * Write-through cache drop for org-chart writes (`writeAgentDelegates` /
+ * `writeAgentParents`): a delegation edit must be visible to the next chart
+ * read in THIS isolate without waiting out the TTL. Other isolates converge
+ * within the 60s TTL, same as every other agent-file edit.
+ */
+export function invalidateAgentListCache(orgSlug: string): void {
+  agentListCache.delete(orgSlug);
+}
+
 interface StatusCheckArgs {
   organizationId: string;
   agentSlug: string;
@@ -354,6 +364,13 @@ export async function listAgentsForOrg(orgSlug: string): Promise<unknown[]> {
           isRouter: result.config.isRouter,
           uiConfigurable: result.config.uiConfigurable,
           i18n: result.config.i18n,
+          // Workforce projections (org chart + guardrail surfaces): shared
+          // through this 60s cache so chart readers, delegation merging, and
+          // the organigram UI never need a second dir scan.
+          delegates: result.config.delegates,
+          reportsTo: result.config.reportsTo,
+          budget: result.config.budget,
+          maxConcurrentTasks: result.config.maxConcurrentTasks,
         };
       }
       return {

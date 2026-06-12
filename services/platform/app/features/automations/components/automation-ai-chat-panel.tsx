@@ -14,7 +14,9 @@ import { cn } from '@/lib/utils/cn';
 import { AutomationAssistant } from './automation-assistant';
 
 interface AutomationAIChatPanelProps {
-  workflowSlug: string;
+  /** 'workflow' (default) edits an automation; 'organigram' edits the chart. */
+  mode?: 'workflow' | 'organigram';
+  workflowSlug?: string;
   workflowName?: string;
   organizationId: string;
   onClose: () => void;
@@ -25,6 +27,7 @@ interface AutomationAIChatPanelProps {
 }
 
 export function AutomationAIChatPanel({
+  mode = 'workflow',
   workflowSlug,
   workflowName,
   organizationId,
@@ -111,6 +114,7 @@ export function AutomationAIChatPanel({
       </PanelHeader>
 
       <AutomationAssistant
+        mode={mode}
         workflowSlug={workflowSlug}
         workflowName={workflowName}
         organizationId={organizationId}

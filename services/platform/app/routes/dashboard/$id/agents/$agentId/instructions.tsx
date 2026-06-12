@@ -8,6 +8,7 @@ import { BookOpen } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -326,11 +327,12 @@ function InstructionsTab() {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <PageSection
+      <PageHeader
+        as="h2"
         title={t('agents.form.sectionInstructions')}
         description={t('agents.form.sectionInstructionsDescription')}
-        gap={4}
-      >
+      />
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3">
           <HStack justify="between" align="center">
             <label htmlFor="systemInstructions" className="text-sm font-medium">
@@ -391,7 +393,7 @@ function InstructionsTab() {
             ))}
           </ul>
         </CollapsibleDetails>
-      </PageSection>
+      </div>
 
       <PageSection
         title={t('agents.form.sectionModel')}

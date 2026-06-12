@@ -53,9 +53,9 @@ import {
   buildMessageSegments,
   deriveActivity,
 } from '../utils/build-message-segments';
-import { hasThoughtSteps } from '../utils/build-thought-timeline';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
+import { hasThoughtSteps } from '../utils/thought-predicates';
 import { BlockedNotice } from './blocked-notice';
 import {
   FileAttachmentDisplay,
@@ -339,14 +339,14 @@ function MessageBubbleComponent({
 
   // Referentially-stable `parts`: the message list rebuilds `parts` with a fresh
   // array identity on EVERY streamed token (use-message-processing re-maps the
-  // whole list), so even when the timeline-relevant structure is unchanged the
-  // reference churns and re-renders `ThoughtTimeline` (which is not memoized) per
-  // token. Collapse that churn to the SAME granularity the bubble's own memo
-  // comparator uses (`sameParts`: length + per-part type/state/toolCallId/text-
-  // length): hold the previous reference whenever `sameParts` holds, so the
-  // timeline only re-renders on a genuine structural change. Identical render
-  // output — `sameParts` is exactly the bubble-level "did anything renderable
-  // change" predicate, applied one level deeper.
+  // whole list), so even when the renderable structure is unchanged the reference
+  // churns and would re-run `buildMessageSegments` + re-render the thought header
+  // and inline segments per token. Collapse that churn to the SAME granularity
+  // the bubble's own memo comparator uses (`sameParts`: length + per-part
+  // type/state/toolCallId/text-length): hold the previous reference whenever
+  // `sameParts` holds, so segments rebuild only on a genuine structural change.
+  // Identical render output — `sameParts` is exactly the bubble-level "did
+  // anything renderable change" predicate, applied one level deeper.
   const stablePartsRef = useRef(message.parts);
   if (!sameParts(stablePartsRef.current, message.parts)) {
     stablePartsRef.current = message.parts;
@@ -354,17 +354,17 @@ function MessageBubbleComponent({
   const stableParts = stablePartsRef.current;
 
   const displayContent = message.content ?? '';
-  // Thought-process timeline (assistant only): reasoning + tool activity from
+  // Thought-process presence (assistant only): reasoning + tool activity from
   // the message parts. Drives bubble padding so an empty-but-thinking bubble
-  // still has chrome. Hidden for guardrails-blocked messages. Use the cheap
-  // predicate here — ThoughtTimeline builds the full step list itself.
+  // still has chrome. Hidden for guardrails-blocked messages. Uses the cheap
+  // predicate — the header + inline segments build their own detail.
   //
   // No metadata-loading gate. For a message first observed as NON-streaming
-  // (history reload of an already-blocked message) ThoughtTimeline is COLLAPSED
-  // by default (active = isStreaming = false → expanded = userToggled), so it
-  // can only flash the one-line summary ("used N tools"), never the raw
-  // chain-of-thought text, and <BlockedNotice/> swaps the content out the
-  // instant `blockedReason` resolves. The streamed-then-output-blocked case is
+  // (history reload of an already-blocked message) the reasoning renders via the
+  // inline `InlineReasoning`, which is COLLAPSED by default, so the raw
+  // chain-of-thought is never auto-revealed in history — only the one-line header
+  // summary shows, and <BlockedNotice/> swaps the content out the instant
+  // `blockedReason` resolves. The streamed-then-output-blocked case is
   // a SEPARATE, pre-existing window: a live output-direction block streams
   // reasoning deltas (rendered expanded while active) before the tombstone +
   // blockedReason propagate, so reasoning IS briefly visible there — gating

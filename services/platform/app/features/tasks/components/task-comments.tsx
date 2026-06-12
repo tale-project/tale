@@ -19,6 +19,7 @@ import {
 import { useTaskComments } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { AssigneeAvatar } from './assignee-avatar';
+import { MentionTriggerChips } from './mention-trigger-chips';
 
 type CommentDoc = Doc<'taskComments'>;
 
@@ -278,6 +279,7 @@ export function TaskComments({
                     placeholder={t('actions.reply')}
                     autoFocus
                   />
+                  <MentionTriggerChips taskId={taskId} draft={replyDraft} />
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -319,6 +321,7 @@ export function TaskComments({
               onKeyDown={onModEnter(() => void submitNew())}
               placeholder={t('actions.comment')}
             />
+            <MentionTriggerChips taskId={taskId} draft={draft} />
             <div className="flex justify-end">
               <Button
                 size="sm"

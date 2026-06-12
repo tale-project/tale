@@ -79,6 +79,14 @@ function NavigationItem({ item }: { item: NavItem }) {
                   style={iconActiveStyle}
                 />
               )}
+              {item.badge !== undefined && item.badge > 0 && (
+                <span
+                  aria-label={`${item.badge}`}
+                  className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-medium tabular-nums"
+                >
+                  {item.badge > 99 ? '99+' : item.badge}
+                </span>
+              )}
             </div>
           </a>
         </Tooltip>
@@ -111,6 +119,14 @@ function NavigationItem({ item }: { item: NavItem }) {
                 )}
                 style={iconActiveStyle}
               />
+            )}
+            {item.badge !== undefined && item.badge > 0 && (
+              <span
+                aria-label={`${item.badge}`}
+                className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-medium tabular-nums"
+              >
+                {item.badge > 99 ? '99+' : item.badge}
+              </span>
             )}
           </div>
         </Link>

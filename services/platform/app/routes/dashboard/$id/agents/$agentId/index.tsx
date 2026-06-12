@@ -1,10 +1,10 @@
 import { PageSection } from '@tale/ui/page-section';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useMemo, useState, useEffect } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -260,7 +260,8 @@ function GeneralTab() {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <StickySectionHeader
+      <PageHeader
+        as="h2"
         title={t('agents.form.sectionGeneral')}
         description={t('agents.form.sectionGeneralDescription')}
       />

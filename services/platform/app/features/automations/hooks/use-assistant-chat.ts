@@ -62,6 +62,8 @@ function canSendMessage(content: string, threadId: string | null): boolean {
 }
 
 interface UseAssistantChatOptions {
+  /** Which assistant the panel chats with (default: the workflow editor). */
+  mode?: 'workflow' | 'organigram';
   workflowSlug?: string;
   workflowName?: string;
   organizationId: string;
@@ -70,6 +72,7 @@ interface UseAssistantChatOptions {
 }
 
 export function useAssistantChat({
+  mode = 'workflow',
   workflowSlug,
   workflowName,
   organizationId,
@@ -107,7 +110,8 @@ export function useAssistantChat({
     delay: 16,
   });
 
-  const workflowAgentSlug = 'workflow-assistant';
+  const assistantAgentSlug =
+    mode === 'organigram' ? 'organigram-assistant' : 'workflow-assistant';
 
   const { mutateAsync: chatWithAgent } = useUnifiedChatWithAgent();
   const { mutateAsync: createChatThread } = useCreateThread();
@@ -370,10 +374,19 @@ export function useAssistantChat({
     [uploadFiles],
   );
 
-  const handleSendMessage = async () => {
+  // The chat composer (`ChatInput`) clears the attachment strip itself and
+  // hands the snapshot over; calls without arguments fall back to reading
+  // the hook's own state (legacy path).
+  const handleSendMessage = async (
+    messageOverride?: string,
+    attachmentsOverride?: ReturnType<typeof clearAttachments>,
+  ) => {
     if (isSendingRef.current) return;
+    const rawMessage = messageOverride ?? inputValue;
+    const hasAttachments =
+      (attachmentsOverride?.length ?? attachments.length) > 0;
     if (
-      (!inputValue.trim() && attachments.length === 0) ||
+      (!rawMessage.trim() && !hasAttachments) ||
       isLoading ||
       !organizationId ||
       isIndexing ||
@@ -382,7 +395,7 @@ export function useAssistantChat({
     )
       return;
 
-    const messageContent = inputValue.trim();
+    const messageContent = rawMessage.trim();
 
     if (!canSendMessage(messageContent, threadId)) {
       return;
@@ -390,7 +403,7 @@ export function useAssistantChat({
 
     isSendingRef.current = true;
 
-    const clearedAttachments = clearAttachments();
+    const clearedAttachments = attachmentsOverride ?? clearAttachments();
     const attachmentsToSend =
       clearedAttachments.length > 0 ? clearedAttachments : undefined;
 
@@ -436,7 +449,7 @@ export function useAssistantChat({
       if (!currentThreadId) return;
 
       await chatWithAgent({
-        agentSlug: workflowAgentSlug,
+        agentSlug: assistantAgentSlug,
         threadId: currentThreadId,
         organizationId,
         message: messageContent || analyzeAttachmentsText,
@@ -481,6 +494,7 @@ export function useAssistantChat({
     uploadingFiles,
     uploadFiles,
     removeAttachment,
+    clearAttachments,
     isIndexing,
     indexingStatuses,
     isTranscribing: isTranscribing || isTranscriptionQueryLoading,

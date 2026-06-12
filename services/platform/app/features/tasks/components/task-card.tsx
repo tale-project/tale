@@ -16,8 +16,11 @@ import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
 import { useTaskBoardContext } from './task-board-context';
 import {
+  AgentWorkingIndicator,
   BlockedIndicator,
   CommentCountIndicator,
+  NeedsReviewIndicator,
+  OverdueIndicator,
   SubtaskProgress,
 } from './task-indicators';
 
@@ -42,7 +45,8 @@ export function TaskCard({
   const identifier = formatTaskIdentifier(projectKey, task.number);
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
-  const { isBlocked, getTask } = useTaskBoardContext();
+  const { isBlocked, getTask, isAgentWorking, needsReview } =
+    useTaskBoardContext();
   const blocked = isBlocked(task._id);
   const { done, total } = subtaskProgress(subtasks);
 
@@ -134,6 +138,9 @@ export function TaskCard({
             </Tooltip>
           )}
           <BlockedIndicator blocked={blocked} />
+          <AgentWorkingIndicator working={isAgentWorking(task._id)} />
+          <NeedsReviewIndicator needsReview={needsReview(task._id)} />
+          <OverdueIndicator dueDate={task.dueDate} status={task.status} />
           {total > 0 && <SubtaskProgress done={done} total={total} />}
           <CommentCountIndicator count={task.commentCount} />
         </div>

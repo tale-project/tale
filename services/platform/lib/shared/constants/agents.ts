@@ -30,6 +30,17 @@ export const DEFAULT_CHAT_AGENT_SLUG = 'chat-agent';
 export const AUTO_AGENT_SLUG = 'auto';
 
 /**
+ * Agent slugs that may never be created through the UI/API because they
+ * would shadow reserved surfaces:
+ *  - 'auto' is the composer's routing sentinel (`AUTO_AGENT_SLUG`);
+ *  - 'organigram' is a static route segment under /dashboard/$id/agents/
+ *    (TanStack ranks static segments above `$agentId`, so an agent literally
+ *    named "organigram" would become unreachable).
+ * Enforced server-side in `saveAgent` and client-side in the create dialog.
+ */
+export const RESERVED_AGENT_SLUGS = ['auto', 'organigram'] as const;
+
+/**
  * Slug of the system "Auto" router agent (`router.json`, `isRouter: true`).
  * `resolveAutoRoute` loads this agent's config to pick a fast classifier model
  * and feed it `buildRouterInstructions`. It is `uiConfigurable: false` (not

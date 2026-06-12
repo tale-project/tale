@@ -1,11 +1,11 @@
 import { Button } from '@tale/ui/button';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Tabs, type TabItem } from '@tale/ui/tabs';
 import { createFileRoute } from '@tanstack/react-router';
 import { Languages, Loader2, Plus } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { ReorderList } from '@/app/components/ui/forms/reorder-list';
@@ -267,7 +267,8 @@ function ConversationStartersTab() {
 
   return (
     <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <StickySectionHeader
+      <PageHeader
+        as="h2"
         title={t('agents.conversationStarters.title')}
         description={t('agents.conversationStarters.description')}
       />

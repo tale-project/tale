@@ -1,20 +1,24 @@
 'use client';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { ChatInput } from '@/app/features/chat/components/chat-input';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
+import { ChatLayoutProvider } from '@/app/features/chat/context/chat-layout-context';
 import { useT } from '@/lib/i18n/client';
 
 import { useAssistantChat } from '../hooks/use-assistant-chat';
-import { ChatInput } from './automation-assistant/chat-input';
 import { MessageList } from './automation-assistant/message-list';
 
 interface AutomationAssistantProps {
+  /** 'workflow' (default) edits automations; 'organigram' edits the chart. */
+  mode?: 'workflow' | 'organigram';
   workflowSlug?: string;
   workflowName?: string;
   organizationId: string;
 }
 
 function AutomationAssistantContent({
+  mode = 'workflow',
   workflowSlug,
   workflowName,
   organizationId,
@@ -32,6 +36,7 @@ function AutomationAssistantContent({
     uploadingFiles,
     uploadFiles,
     removeAttachment,
+    clearAttachments,
     isIndexing,
     indexingStatuses,
     isTranscribing,
@@ -40,11 +45,7 @@ function AutomationAssistantContent({
     setPreviewImage,
     containerRef,
     messagesEndRef,
-    fileInputRef,
-    handleFileInputChange,
-    handlePaste,
     handleSendMessage,
-    handleKeyDown,
     workflowUpdateApprovals,
     workflowCreationApprovals,
     workflowRunApprovals,
@@ -52,6 +53,7 @@ function AutomationAssistantContent({
     documentWriteApprovals,
     integrationApprovals,
   } = useAssistantChat({
+    mode,
     workflowSlug,
     workflowName,
     organizationId,
@@ -85,18 +87,19 @@ function AutomationAssistantContent({
       </div>
 
       <ChatInput
-        inputValue={inputValue}
-        onInputChange={setInputValue}
-        onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
-        onSend={handleSendMessage}
+        className="p-2"
+        value={inputValue}
+        onChange={setInputValue}
+        onSendMessage={(message, sentAttachments) =>
+          void handleSendMessage(message, sentAttachments)
+        }
         isLoading={isLoading}
+        organizationId={organizationId}
         attachments={attachments}
         uploadingFiles={uploadingFiles}
         uploadFiles={uploadFiles}
         removeAttachment={removeAttachment}
-        fileInputRef={fileInputRef}
-        onFileInputChange={handleFileInputChange}
+        clearAttachments={clearAttachments}
         isIndexing={isIndexing}
         indexingStatuses={indexingStatuses}
         isTranscribing={isTranscribing}
@@ -118,9 +121,17 @@ function AutomationAssistantContent({
 }
 
 export function AutomationAssistant(props: AutomationAssistantProps) {
+  // The assistant reuses the chat composer (`ChatInput`) and its sub-controls
+  // (agent/model selectors, capability pills, quoted-reference chip), all of
+  // which read `useChatLayout`. Provide the context here so the panel works
+  // standalone on the automations/organigram routes (it isn't under the chat
+  // page's provider). Keyed by org, same as chat — the panels live on
+  // separate routes, so they never mount simultaneously.
   return (
-    <FileUpload.Root>
-      <AutomationAssistantContent {...props} />
-    </FileUpload.Root>
+    <ChatLayoutProvider organizationId={props.organizationId}>
+      <FileUpload.Root>
+        <AutomationAssistantContent {...props} />
+      </FileUpload.Root>
+    </ChatLayoutProvider>
   );
 }

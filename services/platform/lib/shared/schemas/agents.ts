@@ -192,7 +192,6 @@ export const agentJsonSchema = z
     systemInstructions: z.string().optional(),
     toolNames: z.array(z.string()).optional(),
     integrationBindings: z.array(z.string()).optional(),
-    delegates: z.array(z.string()).optional(),
     workflows: z.array(z.string()).optional(),
     skillBindings: z
       .array(z.string().min(1).max(64).regex(SKILL_NAME_REGEX))
@@ -238,6 +237,82 @@ export const agentJsonSchema = z
     roleRestriction: z.literal('admin_developer').optional(),
     conversationStarters: z.array(z.string().max(200)).max(4).optional(),
     visibleInChat: z.boolean().optional(),
+    /**
+     * Organigram delegation edges: the slugs of the agents THIS agent
+     * delegates to (its direct reports). Many-to-many — an agent may be
+     * delegated to by several agents, and delegate to many; the only
+     * forbidden edge is a self-edge (cycles are allowed). Shape-only
+     * validation here — existence is enforced at write time and degrades
+     * gracefully at read time (dangling targets dropped + warning). The
+     * organigram canvas/assistant are the single write paths.
+     */
+    delegates: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .max(64)
+          .regex(/^[a-z0-9][a-z0-9_-]*$/),
+      )
+      .max(100)
+      .optional(),
+    /**
+     * Legacy single-manager reporting line (slug of this agent's manager).
+     * Superseded by `delegates` (the inverse edge); still read so
+     * pre-migration configs keep rendering, and migrated away on the next
+     * organigram write that touches this agent.
+     */
+    reportsTo: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9][a-z0-9_-]*$/)
+      .optional(),
+    /**
+     * Monthly spend guardrail (Paperclip-style). Month-to-date spend comes
+     * from the usageLedger per agentSlug; at `warnPct` the agent gets an
+     * economy instruction injected and admins are notified once; at
+     * `pausePct` new runs are refused and queued work is reassigned by the
+     * budget-reassign automation. Resets at the calendar-month rollover.
+     */
+    budget: z
+      .object({
+        monthlyCents: z.number().int().positive().max(100_000_000),
+        warnPct: z.number().int().min(1).max(100).optional(),
+        pausePct: z.number().int().min(1).max(200).optional(),
+      })
+      .refine((b) => (b.warnPct ?? 80) <= (b.pausePct ?? 100), {
+        message: 'warnPct must be ≤ pausePct',
+      })
+      .optional(),
+    /**
+     * Max concurrent task runs for this agent (internal + external). Omitted
+     * falls back to the org `agent_workforce` policy default; both absent =
+     * unlimited. Enforced at run admission (`startTaskAgentRun`) and at
+     * external-run claim time — never on interactive chat turns.
+     */
+    maxConcurrentTasks: z.number().int().min(1).max(50).optional(),
+    /**
+     * External runtime binding (tale-daemon): task runs for this agent are
+     * dispatched to a coding-agent CLI on a registered daemon instead of
+     * the internal LLM loop. `permissionMode` is a SERVER-SIDE CEILING —
+     * the effective mode is min(daemon-local, this); 'full_auto' therefore
+     * requires double opt-in. Chat/delegation always stay internal.
+     */
+    runtime: z
+      .object({
+        adapterType: z
+          .string()
+          .min(1)
+          .max(32)
+          .regex(/^[a-z0-9][a-z0-9_]*$/),
+        daemonId: z.string().min(1).max(128).optional(),
+        permissionMode: z
+          .enum(['safe', 'auto_edits', 'full_auto'])
+          .default('safe'),
+        workspaceKey: z.string().min(1).max(128).optional(),
+      })
+      .optional(),
     /**
      * Per-agent personalization toggle. 'off' suppresses user memory and
      * customInstructions injection AND strips the propose_memory tool.
@@ -321,7 +396,6 @@ export const agentJsonSchema = z
         'toolNames',
         'integrationBindings',
         'workflows',
-        'delegates',
       ];
       for (const key of disallowed) {
         const value = data[key];

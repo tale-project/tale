@@ -80,7 +80,7 @@ const AGENT_TAB_DIRTY_KEYS = {
     'includeTeamKnowledge',
     'knowledgeTopK',
   ],
-  delegation: ['delegates'],
+  delegation: [],
   responseTuning: ['responseTuning'],
   conversationStarters: ['conversationStarters'],
   webhook: [],

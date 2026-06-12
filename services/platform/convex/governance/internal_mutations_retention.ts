@@ -996,3 +996,20 @@ export const deleteExpiredLoginBlockCounter = internalMutation({
     return null;
   },
 });
+
+export const deleteExpiredTaskAgentRun = internalMutation({
+  args: {
+    rowId: v.id('taskAgentRuns'),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.rowId);
+    if (!row) return null;
+    // Cross-org guard + never-delete-running re-check (TOCTOU vs the list).
+    if (row.organizationId !== args.organizationId) return null;
+    if (row.status === 'running') return null;
+    await ctx.db.delete(args.rowId);
+    return null;
+  },
+});

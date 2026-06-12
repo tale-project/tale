@@ -17,13 +17,26 @@ export interface ScheduledWorkflow {
   variables?: ConvexJsonRecord;
 }
 
+/**
+ * Soft ceiling to surface runaway growth: iteration covers the whole table
+ * (the old `.take(200)` silently dropped schedules once ~30-50 orgs had the
+ * default pack installed); past this count we log so operators see the
+ * scan approaching Convex read limits before schedules misfire.
+ */
+const SCHEDULE_SCAN_WARN_THRESHOLD = 8000;
+
 export async function getScheduledWorkflows(
   ctx: QueryCtx,
 ): Promise<ScheduledWorkflow[]> {
   const results: ScheduledWorkflow[] = [];
 
-  const MAX_SCHEDULES = 200;
-  const allSchedules = await ctx.db.query('wfSchedules').take(MAX_SCHEDULES);
+  const allSchedules = await ctx.db.query('wfSchedules').collect();
+  if (allSchedules.length >= SCHEDULE_SCAN_WARN_THRESHOLD) {
+    console.warn(
+      `[Workflow] wfSchedules scan returned ${allSchedules.length} rows; ` +
+        'approaching query read limits — shard the scheduler scan.',
+    );
+  }
 
   const installationCache = new Map<string, boolean>();
   const isInstalled = async (

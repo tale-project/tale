@@ -20,12 +20,14 @@ import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
 import { requireOrganizationId, resolveActorId } from './helpers/context';
 
+// 'done' is deliberately absent: agents never complete work. Agent output
+// parks at 'in_review' and only a human review (via the review-gate workflow)
+// moves it to done — enforced server-side in `agentUpdateTaskStatus` too.
 const STATUS = z.enum([
   'backlog',
   'todo',
   'in_progress',
   'in_review',
-  'done',
   'cancelled',
 ]);
 const PRIORITY = z.enum(['p0', 'p1', 'p2', 'p3']);
@@ -77,11 +79,11 @@ export const taskWriteTool: ToolDefinition = {
 OPERATIONS:
 • 'create': Create a task in a project (optionally as a subtask via parentTaskId).
 • 'claim': Pick up a task — atomically assign it to yourself. Returns { claimed: false, reason: 'ALREADY_CLAIMED' } if another actor already took it; move on to another task in that case.
-• 'update_status': Move a task across the board (backlog→todo→in_progress→in_review→done, or cancelled). A parent task cannot be moved to done/cancelled while it has open subtasks (returns reason 'TASK_HAS_OPEN_SUBTASKS').
+• 'update_status': Move a task across the board (backlog→todo→in_progress→in_review, or cancelled). You can NOT set 'done' — finish your work at 'in_review'; a human review gate completes tasks. A parent task cannot be moved to a terminal status while it has open subtasks (returns reason 'TASK_HAS_OPEN_SUBTASKS').
 • 'assign': Set or clear the single assignee (a user or an agent). Omit both fields to unassign.
 • 'comment': Add a plain-text comment; @mention a teammate or agent by handle.
 
-Typical loop: task_read 'list' to find unassigned work → 'claim' it → 'update_status' to in_progress → do the work → 'comment' with results → 'update_status' to in_review/done.`,
+Typical loop: task_read 'list' to find unassigned work → 'claim' it → 'update_status' to in_progress → do the work → 'comment' with results → 'update_status' to in_review (a human completes it from there).`,
     inputSchema: taskWriteArgs,
     execute: async (ctx: ToolCtx, args) => {
       const organizationId = requireOrganizationId(ctx);

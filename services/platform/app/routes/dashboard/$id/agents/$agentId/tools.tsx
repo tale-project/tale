@@ -1,9 +1,9 @@
 import { PageSection } from '@tale/ui/page-section';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { ToolSelector } from '@/app/features/agents/components/tool-selector';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
@@ -58,7 +58,8 @@ function ToolsTab() {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <StickySectionHeader
+      <PageHeader
+        as="h2"
         title={t('agents.form.sectionTools')}
         description={t('agents.form.sectionToolsDescription')}
       />

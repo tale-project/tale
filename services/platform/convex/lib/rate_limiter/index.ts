@@ -404,6 +404,31 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 200,
   },
+  // External agent runtimes (tale-daemon). Per-IP buckets; a hot daemon
+  // polls claim at ~3s (20/min) and heartbeats at 15s while running.
+  'runtime:register': {
+    kind: 'fixed window',
+    rate: 5,
+    period: MINUTE,
+  },
+  'runtime:claim': {
+    kind: 'token bucket',
+    rate: 30,
+    period: MINUTE,
+    capacity: 40,
+  },
+  'runtime:heartbeat': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+  },
+  'runtime:events': {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 120,
+  },
   'agent:document-list': {
     kind: 'fixed window',
     rate: 30,

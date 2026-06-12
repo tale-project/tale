@@ -54,6 +54,7 @@ These hold across every workspace and language. They are not style preferences.
 - **Comments explain _why_, rarely _what_.** If a well-named identifier already tells the reader what, you are writing redundant prose.
 - **No empty catch blocks.** Log with `console.warn` / `console.error` or re-throw. Silent catches hide real bugs.
 - **No locale-aware date methods.** `toLocaleDateString`, `toLocaleTimeString`, `toLocaleString` are banned. Use `useFormatDate()` in React or `formatDate()` from `lib/utils/date/format`.
+- **No `\uXXXX` escapes in JSON.** Write visible non-ASCII characters literally as UTF-8 (`ät`, `é`, `—`, `«»`), never as `\uXXXX` escapes. This applies to hand-authored JSON such as the example agent configs in [`examples/`](examples/) — literal text keeps diffs reviewable. JSON's required string escapes stay (`\n`, `\t`, `\"`, `\\`).
 
 ## Security
 

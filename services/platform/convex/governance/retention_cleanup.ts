@@ -1329,6 +1329,45 @@ async function cleanupNotifications(
 }
 
 /**
+ * Workforce run records: hard-delete TERMINAL `taskAgentRuns` rows older
+ * than the configured window (running rows are never touched). Aggregated
+ * daily rollups are unaffected — they carry no per-run linkage.
+ */
+async function cleanupAgentRuns(
+  ctx: ActionCtx,
+  org: OrgPolicy,
+  batchSize: number,
+  holds: ActiveHolds,
+): Promise<number> {
+  if (!org.config.agentRunsEnabled) return 0;
+  const days = org.config.agentRunsRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return 0;
+
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping agent-runs cleanup`,
+    );
+    return 0;
+  }
+
+  const cutoffMs = Date.now() - days * DAY_MS;
+  const expired = await ctx.runQuery(
+    internal.governance.internal_queries.listExpiredTaskAgentRuns,
+    { organizationId: org.organizationId, cutoffMs, batchSize },
+  );
+  let processed = 0;
+  for (const row of expired) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention
+        .deleteExpiredTaskAgentRun,
+      { rowId: row._id, organizationId: org.organizationId },
+    );
+    processed += 1;
+  }
+  return processed;
+}
+
+/**
  * Phase 11 — login attempts re-frame.
  *
  * Was: cross-org retention computed as `Math.min(...enabledDays)` —
@@ -1662,6 +1701,10 @@ export const runOrgRetentionCleanup = internalAction({
         {
           name: 'notifications',
           run: () => cleanupNotifications(ctx, org, batchSize, holds),
+        },
+        {
+          name: 'agentRuns',
+          run: () => cleanupAgentRuns(ctx, org, batchSize, holds),
         },
       ];
 

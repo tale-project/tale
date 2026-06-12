@@ -22,16 +22,17 @@ import type { DelegateAgentMeta } from './create_delegation_tool';
 
 /**
  * The double-delegation guard: when an orchestrated leaf delegate runs, strip
- * its own `delegateSlugs` so it can't re-delegate (the router owns
+ * its delegation entirely so it can't re-delegate (the router owns
  * decomposition). Returns the config UNCHANGED when not stripping, and never
- * mutates the input (`buildDelegationTools` short-circuits on
- * `delegateSlugs?.length`, so `[]` reliably disables the delegation tool).
+ * mutates the input. Uses the explicit `delegationDisabled` flag — delegates
+ * are derived from the org chart at tool-build time, so only this flag
+ * reliably disables delegation.
  */
 export function applyDelegationStrip(
   config: SerializableAgentConfig,
   strip: boolean | undefined,
 ): SerializableAgentConfig {
-  return strip ? { ...config, delegateSlugs: [] } : config;
+  return strip ? { ...config, delegationDisabled: true } : config;
 }
 
 export interface RunDelegateStepArgs {
@@ -83,6 +84,31 @@ export async function runDelegateStep(
       isNew ? '(new)' : '(reused)',
     );
 
+    // Monetary guard: a budget-paused delegate runs nothing, anywhere. The
+    // parent agent gets a structured error so it can handle the sub-task
+    // itself or escalate. (Concurrency caps deliberately do NOT apply to
+    // synchronous, human-attended delegation — see guard_core.ts.)
+    const guardVerdict = await ctx.runQuery(
+      internal.agents.guardrails.budget_guard.checkAgentRunAllowed,
+      {
+        organizationId,
+        agentSlug: delegate.agentSlug,
+        context: 'delegation',
+        budget: delegate.agentConfig.budget,
+      },
+    );
+    if (!guardVerdict.allowed) {
+      return handleToolError(
+        label,
+        new Error(
+          `Delegate ${delegate.displayName} is unavailable: monthly budget exhausted. Handle this part yourself or escalate.`,
+        ),
+      );
+    }
+    const prompt = guardVerdict.warningInstruction
+      ? `${guardVerdict.warningInstruction}\n\n${args.prompt}`
+      : args.prompt;
+
     const agentConfig = applyDelegationStrip(
       delegate.agentConfig,
       args.stripDelegation,
@@ -109,7 +135,7 @@ export async function runDelegateStep(
         threadId: subThreadId,
         organizationId,
         userId,
-        promptMessage: args.prompt,
+        promptMessage: prompt,
         parentThreadId,
         deadlineMs: args.deadlineMs,
         maxSteps: agentConfig.maxSteps,
@@ -128,7 +154,7 @@ export async function runDelegateStep(
       result.model,
       result.provider,
       undefined,
-      args.prompt,
+      prompt,
       subStreamId !== undefined ? { subThreadId, subStreamId } : undefined,
     );
   } catch (error) {

@@ -251,9 +251,9 @@
       "passkeyFailed": "Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es erneut oder nutze dein Passwort.",
       "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
       "accountLockedGeneric": "Konto wegen wiederholter Fehlversuche vorübergehend gesperrt. Bitte später erneut versuchen oder einen Administrator kontaktieren.",
-      "accountLockedSeconds": "Konto vorübergehend gesperrt. In {seconds, plural, one {# Sekunde} other {# Sekunden}} erneut versuchen oder einen Administrator kontaktieren.",
-      "accountLockedMinutes": "Konto vorübergehend gesperrt. In {minutes, plural, one {# Minute} other {# Minuten}} erneut versuchen oder einen Administrator kontaktieren.",
-      "accountLockedHours": "Konto vorübergehend gesperrt. In {hours, plural, one {# Stunde} other {# Stunden}} erneut versuchen oder einen Administrator kontaktieren.",
+      "accountLockedSeconds": "Konto vorübergehend gesperrt. In {seconds, plural, one {# Sekunde} other {# Sekunden} erneut versuchen oder einen Administrator kontaktieren.",
+      "accountLockedMinutes": "Konto vorübergehend gesperrt. In {minutes, plural, one {# Minute} other {# Minuten} erneut versuchen oder einen Administrator kontaktieren.",
+      "accountLockedHours": "Konto vorübergehend gesperrt. In {hours, plural, one {# Stunde} other {# Stunden} erneut versuchen oder einen Administrator kontaktieren.",
       "forgotPassword": "Passwort vergessen?",
       "forgotPasswordToast": {
         "title": "Wende dich an deinen Administrator",
@@ -601,8 +601,6 @@
         "hasActiveTriggers": "Diese Automatisierung hat aktive Trigger — Änderungen werden sofort wirksam."
       },
       "toolbar": {
-        "focus": "Fokus",
-        "aiAssistant": "KI-Assistent",
         "testAutomation": "Automatisierung testen",
         "addStep": "Schritt hinzufügen"
       },
@@ -611,7 +609,7 @@
         "clear": "Laufergebnisse ausblenden",
         "nodeBadgeLabel": "Ausführungsstatus: {status}",
         "duration": "Dauer: {duration}",
-        "attempts": "{count, plural, one {# Versuch} other {# Versuche}}",
+        "attempts": "{count, plural, one {# Versuch} other {# Versuche}",
         "loopProgress": "Durchlauf {current} von {total}",
         "output": "Ausgabe",
         "error": "Fehler",
@@ -697,7 +695,6 @@
       "description": "Möchtest du \"{name}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
     },
     "assistant": {
-      "messagePlaceholder": "Nachricht eingeben...",
       "automationDetails": "Automatisierungsdetails",
       "previewImage": "Vorschau {filename}",
       "fallbackImage": "Bild",
@@ -779,9 +776,9 @@
     },
     "viewer": {
       "heading": "Was ist neu",
-      "subheading": "{count, plural, one {# Update} other {# Updates}} seit v{from}",
+      "subheading": "{count, plural, one {# Update} other {# Updates} seit v{from}",
       "subheadingNew": "Release Notes für v{to}",
-      "subheadingTruncated": "{count, plural, one {Das # neueste Update wird} other {Die # neuesten Updates werden}} angezeigt. Frühere Änderungen seit v{from} findest du auf GitHub.",
+      "subheadingTruncated": "{count, plural, one {Das # neueste Update wird} other {Die # neuesten Updates werden} angezeigt. Frühere Änderungen seit v{from} findest du auf GitHub.",
       "subheadingTooOld": "Release Notes für v{from} – v{to} werden hier nicht angezeigt — sie sind älter als die hier hinterlegten Releases.",
       "subheadingToUnpublished": "Release Notes für v{to} sind noch nicht veröffentlicht.",
       "tooOldExplain": "Hier zeigen wir nur die neuesten Releases. Öffne die vollständige Release-Historie auf GitHub, um diese Release Notes zu lesen.",
@@ -859,9 +856,9 @@
       "routingPhase": "Wählt Agent",
       "seconds": "{seconds} s",
       "durationLabel": "{seconds} s nachgedacht",
-      "toolsCount": "{count, plural, one {# Werkzeug} other {# Werkzeuge}}",
-      "skillsCount": "{count, plural, one {# Skill} other {# Skills}}",
-      "tokensCount": "{count, plural, one {# Token} other {# Tokens}}",
+      "toolsCount": "{count, plural, one {# Werkzeug} other {# Werkzeuge}",
+      "skillsCount": "{count, plural, one {# Skill} other {# Skills}",
+      "tokensCount": "{count, plural, one {# Token} other {# Tokens}",
       "summaryReasoningOnly": "Hat den Gedankengang gezeigt",
       "responding": "Antwortet"
     },
@@ -1000,7 +997,7 @@
     "uploadFailed": "Upload fehlgeschlagen",
     "failedToUpload": "{filename} konnte nicht hochgeladen werden",
     "tooManyFiles": "Zu viele Dateien",
-    "tooManyFilesDescription": "Du kannst bis zu {max} Dateien pro Nachricht anhängen. {rejected} {rejected, plural, one {Datei wurde} other {Dateien wurden}} nicht hinzugefügt.",
+    "tooManyFilesDescription": "Du kannst bis zu {max} Dateien pro Nachricht anhängen. {rejected} {rejected, plural, one {Datei wurde} other {Dateien wurden} nicht hinzugefügt.",
     "totalSizeExceeded": "Anhänge zu gross",
     "totalSizeExceededDescription": "Die Gesamtgrösse der Anhänge darf {maxSize} MB nicht überschreiten. Entferne einige Dateien und versuche es erneut.",
     "duplicateFile": "Doppelte Datei",
@@ -1208,7 +1205,7 @@
       "visitPage": "Seite besuchen",
       "showAllSources": "Alle {count} Quellen anzeigen",
       "hideSources": "Quellen ausblenden",
-      "chunkCount": "{count, plural, one {# Abschnitt} other {# Abschnitte}}"
+      "chunkCount": "{count, plural, one {# Abschnitt} other {# Abschnitte}"
     },
     "feedback": {
       "thumbsUp": "Hilfreich",
@@ -1318,7 +1315,7 @@
       "runProgress": {
         "queued": "In Warteschlange",
         "preparing": "Sandbox wird vorbereitet",
-        "installingPackage": "{package}{version, select, undefined {} other { {version}}} wird installiert",
+        "installingPackage": "{package}{version, select, undefined {} other { {version}} wird installiert",
         "installing": "Abhängigkeiten installieren",
         "running": "Läuft"
       },
@@ -1382,7 +1379,7 @@
       }
     },
     "units": {
-      "stock": "{count, plural, one {# Einheit} other {# Einheiten}}"
+      "stock": "{count, plural, one {# Einheit} other {# Einheiten}"
     },
     "actions": {
       "save": "Speichern",
@@ -1434,10 +1431,10 @@
       "typeToConfirmLabel": "Tippe \"{phrase}\" zum Bestätigen"
     },
     "bulkActions": {
-      "itemsSelected": "{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}}",
-      "confirmDeleteTitle": "{count, plural, one {# Element} other {# Elemente}} löschen",
-      "confirmDeleteDescription": "Möchtest du {count, plural, one {dieses Element} other {diese {count} Elemente}} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-      "deleteSuccess": "{count, plural, one {# Element} other {# Elemente}} gelöscht",
+      "itemsSelected": "{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}",
+      "confirmDeleteTitle": "{count, plural, one {# Element} other {# Elemente} löschen",
+      "confirmDeleteDescription": "Möchtest du {count, plural, one {dieses Element} other {diese {count} Elemente} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "deleteSuccess": "{count, plural, one {# Element} other {# Elemente} gelöscht",
       "deleteFailed": "Einige Elemente konnten nicht gelöscht werden",
       "deleting": "Lösche..."
     },
@@ -1451,7 +1448,7 @@
       "pickFolder": "Ordner wählen",
       "pickZip": "ZIP wählen",
       "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend",
-      "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}}",
+      "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}",
       "conflictHint": "Bestehende Einträge werden überschrieben. Die vorherige Version wird in der Historie gesichert. Häkchen entfernen, um sie stattdessen zu überspringen.",
       "overwriteToggle": "Bestehende Einträge überschreiben",
       "statusExists": "Existiert bereits — wird übersprungen",
@@ -1503,7 +1500,7 @@
       "invalidJson": "Ungültiges JSON-Format",
       "uploadFile": "Bitte lade eine Datei hoch",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
-      "schemaValidationFailed": "Schema-Validierung fehlgeschlagen{error, select, empty {} other {: {error}}}",
+      "schemaValidationFailed": "Schema-Validierung fehlgeschlagen{error, select, empty {} other {: {error}}",
       "url": "Bitte gib eine gültige URL ein"
     },
     "aria": {
@@ -1595,6 +1592,12 @@
     },
     "dataTable": {
       "dateFilterUnavailable": "Datumsfilter nicht verfügbar"
+    },
+    "flow": {
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "resetView": "Ansicht zurücksetzen",
+      "aiEditor": "KI-Editor"
     }
   },
   "composer": {
@@ -1648,7 +1651,7 @@
     },
     "bulkSend": {
       "title": "{count} Nachrichten senden",
-      "description": "Du sendest Antworten für {count, plural, one {# Konversation} other {# Konversationen}}. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "description": "Du sendest Antworten für {count, plural, one {# Konversation} other {# Konversationen}. Diese Aktion kann nicht rückgängig gemacht werden.",
       "send": "Senden"
     },
     "updating": "Konversationen werden aktualisiert...",
@@ -1657,26 +1660,26 @@
       "close": "Schließen",
       "reopen": "Erneut öffnen",
       "messagesSent": "Nachrichten gesendet",
-      "messagesSentDescription": "{successCount} Nachrichten gesendet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "messagesSentDescription": "{successCount} Nachrichten gesendet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
       "sendFailed": "Nachrichten konnten nicht gesendet werden",
       "resolved": "Konversationen abgeschlossen",
-      "resolvedDescription": "{successCount} Konversationen abgeschlossen{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "resolvedDescription": "{successCount} Konversationen abgeschlossen{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
       "resolveFailed": "Konversationen konnten nicht abgeschlossen werden",
       "reopened": "Konversationen erneut geöffnet",
-      "reopenedDescription": "{successCount} Konversationen erneut geöffnet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "reopenedDescription": "{successCount} Konversationen erneut geöffnet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
       "reopenFailed": "Konversationen konnten nicht erneut geöffnet werden",
-      "selectedCount": "{count, plural, one {# ausgewählt} other {# ausgewählt}}",
+      "selectedCount": "{count, plural, one {# ausgewählt} other {# ausgewählt}",
       "archive": "Archivieren",
       "unarchive": "Dearchivieren",
       "archived": "Konversationen archiviert",
-      "archivedDescription": "{successCount} Konversationen archiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "archivedDescription": "{successCount} Konversationen archiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
       "archiveFailed": "Konversationen konnten nicht archiviert werden",
       "unarchived": "Konversationen dearchiviert",
-      "unarchivedDescription": "{successCount} Konversationen dearchiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "unarchivedDescription": "{successCount} Konversationen dearchiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
       "unarchiveFailed": "Konversationen konnten nicht dearchiviert werden",
       "markSpam": "Als Spam markieren",
       "markedAsSpam": "Konversationen als Spam markiert",
-      "markedAsSpamDescription": "{successCount} Konversationen als Spam markiert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "markedAsSpamDescription": "{successCount} Konversationen als Spam markiert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
       "spamFailed": "Konversationen konnten nicht als Spam markiert werden"
     },
     "header": {
@@ -1710,7 +1713,7 @@
     "attachment": {
       "download": "Herunterladen",
       "downloading": "Lade herunter...",
-      "attachments": "{count, plural, one {# Anhang} other {# Anhänge}}"
+      "attachments": "{count, plural, one {# Anhang} other {# Anhänge}"
     },
     "panel": {
       "uploadFailed": "Anhänge konnten nicht hochgeladen werden. Bitte versuche es erneut.",
@@ -1736,7 +1739,7 @@
       "deleting": "Lösche...",
       "deleteSuccess": "Konversation gelöscht.",
       "deleteFailed": "Konversation konnte nicht gelöscht werden.",
-      "showEarlierMessages": "{count} frühere {count, plural, one {Nachricht} other {Nachrichten}} anzeigen"
+      "showEarlierMessages": "{count} frühere {count, plural, one {Nachricht} other {Nachrichten} anzeigen"
     },
     "list": {
       "empty": "Keine Konversationen in diesem Tab"
@@ -1813,7 +1816,7 @@
       "provideData": "Bitte gib Daten ein",
       "noValidData": "Keine gültigen Kundendaten gefunden",
       "success": "Import",
-      "successDescription": "{success} Kunden importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
+      "successDescription": "{success} Kunden importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}",
       "noneImported": "Es wurden keine Kunden importiert",
       "error": "Importfehler",
       "addCustomers": "Kunden hinzufügen",
@@ -1854,7 +1857,6 @@
     "thisMember": "dieses Mitglied",
     "confirmRemoveMember": "Bist du sicher, dass du {name} aus dem Team entfernen möchtest? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.",
     "toSend": "zum Senden",
-    "attach": "Anhängen",
     "selectConversation": "Konversation auswählen",
     "vendorInfo": {
       "title": "Lieferanteninformationen"
@@ -2031,7 +2033,7 @@
       "dropZoneDescription": "PDF, DOCX, XLSX, CSV bis zu {maxSize} MB",
       "retryUpload": "Upload erneut versuchen",
       "retry": "Erneut versuchen",
-      "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente}} hochgeladen — Indexierung läuft im Hintergrund",
+      "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente} hochgeladen — Indexierung läuft im Hintergrund",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
       "unsupportedFileTypeDescription": "{name} ist kein unterstütztes Format. Unterstützte Formate: PDF, DOCX, XLSX, CSV, TXT, PPTX, Bilder.",
       "extensionBlocked": "{name}:.{ext}-Dateien sind durch die Upload-Richtlinie blockiert.",
@@ -2056,7 +2058,7 @@
     },
     "onedrive": {
       "importSettings": "Importeinstellungen",
-      "settingsDescription": "Wähle, wie deine {count} ausgewählten {count, plural, one {Element} other {Elemente}} importiert werden sollen.",
+      "settingsDescription": "Wähle, wie deine {count} ausgewählten {count, plural, one {Element} other {Elemente} importiert werden sollen.",
       "microsoftNotConnected": "Microsoft-Konto nicht verbunden",
       "microsoftNotConnectedDescription": "Um auf deine Microsoft 365-Dateien zuzugreifen, musst du dein Microsoft-Konto verknüpfen.",
       "folderEmpty": "Dieser Ordner ist leer.",
@@ -2078,8 +2080,8 @@
       "filesSyncedCount": "{count} von {total} Dateien synchronisiert",
       "importFailed": "Import fehlgeschlagen",
       "syncFailed": "Synchronisierung fehlgeschlagen",
-      "importItems": "{count} {count, plural, one {Element} other {Elemente}} importieren",
-      "syncItems": "{count} {count, plural, one {Element} other {Elemente}} synchronisieren"
+      "importItems": "{count} {count, plural, one {Element} other {Elemente} importieren",
+      "syncItems": "{count} {count, plural, one {Element} other {Elemente} synchronisieren"
     },
     "rag": {
       "status": {
@@ -3193,7 +3195,7 @@
       },
       "status": {
         "pending": "Offen",
-        "pendingCoolingOff": "Offen · noch {hours, plural, one {# Std.} other {# Std.}} bis zur Ausführung",
+        "pendingCoolingOff": "Offen · noch {hours, plural, one {# Std.} other {# Std.} bis zur Ausführung",
         "pendingAwaitingApproval": "Wartet auf Freigabe",
         "running": "Läuft",
         "done": "Abgeschlossen",
@@ -3273,8 +3275,8 @@
           "attribution": "Abgebrochen von {name}"
         },
         "fullBreakdownTitle": "Vollständige Aufschlüsselung über alle Datenkategorien",
-        "fullBreakdownEntry": "{rows, plural, =0 {0 gelöscht} one {# gelöscht} other {# gelöscht}}{skippedByHold, plural, =0 {} other { · # durch Legal Hold übersprungen}}",
-        "fullBreakdownNoData": "Keine Daten in {count, plural, one {# weiteren Kategorie} other {# weiteren Kategorien}}."
+        "fullBreakdownEntry": "{rows, plural, =0 {0 gelöscht} one {# gelöscht} other {# gelöscht}{skippedByHold, plural, =0 {} other { · # durch Legal Hold übersprungen}",
+        "fullBreakdownNoData": "Keine Daten in {count, plural, one {# weiteren Kategorie} other {# weiteren Kategorien}."
       },
       "auditActions": {
         "gdpr_erasure_requested": "Eingereicht",
@@ -3307,8 +3309,8 @@
         "orgHeld": "Ein organisationsweiter Legal Hold bewahrt jede Entität in diesem Tenant. Hebe ihn auf, bevor du es erneut versuchst.",
         "userCustodianHeld": "Die Person steht unter einem Custodian-Legal-Hold. Hebe ihn auf, bevor du es erneut versuchst.",
         "generic": "Ein aktiver Legal Hold bewahrt die Daten der Person.",
-        "threadsCount": "{count, plural, one {# bewahrte Konversation} other {# bewahrte Konversationen}}.",
-        "documentsCount": "{count, plural, one {# bewahrtes Dokument} other {# bewahrte Dokumente}}.",
+        "threadsCount": "{count, plural, one {# bewahrte Konversation} other {# bewahrte Konversationen}.",
+        "documentsCount": "{count, plural, one {# bewahrtes Dokument} other {# bewahrte Dokumente}.",
         "openLegalHold": "Legal-Hold-Einstellungen öffnen",
         "openLegalHoldAria": "Legal-Hold-Einstellungen öffnen"
       },
@@ -3354,7 +3356,7 @@
         "filedTitle": "Löschungsanfrage eingereicht",
         "filedDescription": "Die Kaskade läuft. Öffne den Beleg, um den Fortschritt zu verfolgen.",
         "extendedTitle": "Frist verlängert",
-        "extendedDescription": "{days, plural, =1 {# Tag} other {# Tage}} zum Antwortfenster hinzugefügt.",
+        "extendedDescription": "{days, plural, =1 {# Tag} other {# Tage} zum Antwortfenster hinzugefügt.",
         "retryTitle": "Erneuter Löschversuch gestartet",
         "retryDescription": "Die Kaskade wurde neu eingeplant.",
         "cancelledTitle": "Löschungsanfrage abgebrochen",
@@ -3507,7 +3509,7 @@
       "indexingStatus": "Indexierungsstatus",
       "updated": "Aktualisiert",
       "history": "Versionsverlauf",
-      "versionCount": "{count, plural, one {# frühere Version} other {# frühere Versionen}}",
+      "versionCount": "{count, plural, one {# frühere Version} other {# frühere Versionen}",
       "superseded": "Ersetzt",
       "supersededOn": "Ersetzt am {date}"
     }
@@ -3821,7 +3823,8 @@
     "aria": {
       "primaryNavigation": "Hauptnavigation"
     },
-    "dataResidency": "Datenresidenz"
+    "dataResidency": "Datenresidenz",
+    "runtimes": "Runtimes"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -4099,7 +4102,7 @@
       "uploadProducts": "Produkte hochladen",
       "uploadFile": "Bitte lade eine Datei hoch",
       "success": "Import",
-      "successDescription": "{success} Produkte importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
+      "successDescription": "{success} Produkte importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}",
       "error": "Produkte konnten nicht importiert werden",
       "clickToUpload": "Klicken zum Hochladen",
       "supportedFormats": ".xlsx,.xls oder.csv",
@@ -4463,7 +4466,7 @@
       "teamDeleted": "Team gelöscht",
       "teamDeleteFailed": "Team konnte nicht gelöscht werden",
       "teamCreated": "Team erstellt",
-      "teamCreatedDescription": "Team {name} wurde mit {count} {count, plural, one {Mitglied} other {Mitgliedern}} erstellt.",
+      "teamCreatedDescription": "Team {name} wurde mit {count} {count, plural, one {Mitglied} other {Mitgliedern} erstellt.",
       "teamCreateFailed": "Team konnte nicht erstellt werden",
       "teamUpdated": "Team aktualisiert",
       "teamUpdateFailed": "Team konnte nicht aktualisiert werden",
@@ -4472,7 +4475,7 @@
       "noMembersToAdd": "Alle Organisationsmitglieder sind bereits in diesem Team",
       "noTeamMembers": "Noch keine Mitglieder in diesem Team",
       "sectionDescription": "Teams verwalten und Mitglieder in Gruppen organisieren.",
-      "memberCount": "{count} {count, plural, one {Mitglied} other {Mitglieder}}",
+      "memberCount": "{count} {count, plural, one {Mitglied} other {Mitglieder}",
       "teamName": "Teamname",
       "teamNamePlaceholder": "Teamname eingeben...",
       "saveChanges": "Änderungen speichern",
@@ -4523,7 +4526,8 @@
         "delegation": "Delegation",
         "responseTuning": "Antwort-Feinabstimmung",
         "conversationStarters": "Gesprächseinstiege",
-        "history": "Verlauf"
+        "history": "Verlauf",
+        "metrics": "Leistung"
       },
       "history": {
         "empty": "Keine Verlaufseinträge",
@@ -4641,12 +4645,11 @@
         },
         "structuredResponsesInjectedPrompt": "Die folgenden Anweisungen werden automatisch an den System-Prompt angehängt:",
         "browsePrompts": "Prompts durchsuchen",
-        "systemInstructionsCharCount": "{count, plural, one {# Zeichen} other {# Zeichen}}"
+        "systemInstructionsCharCount": "{count, plural, one {# Zeichen} other {# Zeichen}"
       },
       "delegation": {
         "title": "Delegation",
-        "description": "Agents auswählen, an die dieser Agent Aufgaben delegieren kann",
-        "noDelegatesAvailable": "Keine anderen Agents für Delegation verfügbar."
+        "description": "Die Delegation folgt dem Org-Chart. Lege im Seitenpanel fest, an wen dieser Agent berichtet und an wen er delegiert — Delegation ist many-to-many, nur nicht an sich selbst."
       },
       "knowledge": {
         "retrievalMode": "Abrufmodus",
@@ -4771,6 +4774,12 @@
         "exampleFileUploadStream": "Datei-Upload mit Streaming (SSE-Antwort)",
         "exampleOpenAICompat": "OpenAI-kompatibler Endpunkt (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI-Client-Konfiguration (z. B. Meetily)"
+      },
+      "organigram": {
+        "menuItem": "Organigramm"
+      },
+      "workforce": {
+        "menuItem": "Workforce"
       }
     },
     "skills": {
@@ -4851,13 +4860,13 @@
         "singleFileOnly": "Lege eine einzelne .zip-Datei ab, nicht mehrere Dateien.",
         "unexpectedError": "Ein unerwarteter Fehler ist aufgetreten",
         "bundleFiles": "Bundle-Dateien",
-        "fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
+        "fileCount": "{count, plural, one {# Datei} other {# Dateien}",
         "frontmatter": "Frontmatter",
         "license": "Lizenz",
         "recommendedPython": "Empfohlenes Python",
         "recommendedNode": "Empfohlenes Node",
         "disableModelInvocation": "Skill ist vor dem Modell verborgen — nur explizite Aufrufe.",
-        "unknownKeys": "{count, plural, one {# zusätzlicher Frontmatter-Eintrag bewahrt} other {# zusätzliche Frontmatter-Einträge bewahrt}}",
+        "unknownKeys": "{count, plural, one {# zusätzlicher Frontmatter-Eintrag bewahrt} other {# zusätzliche Frontmatter-Einträge bewahrt}",
         "submit": "Bundle hochladen",
         "submitting": "Lade hoch…",
         "uploadSuccess": "Skill-Bundle hochgeladen",
@@ -5288,7 +5297,7 @@
       "apiKeyEnter": "API-Schlüssel eingeben",
       "searchProvider": "Anbieter suchen...",
       "created": "Anbieter erstellt",
-      "modelCount": "{count, plural, one {# Modell} other {# Modelle}}",
+      "modelCount": "{count, plural, one {# Modell} other {# Modelle}",
       "removeModel": "Modell entfernen",
       "apiKeyPlaceholder": "API-Schlüssel eingeben",
       "providerNotFound": "Anbieter nicht gefunden: {name}",
@@ -5417,7 +5426,7 @@
         "tableCaption": "Anmeldeblockaden",
         "empty": "Keine abgelehnten Anmeldeversuche in den letzten 7 Tagen.",
         "emptyTitle": "Keine Anmeldeblockaden",
-        "footerCount": "{count, plural, one {# Ergebnis} other {# Ergebnisse}} angezeigt",
+        "footerCount": "{count, plural, one {# Ergebnis} other {# Ergebnisse} angezeigt",
         "columns": {
           "timestamp": "Zeitstempel",
           "user": "Benutzer",
@@ -5870,11 +5879,6 @@
     }
   },
   "inbox": {
-    "title": "Posteingang",
-    "subtitle": "Zuweisungen, Statusänderungen, Kommentare und Erwähnungen zu deinen Aufgaben.",
-    "empty": "Alles erledigt.",
-    "markAllRead": "Alle als gelesen markieren",
-    "unreadOnly": "Nur ungelesen",
     "taskAssigned": "Aufgabe dir zugewiesen",
     "taskAssignedBody": "Dir wurde \"{title}\" zugewiesen.",
     "taskStatusChanged": "Aufgabenstatus geändert",
@@ -5886,7 +5890,29 @@
     "taskAssignedByBody": "{actor} hat dir \"{title}\" zugewiesen.",
     "taskStatusChangedByBody": "{actor} hat \"{title}\" von {from} nach {to} verschoben.",
     "taskCommentedByBody": "{actor} hat \"{title}\" kommentiert.",
-    "mentionByBody": "{actor} hat dich in \"{title}\" erwähnt."
+    "mentionByBody": "{actor} hat dich in \"{title}\" erwähnt.",
+    "taskReviewRequested": "Review angefragt",
+    "taskReviewRequestedBody": "{agentSlug} hat \"{taskTitle}\" abgeschlossen — freigeben oder Änderungen anfordern.",
+    "taskReviewApproved": "Review freigegeben",
+    "taskReviewApprovedBody": "\"{taskTitle}\" wurde freigegeben und abgeschlossen.",
+    "taskReviewChangesRequested": "Änderungen angefordert",
+    "taskReviewChangesRequestedBody": "Für \"{taskTitle}\" wurden Änderungen angefordert.",
+    "taskUnblocked": "Aufgabe nicht mehr blockiert",
+    "taskUnblockedBody": "Alle Blocker von \"{title}\" sind erledigt — sie kann starten.",
+    "taskDueSoon": "Bald fällig",
+    "taskDueSoonBody": "\"{title}\" ist innerhalb von 24 Stunden fällig.",
+    "taskSlaEscalated": "Überfällige Aufgabe eskaliert",
+    "taskSlaEscalatedBody": "\"{title}\" ist deutlich überfällig und braucht Aufmerksamkeit.",
+    "taskReviewReminder": "Review-Erinnerung",
+    "taskReviewReminderBody": "Agenten-Arbeit an \"{title}\" wartet weiterhin auf dein Review.",
+    "taskReviewEscalated": "Review überfällig",
+    "taskReviewEscalatedBody": "Ein Review zu \"{title}\" wartet seit über einem Tag.",
+    "humanInputEscalated": "Automatisierung wartet auf Eingabe",
+    "humanInputEscalatedBody": "Ein Workflow wartet seit {ageHours} Stunden auf menschliche Eingabe.",
+    "workforceDigest": "Tägliche Workforce-Übersicht",
+    "workforceDigestBody": "{created} erstellt · {completed} abgeschlossen · {runs} Agenten-Läufe ({failed} fehlgeschlagen) · {pendingReviews} warten auf Review · {queued} in Warteschlange · {breakers} pausiert.",
+    "agentEscalation": "Agenten-Eskalation",
+    "agentEscalationBody": "{agent} hat eskaliert: {reason}"
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -5938,7 +5964,9 @@
       "labels": "Labels",
       "status": "Status",
       "unassigned": "Nicht zugewiesen",
-      "id": "ID"
+      "id": "ID",
+      "author": "Autor",
+      "created": "Erstellt"
     },
     "actions": {
       "create": "Aufgabe erstellen",
@@ -6006,6 +6034,80 @@
       "commentAdded": "Kommentar hinzugefügt",
       "dependencyAdded": "Abhängigkeit hinzugefügt",
       "dependencyRemoved": "Abhängigkeit entfernt"
+    },
+    "review": {
+      "needsReview": "Review ausstehend",
+      "defaultQuestion": "{agent} hat die Arbeit an dieser Aufgabe abgeschlossen — prüfe das Ergebnis.",
+      "anAgent": "ein Agent",
+      "approve": "Freigeben",
+      "requestChanges": "Änderungen anfordern",
+      "sendFeedback": "Feedback senden",
+      "feedbackPlaceholder": "Was soll sich ändern? Der Agent erhält dies wortwörtlich.",
+      "approvedToast": "Aufgabe freigegeben und abgeschlossen",
+      "changesRequestedToast": "Änderungen angefordert — der Agent arbeitet daran"
+    },
+    "agentRuns": {
+      "title": "Agentenaktivität",
+      "working": "Agent arbeitet…",
+      "totalCost": "{amount} gesamt",
+      "status": {
+        "running": "Läuft",
+        "completed": "Abgeschlossen",
+        "failed": "Fehlgeschlagen",
+        "timed_out": "Zeitüberschreitung"
+      },
+      "trigger": {
+        "assignment": "Zuweisung",
+        "mention": "Erwähnung",
+        "revision": "Überarbeitung",
+        "sla_escalation": "Eskalation",
+        "unblock": "entblockt",
+        "decomposition": "Aufteilung",
+        "manual": "manuell"
+      }
+    },
+    "dueDate": {
+      "label": "Fälligkeitsdatum",
+      "overdue": "Überfällig"
+    },
+    "mentionPreview": {
+      "willRespond": "{slug} wird antworten",
+      "willQueue": "{slug} wird antworten (wartet — Parallelitätslimit erreicht)",
+      "packDisabled": "{slug} antwortet nicht — Aufgaben-Automatisierung ist aus",
+      "breakerPaused": "{slug} antwortet nicht — Agenten-Läufe sind auf dieser Aufgabe pausiert",
+      "budgetPaused": "{slug} antwortet nicht — Monatsbudget aufgebraucht"
+    },
+    "metrics": {
+      "link": "Metriken anzeigen",
+      "title": "Aufgaben-Metriken",
+      "description": "Liefer-, Eingriffs- und Kostenkennzahlen für die Aufgaben dieses Projekts.",
+      "period": {
+        "last7Days": "Letzte 7 Tage",
+        "last30Days": "Letzte 30 Tage",
+        "last90Days": "Letzte 90 Tage"
+      },
+      "cappedNotice": "Einige Tage haben das Scan-Limit des Rollups erreicht — die Summen in diesem Zeitraum können zu niedrig ausfallen.",
+      "noData": "Keine Daten",
+      "noDataDescription": "Metriken erscheinen nach dem ersten täglichen Rollup.",
+      "completed": "Abgeschlossen ({days} T.)",
+      "completedDetail": "{agent} durch Agenten · {human} durch Menschen",
+      "cycleTime": "Ø Durchlaufzeit",
+      "created": "{count} erstellt",
+      "intervention": "Eingriffsquote",
+      "interventionDetail": "{changes} Änderungswünsche · {escalations} Eskalationen",
+      "cost": "Ausgaben ({days} T.)",
+      "costDetail": "{runs} Läufe · {failed} fehlgeschlagen",
+      "cumulativeFlow": "Kumulativer Fluss (Tagesende)",
+      "throughput": "Durchsatz",
+      "createdLabel": "Erstellt",
+      "completedLabel": "Abgeschlossen",
+      "cycleTimeTrend": "Durchlaufzeit-Trend",
+      "cycleHoursLabel": "Ø Durchlaufzeit (h)",
+      "agentVsHuman": "Abschlüsse: Agenten vs. Menschen",
+      "agentLabel": "Agenten",
+      "humanLabel": "Menschen",
+      "costTrend": "Tägliche Ausgaben",
+      "costLabel": "Ausgaben"
     }
   },
   "tables": {
@@ -6243,7 +6345,7 @@
       "selectDataSource": "Bitte wähle eine Datenquelle",
       "provideData": "Bitte gib Lieferantendaten ein",
       "success": "Import",
-      "successDescription": "{success} Lieferanten importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
+      "successDescription": "{success} Lieferanten importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}",
       "error": "Lieferanten konnten nicht importiert werden",
       "errorCodes": {
         "duplicate_email": "Ein Lieferant mit dieser E-Mail existiert bereits",
@@ -6451,10 +6553,10 @@
     },
     "overview": {
       "statsHeading": "Statistiken",
-      "statsFiles": "{count, plural, one {# Datei} other {# Dateien}}",
-      "statsChats": "{count, plural, one {# Chat} other {# Chats}}",
-      "statsShared": "{count, plural, one {# geteilt} other {# geteilt}}",
-      "statsIndexed": "{count, plural, one {# RAG-indexiert} other {# RAG-indexiert}}",
+      "statsFiles": "{count, plural, one {# Datei} other {# Dateien}",
+      "statsChats": "{count, plural, one {# Chat} other {# Chats}",
+      "statsShared": "{count, plural, one {# geteilt} other {# geteilt}",
+      "statsIndexed": "{count, plural, one {# RAG-indexiert} other {# RAG-indexiert}",
       "newChatCta": "Neuer Chat in diesem Projekt",
       "identityDescription": "Name und Beschreibung des Projekts erscheinen in der Projektliste und in der Chat-Seitenleiste.",
       "sharingHeading": "Freigabe",
@@ -6707,6 +6809,115 @@
       "body": "Jedes Gerät, das mit diesem Passwort eingehängt ist, wird getrennt und aktive Lock-Tokens werden freigegeben.",
       "confirm": "Widerrufen",
       "cancel": "Abbrechen"
+    }
+  },
+  "organigram": {
+    "title": "Organigramm",
+    "subtitle": "Wie deine KI-Belegschaft Arbeit delegiert — Delegation, Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe folgen alle diesen Kanten.",
+    "backToAgents": "Agenten",
+    "node": {
+      "warning": "Eine Delegationskante wurde verworfen (sie verwies auf einen fehlenden Agenten)."
+    },
+    "panel": {
+      "close": "Schließen",
+      "reportsTo": "Berichtet an",
+      "delegatesTo": "Delegiert an",
+      "noAgents": "Keine weiteren Agenten verfügbar.",
+      "delegationHint": "Delegation ist many-to-many — ein Agent kann an beliebig viele Agenten berichten und delegieren. Einzige Regel: nicht an sich selbst.",
+      "openAgent": "Agenten-Einstellungen öffnen"
+    },
+    "errors": {
+      "self": "Ein Agent kann nicht an sich selbst berichten oder delegieren.",
+      "forbidden": "Deine Rolle kann das Organigramm nicht bearbeiten.",
+      "generic": "Organigramm konnte nicht aktualisiert werden."
+    },
+    "empty": {
+      "noAgents": "Noch keine Agenten — erstelle zuerst Agenten und ordne sie dann hier an."
+    },
+    "humans": {
+      "title": "Menschen",
+      "subtitle": "Agenten der obersten Ebene: {count}"
+    }
+  },
+  "workforce": {
+    "title": "Workforce",
+    "subtitle": "Wie deine KI-Workforce arbeitet: Ergebnisse, menschliche Eingriffe und Kosten — immer zusammen.",
+    "backToAgents": "Agenten",
+    "toggle": {
+      "title": "Aufgaben-Automatisierung",
+      "onHint": "Das Task-Ops-Paket ist aktiv: Zuweisungen starten Agenten, Reviews schützen den Abschluss.",
+      "offHint": "Pausiert — Agenten übernehmen keine automatisierte Aufgabenarbeit, bis sie wieder aktiviert ist.",
+      "error": "Aufgaben-Automatisierung konnte nicht geändert werden."
+    },
+    "health": {
+      "runs24h": "{count} Läufe (24h)",
+      "failures24h": "{count} fehlgeschlagen/Zeitüberschreitung",
+      "packFailures24h": "{count} Automatisierungs-Fehler",
+      "oldestQueued": "ältester wartender Lauf {age}",
+      "capped": "einige Zahlen sind Untergrenzen (Scan begrenzt)"
+    },
+    "kpi": {
+      "completed": "Abgeschlossen ({days} T.)",
+      "completedDetail": "{agent} durch Agenten · {human} durch Menschen",
+      "intervention": "Eingriffsquote",
+      "reviewPassRate": "{pct}% der Reviews direkt freigegeben",
+      "noReviews": "Keine Reviews in diesem Zeitraum",
+      "cycleTime": "Ø Durchlaufzeit",
+      "runs": "{started} Läufe · {failed} fehlgeschlagen",
+      "cost": "Ausgaben ({days} T.)",
+      "costDetail": "{perTask} pro abgeschlossener Aufgabe"
+    },
+    "trend": {
+      "title": "Tägliche Aktivität",
+      "completed": "Abgeschlossene Aufgaben",
+      "failedRuns": "Fehlgeschlagene Läufe"
+    },
+    "leaderboard": {
+      "title": "Agenten-Rangliste",
+      "agent": "Agent",
+      "completed": "Abgeschlossen",
+      "runs": "Läufe (fehlgeschl.)",
+      "bounceRate": "Änderungswünsche",
+      "cost": "Ausgaben"
+    },
+    "attention": {
+      "pendingReviews": "Wartet auf Review",
+      "staleTasks": "Liegengebliebene Agenten-Arbeit",
+      "queuedRuns": "Wartende Läufe",
+      "trippedBreakers": "Durch Sicherung pausiert",
+      "none": "Nichts vorhanden."
+    },
+    "scorecard": {
+      "title": "Leistung",
+      "subtitle": "Letzte 30 Tage — Ergebnisse, Review-Qualität und Kosten dieses Agenten.",
+      "tasksCompleted": "Abgeschlossene Aufgaben",
+      "reviewOutcome": "Direkt-Freigabequote",
+      "reviewDetail": "{passed} freigegeben · {changes} Änderungswünsche · {escalations} Eskalationen",
+      "avgRun": "Ø Laufzeit",
+      "spend": "Ausgaben",
+      "recentRuns": "Letzte Läufe",
+      "noRuns": "Noch keine Läufe."
+    }
+  },
+  "runtimes": {
+    "title": "Runtimes",
+    "description": "Führe Aufgaben-Arbeit auf deinen eigenen Maschinen aus — mit den Coding-Agent-CLIs, die du bereits nutzt (Claude Code, Codex, OpenCode).",
+    "install": {
+      "title": "Daemon verbinden",
+      "description": "Einmal pro Maschine installieren: setup fragt nach dieser Workspace-URL, einem API-Schlüssel und dem Git-Workspace, in dem Agenten arbeiten dürfen. Binde dann einen Agenten in seiner Konfiguration an eine Runtime — seine Board-Aufgaben laufen auf deiner Maschine und melden sich zum Review zurück.",
+      "privacy": "Lokale Workspace-Pfade verlassen deine Maschine nie — nur die von dir gewählten Workspace-Schlüssel werden hier angezeigt. Die full_auto-Berechtigung erfordert Opt-in auf Server UND Daemon.",
+      "createKey": "API-Schlüssel erstellen"
+    },
+    "list": {
+      "empty": "Noch keine Daemons verbunden",
+      "emptyHint": "Führe bunx tale-daemon setup auf der Maschine aus, die Aufgaben ausführen soll.",
+      "lastSeen": "zuletzt gesehen {age}",
+      "workspaces": "Workspaces: {keys}"
+    },
+    "status": {
+      "active": "Aktiv",
+      "degraded": "Beeinträchtigt",
+      "offline": "Offline"
     }
   }
 }

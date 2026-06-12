@@ -41,6 +41,31 @@ export const getPiiConfigInternal = internalQuery({
  * the next message — never mid-response — so users never see inconsistent
  * enforcement within a single turn.
  */
+/**
+ * Generic policy-config reader for actions that cannot import query helpers
+ * directly (e.g. node actions). Returns the raw config record or null;
+ * callers validate with the policy's zod schema.
+ */
+export const getPolicyConfigInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    policyType: v.string(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('governancePolicies')
+      .withIndex('by_org_policyType', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated against the closed union by the index equality itself
+          .eq('policyType', args.policyType as never),
+      )
+      .first();
+    return row?.config ?? null;
+  },
+});
+
 export const getGuardrailsConfigsInternal = internalQuery({
   args: {
     organizationId: v.string(),
@@ -1343,5 +1368,32 @@ export const verifyOrgAdmin = internalQuery({
     });
     if (!isAdmin(member.role)) return null;
     return { role: member.role };
+  },
+});
+
+/** Terminal `taskAgentRuns` rows older than the cutoff (retention sweep). */
+export const listExpiredTaskAgentRuns = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('taskAgentRuns')
+      .withIndex('by_org_started', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .lt('startedAt', args.cutoffMs),
+      )) {
+      // Never delete a live run, however old — the stuck-run sweep owns
+      // flipping dead 'running' rows to terminal first.
+      if (row.status === 'running') continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
   },
 });

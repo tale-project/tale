@@ -111,11 +111,9 @@ export function ModelCatalogCard({ organizationId }: ModelCatalogCardProps) {
           size="sm"
           onClick={onRefresh}
           disabled={sync.isPending}
+          icon={RefreshCw}
+          iconClassName={sync.isPending ? 'animate-spin' : undefined}
         >
-          <RefreshCw
-            className={sync.isPending ? 'size-4 animate-spin' : 'size-4'}
-            aria-hidden="true"
-          />
           {t('providers.modelCatalog.refresh')}
         </Button>
       </div>

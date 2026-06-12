@@ -6,14 +6,13 @@ import { applyDelegationStrip } from './run_delegate_step';
 const base: SerializableAgentConfig = {
   name: 'specialist',
   instructions: 'answer the sub-task',
-  delegateSlugs: ['other-agent', 'third-agent'],
   maxSteps: 5,
 };
 
 describe('applyDelegationStrip (double-delegation guard)', () => {
-  it('clears delegateSlugs when stripping', () => {
+  it('sets delegationDisabled when stripping', () => {
     const out = applyDelegationStrip(base, true);
-    expect(out.delegateSlugs).toEqual([]);
+    expect(out.delegationDisabled).toBe(true);
     // Other config is preserved.
     expect(out.name).toBe('specialist');
     expect(out.maxSteps).toBe(5);
@@ -21,7 +20,7 @@ describe('applyDelegationStrip (double-delegation guard)', () => {
 
   it('never mutates the input config', () => {
     applyDelegationStrip(base, true);
-    expect(base.delegateSlugs).toEqual(['other-agent', 'third-agent']);
+    expect(base.delegationDisabled).toBeUndefined();
   });
 
   it('returns the config unchanged when not stripping', () => {

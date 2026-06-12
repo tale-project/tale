@@ -52,29 +52,118 @@
       "MSG_META_DEFAULT": "messageMetadata.default",
       "NOTIFICATIONS_MIN": "notifications.min",
       "NOTIFICATIONS_MAX": "notifications.max",
-      "NOTIFICATIONS_DEFAULT": "notifications.default"
+      "NOTIFICATIONS_DEFAULT": "notifications.default",
+      "AGENT_RUNS_MIN": "agentRuns.min",
+      "AGENT_RUNS_MAX": "agentRuns.max",
+      "AGENT_RUNS_DEFAULT": "agentRuns.default"
     }
   },
-  "documents": { "min": 30, "max": 3650, "default": 365, "unit": "days" },
-  "userTempHours": { "min": 1, "max": 720, "default": 24, "unit": "hours" },
-  "agentTempHours": { "min": 1, "max": 720, "default": 24, "unit": "hours" },
-  "chatHistory": { "min": 1, "max": 3650, "default": 90, "unit": "days" },
-  "auditLog": { "min": 365, "max": 3650, "default": 730, "unit": "days" },
-  "workflowLog": { "min": 1, "max": 365, "default": 30, "unit": "days" },
-  "usageLedger": { "min": 30, "max": 3650, "default": 365, "unit": "days" },
-  "loginAttempt": { "min": 90, "max": 365, "default": 90, "unit": "days" },
-  "chatFilterEvents": { "min": 1, "max": 365, "default": 90, "unit": "days" },
-  "promptTemplates": { "min": 30, "max": 3650, "default": 730, "unit": "days" },
-  "messageFeedback": { "min": 30, "max": 3650, "default": 365, "unit": "days" },
-  "memoryAudit": { "min": 30, "max": 3650, "default": 365, "unit": "days" },
-  "customers": { "min": 30, "max": 3650, "default": 730, "unit": "days" },
-  "vendors": { "min": 30, "max": 3650, "default": 730, "unit": "days" },
+  "documents": {
+    "min": 30,
+    "max": 3650,
+    "default": 365,
+    "unit": "days"
+  },
+  "userTempHours": {
+    "min": 1,
+    "max": 720,
+    "default": 24,
+    "unit": "hours"
+  },
+  "agentTempHours": {
+    "min": 1,
+    "max": 720,
+    "default": 24,
+    "unit": "hours"
+  },
+  "chatHistory": {
+    "min": 1,
+    "max": 3650,
+    "default": 90,
+    "unit": "days"
+  },
+  "auditLog": {
+    "min": 365,
+    "max": 3650,
+    "default": 730,
+    "unit": "days"
+  },
+  "workflowLog": {
+    "min": 1,
+    "max": 365,
+    "default": 30,
+    "unit": "days"
+  },
+  "usageLedger": {
+    "min": 30,
+    "max": 3650,
+    "default": 365,
+    "unit": "days"
+  },
+  "loginAttempt": {
+    "min": 90,
+    "max": 365,
+    "default": 90,
+    "unit": "days"
+  },
+  "chatFilterEvents": {
+    "min": 1,
+    "max": 365,
+    "default": 90,
+    "unit": "days"
+  },
+  "promptTemplates": {
+    "min": 30,
+    "max": 3650,
+    "default": 730,
+    "unit": "days"
+  },
+  "messageFeedback": {
+    "min": 30,
+    "max": 3650,
+    "default": 365,
+    "unit": "days"
+  },
+  "memoryAudit": {
+    "min": 30,
+    "max": 3650,
+    "default": 365,
+    "unit": "days"
+  },
+  "customers": {
+    "min": 30,
+    "max": 3650,
+    "default": 730,
+    "unit": "days"
+  },
+  "vendors": {
+    "min": 30,
+    "max": 3650,
+    "default": 730,
+    "unit": "days"
+  },
   "externalConversations": {
     "min": 30,
     "max": 3650,
     "default": 730,
     "unit": "days"
   },
-  "messageMetadata": { "min": 30, "max": 3650, "default": 365, "unit": "days" },
-  "notifications": { "min": 1, "max": 365, "default": 30, "unit": "days" }
+  "messageMetadata": {
+    "min": 30,
+    "max": 3650,
+    "default": 365,
+    "unit": "days"
+  },
+  "notifications": {
+    "min": 1,
+    "max": 365,
+    "default": 30,
+    "unit": "days"
+  },
+  "agentRuns": {
+    "min": 30,
+    "max": 400,
+    "default": 180,
+    "unit": "days"
+  }
 }

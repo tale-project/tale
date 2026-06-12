@@ -11,21 +11,6 @@ const BASE_CONFIG = {
 };
 
 describe('agentJsonSchema validation', () => {
-  it('accepts config with delegates array', () => {
-    const config = { ...BASE_CONFIG, delegates: ['integration-assistant'] };
-    const result = agentJsonSchema.safeParse(config);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.delegates).toEqual(['integration-assistant']);
-    }
-  });
-
-  it('accepts config with empty delegates array', () => {
-    const config = { ...BASE_CONFIG, delegates: [] };
-    const result = agentJsonSchema.safeParse(config);
-    expect(result.success).toBe(true);
-  });
-
   it('accepts config with visibleInChat false', () => {
     const config = { ...BASE_CONFIG, visibleInChat: false };
     const result = agentJsonSchema.safeParse(config);
@@ -44,17 +29,17 @@ describe('agentJsonSchema validation', () => {
     }
   });
 
-  it('accepts config without delegates (undefined)', () => {
+  it('accepts config without workflows (undefined)', () => {
     const config = { ...BASE_CONFIG };
     const result = agentJsonSchema.safeParse(config);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.delegates).toBeUndefined();
+      expect(result.data.workflows).toBeUndefined();
     }
   });
 
-  it('rejects null delegates without stripNulls', () => {
-    const config = { ...BASE_CONFIG, delegates: null };
+  it('rejects null workflows without stripNulls', () => {
+    const config = { ...BASE_CONFIG, workflows: null };
     const result = agentJsonSchema.safeParse(config);
     expect(result.success).toBe(false);
   });
@@ -66,7 +51,7 @@ describe('agentJsonSchema validation', () => {
   });
 
   it('accepts null delegates after stripNulls', () => {
-    const config = { ...BASE_CONFIG, delegates: null };
+    const config = { ...BASE_CONFIG, workflows: null };
     const result = agentJsonSchema.safeParse(stripNulls(config));
     expect(result.success).toBe(true);
   });
@@ -383,7 +368,7 @@ describe('full save round-trip with stripNulls', () => {
   it('handles config with delegation and visibility changes', () => {
     const config = {
       ...BASE_CONFIG,
-      delegates: ['integration-assistant', 'crm-assistant'],
+      workflows: ['integration-assistant', 'crm-assistant'],
       visibleInChat: false,
       toolNames: ['rag_search', 'web'],
       knowledgeMode: 'tool',
@@ -396,7 +381,7 @@ describe('full save round-trip with stripNulls', () => {
     const result = agentJsonSchema.safeParse(stripNulls(config));
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.delegates).toEqual([
+      expect(result.data.workflows).toEqual([
         'integration-assistant',
         'crm-assistant',
       ]);
@@ -407,7 +392,6 @@ describe('full save round-trip with stripNulls', () => {
   it('handles config where optional fields are null (transport artifact)', () => {
     const config = {
       ...BASE_CONFIG,
-      delegates: null,
       visibleInChat: null,
       description: null,
       toolNames: null,
@@ -424,7 +408,6 @@ describe('full save round-trip with stripNulls', () => {
     const result = agentJsonSchema.safeParse(stripNulls(config));
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.delegates).toBeUndefined();
       expect(result.data.visibleInChat).toBeUndefined();
       expect(result.data.description).toBeUndefined();
       expect(result.data.skillBindings).toBeUndefined();

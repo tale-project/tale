@@ -1,5 +1,7 @@
 'use client';
 
+import type { ReactNode } from 'react';
+
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { DocumentWriteApprovalCard } from './document-write-approval-card';
 import { HumanInputRequestCard } from './human-input-request-card';
@@ -17,6 +19,12 @@ interface ApprovalCardRendererProps {
   onSendMessage?: (message: string) => void;
 }
 
+/**
+ * Maps a non-message `ChatItem` (an approval, a human-input request, a location
+ * request, …) to its card. One labeled `case` per kind — clearer than the old
+ * `{item.type === 'x' && <Card/>}` chain and exhaustive over the union — wrapped
+ * once in the shared left-aligned row. Message items render no card.
+ */
 export function ApprovalCardRenderer({
   item,
   organizationId,
@@ -25,9 +33,10 @@ export function ApprovalCardRenderer({
 }: ApprovalCardRendererProps) {
   if (item.type === 'message') return null;
 
-  return (
-    <div className="flex justify-start">
-      {item.type === 'approval' && (
+  let card: ReactNode = null;
+  switch (item.type) {
+    case 'approval':
+      card = (
         <IntegrationApprovalCard
           approvalId={item.data._id}
           organizationId={organizationId}
@@ -37,8 +46,10 @@ export function ApprovalCardRenderer({
           executionError={item.data.executionError}
           onSendMessage={onSendMessage}
         />
-      )}
-      {item.type === 'workflow_approval' && (
+      );
+      break;
+    case 'workflow_approval':
+      card = (
         <WorkflowCreationApprovalCard
           approvalId={item.data._id}
           organizationId={organizationId}
@@ -47,8 +58,10 @@ export function ApprovalCardRenderer({
           executedAt={item.data.executedAt}
           executionError={item.data.executionError}
         />
-      )}
-      {item.type === 'workflow_update_approval' && (
+      );
+      break;
+    case 'workflow_update_approval':
+      card = (
         <WorkflowUpdateApprovalCard
           approvalId={item.data._id}
           organizationId={organizationId}
@@ -57,8 +70,10 @@ export function ApprovalCardRenderer({
           executedAt={item.data.executedAt}
           executionError={item.data.executionError}
         />
-      )}
-      {item.type === 'workflow_run_approval' && (
+      );
+      break;
+    case 'workflow_run_approval':
+      card = (
         <WorkflowRunApprovalCard
           approvalId={item.data._id}
           organizationId={organizationId}
@@ -67,8 +82,10 @@ export function ApprovalCardRenderer({
           executedAt={item.data.executedAt}
           executionError={item.data.executionError}
         />
-      )}
-      {item.type === 'human_input_request' && (
+      );
+      break;
+    case 'human_input_request':
+      card = (
         <HumanInputRequestCard
           approvalId={item.data._id}
           organizationId={organizationId}
@@ -78,8 +95,10 @@ export function ApprovalCardRenderer({
           wfExecutionId={item.data.wfExecutionId}
           onResponseSubmitted={onHumanInputResponseSubmitted}
         />
-      )}
-      {item.type === 'location_request' && (
+      );
+      break;
+    case 'location_request':
+      card = (
         <LocationRequestCard
           approvalId={item.data._id}
           organizationId={organizationId}
@@ -88,8 +107,10 @@ export function ApprovalCardRenderer({
           isWorkflowContext={!!item.data.wfExecutionId}
           onResponseSubmitted={onHumanInputResponseSubmitted}
         />
-      )}
-      {item.type === 'document_write_approval' && (
+      );
+      break;
+    case 'document_write_approval':
+      card = (
         <DocumentWriteApprovalCard
           approvalId={item.data._id}
           organizationId={organizationId}
@@ -98,8 +119,10 @@ export function ApprovalCardRenderer({
           executedAt={item.data.executedAt}
           executionError={item.data.executionError}
         />
-      )}
-      {item.type === 'knowledge_write_approval' && (
+      );
+      break;
+    case 'knowledge_write_approval':
+      card = (
         <KnowledgeWriteApprovalCard
           approvalId={item.data._id}
           organizationId={organizationId}
@@ -108,7 +131,13 @@ export function ApprovalCardRenderer({
           executedAt={item.data.executedAt}
           executionError={item.data.executionError}
         />
-      )}
-    </div>
-  );
+      );
+      break;
+    default:
+      // Any other non-message ChatItem kind renders no card.
+      card = null;
+  }
+
+  if (!card) return null;
+  return <div className="flex justify-start">{card}</div>;
 }

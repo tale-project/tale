@@ -27,6 +27,12 @@ const TasksWorkspace = lazyComponent(
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/tasks',
 )({
+  // `?task=<id>` deep-links straight into a task's detail sheet — shareable
+  // task URLs, and the target of inbox/notification links (review requests).
+  validateSearch: (search: Record<string, unknown>): { task?: string } => {
+    const task = search.task;
+    return typeof task === 'string' && task.length > 0 ? { task } : {};
+  },
   // Warm the TasksWorkspace chunk during the loader so it's cached by render
   // time — removes the Suspense fallback flash on first nav. The project tab
   // links preload on render, so this typically fires before the user clicks.
@@ -38,7 +44,19 @@ export const Route = createFileRoute(
 
 function ProjectTasksPage() {
   const { id: organizationId, projectId } = Route.useParams();
+  const { task } = Route.useSearch();
+  const navigate = Route.useNavigate();
   return (
-    <TasksWorkspace organizationId={organizationId} projectId={projectId} />
+    <TasksWorkspace
+      organizationId={organizationId}
+      projectId={projectId}
+      openTaskParam={task}
+      onOpenTaskParamChange={(taskId: string | null) => {
+        void navigate({
+          search: taskId ? { task: taskId } : {},
+          replace: true,
+        });
+      }}
+    />
   );
 }

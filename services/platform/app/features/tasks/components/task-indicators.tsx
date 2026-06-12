@@ -1,6 +1,6 @@
 'use client';
 
-import { Ban, MessageSquare } from 'lucide-react';
+import { Ban, Bot, CalendarClock, Eye, MessageSquare } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -120,6 +120,92 @@ export function SubtaskProgress({
       <span className="tabular-nums">
         {done}/{total}
       </span>
+    </span>
+  );
+}
+
+/**
+ * Pulsing "agent is working" glyph — shown while the task has a live agent
+ * run (`getTaskOpsIndicators`). The pulse is the acknowledgment signal of
+ * the task-ops pack: assignment should never look dead.
+ */
+export function AgentWorkingIndicator({
+  working,
+  className,
+}: {
+  working: boolean;
+  className?: string;
+}) {
+  const { t } = useT('tasks');
+  if (!working) return null;
+  return (
+    <span
+      className={cn('inline-flex items-center text-primary', className)}
+      title={t('agentRuns.working')}
+      aria-label={t('agentRuns.working')}
+    >
+      <Bot className="size-3.5 shrink-0 animate-pulse" aria-hidden="true" />
+    </span>
+  );
+}
+
+/**
+ * "Needs review" glyph — the task sits at the review gate waiting for a
+ * human decision. Paired with the review card in the detail sheet.
+ */
+export function NeedsReviewIndicator({
+  needsReview,
+  className,
+}: {
+  needsReview: boolean;
+  className?: string;
+}) {
+  const { t } = useT('tasks');
+  if (!needsReview) return null;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center text-blue-600 dark:text-blue-400',
+        className,
+      )}
+      title={t('review.needsReview')}
+      aria-label={t('review.needsReview')}
+    >
+      <Eye className="size-3.5 shrink-0" aria-hidden="true" />
+    </span>
+  );
+}
+
+/**
+ * Overdue glyph — dueDate in the past on a non-terminal task. Derived
+ * client-side from the row; no extra query.
+ */
+export function OverdueIndicator({
+  dueDate,
+  status,
+  className,
+}: {
+  dueDate: number | undefined;
+  status: string;
+  className?: string;
+}) {
+  const { t } = useT('tasks');
+  const overdue =
+    dueDate !== undefined &&
+    dueDate < Date.now() &&
+    status !== 'done' &&
+    status !== 'cancelled';
+  if (!overdue) return null;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center text-red-600 dark:text-red-400',
+        className,
+      )}
+      title={t('dueDate.overdue')}
+      aria-label={t('dueDate.overdue')}
+    >
+      <CalendarClock className="size-3.5 shrink-0" aria-hidden="true" />
     </span>
   );
 }

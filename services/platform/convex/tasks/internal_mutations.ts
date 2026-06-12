@@ -13,6 +13,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
@@ -35,6 +36,7 @@ import {
   nextTaskNumber,
   recordActivity,
   TASK_COMMENT_MAX,
+  TASK_METRIC_ACTIONS,
   TASK_TITLE_MAX,
   TERMINAL_STATUSES,
 } from './helpers';
@@ -44,6 +46,23 @@ import {
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
+
+/**
+ * Actor attribution for task-domain events. Workflow-engine writes pass the
+ * sentinel actorId 'workflow' (`task_action.ts::WORKFLOW_ACTOR_ID`); every
+ * other caller of these internal mutations is an agent (actorId = slug).
+ * Event subscribers use this to tell humans, agents, and the automation
+ * engine apart — the foundation of the task-ops pack's loop prevention.
+ */
+function eventActor(actorId: string): {
+  actorType: 'agent' | 'workflow';
+  actorId: string;
+} {
+  return {
+    actorType: actorId === 'workflow' ? 'workflow' : 'agent',
+    actorId,
+  };
+}
 
 async function loadTaskInOrg(
   ctx: MutationCtx,
@@ -133,6 +152,13 @@ export const agentCreateTask = internalMutation({
       if (parent.projectId !== args.projectId) {
         throw new ConvexError({ code: 'TASK_PARENT_PROJECT_MISMATCH' });
       }
+      // Workforce loop-safety invariant (v): decomposition depth = 1. Agents
+      // and automations may create subtasks of ROOT tasks only — a subtask
+      // never gets agent-created children of its own, so manager decomposition
+      // cannot recurse.
+      if (parent.parentTaskId) {
+        throw new ConvexError({ code: 'TASK_DEPTH_EXCEEDED' });
+      }
     }
 
     const now = Date.now();
@@ -153,6 +179,7 @@ export const agentCreateTask = internalMutation({
       createdByType: 'agent',
       createdAt: now,
       updatedAt: now,
+      statusChangedAt: now,
     });
 
     const task = await ctx.db.get(taskId);
@@ -167,7 +194,7 @@ export const agentCreateTask = internalMutation({
       await emitEvent(ctx, {
         organizationId: args.organizationId,
         eventType: 'task.created',
-        eventData: { task },
+        eventData: { task, ...eventActor(args.actorId) },
       });
     }
     await agentAudit(ctx, {
@@ -276,6 +303,9 @@ export const agentUpsertTaskByExternalRef = internalMutation({
           SYNC_OPEN_STATUS,
         );
       }
+      if (statusFrom) {
+        patch.statusChangedAt = now;
+      }
       await ctx.db.patch(existing._id, patch);
       if (statusFrom && patch.status) {
         await recordActivity(ctx, {
@@ -324,6 +354,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       createdByType: 'agent',
       createdAt: now,
       updatedAt: now,
+      statusChangedAt: now,
     });
     const task = await ctx.db.get(taskId);
     if (task) {
@@ -337,7 +368,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       await emitEvent(ctx, {
         organizationId: args.organizationId,
         eventType: 'task.created',
-        eventData: { task },
+        eventData: { task, ...eventActor(args.actorId) },
       });
     }
     await agentAudit(ctx, {
@@ -367,6 +398,15 @@ export const agentUpdateTaskStatus = internalMutation({
   handler: async (ctx, args): Promise<{ ok: boolean; reason?: string }> => {
     const task = await loadTaskInOrg(ctx, args.taskId, args.organizationId);
     if (task.status === args.status) return { ok: true };
+
+    // HARD RULE (workforce invariant): agents never complete work. The only
+    // automated path to 'done' is the review-gate workflow, which acts as the
+    // 'workflow' actor after an explicit human approval. Everything an agent
+    // produces parks at 'in_review' for that gate.
+    if (args.status === 'done' && args.actorId !== 'workflow') {
+      return { ok: false, reason: 'AGENTS_CANNOT_COMPLETE' };
+    }
+
     if (
       TERMINAL_STATUSES.has(args.status) &&
       (await hasOpenChildren(ctx, args.taskId))
@@ -384,6 +424,7 @@ export const agentUpdateTaskStatus = internalMutation({
         ? (task.completedAt ?? now)
         : undefined,
       updatedAt: now,
+      statusChangedAt: now,
     });
     await recordActivity(ctx, {
       task,
@@ -418,6 +459,7 @@ export const agentUpdateTaskStatus = internalMutation({
           task: updated,
           fromStatus: task.status,
           toStatus: args.status,
+          ...eventActor(args.actorId),
         },
       });
     }
@@ -471,6 +513,7 @@ export const agentClaimTask = internalMutation({
           assigneeType: 'agent',
           assigneeId: args.actorId,
           previousAssigneeId: null,
+          ...eventActor(args.actorId),
         },
       });
     }
@@ -533,6 +576,7 @@ export const agentAssignTask = internalMutation({
           assigneeType: assignee?.assigneeType ?? null,
           assigneeId: assignee?.assigneeId ?? null,
           previousAssigneeId,
+          ...eventActor(args.actorId),
         },
       });
     }
@@ -547,7 +591,10 @@ export const agentAddComment = internalMutation({
     taskId: v.id('tasks'),
     body: v.string(),
   },
-  handler: async (ctx, args): Promise<{ commentId: Id<'taskComments'> }> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ commentId: Id<'taskComments'>; mentionCount: number }> => {
     const task = await loadTaskInOrg(ctx, args.taskId, args.organizationId);
     const project = await loadProjectInOrg(
       ctx,
@@ -607,16 +654,88 @@ export const agentAddComment = internalMutation({
     await emitEvent(ctx, {
       organizationId: args.organizationId,
       eventType: 'comment.created',
-      eventData: { comment, taskId: String(args.taskId) },
+      eventData: {
+        comment,
+        taskId: String(args.taskId),
+        ...eventActor(args.actorId),
+      },
     });
     if (mentions.length > 0) {
       await emitEvent(ctx, {
         organizationId: args.organizationId,
         eventType: 'comment.mentioned',
-        eventData: { comment, taskId: String(args.taskId), mentions },
+        eventData: {
+          comment,
+          taskId: String(args.taskId),
+          mentions,
+          ...eventActor(args.actorId),
+        },
       });
     }
-    return { commentId };
+    // `mentionCount` lets callers detect a mention that did NOT resolve
+    // against the project directory (the escalation tool's fallback signal).
+    return { commentId, mentionCount: mentions.length };
+  },
+});
+
+/**
+ * Escalation entry point for the `escalate` agent tool (task context):
+ * posts an agent-authored `@manager [escalation]` comment — which the
+ * mention-response workflow turns into a manager run under the MANAGER's
+ * own guardrails — and records the `agent.escalated` metric activity.
+ * `mentionResolved: false` (manager not mentionable in this project, or no
+ * manager at all) tells the tool to fall back to notifying humans.
+ */
+export const agentEscalateOnTask = internalMutation({
+  args: {
+    organizationId: v.string(),
+    actorId: v.string(),
+    taskId: v.id('tasks'),
+    managerSlug: v.optional(v.string()),
+    reason: v.string(),
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    commentId: v.optional(v.id('taskComments')),
+    mentionResolved: v.boolean(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    ok: boolean;
+    commentId?: Id<'taskComments'>;
+    mentionResolved: boolean;
+  }> => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task || task.organizationId !== args.organizationId) {
+      return { ok: false, mentionResolved: false };
+    }
+    const reason = args.reason.trim().slice(0, 2000);
+    const body = args.managerSlug
+      ? `@${args.managerSlug} [escalation] ${reason}`
+      : `[escalation] ${reason}`;
+    const { commentId, mentionCount } = await ctx.runMutation(
+      internal.tasks.internal_mutations.agentAddComment,
+      {
+        organizationId: args.organizationId,
+        actorId: args.actorId,
+        taskId: args.taskId,
+        body,
+      },
+    );
+    await recordActivity(ctx, {
+      task,
+      actorType: 'agent',
+      actorId: args.actorId,
+      action: TASK_METRIC_ACTIONS.agentEscalated,
+      toValue: args.managerSlug ?? 'humans',
+    });
+    return {
+      ok: true,
+      commentId,
+      mentionResolved: args.managerSlug !== undefined && mentionCount > 0,
+    };
   },
 });
 
@@ -751,5 +870,336 @@ export const backfillTaskCommentCounts = internalMutation({
       }
     }
     return { scanned, updated };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Per-task agent thread
+// ---------------------------------------------------------------------------
+
+/**
+ * Get-or-create the dedicated agent working thread for a task. Revision and
+ * mention runs share it so context accumulates across runs. Atomic within
+ * this mutation (a concurrent creator's transaction retries and re-reads
+ * `tasks.threadId`), mirroring `getOrCreateSubThreadAtomic`.
+ */
+export const ensureTaskThread = internalMutation({
+  args: {
+    organizationId: v.string(),
+    taskId: v.id('tasks'),
+  },
+  returns: v.object({ threadId: v.string(), isNew: v.boolean() }),
+  handler: async (ctx, args) => {
+    const task = await loadTaskInOrg(ctx, args.taskId, args.organizationId);
+
+    if (task.threadId) {
+      const existing = await ctx.runQuery(components.agent.threads.getThread, {
+        threadId: task.threadId,
+      });
+      if (existing?.status === 'active') {
+        return { threadId: task.threadId, isNew: false };
+      }
+      // Archived/deleted thread — fall through and mint a fresh one.
+    }
+
+    const project = await ctx.db.get(task.projectId);
+    const identifier =
+      project?.key && task.number !== undefined
+        ? `${project.key}-${task.number}`
+        : String(args.taskId);
+    const thread = await ctx.runMutation(
+      components.agent.threads.createThread,
+      {
+        title: `task:${identifier}`,
+        summary: JSON.stringify({
+          taskThread: {
+            taskId: String(args.taskId),
+            organizationId: args.organizationId,
+          },
+        }),
+      },
+    );
+    await ctx.db.patch(args.taskId, { threadId: thread._id });
+    return { threadId: thread._id, isNew: true };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Sweeps (workflow `task.sweep` operations)
+// ---------------------------------------------------------------------------
+
+/**
+ * Stale-work sweep: agent-assigned tasks sitting in `in_progress` with no
+ * status movement for `staleAfterHours`. One-shot by construction — the
+ * pack workflow's rollback to `todo` changes `statusChangedAt`, so a task
+ * never matches twice without new activity. Bounded per call.
+ */
+export const sweepStaleTasks = internalMutation({
+  args: {
+    organizationId: v.string(),
+    staleAfterHours: v.number(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(
+    v.object({
+      taskId: v.id('tasks'),
+      title: v.string(),
+      assigneeId: v.optional(v.string()),
+      staleSinceMs: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
+    const cutoff = Date.now() - args.staleAfterHours * 60 * 60 * 1000;
+    const stale: Array<{
+      taskId: Id<'tasks'>;
+      title: string;
+      assigneeId?: string;
+      staleSinceMs: number;
+    }> = [];
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_org_status', (q) =>
+        q.eq('organizationId', args.organizationId).eq('status', 'in_progress'),
+      )) {
+      if (task.archivedAt) continue;
+      if (task.assigneeType !== 'agent') continue;
+      const lastMovement = task.statusChangedAt ?? task.updatedAt;
+      if (lastMovement >= cutoff) continue;
+      stale.push({
+        taskId: task._id,
+        title: task.title,
+        assigneeId: task.assigneeId,
+        staleSinceMs: lastMovement,
+      });
+      if (stale.length >= limit) break;
+    }
+    return stale;
+  },
+});
+
+function clampSweepLimit(limit: number | undefined): number {
+  return Math.min(Math.max(limit ?? 50, 1), 100);
+}
+
+const sweepRowShape = {
+  taskId: v.id('tasks'),
+  projectId: v.id('projects'),
+  title: v.string(),
+  assigneeType: v.optional(taskActorTypeValidator),
+  assigneeId: v.optional(v.string()),
+  dueDate: v.number(),
+  /** `projects.createdBy` — the level-4 escalation target. */
+  projectCreatorId: v.optional(v.string()),
+};
+
+/** Memoized project lookup for sweep enrichment (one fetch per project per sweep). */
+async function projectCreatorLookup(
+  ctx: MutationCtx,
+): Promise<(projectId: Id<'projects'>) => Promise<string | undefined>> {
+  const cache = new Map<string, string | undefined>();
+  return async (projectId: Id<'projects'>) => {
+    const key = String(projectId);
+    if (!cache.has(key)) {
+      const project = await ctx.db.get(projectId);
+      cache.set(key, project?.createdBy);
+    }
+    return cache.get(key);
+  };
+}
+
+/**
+ * Due-soon sweep (SLA level 1): open tasks whose due date falls inside the
+ * warning window and that have never been warned. Atomic mark-and-return —
+ * `slaLevel` is stamped in this mutation, so a task is returned exactly once
+ * per ladder no matter how often the cron re-runs. Pushing the due date out
+ * resets the ladder (`updateTask` clears `slaLevel` on due-date change).
+ */
+export const sweepDueSoonTasks = internalMutation({
+  args: {
+    organizationId: v.string(),
+    windowHours: v.number(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.object(sweepRowShape)),
+  handler: async (ctx, args) => {
+    const limit = clampSweepLimit(args.limit);
+    const now = Date.now();
+    const windowEnd = now + args.windowHours * 60 * 60 * 1000;
+    const creatorOf = await projectCreatorLookup(ctx);
+
+    const rows: Array<{
+      taskId: Id<'tasks'>;
+      projectId: Id<'projects'>;
+      title: string;
+      assigneeType?: 'user' | 'agent';
+      assigneeId?: string;
+      dueDate: number;
+      projectCreatorId?: string;
+    }> = [];
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_org_dueDate', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .gt('dueDate', now)
+          .lte('dueDate', windowEnd),
+      )) {
+      if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
+      if ((task.slaLevel ?? 0) >= 1) continue;
+      if (task.dueDate === undefined) continue;
+      await ctx.db.patch(task._id, { slaLevel: 1, slaLevelAt: now });
+      rows.push({
+        taskId: task._id,
+        projectId: task.projectId,
+        title: task.title,
+        assigneeType: task.assigneeType,
+        assigneeId: task.assigneeId,
+        dueDate: task.dueDate,
+        projectCreatorId: await creatorOf(task.projectId),
+      });
+      if (rows.length >= limit) break;
+    }
+    return rows;
+  },
+});
+
+/**
+ * Overdue escalation ladder (SLA levels 2–4): open tasks past their due date,
+ * each stamped with the highest level its overdue age has reached —
+ * 2 = nudge comment, 3 = manager escalation, 4 = owner/admin escalation.
+ * Monotonic mark-and-return: a task is returned at most once per level, and
+ * a long-overdue task skips straight to the highest applicable level (one
+ * action, not three). Level-3 manager resolution happens in the action layer
+ * (the org chart lives in agent files, unreadable from a mutation).
+ */
+export const sweepOverdueLadder = internalMutation({
+  args: {
+    organizationId: v.string(),
+    managerEscalationHours: v.number(),
+    adminEscalationHours: v.number(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.object({ ...sweepRowShape, newLevel: v.number() })),
+  handler: async (ctx, args) => {
+    const limit = clampSweepLimit(args.limit);
+    const now = Date.now();
+    const managerMs = args.managerEscalationHours * 60 * 60 * 1000;
+    const adminMs = args.adminEscalationHours * 60 * 60 * 1000;
+    const creatorOf = await projectCreatorLookup(ctx);
+
+    const rows: Array<{
+      taskId: Id<'tasks'>;
+      projectId: Id<'projects'>;
+      title: string;
+      assigneeType?: 'user' | 'agent';
+      assigneeId?: string;
+      dueDate: number;
+      projectCreatorId?: string;
+      newLevel: number;
+    }> = [];
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_org_dueDate', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .gt('dueDate', 0)
+          .lte('dueDate', now),
+      )) {
+      if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
+      if (task.dueDate === undefined) continue;
+      const overdueMs = now - task.dueDate;
+      const targetLevel =
+        overdueMs >= adminMs ? 4 : overdueMs >= managerMs ? 3 : 2;
+      if (targetLevel <= (task.slaLevel ?? 0)) continue;
+      await ctx.db.patch(task._id, { slaLevel: targetLevel, slaLevelAt: now });
+      rows.push({
+        taskId: task._id,
+        projectId: task.projectId,
+        title: task.title,
+        assigneeType: task.assigneeType,
+        assigneeId: task.assigneeId,
+        dueDate: task.dueDate,
+        projectCreatorId: await creatorOf(task.projectId),
+        newLevel: targetLevel,
+      });
+      if (rows.length >= limit) break;
+    }
+    return rows;
+  },
+});
+
+/**
+ * Archivable sweep: terminal (done/cancelled) tasks closed longer than
+ * `olderThanDays` ago. Read-only — the archive itself goes through
+ * `agentArchiveTask`, which re-checks the status (a human may have reopened
+ * the task between sweep and archive). Archived rows drop out of the scan,
+ * so the pair is one-shot without any stamping.
+ */
+export const sweepArchivableTasks = internalMutation({
+  args: {
+    organizationId: v.string(),
+    olderThanDays: v.number(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.object({ taskId: v.id('tasks'), title: v.string() })),
+  handler: async (ctx, args) => {
+    const limit = clampSweepLimit(args.limit);
+    const cutoff = Date.now() - args.olderThanDays * 24 * 60 * 60 * 1000;
+    const rows: Array<{ taskId: Id<'tasks'>; title: string }> = [];
+    for (const status of ['done', 'cancelled'] as const) {
+      for await (const task of ctx.db
+        .query('tasks')
+        .withIndex('by_org_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', status),
+        )) {
+        if (task.archivedAt) continue;
+        const closedAt =
+          task.completedAt ?? task.statusChangedAt ?? task.updatedAt;
+        if (closedAt >= cutoff) continue;
+        rows.push({ taskId: task._id, title: task.title });
+        if (rows.length >= limit) return rows;
+      }
+    }
+    return rows;
+  },
+});
+
+/**
+ * Archive a TERMINAL task on behalf of an automation. Emits NO event — the
+ * loop-safe terminal operation of the pack (auto-archive must never wake
+ * other workflows). Refuses non-terminal tasks: the TOCTOU guard for the
+ * sweep→archive pair.
+ */
+export const agentArchiveTask = internalMutation({
+  args: {
+    organizationId: v.string(),
+    actorId: v.string(),
+    taskId: v.id('tasks'),
+  },
+  returns: v.object({ ok: v.boolean(), reason: v.optional(v.string()) }),
+  handler: async (ctx, args) => {
+    const task = await loadTaskInOrg(ctx, args.taskId, args.organizationId);
+    if (task.archivedAt) return { ok: true };
+    if (!TERMINAL_STATUSES.has(task.status)) {
+      return { ok: false, reason: 'TASK_NOT_TERMINAL' };
+    }
+    const now = Date.now();
+    await ctx.db.patch(args.taskId, { archivedAt: now, updatedAt: now });
+    await recordActivity(ctx, {
+      task,
+      actorType: 'agent',
+      actorId: args.actorId,
+      action: 'archived',
+    });
+    await agentAudit(ctx, {
+      organizationId: args.organizationId,
+      actorId: args.actorId,
+      action: TASK_AUDIT_ACTIONS.archived,
+      resourceType: TASK_RESOURCE_TYPE,
+      resourceId: String(args.taskId),
+      resourceName: task.title,
+    });
+    return { ok: true };
   },
 });

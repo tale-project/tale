@@ -3,13 +3,13 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { CodeBlock } from '@tale/ui/code-block';
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Check, Code, Copy, Plus, Trash2, Webhook } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -292,7 +292,8 @@ export function AgentWebhookSection({
 
   return (
     <ContentArea variant="panel" gap={6}>
-      <PageSection
+      <PageHeader
+        as="h2"
         title={t('agents.webhook.title')}
         description={t('agents.webhook.description')}
         action={
@@ -306,75 +307,74 @@ export function AgentWebhookSection({
             {t('agents.webhook.createButton')}
           </Button>
         }
+      />
+      {!isPublished && (
+        <Alert
+          variant="warning"
+          description={t('agents.webhook.notPublished')}
+        />
+      )}
+
+      <DataTable
+        columns={columns}
+        data={webhooks ?? []}
+        caption={t('agents.webhook.title')}
+        getRowId={(row) => row._id}
+        emptyState={{
+          icon: Webhook,
+          title: t('agents.webhook.emptyTitle'),
+          description: t('agents.webhook.emptyDescription'),
+        }}
+      />
+
+      {createdUrl && (
+        <SecretRevealDialog
+          open={!!createdUrl}
+          onOpenChange={() => setCreatedUrl(null)}
+          title={t('agents.webhook.createdTitle')}
+          warning={t('agents.webhook.urlWarning')}
+          secrets={[
+            {
+              label: t('agents.webhook.webhookUrl'),
+              value: createdUrl,
+            },
+          ]}
+        />
+      )}
+
+      <Dialog
+        open={!!usageTarget}
+        onOpenChange={(open) => {
+          if (!open) setUsageTarget(null);
+        }}
+        title={t('agents.webhook.usageExamples')}
+        description={t('agents.webhook.usageExamplesDescription')}
+        size="lg"
       >
-        {!isPublished && (
-          <Alert
-            variant="warning"
-            description={t('agents.webhook.notPublished')}
-          />
-        )}
+        <div className="max-h-[60vh] space-y-4 overflow-y-auto">
+          {usageExamples.map((example) => (
+            <CodeBlock
+              key={example.key}
+              label={example.label}
+              copyValue={example.code}
+              copyLabel={t('agents.webhook.copyExample')}
+            >
+              {example.code}
+            </CodeBlock>
+          ))}
+        </div>
+      </Dialog>
 
-        <DataTable
-          columns={columns}
-          data={webhooks ?? []}
-          caption={t('agents.webhook.title')}
-          getRowId={(row) => row._id}
-          emptyState={{
-            icon: Webhook,
-            title: t('agents.webhook.emptyTitle'),
-            description: t('agents.webhook.emptyDescription'),
-          }}
-        />
-
-        {createdUrl && (
-          <SecretRevealDialog
-            open={!!createdUrl}
-            onOpenChange={() => setCreatedUrl(null)}
-            title={t('agents.webhook.createdTitle')}
-            warning={t('agents.webhook.urlWarning')}
-            secrets={[
-              {
-                label: t('agents.webhook.webhookUrl'),
-                value: createdUrl,
-              },
-            ]}
-          />
-        )}
-
-        <Dialog
-          open={!!usageTarget}
-          onOpenChange={(open) => {
-            if (!open) setUsageTarget(null);
-          }}
-          title={t('agents.webhook.usageExamples')}
-          description={t('agents.webhook.usageExamplesDescription')}
-          size="lg"
-        >
-          <div className="max-h-[60vh] space-y-4 overflow-y-auto">
-            {usageExamples.map((example) => (
-              <CodeBlock
-                key={example.key}
-                label={example.label}
-                copyValue={example.code}
-                copyLabel={t('agents.webhook.copyExample')}
-              >
-                {example.code}
-              </CodeBlock>
-            ))}
-          </div>
-        </Dialog>
-
-        <DeleteDialog
-          open={!!deleteTarget}
-          onOpenChange={(open) => {
-            if (!open) setDeleteTarget(null);
-          }}
-          title={t('agents.webhook.deleteTitle')}
-          description={t('agents.webhook.deleteDescription')}
-          isDeleting={isDeleting}
-          onDelete={handleDelete}
-        />
-      </PageSection>
+      <DeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title={t('agents.webhook.deleteTitle')}
+        description={t('agents.webhook.deleteDescription')}
+        isDeleting={isDeleting}
+        onDelete={handleDelete}
+      />
     </ContentArea>
   );
 }

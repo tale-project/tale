@@ -36,7 +36,6 @@ vi.mock('./message-bubble', () => ({
 
 vi.mock('./thought-timeline', () => ({
   ThinkingIndicator: () => <div data-testid="thinking" />,
-  ThoughtTimeline: () => <div data-testid="thought-timeline" />,
 }));
 
 vi.mock('./approval-card-renderer', () => ({

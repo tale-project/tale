@@ -44,8 +44,48 @@ export const POLICY_TYPES = [
   // per-admin daily filing rate limit. See `dsarGovernanceConfigSchema`
   // for the config shape and defaults.
   'dsar_governance',
+  // Org-wide workforce guardrail defaults (concurrency caps, per-task
+  // circuit breaker, budget-pause behaviour). See
+  // `agentWorkforceConfigSchema`.
+  'agent_workforce',
+  // Master switch for the task-ops automation pack. Missing row → enabled.
+  // See `taskAutomationConfigSchema`.
+  'task_automation',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
+
+/**
+ * Org-wide workforce guardrails. Missing row ⇒ these schema defaults.
+ * Per-agent `budget`/`maxConcurrentTasks` live in the agent JSON config;
+ * this policy holds the org-level caps and fleet defaults.
+ */
+export const agentWorkforceConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** Org-wide cap on concurrently RUNNING agent task runs (internal + external). */
+  maxConcurrentRunsOrg: z.number().int().min(1).max(500).default(25),
+  /** Per-task circuit breaker: max agent runs per task per rolling hour. */
+  maxRunsPerTaskPerHour: z.number().int().min(1).max(100).default(10),
+  /** Fleet default when an agent omits maxConcurrentTasks (absent = unlimited). */
+  defaultAgentMaxConcurrentTasks: z.number().int().min(1).max(50).optional(),
+  /** What a budget pause does to the paused agent's open assigned tasks. */
+  budgetPauseAction: z
+    .enum(['reassign_to_manager', 'unassign'])
+    .default('reassign_to_manager'),
+});
+export type AgentWorkforceConfig = z.infer<typeof agentWorkforceConfigSchema>;
+
+/**
+ * Master switch for the task-ops automation pack. Gates the run-agent action
+ * (code half) AND the pack's trigger rows (flipped by
+ * `setTaskAutomationEnabled`). Missing row ⇒ enabled.
+ */
+export const taskAutomationConfigSchema = z.object({
+  enabled: z.boolean(),
+  pausedBy: z.string().optional(),
+  pausedAt: z.number().optional(),
+  reason: z.string().max(500).optional(),
+});
+export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
 
 // Org-level default for the custom-instructions feature. Per-user
 // `userPreferences.customInstructionsEnabled` may override this default;
@@ -232,6 +272,11 @@ export const retentionPolicyConfigSchema = z.object({
    */
   notificationsEnabled: z.boolean().optional(),
   notificationsRetentionDays: z.number().int().nonnegative().optional(),
+  /** Retention for `taskAgentRuns` (workforce run records). Running rows
+   * are never deleted regardless of age — the sweep targets terminal
+   * states only. */
+  agentRunsEnabled: z.boolean().optional(),
+  agentRunsRetentionDays: z.number().int().nonnegative().optional(),
   deletionGraceDays: z.number().int().min(0).max(90).optional(),
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;

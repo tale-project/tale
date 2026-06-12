@@ -5,6 +5,7 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Bell } from 'lucide-react';
 import { useState } from 'react';
 
+import { useUnreadNotificationCount } from '@/app/features/inbox/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -35,7 +36,8 @@ export function NotificationBell({
   const { t: tNav } = useT('navigation');
   const [open, setOpen] = useState(false);
   const { data: unread } = useNotificationsUnreadCount(organizationId);
-  const unreadCount = unread ?? 0;
+  const myUnread = useUnreadNotificationCount(organizationId);
+  const unreadCount = (unread ?? 0) + myUnread;
 
   const buttonNode = (
     <button
@@ -109,6 +111,7 @@ export function NotificationBell({
           )}
         >
           <NotificationListPanel
+            onNavigate={() => setOpen(false)}
             organizationId={organizationId}
             className="h-[28rem]"
           />

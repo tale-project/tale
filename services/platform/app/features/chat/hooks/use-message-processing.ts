@@ -12,7 +12,7 @@ import {
 
 import { useChatLayout } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
-import { hasInFlightTool } from '../utils/build-thought-timeline';
+import { hasInFlightTool } from '../utils/thought-predicates';
 
 const INTERNAL_ATTACHMENT_MARKER =
   /\n?\n?\[ATTACHED FILES - Pre-analysis was not available\. Use your tools to process these files\.\]/;
@@ -307,11 +307,11 @@ export function useMessageProcessing(
 
         // A tool-only turn can be observed FIRST as status:'pending' (never
         // 'streaming') with a tool part already mid-flight — e.g. an immediate
-        // tool call before any reasoning/text streams. The in-bubble
-        // ThoughtTimeline already MOUNTS unconditionally (showTimeline gates on
-        // hasThoughtSteps, not streaming); the only thing missing for such a
-        // turn is the ACTIVE state, so we set isStreaming=true to render it
-        // expanded with a live spinner during the tool call.
+        // tool call before any reasoning/text streams. The in-bubble thought
+        // header + inline tool row already MOUNT unconditionally (showTimeline
+        // gates on hasThoughtSteps, not streaming); the only thing missing for
+        // such a turn is the ACTIVE state, so we set isStreaming=true to render
+        // the tool row with a live spinner during the tool call.
         const messageHasInFlightTool =
           m.role === 'assistant' && hasInFlightTool(m.parts);
 

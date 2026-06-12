@@ -50,16 +50,16 @@ describe('useAgentConfig', () => {
     expect(result.current.isDirty).toBe(true);
   });
 
-  it('becomes dirty after setting delegates', () => {
+  it('becomes dirty after setting workflows', () => {
     const { result } = renderHook(() => useAgentConfig(), {
       wrapper: createWrapper(),
     });
 
     act(() => {
-      result.current.updateConfig({ delegates: ['integration-assistant'] });
+      result.current.updateConfig({ workflows: ['integration-assistant'] });
     });
 
-    expect(result.current.config.delegates).toEqual(['integration-assistant']);
+    expect(result.current.config.workflows).toEqual(['integration-assistant']);
     expect(result.current.isDirty).toBe(true);
   });
 
@@ -93,7 +93,7 @@ describe('useAgentConfig', () => {
     });
 
     act(() => {
-      result.current.updateConfig({ delegates: ['crm-assistant'] });
+      result.current.updateConfig({ workflows: ['crm-assistant'] });
     });
     expect(result.current.isDirty).toBe(true);
 
@@ -134,9 +134,9 @@ describe('useAgentConfig', () => {
       wrapper: createWrapper(),
     });
 
-    // Simulate: user adds delegates
+    // Simulate: user adds a workflow binding
     act(() => {
-      result.current.updateConfig({ delegates: ['integration-assistant'] });
+      result.current.updateConfig({ workflows: ['integration-assistant'] });
     });
     expect(result.current.isDirty).toBe(true);
 
@@ -157,7 +157,7 @@ describe('useAgentConfig', () => {
 
     expect(result.current.isDirty).toBe(false);
     expect(result.current.isSaving).toBe(false);
-    expect(result.current.config.delegates).toEqual(['integration-assistant']);
+    expect(result.current.config.workflows).toEqual(['integration-assistant']);
   });
 
   it('overrideConfig clears isDirty even when persisted shape differs from working config', () => {
@@ -239,7 +239,7 @@ describe('useAgentConfig', () => {
 
     act(() => {
       result.current.updateConfig({ visibleInChat: false });
-      result.current.updateConfig({ delegates: ['integration-assistant'] });
+      result.current.updateConfig({ workflows: ['integration-assistant'] });
     });
     expect(result.current.isDirty).toBe(true);
 

@@ -61,12 +61,45 @@ const requiresSchema = z.object({
   integrations: z.array(integrationDependencySchema).default([]),
 });
 
+/**
+ * Declarative triggers a workflow file ships with. The file format has no
+ * runtime trigger semantics by itself — a workflow only fires when matching
+ * `wfEventSubscriptions`/`wfSchedules` rows exist. This block lets shipped
+ * workflows (the task-ops pack) DECLARE their intended triggers so the
+ * provisioner (`workflows/provision_defaults.ts`) can create the rows once
+ * per org, create-if-absent — org edits and deactivations always win.
+ */
+export const workflowTriggersSchema = z.object({
+  events: z
+    .array(
+      z.object({
+        eventType: z.string().min(1),
+        eventFilter: z.record(z.string(), z.string()).optional(),
+      }),
+    )
+    .optional(),
+  schedules: z
+    .array(
+      z.object({
+        cron: z.string().min(1),
+        timezone: z.string().optional(),
+        variables: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
+    .optional(),
+});
+export type WorkflowTriggers = z.infer<typeof workflowTriggersSchema>;
+
 export const workflowJsonSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   version: z.string().optional(),
   config: workflowConfigSchema.optional(),
+  // Documented metadata keys: `autoInstall?: boolean` (provision this
+  // workflow + its declared triggers to every org), `pack?: string`
+  // (grouping label, e.g. 'task-ops'). Free-form record otherwise.
   metadata: z.record(z.string(), z.unknown()).optional(),
+  triggers: workflowTriggersSchema.optional(),
   requires: requiresSchema.optional(),
   steps: z.array(workflowStepSchema).default([]),
 });

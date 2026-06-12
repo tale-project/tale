@@ -17,6 +17,22 @@ export const notificationTypeValidator = v.union(
   v.literal('task_status_changed'),
   v.literal('task_commented'),
   v.literal('mention'),
+  // --- Workforce (task-ops automation) types. Schema ships one release
+  // ahead of the emitters (closed-union deploy-order constraint). ---
+  // Agent work awaits human review (the in_review gate). Actionable.
+  v.literal('task_review_requested'),
+  // A review the user was watching was approved / sent back.
+  v.literal('task_review_resolved'),
+  // An agent escalated to humans (root escalation / circuit breaker).
+  v.literal('agent_escalation'),
+  // A task-ops pack workflow execution failed (admins).
+  v.literal('automation_failed'),
+  // Agent budget warn/pause threshold crossed (admins).
+  v.literal('budget_alert'),
+  // An external agent runtime went offline (admins).
+  v.literal('runtime_offline'),
+  // Daily/weekly workforce digest.
+  v.literal('workforce_digest'),
 );
 
 export const notificationActorTypeValidator = v.union(
@@ -36,6 +52,11 @@ export const userNotificationsTable = defineTable({
     v.literal('task'),
     v.literal('comment'),
     v.literal('thread'),
+    // Workforce resources (deep-link targets for the new types above).
+    v.literal('task_review'),
+    v.literal('wf_execution'),
+    v.literal('runtime'),
+    v.literal('dashboard'),
   ),
   resourceId: v.string(),
   taskId: v.optional(v.id('tasks')),
@@ -80,5 +101,13 @@ export const notificationPreferencesTable = defineTable({
   taskStatusChanged: v.optional(v.boolean()),
   taskCommented: v.optional(v.boolean()),
   mention: v.optional(v.boolean()),
+  // Workforce preference groups. `taskReview` and `escalation` are
+  // human-in-the-loop safety signals: the fan-out skips the pref check for
+  // the designated reviewer so the review gate can never starve silently.
+  taskReview: v.optional(v.boolean()),
+  escalation: v.optional(v.boolean()),
+  // Groups automation_failed / budget_alert / runtime_offline.
+  automationAlerts: v.optional(v.boolean()),
+  digest: v.optional(v.boolean()),
   updatedAt: v.number(),
 }).index('by_userId_organizationId', ['userId', 'organizationId']);

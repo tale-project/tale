@@ -68,3 +68,7 @@ export function useSaveBoardView() {
 export function useDeleteBoardView() {
   return useConvexMutation(api.tasks.mutations.deleteBoardView);
 }
+
+export function useRespondToTaskReview() {
+  return useConvexMutation(api.tasks.review_mutations.respondToTaskReview);
+}

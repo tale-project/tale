@@ -1,5 +1,6 @@
 /**
- * Budget check for sub-agent tool handlers.
+ * TIME budget check for sub-agent tool handlers (wall-clock deadline —
+ * NOT the monetary guard; that is `agents/guardrails/budget_guard.ts`).
  *
  * Reads the actionDeadlineMs variable set by generateAgentResponse
  * and determines whether there is enough time remaining to start
@@ -17,7 +18,7 @@ type BudgetResult =
   | { ok: true; deadlineMs: number | undefined }
   | { ok: false; error: ToolResponse };
 
-export function checkBudget(ctx: ToolCtx): BudgetResult {
+export function checkTimeBudget(ctx: ToolCtx): BudgetResult {
   const raw = ctx.variables?.actionDeadlineMs;
   const deadline =
     typeof raw === 'string'

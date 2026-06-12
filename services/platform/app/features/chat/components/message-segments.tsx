@@ -2,6 +2,7 @@
 
 import { memo, useMemo } from 'react';
 
+import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useThreadMessages } from '../hooks/queries';
@@ -15,6 +16,7 @@ import { AssistantMessageContent } from './assistant-message-content';
 import {
   InlineReasoning,
   RoutingStepRow,
+  STEP_INDENT,
   ToolStepRow,
 } from './thought-timeline';
 
@@ -61,8 +63,9 @@ function NestedDelegationTimeline({
 
   return (
     // Fade the nested timeline in when the sub-thread's first steps land so
-    // the delegation detail doesn't snap into the layout.
-    <div className="border-border/60 animate-content-in mt-1 ml-5 border-l pl-3">
+    // the delegation detail doesn't snap into the layout. Uses the SAME
+    // STEP_INDENT as the inline reasoning body — one shared subordination level.
+    <div className={cn('animate-content-in mt-1', STEP_INDENT)}>
       {thoughtSegments.map((segment) =>
         segment.kind === 'reasoning' ? (
           <InlineReasoning key={segment.id} step={segment} active />
@@ -139,44 +142,54 @@ function MessageSegmentsImpl({
         </div>
       )}
       {segments.map((segment) => {
-        if (segment.kind === 'text') {
-          return (
-            <AssistantMessageContent
-              key={segment.id}
-              text={prepareText(segment.text, citationNumbers)}
-              // Only the FINAL text run owns the live typewriter; earlier runs
-              // are settled and render statically (keeps one active stream).
-              isStreaming={
-                active && segment.isLast && segment.state === 'streaming'
-              }
-              onSendFollowUp={onSendFollowUp}
-              messageId={messageId}
-              threadId={threadId}
-              voiceModeEnabled={voiceModeEnabled}
-              isFreshSinceMount={isFreshSinceMount}
-              onRevealComplete={segment.isLast ? onRevealComplete : undefined}
-            />
-          );
-        }
-        if (segment.kind === 'reasoning') {
-          return (
-            <InlineReasoning key={segment.id} step={segment} active={active} />
-          );
-        }
-        // Tool / delegation row. A streamed `delegate_*` call also renders a
-        // live, nested timeline of the sub-agent's reasoning/tools beneath it.
-        const subThreadId = delegateSubThreadId(segment);
-        return (
-          <div key={segment.id} className="my-2">
-            <ToolStepRow step={segment} active={active} />
-            {subThreadId && (
-              <NestedDelegationTimeline
-                subThreadId={subThreadId}
+        switch (segment.kind) {
+          case 'text':
+            return (
+              <AssistantMessageContent
+                key={segment.id}
+                text={prepareText(segment.text, citationNumbers)}
+                // Only the FINAL text run owns the live typewriter; earlier runs
+                // are settled and render statically (keeps one active stream).
+                isStreaming={
+                  active && segment.isLast && segment.state === 'streaming'
+                }
+                onSendFollowUp={onSendFollowUp}
+                messageId={messageId}
+                threadId={threadId}
+                voiceModeEnabled={voiceModeEnabled}
+                isFreshSinceMount={isFreshSinceMount}
+                onRevealComplete={segment.isLast ? onRevealComplete : undefined}
+              />
+            );
+          case 'reasoning':
+            return (
+              <InlineReasoning
+                key={segment.id}
+                step={segment}
                 active={active}
               />
-            )}
-          </div>
-        );
+            );
+          case 'tool': {
+            // A streamed `delegate_*` call also renders a live, nested timeline
+            // of the sub-agent's reasoning/tools beneath its row.
+            const subThreadId = delegateSubThreadId(segment);
+            return (
+              <div key={segment.id} className="my-2">
+                <ToolStepRow step={segment} active={active} />
+                {subThreadId && (
+                  <NestedDelegationTimeline
+                    subThreadId={subThreadId}
+                    active={active}
+                  />
+                )}
+              </div>
+            );
+          }
+          default:
+            // `segment.kind` is a closed union; this would become a type error
+            // if a new kind were added without a matching case.
+            return segment satisfies never;
+        }
       })}
     </>
   );

@@ -126,6 +126,7 @@ const POLICY_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
   externalConversations: 'externalConversationsRetentionDays',
   messageMetadata: 'messageMetadataRetentionDays',
   notifications: 'notificationsRetentionDays',
+  agentRuns: 'agentRunsRetentionDays',
 };
 
 const ENABLED_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
@@ -146,6 +147,7 @@ const ENABLED_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
   externalConversations: 'externalConversationsEnabled',
   messageMetadata: 'messageMetadataEnabled',
   notifications: 'notificationsEnabled',
+  agentRuns: 'agentRunsEnabled',
 };
 
 function hasAnyRetentionFeatureEnabled(config: unknown): boolean {

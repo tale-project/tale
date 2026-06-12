@@ -28,6 +28,9 @@ export const RETENTION_CATEGORIES = [
   // subject erasure — a NotificationBell entry from years ago could
   // still expose `alice@x.com locked at 203.0.113.45/24`.
   'notifications',
+  // Workforce: per-task agent run records (prompt traces ride external runs
+  // later; the run rows themselves carry task/agent linkage worth bounding).
+  'agentRuns',
 ] as const;
 
 export type RetentionCategory = (typeof RETENTION_CATEGORIES)[number];

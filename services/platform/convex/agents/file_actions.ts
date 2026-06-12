@@ -14,7 +14,10 @@ import path from 'node:path';
 import { ConvexError, v } from 'convex/values';
 import { ZodError } from 'zod/v4';
 
-import { PROTECTED_AGENT_NAMES } from '../../lib/shared/constants/agents';
+import {
+  PROTECTED_AGENT_NAMES,
+  RESERVED_AGENT_SLUGS,
+} from '../../lib/shared/constants/agents';
 import { agentJsonSchema } from '../../lib/shared/schemas/agents';
 import { parseModelRef } from '../../lib/shared/utils/model-ref';
 import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-config';
@@ -81,7 +84,7 @@ type AgentAuditAction =
  * Best-effort audit emit for agent writes — never blocks the user-visible
  * operation. Mirrors `logSkillAudit` in skills/file_actions.ts. Capability
  * fields (toolNames, integrationBindings, workflowBindings, skillBindings,
- * delegates, roleRestriction) belong in the state diff so a reviewer can
+ * reportsTo, roleRestriction) belong in the state diff so a reviewer can
  * see exactly what changed; the agent-side audit was previously absent
  * altogether, making skillBindings widening invisible.
  */
@@ -132,9 +135,19 @@ function captureCapability(
       integrationBindings: config.integrationBindings,
     }),
     ...(config.workflows && { workflows: config.workflows }),
-    ...(config.delegates && { delegates: config.delegates }),
     ...(config.skillBindings && { skillBindings: config.skillBindings }),
     ...(config.roleRestriction && { roleRestriction: config.roleRestriction }),
+    // Delegation edges: grant this agent a delegate_* tool per target.
+    ...(config.delegates && { delegates: config.delegates }),
+    ...(config.reportsTo && { reportsTo: config.reportsTo }),
+    // Guardrails: spend authority + parallelism are capability-grade.
+    ...(config.budget && { budget: config.budget }),
+    ...(config.maxConcurrentTasks !== undefined && {
+      maxConcurrentTasks: config.maxConcurrentTasks,
+    }),
+    // External runtime binding: where (and with what permissions) this
+    // agent's task work executes.
+    ...(config.runtime && { runtime: config.runtime }),
   };
 }
 
@@ -234,6 +247,12 @@ export const saveAgent = action({
     if (!validateAgentName(args.agentName)) {
       throw new Error(`Invalid agent name: ${args.agentName}`);
     }
+    if ((RESERVED_AGENT_SLUGS as readonly string[]).includes(args.agentName)) {
+      throw new ConvexError({
+        code: 'RESERVED_AGENT_SLUG',
+        message: `"${args.agentName}" is a reserved name and cannot be used for an agent.`,
+      });
+    }
 
     const memberAuth = await requireOrgMembershipById(ctx, args.organizationId);
     const { orgSlug } = memberAuth;
@@ -288,6 +307,28 @@ export const saveAgent = action({
       });
     }
 
+    // Guardrail comparison: spend authority + parallelism are capability-
+    // grade (they change what the agent may consume), so edits require the
+    // same elevated auth as tool/delegate grants.
+    const budgetEq = (
+      a: AgentJsonConfig['budget'],
+      b: AgentJsonConfig['budget'],
+    ): boolean =>
+      (a === undefined) === (b === undefined) &&
+      a?.monthlyCents === b?.monthlyCents &&
+      a?.warnPct === b?.warnPct &&
+      a?.pausePct === b?.pausePct;
+
+    const runtimeEq = (
+      a: AgentJsonConfig['runtime'],
+      b: AgentJsonConfig['runtime'],
+    ): boolean =>
+      (a === undefined) === (b === undefined) &&
+      a?.adapterType === b?.adapterType &&
+      a?.daemonId === b?.daemonId &&
+      a?.permissionMode === b?.permissionMode &&
+      a?.workspaceKey === b?.workspaceKey;
+
     const isCapabilityChange =
       args.isNew === true ||
       !prevAgent.ok ||
@@ -297,8 +338,10 @@ export const saveAgent = action({
         config.integrationBindings,
       ) ||
       !arrayEq(prevAgent.config.workflows, config.workflows) ||
-      !arrayEq(prevAgent.config.delegates, config.delegates) ||
-      !arrayEq(prevAgent.config.skillBindings, config.skillBindings);
+      !arrayEq(prevAgent.config.skillBindings, config.skillBindings) ||
+      !budgetEq(prevAgent.config.budget, config.budget) ||
+      prevAgent.config.maxConcurrentTasks !== config.maxConcurrentTasks ||
+      !runtimeEq(prevAgent.config.runtime, config.runtime);
 
     const writeAuth: OrgMembershipAuth = isCapabilityChange
       ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
@@ -307,9 +350,17 @@ export const saveAgent = action({
     // `skillBindingsResolved` is a legacy snapshot from the old transitive
     // tool-grant model — never write it again. `skillBindings` itself is now
     // a hard allowlist and is persisted as-is.
+    //
+    // `delegates` / `reportsTo` (the organigram delegation edges) have exactly
+    // ONE write path: the organigram actions (`setAgentDelegates` /
+    // `setAgentParents`). The settings form must never carry them — a stale
+    // form would silently re-wire delegation — so incoming values are dropped
+    // and the on-disk values re-applied here.
     config = {
       ...config,
       skillBindingsResolved: undefined,
+      delegates: prevAgent.ok ? prevAgent.config.delegates : undefined,
+      reportsTo: prevAgent.ok ? prevAgent.config.reportsTo : undefined,
     };
 
     // Cross-validate supportedModels against provider model lists.
