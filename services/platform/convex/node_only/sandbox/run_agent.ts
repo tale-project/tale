@@ -858,6 +858,33 @@ export async function runAgentInSessionImpl(
     ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
   };
 
+  // Model pin of last resort: Claude Code spawns short-lived NESTED claude
+  // processes (observed live on 2.1.173 — the queued-message replay runs in
+  // one) whose environment is sanitized, so --model and every ANTHROPIC_*
+  // pin are gone and the child falls back to the BUILT-IN default model
+  // (claude-sonnet-4-6). HOME survives the sanitization, and the settings
+  // `model` key governs any invocation without --model (verified), so write
+  // the turn's model into the session settings before spawning. Best-effort:
+  // a failed write only restores the previous (env-pins-only) behavior.
+  if (stdinHold && exec !== null && args.model !== undefined) {
+    try {
+      await sessionStageFiles(args.sessionId, [
+        {
+          path: '.home/.claude/settings.json',
+          contentBase64: Buffer.from(
+            JSON.stringify({ model: args.model }),
+            'utf8',
+          ).toString('base64'),
+        },
+      ]);
+    } catch (err) {
+      console.warn(
+        '[run_agent] settings.json model pin failed (continuing):',
+        err,
+      );
+    }
+  }
+
   // Budget guard: abort the drain when THIS action's window elapses so we hand
   // off (vs being hard-killed at the Convex ceiling with the finally skipped).
   // The `controller`/`handoff` pair is hoisted above (flushProgress also trips
