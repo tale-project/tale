@@ -90,11 +90,24 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       env.TALE_STEER_DIR = `/workspace/.tale/steer/${spec.execId}`;
     }
     if (spec.model) {
-      // Set all three default-model slots to the gateway model so Claude Code
-      // doesn't intermittently 404 resolving opus/sonnet/haiku aliases.
+      // The CLI's own default, ahead of the per-tier aliases: internal paths
+      // that resolve a model WITHOUT consulting --model fall back here — the
+      // queued-message replay (a steer message landing in a turn's closing
+      // moments is re-run as a new turn) otherwise uses the BUILT-IN default
+      // (claude-sonnet-4-6), bypassing every alias pin. Observed live on
+      // 2.1.173: the replayed turn requested sonnet through the gateway and
+      // the org's open-models-only key 403'd the whole turn.
+      env.ANTHROPIC_MODEL = spec.model;
+      // Set every default-model slot to the gateway model so Claude Code
+      // doesn't intermittently 404 resolving opus/sonnet/haiku/fable aliases.
       env.ANTHROPIC_DEFAULT_OPUS_MODEL = spec.model;
       env.ANTHROPIC_DEFAULT_SONNET_MODEL = spec.model;
       env.ANTHROPIC_DEFAULT_HAIKU_MODEL = spec.model;
+      env.ANTHROPIC_DEFAULT_FABLE_MODEL = spec.model;
+      // The session VK only allows the selected model, so a subagent whose
+      // frontmatter names a concrete model id would be rejected at the
+      // gateway; this slot outranks frontmatter and pins them all.
+      env.CLAUDE_CODE_SUBAGENT_MODEL = spec.model;
     }
 
     return {

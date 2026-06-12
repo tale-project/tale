@@ -68,7 +68,16 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-bf-test');
     expect(env.ANTHROPIC_API_KEY).toBe('');
     expect(env.CLAUDE_CONFIG_DIR).toBe('/workspace/.home/.claude');
+    // Every alias tier plus the subagent override pins to the selected model:
+    // the session VK only allows that one model, so any other resolution
+    // would be rejected at the gateway. ANTHROPIC_MODEL covers the CLI's
+    // internal default-model paths (queued-message replay ignores --model).
+    expect(env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-6');
+    expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-sonnet-4-6');
     expect(env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-6');
+    expect(env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-sonnet-4-6');
+    expect(env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('claude-sonnet-4-6');
+    expect(env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('claude-sonnet-4-6');
     expect(cwd).toBe('/workspace/repo');
   });
 
