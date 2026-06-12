@@ -44,6 +44,7 @@ import {
   invalidateSecretsCache,
 } from '../lib/sops';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
+import { reprovisionProvider } from '../node_only/sandbox/bifrost_admin';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import {
   requireDeveloperSettingsAccess,
@@ -918,6 +919,9 @@ export const saveProvider = action({
     const content = serializeProviderJson(config);
     const filePath = resolveProviderFilePath(orgSlug, args.providerName);
     await atomicWrite(filePath, content);
+    // Model-list changes must reach the gateway too — the Bifrost provider
+    // record freezes keys[].models at provision time.
+    await syncProviderToGateway(ctx, args.organizationId, args.providerName);
     return { hash: sha256(content) };
   },
 });
@@ -1180,6 +1184,41 @@ export async function loadOrgGatewayProviders(
     }
   }
   return out;
+}
+
+/**
+ * Best-effort push of one provider's current key + model list into the Bifrost
+ * gateway. The gateway's provider record is a derived cache: without this
+ * write-time hook, a rotated key would reach Bifrost only via the
+ * session-create reconcile — and running sandbox sessions would keep the stale
+ * key until then. Never throws — a deployment without Bifrost just hits a fast
+ * connection error here, and the operator's save must succeed regardless (same
+ * degrade posture as the session-create provisioning in run_external_agent.ts).
+ * Known follow-up: deleteProvider leaves the gateway record orphaned.
+ */
+async function syncProviderToGateway(
+  ctx: ActionCtx,
+  organizationId: string,
+  providerName: string,
+): Promise<void> {
+  try {
+    const providers = await loadOrgGatewayProviders(ctx, organizationId);
+    const provider = providers.find((p) => p.name === providerName);
+    if (!provider) {
+      // Key no longer resolves (cleared, or env-sourced without the env set).
+      // Leave the stale gateway record to the session-create reconcile.
+      console.warn(
+        `[syncProviderToGateway] provider '${providerName}' has no resolvable key/models; skipping gateway sync`,
+      );
+      return;
+    }
+    await reprovisionProvider(provider);
+  } catch (err) {
+    console.warn(
+      `[syncProviderToGateway] best-effort gateway sync failed for '${providerName}' (continuing):`,
+      sanitizeError(err),
+    );
+  }
 }
 
 /**
@@ -2404,6 +2443,7 @@ async function runSaveProviderSecret(
     await atomicWriteSecret(secretsPath, plaintext);
     invalidateSecretsCache(secretsPath);
     await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
+    await syncProviderToGateway(ctx, args.organizationId, args.providerName);
     return null;
   }
 
@@ -2490,6 +2530,7 @@ async function runSaveProviderSecret(
   await atomicWriteSecret(secretsPath, encrypted);
   invalidateSecretsCache(secretsPath);
   await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
+  await syncProviderToGateway(ctx, args.organizationId, args.providerName);
 
   return null;
 }

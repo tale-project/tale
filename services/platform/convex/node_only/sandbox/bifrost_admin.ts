@@ -21,7 +21,7 @@
 // exclusive FK references (we encode attribution in `name` instead), and
 // the response wraps the key as `{ virtual_key: { id, value } }`.
 
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 function bifrostUrl(): string {
   return process.env.BIFROST_URL ?? 'http://bifrost:8080';
@@ -233,17 +233,133 @@ export interface ProviderProvision {
 }
 
 /**
- * Reconcile the org's providers into Bifrost. Idempotent against the v1.4.8
- * API: `GET /api/providers` first, then `POST` only the names not already
- * present. (v1.4.8's `PUT /api/providers/:name` 500s with "record already
- * exists" on an existing provider, so create-if-absent is the safe path; key
- * rotation is a follow-up `DELETE`+`POST` if/when we need it.) Called once per
- * session create so a fresh gateway (or a new org's key) gets its upstream
- * before the first mint.
+ * Drift signal for the provision reconcile: the fingerprint this process last
+ * pushed per provider name. `GET /api/providers` redacts key values, so the
+ * platform can only compare against its own pushes. Module-scoped — lives for
+ * the lifetime of the Convex action runtime (per Node process; one process per
+ * host in self-hosted Convex), same pattern as `secretWriteLocks` in
+ * providers/file_actions.ts. An empty memo (fresh process) makes the next
+ * provision rewrite each provider once, which is also what picks up
+ * `TALE_PROVIDER_KEY_*` env rotations (env changes only land via a restart).
+ */
+const pushedProviderFingerprints = new Map<string, string>();
+
+function providerFingerprint(p: ProviderProvision): string {
+  // baseUrl is deliberately excluded — it is never pushed to the gateway
+  // (native providers carry their own base URL; see putGatewayProvider).
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        apiKey: p.apiKey,
+        models: p.models.map(toGatewayModelRef).sort(),
+      }),
+    )
+    .digest('hex');
+}
+
+/** A non-native (custom) upstream needs a base URL, but v1.4.8 routes it via
+ * `custom_provider_config`, not a bare `network_config.base_url` — which we
+ * don't model yet. Skip + log rather than provision a broken provider. The
+ * default agents only use native providers (openrouter), so this is inert
+ * for them; revisit when a custom OpenAI-compatible upstream is required.
+ * Returns true when the provider was skipped. */
+function skipNonNative(p: ProviderProvision): boolean {
+  if (NATIVE_BIFROST_PROVIDERS.has(p.name)) return false;
+  console.warn(
+    `[bifrost] skipping non-native provider '${p.name}' (custom base-URL provisioning not supported)`,
+  );
+  return true;
+}
+
+/**
+ * Globally-unique key name for the pushed gateway key. Bifrost's config store
+ * has a GLOBAL unique index on key name (config_keys.idx_key_name @ v1.4.8) —
+ * an unnamed key lands as '' and the SECOND ''-named key anywhere in the
+ * store fails the whole write with a 500 ("a record with this name already
+ * exists"), so every pushed key must carry a fresh unique name. Random (not
+ * fingerprint-derived): re-pushing the same config must never reuse the
+ * previous push's name, or the new key row would collide with the very row it
+ * is replacing.
+ */
+function gatewayKeyName(providerName: string): string {
+  return `tale-${providerName}-${randomBytes(6).toString('hex')}`;
+}
+
+/**
+ * `PUT /api/providers/:name` — full-record upsert (verified against v1.4.8:
+ * creates the provider when absent, otherwise REPLACES its key set — payload
+ * keys without a matching id are added, existing keys missing from the
+ * payload are deleted). This is the only working rotation path on v1.4.8:
+ * `POST` 409s on an existing provider, and `DELETE /api/providers/:name` does
+ * NOT remove the record (its handler only clears the provider's model
+ * catalog), so delete-then-recreate can never work. An earlier note here
+ * blamed PUT for 500ing with "record already exists" — that 500 is the global
+ * key-NAME collision (see gatewayKeyName), not a provider-record conflict.
+ * The swap is a single store write: there is no window where the provider is
+ * absent, and virtual keys reference the provider by name (no FK), so
+ * in-flight sessions keep working across a rotation. Memoizes the pushed
+ * fingerprint on success.
+ */
+async function putGatewayProvider(p: ProviderProvision): Promise<void> {
+  const body = {
+    keys: [
+      {
+        name: gatewayKeyName(p.name),
+        value: p.apiKey,
+        models: p.models.map(toGatewayModelRef),
+        weight: 1,
+      },
+    ],
+    // Native providers carry their own base URL — overriding it via
+    // network_config.base_url breaks the built-in URL construction (verified:
+    // openrouter 500s "failed to execute HTTP request"). Only widen the
+    // timeout for long agent turns.
+    network_config: { default_request_timeout_in_seconds: 600 },
+    concurrency_and_buffer_size: { concurrency: 1000, buffer_size: 5000 },
+  };
+  const res = await fetch(
+    `${bifrostUrl()}/api/providers/${encodeURIComponent(p.name)}`,
+    {
+      method: 'PUT',
+      headers: managementHeaders(),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `bifrost provision provider ${p.name} failed (${res.status})`,
+    );
+  }
+  pushedProviderFingerprints.set(p.name, providerFingerprint(p));
+}
+
+/**
+ * Push one provider's current key + model list into the gateway, replacing
+ * whatever record is there (see putGatewayProvider). The provider-save
+ * actions call this so a key rotation reaches the gateway immediately instead
+ * of at the next session create. Throws on failure — callers own the degrade
+ * posture; the memo stays unset, so the next session-create provision
+ * retries.
+ */
+export async function reprovisionProvider(p: ProviderProvision): Promise<void> {
+  if (skipNonNative(p)) return;
+  await putGatewayProvider(p);
+}
+
+/**
+ * Reconcile the org's providers into Bifrost: PUT each provider that is
+ * absent from the gateway or whose desired key/model fingerprint differs from
+ * what this process last pushed. Called once per session create so a fresh
+ * gateway (or a rotated key) gets its upstream before the first mint; the
+ * provider-save actions also push eagerly via reprovisionProvider, making
+ * this the self-heal catch-up for pushes that failed (gateway down) or
+ * happened in another process.
  *
  * NOTE: providers are global in Bifrost (the per-session VK scopes models, not
- * the upstream key). A deployment with two orgs holding DISTINCT keys for the
- * same provider name would need per-org provider names — out of scope for the
+ * the upstream key), so provision and the write-time push are last-writer-wins
+ * across orgs. A deployment with two orgs holding DISTINCT keys for the same
+ * provider name would need per-org provider names — out of scope for the
  * single-key-per-deployment norm; revisit if multi-key-per-provider lands.
  */
 export async function provisionProviders(
@@ -251,46 +367,14 @@ export async function provisionProviders(
 ): Promise<void> {
   const existing = await listProviderNames();
   for (const p of providers) {
-    if (existing.has(p.name)) continue;
-    const native = NATIVE_BIFROST_PROVIDERS.has(p.name);
-    // A non-native (custom) upstream needs a base URL, but v1.4.8 routes it via
-    // `custom_provider_config`, not a bare `network_config.base_url` — which we
-    // don't model yet. Skip + log rather than provision a broken provider. The
-    // default agents only use native providers (openrouter), so this is inert
-    // for them; revisit when a custom OpenAI-compatible upstream is required.
-    if (!native) {
-      console.warn(
-        `[bifrost] skipping non-native provider '${p.name}' (custom base-URL provisioning not supported)`,
-      );
+    if (skipNonNative(p)) continue;
+    if (
+      existing.has(p.name) &&
+      pushedProviderFingerprints.get(p.name) === providerFingerprint(p)
+    ) {
       continue;
     }
-    const body = {
-      provider: p.name,
-      keys: [
-        {
-          value: p.apiKey,
-          models: p.models.map(toGatewayModelRef),
-          weight: 1,
-        },
-      ],
-      // Native providers carry their own base URL — overriding it via
-      // network_config.base_url breaks the built-in URL construction (verified:
-      // openrouter 500s "failed to execute HTTP request"). Only widen the
-      // timeout for long agent turns.
-      network_config: { default_request_timeout_in_seconds: 600 },
-      concurrency_and_buffer_size: { concurrency: 1000, buffer_size: 5000 },
-    };
-    const res = await fetch(`${bifrostUrl()}/api/providers`, {
-      method: 'POST',
-      headers: managementHeaders(),
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok && res.status !== 409) {
-      throw new Error(
-        `bifrost provision provider ${p.name} failed (${res.status})`,
-      );
-    }
+    await putGatewayProvider(p);
   }
 }
 
