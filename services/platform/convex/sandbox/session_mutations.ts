@@ -143,7 +143,11 @@ export const setSessionPinned = internalMutation({
     for await (const row of ctx.db
       .query('sandboxSessions')
       .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
-      if (row.status === 'destroyed' || row.status === 'expired') continue;
+      // The deterministic per-(org,user) sessionId is reused across
+      // create/destroy cycles, so `by_sessionId` returns many historical rows.
+      // Pin only the LIVE one — pinning a stale `failed`/`destroyed` record is
+      // meaningless and would leak a pinned dead row onto the management page.
+      if (row.status !== 'active' && row.status !== 'creating') continue;
       await ctx.db.patch(row._id, {
         pinned: args.pinned,
         pinnedAt: args.pinned ? now : undefined,

@@ -109,7 +109,17 @@ export const listSandboxesForOrg = query({
       .withIndex('by_organizationId_and_status', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
-      if (s.status === 'destroyed' || s.status === 'expired') continue;
+      // Only LIVE sessions are manageable. The deterministic per-(org,user)
+      // sessionId is reused across incarnations, so the table holds many
+      // historical destroyed/expired/failed rows for the same id — exclude all
+      // of them (a never-created `failed` record isn't a sandbox you can act on).
+      if (
+        s.status !== 'active' &&
+        s.status !== 'creating' &&
+        s.status !== 'degraded'
+      ) {
+        continue;
+      }
 
       // Current op = the running one if any, else the most recent by startedAt.
       // Bounded by the session lifetime (idle/TTL-reaped ~24h), so the per-
@@ -126,17 +136,23 @@ export const listSandboxesForOrg = query({
         heartbeatAt?: number;
       } | null = null;
       let busy = false;
+      let currentRunning = false;
       for await (const op of ctx.db
         .query('sandboxSessionOps')
         .withIndex('by_sessionId', (q) => q.eq('sessionId', s.sessionId))) {
-        const isRunning = op.status === 'running';
+        // A finalized op is done even if its status was never flipped off
+        // 'running' (the recovery/error paths set finalizedAt + revoke the VK
+        // but leave status as-is). Treat finalizedAt as the authoritative
+        // done-signal so a recovered/abandoned turn never shows as "busy".
+        const isRunning =
+          op.status === 'running' && op.finalizedAt === undefined;
         if (isRunning) busy = true;
-        const currentIsRunning = current?.status === 'running';
         const better =
           current === null ||
-          (isRunning && !currentIsRunning) ||
-          (isRunning === currentIsRunning && op.startedAt > current.startedAt);
+          (isRunning && !currentRunning) ||
+          (isRunning === currentRunning && op.startedAt > current.startedAt);
         if (better) {
+          currentRunning = isRunning;
           current = {
             execId: op.execId,
             status: op.status,

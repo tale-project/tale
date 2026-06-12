@@ -68,6 +68,21 @@ export const recoverStuckExternalAgentTurns = internalAction({
             (e) => console.warn('[recoverStuckExternalAgentTurns] mark:', e),
           );
         }
+        // Flip the op terminal too — finalizeTurnSideEffects only stamps
+        // finalizedAt, so without this the row lingers as status='running'
+        // (a zombie the management page would render as "busy").
+        await ctx
+          .runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+            organizationId: op.organizationId,
+            sessionId: op.sessionId,
+            execId: op.execId,
+            kind: 'agent-run',
+            status: 'failed',
+            heartbeatAt: Date.now(),
+          })
+          .catch((e) =>
+            console.warn('[recoverStuckExternalAgentTurns] op status:', e),
+          );
         // Kill the (possibly still-running) exec so it doesn't linger to the
         // runnerd timeout. Best-effort; the detach-grace likely already reaped
         // it once the action's connection dropped.
