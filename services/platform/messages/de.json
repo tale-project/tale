@@ -3773,6 +3773,10 @@
     "webdav": {
       "title": "WebDAV",
       "description": "Tale-Dokumente als Netzlaufwerk einhängen."
+    },
+    "sandboxes": {
+      "title": "Sandboxes",
+      "description": "Verwalten Sie die Remote-Agent-Sandboxes Ihrer Organisation."
     }
   },
   "navigation": {
@@ -3809,7 +3813,8 @@
       "primaryNavigation": "Hauptnavigation"
     },
     "dataResidency": "Datenresidenz",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "sandboxes": "Sandboxes"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -4350,6 +4355,9 @@
       },
       "governance": {
         "description": "Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung."
+      },
+      "sandboxes": {
+        "description": "Always-on Remote-Agent-Sandboxes verwalten."
       }
     },
     "account": {
@@ -6943,5 +6951,52 @@
       "degraded": "Beeinträchtigt",
       "offline": "Offline"
     }
+  },
+  "sandboxes": {
+    "title": "Sandboxes",
+    "description": "Always-on Remote-Agent-Sandboxes für Ihre Organisation. Jedes Mitglied erhält eine dauerhafte Sandbox pro Organisation; pinnen Sie eine an, damit sie immer bereit ist.",
+    "columns": {
+      "owner": "Eigentümer",
+      "agent": "Agent",
+      "status": "Status",
+      "task": "Aktuelle Aufgabe",
+      "spend": "Kosten",
+      "created": "Erstellt",
+      "actions": "Aktionen"
+    },
+    "status": {
+      "running": "Läuft",
+      "idle": "Inaktiv",
+      "pausedBudget": "Pausiert (Budget)",
+      "pinned": "Angepinnt"
+    },
+    "task": {
+      "none": "Keine aktive Aufgabe",
+      "thread": "Thread {{id}}",
+      "continuations": "{{count}} Fortsetzungen"
+    },
+    "actions": {
+      "stop": "Stoppen",
+      "pin": "Anpinnen",
+      "unpin": "Lösen",
+      "destroy": "Zerstören"
+    },
+    "destroyConfirm": {
+      "title": "Sandbox zerstören?",
+      "description": "Dies baut den Container und seinen Workspace ab. Laufende Aufgaben werden abgebrochen. Die nächste Chat-Nachricht erstellt eine neue Sandbox.",
+      "confirm": "Zerstören"
+    },
+    "toast": {
+      "stopped": "Aufgabe gestoppt",
+      "pinned": "Sandbox angepinnt",
+      "unpinned": "Sandbox gelöst",
+      "destroyed": "Sandbox zerstört",
+      "error": "Aktion fehlgeschlagen"
+    },
+    "empty": {
+      "title": "Keine aktiven Sandboxes",
+      "description": "Sandboxes starten automatisch, wenn ein Mitglied mit einem Coding-Agenten chattet."
+    },
+    "accessDenied": "Sie benötigen Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten."
   }
 }

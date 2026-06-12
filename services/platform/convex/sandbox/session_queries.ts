@@ -149,3 +149,52 @@ export const listActiveSessionsByOwner = internalQuery({
     return out;
   },
 });
+
+/** The session row for a spawner session id, or null. The management-page
+ * controls fetch it to confirm the session belongs to the caller's org before
+ * acting (defense in depth — the public id is org-scoped at the UI). */
+export const getSessionBySessionId = internalQuery({
+  args: { sessionId: v.string() },
+  returns: v.union(
+    v.object({
+      organizationId: v.string(),
+      ownerType: v.string(),
+      ownerId: v.string(),
+      status: v.string(),
+      pinned: v.optional(v.boolean()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      return {
+        organizationId: row.organizationId,
+        ownerType: row.ownerType,
+        ownerId: row.ownerId,
+        status: row.status,
+        ...(row.pinned !== undefined && { pinned: row.pinned }),
+      };
+    }
+    return null;
+  },
+});
+
+/** Running ops for a session (the live task), for the management-page "Stop"
+ * control — cancel every running exec the session currently has. */
+export const listRunningOpsBySession = internalQuery({
+  args: { sessionId: v.string() },
+  returns: v.array(v.object({ sessionId: v.string(), execId: v.string() })),
+  handler: async (ctx, args) => {
+    const out: { sessionId: string; execId: string }[] = [];
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.status === 'running') {
+        out.push({ sessionId: row.sessionId, execId: row.execId });
+      }
+    }
+    return out;
+  },
+});

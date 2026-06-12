@@ -213,6 +213,28 @@ export const destroyActiveSessionsByOwner = internalMutation({
   },
 });
 
+/** Mark ONE session row destroyed, scoped to its org (the management-page
+ * Destroy control). Org-guarded so a control call can't touch another tenant's
+ * session even if the spawner id were guessed. Returns whether a row flipped. */
+export const markSessionRowDestroyed = internalMutation({
+  args: { organizationId: v.string(), sessionId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.organizationId !== args.organizationId) continue;
+      if (row.status === 'destroyed' || row.status === 'expired') return false;
+      await ctx.db.patch(row._id, {
+        status: 'destroyed',
+        destroyedAt: Date.now(),
+      });
+      return true;
+    }
+    return false;
+  },
+});
+
 // --- session virtual-key bookkeeping ---------------------------------------
 
 /** Persist a minted session token's sha256 hash + scope (never the plaintext). */

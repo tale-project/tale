@@ -3773,6 +3773,10 @@
     "webdav": {
       "title": "WebDAV",
       "description": "Mount Tale documents as a network drive."
+    },
+    "sandboxes": {
+      "title": "Sandboxes",
+      "description": "Manage your organization's remote agent sandboxes."
     }
   },
   "navigation": {
@@ -3809,7 +3813,8 @@
       "primaryNavigation": "Primary navigation"
     },
     "dataResidency": "Data residency",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "sandboxes": "Sandboxes"
   },
   "notifications": {
     "title": "Notifications",
@@ -4611,6 +4616,9 @@
       },
       "governance": {
         "description": "Policies, security, audit logs, and data retention."
+      },
+      "sandboxes": {
+        "description": "Manage always-on remote agent sandboxes."
       }
     },
     "account": {
@@ -6943,5 +6951,52 @@
       "degraded": "Degraded",
       "offline": "Offline"
     }
+  },
+  "sandboxes": {
+    "title": "Sandboxes",
+    "description": "Always-on remote agent sandboxes for your organization. Each member gets one persistent sandbox per organization; pin one to keep it always ready.",
+    "columns": {
+      "owner": "Owner",
+      "agent": "Agent",
+      "status": "Status",
+      "task": "Current task",
+      "spend": "Spend",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "status": {
+      "running": "Running",
+      "idle": "Idle",
+      "pausedBudget": "Paused (budget)",
+      "pinned": "Pinned"
+    },
+    "task": {
+      "none": "No active task",
+      "thread": "Thread {{id}}",
+      "continuations": "{{count}} continuations"
+    },
+    "actions": {
+      "stop": "Stop",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "destroy": "Destroy"
+    },
+    "destroyConfirm": {
+      "title": "Destroy sandbox?",
+      "description": "This tears down the container and its workspace. Any running task is cancelled. The next chat message recreates a fresh sandbox.",
+      "confirm": "Destroy"
+    },
+    "toast": {
+      "stopped": "Task stopped",
+      "pinned": "Sandbox pinned",
+      "unpinned": "Sandbox unpinned",
+      "destroyed": "Sandbox destroyed",
+      "error": "Action failed"
+    },
+    "empty": {
+      "title": "No active sandboxes",
+      "description": "Sandboxes start automatically when a member chats with a coding agent."
+    },
+    "accessDenied": "You need developer or admin access to manage sandboxes."
   }
 }

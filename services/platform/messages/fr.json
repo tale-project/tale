@@ -3774,6 +3774,10 @@
     "webdav": {
       "title": "WebDAV",
       "description": "Monte les documents Tale comme lecteur réseau."
+    },
+    "sandboxes": {
+      "title": "Sandboxes",
+      "description": "Gérez les sandboxes d’agent distant de votre organisation."
     }
   },
   "navigation": {
@@ -3810,7 +3814,8 @@
       "primaryNavigation": "Navigation principale"
     },
     "dataResidency": "Résidence des données",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "sandboxes": "Sandboxes"
   },
   "notifications": {
     "title": "Notifications",
@@ -4351,6 +4356,9 @@
       },
       "governance": {
         "description": "Politiques, sécurité, journaux d'audit et conservation des données."
+      },
+      "sandboxes": {
+        "description": "Gérer les sandboxes d’agent distant toujours actives."
       }
     },
     "account": {
@@ -6944,5 +6952,52 @@
       "degraded": "Dégradé",
       "offline": "Hors ligne"
     }
+  },
+  "sandboxes": {
+    "title": "Sandboxes",
+    "description": "Sandboxes d’agent distant toujours actives pour votre organisation. Chaque membre dispose d’une sandbox persistante par organisation ; épinglez-en une pour la garder toujours prête.",
+    "columns": {
+      "owner": "Propriétaire",
+      "agent": "Agent",
+      "status": "Statut",
+      "task": "Tâche en cours",
+      "spend": "Coût",
+      "created": "Créée",
+      "actions": "Actions"
+    },
+    "status": {
+      "running": "En cours",
+      "idle": "Inactive",
+      "pausedBudget": "En pause (budget)",
+      "pinned": "Épinglée"
+    },
+    "task": {
+      "none": "Aucune tâche active",
+      "thread": "Thread {{id}}",
+      "continuations": "{{count}} continuations"
+    },
+    "actions": {
+      "stop": "Arrêter",
+      "pin": "Épingler",
+      "unpin": "Détacher",
+      "destroy": "Détruire"
+    },
+    "destroyConfirm": {
+      "title": "Détruire la sandbox ?",
+      "description": "Cela démonte le conteneur et son espace de travail. Toute tâche en cours est annulée. Le prochain message de chat recrée une sandbox neuve.",
+      "confirm": "Détruire"
+    },
+    "toast": {
+      "stopped": "Tâche arrêtée",
+      "pinned": "Sandbox épinglée",
+      "unpinned": "Sandbox détachée",
+      "destroyed": "Sandbox détruite",
+      "error": "Échec de l’action"
+    },
+    "empty": {
+      "title": "Aucune sandbox active",
+      "description": "Les sandboxes démarrent automatiquement lorsqu’un membre discute avec un agent de codage."
+    },
+    "accessDenied": "Vous avez besoin d’un accès développeur ou admin pour gérer les sandboxes."
   }
 }

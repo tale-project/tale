@@ -1,4 +1,5 @@
 import {
+  Box,
   Building2,
   KeyRound,
   Palette,
@@ -82,6 +83,12 @@ export function useSettingsMenuGroups(
         key: 'integrations',
         icon: Plug,
         path: 'integrations',
+        can: ['read', 'developerSettings'],
+      },
+      {
+        key: 'sandboxes',
+        icon: Box,
+        path: 'sandboxes',
         can: ['read', 'developerSettings'],
       },
       {

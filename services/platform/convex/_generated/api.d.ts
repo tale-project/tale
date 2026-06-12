@@ -815,6 +815,7 @@ import type * as node_only_sandbox_helpers_session_client from "../node_only/san
 import type * as node_only_sandbox_helpers_spawner_client from "../node_only/sandbox/helpers/spawner_client.js";
 import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sandbox_run_agent from "../node_only/sandbox/run_agent.js";
+import type * as node_only_sandbox_session_admin_actions from "../node_only/sandbox/session_admin_actions.js";
 import type * as node_only_sandbox_session_credentials from "../node_only/sandbox/session_credentials.js";
 import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
@@ -2224,6 +2225,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/helpers/spawner_client": typeof node_only_sandbox_helpers_spawner_client;
   "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sandbox/run_agent": typeof node_only_sandbox_run_agent;
+  "node_only/sandbox/session_admin_actions": typeof node_only_sandbox_session_admin_actions;
   "node_only/sandbox/session_credentials": typeof node_only_sandbox_session_credentials;
   "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;

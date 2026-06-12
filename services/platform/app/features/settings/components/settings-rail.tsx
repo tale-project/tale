@@ -123,6 +123,13 @@ export function SettingsRail({
         can: ['read', 'developerSettings'],
       },
       {
+        kind: 'leaf',
+        labelKey: 'sandboxes',
+        path: 'sandboxes',
+        matchMode: 'startsWith',
+        can: ['read', 'developerSettings'],
+      },
+      {
         kind: 'group',
         labelKey: 'api',
         path: 'api',
