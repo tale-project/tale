@@ -564,6 +564,7 @@ export const ChatMessages = memo(function ChatMessages({
           <ApprovalCardRenderer
             item={item}
             organizationId={organizationId}
+            threadId={threadId}
             onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
             onSendMessage={onSendMessage}
           />

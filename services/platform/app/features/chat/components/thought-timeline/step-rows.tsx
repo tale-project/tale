@@ -121,7 +121,10 @@ function toolInputText(
     str(input.file_path) ??
     str(input.notebook_path) ??
     str(input.pattern) ??
-    str(input.url);
+    str(input.url) ??
+    // ExitPlanMode (plan/act workflow): show the proposed plan markdown
+    // itself, not a JSON dump of {plan, planFilePath}.
+    str(input.plan);
   if (direct) return direct;
   const keys = Object.keys(input);
   if (keys.length === 0) return undefined;

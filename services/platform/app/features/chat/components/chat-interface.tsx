@@ -376,6 +376,7 @@ export function ChatInterface({
     locationRequests,
     documentWriteApprovals,
     knowledgeWriteApprovals,
+    planApprovals,
   } = useThreadApprovals(organizationId, dataThreadId);
 
   // Resolved human-input requests — rendered inline in the history with the
@@ -400,6 +401,7 @@ export function ChatInterface({
     locationRequests,
     documentWriteApprovals,
     knowledgeWriteApprovals,
+    planApprovals,
   });
 
   // Block input when any pending or executing approval exists

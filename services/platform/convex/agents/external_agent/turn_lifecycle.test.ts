@@ -18,6 +18,9 @@ vi.mock('../../_generated/api', () => ({
     },
   },
   internal: {
+    approvals: {
+      internal_mutations: { createPlanApproval: 'mock-createPlanApproval' },
+    },
     sandbox: {
       session_mutations: { claimSessionOpFinalize: 'mock-claimFinalize' },
     },
@@ -47,7 +50,11 @@ vi.mock('../../node_only/sandbox/helpers/session_client', () => ({
 }));
 
 import type { RunAgentInSessionResult } from '../../node_only/sandbox/run_agent';
-import { handleTurnOutcome, type TurnContext } from './turn_lifecycle';
+import {
+  handleTurnOutcome,
+  resolvePlanText,
+  type TurnContext,
+} from './turn_lifecycle';
 
 function createMockCtx() {
   return {
@@ -222,6 +229,140 @@ describe('handleTurnOutcome — terminal status mapping', () => {
     );
     expect(claims).toHaveLength(1);
     expect(claims[0]?.[1]).toEqual({ sessionId: 'sess_1', execId: 'exec_1' });
+  });
+});
+
+describe('resolvePlanText', () => {
+  it('uses the ExitPlanMode capture in any mode (the gate hook stops the agent)', () => {
+    expect(resolvePlanText({ planText: '# The plan' }, 'plan')).toBe(
+      '# The plan',
+    );
+    expect(resolvePlanText({ planText: '# The plan' }, 'execute')).toBe(
+      '# The plan',
+    );
+    expect(resolvePlanText({ planText: '# The plan' }, undefined)).toBe(
+      '# The plan',
+    );
+  });
+
+  it('falls back to finalText ONLY for a turn that ran in plan mode', () => {
+    expect(resolvePlanText({ finalText: 'Here is my plan…' }, 'plan')).toBe(
+      'Here is my plan…',
+    );
+    expect(resolvePlanText({ finalText: 'normal answer' }, 'execute')).toBe(
+      null,
+    );
+    expect(resolvePlanText({ finalText: 'normal answer' }, undefined)).toBe(
+      null,
+    );
+  });
+
+  it('returns null for blank captures and empty results', () => {
+    expect(resolvePlanText({ planText: '   ' }, 'plan')).toBe(null);
+    expect(resolvePlanText({ finalText: '   ' }, 'plan')).toBe(null);
+    expect(resolvePlanText({}, 'plan')).toBe(null);
+  });
+});
+
+describe('handleTurnOutcome — plan-approval creation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function planApprovalCalls(ctx: ReturnType<typeof createMockCtx>) {
+    return ctx.runMutation.mock.calls.filter(
+      ([ref]) => ref === 'mock-createPlanApproval',
+    );
+  }
+
+  it('creates one approval row when a plan-mode turn captured a plan', async () => {
+    const ctx = createMockCtx();
+    const turn: TurnContext = { ...makeTurn(), permissionMode: 'plan' };
+    await handleTurnOutcome(ctx as unknown as ActionCtx, turn, {
+      status: 'completed',
+      exitCode: 0,
+      assistantContent: 'Plan created.',
+      planText: '# Plan: do the thing',
+    });
+
+    const calls = planApprovalCalls(ctx);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toMatchObject({
+      organizationId: 'org_1',
+      threadId: 'thread_1',
+      messageId: 'msg_1',
+      agentSlug: 'claude-code',
+      plan: '# Plan: do the thing',
+      planSource: 'exit_plan_mode',
+    });
+  });
+
+  it('uses the finalText fallback (planSource final_text) for a plan turn without ExitPlanMode', async () => {
+    const ctx = createMockCtx();
+    const turn: TurnContext = { ...makeTurn(), permissionMode: 'plan' };
+    await handleTurnOutcome(ctx as unknown as ActionCtx, turn, {
+      status: 'completed',
+      exitCode: 0,
+      finalText: 'Step 1 … Step 2 …',
+      assistantContent: 'Step 1 … Step 2 …',
+    });
+
+    const calls = planApprovalCalls(ctx);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toMatchObject({ planSource: 'final_text' });
+  });
+
+  it('creates no row for an execute-mode turn without a capture, nor on cancel', async () => {
+    const ctx = createMockCtx();
+    await handleTurnOutcome(ctx as unknown as ActionCtx, makeTurn(), {
+      status: 'completed',
+      exitCode: 0,
+      finalText: 'normal answer',
+      assistantContent: 'normal answer',
+    });
+    expect(planApprovalCalls(ctx)).toHaveLength(0);
+
+    const cancelled: TurnContext = { ...makeTurn(), permissionMode: 'plan' };
+    await handleTurnOutcome(ctx as unknown as ActionCtx, cancelled, {
+      status: 'cancelled',
+      exitCode: null,
+      planText: '# captured before Stop',
+    });
+    expect(planApprovalCalls(ctx)).toHaveLength(0);
+  });
+
+  it('still creates the row on a max-turns/failed end (captured plan is reviewable)', async () => {
+    const ctx = createMockCtx();
+    const turn: TurnContext = { ...makeTurn(), permissionMode: 'plan' };
+    await handleTurnOutcome(ctx as unknown as ActionCtx, turn, {
+      status: 'failed',
+      exitCode: 1,
+      assistantContent: 'ran out of turns',
+      planText: '# Plan from a noisy end',
+    });
+    expect(planApprovalCalls(ctx)).toHaveLength(1);
+  });
+
+  it('a createPlanApproval failure never skips finalize', async () => {
+    const ctx = createMockCtx();
+    ctx.runMutation.mockImplementation((ref: unknown) => {
+      if (ref === 'mock-createPlanApproval') {
+        return Promise.reject(new Error('boom'));
+      }
+      return Promise.resolve(true);
+    });
+    const turn: TurnContext = { ...makeTurn(), permissionMode: 'plan' };
+    await handleTurnOutcome(ctx as unknown as ActionCtx, turn, {
+      status: 'completed',
+      exitCode: 0,
+      assistantContent: 'Plan created.',
+      planText: '# Plan',
+    });
+
+    const claims = ctx.runMutation.mock.calls.filter(
+      ([ref]) => ref === 'mock-claimFinalize',
+    );
+    expect(claims).toHaveLength(1);
   });
 });
 

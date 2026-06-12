@@ -4,11 +4,16 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { AgentEvent } from '../events';
+import { isRecord } from '../jsonl';
 import { ClaudeCodeParser } from './parse';
 
 const FIXTURE = join(
   import.meta.dirname,
   '../../fixtures/claude_code/issue-to-pr.jsonl',
+);
+const PLAN_FIXTURE = join(
+  import.meta.dirname,
+  '../../fixtures/claude_code/plan-mode-turn.jsonl',
 );
 
 /** Feed a fixture through the parser in arbitrary byte-sized chunks so the
@@ -129,5 +134,36 @@ describe('ClaudeCodeParser', () => {
       },
     });
     expect(parser.feed(`${line}\n`)).toEqual([]);
+  });
+
+  it('surfaces an ExitPlanMode plan turn (recorded from CLI 2.1.173 headless)', () => {
+    // Fixture is a real `-p --permission-mode plan` run: the proposed plan
+    // rides the tool_use input (input.plan + planFilePath) and the call is
+    // denied ("Exit plan mode?", is_error) — the platform's plan capture
+    // reads the input; the turn still ends as a successful result.
+    const planText = readFileSync(PLAN_FIXTURE, 'utf8');
+    const events = parseChunked(planText, 1_000);
+
+    const toolUse = events.find(
+      (e) => e.type === 'tool-use' && e.toolName === 'ExitPlanMode',
+    );
+    expect(toolUse).toBeDefined();
+    const input =
+      toolUse?.type === 'tool-use' && isRecord(toolUse.input)
+        ? toolUse.input
+        : undefined;
+    expect(input?.plan).toMatch(/^# Plan: Create hello.txt/);
+    expect(input?.planFilePath).toContain('/plans/');
+
+    const denial = events.find(
+      (e) =>
+        e.type === 'tool-result' &&
+        toolUse?.type === 'tool-use' &&
+        e.toolUseId === toolUse.toolUseId,
+    );
+    expect(denial).toMatchObject({ type: 'tool-result', isError: true });
+
+    const result = events.find((e) => e.type === 'result');
+    expect(result).toMatchObject({ type: 'result', status: 'completed' });
   });
 });

@@ -32,6 +32,13 @@ function externalAgentToolSummary(
       const cmd = str(input.command);
       return cmd ? `Bash · ${truncate(cmd, 80)}` : null;
     }
+    case 'ExitPlanMode':
+      // Plan/act workflow: the call carries the full plan in input.plan; the
+      // row reads as the proposal event (the plan itself renders in the
+      // approval card + the expanded row body).
+      return 'Proposed a plan';
+    case 'EnterPlanMode':
+      return 'Entered plan mode';
     case 'Read':
     case 'Edit':
     case 'Write':

@@ -330,6 +330,9 @@ export const getThreadMeta = query({
       // generating (mirrors liveRoute), so an idle thread never carries a stale
       // start; `null` otherwise.
       generationStartTime: v.union(v.number(), v.null()),
+      // External-agent plan/act posture (composer toggle + plan-card flow).
+      // `null` when the row has no explicit mode — callers treat it as 'act'.
+      externalAgentMode: v.union(v.literal('plan'), v.literal('act'), v.null()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -389,6 +392,7 @@ export const getThreadMeta = query({
         isGenerating && metadata.generationStartTime
           ? metadata.generationStartTime
           : null,
+      externalAgentMode: metadata.externalAgentMode ?? null,
     };
   },
 });

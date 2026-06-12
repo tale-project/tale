@@ -985,6 +985,14 @@
     "budgetWarningTypeCost": "Kosten",
     "budgetWarningTypeRequests": "Anfragen",
     "placeholder": "Frag zu Kunden, Produkten oder Dokumenten...",
+    "planMode": {
+      "label": "Planen- oder Ausführen-Modus",
+      "plan": "Planen",
+      "act": "Ausführen",
+      "planTooltip": "Planungsmodus: Der Agent erkundet nur lesend und schlägt dir einen Plan zur Genehmigung vor",
+      "actTooltip": "Ausführungsmodus: Der Agent setzt deine Anweisungen direkt um",
+      "toggleFailed": "Modus konnte nicht gewechselt werden"
+    },
     "searchConversations": "Konversationen durchsuchen",
     "invalidFiles": "Ungültige Dateien",
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrößenlimit von {maxSize} MB.",
@@ -1881,6 +1889,23 @@
     "statusRejected": "Diese Dokumentspeicherung wurde abgelehnt.",
     "allFilesFailed": "Alle {count} Dateien konnten nicht gespeichert werden",
     "errorSaveFailed": "Dokument konnte nicht gespeichert werden"
+  },
+  "planApproval": {
+    "cardTitle": "Vorgeschlagener Plan",
+    "approve": "Genehmigen & ausführen",
+    "approveTooltip": "Plan genehmigen und Ausführung starten",
+    "reject": "Ablehnen",
+    "rejectTooltip": "Diesen Plan ablehnen",
+    "keepTypingHint": "Oder schreib unten weiter, um den Plan zu verfeinern.",
+    "statusApproved": "Plan genehmigt – Ausführung gestartet.",
+    "statusRejected": "Dieser Plan wurde abgelehnt.",
+    "statusSuperseded": "Durch einen neueren Plan ersetzt.",
+    "errorTurnRunning": "Der Agent arbeitet noch – warte, bis er fertig ist, oder stoppe ihn zuerst.",
+    "errorAlreadyResolved": "Dieser Plan wurde bereits entschieden.",
+    "errorApproveFailed": "Plan konnte nicht genehmigt werden",
+    "errorRejectFailed": "Plan konnte nicht abgelehnt werden",
+    "showMore": "Ganzen Plan anzeigen",
+    "showLess": "Weniger anzeigen"
   },
   "documents": {
     "entityLabel": "Dokumente",

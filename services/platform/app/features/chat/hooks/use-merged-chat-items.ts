@@ -8,6 +8,7 @@ import type {
   IntegrationApproval,
   KnowledgeWriteApproval,
   LocationRequest,
+  PlanApproval,
   WorkflowCreationApproval,
   WorkflowRunApproval,
   WorkflowUpdateApproval,
@@ -23,7 +24,8 @@ export type ChatItem =
   | { type: 'human_input_request'; data: HumanInputRequest }
   | { type: 'document_write_approval'; data: DocumentWriteApproval }
   | { type: 'knowledge_write_approval'; data: KnowledgeWriteApproval }
-  | { type: 'location_request'; data: LocationRequest };
+  | { type: 'location_request'; data: LocationRequest }
+  | { type: 'plan_approval'; data: PlanApproval };
 
 type ApprovalChatItem = Exclude<ChatItem, { type: 'message' }>;
 
@@ -43,6 +45,10 @@ interface UseMergedChatItemsParams {
   /** Optional — surfaces only on the main chat path (the `knowledge_write`
    *  tool); arena/automation callers don't pass it. */
   knowledgeWriteApprovals?: KnowledgeWriteApproval[];
+  /** External-agent plan proposals — rendered INLINE anchored to their source
+   *  message and deliberately EXCLUDED from `activeApproval`: a pending plan
+   *  must never disable the composer (typing below = refining the plan). */
+  planApprovals?: PlanApproval[];
 }
 
 export interface MergedChatItemsResult {
@@ -120,11 +126,51 @@ export function mergeHumanInputItems(
 }
 
 /**
+ * Splice plan-approval cards into the sorted message items, each immediately
+ * AFTER its source assistant message (the turn that proposed the plan). Plans
+ * whose source message isn't loaded (pagination) are skipped — they appear
+ * once load-more brings the message in. Pure + exported for unit testing.
+ */
+export function mergePlanApprovalItems(
+  messageItems: ChatItem[],
+  approvals: PlanApproval[],
+): ChatItem[] {
+  if (approvals.length === 0) return messageItems;
+
+  const byMessageId = new Map<string, PlanApproval[]>();
+  for (const approval of approvals) {
+    if (!approval.messageId) continue;
+    const bucket = byMessageId.get(approval.messageId);
+    if (bucket) bucket.push(approval);
+    else byMessageId.set(approval.messageId, [approval]);
+  }
+  for (const bucket of byMessageId.values()) {
+    bucket.sort((a, b) => a._creationTime - b._creationTime);
+  }
+
+  const merged: ChatItem[] = [];
+  let insertedAny = false;
+  for (const item of messageItems) {
+    merged.push(item);
+    if (item.type !== 'message') continue;
+    const bucket = byMessageId.get(item.data.id);
+    if (!bucket) continue;
+    for (const approval of bucket) {
+      merged.push({ type: 'plan_approval', data: approval });
+      insertedAny = true;
+    }
+  }
+  return insertedAny ? merged : messageItems;
+}
+
+/**
  * Hook to merge messages with approvals.
  * Messages are returned chronologically.
  * The latest active (pending/executing) approval is returned separately;
- * resolved human-input requests are merged INLINE after their source message
- * (other completed/rejected approvals stay hidden).
+ * resolved human-input requests and plan proposals are merged INLINE after
+ * their source message (other completed/rejected approvals stay hidden).
+ * Plan approvals never populate `activeApproval` — the composer stays usable
+ * while a plan awaits review.
  */
 export function useMergedChatItems({
   messages,
@@ -137,6 +183,7 @@ export function useMergedChatItems({
   locationRequests,
   documentWriteApprovals,
   knowledgeWriteApprovals,
+  planApprovals,
 }: UseMergedChatItemsParams): MergedChatItemsResult {
   return useMemo((): MergedChatItemsResult => {
     // Build message items
@@ -176,6 +223,14 @@ export function useMergedChatItems({
       messageItems,
       humanInputToInline,
       resolvedHumanInputRequests !== undefined,
+    );
+
+    // Plan-approval cards: inline after their source message, never in the
+    // footer/activeApproval slot (the composer must stay usable — typing
+    // below a pending plan is how the user refines it).
+    const itemsWithPlans = mergePlanApprovalItems(
+      itemsWithHumanInput,
+      planApprovals ?? [],
     );
 
     // Collect active approvals (pending/executing only, linked to loaded messages)
@@ -272,7 +327,7 @@ export function useMergedChatItems({
       loadedMessageIds.has(activeApproval.data.messageId);
 
     return {
-      messages: itemsWithHumanInput,
+      messages: itemsWithPlans,
       activeApproval,
       activeApprovalInline,
     };
@@ -287,5 +342,6 @@ export function useMergedChatItems({
     locationRequests,
     documentWriteApprovals,
     knowledgeWriteApprovals,
+    planApprovals,
   ]);
 }

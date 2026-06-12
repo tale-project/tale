@@ -93,6 +93,16 @@ const TURN_BUDGET_CENTS = Number(
 const TURN_TIMEOUT_MS = Number(
   process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(24 * 60 * 60 * 1000),
 );
+// Appended to the system prompt of a PLAN turn (composed with the agent's own
+// instructions, never replacing them). The in-image tale-plan-gate hook is the
+// hard stop — this just steers the model toward one clean ExitPlanMode call.
+const PLAN_MODE_ADDENDUM =
+  'This is a read-only planning turn. Explore as needed, then call ' +
+  'ExitPlanMode exactly once with the complete plan as the `plan` argument. ' +
+  'The call will be denied — that is expected: present the complete plan in ' +
+  'your final message and end your turn. The user reviews and approves the ' +
+  'plan in the chat UI before any execution happens. Do not retry ' +
+  'ExitPlanMode and do not start executing.';
 // Per-ACTION window: how long one action drains before handing off to a
 // continuation action (kept under the 30min ACTIONS_USER_TIMEOUT_SECS ceiling
 // with margin for the handoff + the next action's cold start).
@@ -126,6 +136,10 @@ export const runExternalAgentTurn = internalAction({
     rawPrompt: v.string(),
     systemInstructions: v.optional(v.string()),
     agentKind: v.union(v.literal('claude-code'), v.literal('opencode')),
+    /** Turn posture from the thread's plan/act toggle ('execute' when absent). */
+    permissionMode: v.optional(
+      v.union(v.literal('plan'), v.literal('execute')),
+    ),
     streamId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
     organizationId: v.string(),
@@ -372,6 +386,9 @@ export const runExternalAgentTurn = internalAction({
         assistantMessageId: created.messageId,
         mintedKeyId,
         continuationCount: 0,
+        ...(args.permissionMode !== undefined && {
+          permissionMode: args.permissionMode,
+        }),
         ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
         ...(args.userId !== undefined && { userId: args.userId }),
         ...(args.streamId !== undefined && { streamId: args.streamId }),
@@ -401,6 +418,15 @@ export const runExternalAgentTurn = internalAction({
         },
       );
 
+      // Plan turns append the plan-mode addendum to the agent's own
+      // instructions (composed, never clobbered).
+      const systemPromptAppend = [
+        args.systemInstructions,
+        args.permissionMode === 'plan' ? PLAN_MODE_ADDENDUM : undefined,
+      ]
+        .filter((s): s is string => s !== undefined && s !== '')
+        .join('\n\n');
+
       const result = await runAgentInSessionImpl(ctx, {
         organizationId: args.organizationId,
         sessionId,
@@ -413,8 +439,9 @@ export const runExternalAgentTurn = internalAction({
         // the colon-qualified Tale form — translate at the boundary.
         model: toGatewayModelRef(args.modelRef),
         ...(agentSessionId !== null && { agentSessionId }),
-        ...(args.systemInstructions !== undefined && {
-          systemPromptAppend: args.systemInstructions,
+        ...(systemPromptAppend !== '' && { systemPromptAppend }),
+        ...(args.permissionMode !== undefined && {
+          permissionMode: args.permissionMode,
         }),
         gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
         gatewayToken: vk.key,

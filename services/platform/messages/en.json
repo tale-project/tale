@@ -985,6 +985,14 @@
     "budgetWarningTypeCost": "cost",
     "budgetWarningTypeRequests": "request",
     "placeholder": "Ask about customers, products, or documents…",
+    "planMode": {
+      "label": "Plan or act mode",
+      "plan": "Plan",
+      "act": "Act",
+      "planTooltip": "Plan mode: the agent explores read-only and proposes a plan for your approval",
+      "actTooltip": "Act mode: the agent executes directly",
+      "toggleFailed": "Couldn't switch mode"
+    },
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
     "fileSizeExceededMultiple": "{names} exceeded the {maxSize}MB file size limit.",
@@ -1881,6 +1889,23 @@
     "statusRejected": "This document save was rejected.",
     "allFilesFailed": "All {count} files failed to save",
     "errorSaveFailed": "Failed to save document"
+  },
+  "planApproval": {
+    "cardTitle": "Proposed plan",
+    "approve": "Approve & execute",
+    "approveTooltip": "Approve the plan and start execution",
+    "reject": "Reject",
+    "rejectTooltip": "Reject this plan",
+    "keepTypingHint": "Or keep typing below to refine the plan.",
+    "statusApproved": "Plan approved — execution started.",
+    "statusRejected": "This plan was rejected.",
+    "statusSuperseded": "Replaced by a newer plan.",
+    "errorTurnRunning": "The agent is still working — wait for the turn to finish or stop it first.",
+    "errorAlreadyResolved": "This plan was already resolved.",
+    "errorApproveFailed": "Couldn't approve the plan",
+    "errorRejectFailed": "Couldn't reject the plan",
+    "showMore": "Show full plan",
+    "showLess": "Show less"
   },
   "documents": {
     "entityLabel": "documents",

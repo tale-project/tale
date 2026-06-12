@@ -22,6 +22,11 @@ export interface AgentRunSpec {
   agentSessionId?: string;
   /** Agent loop cap; defaults to 40 (matches the platform agent maxSteps). */
   maxTurns?: number;
+  /** Turn permission posture. `plan` = read-only exploration that ends with a
+   * proposed plan (Claude Code `--permission-mode plan`); `execute` (default)
+   * = the existing full-access behavior. Adapters without the concept ignore
+   * it. Fixed for the whole turn — continuations re-attach to the same exec. */
+  permissionMode?: 'plan' | 'execute';
   /** Extra system-prompt text appended to the agent's defaults. */
   systemPromptAppend?: string;
   gateway: GatewayTarget;

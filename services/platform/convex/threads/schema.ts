@@ -226,6 +226,16 @@ export const threadMetadataTable = defineTable({
    */
   canvasOpen: v.optional(v.boolean()),
   canvasActiveFilePath: v.optional(v.string()),
+  /**
+   * External-agent (Claude Code) turn posture for this thread. `plan` runs
+   * each turn read-only (`--permission-mode plan`): the agent explores and
+   * proposes a plan that surfaces as an approval card; `act` (or missing —
+   * the default) is the existing full-access behavior. Sticky per thread;
+   * flipped by the composer toggle, by plan-card approval (→ `act`), and by
+   * plan detection at turn end (→ `plan`, so an agent-initiated plan leaves
+   * the toggle reflecting reality).
+   */
+  externalAgentMode: v.optional(v.union(v.literal('plan'), v.literal('act'))),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [

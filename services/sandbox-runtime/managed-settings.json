@@ -5,6 +5,18 @@
     "DISABLE_AUTOUPDATER": "1"
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/bin/tale-plan-gate",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "*",

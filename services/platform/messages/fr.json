@@ -986,6 +986,14 @@
     "budgetWarningTypeCost": "coût",
     "budgetWarningTypeRequests": "requête",
     "placeholder": "Pose une question sur les clients, produits ou documents…",
+    "planMode": {
+      "label": "Mode planification ou exécution",
+      "plan": "Planifier",
+      "act": "Exécuter",
+      "planTooltip": "Mode planification : l'agent explore en lecture seule et te propose un plan à approuver",
+      "actTooltip": "Mode exécution : l'agent applique directement tes instructions",
+      "toggleFailed": "Impossible de changer de mode"
+    },
     "searchConversations": "Rechercher dans les conversations",
     "invalidFiles": "Fichiers invalides",
     "fileSizeExceededMultiple": "{names} dépasse(nt) la limite de taille de fichier de {maxSize} Mo.",
@@ -1882,6 +1890,23 @@
     "statusRejected": "L'enregistrement de ce document a été rejeté.",
     "allFilesFailed": "Les {count} fichiers n'ont pas pu être enregistrés",
     "errorSaveFailed": "Échec de l'enregistrement du document"
+  },
+  "planApproval": {
+    "cardTitle": "Plan proposé",
+    "approve": "Approuver et exécuter",
+    "approveTooltip": "Approuver le plan et lancer l'exécution",
+    "reject": "Rejeter",
+    "rejectTooltip": "Rejeter ce plan",
+    "keepTypingHint": "Ou continue d'écrire ci-dessous pour affiner le plan.",
+    "statusApproved": "Plan approuvé — exécution lancée.",
+    "statusRejected": "Ce plan a été rejeté.",
+    "statusSuperseded": "Remplacé par un plan plus récent.",
+    "errorTurnRunning": "L'agent travaille encore — attends la fin du tour ou arrête-le d'abord.",
+    "errorAlreadyResolved": "Ce plan a déjà été traité.",
+    "errorApproveFailed": "Impossible d'approuver le plan",
+    "errorRejectFailed": "Impossible de rejeter le plan",
+    "showMore": "Afficher le plan complet",
+    "showLess": "Réduire"
   },
   "documents": {
     "entityLabel": "documents",

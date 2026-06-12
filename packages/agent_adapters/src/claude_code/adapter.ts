@@ -46,7 +46,11 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       '--verbose',
       '--include-partial-messages',
       '--permission-mode',
-      'bypassPermissions',
+      // plan: read-only exploration; the CLI denies writes and the turn ends
+      // with the proposed plan (ExitPlanMode carries it in input.plan). The
+      // platform gates execution — approval starts a fresh execute turn that
+      // --resumes this session.
+      spec.permissionMode === 'plan' ? 'plan' : 'bypassPermissions',
       '--max-turns',
       String(spec.maxTurns ?? DEFAULT_MAX_TURNS),
     ];

@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { isRecord } from '../../lib/utils/type-guards';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
 import * as ApprovalsHelpers from './helpers';
@@ -159,5 +160,81 @@ export const sweepPendingApprovals = internalMutation({
       if (rows.length >= limit) break;
     }
     return rows;
+  },
+});
+
+/**
+ * Create an `external_agent_plan` approval for a plan the agent just proposed
+ * (plan/act workflow). Unlike the generic createApproval upsert, a newer plan
+ * SUPERSEDES any older pending plan on the thread (auto-rejected + stamped
+ * `supersededBy`) — only the latest plan is ever actionable. Also flips the
+ * thread's plan/act toggle to `plan`, so an agent-initiated plan leaves the
+ * composer reflecting reality (idempotent for turns that already ran in plan
+ * mode). One atomic mutation.
+ */
+export const createPlanApproval = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    /** Assistant message of the turn that proposed the plan (card anchor). */
+    messageId: v.string(),
+    agentSlug: v.string(),
+    modelRef: v.string(),
+    plan: v.string(),
+    planSource: v.union(v.literal('exit_plan_mode'), v.literal('final_text')),
+    requestedBy: v.optional(v.string()),
+  },
+  returns: v.string(),
+  handler: async (ctx, args): Promise<Id<'approvals'>> => {
+    const approvalId = await ctx.db.insert('approvals', {
+      organizationId: args.organizationId,
+      status: 'pending',
+      resourceType: 'external_agent_plan',
+      resourceId: args.threadId,
+      priority: 'medium',
+      threadId: args.threadId,
+      messageId: args.messageId,
+      metadata: {
+        plan: args.plan,
+        planSource: args.planSource,
+        agentSlug: args.agentSlug,
+        modelRef: args.modelRef,
+        requestedAt: Date.now(),
+        ...(args.requestedBy !== undefined && {
+          requestedBy: args.requestedBy,
+        }),
+      },
+    });
+
+    // Supersede older pending plans on this thread (skip the row just added).
+    for await (const existing of ctx.db
+      .query('approvals')
+      .withIndex('by_threadId_status_resourceType', (q) =>
+        q
+          .eq('threadId', args.threadId)
+          .eq('status', 'pending')
+          .eq('resourceType', 'external_agent_plan'),
+      )) {
+      if (existing._id === approvalId) continue;
+      await ctx.db.patch(existing._id, {
+        status: 'rejected',
+        reviewedAt: Date.now(),
+        metadata: {
+          ...(isRecord(existing.metadata) ? existing.metadata : {}),
+          supersededBy: approvalId,
+        },
+      });
+    }
+
+    // Reflect the awaiting-approval state on the composer toggle.
+    const threadMeta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+    if (threadMeta && threadMeta.externalAgentMode !== 'plan') {
+      await ctx.db.patch(threadMeta._id, { externalAgentMode: 'plan' });
+    }
+
+    return approvalId;
   },
 });

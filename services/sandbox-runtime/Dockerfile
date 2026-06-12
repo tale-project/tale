@@ -149,6 +149,11 @@ COPY services/sandbox-runtime/managed-settings.json /etc/claude-code/managed-set
 # $TALE_STEER_DIR the adapter sets; inert (fast no-op) for every other run.
 COPY services/sandbox-runtime/tale-steer-hook /usr/local/bin/tale-steer-hook
 
+# Plan gate: denies ExitPlanMode in every permission mode (hooks evaluate
+# before bypassPermissions) so a proposed plan always ends the turn and is
+# approved by the user in chat — never self-approved in the sandbox.
+COPY services/sandbox-runtime/tale-plan-gate /usr/local/bin/tale-plan-gate
+
 # Git credential helper for the Tier 2 broker (fetches per-operation creds
 # from runnerd's local credential endpoint). Installed for the `agent` user
 # via the session entrypoint; baked here so it exists read-only.
@@ -162,7 +167,8 @@ COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright
 COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
-      /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-steer-hook
+      /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-steer-hook \
+      /usr/local/bin/tale-plan-gate
 
 # Session role runs as the `agent` user (uid 10001) — a real passwd entry so
 # git/ssh have a home + name, and non-root so Claude Code's bypassPermissions

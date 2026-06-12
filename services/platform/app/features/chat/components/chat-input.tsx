@@ -50,6 +50,7 @@ import {
   type DictationButtonHandle,
 } from './dictation-button';
 import { createDocumentsMentionSource } from './documents-mention-source';
+import { ExternalAgentModeToggle } from './external-agent-mode-toggle';
 import { KbMentionPopover } from './kb-mention-popover';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
@@ -1229,6 +1230,11 @@ export function ChatInput({
                     <ModelSelector
                       organizationId={organizationId}
                       projectId={projectId}
+                    />
+                    <ExternalAgentModeToggle
+                      threadId={threadId}
+                      organizationId={organizationId}
+                      disabled={attachDisabled}
                     />
                   </HStack>
                 ))}

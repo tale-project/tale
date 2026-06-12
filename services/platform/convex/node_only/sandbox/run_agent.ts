@@ -61,6 +61,11 @@ export interface RunAgentInSessionArgs {
   agentSessionId?: string;
   maxTurns?: number;
   browserMcp?: boolean;
+  /** Turn permission posture (plan = read-only planning turn, execute =
+   * default full access). Threaded to the adapter argv AND used by the plan
+   * capture below: in execute mode a captured plan is discarded if any other
+   * tool call follows it (the agent kept working — see recordEvents). */
+  permissionMode?: 'plan' | 'execute';
   /** Extra system-prompt text appended to the agent CLI's own prompt. */
   systemPromptAppend?: string;
   /** Bifrost gateway root + the session virtual key. */
@@ -87,6 +92,9 @@ export interface RunAgentInSessionArgs {
   resumeFrom?: {
     lastSeq: number;
     agentSessionId?: string;
+    /** Plan captured by an earlier segment (ExitPlanMode) — carried across
+     * the seam and still subject to the execute-mode reset rule. */
+    planText?: string;
   };
 }
 
@@ -119,6 +127,12 @@ export interface RunAgentInSessionResult {
    * segment must open a FRESH message (even if this segment is empty) so the
    * turn's subsequent output renders BELOW that user message. */
   steerSeam?: boolean;
+  /** The plan the agent proposed via ExitPlanMode (input.plan — verified
+   * present on CLI 2.1.173, alongside planFilePath). In execute mode it is
+   * cleared again if any other tool call followed (the agent ignored the
+   * denial and kept working — a stale plan must not surface as a pending
+   * approval card). Turn-end detection turns this into a plan-approval row. */
+  planText?: string;
 }
 
 /**
@@ -145,6 +159,9 @@ export async function runAgentInSessionImpl(
         }),
         ...(args.maxTurns !== undefined && { maxTurns: args.maxTurns }),
         ...(args.browserMcp !== undefined && { browserMcp: args.browserMcp }),
+        ...(args.permissionMode !== undefined && {
+          permissionMode: args.permissionMode,
+        }),
         ...(args.systemPromptAppend !== undefined && {
           systemPromptAppend: args.systemPromptAppend,
         }),
@@ -172,6 +189,10 @@ export async function runAgentInSessionImpl(
   let capturedSessionId: string | undefined =
     args.resumeFrom?.agentSessionId ?? args.agentSessionId;
   let finalText: string | undefined;
+  // Plan proposed via ExitPlanMode. Seeded from the checkpoint on resume so an
+  // early segment's capture survives the seam — and stays subject to the
+  // execute-mode reset rule below.
+  let planText: string | undefined = args.resumeFrom?.planText;
   let usage: RunAgentInSessionResult['usage'];
   let lastFlush = 0;
   // Handoff control (hoisted so flushProgress can trip it): the budget deadline
@@ -201,6 +222,21 @@ export async function runAgentInSessionImpl(
               costEstimateUsd: e.usageTotals.costEstimateUsd,
             }),
           };
+        }
+      } else if (e.type === 'tool-use') {
+        if (e.toolName === 'ExitPlanMode') {
+          // The proposed plan rides the tool input (input.plan — verified on
+          // CLI 2.1.173; the call itself is denied by plan mode / the
+          // tale-plan-gate hook, which doesn't affect the input streaming out).
+          const plan = planFromToolInput(e.input);
+          if (plan !== undefined) planText = plan;
+        } else if (args.permissionMode !== 'plan') {
+          // Execute-mode reset rule: a plan only counts if ExitPlanMode was
+          // the turn's LAST tool call. Verified on 2.1.173: under
+          // bypassPermissions the model can shrug off the denial and keep
+          // executing — surfacing that stale plan as a pending approval card
+          // after the work is already done would be wrong.
+          planText = undefined;
         }
       } else if (e.type === 'steer-injected') {
         // Live confirmation that the steer hook injected queued user
@@ -411,6 +447,7 @@ export async function runAgentInSessionImpl(
           agentSessionId: capturedSessionId,
         }),
         ...(finalText !== undefined && { finalText }),
+        ...(planText !== undefined && { planText }),
         ...(usage !== undefined && { usage }),
         assistantContent: buildAssistantContent(timeline, finalText ?? ''),
         lastSeq: cursor.lastSeq,
@@ -457,9 +494,18 @@ export async function runAgentInSessionImpl(
       agentSessionId: capturedSessionId,
     }),
     ...(finalText !== undefined && { finalText }),
+    ...(planText !== undefined && { planText }),
     ...(usage !== undefined && { usage }),
     assistantContent,
   };
+}
+
+/** Narrow an ExitPlanMode tool input to its plan markdown, if present. */
+function planFromToolInput(input: unknown): string | undefined {
+  if (typeof input !== 'object' || input === null) return undefined;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const plan = (input as { plan?: unknown }).plan;
+  return typeof plan === 'string' && plan.trim() !== '' ? plan : undefined;
 }
 
 export const runAgentInSession = internalAction({

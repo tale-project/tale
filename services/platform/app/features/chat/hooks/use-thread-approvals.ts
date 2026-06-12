@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import type {
   KnowledgeWriteMetadata,
+  PlanApprovalMetadata,
   WorkflowCreationMetadata,
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
@@ -24,6 +25,7 @@ import {
   type IntegrationOperationMetadata,
   type KnowledgeWriteApproval,
   type LocationRequest,
+  type PlanApproval,
   type WorkflowCreationApproval,
   type WorkflowRunApproval,
   type WorkflowUpdateApproval,
@@ -38,6 +40,7 @@ export interface ThreadApprovals {
   locationRequests: LocationRequest[];
   documentWriteApprovals: DocumentWriteApproval[];
   knowledgeWriteApprovals: KnowledgeWriteApproval[];
+  planApprovals: PlanApproval[];
   isLoading: boolean;
 }
 
@@ -75,6 +78,7 @@ export function useThreadApprovals(
     const locationRequests: LocationRequest[] = [];
     const documentWriteApprovals: DocumentWriteApproval[] = [];
     const knowledgeWriteApprovals: KnowledgeWriteApproval[] = [];
+    const planApprovals: PlanApproval[] = [];
 
     if (approvals && threadId) {
       for (const a of approvals) {
@@ -181,6 +185,16 @@ export function useThreadApprovals(
               messageId: a.messageId,
             });
             break;
+          case 'external_agent_plan':
+            planApprovals.push({
+              _id: toId<'approvals'>(a._id),
+              status: a.status,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Metadata shape is guaranteed by resourceType filter above
+              metadata: a.metadata as unknown as PlanApprovalMetadata,
+              _creationTime: a._creationTime,
+              messageId: a.messageId,
+            });
+            break;
           default:
             break;
         }
@@ -196,6 +210,7 @@ export function useThreadApprovals(
       locationRequests,
       documentWriteApprovals,
       knowledgeWriteApprovals,
+      planApprovals,
     };
     // `isLoading` is intentionally excluded from the deps below: it's a cheap
     // passthrough, so re-partitioning when it toggles would be wasted work.

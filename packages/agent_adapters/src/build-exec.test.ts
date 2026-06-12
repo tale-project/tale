@@ -69,6 +69,28 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(argv).toContain('sess-abc');
     expect(argv).not.toContain('--mcp-config');
   });
+
+  it('runs plan turns under --permission-mode plan, execute/default under bypassPermissions', () => {
+    const plan = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      permissionMode: 'plan',
+    });
+    expect(plan.argv[plan.argv.indexOf('--permission-mode') + 1]).toBe('plan');
+    expect(plan.argv).not.toContain('bypassPermissions');
+
+    const execute = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      permissionMode: 'execute',
+    });
+    expect(execute.argv[execute.argv.indexOf('--permission-mode') + 1]).toBe(
+      'bypassPermissions',
+    );
+
+    const unset = new ClaudeCodeAdapter().buildExec(base);
+    expect(unset.argv[unset.argv.indexOf('--permission-mode') + 1]).toBe(
+      'bypassPermissions',
+    );
+  });
 });
 
 describe('OpenCodeAdapter.buildExec', () => {

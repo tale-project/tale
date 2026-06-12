@@ -53,6 +53,10 @@ export interface TurnContext {
   assistantMessageId: string;
   mintedKeyId: string | null;
   continuationCount: number;
+  /** Turn permission posture (plan = read-only planning turn). Fixed at exec
+   * start for the whole turn; continuations carry it so the terminal plan
+   * detection below knows how the turn ran. */
+  permissionMode?: 'plan' | 'execute';
 }
 
 /** Patch the streaming assistant message's content in place (reactive read path
@@ -348,6 +352,10 @@ export async function handleTurnOutcome(
     const checkpoint = JSON.stringify({
       lastSeq: result.lastSeq ?? 0,
       agentSessionId: result.agentSessionId,
+      // Plan captured by this segment (ExitPlanMode) — the continuation seeds
+      // its capture state from this so the terminal segment's detection sees
+      // it (still subject to run_agent's execute-mode reset rule).
+      ...(result.planText !== undefined && { planText: result.planText }),
     });
     // An untyped Blob sends an empty content-type header that self-hosted
     // Convex storage rejects ("Bad header for content-type") — set it.
@@ -392,6 +400,9 @@ export async function handleTurnOutcome(
         ...(turn.agentSlug !== undefined && { agentSlug: turn.agentSlug }),
         ...(turn.userId !== undefined && { userId: turn.userId }),
         ...(turn.streamId !== undefined && { streamId: turn.streamId }),
+        ...(turn.permissionMode !== undefined && {
+          permissionMode: turn.permissionMode,
+        }),
       },
     );
     return;
@@ -437,7 +448,56 @@ export async function handleTurnOutcome(
     content,
     result.status === 'completed' ? 'success' : 'failed',
   );
+  // Plan proposal → approval card (any terminal status except cancelled — a
+  // plan captured before a max-turns/error end is still worth reviewing).
+  // Best-effort: a card failure must never skip finalize (VK revoke, ledger).
+  const plan = resolvePlanText(result, turn.permissionMode);
+  if (plan !== null) {
+    try {
+      await ctx.runMutation(
+        internal.approvals.internal_mutations.createPlanApproval,
+        {
+          organizationId: turn.organizationId,
+          threadId: turn.threadId,
+          messageId: turn.assistantMessageId,
+          agentSlug: turn.agentSlug ?? turn.agentKind,
+          modelRef: turn.modelRef,
+          plan,
+          planSource:
+            result.planText !== undefined ? 'exit_plan_mode' : 'final_text',
+          ...(turn.userId !== undefined && { requestedBy: turn.userId }),
+        },
+      );
+    } catch (planErr) {
+      console.error(
+        '[handleTurnOutcome] plan approval create failed:',
+        planErr,
+      );
+    }
+  }
   await finalizeTurnSideEffects(ctx, turn, turnTokensOf(result));
+}
+
+/**
+ * Resolve the plan a terminal turn proposed, if any. An ExitPlanMode capture
+ * (result.planText) counts in ANY mode — run_agent already enforced the
+ * execute-mode "last tool call" rule, and the in-image plan-gate hook stops
+ * the agent right after the call. The finalText fallback applies only to a
+ * turn that RAN in plan mode and never reached ExitPlanMode (its final
+ * message IS the plan); in execute mode a finalText is just a normal answer.
+ */
+export function resolvePlanText(
+  result: Pick<RunAgentInSessionResult, 'planText' | 'finalText'>,
+  permissionMode: 'plan' | 'execute' | undefined,
+): string | null {
+  if (result.planText !== undefined && result.planText.trim() !== '') {
+    return result.planText;
+  }
+  if (permissionMode === 'plan') {
+    const fallback = result.finalText?.trim();
+    if (fallback !== undefined && fallback !== '') return fallback;
+  }
+  return null;
 }
 
 function turnTokensOf(
@@ -475,13 +535,18 @@ function appendPauseNote(
   return [...content, { type: 'text', text: note.trimStart() }];
 }
 
-/** Load + parse a turn checkpoint blob ({lastSeq, agentSessionId}) from _storage.
- * Post-S4 the timeline is no longer carried — each segment renders into its own
- * message, so the checkpoint is just the resume cursor. */
+/** Load + parse a turn checkpoint blob ({lastSeq, agentSessionId, planText})
+ * from _storage. Post-S4 the timeline is no longer carried — each segment
+ * renders into its own message, so the checkpoint is just the resume cursor
+ * (+ the plan captured so far, if any). */
 export async function loadCheckpoint(
   ctx: ActionCtx,
   storageId: string,
-): Promise<{ lastSeq: number; agentSessionId?: string } | null> {
+): Promise<{
+  lastSeq: number;
+  agentSessionId?: string;
+  planText?: string;
+} | null> {
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const blob = await ctx.storage.get(storageId as Id<'_storage'>);
   if (!blob) return null;
@@ -490,6 +555,7 @@ export async function loadCheckpoint(
     return JSON.parse(await blob.text()) as {
       lastSeq: number;
       agentSessionId?: string;
+      planText?: string;
     };
   } catch (err) {
     console.error('[turn_lifecycle] bad checkpoint blob:', err);

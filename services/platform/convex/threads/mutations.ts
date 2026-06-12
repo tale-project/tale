@@ -452,6 +452,34 @@ export const setThreadPinned = mutation({
   },
 });
 
+export const setExternalAgentMode = mutation({
+  args: {
+    threadId: v.string(),
+    mode: v.union(v.literal('plan'), v.literal('act')),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new Error('Unauthenticated');
+    }
+
+    // Cross-tenant gate, same rationale as setThreadPinned: the row is
+    // looked up by threadId and is otherwise blind to caller identity.
+    await assertThreadAccess(ctx, args.threadId, identity);
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (metadata) {
+      await ctx.db.patch(metadata._id, { externalAgentMode: args.mode });
+    }
+    return null;
+  },
+});
+
 export const markThreadRead = mutation({
   args: {
     threadId: v.string(),

@@ -32,6 +32,9 @@ export const approvalsTable = defineTable({
     // Task-ops review gate: agent work parked at in_review awaiting a human
     // approve / request-changes decision. resourceId = String(taskId).
     v.literal('task_review'),
+    // External-agent (Claude Code) plan proposal awaiting the user's
+    // approve-and-execute in chat (plan/act workflow).
+    v.literal('external_agent_plan'),
   ),
   resourceId: v.string(),
   threadId: v.optional(v.string()),

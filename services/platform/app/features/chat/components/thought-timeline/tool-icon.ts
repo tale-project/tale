@@ -1,5 +1,6 @@
 import {
   Bot,
+  ClipboardList,
   FileText,
   Globe,
   Image as ImageIcon,
@@ -17,6 +18,9 @@ export function toolIcon(toolName: string): LucideIcon {
   // Delegations to sub-agents ("Asking the Research agent") show an agent
   // icon, not the generic tool wrench.
   if (toolName.startsWith('delegate_')) return Bot;
+  if (toolName === 'ExitPlanMode' || toolName === 'EnterPlanMode') {
+    return ClipboardList;
+  }
   if (toolName === 'web') return Globe;
   if (toolName === 'rag_search') return Search;
   if (toolName === 'image') return ImageIcon;

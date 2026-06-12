@@ -38,6 +38,14 @@ export function useUpdateApprovalStatus() {
   return useConvexMutation(api.approvals.mutations.updateApprovalStatus);
 }
 
+export function useApprovePlan() {
+  return useConvexMutation(api.approvals.plan_mutations.approvePlan);
+}
+
+export function useRejectPlan() {
+  return useConvexMutation(api.approvals.plan_mutations.rejectPlan);
+}
+
 export function useExecuteApprovedIntegrationOperation() {
   return useConvexAction(
     api.approvals.actions.executeApprovedIntegrationOperation,

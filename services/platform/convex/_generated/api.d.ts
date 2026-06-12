@@ -198,6 +198,7 @@ import type * as approvals_internal_mutations from "../approvals/internal_mutati
 import type * as approvals_internal_queries from "../approvals/internal_queries.js";
 import type * as approvals_list_approvals_paginated from "../approvals/list_approvals_paginated.js";
 import type * as approvals_mutations from "../approvals/mutations.js";
+import type * as approvals_plan_mutations from "../approvals/plan_mutations.js";
 import type * as approvals_queries from "../approvals/queries.js";
 import type * as approvals_types from "../approvals/types.js";
 import type * as approvals_validators from "../approvals/validators.js";
@@ -1610,6 +1611,7 @@ declare const fullApi: ApiFromModules<{
   "approvals/internal_queries": typeof approvals_internal_queries;
   "approvals/list_approvals_paginated": typeof approvals_list_approvals_paginated;
   "approvals/mutations": typeof approvals_mutations;
+  "approvals/plan_mutations": typeof approvals_plan_mutations;
   "approvals/queries": typeof approvals_queries;
   "approvals/types": typeof approvals_types;
   "approvals/validators": typeof approvals_validators;

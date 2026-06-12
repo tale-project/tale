@@ -11,6 +11,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type {
   KnowledgeWriteMetadata,
+  PlanApprovalMetadata,
   WorkflowCreationMetadata,
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
@@ -177,6 +178,9 @@ export interface ChatAgent {
    * usable while a turn runs and messages queue for the running agent.
    */
   primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
+  /** Which external agent CLI backs an 'external-agent' behavior. Gates
+   * CLI-specific UI like the plan/act composer toggle (claude-code only). */
+  agentKind?: 'claude-code' | 'opencode';
   supportedModels?: string[];
   toolNames?: string[];
   integrationBindings?: string[];
@@ -223,6 +227,11 @@ export function useChatAgents(organizationId: string) {
               a.primaryBehavior === 'image-generation' ||
               a.primaryBehavior === 'external-agent')
               ? a.primaryBehavior
+              : undefined,
+          agentKind:
+            'agentKind' in a &&
+            (a.agentKind === 'claude-code' || a.agentKind === 'opencode')
+              ? a.agentKind
               : undefined,
           supportedModels: a.supportedModels,
           integrationBindings: Array.isArray(a.integrationBindings)
@@ -619,6 +628,15 @@ export interface DocumentWriteApproval {
   metadata: DocumentWriteMetadata;
   executedAt?: number;
   executionError?: string;
+  _creationTime: number;
+  messageId?: string;
+}
+
+/** External-agent plan proposal (plan/act workflow) awaiting approve/reject. */
+export interface PlanApproval {
+  _id: Id<'approvals'>;
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
+  metadata: PlanApprovalMetadata;
   _creationTime: number;
   messageId?: string;
 }

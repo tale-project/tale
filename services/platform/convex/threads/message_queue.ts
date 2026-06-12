@@ -45,8 +45,10 @@ async function listByStatus(
  * decided the thread should (re-)enter the generating state; this commits the
  * claim + the threadMetadata patch + the schedule atomically, so subscribers
  * never observe an idle flicker between the ending turn and the drain turn.
+ * Exported for the plan-approval kickoff (approvals/plan_mutations.ts), which
+ * starts the act turn through the same machinery as an idle enqueue.
  */
-async function startQueuedTurn(
+export async function startQueuedTurn(
   ctx: MutationCtx,
   meta: Doc<'threadMetadata'>,
   rows: QueueRow[],

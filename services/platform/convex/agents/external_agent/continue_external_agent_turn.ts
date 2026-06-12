@@ -43,6 +43,11 @@ export const continueExternalAgentTurn = internalAction({
     mintedKeyId: v.union(v.string(), v.null()),
     continuationCount: v.number(),
     checkpointStorageId: v.string(),
+    /** Turn posture, frozen at exec start — carried so the terminal plan
+     * detection knows how the turn ran. */
+    permissionMode: v.optional(
+      v.union(v.literal('plan'), v.literal('execute')),
+    ),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -56,6 +61,9 @@ export const continueExternalAgentTurn = internalAction({
       assistantMessageId: args.assistantMessageId,
       mintedKeyId: args.mintedKeyId,
       continuationCount: args.continuationCount,
+      ...(args.permissionMode !== undefined && {
+        permissionMode: args.permissionMode,
+      }),
       ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
       ...(args.userId !== undefined && { userId: args.userId }),
       ...(args.streamId !== undefined && { streamId: args.streamId }),
@@ -84,10 +92,16 @@ export const continueExternalAgentTurn = internalAction({
         gatewayToken: '',
         timeoutMs: TURN_TIMEOUT_MS,
         budgetDeadlineMs: Date.now() + ACTION_WINDOW_MS,
+        ...(args.permissionMode !== undefined && {
+          permissionMode: args.permissionMode,
+        }),
         resumeFrom: {
           lastSeq: checkpoint.lastSeq,
           ...(checkpoint.agentSessionId !== undefined && {
             agentSessionId: checkpoint.agentSessionId,
+          }),
+          ...(checkpoint.planText !== undefined && {
+            planText: checkpoint.planText,
           }),
         },
         onTimeline: async (content) => {

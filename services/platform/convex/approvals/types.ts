@@ -133,6 +133,24 @@ export interface DocumentWriteMetadata {
   executionError?: string;
 }
 
+/** Metadata of an `external_agent_plan` approval (plan/act workflow). The
+ * plan markdown lives here so the chat card can render it in full. */
+export interface PlanApprovalMetadata {
+  /** Full plan markdown, exactly as the agent proposed it. */
+  plan: string;
+  /** Where the plan text came from: the ExitPlanMode tool input (primary) or
+   * the plan-mode turn's final message (fallback). */
+  planSource: 'exit_plan_mode' | 'final_text';
+  /** Agent slug recorded at proposal time — approval starts the act turn
+   * under THIS agent even if the composer was switched meanwhile. */
+  agentSlug: string;
+  modelRef: string;
+  requestedAt: number;
+  requestedBy?: string;
+  /** Set on a pending row that a newer plan replaced (auto-rejected). */
+  supersededBy?: string;
+}
+
 export function normalizeDocumentWriteMetadata(
   raw: DocumentWriteMetadata,
 ): DocumentWriteMetadata {
