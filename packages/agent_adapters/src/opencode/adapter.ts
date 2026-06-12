@@ -52,7 +52,20 @@ export class OpenCodeAdapter implements AgentAdapter {
       config.mcp = {
         playwright: {
           type: 'local',
-          command: ['mcp-server-playwright', '--headless'],
+          // tale-playwright-mcp: image launcher shim that bridges
+          // HTTPS_PROXY/NO_PROXY into Chromium proxy flags. --browser
+          // chromium (the image ships no Google Chrome channel) + --isolated
+          // (in-memory profile; PLAYWRIGHT_BROWSERS_PATH is read-only) +
+          // --no-sandbox (no unprivileged userns under cap-drop=ALL; the
+          // container is the isolation boundary).
+          command: [
+            'tale-playwright-mcp',
+            '--headless',
+            '--browser',
+            'chromium',
+            '--isolated',
+            '--no-sandbox',
+          ],
           enabled: true,
         },
       };

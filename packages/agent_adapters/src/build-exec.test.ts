@@ -32,9 +32,21 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(argv).toContain('40'); // default max turns
     expect(argv).toContain('--model');
     expect(argv).toContain('claude-sonnet-4-6');
-    // browser MCP on by default.
+    // browser MCP on by default: launcher shim + chromium + in-memory
+    // profile (the registry path is read-only at runtime).
     expect(argv).toContain('--mcp-config');
     expect(argv).toContain('--strict-mcp-config');
+    const mcpConfig = JSON.parse(
+      argv[argv.indexOf('--mcp-config') + 1] ?? '{}',
+    );
+    expect(mcpConfig.mcpServers.playwright.command).toBe('tale-playwright-mcp');
+    expect(mcpConfig.mcpServers.playwright.args).toEqual([
+      '--headless',
+      '--browser',
+      'chromium',
+      '--isolated',
+      '--no-sandbox',
+    ]);
     // prompt rides stdin, never argv.
     expect(stdin).toBe(base.prompt);
     expect(argv).not.toContain(base.prompt);
@@ -87,7 +99,14 @@ describe('OpenCodeAdapter.buildExec', () => {
     );
     expect(JSON.stringify(config)).not.toContain('sk-bf-test');
     expect(env.TALE_GATEWAY_TOKEN).toBe('sk-bf-test');
-    expect(config.mcp.playwright).toBeDefined();
+    expect(config.mcp.playwright.command).toEqual([
+      'tale-playwright-mcp',
+      '--headless',
+      '--browser',
+      'chromium',
+      '--isolated',
+      '--no-sandbox',
+    ]);
     expect(cwd).toBe('/workspace/repo');
   });
 

@@ -9,12 +9,27 @@ import { ClaudeCodeParser } from './parse';
 
 /** In-container Playwright MCP launch (stdio). `--strict-mcp-config` isolates
  * the user repo's own .mcp.json so a run is reproducible regardless of repo
- * contents. */
+ * contents. tale-playwright-mcp is the image's launcher shim — it bridges the
+ * container's HTTPS_PROXY/NO_PROXY into --proxy-server/--proxy-bypass
+ * (Chromium ignores the env vars; the sandbox network is internal-only). */
 const PLAYWRIGHT_MCP_CONFIG = JSON.stringify({
   mcpServers: {
     playwright: {
-      command: 'mcp-server-playwright',
-      args: ['--headless'],
+      command: 'tale-playwright-mcp',
+      // --browser chromium: the image ships chromium, not the default Google
+      //   Chrome channel.
+      // --isolated: in-memory profile — the default persistent profile dir
+      //   lives under PLAYWRIGHT_BROWSERS_PATH, read-only at runtime.
+      // --no-sandbox: the session container (cap-drop=ALL, no-new-privileges)
+      //   has no unprivileged userns, so Chromium's zygote sandbox aborts at
+      //   launch; the container itself is the isolation boundary.
+      args: [
+        '--headless',
+        '--browser',
+        'chromium',
+        '--isolated',
+        '--no-sandbox',
+      ],
     },
   },
 });

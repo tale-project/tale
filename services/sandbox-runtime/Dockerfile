@@ -75,7 +75,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 # Playwright browsers in a world-readable global path (the agent user reads
-# them; read-only root means no per-session download). Telemetry off.
+# them; read-only root means no per-session download — the MCP runs with
+# --isolated so its profile stays in memory and never writes here). Telemetry
+# off.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
@@ -86,12 +88,22 @@ RUN npm install -g --prefix /opt/agents \
       @playwright/mcp@${PLAYWRIGHT_MCP_VERSION} \
     && npm cache clean --force
 
-# Chromium for Playwright MCP (system deps already apt-installed above).
-RUN PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright \
-      /opt/agents/bin/mcp-server-playwright --help >/dev/null 2>&1 || true \
-    && npx --prefix /opt/agents playwright install chromium 2>/dev/null \
-    || node /opt/agents/lib/node_modules/@playwright/mcp/node_modules/.bin/playwright install chromium 2>/dev/null \
-    || true
+# Chromium for Playwright MCP (system deps already apt-installed above) —
+# resolved against the MCP's OWN bundled playwright so the browser revision
+# always matches what the MCP resolves at runtime (npx would fetch the latest
+# registry playwright, whose revision drifts from the bundled one). Download +
+# extract via curl/unzip — see install-playwright-browsers.sh for why the
+# bundled downloader itself is not used. Loud failure on purpose: a missing
+# or non-executable browser is a broken image.
+# PLAYWRIGHT_DOWNLOAD_HOST: optional CDN mirror for the browser download
+# (e.g. https://cdn.npmmirror.com/binaries/playwright); empty = official CDN.
+ARG PLAYWRIGHT_DOWNLOAD_HOST=""
+COPY services/sandbox-runtime/install-playwright-browsers.sh /tmp/install-playwright-browsers.sh
+RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
+      sh /tmp/install-playwright-browsers.sh \
+      /opt/agents/lib/node_modules/@playwright/mcp/node_modules/.bin/playwright chromium \
+    && node -e "const fs=require('fs'); const p=require('/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core'); fs.accessSync(p.chromium.executablePath(), fs.constants.X_OK)" \
+    && rm /tmp/install-playwright-browsers.sh
 
 # OpenCode standalone binary (pinned). dpkg arch → release asset arch.
 RUN set -eux; \
@@ -135,9 +147,15 @@ COPY services/sandbox-runtime/managed-settings.json /etc/claude-code/managed-set
 # via the session entrypoint; baked here so it exists read-only.
 COPY services/sandbox-runtime/tale-git-credential /usr/local/bin/tale-git-credential
 
+# Playwright MCP launcher shim: appends --proxy-server/--proxy-bypass from the
+# container's HTTPS_PROXY/NO_PROXY (Chromium ignores the env vars) and execs
+# mcp-server-playwright. The agent adapters use this as the MCP command.
+COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright-mcp
+
 COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential
+RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
+      /usr/local/bin/tale-playwright-mcp
 
 # Session role runs as the `agent` user (uid 10001) — a real passwd entry so
 # git/ssh have a home + name, and non-root so Claude Code's bypassPermissions

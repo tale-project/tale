@@ -85,6 +85,13 @@ assert_ok "opencode on PATH" 10001 "command -v opencode"
 assert_ok "gh on PATH" 10001 "command -v gh"
 assert_ok "git/ripgrep/fd present" 10001 "command -v git && command -v rg && command -v fd"
 assert_ok "playwright MCP server present" 10001 "command -v mcp-server-playwright || ls /opt/agents/bin/*playwright* 2>/dev/null"
+# Launcher shim the adapters invoke (bridges HTTPS_PROXY/NO_PROXY to flags).
+assert_ok "playwright MCP launcher shim present" 10001 "test -x /usr/local/bin/tale-playwright-mcp"
+# The browser baked into the image must match the revision the MCP's BUNDLED
+# playwright resolves at runtime — an install done by any other playwright
+# version drifts revisions and breaks launch (the exact bug this guards).
+assert_ok "chromium matches the MCP's bundled playwright revision" 10001 \
+  "node -e 'const p=require(\"/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core\"); require(\"fs\").accessSync(p.chromium.executablePath())'"
 # Pinned versions resolve (a broken install would non-zero here).
 assert_ok "claude --version runs" 10001 "claude --version"
 assert_ok "opencode --version runs" 10001 "opencode --version"
@@ -100,6 +107,60 @@ if printf '%s' "$out" | grep -qi "cannot.*root\|root.*not.*allowed"; then
   fail "bypassPermissions rejected as root (should be allowed at uid 10001)"
 else
   pass "bypassPermissions not rejected at uid 10001"
+fi
+
+echo ""
+echo "--- playwright MCP navigate under session constraints ---"
+# Drive the REAL MCP surface — the tale-playwright-mcp shim with the exact
+# argv the agent adapters pass (keep in sync with packages/agent_adapters) —
+# under the session container contract (read-only rootfs, exec tmpfs /tmp,
+# agent uid, sized /dev/shm; see docker-session-args.ts). A raw playwright
+# launch can't catch this class: playwright defaults to --no-sandbox while
+# the MCP defaults Chromium's sandbox ON (fatal under cap-drop=ALL), and only
+# the MCP path exercises the shim, --isolated profile placement, and the
+# headless-shell revision the MCP actually resolves.
+smoke_out="$(docker run --rm -i --user 10001 --read-only \
+  --tmpfs /tmp:exec,nosuid,nodev,size=256m \
+  --tmpfs "/workspace:uid=10001,gid=10001" \
+  --shm-size=512m \
+  --env HOME=/workspace/.home --env TMPDIR=/workspace/.tmp \
+  --entrypoint sh "$IMAGE" -c 'mkdir -p "$HOME" "$TMPDIR" && exec node -' <<'NODE_EOF' 2>&1 || true
+const { spawn } = require('child_process');
+const srv = spawn(
+  'tale-playwright-mcp',
+  ['--headless', '--browser', 'chromium', '--isolated', '--no-sandbox'],
+  { stdio: ['pipe', 'pipe', 'inherit'] },
+);
+const send = (o) => srv.stdin.write(JSON.stringify(o) + '\n');
+const deadline = setTimeout(() => { console.error('MCP_TIMEOUT'); process.exit(1); }, 90000);
+let buf = '';
+srv.stdout.on('data', (d) => {
+  buf += d.toString();
+  let idx;
+  while ((idx = buf.indexOf('\n')) >= 0) {
+    const line = buf.slice(0, idx); buf = buf.slice(idx + 1);
+    if (!line.trim()) continue;
+    let msg; try { msg = JSON.parse(line); } catch { continue; }
+    if (msg.id === 1) {
+      send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+      send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'browser_navigate', arguments: { url: 'about:blank' } } });
+    }
+    if (msg.id === 2) {
+      clearTimeout(deadline);
+      if (msg.error || (msg.result && msg.result.isError)) { console.error('MCP_NAVIGATE_FAILED ' + line); process.exit(1); }
+      console.log('MCP_NAVIGATE_OK');
+      srv.kill();
+      process.exit(0);
+    }
+  }
+});
+send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'conformance', version: '1.0' } } });
+NODE_EOF
+)"
+if printf '%s' "$smoke_out" | grep -q "MCP_NAVIGATE_OK"; then
+  pass "playwright MCP navigates at uid 10001 on read-only rootfs"
+else
+  fail "playwright MCP navigate failed (got: $(printf '%s' "$smoke_out" | head -c 300))"
 fi
 
 echo ""
