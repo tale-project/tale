@@ -849,6 +849,11 @@ export async function runAgentInSessionImpl(
       ...(exec.stdin !== undefined && {
         stdinBase64: Buffer.from(exec.stdin).toString('base64'),
       }),
+      // 'hold' keeps the child's stdin open for the linger loop's steer
+      // pushes + EOF close — omitting this spawns close-mode and every
+      // stdin write comes back STDIN_CLOSED (the silent-fallback trap that
+      // shipped the feature dark on first deploy).
+      ...(exec.stdinMode !== undefined && { stdinMode: exec.stdinMode }),
     }),
     ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
   };
