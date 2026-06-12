@@ -57,9 +57,13 @@ process.on('unhandledRejection', (reason) => {
 function authorize(body: string, req: Request): Response | null {
   if (cfg.sandboxToken === null) return null; // dev opt-in mode
   const url = new URL(req.url);
+  // Verify against path + query: clients sign the full request path (see
+  // session_client's signedHeaders), and the query carries semantics worth
+  // binding (e.g. /files?path=…). Query-less requests are unaffected
+  // (url.search is the empty string).
   const result = verify(
     req.method,
-    url.pathname,
+    url.pathname + url.search,
     body,
     req.headers.get(SIGNATURE_HEADER),
     req.headers.get(TIMESTAMP_HEADER),
