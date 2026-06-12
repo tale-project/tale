@@ -88,6 +88,13 @@ export class SessionRoutes {
   async sweepExpired(nowMs: number = Date.now()): Promise<number> {
     let reaped = 0;
     for (const s of this.registry.list()) {
+      // A session with a live exec is NEVER reaped — a long, QUIET tool (no
+      // stdout for >idleTimeout) would otherwise be idle-killed mid-task, and a
+      // running task shouldn't be cut at the hard TTL either. The registry
+      // tracks in-flight execs on this replica; after a spawner restart its
+      // cache is cold, so the runnerd health.liveExecs check below is the
+      // backstop for a re-adopted busy session.
+      if (s.liveExecs.size > 0) continue;
       let expired = nowMs > s.expiresAtMs;
       if (!expired) {
         try {
@@ -95,6 +102,7 @@ export class SessionRoutes {
             baseUrl: s.endpoint,
             token: this.tokenFor(s.sessionId),
           });
+          if (health.liveExecs > 0) continue; // busy (cold-cache backstop)
           expired = nowMs - health.lastActivityAtMs > s.idleTimeoutMs;
         } catch {
           // runnerd unreachable — leave for a later sweep (a transient blip

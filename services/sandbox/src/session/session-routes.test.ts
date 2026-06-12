@@ -49,6 +49,8 @@ let fakeServer: ReturnType<typeof Bun.serve>;
 let fakeBaseUrl = '';
 const created = new Set<string>();
 const destroyed = new Set<string>();
+// Mutable so the sweepExpired tests can drive runnerd's reported activity/liveExecs.
+const fakeHealth = { lastActivityAtMs: 0, liveExecs: 0 };
 
 function ndjson(lines: object[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
@@ -63,8 +65,8 @@ beforeAll(() => {
         return Response.json({
           ok: true,
           bootedAtMs: 0,
-          lastActivityAtMs: 0,
-          liveExecs: 0,
+          lastActivityAtMs: fakeHealth.lastActivityAtMs,
+          liveExecs: fakeHealth.liveExecs,
         });
       }
       if (url.pathname === '/execs' && req.method === 'POST') {
@@ -338,5 +340,25 @@ describe('SessionRoutes (fake runnerd)', () => {
         'e1',
       ).status,
     ).toBe(404);
+  });
+
+  test('sweepExpired idle-reaps an idle session but NOT one with a live exec', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'idle1', organizationId: 'org_sweep' }),
+    );
+
+    // runnerd reports a LIVE exec (cold-cache backstop) + stale activity → must
+    // NOT be reaped (a quiet long tool mustn't be idle-killed mid-task).
+    fakeHealth.liveExecs = 1;
+    fakeHealth.lastActivityAtMs = 0; // epoch → far past the idle window
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(routes.handleGet('idle1').status).toBe(200);
+
+    // No live exec + stale activity → idle-reaped.
+    fakeHealth.liveExecs = 0;
+    expect(await routes.sweepExpired()).toBe(1);
+    expect(routes.handleGet('idle1').status).toBe(404);
+    fakeHealth.lastActivityAtMs = 0;
   });
 });
