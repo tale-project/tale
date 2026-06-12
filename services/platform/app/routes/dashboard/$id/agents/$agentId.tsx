@@ -162,6 +162,11 @@ function AgentDetailLayout() {
                     matchMode: 'exact',
                   },
                   {
+                    label: t('agents.navigation.metrics'),
+                    href: `/dashboard/${organizationId}/agents/${agentId}/metrics`,
+                    matchMode: 'exact',
+                  },
+                  {
                     label: t('agents.navigation.conversationStarters'),
                     href: `/dashboard/${organizationId}/agents/${agentId}/conversation-starters`,
                     matchMode: 'exact',

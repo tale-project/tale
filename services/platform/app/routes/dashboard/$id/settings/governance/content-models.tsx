@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { DefaultModelEditor } from '@/app/features/settings/governance/components/default-model-editor';
 import { ModelAccessEditor } from '@/app/features/settings/governance/components/model-access-editor';
 import { SystemPromptEditor } from '@/app/features/settings/governance/components/system-prompt-editor';
@@ -30,16 +31,10 @@ function ContentModelsRoute() {
   // under the page's skeletonization — a lazy chunk's inner Suspense fallback
   // would otherwise let one editor pop in alone.
   return (
-    <div className="divide-border flex flex-col divide-y">
-      <div className="pb-7">
-        <SystemPromptEditor organizationId={organizationId} />
-      </div>
-      <div className="py-7">
-        <DefaultModelEditor organizationId={organizationId} />
-      </div>
-      <div className="pt-7">
-        <ModelAccessEditor organizationId={organizationId} />
-      </div>
-    </div>
+    <SettingsPage narrow>
+      <SystemPromptEditor organizationId={organizationId} />
+      <DefaultModelEditor organizationId={organizationId} />
+      <ModelAccessEditor organizationId={organizationId} />
+    </SettingsPage>
   );
 }

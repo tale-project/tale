@@ -2,15 +2,10 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-
-import '@xyflow/react/dist/style.css';
 import {
-  ReactFlow,
   ReactFlowProvider,
-  MiniMap,
-  Background,
   useNodesState,
   useEdgesState,
   Connection,
@@ -21,14 +16,7 @@ import {
   Panel,
   useReactFlow,
 } from '@xyflow/react';
-import {
-  TestTubeDiagonal,
-  X,
-  Scan,
-  Sparkles,
-  AlertTriangle,
-  Plus,
-} from 'lucide-react';
+import { TestTubeDiagonal, X, AlertTriangle, Plus } from 'lucide-react';
 import React, {
   useEffect,
   useMemo,
@@ -37,6 +25,7 @@ import React, {
   useCallback,
 } from 'react';
 
+import { FlowCanvas } from '@/app/components/flow/flow-canvas';
 import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import { Doc } from '@/convex/_generated/dataModel';
@@ -353,7 +342,30 @@ function AutomationStepsInner({
       <div className="relative flex w-full flex-1 justify-stretch overflow-auto">
         <style>{MINIMAP_STYLES}</style>
         <div ref={containerRef} className="bg-background min-h-0 flex-[1_1_0]">
-          <ReactFlow
+          <FlowCanvas
+            onOpenAi={onOpenAIChat}
+            centerActions={
+              <>
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  title={t('steps.toolbar.addStep')}
+                  onClick={() => setIsCreateStepDialogOpen(true)}
+                >
+                  <Plus className="size-4" />
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  title={t('steps.toolbar.testAutomation')}
+                  onClick={handleOpenTestPanel}
+                  disabled={steps.length === 0}
+                >
+                  <TestTubeDiagonal className="size-4" />
+                </Button>
+              </>
+            }
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
@@ -363,8 +375,7 @@ function AutomationStepsInner({
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             connectionLineType={ConnectionLineType.SmoothStep}
-            fitView={true}
-            // No `duration` here: the INITIAL fit must snap so the graph
+            // No fitView `duration`: the INITIAL fit must snap so the graph
             // appears already centered instead of visibly panning from the
             // top-left corner. Later re-fits (container resize) animate via the
             // explicit `fitView({ duration })` call in the resize observer.
@@ -387,27 +398,26 @@ function AutomationStepsInner({
             nodesFocusable
             edgesFocusable
             multiSelectionKeyCode={['Meta', 'Ctrl']}
-            proOptions={{ hideAttribution: true }}
-          >
-            <MiniMap
-              className="border-border overflow-hidden rounded-lg border shadow-sm"
-              style={{
+            minimapProps={{
+              className:
+                'border-border overflow-hidden rounded-lg border shadow-sm',
+              style: {
                 width: minimapDimensions.width,
                 height: minimapDimensions.height,
-              }}
-              nodeStrokeColor={minimapNodeStrokeColor}
-              nodeStrokeWidth={3}
-              pannable
-              zoomable
-              inversePan={false}
-            />
-            <Background
-              variant={BackgroundVariant.Dots}
-              gap={20}
-              size={2}
-              color="hsl(var(--muted-foreground) / 0.2)"
-            />
-
+              },
+              nodeStrokeColor: minimapNodeStrokeColor,
+              nodeStrokeWidth: 3,
+              pannable: true,
+              zoomable: true,
+              inversePan: false,
+            }}
+            backgroundProps={{
+              variant: BackgroundVariant.Dots,
+              gap: 20,
+              size: 2,
+              color: 'hsl(var(--muted-foreground) / 0.2)',
+            }}
+          >
             {!hasSteps && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <Stack gap={2} className="text-center">
@@ -479,59 +489,7 @@ function AutomationStepsInner({
                 </Stack>
               </Panel>
             )}
-
-            <Panel position="bottom-center" className="mb-4">
-              <HStack
-                gap={2}
-                className="ring-border bg-background rounded-lg p-1 shadow-sm ring-1"
-              >
-                <HStack gap={2}>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    title={t('steps.toolbar.focus')}
-                    onClick={() => {
-                      void fitView({
-                        padding: 0.2,
-                        duration: 400,
-                        maxZoom: 1,
-                      });
-                    }}
-                  >
-                    <Scan className="size-4" />
-                  </Button>
-
-                  <Button
-                    size="icon"
-                    title={t('steps.toolbar.aiAssistant')}
-                    onClick={onOpenAIChat}
-                    className="bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-800"
-                  >
-                    <Sparkles className="size-4" />
-                  </Button>
-
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    title={t('steps.toolbar.addStep')}
-                    onClick={() => setIsCreateStepDialogOpen(true)}
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    title={t('steps.toolbar.testAutomation')}
-                    onClick={handleOpenTestPanel}
-                    disabled={steps.length === 0}
-                  >
-                    <TestTubeDiagonal className="size-4" />
-                  </Button>
-                </HStack>
-              </HStack>
-            </Panel>
-          </ReactFlow>
+          </FlowCanvas>
         </div>
 
         <CreateStepDialog

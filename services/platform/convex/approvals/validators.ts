@@ -35,6 +35,9 @@ export const approvalResourceTypeValidator = v.union(
   // GDPR Art 17 erasure request awaiting dual-admin approval. Used when
   // `dsar_governance.requireDualApproval` is enabled at the org level.
   v.literal('erasure'),
+  // Task-ops review gate: agent work parked at in_review awaiting a human
+  // approve / request-changes decision. resourceId = String(taskId).
+  v.literal('task_review'),
 );
 
 export const approvalItemValidator = v.object({

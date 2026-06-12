@@ -62,6 +62,9 @@ export function ReleaseHistorySection({
     [t],
   );
 
+  // Column sizes double as the table's min-width floor (DataTable sums them).
+  // Keep the total ≤ 940px so the table fits the settings content column on
+  // common laptop widths instead of clipping behind a horizontal scroll.
   const columns = useMemo<ColumnDef<HistoryRow>[]>(
     () => [
       {
@@ -86,19 +89,19 @@ export function ReleaseHistorySection({
           </div>
         ),
         meta: { skeleton: { type: 'two-line' as const } },
-        size: 200,
+        size: 180,
       },
       {
         accessorKey: 'requestedByName',
         header: t('legalHold.columns.requestedBy'),
         cell: ({ row }) => row.original.requestedByName,
-        size: 140,
+        size: 130,
       },
       {
         accessorKey: 'requestedAt',
         header: t('legalHold.columns.requestedAt'),
         cell: ({ row }) => <TableDateCell date={row.original.requestedAt} />,
-        size: 160,
+        size: 120,
       },
       {
         accessorKey: 'status',
@@ -124,7 +127,7 @@ export function ReleaseHistorySection({
         header: t('legalHold.columns.approvedBy'),
         cell: ({ row }) =>
           row.original.approvedByName ?? row.original.rejectedByName ?? '—',
-        size: 140,
+        size: 130,
       },
       {
         accessorKey: 'reason',
@@ -134,6 +137,7 @@ export function ReleaseHistorySection({
             {row.original.reason}
           </Text>
         ),
+        size: 130,
       },
       {
         accessorKey: 'rejectReason',
@@ -146,7 +150,7 @@ export function ReleaseHistorySection({
           ) : (
             '—'
           ),
-        size: 200,
+        size: 140,
       },
     ],
     [t],

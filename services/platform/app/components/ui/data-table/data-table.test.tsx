@@ -32,9 +32,11 @@ const columns: ColumnDef<TestRow>[] = [
   },
 ];
 
-// The first content column flexes (absorbs the container slack so the table
-// fills its width without a runaway column), so the explicit `size` is asserted
-// on a *later* column — `name` stands in as the flex column.
+// The first content column is the `auto`-width flex column (it takes the
+// leftover after its siblings' proportional shares), so the explicit `size`
+// is asserted on a *later* column — `name` stands in as the flex column.
+// `status` declares 200 against `name`'s default 150, so its proportional
+// share is 200/350 of the container.
 const columnsWithSize: ColumnDef<TestRow>[] = [
   { accessorKey: 'name', header: 'Name' },
   {
@@ -203,8 +205,9 @@ describe('DataTable loading states', () => {
       const cells = within(firstDataRow).getAllByRole('cell');
       // First content column flexes → no fixed inline width.
       expect(cells[0].style.width).toBe('');
-      // A later column keeps its explicit size.
-      expect(cells[1]).toHaveStyle({ width: '200px' });
+      // A later column gets its proportional share (200 of 350 declared).
+      expect(cells[1].style.width).toContain('calc');
+      expect(cells[1].style.width).toContain('0.5714');
     });
 
     it('applies explicit column size to skeleton row cells', () => {
@@ -219,7 +222,8 @@ describe('DataTable loading states', () => {
 
       const skeletons = getSkeletonRows();
       const cells = within(skeletons[0]).getAllByRole('cell');
-      expect(cells[1]).toHaveStyle({ width: '200px' });
+      expect(cells[1].style.width).toContain('calc');
+      expect(cells[1].style.width).toContain('0.5714');
     });
   });
 

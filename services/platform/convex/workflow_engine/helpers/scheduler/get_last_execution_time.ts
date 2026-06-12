@@ -1,20 +1,34 @@
 /**
- * Helper function to get the last execution start time (ms since epoch) for a workflow.
+ * Helpers to get the last execution start time (ms since epoch) for a workflow.
  *
- * Accepts either a Convex ID or a workflow slug string — the by_definition_startedAt
- * index works with both since wfDefinitionId is v.union(v.id, v.string, v.null).
+ * IMPORTANT: file-based workflow slugs are NOT unique across organizations —
+ * every org installs the same default-pack slugs (e.g. `tasks/daily-digest`).
+ * All lookups are therefore org-scoped; a global slug lookup would let org A's
+ * execution satisfy org B's schedule dedup and silently starve B's crons.
  */
 
 import { QueryCtx } from '../../../_generated/server';
 
-export async function getLastExecutionTime(
+export interface OrgWorkflowKey {
+  organizationId: string;
+  workflowSlug: string;
+}
+
+/** Stable map key for batch results: `${organizationId}::${workflowSlug}`. */
+export function orgWorkflowKey(key: OrgWorkflowKey): string {
+  return `${key.organizationId}::${key.workflowSlug}`;
+}
+
+export async function getLastExecutionTimeForOrg(
   ctx: QueryCtx,
-  args: { wfDefinitionId: string },
+  args: OrgWorkflowKey,
 ): Promise<number | null> {
   const last = await ctx.db
     .query('wfExecutions')
-    .withIndex('by_definition_startedAt', (q) =>
-      q.eq('wfDefinitionId', args.wfDefinitionId),
+    .withIndex('by_org_workflowSlug_startedAt', (q) =>
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('workflowSlug', args.workflowSlug),
     )
     .order('desc')
     .first();
@@ -23,21 +37,22 @@ export async function getLastExecutionTime(
 }
 
 /**
- * Batch version to get last execution times for multiple workflows.
- * Reduces N+1 query problem when checking many workflows.
- *
- * NOTE: This still performs individual queries per workflow, but batches them
- * in the same function call to reduce overhead. The alternative of querying
- * all executions at once risks hitting the 16MB read limit.
+ * Batch version to get last execution times for multiple (org, slug) pairs.
+ * Result map is keyed by `orgWorkflowKey`. Duplicate pairs are queried once.
  */
-export async function getLastExecutionTimes(
+export async function getLastExecutionTimesForOrgs(
   ctx: QueryCtx,
-  args: { wfDefinitionIds: string[] },
+  args: { keys: OrgWorkflowKey[] },
 ): Promise<Map<string, number | null>> {
+  const unique = new Map<string, OrgWorkflowKey>();
+  for (const key of args.keys) {
+    unique.set(orgWorkflowKey(key), key);
+  }
+
   const entries = await Promise.all(
-    args.wfDefinitionIds.map(async (wfDefinitionId) => {
-      const last = await getLastExecutionTime(ctx, { wfDefinitionId });
-      return [wfDefinitionId, last] as const;
+    [...unique.entries()].map(async ([mapKey, key]) => {
+      const last = await getLastExecutionTimeForOrg(ctx, key);
+      return [mapKey, last] as const;
     }),
   );
 

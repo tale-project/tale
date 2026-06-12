@@ -1,6 +1,6 @@
 'use client';
 
-import { FolderPlus, Plus, HardDrive } from 'lucide-react';
+import { FolderPlus, HardDrive, Upload } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
@@ -98,7 +98,7 @@ export function DocumentsActionMenu({
     <>
       <DataTableActionMenu
         label={tDocuments('upload.importDocuments')}
-        icon={Plus}
+        icon={Upload}
         menuItems={menuItems}
       />
 

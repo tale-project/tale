@@ -168,6 +168,14 @@
       "description": "Ein Projekt ist ein geteilter Arbeitsbereich, der Dateien, Anweisungen, Konversationen und projektgebundene Agents bündelt. Diese Seite erklärt, wann du zu einem Projekt greifst statt zu einer einzelnen Konversation."
     }
   },
+  "de:platform/projects/workforce-metrics": {
+    "slug": "platform/projects/workforce-metrics",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Workforce-Metriken",
+      "description": "Wie Agenten-Arbeit gemessen wird — Workforce-Dashboard, Scorecards pro Agent und Projekt-Metriken, immer Ergebnis mit Eingriff und Kosten gepaart."
+    }
+  },
   "de:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "de",
@@ -182,6 +190,14 @@
     "frontmatter": {
       "title": "Projekt-Agents",
       "description": "Projektgebundene Agents gegenüber Org-Agents — wann du nach welchem greifst, wie Projekt-Agents Org-Agents im Picker überschatten, und wie das Veröffentlichen innerhalb eines Projekts funktioniert."
+    }
+  },
+  "de:platform/projects/task-automation": {
+    "slug": "platform/projects/task-automation",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Aufgaben-Automatisierung",
+      "description": "Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, das menschliche Review-Gate, Guardrails (Budgets, Parallelität, Sicherungen) und der Kill-Switch."
     }
   },
   "de:platform/workspace/prompt-library": {
@@ -454,6 +470,14 @@
     "frontmatter": {
       "title": "Einen Agent erstellen",
       "description": "Vom leeren Create-agent-Dialog zu einem veröffentlichten Agent — Modell wählen, Instructions schreiben, Wissen anbinden, Tools einschalten und im Chat verifizieren."
+    }
+  },
+  "de:platform/agents/organigram": {
+    "slug": "platform/agents/organigram",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Organigramm",
+      "description": "Das Org-Chart nur für Agenten — Berichtslinien, die Delegation, Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe steuern, mit Menschen immer an der Spitze."
     }
   },
   "de:platform/agents/categories": {
@@ -956,6 +980,14 @@
       "description": "Welcher Container welchen Job in einer laufenden Tale-Instanz hat, der Request-Pfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht."
     }
   },
+  "de:self-hosted/operate/workforce-operations": {
+    "slug": "self-hosted/operate/workforce-operations",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Workforce-Betrieb",
+      "description": "Runbook für das Task-Ops-Automatisierungspaket — Rollout-Wellen, Kill-Switch, Symptom→Aktion-Tabelle und wohin schauen, wenn die Agenten-Automatisierung klemmt."
+    }
+  },
   "de:self-hosted/operate/upgrades": {
     "slug": "self-hosted/operate/upgrades",
     "locale": "de",
@@ -986,6 +1018,14 @@
     "frontmatter": {
       "title": "Prometheus und Grafana",
       "description": "Ein Copy-paste-Stack aus Prometheus und Grafana, der Tales vier Metrics-Endpoints scrapt — plus ein Starter-Dashboard und eine erste Alert-Regel."
+    }
+  },
+  "de:self-hosted/operate/tale-daemon": {
+    "slug": "self-hosted/operate/tale-daemon",
+    "locale": "de",
+    "frontmatter": {
+      "title": "tale-daemon",
+      "description": "Aufgaben-Arbeit auf eigenen Maschinen mit lokalen Coding-Agent-CLIs (Claude Code, Codex, OpenCode) — Setup, Taktung, Isolation, Berechtigungen und Fehlerbehandlung."
     }
   },
   "de:self-hosted/operate/release-notes/format": {
@@ -1200,6 +1240,14 @@
       "description": "Un projet est un espace partagé qui regroupe fichiers, instructions, conversations et agents liés au projet. Cette page donne le modèle mental pour choisir un projet plutôt qu'une conversation isolée."
     }
   },
+  "fr:platform/projects/workforce-metrics": {
+    "slug": "platform/projects/workforce-metrics",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Métriques de la workforce",
+      "description": "Comment le travail des agents est mesuré — tableau de bord workforce, scorecards par agent et métriques par projet, en associant toujours résultats, interventions et coûts."
+    }
+  },
   "fr:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "fr",
@@ -1214,6 +1262,14 @@
     "frontmatter": {
       "title": "Agents de projet",
       "description": "Agents scopés au Projet versus agents d'organisation — quand opter pour chaque, comment les agents de Projet supplantent les agents d'organisation dans le sélecteur, et comment fonctionne la publication dans un Projet."
+    }
+  },
+  "fr:platform/projects/task-automation": {
+    "slug": "platform/projects/task-automation",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Automatisation des tâches",
+      "description": "Le pack task-ops par défaut — comment l'affectation à un agent le met au travail, la revue humaine obligatoire, les garde-fous (budgets, simultanéité, disjoncteurs) et l'arrêt d'urgence."
     }
   },
   "fr:platform/workspace/prompt-library": {
@@ -1486,6 +1542,14 @@
     "frontmatter": {
       "title": "Créer un agent",
       "description": "Du dialogue Create-agent vide à un agent publié — choisir le modèle, écrire les instructions, lier des connaissances, activer des outils, et vérifier dans Chat."
+    }
+  },
+  "fr:platform/agents/organigram": {
+    "slug": "platform/agents/organigram",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Organigramme",
+      "description": "L'organigramme réservé aux agents — des liens hiérarchiques qui pilotent la délégation, le découpage d'epics, l'escalade SLA et le transfert de budget, avec les humains toujours au sommet."
     }
   },
   "fr:platform/agents/categories": {
@@ -1988,6 +2052,14 @@
       "description": "Quel conteneur possède quel travail dans une instance Tale en marche, le chemin de requête d'un message chat, et à quoi ressemble une panne de chaque conteneur."
     }
   },
+  "fr:self-hosted/operate/workforce-operations": {
+    "slug": "self-hosted/operate/workforce-operations",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Exploitation de la workforce",
+      "description": "Runbook du pack d'automatisation task-ops — vagues de déploiement, arrêt d'urgence, table symptôme→action et où regarder quand l'automatisation des agents déraille."
+    }
+  },
   "fr:self-hosted/operate/upgrades": {
     "slug": "self-hosted/operate/upgrades",
     "locale": "fr",
@@ -2018,6 +2090,14 @@
     "frontmatter": {
       "title": "Prometheus et Grafana",
       "description": "Un stack Prometheus et Grafana en copier-coller qui scrape les quatre endpoints de métriques de Tale, plus un tableau de bord de départ et une première règle d'alerte."
+    }
+  },
+  "fr:self-hosted/operate/tale-daemon": {
+    "slug": "self-hosted/operate/tale-daemon",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "tale-daemon",
+      "description": "Exécuter le travail des tâches sur vos propres machines avec des CLIs d'agents de code locaux (Claude Code, Codex, OpenCode) — installation, cadence, isolation, permissions et gestion des échecs."
     }
   },
   "fr:self-hosted/operate/release-notes/format": {
@@ -2232,6 +2312,14 @@
       "description": "A project is a shared workspace that bundles files, instructions, threads, and project-scoped agents. This page hands you the mental model for when to reach for a project over a stand-alone conversation."
     }
   },
+  "en:platform/projects/workforce-metrics": {
+    "slug": "platform/projects/workforce-metrics",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Workforce metrics",
+      "description": "How agent work is measured — the workforce dashboard, per-agent scorecards, and per-project metrics, always pairing outcomes with intervention and cost."
+    }
+  },
   "en:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "en",
@@ -2246,6 +2334,14 @@
     "frontmatter": {
       "title": "Project agents",
       "description": "Project-scoped agents versus org agents — when to reach for each, how Project agents shadow org agents in the picker, and how publishing works inside a Project."
+    }
+  },
+  "en:platform/projects/task-automation": {
+    "slug": "platform/projects/task-automation",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Task automation",
+      "description": "The default task-ops pack — how assigning a task to an agent runs it, the human review gate, guardrails (budgets, concurrency, circuit breakers), and the kill switch."
     }
   },
   "en:platform/workspace/prompt-library": {
@@ -2518,6 +2614,14 @@
     "frontmatter": {
       "title": "Create an agent",
       "description": "Walk from an empty Create-agent dialog to a published agent — pick the model, write instructions, bind knowledge, toggle tools, and verify in Chat."
+    }
+  },
+  "en:platform/agents/organigram": {
+    "slug": "platform/agents/organigram",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Organigram",
+      "description": "The agents-only org chart — reporting lines that drive delegation, epic decomposition, SLA escalation, and budget handoff, with humans always at the top."
     }
   },
   "en:platform/agents/categories": {
@@ -3020,6 +3124,14 @@
       "description": "Which container owns which job in a running Tale instance, the request path of a chat message, and what an outage in each container looks like."
     }
   },
+  "en:self-hosted/operate/workforce-operations": {
+    "slug": "self-hosted/operate/workforce-operations",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Workforce operations",
+      "description": "Runbook for the task-ops automation pack — rollout waves, the kill switch, symptom→action table, and where to look when agent automation misbehaves."
+    }
+  },
   "en:self-hosted/operate/upgrades": {
     "slug": "self-hosted/operate/upgrades",
     "locale": "en",
@@ -3050,6 +3162,14 @@
     "frontmatter": {
       "title": "Prometheus and Grafana",
       "description": "A copy-paste Prometheus and Grafana stack that scrapes Tale's four metrics endpoints, plus a starter dashboard and a first alert rule."
+    }
+  },
+  "en:self-hosted/operate/tale-daemon": {
+    "slug": "self-hosted/operate/tale-daemon",
+    "locale": "en",
+    "frontmatter": {
+      "title": "tale-daemon",
+      "description": "Run task work on your own machines with local coding-agent CLIs (Claude Code, Codex, OpenCode) — setup, pacing, isolation, permissions, and failure handling."
     }
   },
   "en:self-hosted/operate/release-notes/format": {

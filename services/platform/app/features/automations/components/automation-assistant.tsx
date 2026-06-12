@@ -1,12 +1,16 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
+import { ChatInput } from '@/app/features/chat/components/chat-input';
+import { ChatMessages } from '@/app/features/chat/components/chat-messages';
+import { BranchProvider } from '@/app/features/chat/context/branch-context';
+import { ChatLayoutProvider } from '@/app/features/chat/context/chat-layout-context';
+import { ThreadMessageMetadataProvider } from '@/app/features/chat/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
 import { useAssistantChat } from '../hooks/use-assistant-chat';
-import { ChatInput } from './automation-assistant/chat-input';
-import { MessageList } from './automation-assistant/message-list';
 
 interface AutomationAssistantProps {
   workflowSlug?: string;
@@ -22,35 +26,27 @@ function AutomationAssistantContent({
   const { t } = useT('automations');
 
   const {
-    workflow,
-    displayMessages,
+    threadId,
+    items,
+    activeApproval,
+    activeApprovalInline,
+    loadMore,
+    canLoadMore,
+    isLoadingMore,
     isLoading,
-    isWaitingForResponse,
+    isSendPending,
     inputValue,
     setInputValue,
     attachments,
     uploadingFiles,
     uploadFiles,
     removeAttachment,
+    clearAttachments,
     isIndexing,
     indexingStatuses,
     isTranscribing,
     transcriptionStatuses,
-    previewImage,
-    setPreviewImage,
-    containerRef,
-    messagesEndRef,
-    fileInputRef,
-    handleFileInputChange,
-    handlePaste,
     handleSendMessage,
-    handleKeyDown,
-    workflowUpdateApprovals,
-    workflowCreationApprovals,
-    workflowRunApprovals,
-    humanInputRequests,
-    documentWriteApprovals,
-    integrationApprovals,
   } = useAssistantChat({
     workflowSlug,
     workflowName,
@@ -59,68 +55,92 @@ function AutomationAssistantContent({
     analyzeAttachmentsText: t('assistant.analyzeAttachments'),
   });
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastUserMessageRef = useRef<HTMLDivElement>(null);
+
+  // Keep the panel pinned to the conversation tail as new turns arrive (the
+  // chat page's full scroll machine is page-scoped; the panel only needs
+  // follow-the-bottom).
+  const itemCount = items.length;
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+  }, [itemCount, isLoading]);
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={containerRef}
-        className="flex min-h-0 flex-1 flex-col space-y-2.5 overflow-y-auto p-2"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-2"
       >
-        <MessageList
-          displayMessages={displayMessages}
-          isLoading={isLoading}
-          isWaitingForResponse={isWaitingForResponse}
-          workflow={workflow}
+        {/* The SAME rendering stack as the chat page: ChatMessages →
+            MessageBubble (markdown, thought timeline, attachments) +
+            ApprovalCardRenderer for workflow approval cards. BranchProvider
+            satisfies ChatMessages' branch context; the panel offers no
+            fork/edit affordances so navigators stay hidden. */}
+        <BranchProvider
+          threadId={threadId ?? undefined}
           organizationId={organizationId}
-          workflowUpdateApprovals={workflowUpdateApprovals}
-          workflowCreationApprovals={workflowCreationApprovals}
-          workflowRunApprovals={workflowRunApprovals}
-          humanInputRequests={humanInputRequests}
-          documentWriteApprovals={documentWriteApprovals}
-          integrationApprovals={integrationApprovals}
-          onImagePreview={(src, alt) =>
-            setPreviewImage({ isOpen: true, src, alt })
-          }
-        />
-        <div ref={messagesEndRef} />
+        >
+          <ThreadMessageMetadataProvider threadId={threadId}>
+            <ChatMessages
+              items={items}
+              threadId={threadId ?? undefined}
+              organizationId={organizationId}
+              canLoadMore={canLoadMore}
+              isLoadingMore={isLoadingMore}
+              loadMore={loadMore}
+              isLoading={isLoading}
+              isSendPending={isSendPending}
+              lastUserMessageRef={lastUserMessageRef}
+              containerRef={containerRef}
+              activeApproval={activeApproval}
+              activeApprovalInline={activeApprovalInline}
+              onSendFollowUp={(message) => void handleSendMessage(message)}
+              onSendMessage={(message) => void handleSendMessage(message)}
+              hideBranchNavigator
+            />
+          </ThreadMessageMetadataProvider>
+        </BranchProvider>
       </div>
 
       <ChatInput
-        inputValue={inputValue}
-        onInputChange={setInputValue}
-        onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
-        onSend={handleSendMessage}
+        className="p-2"
+        variant="assistant"
+        value={inputValue}
+        onChange={setInputValue}
+        onSendMessage={(message, sentAttachments) =>
+          void handleSendMessage(message, sentAttachments)
+        }
         isLoading={isLoading}
+        organizationId={organizationId}
         attachments={attachments}
         uploadingFiles={uploadingFiles}
         uploadFiles={uploadFiles}
         removeAttachment={removeAttachment}
-        fileInputRef={fileInputRef}
-        onFileInputChange={handleFileInputChange}
+        clearAttachments={clearAttachments}
         isIndexing={isIndexing}
         indexingStatuses={indexingStatuses}
         isTranscribing={isTranscribing}
         transcriptionStatuses={transcriptionStatuses}
       />
-
-      {previewImage && (
-        <ImagePreviewDialog
-          isOpen={previewImage.isOpen}
-          onOpenChange={(open) => {
-            if (!open) setPreviewImage(null);
-          }}
-          src={previewImage.src}
-          alt={previewImage.alt}
-        />
-      )}
     </div>
   );
 }
 
 export function AutomationAssistant(props: AutomationAssistantProps) {
+  // The assistant reuses the chat composer (`ChatInput`) and its sub-controls,
+  // the pending-message channel (`usePendingMessages`), and the message stack
+  // (`ChatMessages`), all of which read `useChatLayout`. Provide the context
+  // here so the panel works standalone on the automations routes (it isn't
+  // under the chat page's provider). Keyed by org, same as chat — the panels
+  // live on separate routes, so they never mount simultaneously.
   return (
-    <FileUpload.Root>
-      <AutomationAssistantContent {...props} />
-    </FileUpload.Root>
+    <ChatLayoutProvider organizationId={props.organizationId}>
+      <FileUpload.Root>
+        <AutomationAssistantContent {...props} />
+      </FileUpload.Root>
+    </ChatLayoutProvider>
   );
 }

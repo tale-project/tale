@@ -25,6 +25,14 @@ interface ListAuditLogsPaginatedArgs {
   organizationId: string;
   category?: string;
   resourceType?: string;
+  /**
+   * Restrict to rows with status `failure` or `denied`. Applied as a
+   * post-index filter on the time-ordered index — errors are a union of
+   * two status values, which a single compound index range cannot
+   * express. Pages stay time-ordered; Convex keeps scanning until it
+   * fills `numItems`, so sparse-error orgs pay a wider scan per page.
+   */
+  onlyErrors?: boolean;
 }
 
 type FilterArgs = Record<string, string | undefined>;
@@ -80,6 +88,10 @@ export async function listAuditLogsPaginated(
       // @ts-expect-error -- dynamic field name; runtime is correct, Convex types require literal field paths
       query = query.filter((q) => q.eq(q.field(field), value));
     }
+  }
+
+  if (args.onlyErrors) {
+    query = query.filter((q) => q.neq(q.field('status'), 'success'));
   }
 
   return await query.paginate(args.paginationOpts);

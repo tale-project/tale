@@ -14,6 +14,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { isTaskLabelColor } from '../../lib/shared/task_label_colors';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
@@ -191,6 +192,7 @@ export const createTask = mutation({
     assigneeType: v.optional(taskActorTypeValidator),
     assigneeId: v.optional(v.string()),
     parentTaskId: v.optional(v.id('tasks')),
+    dueDate: v.optional(v.number()),
   },
   returns: v.id('tasks'),
   handler: async (ctx, args) => {
@@ -241,12 +243,14 @@ export const createTask = mutation({
       assigneeType: assignee?.assigneeType,
       assigneeId: assignee?.assigneeId,
       parentTaskId: args.parentTaskId,
+      dueDate: args.dueDate,
       rank,
       number,
       createdBy: auth.userId,
       createdByType: 'user',
       createdAt: now,
       updatedAt: now,
+      statusChangedAt: now,
     });
 
     const task = await ctx.db.get(taskId);
@@ -298,7 +302,7 @@ export const createTask = mutation({
       await emitEvent(ctx, {
         organizationId: args.organizationId,
         eventType: 'task.created',
-        eventData: { task },
+        eventData: { task, actorType: 'user', actorId: auth.userId },
       });
     }
 
@@ -317,6 +321,7 @@ export const updateTask = mutation({
     description: v.optional(v.union(v.string(), v.null())),
     priority: v.optional(v.union(taskPriorityValidator, v.null())),
     labels: v.optional(v.array(v.string())),
+    dueDate: v.optional(v.union(v.number(), v.null())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -346,6 +351,15 @@ export const updateTask = mutation({
     if (args.labels !== undefined) {
       patch.labels = validateLabels(args.labels);
       changedFields.push('labels');
+    }
+    if (args.dueDate !== undefined) {
+      patch.dueDate = args.dueDate === null ? undefined : args.dueDate;
+      // Any deadline change restarts the SLA escalation ladder: clearing the
+      // date or moving it means prior due-soon/overdue escalations no longer
+      // describe this task. The sweep re-stamps from level 1 as it re-applies.
+      patch.slaLevel = undefined;
+      patch.slaLevelAt = undefined;
+      changedFields.push('dueDate');
     }
 
     if (changedFields.length === 0) return null;
@@ -417,6 +431,11 @@ export const updateTaskStatus = mutation({
       rank,
       completedAt,
       updatedAt: now,
+      statusChangedAt: now,
+      // A HUMAN status change resets the agent-run circuit breaker — the
+      // explicit "human action resumes automation" contract of the guardrails.
+      agentRunsPausedAt: undefined,
+      agentRunsPausedReason: undefined,
     });
 
     await recordActivity(ctx, {
@@ -459,6 +478,8 @@ export const updateTaskStatus = mutation({
           task: updated,
           fromStatus: task.status,
           toStatus: args.status,
+          actorType: 'user',
+          actorId: auth.userId,
         },
       });
     }
@@ -539,6 +560,8 @@ export const assignTask = mutation({
           assigneeType: assignee?.assigneeType ?? null,
           assigneeId: assignee?.assigneeId ?? null,
           previousAssigneeId,
+          actorType: 'user',
+          actorId: auth.userId,
         },
       });
     }
@@ -617,6 +640,8 @@ export const claimTask = mutation({
           assigneeType: 'user',
           assigneeId: auth.userId,
           previousAssigneeId: null,
+          actorType: 'user',
+          actorId: auth.userId,
         },
       });
     }
@@ -885,13 +910,24 @@ export const addTaskComment = mutation({
     await emitEvent(ctx, {
       organizationId: task.organizationId,
       eventType: 'comment.created',
-      eventData: { comment, taskId: String(args.taskId) },
+      eventData: {
+        comment,
+        taskId: String(args.taskId),
+        actorType: 'user',
+        actorId: auth.userId,
+      },
     });
     if (mentions.length > 0) {
       await emitEvent(ctx, {
         organizationId: task.organizationId,
         eventType: 'comment.mentioned',
-        eventData: { comment, taskId: String(args.taskId), mentions },
+        eventData: {
+          comment,
+          taskId: String(args.taskId),
+          mentions,
+          actorType: 'user',
+          actorId: auth.userId,
+        },
       });
     }
 
@@ -1183,6 +1219,14 @@ export const moveTask = mutation({
         ? (task.completedAt ?? now)
         : undefined,
       updatedAt: now,
+      ...(statusChanged
+        ? {
+            statusChangedAt: now,
+            // Human status change resets the agent-run circuit breaker.
+            agentRunsPausedAt: undefined,
+            agentRunsPausedReason: undefined,
+          }
+        : {}),
     });
 
     await recordActivity(ctx, {
@@ -1218,6 +1262,8 @@ export const moveTask = mutation({
             task: updated,
             fromStatus: task.status,
             toStatus: args.status,
+            actorType: 'user',
+            actorId: auth.userId,
           },
         });
       }
@@ -1260,6 +1306,7 @@ export const bulkUpdateTasks = mutation({
     let skipped = 0;
     const now = Date.now();
     const projectAccessCache = new Map<string, boolean>();
+    const authCache = new Map<string, AuthContext | null>();
 
     for (const taskId of args.taskIds) {
       const task = await ctx.db.get(taskId);
@@ -1267,24 +1314,34 @@ export const bulkUpdateTasks = mutation({
         skipped += 1;
         continue;
       }
-      const projectKey = String(task.projectId);
-      let canEdit = projectAccessCache.get(projectKey);
-      if (canEdit === undefined) {
+
+      let auth = authCache.get(task.organizationId);
+      if (auth === undefined) {
         try {
-          const project = await ctx.db.get(task.projectId);
-          const auth = await getAuthContext(ctx, task.organizationId);
-          canEdit = project
-            ? checkProjectAccess(project, auth.teamIds, auth.role).canEdit
-            : false;
+          auth = await getAuthContext(ctx, task.organizationId);
         } catch (error) {
-          // The caller isn't a member of this task's org (getAuthContext
-          // throws). Skip the task rather than aborting the whole batch.
+          // The caller isn't a member of this task's org. Skip the task
+          // rather than aborting the whole batch.
           console.warn(
             '[tasks] bulkUpdate: auth failed for task org, skipping',
             error,
           );
-          canEdit = false;
+          auth = null;
         }
+        authCache.set(task.organizationId, auth);
+      }
+      if (!auth) {
+        skipped += 1;
+        continue;
+      }
+
+      const projectKey = String(task.projectId);
+      let canEdit = projectAccessCache.get(projectKey);
+      if (canEdit === undefined) {
+        const project = await ctx.db.get(task.projectId);
+        canEdit = project
+          ? checkProjectAccess(project, auth.teamIds, auth.role).canEdit
+          : false;
         projectAccessCache.set(projectKey, canEdit);
       }
       if (!canEdit) {
@@ -1292,6 +1349,8 @@ export const bulkUpdateTasks = mutation({
         continue;
       }
 
+      const statusChanged =
+        args.status !== undefined && args.status !== task.status;
       const patch: Partial<Doc<'tasks'>> = { updatedAt: now };
       if (args.status !== undefined) {
         if (
@@ -1306,10 +1365,19 @@ export const bulkUpdateTasks = mutation({
         patch.completedAt = TERMINAL_STATUSES.has(args.status)
           ? (task.completedAt ?? now)
           : undefined;
+        if (statusChanged) {
+          patch.statusChangedAt = now;
+          // Human status change resets the agent-run circuit breaker.
+          patch.agentRunsPausedAt = undefined;
+          patch.agentRunsPausedReason = undefined;
+        }
       }
       if (args.priority !== undefined) {
         patch.priority = args.priority === null ? undefined : args.priority;
       }
+      const assigneeChanged =
+        (args.clearAssignee || assignee !== null) &&
+        (task.assigneeId ?? null) !== (assignee?.assigneeId ?? null);
       if (args.clearAssignee || assignee) {
         patch.assigneeType = assignee?.assigneeType;
         patch.assigneeId = assignee?.assigneeId;
@@ -1319,6 +1387,55 @@ export const bulkUpdateTasks = mutation({
       }
       await ctx.db.patch(taskId, patch);
       updated += 1;
+
+      // Bulk edits feed the same activity timeline + automation events as
+      // single-task edits — a bulk drag to in_review must trigger the same
+      // workflows (e.g. the review gate) as moving cards one by one.
+      const updatedTask = await ctx.db.get(taskId);
+      if (!updatedTask) continue;
+      if (statusChanged && args.status !== undefined) {
+        await recordActivity(ctx, {
+          task,
+          actorType: 'user',
+          actorId: auth.userId,
+          action: 'status.changed',
+          fromValue: task.status,
+          toValue: args.status,
+        });
+        await emitEvent(ctx, {
+          organizationId: task.organizationId,
+          eventType: 'task.status_changed',
+          eventData: {
+            task: updatedTask,
+            fromStatus: task.status,
+            toStatus: args.status,
+            actorType: 'user',
+            actorId: auth.userId,
+          },
+        });
+      }
+      if (assigneeChanged) {
+        await recordActivity(ctx, {
+          task,
+          actorType: 'user',
+          actorId: auth.userId,
+          action: 'assignee.changed',
+          fromValue: task.assigneeId ?? undefined,
+          toValue: assignee?.assigneeId,
+        });
+        await emitEvent(ctx, {
+          organizationId: task.organizationId,
+          eventType: 'task.assigned',
+          eventData: {
+            task: updatedTask,
+            assigneeType: assignee?.assigneeType ?? null,
+            assigneeId: assignee?.assigneeId ?? null,
+            previousAssigneeId: task.assigneeId ?? null,
+            actorType: 'user',
+            actorId: auth.userId,
+          },
+        });
+      }
     }
 
     return { updated, skipped };
@@ -1389,6 +1506,40 @@ export const saveBoardView = mutation({
   },
 });
 
+/**
+ * Set (or override) the display colour of a task label, project-wide. Colour
+ * is presentational only and project-scoped — labels themselves stay plain
+ * strings on tasks. Mirrors `saveBoardView`'s posture: a lightweight board
+ * preference, no audit entry.
+ */
+export const setLabelColor = mutation({
+  args: {
+    projectId: v.id('projects'),
+    label: v.string(),
+    color: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertTaskWritable(project, auth);
+
+    const label = args.label.trim().toLowerCase();
+    if (label.length === 0 || label.length > TASK_LABEL_CHARS_MAX) {
+      throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+    }
+    if (!isTaskLabelColor(args.color)) {
+      throw new ConvexError({ code: 'TASK_LABEL_COLOR_INVALID' });
+    }
+
+    await ctx.db.patch(args.projectId, {
+      taskLabelColors: { ...project.taskLabelColors, [label]: args.color },
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
 export const deleteBoardView = mutation({
   args: { viewId: v.id('boardViews') },
   returns: v.null(),
@@ -1444,6 +1595,8 @@ export const deleteTask = mutation({
       eventData: {
         taskId: String(args.taskId),
         projectId: String(task.projectId),
+        actorType: 'user',
+        actorId: auth.userId,
       },
     });
 

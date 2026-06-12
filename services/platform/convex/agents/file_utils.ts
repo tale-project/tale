@@ -54,7 +54,6 @@ export interface AgentJsonConfig {
   systemInstructions?: string;
   toolNames?: string[];
   integrationBindings?: string[];
-  delegates?: string[];
   workflows?: string[];
   /**
    * Slugs of skills available to this agent — a hard allowlist. Each slug
@@ -105,6 +104,44 @@ export interface AgentJsonConfig {
   roleRestriction?: 'admin_developer';
   conversationStarters?: string[];
   visibleInChat?: boolean;
+  /**
+   * Organigram delegation edges: slugs of the agents THIS agent delegates to
+   * (its direct reports). Many-to-many; the only forbidden edge is a
+   * self-edge. Written ONLY by the organigram write paths (`writeAgentDelegates`
+   * / `writeAgentParents`); `saveAgent` preserves the on-disk value so a stale
+   * settings form can never silently re-wire delegation. Mirrors
+   * `agentJsonSchema.delegates`.
+   */
+  delegates?: string[];
+  /**
+   * Legacy single-manager reporting line (slug of this agent's manager).
+   * Superseded by `delegates`; still read so pre-migration configs render,
+   * and migrated away on the next organigram write touching this agent.
+   * Mirrors `agentJsonSchema.reportsTo`.
+   */
+  reportsTo?: string;
+  /**
+   * Monthly spend guardrail: warn at `warnPct` (default 80), refuse new runs
+   * at `pausePct` (default 100) of `monthlyCents`, measured against the
+   * usageLedger's month-to-date spend for this agentSlug. Mirrors
+   * `agentJsonSchema.budget`.
+   */
+  budget?: {
+    monthlyCents: number;
+    warnPct?: number;
+    pausePct?: number;
+  };
+  /** Max concurrent task runs; falls back to the org `agent_workforce`
+   *  policy default. Mirrors `agentJsonSchema.maxConcurrentTasks`. */
+  maxConcurrentTasks?: number;
+  /** External runtime binding (tale-daemon dispatch for task runs).
+   *  Mirrors `agentJsonSchema.runtime`. */
+  runtime?: {
+    adapterType: string;
+    daemonId?: string;
+    permissionMode: 'safe' | 'auto_edits' | 'full_auto';
+    workspaceKey?: string;
+  };
   /** Marks the system "Auto" router agent (instructions generated per-request
    *  from `buildRouterInstructions`; never answers a turn itself). */
   isRouter?: boolean;

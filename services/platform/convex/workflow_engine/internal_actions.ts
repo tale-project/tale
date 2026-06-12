@@ -122,6 +122,7 @@ export const executeActionNode = internalAction({
       args.stepDef.config,
       args.variables ?? {},
       args.executionId,
+      args.stepDef.stepSlug,
     );
     return result as Infer<typeof stepExecutionResultValidator>;
   },

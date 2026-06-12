@@ -61,10 +61,18 @@ export function useBulkUpdateTasks() {
   return useConvexMutation(api.tasks.mutations.bulkUpdateTasks);
 }
 
+export function useSetLabelColor() {
+  return useConvexMutation(api.tasks.mutations.setLabelColor);
+}
+
 export function useSaveBoardView() {
   return useConvexMutation(api.tasks.mutations.saveBoardView);
 }
 
 export function useDeleteBoardView() {
   return useConvexMutation(api.tasks.mutations.deleteBoardView);
+}
+
+export function useRespondToTaskReview() {
+  return useConvexMutation(api.tasks.review_mutations.respondToTaskReview);
 }

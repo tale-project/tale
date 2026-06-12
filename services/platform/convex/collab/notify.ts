@@ -21,16 +21,31 @@ type ActorType = 'user' | 'agent';
 
 const PREF_FIELD: Record<
   NotificationType,
-  'taskAssigned' | 'taskStatusChanged' | 'taskCommented' | 'mention'
+  | 'taskAssigned'
+  | 'taskStatusChanged'
+  | 'taskCommented'
+  | 'mention'
+  | 'taskReview'
+  | 'escalation'
+  | 'automationAlerts'
+  | 'digest'
 > = {
   task_assigned: 'taskAssigned',
   task_status_changed: 'taskStatusChanged',
   task_commented: 'taskCommented',
   mention: 'mention',
+  task_review_requested: 'taskReview',
+  task_review_resolved: 'taskReview',
+  agent_escalation: 'escalation',
+  automation_failed: 'automationAlerts',
+  budget_alert: 'automationAlerts',
+  runtime_offline: 'automationAlerts',
+  workforce_digest: 'digest',
 };
 
-/** Tri-state preference resolution: undefined → default ON. */
-async function isAllowed(
+/** Tri-state preference resolution: undefined → default ON. Shared with the
+ *  automation fan-out (`internal_mutations.ts::notifyFromAutomation`). */
+export async function isAllowed(
   ctx: MutationCtx,
   userId: string,
   organizationId: string,
@@ -86,7 +101,14 @@ async function writeNotification(
     titleKey: string;
     bodyKey: string;
     params?: Record<string, unknown>;
-    resourceType: 'task' | 'comment' | 'thread';
+    resourceType:
+      | 'task'
+      | 'comment'
+      | 'thread'
+      | 'task_review'
+      | 'wf_execution'
+      | 'runtime'
+      | 'dashboard';
     resourceId: string;
     taskId?: Id<'tasks'>;
     actorType: 'user' | 'agent' | 'system';
@@ -114,7 +136,7 @@ async function writeNotification(
 }
 
 /** User subscriber ids for a task (not muted). */
-async function taskSubscriberUserIds(
+export async function taskSubscriberUserIds(
   ctx: MutationCtx,
   taskId: Id<'tasks'>,
 ): Promise<string[]> {

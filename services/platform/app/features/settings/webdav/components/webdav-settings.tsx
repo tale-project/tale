@@ -52,7 +52,7 @@ export function WebdavSettings(props: WebdavSettingsProps) {
     <Stack gap={8}>
       <SettingsSection
         title={t('connectionDetails.title')}
-        description={t('connectionDetails.description')}
+        description={t('description')}
       >
         <Stack gap={4}>
           <CopyableField label="URL" value={url} mono />
@@ -131,10 +131,13 @@ function WebdavAppPasswordsTable({
           </span>
         ),
       },
+      // Column sizes double as the table's min-width floor (DataTable sums
+      // them) — keep the total ≤ 540px so the table fits this page's
+      // `SettingsPage narrow` 544px column without horizontal scroll.
       {
         accessorKey: 'prefix',
         header: t('list.prefix'),
-        size: 140,
+        size: 100,
         cell: ({ row }) => (
           <Text as="span" variant="muted" className="font-mono text-xs">
             {row.original.prefix}…
@@ -144,7 +147,7 @@ function WebdavAppPasswordsTable({
       {
         id: 'lastUsed',
         header: t('list.lastUsed'),
-        size: 150,
+        size: 123,
         meta: { align: 'right' },
         cell: ({ row }) => (
           <TableDateCell
@@ -158,7 +161,7 @@ function WebdavAppPasswordsTable({
       {
         id: 'created',
         header: t('list.created'),
-        size: 140,
+        size: 123,
         meta: { align: 'right' },
         cell: ({ row }) => (
           <TableDateCell

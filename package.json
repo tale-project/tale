@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
+    "packages/tale_daemon",
     "packages/tale_knowledge",
     "packages/tale_shared",
     "packages/tale_telemetry",

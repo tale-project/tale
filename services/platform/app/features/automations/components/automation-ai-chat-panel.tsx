@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils/cn';
 import { AutomationAssistant } from './automation-assistant';
 
 interface AutomationAIChatPanelProps {
-  workflowSlug: string;
+  workflowSlug?: string;
   workflowName?: string;
   organizationId: string;
   onClose: () => void;

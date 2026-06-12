@@ -34,17 +34,20 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
 
     debugLog(`Found ${scheduled.length} scheduled workflows`);
 
-    const workflowSlugs = scheduled.map(
-      (wf: ScheduledWorkflow) => wf.workflowSlug,
-    );
+    // Keys are org-scoped: the same file-workflow slug (default pack) exists
+    // in every org, and one org's execution must never dedup another's.
+    const keys = scheduled.map((wf: ScheduledWorkflow) => ({
+      organizationId: wf.organizationId,
+      workflowSlug: wf.workflowSlug,
+    }));
     const lastExecutionTimesObj = await ctx.runQuery(
       internal.workflow_engine.internal_queries.getLastExecutionTimes,
-      { wfDefinitionIds: workflowSlugs },
+      { keys },
     );
 
     const runningExecutionsObj = (await ctx.runQuery(
       internal.workflow_engine.internal_queries.getRunningExecutions,
-      { wfDefinitionIds: workflowSlugs },
+      { keys },
     )) as Record<string, boolean>;
 
     let triggeredCount = 0;
@@ -60,15 +63,16 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
       variables,
     } of scheduled) {
       try {
-        if (runningExecutionsObj[workflowSlug]) {
+        const dedupKey = `${organizationId}::${workflowSlug}`;
+        if (runningExecutionsObj[dedupKey]) {
           debugLog(
-            `Skipping workflow (already running): ${name} (${workflowSlug})`,
+            `Skipping workflow (already running): ${name} (${dedupKey})`,
           );
           skippedRunning++;
           continue;
         }
 
-        const lastExecutionMs = lastExecutionTimesObj[workflowSlug];
+        const lastExecutionMs = lastExecutionTimesObj[dedupKey];
 
         const shouldTrigger = await shouldTriggerWorkflow(
           schedule,

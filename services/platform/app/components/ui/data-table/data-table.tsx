@@ -88,12 +88,12 @@ interface ColumnMeta {
   };
   align?: 'left' | 'center' | 'right';
   /**
-   * Opt this column in as the table's flex column (the one whose width is
-   * left `auto` so it absorbs the container slack). Without it the FIRST
-   * non-utility column flexes — right for name-first tables, wrong when a
-   * long prose column (e.g. a description) should soak up the space instead.
-   * Its declared `size` still counts toward the table's min-width floor, so
-   * keep that size at the column's readable minimum.
+   * Opt this column in as the table's flex column: it alone absorbs ALL the
+   * container slack while every sibling stays at its exact declared px. Use
+   * when one long prose column (e.g. a description) should soak up the space.
+   * Without it, content columns share the container proportionally to their
+   * declared `size` (used as ratios). Its declared `size` still counts toward
+   * the table's min-width floor, so keep it at the column's readable minimum.
    */
   flex?: boolean;
   /**
@@ -491,23 +491,29 @@ export function DataTable<TData, TValue = unknown>({
   const isUtilityCol = (id: string, isAction?: boolean) =>
     id === 'select' || id === 'actions' || !!isAction;
 
-  // The table renders with `table-layout: fixed`, where the slack between the
-  // declared column widths and the container is handed to columns whose width
-  // is `auto` — fixed-width columns keep their exact size. So we flex *one*
-  // column (the first non-utility/content column, i.e. the primary
-  // name/title) and pin every other column. That:
-  //   • keeps the select checkbox + actions trigger at the exact same x on
-  //     every table (utility columns never absorb slack → constant width), and
-  //   • makes the table fill the container without a runaway column or
-  //     trailing columns scrolling off-screen (the primary column soaks up the
-  //     leftover instead of every column inflating).
+  // The table renders with `table-layout: fixed`, so the declared column
+  // widths control how the container is divided. Utility columns (select
+  // checkbox + actions trigger) are pinned to their exact px size so they
+  // land at the same x on every table. Content columns share the REMAINING
+  // width proportionally to their declared `size` (ratios, not px) — a wide
+  // container grows every column instead of handing all the slack to the
+  // first one while its siblings stay frozen at their declared px.
+  //
+  // One content column is left `width: auto` (the explicit `meta.flex` column
+  // or, by default, the first content column): under fixed layout the auto
+  // column receives the leftover, which is exactly its proportional share
+  // when the siblings carry ratio widths — and it absorbs rounding drift so
+  // the ratios never overflow the container. When a column opts in via
+  // `meta.flex`, the siblings keep their exact declared px instead and the
+  // flex column alone soaks the slack (e.g. a prose/description column).
   const visibleLeafColumns = table.getVisibleLeafColumns();
-  const flexColumnId = (
-    visibleLeafColumns.find(
-      (column) =>
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
-        (column.columnDef.meta as ColumnMeta | undefined)?.flex,
-    ) ??
+  const explicitFlexColumnId = visibleLeafColumns.find(
+    (column) =>
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+      (column.columnDef.meta as ColumnMeta | undefined)?.flex,
+  )?.id;
+  const flexColumnId =
+    explicitFlexColumnId ??
     visibleLeafColumns.find(
       (column) =>
         !isUtilityCol(
@@ -515,8 +521,31 @@ export function DataTable<TData, TValue = unknown>({
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
           (column.columnDef.meta as ColumnMeta | undefined)?.isAction,
         ),
-    )
-  )?.id;
+    )?.id;
+
+  // Exact px a utility column occupies (mirrors `utilityCellBox`). A declared
+  // size of 150 is TanStack's default, i.e. "not set" → canonical width.
+  const utilityPx = (id: string, size: number | undefined) =>
+    size !== undefined && size !== 150
+      ? size
+      : id === 'actions'
+        ? ACTIONS_COLUMN_SIZE
+        : SELECT_COLUMN_SIZE;
+
+  // Pinned px (utility columns + the expand column) subtracted from the
+  // container before content columns split the remainder, and the ratio
+  // denominator for that split.
+  let pinnedPx = enableExpanding ? 48 : 0;
+  let contentSizeTotal = 0;
+  for (const column of visibleLeafColumns) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+    const meta = column.columnDef.meta as ColumnMeta | undefined;
+    if (isUtilityCol(column.id, meta?.isAction)) {
+      pinnedPx += utilityPx(column.id, column.columnDef.size);
+    } else {
+      contentSizeTotal += column.getSize();
+    }
+  }
 
   const cellWidthStyle = (
     id: string,
@@ -527,19 +556,23 @@ export function DataTable<TData, TValue = unknown>({
       ? // Under `table-fixed` the declared px width *is* the column width, so
         // pin utility columns to their exact size (a `1%` here would collapse
         // them below the checkbox/trigger box). Matches `utilityCellBox`.
-        {
-          width:
-            size !== undefined && size !== 150
-              ? size
-              : id === 'actions'
-                ? ACTIONS_COLUMN_SIZE
-                : SELECT_COLUMN_SIZE,
-        }
+        { width: utilityPx(id, size) }
       : id === flexColumnId
-        ? // The flex column: `auto` so it absorbs the container slack instead
-          // of every column (incl. the pinned utility ones) inflating.
+        ? // The flex column: `auto`, so it receives the container leftover —
+          // its proportional share by construction (plus rounding slack), or
+          // ALL the slack when it opted in via `meta.flex`.
           { width: undefined }
-        : { width: size !== undefined && size !== 150 ? size : undefined };
+        : explicitFlexColumnId !== undefined || contentSizeTotal === 0
+          ? // An explicit `meta.flex` column soaks the slack alone; its
+            // siblings keep their exact declared px.
+            { width: size !== undefined && size !== 150 ? size : undefined }
+          : // Proportional share of the width left after the pinned columns,
+            // using declared sizes as ratios. At the `minWidth` floor (table
+            // width == sum of declared sizes) this resolves to exactly the
+            // declared px; wider containers scale every column up.
+            {
+              width: `calc((100% - ${pinnedPx}px) * ${((size ?? 150) / contentSizeTotal).toFixed(4)})`,
+            };
   // Wrap a utility cell's content in a fixed-width box so the column shrinks to
   // exactly its declared size (the select checkbox centered, the row-actions
   // trigger right-aligned) — identical on every table. `p-0` on the cell hands
@@ -550,14 +583,7 @@ export function DataTable<TData, TValue = unknown>({
     node: ReactNode,
   ): ReactNode => (
     <div
-      style={{
-        width:
-          size !== undefined && size !== 150
-            ? size
-            : id === 'actions'
-              ? ACTIONS_COLUMN_SIZE
-              : SELECT_COLUMN_SIZE,
-      }}
+      style={{ width: utilityPx(id, size) }}
       className={cn(
         'flex h-full items-center',
         id === 'select' ? 'mx-auto justify-center' : 'ml-auto justify-end pr-3',

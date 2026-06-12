@@ -451,7 +451,12 @@ function AutomationDetailInner({
             workflowSlug={workflowSlug}
             onRefetch={onRefetch}
             isAssistantOpen={isAIChatOpen}
-            onOpenAssistant={handleOpenAIChat}
+            // On the editor tab the canvas's bottom-center toolbar already
+            // carries the ✨ button — offering it in the tab strip too would
+            // show the same control twice.
+            onOpenAssistant={
+              isExactAutomationPage ? undefined : handleOpenAIChat
+            }
           />
         </>
       }

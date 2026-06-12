@@ -184,4 +184,14 @@ crons.cron(
   { maxAgeMs: 30 * 24 * 60 * 60 * 1000 },
 );
 
+// Workforce metrics rollup — recompute yesterday's per-project and per-agent
+// daily aggregates for every org (cursor-chained pages), heal stuck task
+// runs, and prune rollups past the fixed 400-day aggregate retention.
+crons.cron(
+  'daily task-metrics rollup (03:00 UTC)',
+  '0 3 * * *',
+  internal.task_metrics.rollup.runDailyRollup,
+  {},
+);
+
 export default crons;

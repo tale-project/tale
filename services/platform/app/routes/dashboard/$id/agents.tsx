@@ -1,4 +1,10 @@
-import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  Outlet,
+  useMatch,
+  useNavigate,
+} from '@tanstack/react-router';
+import { ChevronRight } from 'lucide-react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import {
@@ -20,7 +26,9 @@ export const Route = createFileRoute('/dashboard/$id/agents')({
 function AgentsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('settings');
+  const { t: tOrganigram } = useT('organigram');
   const { t: tAccessDenied } = useT('accessDenied');
+  const navigate = useNavigate();
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -29,6 +37,15 @@ function AgentsLayout() {
     from: '/dashboard/$id/agents/$agentId',
     shouldThrow: false,
   });
+
+  // The organigram is a sibling page opened from the list's own button —
+  // same breadcrumb-in-header navigation as the automations Metrics page:
+  // "Agents › Organigram" with the parent clickable.
+  const isOrganigram = useMatch({
+    from: '/dashboard/$id/agents/organigram',
+    shouldThrow: false,
+  });
+  const breadcrumbLeaf = isOrganigram ? tOrganigram('title') : null;
 
   // Access is only knowable once the ability has loaded. Until then render the
   // SAME PageLayout chrome (the header doesn't depend on the ability) so it
@@ -44,7 +61,28 @@ function AgentsLayout() {
       header={
         !isDetailPage ? (
           <AdaptiveHeaderRoot standalone={false}>
-            <AdaptiveHeaderTitle>{t('agents.title')}</AdaptiveHeaderTitle>
+            <AdaptiveHeaderTitle>
+              {breadcrumbLeaf ? (
+                <span className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void navigate({
+                        to: '/dashboard/$id/agents',
+                        params: { id: organizationId },
+                      })
+                    }
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {t('agents.title')}
+                  </button>
+                  <ChevronRight className="text-muted-foreground size-4 shrink-0" />
+                  <span>{breadcrumbLeaf}</span>
+                </span>
+              ) : (
+                t('agents.title')
+              )}
+            </AdaptiveHeaderTitle>
           </AdaptiveHeaderRoot>
         ) : undefined
       }

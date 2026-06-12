@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import {
+  agentWorkforceConfigSchema,
   budgetConfigSchema,
   chatFilterConfigSchema,
   customInstructionsConfigSchema,
@@ -15,6 +16,7 @@ import {
   retentionPolicyConfigSchema,
   sessionIdleTimeoutConfigSchema,
   systemPromptConfigSchema,
+  taskAutomationConfigSchema,
   twoFactorPolicyConfigSchema,
   uploadPolicyConfigSchema,
   userMemoriesConfigSchema,
@@ -300,6 +302,27 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid data classification notice configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'agent_workforce') {
+      const parsed = agentWorkforceConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid agent workforce configuration: ${parsed.error.message}`,
+        );
+      }
+      // Persist the normalized output so schema defaults (org cap, breaker
+      // runs/hour, pause action) are stored concretely.
+      args.config = parsed.data;
+    }
+
+    if (args.policyType === 'task_automation') {
+      const parsed = taskAutomationConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid task automation configuration: ${parsed.error.message}`,
         );
       }
     }
@@ -610,5 +633,62 @@ export const upsertRetentionPolicyInternal = internalMutation({
     }
 
     return policyId;
+  },
+});
+
+/**
+ * Master switch for the task-ops automation pack (admin/owner only). Gates
+ * BOTH halves: writes the `task_automation` policy (the run-agent action
+ * refuses when disabled) and flips `isActive` on the pack's trigger rows so
+ * the scheduler/event fan-out stop at the source. The kill-switch ops
+ * commands (`workflows/ops/disable_task_ops_pack`) are the internal twins.
+ */
+export const setTaskAutomationEnabled = mutation({
+  args: {
+    organizationId: v.string(),
+    enabled: v.boolean(),
+    reason: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
+    if (!isAdmin(member.role)) {
+      throw new Error('Only admins can toggle task automation');
+    }
+
+    if (args.enabled) {
+      await ctx.runMutation(
+        internal.workflows.ops.disable_task_ops_pack.enableTaskOpsPack,
+        { organizationId: args.organizationId },
+      );
+    } else {
+      await ctx.runMutation(
+        internal.workflows.ops.disable_task_ops_pack.disableTaskOpsPack,
+        {
+          organizationId: args.organizationId,
+          reason: args.reason ?? `disabled by ${member.userId}`,
+        },
+      );
+    }
+
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: member.userId,
+      actorEmail: authUser.email,
+      actorType: 'user',
+      action: 'governance.task_automation_toggled',
+      category: 'admin',
+      resourceType: 'governance_policy',
+      resourceId: 'task_automation',
+      newState: { enabled: args.enabled },
+      status: 'success',
+    });
+    return null;
   },
 });

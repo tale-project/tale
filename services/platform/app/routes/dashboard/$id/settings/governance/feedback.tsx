@@ -10,6 +10,7 @@ import {
   periodToDays,
   type FeedbackPeriod,
 } from '@/app/features/analytics/feedback/feedback-period';
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
 import { api } from '@/convex/_generated/api';
 
@@ -79,7 +80,7 @@ function FeedbackRoute() {
   );
 
   return (
-    <div className="pb-8">
+    <SettingsPage>
       <FeedbackMetricsPage
         organizationId={organizationId}
         period={period}
@@ -109,6 +110,6 @@ function FeedbackRoute() {
           })
         }
       />
-    </div>
+    </SettingsPage>
   );
 }

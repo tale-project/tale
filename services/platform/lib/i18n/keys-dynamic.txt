@@ -209,13 +209,14 @@ inbox
 # translators can work in parallel. Remove once the board UI ships.
 tasks
 
-# Settings rail sub-section labels. The API sub-pages (REST / MCP / WebDAV)
-# are driven by the API_NAV_ITEMS catalog in
+# Settings rail sub-section labels. The API sub-pages (REST / MCP / WebDAV /
+# Runtimes) are driven by the API_NAV_ITEMS catalog in
 # app/routes/dashboard/$id/settings/api/nav-items.ts and rendered via
 # `tNav(item.labelKey)` in settings-rail.tsx and the section's mobile tab
 # strip. Because the catalog is a data-only module (no `useT` call), the
 # scanner can't tie its `labelKey` literals back to the `navigation`
 # namespace. (`mcp` is also referenced directly in api/mcp.tsx, so only the
-# two catalog-only labels need listing here.)
+# catalog-only labels need listing here.)
 navigation.apiRest
 navigation.webdav
+navigation.runtimes

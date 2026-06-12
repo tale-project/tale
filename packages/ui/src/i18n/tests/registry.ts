@@ -13,6 +13,7 @@
 
 import { glossaryCoverage } from './checks/glossary-coverage';
 import { grammarArticles } from './checks/grammar-articles';
+import { icuBraceBalance } from './checks/icu-brace-balance';
 import { icuPlaceholderParity } from './checks/icu-placeholder-parity';
 import { icuPluralRules } from './checks/icu-plural-rules';
 import { markdownAnchorParity } from './checks/markdown-anchor-parity';
@@ -60,6 +61,7 @@ export const CHECKS: ReadonlyArray<Check> = [
   stylePercentNbsp,
   styleCurrency,
   styleSs,
+  icuBraceBalance,
   icuPlaceholderParity,
   icuPluralRules,
   glossaryCoverage,

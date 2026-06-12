@@ -31,12 +31,20 @@ interface CreateAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
+  /**
+   * Called with the new agent's slug after a successful create INSTEAD of the
+   * default navigation to the agent's settings page. Hosts that embed the
+   * dialog in another editor (the organigram canvas) use it to stay in place
+   * and refresh their own view.
+   */
+  onCreated?: (agentName: string) => void;
 }
 
 export function CreateAgentDialog({
   open,
   onOpenChange,
   organizationId,
+  onCreated,
 }: CreateAgentDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -209,10 +217,14 @@ export function CreateAgentDialog({
         title: t('agents.agentCreated'),
         variant: 'success',
       });
-      void navigate({
-        to: '/dashboard/$id/agents/$agentId',
-        params: { id: organizationId, agentId: data.name },
-      });
+      if (onCreated) {
+        onCreated(data.name);
+      } else {
+        void navigate({
+          to: '/dashboard/$id/agents/$agentId',
+          params: { id: organizationId, agentId: data.name },
+        });
+      }
     } catch (error) {
       if (error instanceof ConvexError) {
         const code = error.data?.code;

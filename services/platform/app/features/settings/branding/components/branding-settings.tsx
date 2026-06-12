@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
@@ -58,25 +59,27 @@ function BrandingSettingsView({
   }, []);
 
   return (
-    <SettingsPage
-      title={tNav('branding')}
-      description={tSettings('menu.branding.description')}
-      fitToContainer
-    >
-      {/* `justify-center` centers the fixed-width form on small screens where
-          the preview is hidden; it's inert on lg where the flex-1 preview fills
-          the row. */}
-      <div className="flex flex-1 justify-center gap-6">
-        <BrandingForm
-          organizationId={organizationId}
-          branding={branding}
-          onPreviewChange={handlePreviewChange}
-          onSaved={onSaved}
-        />
-        <div className="hidden flex-1 lg:flex">
-          <BrandingPreview data={previewData} />
+    <SettingsPage fitToContainer>
+      <SettingsSection
+        title={tNav('branding')}
+        description={tSettings('menu.branding.description')}
+        className="min-h-0 flex-1"
+      >
+        {/* `justify-center` centers the fixed-width form on small screens where
+            the preview is hidden; it's inert on lg where the flex-1 preview fills
+            the row. */}
+        <div className="flex flex-1 justify-center gap-6">
+          <BrandingForm
+            organizationId={organizationId}
+            branding={branding}
+            onPreviewChange={handlePreviewChange}
+            onSaved={onSaved}
+          />
+          <div className="hidden flex-1 lg:flex">
+            <BrandingPreview data={previewData} />
+          </div>
         </div>
-      </div>
+      </SettingsSection>
     </SettingsPage>
   );
 }

@@ -10,8 +10,13 @@
 
 import { v } from 'convex/values';
 
+import { isRecord } from '../../lib/utils/type-guards';
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
+import {
+  buildPeriodKeyFromTimestamp,
+  readPolicyConfig,
+} from '../governance/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -75,6 +80,16 @@ export const taskRowValidator = v.object({
   externalSystem: v.optional(v.string()),
   externalId: v.optional(v.string()),
   externalUrl: v.optional(v.string()),
+  dueDate: v.optional(v.number()),
+  slaLevel: v.optional(v.number()),
+  slaLevelAt: v.optional(v.number()),
+  statusChangedAt: v.optional(v.number()),
+  agentRunsPausedAt: v.optional(v.number()),
+  agentRunsPausedReason: v.optional(v.string()),
+  totalCostCents: v.optional(v.number()),
+  agentRunCount: v.optional(v.number()),
+  lastAgentRunAt: v.optional(v.number()),
+  threadId: v.optional(v.string()),
   createdBy: v.string(),
   createdByType: taskActorTypeValidator,
   claimedAt: v.optional(v.number()),
@@ -329,5 +344,258 @@ export const listTaskActivity = query({
       .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
       .order('desc')
       .take(TASK_ACTIVITY_CAP);
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Task-ops indicators (agent runs + review gate, one bounded read per board)
+// ---------------------------------------------------------------------------
+
+const TASK_OPS_INDICATOR_CAP = 50;
+
+/**
+ * Live agent-work indicators for an open board: which tasks have a RUNNING
+ * agent run, and which have a PENDING review-gate approval. One reactive
+ * query per board; both reads are index-backed and bounded, and the
+ * invalidation surface is run lifecycle + review responses only.
+ */
+export const getTaskOpsIndicators = query({
+  args: { projectId: v.id('projects') },
+  returns: v.object({
+    runningTaskIds: v.array(v.id('tasks')),
+    pendingReviews: v.array(
+      v.object({
+        taskId: v.id('tasks'),
+        approvalId: v.id('approvals'),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const { project } = await loadAccessibleProject(ctx, args.projectId);
+
+    const runningTaskIds: Id<'tasks'>[] = [];
+    for await (const run of ctx.db
+      .query('taskAgentRuns')
+      .withIndex('by_project_status', (q) =>
+        q.eq('projectId', args.projectId).eq('status', 'running'),
+      )) {
+      runningTaskIds.push(run.taskId);
+      if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
+    }
+
+    // Pending reviews are rare org-wide, so the org-level pending scan
+    // filtered to this project stays tiny.
+    const pendingReviews: Array<{
+      taskId: Id<'tasks'>;
+      approvalId: Id<'approvals'>;
+    }> = [];
+    for await (const approval of ctx.db
+      .query('approvals')
+      .withIndex('by_org_status_resourceType', (q) =>
+        q
+          .eq('organizationId', project.organizationId)
+          .eq('status', 'pending')
+          .eq('resourceType', 'task_review'),
+      )) {
+      const metadata: unknown = approval.metadata;
+      if (!isRecord(metadata)) continue;
+      if (metadata.projectId !== String(args.projectId)) continue;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- task_review approvals store String(taskId) as resourceId
+      const taskId = approval.resourceId as Id<'tasks'>;
+      pendingReviews.push({ taskId, approvalId: approval._id });
+      if (pendingReviews.length >= TASK_OPS_INDICATOR_CAP) break;
+    }
+
+    return { runningTaskIds, pendingReviews };
+  },
+});
+
+/**
+ * The pending review-gate approval for one task (detail-sheet review card).
+ * Returns null when there is nothing to review.
+ */
+export const getPendingTaskReview = query({
+  args: { taskId: v.id('tasks') },
+  returns: v.union(
+    v.null(),
+    v.object({
+      approvalId: v.id('approvals'),
+      question: v.optional(v.string()),
+      agentSlug: v.optional(v.string()),
+      requestedAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) return null;
+    await loadAccessibleProject(ctx, task.projectId);
+    for await (const approval of ctx.db
+      .query('approvals')
+      .withIndex('by_resource', (q) =>
+        q
+          .eq('resourceType', 'task_review')
+          .eq('resourceId', String(args.taskId)),
+      )) {
+      if (approval.status !== 'pending') continue;
+      const metadata: unknown = approval.metadata;
+      const record = isRecord(metadata) ? metadata : {};
+      return {
+        approvalId: approval._id,
+        question:
+          typeof record.question === 'string' ? record.question : undefined,
+        agentSlug:
+          typeof record.agentSlug === 'string' ? record.agentSlug : undefined,
+        requestedAt: approval._creationTime,
+      };
+    }
+    return null;
+  },
+});
+
+/** Agent run history for one task (detail-sheet "Agent activity" section). */
+export const listTaskAgentRuns = query({
+  args: { taskId: v.id('tasks') },
+  returns: v.array(
+    v.object({
+      runId: v.id('taskAgentRuns'),
+      agentSlug: v.string(),
+      trigger: v.string(),
+      status: v.string(),
+      error: v.optional(v.string()),
+      startedAt: v.number(),
+      durationMs: v.optional(v.number()),
+      costCents: v.number(),
+      workflowSlug: v.optional(v.string()),
+      wfExecutionId: v.optional(v.id('wfExecutions')),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) return [];
+    await loadAccessibleProject(ctx, task.projectId);
+    const runs = await ctx.db
+      .query('taskAgentRuns')
+      .withIndex('by_task_started', (q) => q.eq('taskId', args.taskId))
+      .order('desc')
+      .take(20);
+    return runs.map((run) => ({
+      runId: run._id,
+      agentSlug: run.agentSlug,
+      trigger: run.trigger,
+      status: run.status,
+      error: run.error,
+      startedAt: run.startedAt,
+      durationMs: run.durationMs,
+      costCents: run.costCents,
+      workflowSlug: run.workflowSlug,
+      wfExecutionId: run.wfExecutionId,
+    }));
+  },
+});
+
+/**
+ * Mention trigger preview for the comment composer (Multica-style): for each
+ * @-mentioned agent slug in the draft, whether posting the comment WILL put
+ * that agent to work — and if not, why (project gate, automation kill
+ * switch, circuit breaker, exhausted budget, or a queue wait). Read-only and
+ * cheap: one task + policy read plus two notice lookups per slug (≤10).
+ */
+export const mentionTriggerPreview = query({
+  args: {
+    taskId: v.id('tasks'),
+    slugs: v.array(v.string()),
+  },
+  returns: v.array(
+    v.object({
+      slug: v.string(),
+      willTrigger: v.boolean(),
+      reason: v.union(
+        v.literal('ok'),
+        v.literal('queued_likely'),
+        v.literal('not_mentionable'),
+        v.literal('pack_disabled'),
+        v.literal('breaker_paused'),
+        v.literal('budget_paused'),
+      ),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) throw new Error('TASK_NOT_FOUND');
+    const { project } = await loadAccessibleProject(ctx, task.projectId);
+    const organizationId = task.organizationId;
+
+    const slugs = [...new Set(args.slugs)].slice(0, 10);
+    if (slugs.length === 0) return [];
+
+    const mentionable = new Set<string>([
+      ...(project.allowedAgentSlugs ?? []),
+      ...(project.recommendedAgentSlugs ?? []),
+    ]);
+
+    const automationRaw = await readPolicyConfig<{ enabled?: boolean }>(
+      ctx,
+      organizationId,
+      'task_automation',
+    );
+    const packEnabled = automationRaw?.enabled !== false;
+    const breakerPaused = task.agentRunsPausedAt !== undefined;
+    const monthKey = buildPeriodKeyFromTimestamp('monthly', Date.now());
+
+    const rows: Array<{
+      slug: string;
+      willTrigger: boolean;
+      reason:
+        | 'ok'
+        | 'queued_likely'
+        | 'not_mentionable'
+        | 'pack_disabled'
+        | 'breaker_paused'
+        | 'budget_paused';
+    }> = [];
+    for (const slug of slugs) {
+      if (!mentionable.has(slug)) {
+        rows.push({ slug, willTrigger: false, reason: 'not_mentionable' });
+        continue;
+      }
+      if (!packEnabled) {
+        rows.push({ slug, willTrigger: false, reason: 'pack_disabled' });
+        continue;
+      }
+      if (breakerPaused) {
+        rows.push({ slug, willTrigger: false, reason: 'breaker_paused' });
+        continue;
+      }
+      const budgetNotice = await ctx.db
+        .query('agentGuardrailNotices')
+        .withIndex('by_org_agent_kind_period', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('agentSlug', slug)
+            .eq('kind', 'budget_paused')
+            .eq('periodKey', monthKey),
+        )
+        .first();
+      if (budgetNotice) {
+        rows.push({ slug, willTrigger: false, reason: 'budget_paused' });
+        continue;
+      }
+      const queuedNotice = await ctx.db
+        .query('agentGuardrailNotices')
+        .withIndex('by_org_agent_kind_period', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('agentSlug', slug)
+            .eq('kind', 'concurrency_queued')
+            .eq('periodKey', String(args.taskId)),
+        )
+        .first();
+      if (queuedNotice && queuedNotice.resolvedAt === undefined) {
+        rows.push({ slug, willTrigger: true, reason: 'queued_likely' });
+        continue;
+      }
+      rows.push({ slug, willTrigger: true, reason: 'ok' });
+    }
+    return rows;
   },
 });

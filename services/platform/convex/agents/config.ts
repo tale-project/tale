@@ -121,8 +121,15 @@ export function toSerializableConfig(
     knowledgeFileIds: (binding?.knowledgeFiles ?? [])
       .filter((f) => f.ragStatus === 'completed')
       .map((f) => String(f.fileId)),
-    delegateSlugs: config.delegates,
     skillBindings: config.skillBindings,
+    // Guardrails ride the serializable config because the run entry points
+    // that enforce them (chat-turn mutation, delegation sub-steps, run
+    // admission) cannot read agent JSON files.
+    budget: config.budget,
+    maxConcurrentTasks: config.maxConcurrentTasks,
+    // External runtime binding rides along so the task-run dispatch seam
+    // (run_agent_on_task) can branch without a second file read.
+    runtime: config.runtime,
     // `skillBindingsResolved` is a legacy snapshot from the old transitive
     // tool-grant model and is no longer read at runtime — drop it here so
     // the strict `serializableAgentConfigValidator` doesn't see an extra

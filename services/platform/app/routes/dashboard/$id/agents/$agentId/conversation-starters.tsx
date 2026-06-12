@@ -1,5 +1,5 @@
 import { Button } from '@tale/ui/button';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Tabs, type TabItem } from '@tale/ui/tabs';
 import { createFileRoute } from '@tanstack/react-router';
 import { Languages, Loader2, Plus } from 'lucide-react';
@@ -267,7 +267,7 @@ function ConversationStartersTab() {
 
   return (
     <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <StickySectionHeader
+      <SectionHeader
         title={t('agents.conversationStarters.title')}
         description={t('agents.conversationStarters.description')}
       />

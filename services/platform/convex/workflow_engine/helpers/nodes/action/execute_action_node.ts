@@ -70,6 +70,7 @@ export async function executeActionNode(
   config: ActionNodeConfig,
   variables: Record<string, unknown>,
   executionId: string | Id<'wfExecutions'>,
+  stepSlug?: string,
 ): Promise<StepExecutionResult> {
   const def = getAction(config.type);
   if (!def) throw new Error(`Unknown action type: ${config.type}`);
@@ -97,6 +98,7 @@ export async function executeActionNode(
 
   const result = await def.execute(ctx, resolvedParameters, variables, {
     executionId,
+    stepSlug,
   });
 
   // Generic handling: if action returns variables, extract them

@@ -85,3 +85,16 @@ export async function recordActivity(
     createdAt: Date.now(),
   });
 }
+
+/**
+ * Activity action strings recorded by the task-ops automation pack so the
+ * metrics rollups can tell HUMAN review outcomes apart from agent
+ * self-moves (workflow-driven status changes log actorType 'agent', which
+ * would otherwise conflate the two).
+ */
+export const TASK_METRIC_ACTIONS = {
+  reviewPassed: 'review.passed',
+  reviewChangesRequested: 'review.changes_requested',
+  agentEscalated: 'agent.escalated',
+  circuitBreakerTripped: 'agent.circuit_breaker_tripped',
+} as const;

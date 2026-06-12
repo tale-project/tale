@@ -67,6 +67,9 @@ export function ActiveHoldsSection({
     [t],
   );
 
+  // Column sizes double as the table's min-width floor (DataTable sums them).
+  // Keep the total ≤ 940px so the table fits the settings content column on
+  // common laptop widths instead of clipping behind a horizontal scroll.
   const columns = useMemo<ColumnDef<LegalHoldRow>[]>(
     () => [
       {
@@ -82,7 +85,7 @@ export function ActiveHoldsSection({
           );
         },
         meta: { skeleton: { type: 'badge' as const } },
-        size: 150,
+        size: 120,
       },
       {
         accessorKey: 'targetLabel',
@@ -104,7 +107,7 @@ export function ActiveHoldsSection({
           </div>
         ),
         meta: { skeleton: { type: 'two-line' as const } },
-        size: 240,
+        size: 180,
       },
       {
         accessorKey: 'reason',
@@ -114,6 +117,7 @@ export function ActiveHoldsSection({
             {row.original.reason}
           </Text>
         ),
+        size: 130,
       },
       {
         accessorKey: 'matterName',
@@ -128,7 +132,7 @@ export function ActiveHoldsSection({
               —
             </Text>
           ),
-        size: 180,
+        size: 120,
       },
       {
         accessorKey: 'placedByName',
@@ -138,13 +142,13 @@ export function ActiveHoldsSection({
             {row.original.placedByName}
           </Text>
         ),
-        size: 160,
+        size: 130,
       },
       {
         accessorKey: 'placedAt',
         header: t('legalHold.columns.placedAt'),
         cell: ({ row }) => <TableDateCell date={row.original.placedAt} />,
-        size: 160,
+        size: 120,
       },
       {
         id: 'actions',

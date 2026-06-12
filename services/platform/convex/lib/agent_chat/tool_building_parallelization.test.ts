@@ -6,6 +6,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../_generated/server', () => ({
   internalAction: vi.fn((config) => config),
+  // Pulled in transitively via workforce_ops -> guardrails (org-chart
+  // delegation merge); the parallelization assertions never execute them.
+  internalQuery: vi.fn((config) => config),
+  internalMutation: vi.fn((config) => config),
+  action: vi.fn((config) => config),
+  query: vi.fn((config) => config),
+  mutation: vi.fn((config) => config),
+  httpAction: vi.fn((config) => config),
 }));
 
 vi.mock('../../_generated/api', () => ({
@@ -72,6 +80,19 @@ vi.mock('../../agent_tools/integrations/create_bound_integration_tool', () => ({
 }));
 
 const mockLoadDelegateAgents = vi.fn();
+// Delegates are chart-derived now: give the test agent one direct report so
+// the delegation builder has work to do (the real chart math stays live).
+vi.mock('../../agents/workforce_ops', async (importOriginal) => {
+  const mod = await importOriginal<Record<string, unknown>>();
+  return {
+    ...mod,
+    readWorkforceRoster: vi.fn(async () => [
+      { slug: 'test-agent' },
+      { slug: 'writer-agent', reportsTo: 'test-agent' },
+    ]),
+  };
+});
+
 vi.mock('../../agent_tools/delegation/load_delegation_agents', () => ({
   loadDelegateAgents: (...args: unknown[]) => mockLoadDelegateAgents(...args),
 }));
@@ -193,6 +214,8 @@ vi.mock('@convex-dev/agent', () => ({
     streamText: vi.fn(),
     generateText: vi.fn(),
   })),
+  // The escalation tool (chart members) builds through createTool.
+  createTool: vi.fn((definition: unknown) => definition),
   listMessages: vi.fn().mockResolvedValue({ page: [] }),
   saveMessage: vi.fn().mockResolvedValue({ messageId: 'msg_1' }),
 }));
@@ -220,7 +243,6 @@ describe('runAgentGeneration — tool building parallelization', () => {
       name: 'test-agent',
       instructions: 'Be helpful',
       integrationBindings: ['slack', 'jira'],
-      delegateSlugs: ['writer-agent'],
       workflowBindings: ['email-workflow'],
     },
     model: 'gpt-4o',

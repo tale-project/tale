@@ -1,9 +1,10 @@
 'use client';
 
+import { LinkButton } from '@tale/ui/button';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
-import { Bot } from 'lucide-react';
+import { Bot, Network } from 'lucide-react';
 import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -193,7 +194,22 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
       }
       onRowClick={handleRowClick}
       onRowMouseEnter={handleRowMouseEnter}
-      actionMenu={<AgentsActionMenu organizationId={organizationId} />}
+      actionMenu={
+        <div className="flex items-center gap-2">
+          {/* Standalone entry — same pattern as the automations list's
+              Metrics button — so the chart is one click away, not buried
+              in the create menu. */}
+          <LinkButton
+            href="/dashboard/$id/agents/organigram"
+            params={{ id: organizationId }}
+            variant="secondary"
+            icon={Network}
+          >
+            {tSettings('agents.organigram.menuItem')}
+          </LinkButton>
+          <AgentsActionMenu organizationId={organizationId} />
+        </div>
+      }
       emptyState={{
         icon: Bot,
         title: tEmpty('agents.title'),

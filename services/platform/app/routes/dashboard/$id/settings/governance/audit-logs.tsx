@@ -1,43 +1,22 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useCallback } from 'react';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import { AuditLogsPage } from '@/app/features/settings/audit-logs/components/audit-logs-page';
-import { seo } from '@/lib/utils/seo';
-
-const searchSchema = z.object({
-  category: z.string().optional(),
-});
-
+/**
+ * Legacy path — the governance sub-item was renamed from "Audit logs" to
+ * "Logs" when the activity/error tabs landed. Keeps old bookmarks and
+ * deep links (including category-filtered ones) working.
+ */
 export const Route = createFileRoute(
   '/dashboard/$id/settings/governance/audit-logs',
 )({
-  head: () => ({ meta: seo('logs') }),
-  validateSearch: searchSchema,
-  component: AuditLogsRoute,
+  validateSearch: z.object({
+    category: z.string().optional(),
+  }),
+  beforeLoad: ({ params, search }) => {
+    throw redirect({
+      to: '/dashboard/$id/settings/governance/logs',
+      params: { id: params.id },
+      search: search.category ? { category: search.category } : {},
+    });
+  },
 });
-
-function AuditLogsRoute() {
-  const { id: organizationId } = Route.useParams();
-  const { category } = Route.useSearch();
-  const navigate = useNavigate();
-
-  const handleCategoryChange = useCallback(
-    (next: string | undefined) => {
-      void navigate({
-        to: '/dashboard/$id/settings/governance/audit-logs',
-        params: { id: organizationId },
-        search: next ? { category: next } : {},
-      });
-    },
-    [navigate, organizationId],
-  );
-
-  return (
-    <AuditLogsPage
-      organizationId={organizationId}
-      category={category}
-      onCategoryChange={handleCategoryChange}
-    />
-  );
-}

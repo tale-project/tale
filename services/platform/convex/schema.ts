@@ -1,5 +1,10 @@
 import { defineSchema } from 'convex/server';
 
+import { agentRuntimesTable } from './agent_runtimes/schema';
+import {
+  agentGuardrailNoticesTable,
+  agentRunCountersTable,
+} from './agents/guardrails/schema';
 import {
   customAgentsTable,
   customAgentWebhooksTable,
@@ -27,6 +32,7 @@ import {
 } from './conversations/schema';
 import { customersTable } from './customers/schema';
 import { documentsTable } from './documents/schema';
+import { externalRunsTable } from './external_runs/schema';
 import { messageFeedbackTable } from './feedback/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
@@ -82,6 +88,11 @@ import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
 import {
+  agentTaskMetricsDailyTable,
+  taskAgentRunsTable,
+  taskMetricsDailyTable,
+} from './task_metrics/schema';
+import {
   boardViewsTable,
   taskActivityTable,
   taskCommentsTable,
@@ -106,6 +117,7 @@ import { videoLinkJobsTable } from './video_links/schema';
 import { webdavAppPasswordsTable, webdavLocksTable } from './webdav/schema';
 import { websitesTable } from './websites/schema';
 import {
+  wfDefaultProvisionsTable,
   wfDefinitionsTable,
   wfExecutionsTable,
   wfInstallationsTable,
@@ -196,6 +208,13 @@ export default defineSchema({
   taskActivity: taskActivityTable,
   taskDependencies: taskDependenciesTable,
   boardViews: boardViewsTable,
+  taskAgentRuns: taskAgentRunsTable,
+  taskMetricsDaily: taskMetricsDailyTable,
+  agentTaskMetricsDaily: agentTaskMetricsDailyTable,
+  agentRunCounters: agentRunCountersTable,
+  agentRuntimes: agentRuntimesTable,
+  externalRuns: externalRunsTable,
+  agentGuardrailNotices: agentGuardrailNoticesTable,
   projectSecrets: projectSecretsTable,
   agentSecretAccess: agentSecretAccessTable,
   userNotifications: userNotificationsTable,
@@ -219,6 +238,7 @@ export default defineSchema({
   wfEventSubscriptions: wfEventSubscriptionsTable,
   wfExecutions: wfExecutionsTable,
   wfInstallations: wfInstallationsTable,
+  wfDefaultProvisions: wfDefaultProvisionsTable,
   wfSchedules: wfSchedulesTable,
   wfStepAuditLogs: wfStepAuditLogsTable,
   wfStepDefs: wfStepDefsTable,

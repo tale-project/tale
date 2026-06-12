@@ -4,6 +4,12 @@ import { getString, isRecord } from '../lib/utils/type-guards';
 import { components, internal } from './_generated/api';
 import { httpAction } from './_generated/server';
 import {
+  claimRun,
+  heartbeatRuntime,
+  registerRuntime,
+  runSubActions,
+} from './agent_runtimes/rest_api';
+import {
   listAgents as listAgentsRest,
   getAgent,
   patchAgent,
@@ -657,6 +663,38 @@ http.route({
 });
 http.route({
   pathPrefix: '/api/v1/documents/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// External agent runtimes (tale-daemon)
+http.route({
+  path: '/api/v1/runtimes/register',
+  method: 'POST',
+  handler: registerRuntime,
+});
+http.route({
+  path: '/api/v1/runtimes/heartbeat',
+  method: 'POST',
+  handler: heartbeatRuntime,
+});
+http.route({
+  pathPrefix: '/api/v1/runtimes/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  path: '/api/v1/runs/claim',
+  method: 'POST',
+  handler: claimRun,
+});
+http.route({
+  pathPrefix: '/api/v1/runs/',
+  method: 'POST',
+  handler: runSubActions,
+});
+http.route({
+  pathPrefix: '/api/v1/runs/',
   method: 'OPTIONS',
   handler: restOptionsHandler,
 });

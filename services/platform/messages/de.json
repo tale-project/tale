@@ -601,8 +601,6 @@
         "hasActiveTriggers": "Diese Automatisierung hat aktive Trigger — Änderungen werden sofort wirksam."
       },
       "toolbar": {
-        "focus": "Fokus",
-        "aiAssistant": "KI-Assistent",
         "testAutomation": "Automatisierung testen",
         "addStep": "Schritt hinzufügen"
       },
@@ -697,22 +695,8 @@
       "description": "Möchtest du \"{name}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
     },
     "assistant": {
-      "messagePlaceholder": "Nachricht eingeben...",
-      "automationDetails": "Automatisierungsdetails",
-      "previewImage": "Vorschau {filename}",
-      "fallbackImage": "Bild",
-      "fallbackFile": "Datei",
-      "loading": "Lädt...",
-      "notFound": "Automatisierung nicht gefunden.",
-      "welcome": "Hallo! Ich bin dein Automatisierungsassistent. Ich kann dir helfen, diese Automatisierung zu erstellen, zu bearbeiten und zu besprechen. Was möchtest du tun?",
       "errorMessage": "Es tut mir leid, ein Fehler ist aufgetreten. Bitte versuche es erneut oder prüfe die Konsole für Details.",
-      "thinking": {
-        "thinking": "Denkt nach",
-        "analyzing": "Workflow wird analysiert",
-        "compiling": "Antwort wird erstellt"
-      },
-      "analyzeAttachments": "Bitte analysiere die angehängten Dateien.",
-      "messageHistory": "Nachrichtenverlauf"
+      "analyzeAttachments": "Bitte analysiere die angehängten Dateien."
     },
     "tester": {
       "inputLabel": "Testeingabe (JSON)",
@@ -1595,6 +1579,12 @@
     },
     "dataTable": {
       "dateFilterUnavailable": "Datumsfilter nicht verfügbar"
+    },
+    "flow": {
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "resetView": "Ansicht zurücksetzen",
+      "aiEditor": "KI-Editor"
     }
   },
   "composer": {
@@ -1854,7 +1844,6 @@
     "thisMember": "dieses Mitglied",
     "confirmRemoveMember": "Bist du sicher, dass du {name} aus dem Team entfernen möchtest? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.",
     "toSend": "zum Senden",
-    "attach": "Anhängen",
     "selectConversation": "Konversation auswählen",
     "vendorInfo": {
       "title": "Lieferanteninformationen"
@@ -2845,10 +2834,8 @@
       "guardrails": "Guardrails",
       "usage": "Nutzung",
       "feedback": "Feedback",
-      "auditLogs": "Audit-Logs",
+      "logs": "Protokolle",
       "dataSubjectRequests": "Anfragen betroffener Personen",
-      "policiesAndLimitsDescription": "Budgets, Upload-Beschränkungen, Datenaufbewahrung, Feature-Flags und Sprachausgabe.",
-      "securityAndMonitoringDescription": "Anmelde-, Passwort- und Zwei-Faktor-Authentifizierungsrichtlinien.",
       "runCodePolicy": "Run-code-Pakete"
     },
     "runCodePolicy": {
@@ -3821,7 +3808,8 @@
     "aria": {
       "primaryNavigation": "Hauptnavigation"
     },
-    "dataResidency": "Datenresidenz"
+    "dataResidency": "Datenresidenz",
+    "runtimes": "Runtimes"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -3860,6 +3848,7 @@
   },
   "personalization": {
     "page": {
+      "title": "Benutzereinstellungen",
       "privacyLink": "Datenschutzhinweis",
       "enable": {
         "orgStateOn": "aktiv",
@@ -4392,8 +4381,6 @@
       }
     },
     "organization": {
-      "pageTitle": "Organisation",
-      "pageDescription": "Verwalte deine Organisation und Mitglieder.",
       "title": "Organisation (optional)",
       "detailsTitle": "Organisationsdetails",
       "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",
@@ -4523,7 +4510,8 @@
         "delegation": "Delegation",
         "responseTuning": "Antwort-Feinabstimmung",
         "conversationStarters": "Gesprächseinstiege",
-        "history": "Verlauf"
+        "history": "Verlauf",
+        "metrics": "Leistung"
       },
       "history": {
         "empty": "Keine Verlaufseinträge",
@@ -4645,8 +4633,7 @@
       },
       "delegation": {
         "title": "Delegation",
-        "description": "Agents auswählen, an die dieser Agent Aufgaben delegieren kann",
-        "noDelegatesAvailable": "Keine anderen Agents für Delegation verfügbar."
+        "description": "Die Delegation folgt dem Org-Chart. Lege im Seitenpanel fest, an wen dieser Agent berichtet und an wen er delegiert — Delegation ist many-to-many, nur nicht an sich selbst."
       },
       "knowledge": {
         "retrievalMode": "Abrufmodus",
@@ -4771,6 +4758,12 @@
         "exampleFileUploadStream": "Datei-Upload mit Streaming (SSE-Antwort)",
         "exampleOpenAICompat": "OpenAI-kompatibler Endpunkt (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI-Client-Konfiguration (z. B. Meetily)"
+      },
+      "organigram": {
+        "menuItem": "Organigramm"
+      },
+      "workforce": {
+        "menuItem": "Workforce"
       }
     },
     "skills": {
@@ -5410,8 +5403,33 @@
       "auditLogs": "Audit-Protokolle",
       "activityLogs": "Aktivitätsprotokolle",
       "errorLogs": "Fehlerprotokolle",
-      "activityComingSoon": "Aktivitätsprotokolle sind bald verfügbar.",
-      "errorComingSoon": "Fehlerprotokolle sind bald verfügbar.",
+      "activity": {
+        "period": {
+          "label": "Zeitraum",
+          "last7Days": "Letzte 7 Tage",
+          "last30Days": "Letzte 30 Tage",
+          "last90Days": "Letzte 90 Tage"
+        },
+        "cards": {
+          "total": "Aktionen gesamt",
+          "success": "Erfolgreich",
+          "failure": "Fehlgeschlagen",
+          "denied": "Abgelehnt"
+        },
+        "byCategory": {
+          "title": "Aktivität nach Kategorie"
+        },
+        "topActors": {
+          "title": "Aktivste Benutzer"
+        },
+        "empty": "Keine Aktivität in diesem Zeitraum."
+      },
+      "errors": {
+        "entityLabel": "Fehlerprotokolle",
+        "tableCaption": "Fehlerprotokoll-Datentabelle",
+        "emptyTitle": "Keine Fehlerprotokolle",
+        "emptyDescription": "Fehlgeschlagene und abgelehnte Aktionen werden hier angezeigt."
+      },
       "blockCounters": {
         "tabLabel": "Anmeldeblockaden",
         "tableCaption": "Anmeldeblockaden",
@@ -5495,7 +5513,9 @@
           "workflow": "Workflow",
           "security": "Sicherheit",
           "admin": "Admin",
-          "ai": "KI"
+          "ai": "KI",
+          "skill": "Skill",
+          "agent": "Agent"
         },
         "statusLabels": {
           "success": "Erfolgreich",
@@ -5764,8 +5784,8 @@
       }
     },
     "dataResidency": {
-      "pageDescription": "Richte die Wissensdatenbank und den Dateispeicher dieses Deployments auf Infrastruktur aus, die du selbst kontrollierst. Änderungen greifen, sobald die RAG- und Convex-Container neu starten.",
       "readOnly": {
+        "title": "Nur Lesezugriff",
         "before": "Bearbeitung ist auf die in",
         "after": "(in der Deployment-.env) aufgeführten Operatoren beschränkt. Bitte einen Operator, deine E-Mail dort hinzuzufügen, und starte neu, um die Bearbeitung zu aktivieren.",
         "yourEmail": "Deine Anmelde-E-Mail ist {email}."
@@ -5870,11 +5890,6 @@
     }
   },
   "inbox": {
-    "title": "Posteingang",
-    "subtitle": "Zuweisungen, Statusänderungen, Kommentare und Erwähnungen zu deinen Aufgaben.",
-    "empty": "Alles erledigt.",
-    "markAllRead": "Alle als gelesen markieren",
-    "unreadOnly": "Nur ungelesen",
     "taskAssigned": "Aufgabe dir zugewiesen",
     "taskAssignedBody": "Dir wurde \"{title}\" zugewiesen.",
     "taskStatusChanged": "Aufgabenstatus geändert",
@@ -5886,7 +5901,29 @@
     "taskAssignedByBody": "{actor} hat dir \"{title}\" zugewiesen.",
     "taskStatusChangedByBody": "{actor} hat \"{title}\" von {from} nach {to} verschoben.",
     "taskCommentedByBody": "{actor} hat \"{title}\" kommentiert.",
-    "mentionByBody": "{actor} hat dich in \"{title}\" erwähnt."
+    "mentionByBody": "{actor} hat dich in \"{title}\" erwähnt.",
+    "taskReviewRequested": "Review angefragt",
+    "taskReviewRequestedBody": "{agentSlug} hat \"{taskTitle}\" abgeschlossen — freigeben oder Änderungen anfordern.",
+    "taskReviewApproved": "Review freigegeben",
+    "taskReviewApprovedBody": "\"{taskTitle}\" wurde freigegeben und abgeschlossen.",
+    "taskReviewChangesRequested": "Änderungen angefordert",
+    "taskReviewChangesRequestedBody": "Für \"{taskTitle}\" wurden Änderungen angefordert.",
+    "taskUnblocked": "Aufgabe nicht mehr blockiert",
+    "taskUnblockedBody": "Alle Blocker von \"{title}\" sind erledigt — sie kann starten.",
+    "taskDueSoon": "Bald fällig",
+    "taskDueSoonBody": "\"{title}\" ist innerhalb von 24 Stunden fällig.",
+    "taskSlaEscalated": "Überfällige Aufgabe eskaliert",
+    "taskSlaEscalatedBody": "\"{title}\" ist deutlich überfällig und braucht Aufmerksamkeit.",
+    "taskReviewReminder": "Review-Erinnerung",
+    "taskReviewReminderBody": "Agenten-Arbeit an \"{title}\" wartet weiterhin auf dein Review.",
+    "taskReviewEscalated": "Review überfällig",
+    "taskReviewEscalatedBody": "Ein Review zu \"{title}\" wartet seit über einem Tag.",
+    "humanInputEscalated": "Automatisierung wartet auf Eingabe",
+    "humanInputEscalatedBody": "Ein Workflow wartet seit {ageHours} Stunden auf menschliche Eingabe.",
+    "workforceDigest": "Tägliche Workforce-Übersicht",
+    "workforceDigestBody": "{created} erstellt · {completed} abgeschlossen · {runs} Agenten-Läufe ({failed} fehlgeschlagen) · {pendingReviews} warten auf Review · {queued} in Warteschlange · {breakers} pausiert.",
+    "agentEscalation": "Agenten-Eskalation",
+    "agentEscalationBody": "{agent} hat eskaliert: {reason}"
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -5938,7 +5975,15 @@
       "labels": "Labels",
       "status": "Status",
       "unassigned": "Nicht zugewiesen",
-      "id": "ID"
+      "id": "ID",
+      "author": "Autor",
+      "created": "Erstellt"
+    },
+    "labels": {
+      "add": "Label hinzufügen…",
+      "create": "„{label}“ erstellen",
+      "changeColor": "Farbe ändern",
+      "back": "Zurück"
     },
     "actions": {
       "create": "Aufgabe erstellen",
@@ -5957,9 +6002,6 @@
     },
     "board": {
       "noTasks": "Keine Aufgaben"
-    },
-    "empty": {
-      "description": "Erstelle deine erste Aufgabe, um die Arbeit zu verfolgen."
     },
     "detail": {
       "overview": "Übersicht",
@@ -6006,6 +6048,81 @@
       "commentAdded": "Kommentar hinzugefügt",
       "dependencyAdded": "Abhängigkeit hinzugefügt",
       "dependencyRemoved": "Abhängigkeit entfernt"
+    },
+    "review": {
+      "needsReview": "Review ausstehend",
+      "defaultQuestion": "{agent} hat die Arbeit an dieser Aufgabe abgeschlossen — prüfe das Ergebnis.",
+      "anAgent": "ein Agent",
+      "approve": "Freigeben",
+      "requestChanges": "Änderungen anfordern",
+      "sendFeedback": "Feedback senden",
+      "feedbackPlaceholder": "Was soll sich ändern? Der Agent erhält dies wortwörtlich.",
+      "approvedToast": "Aufgabe freigegeben und abgeschlossen",
+      "changesRequestedToast": "Änderungen angefordert — der Agent arbeitet daran"
+    },
+    "agentRuns": {
+      "title": "Agentenaktivität",
+      "working": "Agent arbeitet…",
+      "totalCost": "{amount} gesamt",
+      "status": {
+        "running": "Läuft",
+        "completed": "Abgeschlossen",
+        "failed": "Fehlgeschlagen",
+        "timed_out": "Zeitüberschreitung"
+      },
+      "trigger": {
+        "assignment": "Zuweisung",
+        "mention": "Erwähnung",
+        "revision": "Überarbeitung",
+        "sla_escalation": "Eskalation",
+        "unblock": "entblockt",
+        "decomposition": "Aufteilung",
+        "manual": "manuell"
+      }
+    },
+    "dueDate": {
+      "label": "Fälligkeitsdatum",
+      "overdue": "Überfällig",
+      "due": "Fällig am {date}"
+    },
+    "mentionPreview": {
+      "willRespond": "{slug} wird antworten",
+      "willQueue": "{slug} wird antworten (wartet — Parallelitätslimit erreicht)",
+      "packDisabled": "{slug} antwortet nicht — Aufgaben-Automatisierung ist aus",
+      "breakerPaused": "{slug} antwortet nicht — Agenten-Läufe sind auf dieser Aufgabe pausiert",
+      "budgetPaused": "{slug} antwortet nicht — Monatsbudget aufgebraucht"
+    },
+    "metrics": {
+      "link": "Metriken anzeigen",
+      "title": "Aufgaben-Metriken",
+      "description": "Liefer-, Eingriffs- und Kostenkennzahlen für die Aufgaben dieses Projekts.",
+      "period": {
+        "last7Days": "Letzte 7 Tage",
+        "last30Days": "Letzte 30 Tage",
+        "last90Days": "Letzte 90 Tage"
+      },
+      "cappedNotice": "Einige Tage haben das Scan-Limit des Rollups erreicht — die Summen in diesem Zeitraum können zu niedrig ausfallen.",
+      "noData": "Keine Daten",
+      "noDataDescription": "Metriken erscheinen nach dem ersten täglichen Rollup.",
+      "completed": "Abgeschlossen ({days} T.)",
+      "completedDetail": "{agent} durch Agenten · {human} durch Menschen",
+      "cycleTime": "Ø Durchlaufzeit",
+      "created": "{count} erstellt",
+      "intervention": "Eingriffsquote",
+      "interventionDetail": "{changes} Änderungswünsche · {escalations} Eskalationen",
+      "cost": "Ausgaben ({days} T.)",
+      "costDetail": "{runs} Läufe · {failed} fehlgeschlagen",
+      "cumulativeFlow": "Kumulativer Fluss (Tagesende)",
+      "throughput": "Durchsatz",
+      "createdLabel": "Erstellt",
+      "completedLabel": "Abgeschlossen",
+      "cycleTimeTrend": "Durchlaufzeit-Trend",
+      "cycleHoursLabel": "Ø Durchlaufzeit (h)",
+      "agentVsHuman": "Abschlüsse: Agenten vs. Menschen",
+      "agentLabel": "Agenten",
+      "humanLabel": "Menschen",
+      "costTrend": "Tägliche Ausgaben",
+      "costLabel": "Ausgaben"
     }
   },
   "tables": {
@@ -6664,11 +6781,9 @@
     }
   },
   "webdav": {
-    "title": "WebDAV",
     "description": "Hänge Tale-Dokumente als Netzlaufwerk im Finder, File Explorer oder einem beliebigen WebDAV-Client ein.",
     "connectionDetails": {
       "title": "Verbindungsdaten",
-      "description": "Verwende diese im Finder, File Explorer oder in einem beliebigen WebDAV-Client.",
       "usernameLabel": "Benutzername",
       "usernameHelp": "Deine Tale-Konto-E-Mail (oder dein Benutzername)",
       "passwordLabel": "Passwort",
@@ -6707,6 +6822,115 @@
       "body": "Jedes Gerät, das mit diesem Passwort eingehängt ist, wird getrennt und aktive Lock-Tokens werden freigegeben.",
       "confirm": "Widerrufen",
       "cancel": "Abbrechen"
+    }
+  },
+  "organigram": {
+    "title": "Organigramm",
+    "subtitle": "Wie deine KI-Belegschaft Arbeit delegiert — Delegation, Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe folgen alle diesen Kanten.",
+    "addAgent": "Agent hinzufügen",
+    "node": {
+      "warning": "Eine Delegationskante wurde verworfen (sie verwies auf einen fehlenden Agenten)."
+    },
+    "panel": {
+      "close": "Schließen",
+      "reportsTo": "Berichtet an",
+      "delegatesTo": "Delegiert an",
+      "noAgents": "Keine weiteren Agenten verfügbar.",
+      "delegationHint": "Delegation ist many-to-many — ein Agent kann an beliebig viele Agenten berichten und delegieren. Einzige Regel: nicht an sich selbst.",
+      "openAgent": "Agenten-Einstellungen öffnen"
+    },
+    "errors": {
+      "self": "Ein Agent kann nicht an sich selbst berichten oder delegieren.",
+      "forbidden": "Deine Rolle kann das Organigramm nicht bearbeiten.",
+      "generic": "Organigramm konnte nicht aktualisiert werden."
+    },
+    "empty": {
+      "noAgents": "Noch keine Agenten — erstelle zuerst Agenten und ordne sie dann hier an."
+    },
+    "humans": {
+      "title": "Menschen",
+      "subtitle": "Agenten der obersten Ebene: {count}"
+    }
+  },
+  "workforce": {
+    "title": "Workforce",
+    "subtitle": "Wie deine KI-Workforce arbeitet: Ergebnisse, menschliche Eingriffe und Kosten — immer zusammen.",
+    "backToAgents": "Agenten",
+    "toggle": {
+      "title": "Aufgaben-Automatisierung",
+      "onHint": "Das Task-Ops-Paket ist aktiv: Zuweisungen starten Agenten, Reviews schützen den Abschluss.",
+      "offHint": "Pausiert — Agenten übernehmen keine automatisierte Aufgabenarbeit, bis sie wieder aktiviert ist.",
+      "error": "Aufgaben-Automatisierung konnte nicht geändert werden."
+    },
+    "health": {
+      "runs24h": "{count} Läufe (24h)",
+      "failures24h": "{count} fehlgeschlagen/Zeitüberschreitung",
+      "packFailures24h": "{count} Automatisierungs-Fehler",
+      "oldestQueued": "ältester wartender Lauf {age}",
+      "capped": "einige Zahlen sind Untergrenzen (Scan begrenzt)"
+    },
+    "kpi": {
+      "completed": "Abgeschlossen ({days} T.)",
+      "completedDetail": "{agent} durch Agenten · {human} durch Menschen",
+      "intervention": "Eingriffsquote",
+      "reviewPassRate": "{pct}% der Reviews direkt freigegeben",
+      "noReviews": "Keine Reviews in diesem Zeitraum",
+      "cycleTime": "Ø Durchlaufzeit",
+      "runs": "{started} Läufe · {failed} fehlgeschlagen",
+      "cost": "Ausgaben ({days} T.)",
+      "costDetail": "{perTask} pro abgeschlossener Aufgabe"
+    },
+    "trend": {
+      "title": "Tägliche Aktivität",
+      "completed": "Abgeschlossene Aufgaben",
+      "failedRuns": "Fehlgeschlagene Läufe"
+    },
+    "leaderboard": {
+      "title": "Agenten-Rangliste",
+      "agent": "Agent",
+      "completed": "Abgeschlossen",
+      "runs": "Läufe (fehlgeschl.)",
+      "bounceRate": "Änderungswünsche",
+      "cost": "Ausgaben"
+    },
+    "attention": {
+      "pendingReviews": "Wartet auf Review",
+      "staleTasks": "Liegengebliebene Agenten-Arbeit",
+      "queuedRuns": "Wartende Läufe",
+      "trippedBreakers": "Durch Sicherung pausiert",
+      "none": "Nichts vorhanden."
+    },
+    "scorecard": {
+      "title": "Leistung",
+      "subtitle": "Letzte 30 Tage — Ergebnisse, Review-Qualität und Kosten dieses Agenten.",
+      "tasksCompleted": "Abgeschlossene Aufgaben",
+      "reviewOutcome": "Direkt-Freigabequote",
+      "reviewDetail": "{passed} freigegeben · {changes} Änderungswünsche · {escalations} Eskalationen",
+      "avgRun": "Ø Laufzeit",
+      "spend": "Ausgaben",
+      "recentRuns": "Letzte Läufe",
+      "noRuns": "Noch keine Läufe."
+    }
+  },
+  "runtimes": {
+    "description": "Führe Aufgaben-Arbeit auf deinen eigenen Maschinen aus — mit den Coding-Agent-CLIs, die du bereits nutzt (Claude Code, Codex, OpenCode).",
+    "install": {
+      "title": "Daemon verbinden",
+      "description": "Einmal pro Maschine installieren: setup fragt nach dieser Workspace-URL, einem API-Schlüssel und dem Git-Workspace, in dem Agenten arbeiten dürfen. Binde dann einen Agenten in seiner Konfiguration an eine Runtime — seine Board-Aufgaben laufen auf deiner Maschine und melden sich zum Review zurück.",
+      "privacy": "Lokale Workspace-Pfade verlassen deine Maschine nie — nur die von dir gewählten Workspace-Schlüssel werden hier angezeigt. Die full_auto-Berechtigung erfordert Opt-in auf Server UND Daemon.",
+      "createKey": "API-Schlüssel erstellen"
+    },
+    "list": {
+      "title": "Verbundene Daemons",
+      "empty": "Noch keine Daemons verbunden",
+      "emptyHint": "Führe bunx tale-daemon setup auf der Maschine aus, die Aufgaben ausführen soll.",
+      "lastSeen": "zuletzt gesehen {age}",
+      "workspaces": "Workspaces: {keys}"
+    },
+    "status": {
+      "active": "Aktiv",
+      "degraded": "Beeinträchtigt",
+      "offline": "Offline"
     }
   }
 }

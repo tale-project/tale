@@ -62,6 +62,37 @@ type TaskActionParams =
       body: string;
     }
   | {
+      operation: 'sweep';
+      kind: 'stale' | 'due_soon' | 'overdue_ladder' | 'archivable';
+      staleAfterHours?: number;
+      windowHours?: number;
+      managerEscalationHours?: number;
+      adminEscalationHours?: number;
+      olderThanDays?: number;
+      limit?: number;
+    }
+  | {
+      operation: 'get';
+      taskId: string;
+    }
+  | {
+      operation: 'subtask_progress';
+      taskId: string;
+    }
+  | {
+      operation: 'list_dependents';
+      taskId: string;
+    }
+  | {
+      operation: 'list_open_for_assignee';
+      assigneeType: 'user' | 'agent';
+      assigneeId: string;
+    }
+  | {
+      operation: 'archive';
+      taskId: string;
+    }
+  | {
       operation: 'upsert_external';
       projectId: string;
       externalSystem: string;
@@ -78,7 +109,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
   type: 'task',
   title: 'Task Operation',
   description:
-    'Create or update tasks on the project board (create, update_status, assign, comment, upsert_external). upsert_external idempotently links an external item (e.g. a GitHub issue) to a task by (externalSystem, externalId) — used by integration-sync automations. organizationId is read from workflow context variables.',
+    'Create, read, and update tasks on the project board (create, get, update_status, assign, comment, archive, subtask_progress, list_dependents, list_open_for_assignee, upsert_external) plus the pack maintenance sweeps (sweep kinds: stale, due_soon, overdue_ladder, archivable — atomic mark-and-return, safe under repeated crons). upsert_external idempotently links an external item (e.g. a GitHub issue) to a task by (externalSystem, externalId). organizationId is read from workflow context variables.',
   parametersValidator: v.union(
     v.object({
       operation: v.literal('create'),
@@ -107,6 +138,42 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       body: v.string(),
     }),
     v.object({
+      operation: v.literal('sweep'),
+      kind: v.union(
+        v.literal('stale'),
+        v.literal('due_soon'),
+        v.literal('overdue_ladder'),
+        v.literal('archivable'),
+      ),
+      staleAfterHours: v.optional(v.number()),
+      windowHours: v.optional(v.number()),
+      managerEscalationHours: v.optional(v.number()),
+      adminEscalationHours: v.optional(v.number()),
+      olderThanDays: v.optional(v.number()),
+      limit: v.optional(v.number()),
+    }),
+    v.object({
+      operation: v.literal('get'),
+      taskId: v.id('tasks'),
+    }),
+    v.object({
+      operation: v.literal('subtask_progress'),
+      taskId: v.id('tasks'),
+    }),
+    v.object({
+      operation: v.literal('list_dependents'),
+      taskId: v.id('tasks'),
+    }),
+    v.object({
+      operation: v.literal('list_open_for_assignee'),
+      assigneeType: taskActorTypeValidator,
+      assigneeId: v.string(),
+    }),
+    v.object({
+      operation: v.literal('archive'),
+      taskId: v.id('tasks'),
+    }),
+    v.object({
       operation: v.literal('upsert_external'),
       projectId: v.id('projects'),
       externalSystem: v.string(),
@@ -130,6 +197,137 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
     }
 
     switch (params.operation) {
+      case 'sweep': {
+        switch (params.kind) {
+          case 'stale': {
+            const tasks = await ctx.runMutation(
+              internal.tasks.internal_mutations.sweepStaleTasks,
+              {
+                organizationId,
+                staleAfterHours: params.staleAfterHours ?? 24,
+                limit: params.limit,
+              },
+            );
+            return { operation: 'sweep', kind: params.kind, tasks };
+          }
+          case 'due_soon': {
+            const tasks = await ctx.runMutation(
+              internal.tasks.internal_mutations.sweepDueSoonTasks,
+              {
+                organizationId,
+                windowHours: params.windowHours ?? 24,
+                limit: params.limit,
+              },
+            );
+            return { operation: 'sweep', kind: params.kind, tasks };
+          }
+          case 'overdue_ladder': {
+            const rows = await ctx.runMutation(
+              internal.tasks.internal_mutations.sweepOverdueLadder,
+              {
+                organizationId,
+                managerEscalationHours: params.managerEscalationHours ?? 24,
+                adminEscalationHours: params.adminEscalationHours ?? 72,
+                limit: params.limit,
+              },
+            );
+            // Level-3 rows escalate to the assignee's MANAGER — resolved here
+            // in the action layer (the org chart lives in agent files, which
+            // the sweep mutation cannot read). One chart read per sweep.
+            const needsManager = rows.filter(
+              (row) =>
+                row.newLevel === 3 &&
+                row.assigneeType === 'agent' &&
+                row.assigneeId,
+            );
+            const managerBySlug = new Map<string, string | undefined>();
+            for (const row of needsManager) {
+              const slug = row.assigneeId;
+              if (!slug || managerBySlug.has(slug)) continue;
+              const role = await ctx.runAction(
+                internal.agents.workforce_ops.getOrgRole,
+                { organizationId, agentSlug: slug },
+              );
+              managerBySlug.set(slug, role.managerSlug);
+            }
+            const tasks = [];
+            for (const row of rows) {
+              const assigneeManagerSlug =
+                row.assigneeType === 'agent' && row.assigneeId
+                  ? managerBySlug.get(row.assigneeId)
+                  : undefined;
+              tasks.push({ ...row, assigneeManagerSlug });
+            }
+            return { operation: 'sweep', kind: params.kind, tasks };
+          }
+          case 'archivable': {
+            const tasks = await ctx.runMutation(
+              internal.tasks.internal_mutations.sweepArchivableTasks,
+              {
+                organizationId,
+                olderThanDays: params.olderThanDays ?? 30,
+                limit: params.limit,
+              },
+            );
+            return { operation: 'sweep', kind: params.kind, tasks };
+          }
+          default: {
+            const unhandledKind: never = params.kind;
+            throw new Error(
+              `Unsupported sweep kind: ${JSON.stringify(unhandledKind)}`,
+            );
+          }
+        }
+      }
+
+      case 'get': {
+        const task = await ctx.runQuery(
+          internal.tasks.internal_queries.getTaskByIdInternal,
+          { taskId: toId<'tasks'>(params.taskId), organizationId },
+        );
+        return { operation: 'get', task };
+      }
+
+      case 'subtask_progress': {
+        const progress = await ctx.runQuery(
+          internal.tasks.internal_queries.getSubtaskProgress,
+          { taskId: toId<'tasks'>(params.taskId), organizationId },
+        );
+        return { operation: 'subtask_progress', ...progress };
+      }
+
+      case 'list_dependents': {
+        const tasks = await ctx.runQuery(
+          internal.tasks.internal_queries.listDependentTasks,
+          { taskId: toId<'tasks'>(params.taskId), organizationId },
+        );
+        return { operation: 'list_dependents', tasks };
+      }
+
+      case 'list_open_for_assignee': {
+        const tasks = await ctx.runQuery(
+          internal.tasks.internal_queries.listOpenTasksForAssignee,
+          {
+            organizationId,
+            assigneeType: params.assigneeType,
+            assigneeId: params.assigneeId,
+          },
+        );
+        return { operation: 'list_open_for_assignee', tasks };
+      }
+
+      case 'archive': {
+        const result = await ctx.runMutation(
+          internal.tasks.internal_mutations.agentArchiveTask,
+          {
+            organizationId,
+            actorId: WORKFLOW_ACTOR_ID,
+            taskId: toId<'tasks'>(params.taskId),
+          },
+        );
+        return { operation: 'archive', ...result };
+      }
+
       case 'create': {
         const result = await ctx.runMutation(
           internal.tasks.internal_mutations.agentCreateTask,

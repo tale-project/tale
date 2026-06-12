@@ -2,9 +2,18 @@
 
 import { Button } from '@tale/ui/button';
 import { Tabs } from '@tale/ui/tabs';
+import { useNavigate } from '@tanstack/react-router';
 import { CheckCheck, ChevronLeft, Inbox, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import {
+  useMarkAllNotificationsRead as useMarkAllMyNotificationsRead,
+  useMarkNotificationRead as useMarkMyNotificationRead,
+} from '@/app/features/inbox/hooks/mutations';
+import {
+  useMyNotifications,
+  useUnreadNotificationCount,
+} from '@/app/features/inbox/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -20,11 +29,14 @@ import {
   useNotificationsUnreadCount,
   type NotificationsFilter,
 } from '../hooks/queries';
+import { ReviewActions } from './review-actions';
 
 interface NotificationListPanelProps {
   organizationId: string;
   /** Override the panel height. Defaults to `24rem`. */
   className?: string;
+  /** Called after a row navigates (deep link) so the host popover can close. */
+  onNavigate?: () => void;
   /**
    * When provided, renders a back-chevron button in the header (left of the
    * title) that invokes this callback. Used by the profile-dropdown integration
@@ -53,18 +65,46 @@ function stripNsPrefix(key: string): string {
 export function NotificationListPanel({
   organizationId,
   className,
+  onNavigate,
   onBack,
 }: NotificationListPanelProps) {
   const [filter, setFilter] = useState<NotificationsFilter>('unread');
   const [hiddenIds, setHiddenIds] = useState(new Set<string>());
   const { t } = useT('notifications');
+  const { t: tInbox } = useT('inbox');
   const { t: tCommon } = useT('common');
   const { formatRelative, formatDate } = useFormatDate();
+  const navigate = useNavigate();
 
   const { results, status, loadMore } = useNotificationsList(organizationId);
   const { data: unread } = useNotificationsUnreadCount(organizationId);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
+
+  // The PERSONAL stream (review requests, escalations, task pings) renders
+  // interleaved with the org stream — one panel for everything, with inline
+  // review actions and task deep links.
+  const { notifications: myNotifications } = useMyNotifications(organizationId);
+  const myUnread = useUnreadNotificationCount(organizationId);
+  const markMyRead = useMarkMyNotificationRead();
+  const markAllMyRead = useMarkAllMyNotificationsRead();
+
+  const openMyNotification = useCallback(
+    (notif: (typeof myNotifications)[number]) => {
+      if (!notif.read) markMyRead.mutate({ notificationId: notif._id });
+      const params = isRecord(notif.params) ? notif.params : undefined;
+      const projectId = params?.projectId;
+      if (notif.taskId && typeof projectId === 'string') {
+        void navigate({
+          to: '/dashboard/$id/projects/$projectId/tasks',
+          params: { id: organizationId, projectId },
+          search: { task: String(notif.taskId) },
+        });
+        onNavigate?.();
+      }
+    },
+    [markMyRead, navigate, organizationId, onNavigate],
+  );
 
   const handleMarkRead = useCallback(
     (notificationId: Id<'notifications'>) => {
@@ -89,7 +129,8 @@ export function NotificationListPanel({
       });
     }
     void markAllRead.mutateAsync({ organizationId });
-  }, [filter, markAllRead, organizationId, results]);
+    void markAllMyRead.mutateAsync({ organizationId });
+  }, [filter, markAllRead, markAllMyRead, organizationId, results]);
 
   const handleFilterChange = useCallback((next: NotificationsFilter) => {
     setFilter(next);
@@ -117,7 +158,14 @@ export function NotificationListPanel({
       ),
     [results, hiddenIds, filter],
   );
-  const unreadCount = unread ?? 0;
+  const myItems = useMemo(
+    () =>
+      myNotifications.filter(
+        (n) => !hiddenIds.has(n._id) && (filter === 'all' || !n.read),
+      ),
+    [myNotifications, hiddenIds, filter],
+  );
+  const unreadCount = (unread ?? 0) + myUnread;
   const canLoadMore = status === 'CanLoadMore';
   const isLoadingMore = status === 'LoadingMore';
 
@@ -167,7 +215,7 @@ export function NotificationListPanel({
         />
       </div>
       <div className="flex-1 overflow-y-auto">
-        {items.length === 0 ? (
+        {items.length === 0 && myItems.length === 0 ? (
           status === 'LoadingFirstPage' ? (
             // Short-lived async load — a centered spinner + label reads
             // cleaner than a fake-content skeleton when items typically
@@ -204,6 +252,67 @@ export function NotificationListPanel({
           )
         ) : (
           <ul role="list" className="divide-border divide-y">
+            {myItems.map((n) => {
+              const params = isRecord(n.params) ? n.params : undefined;
+              const approvalId =
+                n.type === 'task_review_requested' &&
+                typeof params?.approvalId === 'string'
+                  ? params.approvalId
+                  : undefined;
+              const canNavigate =
+                n.taskId !== undefined && typeof params?.projectId === 'string';
+              return (
+                <li key={n._id} className={cn(!n.read && 'bg-accent/10')}>
+                  <div className="flex w-full items-start gap-3 px-4 py-3">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'mt-1.5 size-2 shrink-0 rounded-full',
+                        n.read ? 'bg-transparent' : 'bg-sky-500',
+                      )}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => openMyNotification(n)}
+                        disabled={!canNavigate && n.read}
+                        className={cn(
+                          'block w-full text-left',
+                          (canNavigate || !n.read) && 'cursor-pointer',
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-foreground text-sm font-medium">
+                            {tInbox(n.titleKey)}
+                          </div>
+                          <span
+                            className="text-muted-foreground shrink-0 text-[10px]"
+                            title={formatDate(new Date(n.createdAt), 'long')}
+                          >
+                            {formatRelative(new Date(n.createdAt))}
+                          </span>
+                        </div>
+                        <div className="text-muted-foreground mt-0.5 text-xs whitespace-pre-wrap">
+                          {tInbox(
+                            n.bodyKey,
+                            // `params` is the i18n interpolation map (stored
+                            // as v.any()); narrow to what t() accepts.
+                            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
+                            params as Record<string, string | number>,
+                          )}
+                        </div>
+                      </button>
+                      {approvalId && (
+                        <ReviewActions
+                          notificationId={n._id}
+                          approvalId={approvalId}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
             {items.map((n) => {
               const params = isRecord(n.params) ? n.params : undefined;
               const title = t(stripNsPrefix(n.titleKey), params);

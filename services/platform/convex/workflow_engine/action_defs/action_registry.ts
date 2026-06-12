@@ -1,4 +1,5 @@
 import type { ActionCtx } from '../../_generated/server';
+import { agentAction } from './agent/agent_action';
 import { approvalAction } from './approval/approval_action';
 import { conversationAction } from './conversation/conversation_action';
 import { crawlerAction } from './crawler/crawler_action';
@@ -6,6 +7,8 @@ import { customerAction } from './customer/customer_action';
 import { documentAction } from './document/document_action';
 import { integrationAction } from './integration/integration_action';
 import { integrationProcessingRecordsAction } from './integration_processing_records/integration_processing_records_action';
+import { metricsAction } from './metrics/metrics_action';
+import { notificationAction } from './notification/notification_action';
 import { onedriveAction } from './onedrive/onedrive_action';
 import { productAction } from './product/product_action';
 import { ragAction } from './rag/rag_action';
@@ -29,7 +32,7 @@ interface AnyActionDefinition {
     ctx: ActionCtx,
     params: unknown,
     variables: Record<string, unknown>,
-    extras?: { executionId?: string },
+    extras?: { executionId?: string; stepSlug?: string },
   ): Promise<unknown>;
 }
 
@@ -49,6 +52,9 @@ export const ACTIONS: AnyActionDefinition[] = [
   crawlerAction,
   websiteAction,
   taskAction,
+  agentAction, // Run org agents against tasks (task-ops automation pack)
+  notificationAction, // Inbox / org-bell fan-out from automations
+  metricsAction, // Read-only workforce aggregates (daily digest)
 ];
 
 // Map for O(1) lookups by type

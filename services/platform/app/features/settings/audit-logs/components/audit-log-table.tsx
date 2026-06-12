@@ -13,18 +13,24 @@ import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useAuditLogTableConfig } from '../hooks/use-audit-log-table-config';
+import {
+  useAuditLogTableConfig,
+  type AuditLogTableVariant,
+} from '../hooks/use-audit-log-table-config';
 
 type AuditLog = Doc<'auditLogs'>;
 
 interface AuditLogTableProps {
   paginatedResult: UsePaginatedQueryResult<AuditLog>;
   userEmailMap?: Map<string, string>;
+  /** `errors` renders the error-message column set and errors copy. */
+  variant?: AuditLogTableVariant;
 }
 
 export function AuditLogTable({
   paginatedResult,
   userEmailMap,
+  variant = 'audit',
 }: AuditLogTableProps) {
   const { formatDate } = useFormatDate();
   const { t } = useT('settings');
@@ -38,7 +44,26 @@ export function AuditLogTable({
 
   const { columns, stickyLayout, pageSize } = useAuditLogTableConfig({
     resolveEmail,
+    variant,
   });
+
+  // Per-variant copy with literal keys (the i18n usage scanner can't
+  // follow concatenated keys). The detail dialog below is shared — an
+  // error row is a regular audit row, so the same field list applies.
+  const copy =
+    variant === 'errors'
+      ? {
+          entityLabel: t('logs.errors.entityLabel'),
+          tableCaption: t('logs.errors.tableCaption'),
+          emptyTitle: t('logs.errors.emptyTitle'),
+          emptyDescription: t('logs.errors.emptyDescription'),
+        }
+      : {
+          entityLabel: t('logs.audit.entityLabel'),
+          tableCaption: t('logs.audit.tableCaption'),
+          emptyTitle: t('logs.audit.emptyTitle'),
+          emptyDescription: t('logs.audit.emptyDescription'),
+        };
 
   const list = useListPage<AuditLog>({
     dataSource: {
@@ -49,18 +74,18 @@ export function AuditLogTable({
       isLoading: paginatedResult.isLoading,
     },
     pageSize,
-    entityLabel: t('logs.audit.entityLabel'),
+    entityLabel: copy.entityLabel,
   });
 
   return (
     <>
       <DataTable
         columns={columns}
-        caption={t('logs.audit.tableCaption')}
+        caption={copy.tableCaption}
         stickyLayout={stickyLayout}
         emptyState={{
-          title: t('logs.audit.emptyTitle'),
-          description: t('logs.audit.emptyDescription'),
+          title: copy.emptyTitle,
+          description: copy.emptyDescription,
         }}
         onRowClick={(row) => setSelectedLog(row.original)}
         clickableRows

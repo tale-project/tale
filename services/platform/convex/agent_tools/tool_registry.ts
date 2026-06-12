@@ -28,6 +28,8 @@ import { integrationIntrospectTool } from './integrations/integration_introspect
 import { integrationTool } from './integrations/integration_tool';
 import { requestUserLocationTool } from './location/request_user_location_tool';
 import { proposeMemoryTool } from './memory/propose_memory_tool';
+import { organigramReadTool } from './organigram/organigram_read_tool';
+import { organigramWriteTool } from './organigram/organigram_write_tool';
 import { productReadTool } from './products/product_read_tool';
 import { knowledgeWriteTool } from './rag/knowledge_write_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
@@ -90,6 +92,8 @@ export const TOOL_REGISTRY = [
   conversationReadTool,
   updateTodosTool,
   proposeMemoryTool,
+  organigramReadTool,
+  organigramWriteTool,
   taskReadTool,
   taskWriteTool,
   projectReadTool,

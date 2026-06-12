@@ -737,6 +737,16 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                   internal.organizations.scaffold.scaffoldNewOrganization,
                   { orgSlug: slug },
                 );
+                // Auto-install the default workflow pack (task-ops) once the
+                // scaffold has copied the catalog. The provisioner self-retries
+                // while the workflows dir is still being written, so the small
+                // delay is just a head start, not a correctness requirement.
+                await runCtx.scheduler.runAfter(
+                  10_000,
+                  internal.workflows.provision_defaults
+                    .syncDefaultWorkflowInstallations,
+                  { organizationId: data.organization.id, orgSlug: slug },
+                );
               } catch (err) {
                 console.error(
                   '[afterCreateOrganization] failed to schedule scaffold',

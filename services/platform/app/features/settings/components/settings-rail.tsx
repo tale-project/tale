@@ -2,7 +2,7 @@
 
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { API_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/api/nav-items';
@@ -201,7 +201,7 @@ export function SettingsRail({
                     key={item.path}
                     href={`${base}/${item.path}`}
                     label={tNav(item.labelKey)}
-                    expanded={isGroupActive(item)}
+                    active={isGroupActive(item)}
                     childrenItems={item.children}
                     pathname={pathname}
                   />
@@ -249,39 +249,48 @@ function RailRow({
 }
 
 /**
- * Expandable section row. The parent links to the section landing page and
- * carries a chevron; when the current route is within the section the chevron
- * points down and the children render indented beneath it. Otherwise the
- * chevron points right and the children are hidden — auto-expand-on-active-route
- * (no manual toggle, so navigation drives the disclosure state).
+ * Expandable section row. The row is a disclosure button (not a link): it
+ * toggles its children open/closed, each group independently of the others.
+ * Navigating into the section (via a child link, a deep link, or the mobile
+ * overview) auto-opens the group, but never forces it closed — the user owns
+ * the disclosure state from then on.
  */
 function RailExpandableGroup({
   href,
   label,
-  expanded,
+  active,
   childrenItems,
   pathname,
 }: {
   href: string;
   label: string;
-  expanded: boolean;
+  /** Whether the current route lives inside this section. */
+  active: boolean;
   childrenItems: { slug: string; label: string }[];
   pathname: string;
 }) {
-  const Chevron = expanded ? ChevronDown : ChevronRight;
-  // The parent row is "active" only on the section's exact landing page; once a
-  // child is selected the highlight moves to that child.
-  const parentActive = pathname === href;
+  const [open, setOpen] = useState(active);
+
+  // Auto-open when the route enters the section (deep links, mobile overview,
+  // redirects) — but never auto-close; collapsing is the user's call.
+  useEffect(() => {
+    if (active) setOpen(true);
+  }, [active]);
+
+  const Chevron = open ? ChevronDown : ChevronRight;
+  // Highlight the collapsed parent when the current page lives inside it, so
+  // the active location stays visible; expanded, the child row carries it.
+  const parentActive = active && !open;
 
   return (
     <li>
-      <Link
-        to={href}
-        aria-current={parentActive ? 'page' : undefined}
-        aria-expanded={expanded}
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
         className={cn(
           ROW_BASE,
-          'justify-between',
+          'w-full justify-between text-left',
           parentActive
             ? 'bg-muted text-foreground font-medium'
             : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
@@ -289,19 +298,19 @@ function RailExpandableGroup({
       >
         <span>{label}</span>
         <Chevron aria-hidden className="text-muted-foreground size-3.5" />
-      </Link>
-      {expanded && childrenItems.length > 0 && (
+      </button>
+      {open && childrenItems.length > 0 && (
         <ul className="mt-0.5 flex flex-col gap-0.5">
           {childrenItems.map((child) => {
             const childHref = `${href}/${child.slug}`;
-            const active =
+            const childActive =
               pathname === childHref || pathname.startsWith(`${childHref}/`);
             return (
               <RailRow
                 key={child.slug}
                 href={childHref}
                 label={child.label}
-                active={active}
+                active={childActive}
                 className="pl-5"
               />
             );

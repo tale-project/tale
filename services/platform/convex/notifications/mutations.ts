@@ -1,8 +1,9 @@
 import { v } from 'convex/values';
 
-import { mutation } from '../_generated/server';
+import { internalMutation, mutation } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { writeNotificationForOrgs } from './helpers';
 
 /**
  * Append the calling user to a notification's `readBy` set. Idempotent —
@@ -50,6 +51,38 @@ export const markAllRead = mutation({
         await ctx.db.patch(n._id, { readBy: [...n.readBy, userId] });
       }
     }
+    return null;
+  },
+});
+
+/**
+ * Org-bell entry written by an AUTOMATION (the workflow `notification`
+ * action's `notify_org_channel` op). Thin internal wrapper over
+ * `writeNotificationForOrgs` so workflows get the same in-app feed the
+ * security/system emitters use. `titleKey`/`bodyKey` are i18n keys.
+ */
+export const writeOrgNotification = internalMutation({
+  args: {
+    organizationId: v.string(),
+    severity: v.union(
+      v.literal('info'),
+      v.literal('warning'),
+      v.literal('critical'),
+    ),
+    titleKey: v.string(),
+    bodyKey: v.string(),
+    params: v.optional(v.record(v.string(), v.any())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await writeNotificationForOrgs(ctx, {
+      organizationIds: [args.organizationId],
+      category: 'system',
+      severity: args.severity,
+      titleKey: args.titleKey,
+      bodyKey: args.bodyKey,
+      params: args.params,
+    });
     return null;
   },
 });

@@ -28,6 +28,9 @@ interface UsersTableProps {
 export function UsersTable({ rows, isLoading }: UsersTableProps) {
   const { t } = useT('analytics');
 
+  // Column sizes double as the table's min-width floor (DataTable sums them).
+  // Keep the total ≤ 940px so the table fits the settings content column on
+  // common laptop widths instead of clipping behind a horizontal scroll.
   const columns = useMemo<ColumnDef<UserRow>[]>(
     () => [
       {
@@ -67,6 +70,7 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           </div>
         ),
         meta: { align: 'right' as const },
+        size: 130,
       },
       {
         id: 'outputTokens',
@@ -81,6 +85,7 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           </div>
         ),
         meta: { align: 'right' as const },
+        size: 130,
       },
       {
         id: 'cost',
@@ -93,6 +98,7 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           </div>
         ),
         meta: { align: 'right' as const },
+        size: 130,
       },
       {
         id: 'requests',
@@ -105,6 +111,7 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           </div>
         ),
         meta: { align: 'right' as const },
+        size: 130,
       },
     ],
     [t],

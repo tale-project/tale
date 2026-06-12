@@ -2,6 +2,7 @@
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { TeamsTable } from '@/app/features/settings/teams/components/teams-table';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
@@ -12,7 +13,7 @@ interface TeamsSettingsProps {
 }
 
 // =============================================================================
-// Teams settings page — renders the REAL `SettingsPage` header above the Teams
+// Teams settings page — renders the REAL section header above the Teams
 // table on every state (cold, warm, loaded). Members live on the Organization
 // page, so this page is now a single Teams table; the table owns its own
 // count-aware loading skeleton (via the DataTable state machine), so there is
@@ -35,11 +36,13 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
   }
 
   return (
-    <SettingsPage
-      title={tNav('teams')}
-      description={tSettings('teams.sectionDescription')}
-    >
-      <TeamsTable teams={teams} organizationId={organizationId} />
+    <SettingsPage narrow>
+      <SettingsSection
+        title={tNav('teams')}
+        description={tSettings('teams.sectionDescription')}
+      >
+        <TeamsTable teams={teams} organizationId={organizationId} />
+      </SettingsSection>
     </SettingsPage>
   );
 }

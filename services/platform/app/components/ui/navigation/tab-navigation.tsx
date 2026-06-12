@@ -25,6 +25,13 @@ export interface TabNavigationItem {
   can?: [AppAction, AppSubject];
   /** Match mode for this specific item (overrides default) */
   matchMode?: 'exact' | 'startsWith';
+  /**
+   * Extra routes (besides `href`) that should keep this tab highlighted — for
+   * a sibling sub-view that doesn't share the tab's href prefix (e.g. the Tasks
+   * tab staying active on the project's `/metrics` route). Each path matches the
+   * current pathname exactly OR as a parent prefix (`<path>/…`).
+   */
+  additionalActivePaths?: string[];
   /** Search params to include in the link */
   search?: Record<string, unknown>;
   /** Optional trailing element rendered after the label (e.g. status badge) */
@@ -108,9 +115,16 @@ export function TabNavigation({
       const mode = item.matchMode ?? matchMode;
       // Strip query parameters from href for comparison since pathname doesn't include them
       const hrefPath = item.href.split('?')[0];
-      return mode === 'exact'
-        ? pathname === hrefPath
-        : pathname.startsWith(hrefPath);
+      const baseMatch =
+        mode === 'exact'
+          ? pathname === hrefPath
+          : pathname.startsWith(hrefPath);
+      if (baseMatch) return true;
+      // A tab can also claim related sibling routes (e.g. Tasks → /metrics).
+      return (item.additionalActivePaths ?? []).some((raw) => {
+        const path = raw.split('?')[0];
+        return pathname === path || pathname.startsWith(`${path}/`);
+      });
     },
     [pathname, matchMode],
   );

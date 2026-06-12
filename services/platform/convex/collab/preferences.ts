@@ -13,6 +13,10 @@ const prefsValidator = v.object({
   taskStatusChanged: v.optional(v.boolean()),
   taskCommented: v.optional(v.boolean()),
   mention: v.optional(v.boolean()),
+  taskReview: v.optional(v.boolean()),
+  escalation: v.optional(v.boolean()),
+  automationAlerts: v.optional(v.boolean()),
+  digest: v.optional(v.boolean()),
 });
 
 export const getNotificationPreferences = query({
@@ -37,6 +41,10 @@ export const getNotificationPreferences = query({
       taskStatusChanged: row?.taskStatusChanged,
       taskCommented: row?.taskCommented,
       mention: row?.mention,
+      taskReview: row?.taskReview,
+      escalation: row?.escalation,
+      automationAlerts: row?.automationAlerts,
+      digest: row?.digest,
     };
   },
 });
@@ -48,6 +56,10 @@ export const setNotificationPreferences = mutation({
     taskStatusChanged: v.optional(v.boolean()),
     taskCommented: v.optional(v.boolean()),
     mention: v.optional(v.boolean()),
+    taskReview: v.optional(v.boolean()),
+    escalation: v.optional(v.boolean()),
+    automationAlerts: v.optional(v.boolean()),
+    digest: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -69,6 +81,10 @@ export const setNotificationPreferences = mutation({
       taskStatusChanged: args.taskStatusChanged,
       taskCommented: args.taskCommented,
       mention: args.mention,
+      taskReview: args.taskReview,
+      escalation: args.escalation,
+      automationAlerts: args.automationAlerts,
+      digest: args.digest,
       updatedAt: Date.now(),
     };
     if (existing) {

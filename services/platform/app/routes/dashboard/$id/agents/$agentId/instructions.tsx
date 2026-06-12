@@ -3,6 +3,7 @@ import { CodeBlock } from '@tale/ui/code-block';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { HStack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
+import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute } from '@tanstack/react-router';
 import { BookOpen } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -326,11 +327,11 @@ function InstructionsTab() {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <PageSection
+      <SectionHeader
         title={t('agents.form.sectionInstructions')}
         description={t('agents.form.sectionInstructionsDescription')}
-        gap={4}
-      >
+      />
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3">
           <HStack justify="between" align="center">
             <label htmlFor="systemInstructions" className="text-sm font-medium">
@@ -391,7 +392,7 @@ function InstructionsTab() {
             ))}
           </ul>
         </CollapsibleDetails>
-      </PageSection>
+      </div>
 
       <PageSection
         title={t('agents.form.sectionModel')}

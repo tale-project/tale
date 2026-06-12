@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { ModelCatalogCard } from '@/app/features/settings/providers/components/model-catalog-card';
 import { ProvidersTable } from '@/app/features/settings/providers/components/providers-table';
 import { useT } from '@/lib/i18n/client';
@@ -15,11 +16,13 @@ function ProvidersIndexRoute() {
   const { t: tSettings } = useT('settings');
 
   return (
-    <SettingsPage
-      title={tNav('providers')}
-      description={tSettings('menu.providers.description')}
-    >
-      <ProvidersTable organizationId={id} />
+    <SettingsPage narrow>
+      <SettingsSection
+        title={tNav('providers')}
+        description={tSettings('menu.providers.description')}
+      >
+        <ProvidersTable organizationId={id} />
+      </SettingsSection>
       <ModelCatalogCard organizationId={id} />
     </SettingsPage>
   );

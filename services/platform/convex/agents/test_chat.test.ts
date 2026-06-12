@@ -70,17 +70,6 @@ describe('toSerializableConfig', () => {
     expect(result.agentTeamId).toBe('team_1');
   });
 
-  it('should handle delegates as string array', () => {
-    const config = createMockConfig({
-      delegates: ['crm-assistant', 'integration-assistant'],
-    });
-    const result = toSerializableConfig('a', config);
-    expect(result.delegateSlugs).toEqual([
-      'crm-assistant',
-      'integration-assistant',
-    ]);
-  });
-
   it('should default knowledgeMode to off', () => {
     const config = createMockConfig();
     const result = toSerializableConfig('a', config);

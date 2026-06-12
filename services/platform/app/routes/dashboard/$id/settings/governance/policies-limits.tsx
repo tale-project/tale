@@ -8,7 +8,6 @@ import { RetentionEditor } from '@/app/features/settings/governance/components/r
 import { UploadPolicyEditor } from '@/app/features/settings/governance/components/upload-policy-editor';
 import { VoiceOutputPolicyEditor } from '@/app/features/settings/governance/components/voice-output-policy-editor';
 import { ensureGovernancePolicies } from '@/app/lib/loader-preload';
-import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute(
   '/dashboard/$id/settings/governance/policies-limits',
@@ -32,13 +31,9 @@ export const Route = createFileRoute(
 
 function PoliciesLimitsRoute() {
   const { id: organizationId } = Route.useParams();
-  const { t } = useT('governance');
 
   return (
-    <SettingsPage
-      title={t('groups.policiesAndLimits')}
-      description={t('groups.policiesAndLimitsDescription')}
-    >
+    <SettingsPage narrow>
       <BudgetEditor organizationId={organizationId} />
       <UploadPolicyEditor organizationId={organizationId} />
       <RetentionEditor organizationId={organizationId} />

@@ -1,5 +1,5 @@
 import { PageSection } from '@tale/ui/page-section';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
@@ -58,7 +58,7 @@ function ToolsTab() {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <StickySectionHeader
+      <SectionHeader
         title={t('agents.form.sectionTools')}
         description={t('agents.form.sectionToolsDescription')}
       />

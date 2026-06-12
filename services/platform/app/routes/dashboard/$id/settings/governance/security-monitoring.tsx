@@ -6,7 +6,6 @@ import { PasswordPolicyEditor } from '@/app/features/settings/governance/compone
 import { SessionIdleTimeoutEditor } from '@/app/features/settings/governance/components/session-idle-timeout-editor';
 import { TwoFactorPolicyEditor } from '@/app/features/settings/governance/components/two-factor-policy-editor';
 import { ensureGovernancePolicies } from '@/app/lib/loader-preload';
-import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute(
   '/dashboard/$id/settings/governance/security-monitoring',
@@ -26,17 +25,13 @@ export const Route = createFileRoute(
 
 function SecurityMonitoringRoute() {
   const { id: organizationId } = Route.useParams();
-  const { t } = useT('governance');
 
-  // Wrapped in SettingsPage so this page carries the same title/description
-  // chrome as its sibling Policies & Limits page (consistent structure). The
-  // three editors are eager-imported so they reveal together under one
-  // coordinated skeletonization and are spaced by SettingsPage's layout.
+  // Wrapped in SettingsPage so this page carries the same section rhythm as
+  // its sibling governance pages. The editors are eager-imported so they
+  // reveal together under one coordinated skeletonization and are spaced by
+  // SettingsPage's layout.
   return (
-    <SettingsPage
-      title={t('groups.securityAndMonitoring')}
-      description={t('groups.securityAndMonitoringDescription')}
-    >
+    <SettingsPage narrow>
       <LoginPolicyEditor organizationId={organizationId} />
       <PasswordPolicyEditor organizationId={organizationId} />
       <TwoFactorPolicyEditor organizationId={organizationId} />

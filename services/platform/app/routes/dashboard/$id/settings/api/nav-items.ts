@@ -1,18 +1,25 @@
-import { HardDrive, KeyRound, Server, type LucideIcon } from 'lucide-react';
+import {
+  Cpu,
+  HardDrive,
+  KeyRound,
+  Server,
+  type LucideIcon,
+} from 'lucide-react';
 
 interface ApiNavItem {
-  slug: 'rest' | 'mcp' | 'webdav';
-  labelKey: 'apiRest' | 'mcp' | 'webdav';
+  slug: 'rest' | 'mcp' | 'webdav' | 'runtimes';
+  labelKey: 'apiRest' | 'mcp' | 'webdav' | 'runtimes';
   icon: LucideIcon;
 }
 
 /**
- * API sub-section catalog (REST / MCP / WebDAV). Shared between the section's
- * own route (mobile tab strip) and the unified settings rail (inline expansion
- * on desktop).
+ * API sub-section catalog (REST / MCP / WebDAV / Runtimes). Shared between the
+ * section's own route (mobile tab strip) and the unified settings rail (inline
+ * expansion on desktop).
  */
 export const API_NAV_ITEMS: ApiNavItem[] = [
   { slug: 'rest', labelKey: 'apiRest', icon: KeyRound },
   { slug: 'mcp', labelKey: 'mcp', icon: Server },
   { slug: 'webdav', labelKey: 'webdav', icon: HardDrive },
+  { slug: 'runtimes', labelKey: 'runtimes', icon: Cpu },
 ];

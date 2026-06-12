@@ -70,7 +70,9 @@
             {
               "label": "releaseNotes",
               "pages": ["self-hosted/operate/release-notes/format"]
-            }
+            },
+            "self-hosted/operate/tale-daemon",
+            "self-hosted/operate/workforce-operations"
           ]
         },
         "self-hosted/contributing-docker"
@@ -118,7 +120,9 @@
             "platform/projects/overview",
             "platform/projects/concepts",
             "platform/projects/manage-files",
-            "platform/projects/project-agents"
+            "platform/projects/project-agents",
+            "platform/projects/task-automation",
+            "platform/projects/workforce-metrics"
           ]
         },
         {
@@ -131,6 +135,7 @@
             "platform/agents/knowledge",
             "platform/agents/conversation-starters",
             "platform/agents/delegation",
+            "platform/agents/organigram",
             "platform/agents/webhook-triggers",
             "platform/agents/versions",
             "platform/agents/image-generation",

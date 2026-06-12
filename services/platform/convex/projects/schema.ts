@@ -56,6 +56,13 @@ export const projectsTable = defineTable({
    * (deleting a task does not recycle its number), so identifiers are stable.
    */
   taskCounter: v.optional(v.number()),
+  /**
+   * Per-project colour overrides for task labels, keyed by the normalized
+   * (lowercase) label. Values are palette names from
+   * `lib/shared/task_label_colors.ts`; labels without an entry fall back to
+   * the client's deterministic palette hash. Written via `tasks/setLabelColor`.
+   */
+  taskLabelColors: v.optional(v.record(v.string(), v.string())),
 
   // Sharing — matches agentBindings
   teamId: v.optional(v.string()),

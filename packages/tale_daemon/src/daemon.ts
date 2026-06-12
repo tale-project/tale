@@ -1,0 +1,273 @@
+/**
+ * The daemon main loop:
+ *
+ *   register → [poll claim → execute → report] with server-driven pacing.
+ *
+ * Pacing: the claim response carries `retryAfterMs` (3s after work was
+ * handed out, 15s idle); after ten idle minutes the client escalates its
+ * own cap to 60s, so a forgotten daemon costs ~1 request/min. While a run
+ * executes, a 15s heartbeat renews the server lease and picks up
+ * cancellation requests (→ SIGTERM to the CLI). One run executes at a time
+ * — org/agent parallelism is the server's concurrency-cap job, not ours.
+ */
+
+import { spawn } from 'node:child_process';
+import { writeFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+import { detectAdapters, getAdapter } from './adapters/index.ts';
+import type { AdapterDetection } from './adapters/types.ts';
+import {
+  ApiAuthError,
+  RateLimitedError,
+  TaleApi,
+  type ClaimedWork,
+} from './api.ts';
+import { effectivePermission, type DaemonConfig } from './config.ts';
+import {
+  collectDiffStat,
+  prepareWorkspace,
+  resolveWorkspacePath,
+} from './workspace.ts';
+
+const HEARTBEAT_ACTIVE_MS = 15_000;
+const HEARTBEAT_IDLE_MS = 30_000;
+const IDLE_ESCALATION_AFTER_MS = 10 * 60 * 1000;
+const IDLE_MAX_POLL_MS = 60_000;
+
+function log(message: string): void {
+  console.log(`[tale-daemon] ${new Date().toISOString()} ${message}`);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+interface ExecResult {
+  stdout: string;
+  code: number | null;
+  cancelled: boolean;
+  timedOut: boolean;
+}
+
+function execAdapter(args: {
+  command: string;
+  argv: string[];
+  cwd: string;
+  timeoutMs: number;
+  env?: Record<string, string>;
+  onCancelCheck: (kill: () => void) => () => void;
+}): Promise<ExecResult> {
+  return new Promise((resolve) => {
+    const child = spawn(args.command, args.argv, {
+      cwd: args.cwd,
+      env: { ...process.env, ...args.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let cancelled = false;
+    let timedOut = false;
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf-8');
+      if (stdout.length > 4_000_000) stdout = stdout.slice(-2_000_000);
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      process.stderr.write(chunk);
+    });
+
+    const kill = () => {
+      cancelled = true;
+      child.kill('SIGTERM');
+      setTimeout(() => child.kill('SIGKILL'), 10_000).unref();
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      kill();
+    }, args.timeoutMs);
+    timer.unref();
+    const stopCancelWatch = args.onCancelCheck(kill);
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      stopCancelWatch();
+      resolve({ stdout, code, cancelled: cancelled && !timedOut, timedOut });
+    });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      stopCancelWatch();
+      console.error('[tale-daemon] spawn failed', error);
+      resolve({ stdout, code: -1, cancelled: false, timedOut: false });
+    });
+  });
+}
+
+async function executeRun(
+  api: TaleApi,
+  config: DaemonConfig,
+  work: ClaimedWork,
+): Promise<void> {
+  const adapter = getAdapter(work.adapterType);
+  if (!adapter) {
+    await api.fail(
+      work.externalRunId,
+      `unknown adapter ${work.adapterType}`,
+      false,
+    );
+    return;
+  }
+  const basePath = resolveWorkspacePath(config, work.workspaceKey);
+  if (!basePath) {
+    await api.fail(
+      work.externalRunId,
+      `no workspace configured${work.workspaceKey ? ` for key "${work.workspaceKey}"` : ''}`,
+      false,
+    );
+    return;
+  }
+
+  const workspace = await prepareWorkspace(basePath, work.externalRunId);
+  const permission = effectivePermission(
+    work.permissionMode,
+    config.permissionCeiling,
+  );
+  log(
+    `run ${work.externalRunId} adapter=${work.adapterType} permission=${permission} cwd=${workspace.cwd}`,
+  );
+
+  // Long prompts go through a temp file when the adapter reads argv —
+  // argv length limits are real. All three v1 adapters take the prompt as
+  // an argument; clip defensively and keep a copy for local debugging.
+  const promptDir = mkdtempSync(path.join(tmpdir(), 'tale-run-'));
+  writeFileSync(path.join(promptDir, 'prompt.md'), work.prompt, {
+    mode: 0o600,
+  });
+
+  const invocation = adapter.buildInvocation({
+    prompt: work.prompt,
+    permissionMode: permission,
+    resumeSessionRef:
+      work.kind === 'revision' && adapter.capabilities.sessionResume
+        ? work.resumeSessionRef
+        : undefined,
+  });
+
+  await api.sendEvent(work.externalRunId, 'started');
+
+  // While the CLI runs: heartbeat (lease renewal) + cancellation watch.
+  let stopRequested: (() => void) | null = null;
+  const heartbeatLoop = setInterval(() => {
+    void api
+      .heartbeat()
+      .then(({ cancel }) => {
+        if (cancel.includes(work.externalRunId)) stopRequested?.();
+      })
+      .catch((error) => {
+        console.warn('[tale-daemon] heartbeat during run failed', error);
+      });
+  }, HEARTBEAT_ACTIVE_MS);
+
+  const result = await execAdapter({
+    command: invocation.command,
+    argv: invocation.args,
+    cwd: workspace.cwd,
+    timeoutMs: Math.max(60_000, work.timeoutMs - 60_000),
+    env: invocation.env,
+    onCancelCheck: (kill) => {
+      stopRequested = kill;
+      return () => {
+        stopRequested = null;
+      };
+    },
+  });
+  clearInterval(heartbeatLoop);
+
+  if (result.cancelled) {
+    await api.fail(work.externalRunId, 'cancelled by server request', false);
+    return;
+  }
+  if (result.timedOut) {
+    await api.fail(work.externalRunId, 'CLI run timed out locally', false);
+    return;
+  }
+  if (result.code !== 0) {
+    await api.fail(
+      work.externalRunId,
+      `CLI exited with code ${result.code}: ${result.stdout.slice(-400)}`,
+      true,
+    );
+    return;
+  }
+
+  const outcome = adapter.parseOutput(result.stdout);
+  const diffStat = await collectDiffStat(workspace);
+  await api.complete(work.externalRunId, {
+    summary: outcome.summary,
+    diffStat,
+    sessionRef: outcome.sessionRef,
+    inputTokens: outcome.inputTokens,
+    outputTokens: outcome.outputTokens,
+    costCents: outcome.costCents,
+  });
+  log(`run ${work.externalRunId} completed`);
+}
+
+export async function runDaemon(config: DaemonConfig): Promise<void> {
+  const api = new TaleApi(config);
+  const detections: AdapterDetection[] = await detectAdapters();
+  if (detections.length === 0) {
+    throw new Error(
+      'No supported coding-agent CLIs found on PATH (claude, codex, opencode).',
+    );
+  }
+  await api.register({
+    adapters: detections,
+    workspaceKeys: Object.keys(config.workspaces),
+  });
+  const adapterTypes = detections.map((d) => d.adapterType);
+  log(
+    `registered daemon=${config.daemonId} adapters=${adapterTypes.join(',')}`,
+  );
+
+  let idleSince = Date.now();
+  let lastIdleHeartbeat = 0;
+  // Object property (not a bare let) so the signal handlers' writes are
+  // visible to the loop condition per eslint's loop analysis.
+  const state = { stopping: false };
+  process.on('SIGINT', () => {
+    state.stopping = true;
+    log('stopping after the current run…');
+  });
+  process.on('SIGTERM', () => {
+    state.stopping = true;
+  });
+
+  while (!state.stopping) {
+    try {
+      const { run, retryAfterMs } = await api.claim(adapterTypes);
+      if (run) {
+        idleSince = Date.now();
+        await executeRun(api, config, run);
+        await sleep(retryAfterMs);
+        continue;
+      }
+      // Idle: occasional heartbeat keeps the registry status fresh.
+      if (Date.now() - lastIdleHeartbeat > HEARTBEAT_IDLE_MS) {
+        lastIdleHeartbeat = Date.now();
+        await api.heartbeat().catch((error) => {
+          console.warn('[tale-daemon] idle heartbeat failed', error);
+        });
+      }
+      const deepIdle = Date.now() - idleSince > IDLE_ESCALATION_AFTER_MS;
+      await sleep(deepIdle ? IDLE_MAX_POLL_MS : retryAfterMs);
+    } catch (error) {
+      if (error instanceof ApiAuthError) throw error;
+      if (error instanceof RateLimitedError) {
+        await sleep(error.retryAfterMs);
+        continue;
+      }
+      console.error('[tale-daemon] loop error', error);
+      await sleep(15_000);
+    }
+  }
+}

@@ -16,7 +16,11 @@
 
 import { isRecord } from '@/lib/utils/type-guards';
 
-import type { ThoughtStep, ToolStepState } from './build-thought-timeline';
+import {
+  SKILL_TOOL_NAMES,
+  toToolState,
+  type ThoughtStep,
+} from './thought-step-types';
 
 /** A streamed answer-text run between (or before/after) thought activity. */
 export interface TextSegment {
@@ -50,9 +54,6 @@ export interface MessageSegments {
   isStreaming: boolean;
 }
 
-/** Skill-runtime tools, counted as skills (by slug) rather than raw tools. */
-const SKILL_TOOL_NAMES = new Set(['expand_skill', 'read_skill_file']);
-
 const EMPTY: MessageSegments = {
   segments: [],
   toolCount: 0,
@@ -60,18 +61,6 @@ const EMPTY: MessageSegments = {
   hasReasoning: false,
   isStreaming: false,
 };
-
-function toToolState(raw: unknown): ToolStepState {
-  if (
-    raw === 'input-streaming' ||
-    raw === 'input-available' ||
-    raw === 'output-available' ||
-    raw === 'output-error'
-  ) {
-    return raw;
-  }
-  return 'input-available';
-}
 
 export function buildMessageSegments(
   parts: readonly unknown[] | undefined,

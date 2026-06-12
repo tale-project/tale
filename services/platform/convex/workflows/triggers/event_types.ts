@@ -14,6 +14,9 @@ export const EVENT_TYPE_CATEGORIES = {
   tasks: {
     label: 'Tasks',
   },
+  agents: {
+    label: 'Agents',
+  },
 } as const;
 
 export type EventTypeCategory = keyof typeof EVENT_TYPE_CATEGORIES;
@@ -166,6 +169,40 @@ export const EVENT_TYPES: Record<string, EventTypeDef> = {
     filterFields: [
       { key: 'comment.projectId', label: 'Project', inputType: 'text' },
     ],
+  },
+  // Emitted when an external runtime run fails terminally (dispatch
+  // deadline, lease loss past retries, timeout, or daemon-reported error).
+  // eventData: { taskId, projectId, agentSlug, adapterType, reason }.
+  'task.external_run_failed': {
+    category: 'tasks',
+    label: 'External run failed',
+    description:
+      'Triggered when a run dispatched to an external runtime (tale-daemon) fails terminally',
+    filterFields: [
+      { key: 'agentSlug', label: 'Agent', inputType: 'text' },
+      { key: 'adapterType', label: 'Adapter', inputType: 'text' },
+      { key: 'reason', label: 'Reason', inputType: 'text' },
+    ],
+  },
+  // Emitted once per agent-month by the budget guardrail when an agent
+  // crosses its pause threshold. eventData: { agentSlug, spentCents,
+  // monthlyCents, periodKey } (flat, to suit string-equality filters).
+  'agent.budget_exceeded': {
+    category: 'agents',
+    label: 'Agent budget exceeded',
+    description:
+      "Triggered once per month when an agent's spend reaches its pause threshold",
+    filterFields: [{ key: 'agentSlug', label: 'Agent', inputType: 'text' }],
+  },
+  // Emitted by finalizeTaskAgentRun when a run finishes and a queued task is
+  // waiting on the freed slot (oldest unresolved concurrency_queued notice).
+  // eventData: { agentSlug, taskId, projectId, capScope }.
+  'agent.slot_freed': {
+    category: 'agents',
+    label: 'Agent slot freed',
+    description:
+      'Triggered when a concurrency slot frees up for an agent with queued tasks',
+    filterFields: [{ key: 'agentSlug', label: 'Agent', inputType: 'text' }],
   },
 };
 

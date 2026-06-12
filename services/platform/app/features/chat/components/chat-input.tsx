@@ -178,6 +178,15 @@ interface ChatInputProps extends Omit<
   addKbMention?: (mention: KbMention) => boolean;
   removeKbMention?: (documentId: Id<'documents'>) => void;
   clearKbMentions?: () => KbMention[];
+  /**
+   * Which composer controls to render. `'full'` (default) is the main chat.
+   * `'assistant'` is the editor AI panels (automations / organigram), where
+   * the agent is pinned server-side — the agent/model pickers, capability
+   * pills (image generation etc.) and the voice-mode toggle would be
+   * decorative at best and misleading at worst, so they're hidden.
+   * Attachments, dictation and send stay.
+   */
+  variant?: 'full' | 'assistant';
 }
 
 export function ChatInput({
@@ -219,6 +228,7 @@ export function ChatInput({
   addKbMention,
   removeKbMention,
   clearKbMentions,
+  variant = 'full',
   ...restProps
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
@@ -1175,28 +1185,33 @@ export function ChatInput({
                   disabled={inputDisabled}
                 />
               )}
-              {isArenaMode ? (
-                <ArenaModelSelector organizationId={organizationId} />
-              ) : (
-                <HStack gap={1} align="center">
-                  <AgentSelector
-                    organizationId={organizationId}
-                    projectId={projectId}
-                  />
-                  <ModelSelector
-                    organizationId={organizationId}
-                    projectId={projectId}
-                  />
-                </HStack>
+              {variant === 'full' &&
+                (isArenaMode ? (
+                  <ArenaModelSelector organizationId={organizationId} />
+                ) : (
+                  <HStack gap={1} align="center">
+                    <AgentSelector
+                      organizationId={organizationId}
+                      projectId={projectId}
+                    />
+                    <ModelSelector
+                      organizationId={organizationId}
+                      projectId={projectId}
+                    />
+                  </HStack>
+                ))}
+              {variant === 'full' && (
+                <ComposerCapabilityPills organizationId={organizationId} />
               )}
-              <ComposerCapabilityPills organizationId={organizationId} />
             </HStack>
             <HStack gap={1} align="center" className="shrink-0">
-              <VoiceModeToggle
-                threadId={threadId}
-                organizationId={organizationId}
-                disabled={inputDisabled}
-              />
+              {variant === 'full' && (
+                <VoiceModeToggle
+                  threadId={threadId}
+                  organizationId={organizationId}
+                  disabled={inputDisabled}
+                />
+              )}
               <DictationButton
                 ref={dictationRef}
                 organizationId={organizationId}

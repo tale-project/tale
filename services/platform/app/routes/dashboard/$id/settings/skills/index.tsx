@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SkillsTable } from '@/app/features/skills/components/skills-table';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -25,14 +26,16 @@ function SkillsPage() {
   const { t: tSettings } = useT('settings');
 
   return (
-    <SettingsPage
-      title={tNav('skills')}
-      description={tSettings('menu.skills.description')}
-    >
-      <SkillsTable
-        organizationId={organizationId}
-        initialDetailSlug={slug ?? null}
-      />
+    <SettingsPage>
+      <SettingsSection
+        title={tNav('skills')}
+        description={tSettings('menu.skills.description')}
+      >
+        <SkillsTable
+          organizationId={organizationId}
+          initialDetailSlug={slug ?? null}
+        />
+      </SettingsSection>
     </SettingsPage>
   );
 }

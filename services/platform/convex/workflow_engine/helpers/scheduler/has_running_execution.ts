@@ -1,28 +1,38 @@
 /**
- * Check if a workflow has any execution currently in 'running' or 'pending' status.
- * Used by the scheduler to prevent concurrent executions of the same workflow.
+ * Check whether a workflow has an execution currently in 'running' or
+ * 'pending' status. Used by the scheduler to prevent concurrent executions
+ * of the same workflow.
  *
- * Accepts either a Convex ID or a workflow slug string — the by_definition_status
- * index works with both since wfDefinitionId is v.union(v.id, v.string, v.null).
+ * IMPORTANT: org-scoped on purpose — file-based workflow slugs repeat across
+ * organizations (default pack), so a global slug check would let one org's
+ * running execution suppress every other org's schedule.
  */
 
 import { QueryCtx } from '../../../_generated/server';
+import type { OrgWorkflowKey } from './get_last_execution_time';
+import { orgWorkflowKey } from './get_last_execution_time';
 
-export async function hasRunningExecution(
+export async function hasRunningExecutionForOrg(
   ctx: QueryCtx,
-  args: { wfDefinitionId: string },
+  args: OrgWorkflowKey,
 ): Promise<boolean> {
   const [running, pending] = await Promise.all([
     ctx.db
       .query('wfExecutions')
-      .withIndex('by_definition_status', (q) =>
-        q.eq('wfDefinitionId', args.wfDefinitionId).eq('status', 'running'),
+      .withIndex('by_org_workflowSlug_status', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('workflowSlug', args.workflowSlug)
+          .eq('status', 'running'),
       )
       .first(),
     ctx.db
       .query('wfExecutions')
-      .withIndex('by_definition_status', (q) =>
-        q.eq('wfDefinitionId', args.wfDefinitionId).eq('status', 'pending'),
+      .withIndex('by_org_workflowSlug_status', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('workflowSlug', args.workflowSlug)
+          .eq('status', 'pending'),
       )
       .first(),
   ]);
@@ -31,16 +41,22 @@ export async function hasRunningExecution(
 }
 
 /**
- * Batch version to check running executions for multiple workflows.
+ * Batch version for multiple (org, slug) pairs. Result map is keyed by
+ * `orgWorkflowKey`. Duplicate pairs are queried once.
  */
-export async function hasRunningExecutions(
+export async function hasRunningExecutionsForOrgs(
   ctx: QueryCtx,
-  args: { wfDefinitionIds: string[] },
+  args: { keys: OrgWorkflowKey[] },
 ): Promise<Map<string, boolean>> {
+  const unique = new Map<string, OrgWorkflowKey>();
+  for (const key of args.keys) {
+    unique.set(orgWorkflowKey(key), key);
+  }
+
   const entries = await Promise.all(
-    args.wfDefinitionIds.map(async (wfDefinitionId) => {
-      const result = await hasRunningExecution(ctx, { wfDefinitionId });
-      return [wfDefinitionId, result] as const;
+    [...unique.entries()].map(async ([mapKey, key]) => {
+      const result = await hasRunningExecutionForOrg(ctx, key);
+      return [mapKey, result] as const;
     }),
   );
 

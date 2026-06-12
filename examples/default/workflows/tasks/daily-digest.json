@@ -1,0 +1,106 @@
+{
+  "name": "Daily workforce digest",
+  "description": "Weekday-morning summary of the AI workforce for org admins: tasks created and completed, agent runs and failures, spend, and what's waiting on humans (pending reviews, queued runs, tripped breakers). Skipped entirely on quiet days. Deterministic counts rendered as a template — no LLM involved, zero tokens. A Monday weekly variant (168h window) ships as a second schedule. Adjust or deactivate either schedule in Automations.",
+  "version": "1.0.0",
+  "metadata": {
+    "pack": "task-ops",
+    "autoInstall": true
+  },
+  "triggers": {
+    "schedules": [
+      {
+        "cron": "0 7 * * 1-5",
+        "timezone": "UTC",
+        "variables": {
+          "windowHours": 24
+        }
+      },
+      {
+        "cron": "30 7 * * 1",
+        "timezone": "UTC",
+        "variables": {
+          "windowHours": 168
+        }
+      }
+    ]
+  },
+  "config": {
+    "timeout": 600000,
+    "variables": {
+      "workflowId": "tasks_daily_digest"
+    }
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "summary"
+      }
+    },
+    {
+      "stepSlug": "summary",
+      "name": "Collect the day's numbers",
+      "stepType": "action",
+      "config": {
+        "type": "metrics",
+        "parameters": {
+          "operation": "get_daily_summary",
+          "windowHours": "{{windowHours}}"
+        }
+      },
+      "nextSteps": {
+        "success": "anything_to_report"
+      }
+    },
+    {
+      "stepSlug": "anything_to_report",
+      "name": "Anything to report?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.summary.output.data.activity > 0",
+        "description": "No digest on quiet days — silence is the feature."
+      },
+      "nextSteps": {
+        "true": "send_digest",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "send_digest",
+      "name": "Send the digest to org admins",
+      "stepType": "action",
+      "config": {
+        "type": "notification",
+        "parameters": {
+          "operation": "notify_users",
+          "audience": "org_admins",
+          "type": "workforce_digest",
+          "titleKey": "workforceDigest",
+          "bodyKey": "workforceDigestBody",
+          "params": {
+            "created": "{{steps.summary.output.data.tasksCreated}}",
+            "completed": "{{steps.summary.output.data.tasksCompleted}}",
+            "runs": "{{steps.summary.output.data.runs}}",
+            "failed": "{{steps.summary.output.data.runsFailed}}",
+            "pendingReviews": "{{steps.summary.output.data.pendingReviews}}",
+            "queued": "{{steps.summary.output.data.queuedRuns}}",
+            "breakers": "{{steps.summary.output.data.openBreakers}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}

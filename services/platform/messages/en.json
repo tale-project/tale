@@ -601,8 +601,6 @@
         "hasActiveTriggers": "This automation has active triggers — edits take effect immediately."
       },
       "toolbar": {
-        "focus": "Focus",
-        "aiAssistant": "AI assistant",
         "testAutomation": "Test automation",
         "addStep": "Add step"
       },
@@ -697,22 +695,8 @@
       "description": "Are you sure you want to delete \"{name}\"? This action cannot be undone."
     },
     "assistant": {
-      "messagePlaceholder": "Type your message...",
-      "automationDetails": "Automation details",
-      "previewImage": "Preview {filename}",
-      "fallbackImage": "Image",
-      "fallbackFile": "File",
-      "loading": "Loading...",
-      "notFound": "Automation not found.",
-      "welcome": "Hi! I'm your automation assistant. I can help you create, edit, and discuss this automation. What would you like to do?",
       "errorMessage": "I'm sorry, I encountered an error. Please try again or check the console for details.",
-      "thinking": {
-        "thinking": "Thinking",
-        "analyzing": "Analyzing workflow",
-        "compiling": "Compiling an answer"
-      },
-      "analyzeAttachments": "Please analyze the attached files.",
-      "messageHistory": "Message history"
+      "analyzeAttachments": "Please analyze the attached files."
     },
     "tester": {
       "inputLabel": "Test input (JSON)",
@@ -1595,6 +1579,12 @@
     },
     "dataTable": {
       "dateFilterUnavailable": "Date filter unavailable"
+    },
+    "flow": {
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetView": "Reset view",
+      "aiEditor": "AI editor"
     }
   },
   "composer": {
@@ -1854,7 +1844,6 @@
     "thisMember": "this member",
     "confirmRemoveMember": "Are you sure you want to remove {name} from the team? They will lose access to this organization and all associated resources.",
     "toSend": "to send",
-    "attach": "Attach",
     "selectConversation": "Select conversation",
     "vendorInfo": {
       "title": "Vendor information"
@@ -2845,10 +2834,8 @@
       "guardrails": "Guardrails",
       "usage": "Usage",
       "feedback": "Feedback",
-      "auditLogs": "Audit logs",
+      "logs": "Logs",
       "dataSubjectRequests": "Data subject requests",
-      "policiesAndLimitsDescription": "Budgets, upload restrictions, data retention, feature flags, and voice output.",
-      "securityAndMonitoringDescription": "Sign-in, password, and two-factor authentication policies.",
       "runCodePolicy": "Run-code packages"
     },
     "runCodePolicy": {
@@ -3821,7 +3808,8 @@
     "aria": {
       "primaryNavigation": "Primary navigation"
     },
-    "dataResidency": "Data residency"
+    "dataResidency": "Data residency",
+    "runtimes": "Runtimes"
   },
   "notifications": {
     "title": "Notifications",
@@ -3860,6 +3848,7 @@
   },
   "personalization": {
     "page": {
+      "title": "User preferences",
       "privacyLink": "Privacy notice",
       "enable": {
         "orgStateOn": "on",
@@ -4653,8 +4642,6 @@
       }
     },
     "organization": {
-      "pageTitle": "Organization",
-      "pageDescription": "Manage your organization and members.",
       "title": "Organization name",
       "detailsTitle": "Organization details",
       "detailsDescription": "Basic information about your organization.",
@@ -4784,7 +4771,8 @@
         "delegation": "Delegation",
         "responseTuning": "Response tuning",
         "conversationStarters": "Starters",
-        "history": "History"
+        "history": "History",
+        "metrics": "Performance"
       },
       "history": {
         "empty": "No history entries",
@@ -4906,8 +4894,7 @@
       },
       "delegation": {
         "title": "Delegation",
-        "description": "Select agents that this agent can delegate tasks to",
-        "noDelegatesAvailable": "No other agents available for delegation."
+        "description": "Delegation follows the org chart. Use the side panel to set who this agent reports to and who it delegates to — delegation is many-to-many, an agent just can't reference itself."
       },
       "knowledge": {
         "retrievalMode": "Retrieval mode",
@@ -5032,6 +5019,12 @@
         "exampleFileUploadStream": "File upload with streaming (SSE response)",
         "exampleOpenAICompat": "OpenAI-compatible endpoint (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI client config (e.g. Meetily)"
+      },
+      "organigram": {
+        "menuItem": "Organigram"
+      },
+      "workforce": {
+        "menuItem": "Workforce"
       }
     },
     "skills": {
@@ -5671,8 +5664,33 @@
       "auditLogs": "Audit logs",
       "activityLogs": "Activity logs",
       "errorLogs": "Error logs",
-      "activityComingSoon": "Activity logs are coming soon.",
-      "errorComingSoon": "Error logs are coming soon.",
+      "activity": {
+        "period": {
+          "label": "Period",
+          "last7Days": "Last 7 days",
+          "last30Days": "Last 30 days",
+          "last90Days": "Last 90 days"
+        },
+        "cards": {
+          "total": "Total actions",
+          "success": "Success",
+          "failure": "Failure",
+          "denied": "Denied"
+        },
+        "byCategory": {
+          "title": "Activity by category"
+        },
+        "topActors": {
+          "title": "Most active users"
+        },
+        "empty": "No activity in this period."
+      },
+      "errors": {
+        "entityLabel": "error logs",
+        "tableCaption": "Error logs data table",
+        "emptyTitle": "No error logs",
+        "emptyDescription": "Failed and denied actions will appear here."
+      },
       "blockCounters": {
         "tabLabel": "Sign-in blocks",
         "tableCaption": "Sign-in block activity",
@@ -5756,7 +5774,9 @@
           "workflow": "Workflow",
           "security": "Security",
           "admin": "Admin",
-          "ai": "AI"
+          "ai": "AI",
+          "skill": "Skill",
+          "agent": "Agent"
         },
         "statusLabels": {
           "success": "Success",
@@ -6025,8 +6045,8 @@
       }
     },
     "dataResidency": {
-      "pageDescription": "Point this deployment's knowledge database and file storage at infrastructure you control. Changes apply when the RAG and Convex containers restart.",
       "readOnly": {
+        "title": "Read-only access",
         "before": "Editing is restricted to the operators listed in",
         "after": "(in the deployment .env). Ask an operator to add your email there and restart to enable editing.",
         "yourEmail": "Your sign-in email is {email}."
@@ -6131,11 +6151,6 @@
     }
   },
   "inbox": {
-    "title": "Inbox",
-    "subtitle": "Assignments, status changes, comments, and mentions across your tasks.",
-    "empty": "You're all caught up.",
-    "markAllRead": "Mark all read",
-    "unreadOnly": "Unread only",
     "taskAssigned": "Task assigned to you",
     "taskAssignedBody": "You were assigned \"{title}\".",
     "taskStatusChanged": "Task status changed",
@@ -6147,7 +6162,29 @@
     "taskAssignedByBody": "{actor} assigned you to \"{title}\".",
     "taskStatusChangedByBody": "{actor} moved \"{title}\" from {from} to {to}.",
     "taskCommentedByBody": "{actor} commented on \"{title}\".",
-    "mentionByBody": "{actor} mentioned you on \"{title}\"."
+    "mentionByBody": "{actor} mentioned you on \"{title}\".",
+    "taskReviewRequested": "Review requested",
+    "taskReviewRequestedBody": "{agentSlug} finished \"{taskTitle}\" — approve or request changes.",
+    "taskReviewApproved": "Review approved",
+    "taskReviewApprovedBody": "\"{taskTitle}\" was approved and completed.",
+    "taskReviewChangesRequested": "Changes requested",
+    "taskReviewChangesRequestedBody": "Changes were requested on \"{taskTitle}\".",
+    "taskUnblocked": "Task unblocked",
+    "taskUnblockedBody": "All blockers for \"{title}\" are done — it's ready to start.",
+    "taskDueSoon": "Due soon",
+    "taskDueSoonBody": "\"{title}\" is due within 24 hours.",
+    "taskSlaEscalated": "Overdue task escalated",
+    "taskSlaEscalatedBody": "\"{title}\" is significantly overdue and needs attention.",
+    "taskReviewReminder": "Review reminder",
+    "taskReviewReminderBody": "Agent work on \"{title}\" is still waiting for your review.",
+    "taskReviewEscalated": "Review overdue",
+    "taskReviewEscalatedBody": "A review on \"{title}\" has been waiting for over a day.",
+    "humanInputEscalated": "Automation waiting on input",
+    "humanInputEscalatedBody": "A workflow has been waiting on human input for {ageHours} hours.",
+    "workforceDigest": "Daily workforce digest",
+    "workforceDigestBody": "{created} created · {completed} completed · {runs} agent runs ({failed} failed) · {pendingReviews} awaiting review · {queued} queued · {breakers} paused.",
+    "agentEscalation": "Agent escalation",
+    "agentEscalationBody": "{agent} escalated: {reason}"
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -6199,7 +6236,15 @@
       "labels": "Labels",
       "status": "Status",
       "unassigned": "Unassigned",
-      "id": "ID"
+      "id": "ID",
+      "author": "Author",
+      "created": "Created"
+    },
+    "labels": {
+      "add": "Add label…",
+      "create": "Create \"{label}\"",
+      "changeColor": "Change color",
+      "back": "Back"
     },
     "actions": {
       "create": "Create task",
@@ -6218,9 +6263,6 @@
     },
     "board": {
       "noTasks": "No tasks"
-    },
-    "empty": {
-      "description": "Create your first task to start tracking work."
     },
     "detail": {
       "overview": "Overview",
@@ -6267,6 +6309,81 @@
       "commentAdded": "Comment added",
       "dependencyAdded": "Dependency added",
       "dependencyRemoved": "Dependency removed"
+    },
+    "review": {
+      "needsReview": "Needs review",
+      "defaultQuestion": "{agent} finished its work on this task — review the result.",
+      "anAgent": "an agent",
+      "approve": "Approve",
+      "requestChanges": "Request changes",
+      "sendFeedback": "Send feedback",
+      "feedbackPlaceholder": "What should change? The agent receives this verbatim.",
+      "approvedToast": "Task approved and completed",
+      "changesRequestedToast": "Changes requested — the agent is on it"
+    },
+    "agentRuns": {
+      "title": "Agent activity",
+      "working": "Agent is working…",
+      "totalCost": "{amount} total",
+      "status": {
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "timed_out": "Timed out"
+      },
+      "trigger": {
+        "assignment": "assignment",
+        "mention": "mention",
+        "revision": "revision",
+        "sla_escalation": "escalation",
+        "unblock": "unblocked",
+        "decomposition": "decomposition",
+        "manual": "manual"
+      }
+    },
+    "dueDate": {
+      "label": "Due date",
+      "overdue": "Overdue",
+      "due": "Due {date}"
+    },
+    "mentionPreview": {
+      "willRespond": "{slug} will respond",
+      "willQueue": "{slug} will respond (queued — at its concurrency limit)",
+      "packDisabled": "{slug} won't respond — task automation is off",
+      "breakerPaused": "{slug} won't respond — agent runs are paused on this task",
+      "budgetPaused": "{slug} won't respond — monthly budget exhausted"
+    },
+    "metrics": {
+      "link": "Metrics",
+      "title": "Task metrics",
+      "description": "Delivery, intervention, and cost KPIs for this project's tasks.",
+      "period": {
+        "last7Days": "Last 7 days",
+        "last30Days": "Last 30 days",
+        "last90Days": "Last 90 days"
+      },
+      "cappedNotice": "Some days hit the rollup scan cap — totals in this window may undercount.",
+      "noData": "No data",
+      "noDataDescription": "Metrics appear after the first daily rollup.",
+      "completed": "Completed ({days}d)",
+      "completedDetail": "{agent} by agents · {human} by humans",
+      "cycleTime": "Avg cycle time",
+      "created": "{count} created",
+      "intervention": "Intervention rate",
+      "interventionDetail": "{changes} changes requested · {escalations} escalations",
+      "cost": "Spend ({days}d)",
+      "costDetail": "{runs} runs · {failed} failed",
+      "cumulativeFlow": "Cumulative flow (end of day)",
+      "throughput": "Throughput",
+      "createdLabel": "Created",
+      "completedLabel": "Completed",
+      "cycleTimeTrend": "Cycle time trend",
+      "cycleHoursLabel": "Avg cycle time (h)",
+      "agentVsHuman": "Agent vs. human completions",
+      "agentLabel": "Agents",
+      "humanLabel": "Humans",
+      "costTrend": "Daily spend",
+      "costLabel": "Spend"
     }
   },
   "tables": {
@@ -6664,11 +6781,9 @@
     "errorApplyFailed": "Failed to apply update"
   },
   "webdav": {
-    "title": "WebDAV",
     "description": "Mount Tale documents as a network drive in Finder, File Explorer, or any WebDAV client.",
     "connectionDetails": {
       "title": "Connection details",
-      "description": "Use these in Finder, File Explorer, or any WebDAV client.",
       "usernameLabel": "Username",
       "usernameHelp": "Your Tale account email (or username)",
       "passwordLabel": "Password",
@@ -6707,6 +6822,115 @@
       "body": "Any device mounted with this password will be disconnected and active locks released.",
       "confirm": "Revoke",
       "cancel": "Cancel"
+    }
+  },
+  "organigram": {
+    "title": "Organigram",
+    "subtitle": "How your AI workforce delegates work — delegation, epic decomposition, SLA escalation, and budget handoff all follow these edges.",
+    "addAgent": "Add agent",
+    "node": {
+      "warning": "A delegation edge was dropped (it referenced a missing agent)."
+    },
+    "panel": {
+      "close": "Close",
+      "reportsTo": "Reports to",
+      "delegatesTo": "Delegates to",
+      "noAgents": "No other agents available.",
+      "delegationHint": "Delegation is many-to-many — an agent can report to and delegate to any number of agents. The only rule: it can't reference itself.",
+      "openAgent": "Open agent settings"
+    },
+    "errors": {
+      "self": "An agent can't report to or delegate to itself.",
+      "forbidden": "Your role cannot edit the organigram.",
+      "generic": "Could not update the organigram."
+    },
+    "empty": {
+      "noAgents": "No agents yet — create agents first, then arrange them here."
+    },
+    "humans": {
+      "title": "Humans",
+      "subtitle": "Top-level agents: {count}"
+    }
+  },
+  "workforce": {
+    "title": "Workforce",
+    "subtitle": "How your AI workforce performs: outcomes, human intervention, and cost — always together.",
+    "backToAgents": "Agents",
+    "toggle": {
+      "title": "Task automation",
+      "onHint": "The task-ops pack is live: assignments run agents, reviews gate completion.",
+      "offHint": "Paused — agents take no automated task work until re-enabled.",
+      "error": "Could not change task automation."
+    },
+    "health": {
+      "runs24h": "{count} runs (24h)",
+      "failures24h": "{count} failed/timed out",
+      "packFailures24h": "{count} automation failures",
+      "oldestQueued": "oldest queued run {age}",
+      "capped": "some numbers are lower bounds (scan capped)"
+    },
+    "kpi": {
+      "completed": "Completed ({days}d)",
+      "completedDetail": "{agent} by agents · {human} by humans",
+      "intervention": "Intervention rate",
+      "reviewPassRate": "{pct}% reviews approved first pass",
+      "noReviews": "No reviews in this window",
+      "cycleTime": "Avg cycle time",
+      "runs": "{started} runs · {failed} failed",
+      "cost": "Spend ({days}d)",
+      "costDetail": "{perTask} per completed task"
+    },
+    "trend": {
+      "title": "Daily activity",
+      "completed": "Tasks completed",
+      "failedRuns": "Failed runs"
+    },
+    "leaderboard": {
+      "title": "Agent leaderboard",
+      "agent": "Agent",
+      "completed": "Completed",
+      "runs": "Runs (failed)",
+      "bounceRate": "Changes requested",
+      "cost": "Spend"
+    },
+    "attention": {
+      "pendingReviews": "Awaiting review",
+      "staleTasks": "Stale agent work",
+      "queuedRuns": "Queued runs",
+      "trippedBreakers": "Paused by circuit breaker",
+      "none": "Nothing here."
+    },
+    "scorecard": {
+      "title": "Performance",
+      "subtitle": "Last 30 days — outcomes, review quality, and cost for this agent.",
+      "tasksCompleted": "Tasks completed",
+      "reviewOutcome": "First-pass approval",
+      "reviewDetail": "{passed} approved · {changes} changes requested · {escalations} escalations",
+      "avgRun": "Avg run time",
+      "spend": "Spend",
+      "recentRuns": "Recent runs",
+      "noRuns": "No runs yet."
+    }
+  },
+  "runtimes": {
+    "description": "Run task work on your own machines with the coding-agent CLIs you already use (Claude Code, Codex, OpenCode).",
+    "install": {
+      "title": "Connect a daemon",
+      "description": "Install once per machine: setup asks for this workspace URL, an API key, and the git workspace agents may work in. Then bind an agent to a runtime in its config — its board tasks will run on your machine and report back for review.",
+      "privacy": "Local workspace paths never leave your machine — only the workspace keys you choose are advertised here. full_auto permission requires opting in on both the server and the daemon.",
+      "createKey": "Create an API key"
+    },
+    "list": {
+      "title": "Connected daemons",
+      "empty": "No daemons connected yet",
+      "emptyHint": "Run bunx tale-daemon setup on the machine that should execute task work.",
+      "lastSeen": "last seen {age}",
+      "workspaces": "Workspaces: {keys}"
+    },
+    "status": {
+      "active": "Active",
+      "degraded": "Degraded",
+      "offline": "Offline"
     }
   }
 }

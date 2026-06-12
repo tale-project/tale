@@ -55,6 +55,7 @@ const projectRowValidator = v.object({
   color: v.optional(v.string()),
   key: v.optional(v.string()),
   taskCounter: v.optional(v.number()),
+  taskLabelColors: v.optional(v.record(v.string(), v.string())),
   teamId: v.optional(v.string()),
   sharedWithTeamIds: v.optional(v.array(v.string())),
   instructions: v.optional(v.string()),

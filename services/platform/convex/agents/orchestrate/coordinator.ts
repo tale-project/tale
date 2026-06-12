@@ -33,6 +33,7 @@ import {
   filterRoutingCandidates,
 } from '../auto_route_helpers';
 import type { AgentReadResult } from '../file_utils';
+import { buildChartFromRoster, readWorkforceRoster } from '../workforce_ops';
 import { executePlan } from './execute_plan';
 import { resolveOrchestrationPlan } from './plan';
 import { buildOrchestrationContext, shouldOrchestrate } from './plan_helpers';
@@ -89,8 +90,45 @@ export const runRouterOrchestration = internalAction({
       internal.agents.internal_actions.listAgentsInternal,
       { orgSlug },
     )) as AgentListEntry[];
-    const candidates = filterRoutingCandidates(raw, args.allowedAgentSlugs);
+    let candidates = filterRoutingCandidates(raw, args.allowedAgentSlugs);
     if (candidates.length < 2) return { orchestrated: false };
+
+    // Chart-aware shaping: budget-paused agents are not plannable (their
+    // delegate steps would refuse at run time anyway), and managers are
+    // annotated with their direct reports so the planner sees the org
+    // structure. Both reads ride the 60s agent-list cache.
+    try {
+      const snapshots = await ctx.runQuery(
+        internal.agents.guardrails.budget_guard.getWorkforceSnapshots,
+        {
+          organizationId: args.organizationId,
+          agentSlugs: candidates.map((c) => c.name),
+        },
+      );
+      const paused = new Set(
+        snapshots.filter((s) => s.budgetPaused).map((s) => s.slug),
+      );
+      if (paused.size > 0) {
+        candidates = candidates.filter((c) => !paused.has(c.name));
+        if (candidates.length < 2) return { orchestrated: false };
+      }
+      const chart = buildChartFromRoster(await readWorkforceRoster(orgSlug));
+      if (chart.parents.size > 0) {
+        candidates = candidates.map((c) => {
+          const reports = chart.reports.get(c.name) ?? [];
+          if (reports.length === 0) return c;
+          return {
+            ...c,
+            description: `${c.description ?? ''} [manager of: ${reports.join(', ')}]`,
+          };
+        });
+      }
+    } catch (error) {
+      console.warn(
+        '[orchestration] chart/guardrail shaping failed; planning with the raw candidate list',
+        error instanceof Error ? error.message : error,
+      );
+    }
 
     // Zero-cost escalation gate.
     const domain = detectDomain(args.message);

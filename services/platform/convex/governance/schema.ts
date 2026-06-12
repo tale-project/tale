@@ -49,6 +49,16 @@ export const GOVERNANCE_POLICY_TYPES = [
   // and per-admin daily filing rate limit. Defaults live in
   // `governance/dsar_policy.ts`.
   'dsar_governance',
+  // Org-wide workforce guardrail defaults: org concurrency cap, per-task
+  // circuit-breaker runs/hour, fleet default for per-agent concurrency, and
+  // what a budget pause does to the agent's open tasks. Config shape:
+  // `agentWorkforceConfigSchema` (lib/shared/schemas/governance.ts).
+  'agent_workforce',
+  // Master switch for the task-ops automation pack (agent execution on
+  // tasks). Gates BOTH halves: the run-agent action refuses when disabled,
+  // and `setTaskAutomationEnabled` flips the pack's trigger rows. Missing
+  // row → enabled. Config shape: `taskAutomationConfigSchema`.
+  'task_automation',
 ] as const;
 
 const policyTypeValidator = v.union(
@@ -173,7 +183,12 @@ export const usageLedgerTable = defineTable({
     'organizationId',
     'granularity',
     'periodKey',
-  ]);
+  ])
+  // Per-agent month-to-date spend for the budget guardrail: range over
+  // (org, agentSlug, 'YYYY-MM'). Monthly/daily/weekly periodKey formats never
+  // collide, so an equality on the monthly key returns only monthly rows
+  // (#users × #models × #teams for that agent-month — typically < 50 rows).
+  .index('by_org_agent_period', ['organizationId', 'agentSlug', 'periodKey']);
 
 /**
  * Phase 8 — eDiscovery matter grouping.

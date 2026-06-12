@@ -25,11 +25,7 @@
   },
   "chat": {
     "budgetWarningDismiss": "Schliessen",
-    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
-    "canvas": {
-      "close": "Canvas schliessen",
-      "resizeHandle": "Canvas-Grösse ändern"
-    }
+    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB."
   },
   "common": {
     "actions": {
@@ -54,10 +50,6 @@
   "todoList": {
     "paneClose": "Plan schliessen",
     "paneResizeHandle": "Planbereich vergrössern"
-  },
-  "chat": {
-    "budgetWarningDismiss": "Schliessen",
-    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB."
   },
   "documents": {
     "preview": {
@@ -154,10 +146,6 @@
       "size": "Grösse"
     }
   },
-  "todoList": {
-    "paneClose": "Plan schliessen",
-    "paneResizeHandle": "Planbereich vergrössern"
-  },
   "twoFactor": {
     "setup": {
       "qrInstructions": "Scanne den QR-Code mit einer Authenticator-App (Google Authenticator, 1Password, Authy) und gib anschliessend den 6-stelligen Code unten ein."
@@ -182,11 +170,9 @@
     "webdav": "WebDAV"
   },
   "webdav": {
-    "title": "WebDAV",
     "description": "Hänge Tale-Dokumente als Netzlaufwerk im Finder, File Explorer oder einem beliebigen WebDAV-Client ein.",
     "connectionDetails": {
       "title": "Verbindungsdaten",
-      "description": "Verwende diese im Finder, File Explorer oder in einem beliebigen WebDAV-Client.",
       "usernameLabel": "Benutzername",
       "usernameHelp": "Deine Tale-Konto-E-Mail (oder dein Benutzername)",
       "passwordLabel": "Passwort",

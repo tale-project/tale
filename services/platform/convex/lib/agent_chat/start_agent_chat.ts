@@ -19,6 +19,7 @@ import { formatVideoLinkAttachmentMarkdown } from '../../../lib/shared/video-lin
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import { checkAgentRunAllowedHelper } from '../../agents/guardrails/budget_guard';
 import { createAuditLog } from '../../audit_logs/helpers';
 import { checkBudget } from '../../governance/budget_enforcement';
 import { resolveFeatureFlags } from '../../governance/feature_enforcement';
@@ -412,14 +413,91 @@ export async function startAgentChat(
       return { messageAlreadyExists, streamId };
     }
 
+    // AGENT budget enforcement (workforce guardrails): distinct from the
+    // USER budget above — this one pauses a specific agent whose monthly
+    // spend crossed its configured threshold, mirroring the user-budget
+    // block verbatim. Zero cost for agents without a configured budget.
+    if (agentConfig.budget && args.agentSlug) {
+      const agentSlug = args.agentSlug;
+      const agentVerdict = await checkAgentRunAllowedHelper(ctx, {
+        organizationId,
+        agentSlug,
+        context: 'chat_turn',
+        budget: agentConfig.budget,
+      });
+      if (!agentVerdict.allowed) {
+        if (prewarm) {
+          return { messageAlreadyExists, streamId };
+        }
+        await saveMessage(ctx, components.agent, {
+          threadId,
+          message: {
+            role: 'assistant',
+            content:
+              'This agent is paused — its monthly budget is exhausted. An administrator can raise the budget in the agent settings.',
+          },
+        });
+        if (threadMeta) {
+          await ctx.db.patch(threadMeta._id, {
+            generationStatus: 'idle' as const,
+            updatedAt: Date.now(),
+          });
+        }
+        await createAuditLog(ctx, {
+          organizationId,
+          actorId: userId,
+          actorType: 'user',
+          action: 'agent.budget_blocked',
+          category: 'ai',
+          resourceType: 'agent_completion',
+          resourceId: threadId,
+          resourceName: agentSlug,
+          status: 'denied',
+          metadata: { threadId, agentType, model },
+        });
+        // Fire the once-per-month pause notice/event (dedup inside).
+        await ctx.scheduler.runAfter(
+          0,
+          internal.agents.guardrails.internal_mutations.recordBudgetPause,
+          {
+            organizationId,
+            agentSlug,
+            spentCents: agentVerdict.monthSpentCents ?? 0,
+            monthlyCents: agentConfig.budget.monthlyCents,
+          },
+        );
+        return { messageAlreadyExists, streamId };
+      }
+      if (agentVerdict.warningInstruction) {
+        enforcedConfig = {
+          ...enforcedConfig,
+          instructions: `${enforcedConfig.instructions}\n\n${agentVerdict.warningInstruction}`,
+        };
+        await ctx.scheduler.runAfter(
+          0,
+          internal.agents.guardrails.internal_mutations
+            .recordBudgetWarnCrossing,
+          {
+            organizationId,
+            agentSlug,
+            budgetPct: agentVerdict.budgetPct ?? 0,
+            spentCents: agentVerdict.monthSpentCents ?? 0,
+            monthlyCents: agentConfig.budget.monthlyCents,
+          },
+        );
+      }
+    }
+
     // Feature-flag enforcement — `featureFlags` was resolved in parallel with
     // the budget check above (reusing the same team context), not in a second
     // serial pass that re-derived the team ids.
     if (!featureFlags.webSearch) {
+      // Spread enforcedConfig (not agentConfig): the agent-budget block above
+      // may already have injected a warning instruction.
       enforcedConfig = {
-        ...agentConfig,
+        ...enforcedConfig,
         webSearchMode: 'off',
-        convexToolNames: (agentConfig.convexToolNames ?? []).filter(
+        convexToolNames: (enforcedConfig.convexToolNames ?? []).filter(
           (t) => t !== 'web',
         ),
       };

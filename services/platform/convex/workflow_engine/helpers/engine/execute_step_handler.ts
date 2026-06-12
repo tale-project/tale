@@ -217,21 +217,32 @@ export async function handleExecuteStep(
     args.threadId,
   );
 
-  // 7. Post-LLM approval scan: check if a human_input_request was created
-  // Only scan when the step has the request_human_input tool configured
+  // 7. Post-step approval scan: a pending approval keyed to THIS step pauses
+  // the execution (awaitEvent in the dynamic handler) until a human responds.
+  // Two producers exist:
+  //  - LLM steps configured with the request_human_input tool
+  //    (resourceType 'human_input_request'),
+  //  - the approval action's blocking request_review operation — the
+  //    task-ops review gate (resourceType 'task_review').
   let approvalTaskId: string | undefined;
-  if (args.stepType === 'llm' && stepHasHumanInputTool(stepConfig)) {
+  const expectsHumanInput =
+    args.stepType === 'llm' && stepHasHumanInputTool(stepConfig);
+  const expectsTaskReview =
+    args.stepType === 'action' && stepIsRequestReviewAction(stepConfig);
+  if (expectsHumanInput || expectsTaskReview) {
     const pendingApprovals = await ctx.runQuery(
       internal.approvals.internal_queries.listPendingForExecution,
       { executionId: toId<'wfExecutions'>(args.executionId) },
     );
-    const humanInputApproval = pendingApprovals.find(
+    const blockingResourceType = expectsHumanInput
+      ? 'human_input_request'
+      : 'task_review';
+    const blockingApproval = pendingApprovals.find(
       (a: { resourceType: string; stepSlug?: string }) =>
-        a.resourceType === 'human_input_request' &&
-        a.stepSlug === args.stepSlug,
+        a.resourceType === blockingResourceType && a.stepSlug === args.stepSlug,
     );
-    if (humanInputApproval) {
-      approvalTaskId = humanInputApproval._id;
+    if (blockingApproval) {
+      approvalTaskId = blockingApproval._id;
     }
   }
 
@@ -267,4 +278,14 @@ function stepHasHumanInputTool(
   const tools = config.tools;
   if (!Array.isArray(tools)) return false;
   return tools.includes('request_human_input');
+}
+
+/** Action steps shaped {type: 'approval', parameters: {operation: 'request_review'}}. */
+function stepIsRequestReviewAction(
+  config: Record<string, unknown> | undefined,
+): boolean {
+  if (!config || config.type !== 'approval') return false;
+  const parameters = config.parameters;
+  if (!isRecord(parameters)) return false;
+  return parameters.operation === 'request_review';
 }

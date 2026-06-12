@@ -1,0 +1,176 @@
+/**
+ * DB half of the default-workflow provisioner (V8; the file reads live in
+ * `provision_defaults.ts`, a node action).
+ *
+ * Trigger rows are CREATE-IF-ABSENT only: a row matching the declared
+ * trigger's identity (event: org+slug+eventType; schedule: org+slug+cron)
+ * is never modified — org edits to filters/timezones/isActive always win,
+ * including `isActive: false` (a deactivated default trigger stays off).
+ */
+
+import { v } from 'convex/values';
+
+import { internalMutation, internalQuery } from '../_generated/server';
+import { jsonRecordValidator } from '../lib/validators/json';
+
+export const getProvision = internalQuery({
+  args: { organizationId: v.string(), workflowSlug: v.string() },
+  returns: v.union(v.null(), v.object({ contentHash: v.string() })),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('wfDefaultProvisions')
+      .withIndex('by_org_slug', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('workflowSlug', args.workflowSlug),
+      )
+      .first();
+    return row ? { contentHash: row.contentHash } : null;
+  },
+});
+
+export const recordProvision = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowSlug: v.string(),
+    contentHash: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('wfDefaultProvisions')
+      .withIndex('by_org_slug', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('workflowSlug', args.workflowSlug),
+      )
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        contentHash: args.contentHash,
+        provisionedAt: Date.now(),
+      });
+      return null;
+    }
+    await ctx.db.insert('wfDefaultProvisions', {
+      organizationId: args.organizationId,
+      workflowSlug: args.workflowSlug,
+      contentHash: args.contentHash,
+      provisionedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+export const ensureEventSubscription = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowSlug: v.string(),
+    eventType: v.string(),
+    eventFilter: v.optional(v.record(v.string(), v.string())),
+    isActive: v.boolean(),
+  },
+  returns: v.object({ created: v.boolean() }),
+  handler: async (ctx, args) => {
+    for await (const sub of ctx.db
+      .query('wfEventSubscriptions')
+      .withIndex('by_org_eventType', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('eventType', args.eventType),
+      )) {
+      if (sub.workflowSlug === args.workflowSlug) {
+        return { created: false };
+      }
+    }
+    await ctx.db.insert('wfEventSubscriptions', {
+      organizationId: args.organizationId,
+      workflowSlug: args.workflowSlug,
+      eventType: args.eventType,
+      eventFilter: args.eventFilter,
+      isActive: args.isActive,
+      createdAt: Date.now(),
+      createdBy: 'system',
+    });
+    return { created: true };
+  },
+});
+
+export const ensureSchedule = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowSlug: v.string(),
+    cronExpression: v.string(),
+    timezone: v.optional(v.string()),
+    variables: v.optional(jsonRecordValidator),
+    isActive: v.boolean(),
+  },
+  returns: v.object({ created: v.boolean() }),
+  handler: async (ctx, args) => {
+    for await (const sched of ctx.db
+      .query('wfSchedules')
+      .withIndex('by_workflowSlug', (q) =>
+        q.eq('workflowSlug', args.workflowSlug),
+      )) {
+      if (
+        sched.organizationId === args.organizationId &&
+        sched.cronExpression === args.cronExpression
+      ) {
+        return { created: false };
+      }
+    }
+    await ctx.db.insert('wfSchedules', {
+      organizationId: args.organizationId,
+      workflowSlug: args.workflowSlug,
+      cronExpression: args.cronExpression,
+      timezone: args.timezone ?? 'UTC',
+      variables: args.variables,
+      isActive: args.isActive,
+      createdAt: Date.now(),
+      createdBy: 'system',
+    });
+    return { created: true };
+  },
+});
+
+/**
+ * Flip `isActive` on every trigger row belonging to the given workflow
+ * slugs — the master-toggle / kill-switch lever. Never touches rows of
+ * other workflows; returns counts for the audit trail.
+ */
+export const setTriggersActiveForSlugs = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowSlugs: v.array(v.string()),
+    isActive: v.boolean(),
+  },
+  returns: v.object({ events: v.number(), schedules: v.number() }),
+  handler: async (ctx, args) => {
+    const slugs = new Set(args.workflowSlugs);
+    let events = 0;
+    let schedules = 0;
+    for await (const sub of ctx.db
+      .query('wfEventSubscriptions')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (!sub.workflowSlug || !slugs.has(sub.workflowSlug)) continue;
+      if (sub.isActive !== args.isActive) {
+        await ctx.db.patch(sub._id, { isActive: args.isActive });
+        events += 1;
+      }
+    }
+    for await (const sched of ctx.db
+      .query('wfSchedules')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (!sched.workflowSlug || !slugs.has(sched.workflowSlug)) continue;
+      if (sched.isActive !== args.isActive) {
+        await ctx.db.patch(sched._id, { isActive: args.isActive });
+        schedules += 1;
+      }
+    }
+    return { events, schedules };
+  },
+});

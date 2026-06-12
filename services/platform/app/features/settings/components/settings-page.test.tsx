@@ -7,40 +7,9 @@ import { SettingsPage } from './settings-page';
 
 describe('SettingsPage', () => {
   describe('rendering', () => {
-    it('renders title as h1', () => {
-      render(<SettingsPage title="Account" />);
-      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-        'Account',
-      );
-    });
-
-    it('renders description when provided', () => {
+    it('renders children', () => {
       render(
-        <SettingsPage title="Account" description="Manage your account" />,
-      );
-      expect(screen.getByText('Manage your account')).toBeInTheDocument();
-    });
-
-    it('does not render description block when omitted', () => {
-      render(<SettingsPage title="Account" />);
-      expect(screen.queryByText('Manage your account')).toBeNull();
-    });
-
-    it('renders headerAction in the page header', () => {
-      render(
-        <SettingsPage
-          title="Account"
-          headerAction={<button type="button">Export</button>}
-        />,
-      );
-      expect(
-        screen.getByRole('button', { name: 'Export' }),
-      ).toBeInTheDocument();
-    });
-
-    it('renders children below the header', () => {
-      render(
-        <SettingsPage title="Account">
+        <SettingsPage>
           <div data-testid="section">Section content</div>
         </SettingsPage>,
       );
@@ -48,26 +17,25 @@ describe('SettingsPage', () => {
     });
 
     it('applies custom className', () => {
-      const { container } = render(
-        <SettingsPage title="Account" className="custom-class" />,
-      );
+      const { container } = render(<SettingsPage className="custom-class" />);
       expect(container.firstChild).toHaveClass('custom-class');
+    });
+
+    it('centers content when narrow', () => {
+      const { container } = render(<SettingsPage narrow />);
+      expect(container.firstChild).toHaveClass('mx-auto');
+    });
+
+    it('claims remaining height when fitToContainer', () => {
+      const { container } = render(<SettingsPage fitToContainer />);
+      expect(container.firstChild).toHaveClass('min-h-0', 'flex-1');
     });
   });
 
   describe('accessibility', () => {
-    it('passes axe audit with title only', async () => {
-      const { container } = render(<SettingsPage title="Account" />);
-      await waitFor(() => checkAccessibility(container));
-    });
-
-    it('passes axe audit with description and header action', async () => {
+    it('passes axe audit with section children', async () => {
       const { container } = render(
-        <SettingsPage
-          title="Account"
-          description="Manage your account preferences"
-          headerAction={<button type="button">Export</button>}
-        >
+        <SettingsPage>
           <section aria-label="Profile">
             <h2>Profile</h2>
           </section>

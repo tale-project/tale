@@ -113,4 +113,69 @@ describe('buildMessageSegments', () => {
     expect(toolCount).toBe(1);
     expect(skillCount).toBe(1);
   });
+
+  it('ignores file, source and step-start parts (text is kept)', () => {
+    const { segments } = buildMessageSegments([
+      { type: 'step-start' },
+      { type: 'text', text: 'the answer', state: 'done' },
+      { type: 'file', url: 'x', mediaType: 'image/png' },
+      { type: 'source-url', url: 'x' },
+    ]);
+    expect(segments.map((s) => s.kind)).toEqual(['text']);
+  });
+
+  it('marks isStreaming while a tool is mid-flight', () => {
+    expect(
+      buildMessageSegments([
+        { type: 'tool-web', toolCallId: 't1', state: 'input-streaming' },
+      ]).isStreaming,
+    ).toBe(true);
+  });
+
+  it('surfaces tool errors with errorText', () => {
+    const { segments, toolCount, isStreaming } = buildMessageSegments([
+      {
+        type: 'tool-web',
+        toolCallId: 't1',
+        state: 'output-error',
+        errorText: 'boom',
+      },
+    ]);
+    expect(segments[0]).toMatchObject({
+      kind: 'tool',
+      state: 'output-error',
+      errorText: 'boom',
+    });
+    expect(toolCount).toBe(1);
+    expect(isStreaming).toBe(false);
+  });
+
+  it('skips tool-invocation and empty tool names', () => {
+    const { segments, toolCount } = buildMessageSegments([
+      { type: 'tool-invocation', toolCallId: 't1', state: 'input-available' },
+      { type: 'tool-', toolCallId: 't2', state: 'input-available' },
+    ]);
+    expect(segments).toHaveLength(0);
+    expect(toolCount).toBe(0);
+  });
+
+  it('counts distinct tool calls', () => {
+    const { segments, toolCount } = buildMessageSegments([
+      { type: 'tool-web', toolCallId: 't1', state: 'output-available' },
+      { type: 'tool-rag_search', toolCallId: 't2', state: 'output-available' },
+      { type: 'tool-web', toolCallId: 't3', state: 'output-available' },
+    ]);
+    expect(toolCount).toBe(3);
+    expect(segments).toHaveLength(3);
+  });
+
+  it('tolerates malformed entries', () => {
+    const { segments } = buildMessageSegments([
+      null,
+      42,
+      { noType: true },
+      { type: 'reasoning', text: 'ok', state: 'done' },
+    ] as unknown[]);
+    expect(segments).toHaveLength(1);
+  });
 });

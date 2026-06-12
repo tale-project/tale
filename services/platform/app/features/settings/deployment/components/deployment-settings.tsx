@@ -22,6 +22,7 @@ import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Info } from 'lucide-react';
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -323,7 +324,6 @@ function DeploymentSettingsView({
   data: DeploymentReadData | undefined;
 }) {
   const { t } = useT('settings');
-  const { t: tNav } = useT('navigation');
   const cfg = data?.config ?? { version: 1 };
   const ds = cfg.dataStores ?? {};
   const secretState = data?.secrets ?? {};
@@ -612,16 +612,16 @@ function DeploymentSettingsView({
   }
 
   return (
-    <SettingsPage
-      title={tNav('dataResidency')}
-      description={t('dataResidency.pageDescription')}
-    >
+    <SettingsPage narrow>
       {readOnly ||
       data?.secretsError === 'encrypted_no_key' ||
       data?.secretsError === 'unreadable' ? (
         <Stack gap={3}>
           {readOnly ? (
             <Alert
+              variant="info"
+              icon={Info}
+              title={t('dataResidency.readOnly.title')}
               description={
                 <>
                   {t('dataResidency.readOnly.before')}{' '}
@@ -916,7 +916,6 @@ function DeploymentSettingsView({
 
 export function DeploymentSettings() {
   const { t } = useT('settings');
-  const { t: tNav } = useT('navigation');
   const { t: tAccessDenied } = useT('accessDenied');
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -930,10 +929,7 @@ export function DeploymentSettings() {
   // form — that would imply "no overrides configured" when the truth is unknown.
   if (query.isError) {
     return (
-      <SettingsPage
-        title={tNav('dataResidency')}
-        description={t('dataResidency.pageDescription')}
-      >
+      <SettingsPage narrow>
         <Alert
           variant="warning"
           description={t('dataResidency.errors.readFailed', {

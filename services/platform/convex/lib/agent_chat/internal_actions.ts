@@ -24,6 +24,7 @@ import {
   buildDelegationInstructionsSection,
 } from '../../agent_tools/delegation/create_delegation_tool';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
+import { createEscalationTool } from '../../agent_tools/escalation/create_escalation_tool';
 import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
 import { fetchOperationsWithSchema } from '../../agent_tools/integrations/fetch_operations_summary';
 import { createBoundMcpTool } from '../../agent_tools/mcp/create_bound_mcp_tool';
@@ -31,6 +32,11 @@ import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
 import { createBoundWorkflowTool } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
+import {
+  buildChartFromRoster,
+  readWorkforceRoster,
+} from '../../agents/workforce_ops';
+import { renderPrompt } from '../../lib/prompts/registry';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { recordFailure } from '../../providers/circuit_breaker';
 import {
@@ -190,7 +196,19 @@ const serializableAgentConfigValidator = v.object({
    * unioned into the agent's file scope (chat happens inside a project).
    */
   agentProjectIds: v.optional(v.array(v.string())),
-  delegateSlugs: v.optional(v.array(v.string())),
+  delegationDisabled: v.optional(v.boolean()),
+  runtime: v.optional(
+    v.object({
+      adapterType: v.string(),
+      daemonId: v.optional(v.string()),
+      permissionMode: v.union(
+        v.literal('safe'),
+        v.literal('auto_edits'),
+        v.literal('full_auto'),
+      ),
+      workspaceKey: v.optional(v.string()),
+    }),
+  ),
   skillBindings: v.optional(v.array(v.string())),
   structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
@@ -220,6 +238,16 @@ const serializableAgentConfigValidator = v.object({
       maxOrchestrationSteps: v.optional(v.number()),
     }),
   ),
+  /** Monthly spend guardrail (mirrors `SerializableAgentConfig.budget`). */
+  budget: v.optional(
+    v.object({
+      monthlyCents: v.number(),
+      warnPct: v.optional(v.number()),
+      pausePct: v.optional(v.number()),
+    }),
+  ),
+  /** Per-agent concurrency cap (mirrors `SerializableAgentConfig`). */
+  maxConcurrentTasks: v.optional(v.number()),
 });
 
 const hooksConfigValidator = v.object({
@@ -1025,8 +1053,9 @@ export async function runGenerationCore(
 // ---------------------------------------------------------------------------
 
 interface AgentConfigForTools {
+  name?: string;
   integrationBindings?: string[];
-  delegateSlugs?: string[];
+  delegationDisabled?: boolean;
   workflowBindings?: string[];
 }
 
@@ -1067,14 +1096,23 @@ async function buildIntegrationTools(
 }
 
 /**
- * Build delegation tools for all configured delegate slugs.
+ * Build the agent's WORKFORCE tools: delegation + escalation, both derived
+ * from the org chart.
+ *
+ * Effective delegates = the agent's org-chart DIRECT REPORTS — the
+ * organigram is the single source of delegation; there is no per-agent
+ * delegate list. Chart members (a manager above them and/or
+ * reports below them) additionally get the `escalate` tool and a
+ * chain-of-command instructions section; `delegationDisabled` (the
+ * orchestrator's double-delegation strip) turns ALL of it off.
  *
  * `orgSlug` and `orgLocale` are resolved once by the caller (hoisted into
  * the outer Promise.all) so they can be shared with sibling builders —
  * notably workflows, which also need the real orgSlug for multi-tenant
  * filesystem lookups. Delegate systemInstructions and the appended scaffold
  * text both resolve against `orgLocale` so parent + delegates speak the
- * same language.
+ * same language. The chart read shares the 60s agent-list cache, so warm
+ * turns stay off the disk.
  */
 async function buildDelegationTools(
   ctx: ActionCtx,
@@ -1089,30 +1127,96 @@ async function buildDelegationTools(
     }
   | undefined
 > {
-  if (!agentConfig.delegateSlugs?.length) return undefined;
+  if (agentConfig.delegationDisabled) return undefined;
 
-  const delegates = await loadDelegateAgents(
-    ctx,
-    agentConfig.delegateSlugs,
-    organizationId,
-    orgSlug,
-    orgLocale,
-  );
+  const agentSlug = agentConfig.name;
+  let directReports: string[] = [];
+  let managerSlug: string | undefined;
+  let chartHasEdges = false;
+  try {
+    if (agentSlug) {
+      const roster = await readWorkforceRoster(orgSlug);
+      const chart = buildChartFromRoster(roster);
+      chartHasEdges = chart.parents.size > 0;
+      directReports = chart.reports.get(agentSlug) ?? [];
+      managerSlug = chart.parents.get(agentSlug);
+    }
+  } catch (error) {
+    console.warn(
+      '[Workforce] org-chart read failed; delegation unavailable this turn',
+      error,
+    );
+  }
 
-  if (delegates.length === 0) return undefined;
+  const effectiveSlugs = directReports.filter((slug) => slug !== agentSlug);
+
+  // Chart membership: has a manager, or has reports. Roots with reports
+  // escalate to humans; agents outside the chart get no escalate tool.
+  const isChartMember =
+    chartHasEdges && (managerSlug !== undefined || directReports.length > 0);
+
+  if (effectiveSlugs.length === 0 && !isChartMember) return undefined;
 
   const tools: Record<string, unknown> = {};
-  for (const delegate of delegates) {
-    const delegationTool = createDelegationTool(delegate);
-    tools[delegationTool.name] = delegationTool.tool;
+  const instructionParts: string[] = [];
+
+  if (effectiveSlugs.length > 0) {
+    const delegates = await loadDelegateAgents(
+      ctx,
+      effectiveSlugs,
+      organizationId,
+      orgSlug,
+      orgLocale,
+    );
+    for (const delegate of delegates) {
+      const delegationTool = createDelegationTool(delegate);
+      tools[delegationTool.name] = delegationTool.tool;
+    }
+    if (delegates.length > 0) {
+      instructionParts.push(
+        buildDelegationInstructionsSection(delegates, orgLocale),
+      );
+    }
   }
+
+  if (isChartMember && agentSlug) {
+    // Pre-load the manager's config here in the Node context (file I/O lives in
+    // `'use node'` modules) and pass it in, mirroring how the delegation tools
+    // above receive their pre-loaded delegates. This keeps the escalation tool
+    // builder in Convex's V8 runtime.
+    const [manager] = managerSlug
+      ? await loadDelegateAgents(
+          ctx,
+          [managerSlug],
+          organizationId,
+          orgSlug,
+          orgLocale,
+        )
+      : [];
+    const escalationTool = createEscalationTool({
+      agentSlug,
+      managerSlug,
+      manager,
+      organizationId,
+    });
+    tools[escalationTool.name] = escalationTool.tool;
+    instructionParts.push(
+      '\n\n' +
+        (managerSlug
+          ? renderPrompt(
+              'escalation.section',
+              { manager: managerSlug },
+              { locale: orgLocale },
+            )
+          : renderPrompt('escalation.sectionRoot', {}, { locale: orgLocale })),
+    );
+  }
+
+  if (Object.keys(tools).length === 0) return undefined;
 
   return {
     tools,
-    instructionsAppend: buildDelegationInstructionsSection(
-      delegates,
-      orgLocale,
-    ),
+    instructionsAppend: instructionParts.join(''),
   };
 }
 

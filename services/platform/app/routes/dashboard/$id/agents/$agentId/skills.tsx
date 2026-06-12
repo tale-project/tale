@@ -1,5 +1,5 @@
 import { HStack, VStack } from '@tale/ui/layout';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowUpRight } from 'lucide-react';
@@ -54,7 +54,7 @@ function SkillsTab() {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <StickySectionHeader
+      <SectionHeader
         title={t('agents.form.sectionSkillBindings')}
         description={t('agents.form.sectionSkillBindingsDescription')}
       />

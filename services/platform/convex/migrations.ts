@@ -58,5 +58,13 @@ export const runAll = internalAction({
         .backfillFilemetadataRagStatus,
       {},
     );
+    // The default task-ops workflow pack comes PREINSTALLED: provision every
+    // existing org (new orgs get it from the org-creation hook). Idempotent —
+    // per-workflow provision rows make re-runs no-ops, and org opt-outs
+    // (uninstalled workflows, deactivated triggers) are never overridden.
+    await ctx.runAction(
+      internal.migrations.provision_task_ops_pack.provisionTaskOpsPackAllOrgs,
+      {},
+    );
   },
 });

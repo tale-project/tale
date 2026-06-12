@@ -602,8 +602,6 @@
         "hasActiveTriggers": "Cette automatisation a des déclencheurs actifs — les modifications prennent effet immédiatement."
       },
       "toolbar": {
-        "focus": "Focus",
-        "aiAssistant": "Assistant IA",
         "testAutomation": "Tester l'automatisation",
         "addStep": "Ajouter une étape"
       },
@@ -698,22 +696,8 @@
       "description": "Es-tu sûr de vouloir supprimer « {name} » ? Cette action est irréversible."
     },
     "assistant": {
-      "messagePlaceholder": "Saisis ton message...",
-      "automationDetails": "Détails de l'automatisation",
-      "previewImage": "Aperçu de {filename}",
-      "fallbackImage": "Image",
-      "fallbackFile": "Fichier",
-      "loading": "Chargement...",
-      "notFound": "Automatisation introuvable.",
-      "welcome": "Bonjour ! Je suis ton assistant d'automatisation. Je peux t'aider à créer, modifier et discuter de cette automatisation. Que souhaites-tu faire ?",
       "errorMessage": "Je suis désolé, j'ai rencontré une erreur. Merci de réessayer ou de consulter la console pour plus de détails.",
-      "thinking": {
-        "thinking": "Réflexion",
-        "analyzing": "Analyse du workflow",
-        "compiling": "Compilation d'une réponse"
-      },
-      "analyzeAttachments": "Merci d'analyser les fichiers joints.",
-      "messageHistory": "Historique des messages"
+      "analyzeAttachments": "Merci d'analyser les fichiers joints."
     },
     "tester": {
       "inputLabel": "Entrée de test (JSON)",
@@ -1596,6 +1580,12 @@
     },
     "dataTable": {
       "dateFilterUnavailable": "Filtre de date indisponible"
+    },
+    "flow": {
+      "zoomIn": "Zoomer",
+      "zoomOut": "Dézoomer",
+      "resetView": "Réinitialiser la vue",
+      "aiEditor": "Éditeur IA"
     }
   },
   "composer": {
@@ -1855,7 +1845,6 @@
     "thisMember": "ce membre",
     "confirmRemoveMember": "Es-tu sûr de vouloir retirer {name} de l'équipe ? Cette personne perdra l'accès à cette organisation et à toutes les ressources associées.",
     "toSend": "pour envoyer",
-    "attach": "Joindre",
     "selectConversation": "Sélectionner une conversation",
     "vendorInfo": {
       "title": "Informations sur le fournisseur"
@@ -2846,10 +2835,8 @@
       "guardrails": "Garde-fous",
       "usage": "Utilisation",
       "feedback": "Retours",
-      "auditLogs": "Journaux d'audit",
+      "logs": "Journaux",
       "dataSubjectRequests": "Personnes concernées",
-      "policiesAndLimitsDescription": "Budgets, restrictions de téléversement, rétention des données, feature flags et sortie vocale.",
-      "securityAndMonitoringDescription": "Politiques de connexion, de mot de passe et d’authentification à deux facteurs.",
       "runCodePolicy": "Paquets run-code"
     },
     "runCodePolicy": {
@@ -3822,7 +3809,8 @@
     "aria": {
       "primaryNavigation": "Navigation principale"
     },
-    "dataResidency": "Résidence des données"
+    "dataResidency": "Résidence des données",
+    "runtimes": "Runtimes"
   },
   "notifications": {
     "title": "Notifications",
@@ -3861,6 +3849,7 @@
   },
   "personalization": {
     "page": {
+      "title": "Préférences utilisateur",
       "privacyLink": "Avis de confidentialité",
       "enable": {
         "orgStateOn": "activé",
@@ -4393,8 +4382,6 @@
       }
     },
     "organization": {
-      "pageTitle": "Organisation",
-      "pageDescription": "Gère ton organisation et ses membres.",
       "title": "Organisation (facultatif)",
       "detailsTitle": "Détails de l'organisation",
       "detailsDescription": "Informations de base sur ton organisation.",
@@ -4524,7 +4511,8 @@
         "delegation": "Délégation",
         "responseTuning": "Réglage des réponses",
         "conversationStarters": "Amorces",
-        "history": "Historique"
+        "history": "Historique",
+        "metrics": "Performance"
       },
       "history": {
         "empty": "Aucune entrée d'historique",
@@ -4646,8 +4634,7 @@
       },
       "delegation": {
         "title": "Délégation",
-        "description": "Sélectionne les agents auxquels cet agent peut déléguer des tâches",
-        "noDelegatesAvailable": "Aucun autre agent disponible pour la délégation."
+        "description": "La délégation suit l'organigramme. Utilise le panneau latéral pour définir à qui cet agent rend compte et à qui il délègue — la délégation est plusieurs-à-plusieurs, mais pas à lui-même."
       },
       "knowledge": {
         "retrievalMode": "Mode de récupération",
@@ -4772,6 +4759,12 @@
         "exampleFileUploadStream": "Téléversement de fichier avec streaming (réponse SSE)",
         "exampleOpenAICompat": "Point de terminaison compatible OpenAI (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "Configuration client OpenAI (p. ex. Meetily)"
+      },
+      "organigram": {
+        "menuItem": "Organigramme"
+      },
+      "workforce": {
+        "menuItem": "Workforce"
       }
     },
     "skills": {
@@ -5411,8 +5404,33 @@
       "auditLogs": "Journaux d'audit",
       "activityLogs": "Journaux d'activité",
       "errorLogs": "Journaux d'erreurs",
-      "activityComingSoon": "Les journaux d'activité seront bientôt disponibles.",
-      "errorComingSoon": "Les journaux d'erreurs seront bientôt disponibles.",
+      "activity": {
+        "period": {
+          "label": "Période",
+          "last7Days": "7 derniers jours",
+          "last30Days": "30 derniers jours",
+          "last90Days": "90 derniers jours"
+        },
+        "cards": {
+          "total": "Actions totales",
+          "success": "Succès",
+          "failure": "Échecs",
+          "denied": "Refus"
+        },
+        "byCategory": {
+          "title": "Activité par catégorie"
+        },
+        "topActors": {
+          "title": "Utilisateurs les plus actifs"
+        },
+        "empty": "Aucune activité sur cette période."
+      },
+      "errors": {
+        "entityLabel": "journaux d'erreurs",
+        "tableCaption": "Tableau des journaux d'erreurs",
+        "emptyTitle": "Aucun journal d'erreurs",
+        "emptyDescription": "Les actions échouées ou refusées apparaîtront ici."
+      },
       "blockCounters": {
         "tabLabel": "Blocages de connexion",
         "tableCaption": "Activité des blocages de connexion",
@@ -5496,7 +5514,9 @@
           "workflow": "Workflow",
           "security": "Sécurité",
           "admin": "Admin",
-          "ai": "IA"
+          "ai": "IA",
+          "skill": "Skill",
+          "agent": "Agent"
         },
         "statusLabels": {
           "success": "Succès",
@@ -5765,8 +5785,8 @@
       }
     },
     "dataResidency": {
-      "pageDescription": "Pointe la base de connaissances et le stockage de fichiers de ce déploiement vers une infrastructure que tu contrôles. Les changements prennent effet au redémarrage des conteneurs RAG et Convex.",
       "readOnly": {
+        "title": "Accès en lecture seule",
         "before": "La modification est réservée aux opérateurs listés dans",
         "after": "(dans le .env du déploiement). Demande à un opérateur d'y ajouter ton courriel, puis redémarre pour activer la modification.",
         "yourEmail": "Ton courriel de connexion est {email}."
@@ -5871,11 +5891,6 @@
     }
   },
   "inbox": {
-    "title": "Boîte de réception",
-    "subtitle": "Assignations, changements de statut, commentaires et mentions sur vos tâches.",
-    "empty": "Vous êtes à jour.",
-    "markAllRead": "Tout marquer comme lu",
-    "unreadOnly": "Non lus uniquement",
     "taskAssigned": "Tâche assignée",
     "taskAssignedBody": "«Â {title}Â » t'a été assignée.",
     "taskStatusChanged": "Statut de tâche modifié",
@@ -5887,7 +5902,29 @@
     "taskAssignedByBody": "{actor} t'a assigné «Â {title}Â ».",
     "taskStatusChangedByBody": "{actor} a fait passer «Â {title}Â » de {from} à {to}.",
     "taskCommentedByBody": "{actor} a commenté «Â {title}Â ».",
-    "mentionByBody": "{actor} t'a mentionné dans «Â {title}Â »."
+    "mentionByBody": "{actor} t'a mentionné dans «Â {title}Â ».",
+    "taskReviewRequested": "Revue demandée",
+    "taskReviewRequestedBody": "{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.",
+    "taskReviewApproved": "Revue approuvée",
+    "taskReviewApprovedBody": "« {taskTitle} » a été approuvée et terminée.",
+    "taskReviewChangesRequested": "Modifications demandées",
+    "taskReviewChangesRequestedBody": "Des modifications ont été demandées sur « {taskTitle} ».",
+    "taskUnblocked": "Tâche débloquée",
+    "taskUnblockedBody": "Tous les blocages de « {title} » sont levés — elle peut démarrer.",
+    "taskDueSoon": "Échéance proche",
+    "taskDueSoonBody": "« {title} » arrive à échéance dans moins de 24 heures.",
+    "taskSlaEscalated": "Tâche en retard escaladée",
+    "taskSlaEscalatedBody": "« {title} » est nettement en retard et demande votre attention.",
+    "taskReviewReminder": "Rappel de revue",
+    "taskReviewReminderBody": "Le travail de l'agent sur « {title} » attend toujours votre revue.",
+    "taskReviewEscalated": "Revue en retard",
+    "taskReviewEscalatedBody": "Une revue sur « {title} » attend depuis plus d'un jour.",
+    "humanInputEscalated": "Automatisation en attente d'une saisie",
+    "humanInputEscalatedBody": "Un workflow attend une saisie humaine depuis {ageHours} heures.",
+    "workforceDigest": "Synthèse quotidienne de la workforce",
+    "workforceDigestBody": "{created} créées · {completed} terminées · {runs} exécutions d'agents ({failed} en échec) · {pendingReviews} en attente de revue · {queued} en file · {breakers} en pause.",
+    "agentEscalation": "Escalade d'agent",
+    "agentEscalationBody": "{agent} a escaladé : {reason}"
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -5939,7 +5976,15 @@
       "labels": "Étiquettes",
       "status": "Statut",
       "unassigned": "Non assigné",
-      "id": "ID"
+      "id": "ID",
+      "author": "Auteur",
+      "created": "Créé le"
+    },
+    "labels": {
+      "add": "Ajouter une étiquette…",
+      "create": "Créer « {label} »",
+      "changeColor": "Modifier la couleur",
+      "back": "Retour"
     },
     "actions": {
       "create": "Créer une tâche",
@@ -5958,9 +6003,6 @@
     },
     "board": {
       "noTasks": "Aucune tâche"
-    },
-    "empty": {
-      "description": "Créez votre première tâche pour suivre le travail."
     },
     "detail": {
       "overview": "Aperçu",
@@ -6007,6 +6049,81 @@
       "commentAdded": "Commentaire ajouté",
       "dependencyAdded": "Dépendance ajoutée",
       "dependencyRemoved": "Dépendance supprimée"
+    },
+    "review": {
+      "needsReview": "Revue requise",
+      "defaultQuestion": "{agent} a terminé son travail sur cette tâche — examinez le résultat.",
+      "anAgent": "un agent",
+      "approve": "Approuver",
+      "requestChanges": "Demander des modifications",
+      "sendFeedback": "Envoyer le feedback",
+      "feedbackPlaceholder": "Que faut-il changer ? L'agent reçoit ce texte tel quel.",
+      "approvedToast": "Tâche approuvée et terminée",
+      "changesRequestedToast": "Modifications demandées — l'agent s'en occupe"
+    },
+    "agentRuns": {
+      "title": "Activité de l'agent",
+      "working": "L'agent travaille…",
+      "totalCost": "{amount} au total",
+      "status": {
+        "running": "En cours",
+        "completed": "Terminé",
+        "failed": "Échoué",
+        "timed_out": "Délai dépassé"
+      },
+      "trigger": {
+        "assignment": "assignation",
+        "mention": "mention",
+        "revision": "révision",
+        "sla_escalation": "escalade",
+        "unblock": "débloqué",
+        "decomposition": "décomposition",
+        "manual": "manuel"
+      }
+    },
+    "dueDate": {
+      "label": "Échéance",
+      "overdue": "En retard",
+      "due": "Échéance : {date}"
+    },
+    "mentionPreview": {
+      "willRespond": "{slug} va répondre",
+      "willQueue": "{slug} va répondre (en file — limite de simultanéité atteinte)",
+      "packDisabled": "{slug} ne répondra pas — l'automatisation des tâches est désactivée",
+      "breakerPaused": "{slug} ne répondra pas — les exécutions d'agents sont en pause sur cette tâche",
+      "budgetPaused": "{slug} ne répondra pas — budget mensuel épuisé"
+    },
+    "metrics": {
+      "link": "Voir les métriques",
+      "title": "Métriques des tâches",
+      "description": "Indicateurs de livraison, d'intervention et de coût pour les tâches de ce projet.",
+      "period": {
+        "last7Days": "7 derniers jours",
+        "last30Days": "30 derniers jours",
+        "last90Days": "90 derniers jours"
+      },
+      "cappedNotice": "Certains jours ont atteint la limite de scan du rollup — les totaux de cette période peuvent être sous-estimés.",
+      "noData": "Aucune donnée",
+      "noDataDescription": "Les métriques apparaissent après le premier rollup quotidien.",
+      "completed": "Terminées ({days} j)",
+      "completedDetail": "{agent} par les agents · {human} par les humains",
+      "cycleTime": "Temps de cycle moyen",
+      "created": "{count} créées",
+      "intervention": "Taux d'intervention",
+      "interventionDetail": "{changes} modifications demandées · {escalations} escalades",
+      "cost": "Dépenses ({days} j)",
+      "costDetail": "{runs} exécutions · {failed} en échec",
+      "cumulativeFlow": "Flux cumulé (fin de journée)",
+      "throughput": "Débit",
+      "createdLabel": "Créées",
+      "completedLabel": "Terminées",
+      "cycleTimeTrend": "Tendance du temps de cycle",
+      "cycleHoursLabel": "Temps de cycle moyen (h)",
+      "agentVsHuman": "Terminées : agents vs humains",
+      "agentLabel": "Agents",
+      "humanLabel": "Humains",
+      "costTrend": "Dépenses quotidiennes",
+      "costLabel": "Dépenses"
     }
   },
   "tables": {
@@ -6665,11 +6782,9 @@
     }
   },
   "webdav": {
-    "title": "WebDAV",
     "description": "Monte les documents Tale comme lecteur réseau dans Finder, File Explorer ou n'importe quel client WebDAV.",
     "connectionDetails": {
       "title": "Détails de connexion",
-      "description": "Utilise-les dans Finder, File Explorer ou n'importe quel client WebDAV.",
       "usernameLabel": "Nom d'utilisateur",
       "usernameHelp": "L'e-mail de ton compte Tale (ou ton nom d'utilisateur)",
       "passwordLabel": "Mot de passe",
@@ -6708,6 +6823,115 @@
       "body": "Tout appareil monté avec ce mot de passe sera déconnecté et les verrous actifs seront libérés.",
       "confirm": "Révoquer",
       "cancel": "Annuler"
+    }
+  },
+  "organigram": {
+    "title": "Organigramme",
+    "subtitle": "Comment ta main-d'œuvre IA délègue le travail — délégation, décomposition d'epics, escalade SLA et transfert de budget suivent tous ces liens.",
+    "addAgent": "Ajouter un agent",
+    "node": {
+      "warning": "Un lien de délégation a été ignoré (il référençait un agent introuvable)."
+    },
+    "panel": {
+      "close": "Fermer",
+      "reportsTo": "Rend compte à",
+      "delegatesTo": "Délègue à",
+      "noAgents": "Aucun autre agent disponible.",
+      "delegationHint": "La délégation est plusieurs-à-plusieurs — un agent peut rendre compte à et déléguer à un nombre quelconque d'agents. Seule règle : pas à lui-même.",
+      "openAgent": "Ouvrir les réglages de l'agent"
+    },
+    "errors": {
+      "self": "Un agent ne peut pas rendre compte à ni déléguer à lui-même.",
+      "forbidden": "Votre rôle ne peut pas modifier l'organigramme.",
+      "generic": "Impossible de mettre à jour l'organigramme."
+    },
+    "empty": {
+      "noAgents": "Pas encore d'agents — créez des agents puis organisez-les ici."
+    },
+    "humans": {
+      "title": "Humains",
+      "subtitle": "Agents de premier niveau : {count}"
+    }
+  },
+  "workforce": {
+    "title": "Workforce",
+    "subtitle": "Les performances de votre workforce IA : résultats, interventions humaines et coûts — toujours ensemble.",
+    "backToAgents": "Agents",
+    "toggle": {
+      "title": "Automatisation des tâches",
+      "onHint": "Le pack task-ops est actif : les affectations lancent les agents, les revues protègent la clôture.",
+      "offHint": "En pause — les agents ne prennent aucun travail automatisé tant qu'elle n'est pas réactivée.",
+      "error": "Impossible de modifier l'automatisation des tâches."
+    },
+    "health": {
+      "runs24h": "{count} exécutions (24h)",
+      "failures24h": "{count} en échec/expirées",
+      "packFailures24h": "{count} échecs d'automatisation",
+      "oldestQueued": "plus ancienne exécution en file {age}",
+      "capped": "certains chiffres sont des bornes basses (scan plafonné)"
+    },
+    "kpi": {
+      "completed": "Terminées ({days} j)",
+      "completedDetail": "{agent} par les agents · {human} par les humains",
+      "intervention": "Taux d'intervention",
+      "reviewPassRate": "{pct}% des revues approuvées du premier coup",
+      "noReviews": "Aucune revue sur cette période",
+      "cycleTime": "Temps de cycle moyen",
+      "runs": "{started} exécutions · {failed} en échec",
+      "cost": "Dépenses ({days} j)",
+      "costDetail": "{perTask} par tâche terminée"
+    },
+    "trend": {
+      "title": "Activité quotidienne",
+      "completed": "Tâches terminées",
+      "failedRuns": "Exécutions en échec"
+    },
+    "leaderboard": {
+      "title": "Classement des agents",
+      "agent": "Agent",
+      "completed": "Terminées",
+      "runs": "Exécutions (échecs)",
+      "bounceRate": "Modifications demandées",
+      "cost": "Dépenses"
+    },
+    "attention": {
+      "pendingReviews": "En attente de revue",
+      "staleTasks": "Travail agent au point mort",
+      "queuedRuns": "Exécutions en file",
+      "trippedBreakers": "En pause (disjoncteur)",
+      "none": "Rien ici."
+    },
+    "scorecard": {
+      "title": "Performance",
+      "subtitle": "Les 30 derniers jours — résultats, qualité des revues et coûts de cet agent.",
+      "tasksCompleted": "Tâches terminées",
+      "reviewOutcome": "Approbation du premier coup",
+      "reviewDetail": "{passed} approuvées · {changes} modifications demandées · {escalations} escalades",
+      "avgRun": "Durée moyenne d'exécution",
+      "spend": "Dépenses",
+      "recentRuns": "Exécutions récentes",
+      "noRuns": "Pas encore d'exécutions."
+    }
+  },
+  "runtimes": {
+    "description": "Exécutez le travail des tâches sur vos propres machines, avec les CLIs d'agents de code que vous utilisez déjà (Claude Code, Codex, OpenCode).",
+    "install": {
+      "title": "Connecter un daemon",
+      "description": "À installer une fois par machine : setup demande l'URL de cet espace, une clé API et l'espace de travail git où les agents peuvent travailler. Liez ensuite un agent à une runtime dans sa configuration — ses tâches s'exécuteront sur votre machine et reviendront pour revue.",
+      "privacy": "Les chemins locaux ne quittent jamais votre machine — seules les clés d'espace de travail que vous choisissez sont annoncées ici. La permission full_auto exige un opt-in côté serveur ET côté daemon.",
+      "createKey": "Créer une clé API"
+    },
+    "list": {
+      "title": "Daemons connectés",
+      "empty": "Aucun daemon connecté pour le moment",
+      "emptyHint": "Lancez bunx tale-daemon setup sur la machine qui doit exécuter le travail.",
+      "lastSeen": "vu pour la dernière fois {age}",
+      "workspaces": "Espaces de travail : {keys}"
+    },
+    "status": {
+      "active": "Actif",
+      "degraded": "Dégradé",
+      "offline": "Hors ligne"
     }
   }
 }

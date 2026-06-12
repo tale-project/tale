@@ -1,0 +1,115 @@
+{
+  "name": "Budget pause handoff",
+  "description": "When an agent hits its monthly budget (the guardrails emit agent.budget_exceeded exactly once per agent-month), its open tasks are handed off per the org's workforce policy: reassigned one step up the org chart to its manager (only if the manager's own guardrails allow more work) or unassigned for triage to re-route. Each task gets an explanatory comment; in-progress work rolls back to To do on unassign. The budget pause itself clears automatically at the month rollover.",
+  "version": "1.0.0",
+  "metadata": {
+    "pack": "task-ops",
+    "autoInstall": true
+  },
+  "triggers": {
+    "events": [
+      {
+        "eventType": "agent.budget_exceeded"
+      }
+    ]
+  },
+  "config": {
+    "timeout": 600000,
+    "variables": {
+      "workflowId": "tasks_budget_reassign"
+    }
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "open_tasks"
+      }
+    },
+    {
+      "stepSlug": "open_tasks",
+      "name": "List the paused agent's open tasks",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "list_open_for_assignee",
+          "assigneeType": "agent",
+          "assigneeId": "{{input.agentSlug}}"
+        }
+      },
+      "nextSteps": {
+        "success": "has_tasks"
+      }
+    },
+    {
+      "stepSlug": "has_tasks",
+      "name": "Anything assigned to it?",
+      "stepType": "condition",
+      "config": {
+        "expression": "(steps.open_tasks.output.data.tasks | length) > 0",
+        "description": "The loop step throws on an empty items array — route the empty case straight to done."
+      },
+      "nextSteps": {
+        "true": "loop_tasks",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "loop_tasks",
+      "name": "Loop over the open tasks",
+      "stepType": "loop",
+      "config": {
+        "continueOnError": true,
+        "itemVariable": "openTask",
+        "items": "{{steps.open_tasks.output.data.tasks}}"
+      },
+      "nextSteps": {
+        "loop": "explain",
+        "done": "done"
+      }
+    },
+    {
+      "stepSlug": "explain",
+      "name": "Explain the handoff",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{loop.item.taskId}}",
+          "body": "[automated] 💸 {{input.agentSlug}} reached its monthly budget — this task is being handed off per the organization's workforce policy."
+        }
+      },
+      "nextSteps": {
+        "success": "handoff"
+      }
+    },
+    {
+      "stepSlug": "handoff",
+      "name": "Reassign to manager or unassign (org policy)",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "reassign_or_unassign",
+          "taskId": "{{loop.item.taskId}}",
+          "agentSlug": "{{input.agentSlug}}"
+        }
+      },
+      "nextSteps": {
+        "success": "loop_tasks"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}

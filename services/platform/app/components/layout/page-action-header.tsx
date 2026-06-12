@@ -19,7 +19,8 @@ interface PageActionHeaderProps {
 
 /**
  * Page-level header strip for non-tabbed editor pages outside the settings
- * area (settings pages use `SettingsPage.stickyActions` instead). Mirrors
+ * area (settings pages carry no page header; their Save/Discard cluster lives
+ * in the settings layout header). Mirrors
  * `TabNavigation`'s height + border so transitioning between tabbed and
  * non-tabbed editors doesn't bounce the layout.
  */

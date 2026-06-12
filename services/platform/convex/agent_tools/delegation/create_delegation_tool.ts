@@ -10,7 +10,7 @@ import { z } from 'zod/v4';
 
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import { renderPrompt } from '../../lib/prompts/registry';
-import { checkBudget } from '../sub_agents/helpers/check_budget';
+import { checkTimeBudget } from '../sub_agents/helpers/check_budget';
 import { checkRoleAccess } from '../sub_agents/helpers/check_role_access';
 import {
   errorResponse,
@@ -54,7 +54,7 @@ Pass the user's request in natural language. The agent will handle it and return
         const validation = validateToolContext(ctx, toolName);
         if (!validation.valid) return validation.error;
 
-        const budget = checkBudget(ctx);
+        const budget = checkTimeBudget(ctx);
         if (!budget.ok) return budget.error;
 
         const { organizationId, threadId, userId } = validation.context;

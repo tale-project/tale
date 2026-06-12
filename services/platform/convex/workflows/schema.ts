@@ -198,6 +198,19 @@ export const wfExecutionsTable = defineTable({
   .index('by_org_triggeredBy', ['organizationId', 'triggeredBy'])
   .index('by_component_workflow', ['componentWorkflowId'])
   .index('by_org_workflowSlug', ['organizationId', 'workflowSlug'])
+  // Org-scoped scheduler dedup: identical file-workflow slugs exist in every
+  // org (default pack), so last-execution / running-execution checks must
+  // never cross org lines (a cross-org match starves other orgs' schedules).
+  .index('by_org_workflowSlug_startedAt', [
+    'organizationId',
+    'workflowSlug',
+    'startedAt',
+  ])
+  .index('by_org_workflowSlug_status', [
+    'organizationId',
+    'workflowSlug',
+    'status',
+  ])
   // Subject-scoped scan for GDPR Art 17 erasure (`eraseSubjectWfExecutions`).
   // Walks rows where the subject was the executing user. Combined with
   // `by_org_triggeredBy` for the trigger-author scope.
@@ -212,6 +225,19 @@ export const wfInstallationsTable = defineTable({
 })
   .index('by_org', ['organizationId'])
   .index('by_org_slug', ['organizationId', 'workflowSlug']);
+
+/**
+ * One row per (org, workflow) the DEFAULT-PACK provisioner has handled.
+ * Existence means "this org got its auto-install once" — an org that later
+ * uninstalls the workflow or deactivates its triggers is never re-provisioned
+ * behind its back (opt-outs stick across reseeds and upgrades).
+ */
+export const wfDefaultProvisionsTable = defineTable({
+  organizationId: v.string(),
+  workflowSlug: v.string(),
+  contentHash: v.string(),
+  provisionedAt: v.number(),
+}).index('by_org_slug', ['organizationId', 'workflowSlug']);
 
 export const workflowProcessingRecordsTable = defineTable({
   organizationId: v.string(),

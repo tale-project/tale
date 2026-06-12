@@ -22,28 +22,41 @@ export const getScheduledWorkflows = internalQuery({
   },
 });
 
+const orgWorkflowKeyValidator = v.object({
+  organizationId: v.string(),
+  workflowSlug: v.string(),
+});
+
 export const getLastExecutionTime = internalQuery({
-  args: { wfDefinitionId: v.string() },
+  args: orgWorkflowKeyValidator,
   returns: v.union(v.number(), v.null()),
   handler: async (ctx, args) => {
-    return await SchedulerHelpers.getLastExecutionTime(ctx, args);
+    return await SchedulerHelpers.getLastExecutionTimeForOrg(ctx, args);
   },
 });
 
+// Batch variants return records keyed by `${organizationId}::${workflowSlug}`
+// (SchedulerHelpers.orgWorkflowKey) — slugs alone repeat across orgs.
 export const getLastExecutionTimes = internalQuery({
-  args: { wfDefinitionIds: v.array(v.string()) },
+  args: { keys: v.array(orgWorkflowKeyValidator) },
   returns: v.record(v.string(), v.union(v.number(), v.null())),
   handler: async (ctx, args) => {
-    const result = await SchedulerHelpers.getLastExecutionTimes(ctx, args);
+    const result = await SchedulerHelpers.getLastExecutionTimesForOrgs(
+      ctx,
+      args,
+    );
     return Object.fromEntries(result);
   },
 });
 
 export const getRunningExecutions = internalQuery({
-  args: { wfDefinitionIds: v.array(v.string()) },
+  args: { keys: v.array(orgWorkflowKeyValidator) },
   returns: v.record(v.string(), v.boolean()),
   handler: async (ctx, args) => {
-    const result = await SchedulerHelpers.hasRunningExecutions(ctx, args);
+    const result = await SchedulerHelpers.hasRunningExecutionsForOrgs(
+      ctx,
+      args,
+    );
     return Object.fromEntries(result);
   },
 });

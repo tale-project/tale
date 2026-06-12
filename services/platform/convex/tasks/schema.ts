@@ -96,6 +96,38 @@ export const tasksTable = defineTable({
   externalId: v.optional(v.string()),
   externalUrl: v.optional(v.string()),
 
+  // Deadline (ms since epoch). Drives overdue badges and the SLA-enforcement
+  // sweep of the default task-ops automation pack.
+  dueDate: v.optional(v.number()),
+
+  // SLA escalation ladder state, stamped atomically by the `task.sweep`
+  // mark-and-return mutations so each level fires at most once per task:
+  // 1 = due-soon warned, 2 = overdue nudged, 3 = manager-escalated,
+  // 4 = owner/admin-escalated. Cleared when `dueDate` moves into the future.
+  slaLevel: v.optional(v.number()),
+  slaLevelAt: v.optional(v.number()),
+
+  // When the task last changed status. Powers age-in-column board chips and
+  // stale-work detection without an N+1 over taskActivity. Stamped by every
+  // status-writing mutation; legacy rows fall back to `updatedAt`.
+  statusChangedAt: v.optional(v.number()),
+
+  // Per-task circuit breaker (workforce guardrails): set when automated agent
+  // runs on this task exceeded the org's runs-per-hour cap. Cleared when a
+  // HUMAN changes the task status. While set, all automated runs are refused.
+  agentRunsPausedAt: v.optional(v.number()),
+  agentRunsPausedReason: v.optional(v.string()),
+
+  // Agent-work denormalizations maintained by `task_metrics` internal
+  // mutations (start/record/finalize of taskAgentRuns). Treat undefined as 0.
+  totalCostCents: v.optional(v.number()),
+  agentRunCount: v.optional(v.number()),
+  lastAgentRunAt: v.optional(v.number()),
+
+  // Dedicated agent working thread for this task (created lazily on the first
+  // agent run). Revision/mention runs share it so context accumulates.
+  threadId: v.optional(v.string()),
+
   // Authorship + lifecycle
   createdBy: v.string(),
   createdByType: taskActorTypeValidator,
@@ -112,7 +144,11 @@ export const tasksTable = defineTable({
   .index('by_assignee', ['organizationId', 'assigneeType', 'assigneeId'])
   .index('by_parent', ['parentTaskId'])
   .index('by_org_external', ['organizationId', 'externalSystem', 'externalId'])
-  .index('by_org_updatedAt', ['organizationId', 'updatedAt']);
+  .index('by_org_updatedAt', ['organizationId', 'updatedAt'])
+  // Due-soon / overdue sweeps (SLA enforcement).
+  .index('by_org_dueDate', ['organizationId', 'dueDate'])
+  // Stale / archivable sweeps.
+  .index('by_org_status', ['organizationId', 'status']);
 
 /**
  * Plain-text comments on a task (MVP — no rich text). `mentions` is parsed at
@@ -165,7 +201,9 @@ export const taskActivityTable = defineTable({
   createdAt: v.number(),
 })
   .index('by_task', ['taskId', 'createdAt'])
-  .index('by_organization', ['organizationId']);
+  .index('by_organization', ['organizationId'])
+  // Day-windowed scans for the daily task-metrics rollup cron.
+  .index('by_org_createdAt', ['organizationId', 'createdAt']);
 
 /**
  * Directed "blocked by" dependency edge between two tasks in the SAME project.

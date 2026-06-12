@@ -27,6 +27,8 @@ export interface NavItem {
   /** CASL ability check required to show this item. When absent, always visible. */
   can?: [AppAction, AppSubject];
   subItems?: NavItem[];
+  /** Unread count rendered as a chip on the nav icon (omit/0 = no chip). */
+  badge?: number;
   /**
    * Custom active-path matcher. When provided, replaces the default
    * `pathname === href || pathname.startsWith(href + '/')` check. Useful when

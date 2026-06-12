@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { TrashPage } from '@/app/features/settings/governance/components/trash-page';
 
 export const Route = createFileRoute(
@@ -10,5 +11,9 @@ export const Route = createFileRoute(
 
 function TrashRoute() {
   const { id: organizationId } = Route.useParams();
-  return <TrashPage organizationId={organizationId} />;
+  return (
+    <SettingsPage>
+      <TrashPage organizationId={organizationId} />
+    </SettingsPage>
+  );
 }
