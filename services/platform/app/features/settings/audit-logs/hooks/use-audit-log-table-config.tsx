@@ -11,6 +11,8 @@ import { useT } from '@/lib/i18n/client';
 
 type AuditLog = Doc<'auditLogs'>;
 
+export type AuditLogTableVariant = 'audit' | 'errors';
+
 interface AuditLogTableConfig {
   columns: ColumnDef<AuditLog>[];
   stickyLayout: boolean;
@@ -19,16 +21,27 @@ interface AuditLogTableConfig {
 
 interface UseAuditLogTableConfigOptions {
   resolveEmail?: (log: AuditLog) => string | undefined;
+  /**
+   * `errors` swaps the resource/target/category columns for the error
+   * message — the rows are failure/denied only, so the message is the
+   * column that answers "what went wrong".
+   */
+  variant?: AuditLogTableVariant;
 }
 
 export function useAuditLogTableConfig(
   options?: UseAuditLogTableConfigOptions,
 ): AuditLogTableConfig {
   const resolveEmail = options?.resolveEmail;
+  const variant = options?.variant ?? 'audit';
   const { t } = useT('settings');
 
-  const columns = useMemo<ColumnDef<AuditLog>[]>(
-    () => [
+  // Column sizes double as the table's min-width floor (DataTable sums them).
+  // Each variant's total must stay ≤ 940px so the table fits the settings
+  // content column on common laptop widths instead of clipping behind a
+  // horizontal scroll.
+  const columns = useMemo<ColumnDef<AuditLog>[]>(() => {
+    const timestampActionActor: ColumnDef<AuditLog>[] = [
       {
         accessorKey: 'timestamp',
         header: () => (
@@ -59,7 +72,7 @@ export function useAuditLogTableConfig(
             })}
           </Text>
         ),
-        size: 240,
+        size: 185,
       },
       {
         accessorKey: 'actorEmail',
@@ -80,8 +93,11 @@ export function useAuditLogTableConfig(
             </div>
           );
         },
-        size: 220,
+        size: 175,
       },
+    ];
+
+    const auditDetail: ColumnDef<AuditLog>[] = [
       {
         accessorKey: 'resourceType',
         header: t('logs.audit.columns.resource'),
@@ -92,7 +108,7 @@ export function useAuditLogTableConfig(
             })}
           </Text>
         ),
-        size: 120,
+        size: 100,
       },
       {
         accessorKey: 'resourceName',
@@ -107,7 +123,7 @@ export function useAuditLogTableConfig(
             {row.original.resourceName ?? row.original.resourceId ?? '-'}
           </Text>
         ),
-        size: 200,
+        size: 140,
       },
       {
         accessorKey: 'category',
@@ -122,8 +138,29 @@ export function useAuditLogTableConfig(
             })}
           </Badge>
         ),
-        size: 120,
+        size: 100,
       },
+    ];
+
+    const errorMessage: ColumnDef<AuditLog>[] = [
+      {
+        accessorKey: 'errorMessage',
+        header: t('logs.audit.columns.error'),
+        cell: ({ row }) => (
+          <Text
+            as="span"
+            variant="body"
+            truncate
+            className="text-destructive block max-w-[340px]"
+          >
+            {row.original.errorMessage ?? '-'}
+          </Text>
+        ),
+        size: 340,
+      },
+    ];
+
+    const statusColumn: ColumnDef<AuditLog>[] = [
       {
         accessorKey: 'status',
         header: t('logs.audit.columns.status'),
@@ -149,9 +186,12 @@ export function useAuditLogTableConfig(
         },
         size: 100,
       },
-    ],
-    [t, resolveEmail],
-  );
+    ];
+
+    return variant === 'errors'
+      ? [...timestampActionActor, ...errorMessage, ...statusColumn]
+      : [...timestampActionActor, ...auditDetail, ...statusColumn];
+  }, [t, resolveEmail, variant]);
 
   return { columns, stickyLayout: true, pageSize: 30 };
 }

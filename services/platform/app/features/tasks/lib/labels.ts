@@ -1,21 +1,18 @@
 /**
  * Label colour system. Labels are stored as plain lowercase strings (see
  * convex/tasks/mutations.ts normalization) — colour is purely presentational
- * and derived here so every surface (board card, modal, picker) agrees:
- * the predefined trio gets a fixed colour, everything else hashes into a
- * stable palette so a custom label keeps its colour across sessions.
+ * and derived here so every surface (board card, modal, picker) agrees.
+ * Resolution order: the project's `taskLabelColors` override (set via the
+ * picker's swatch editor), then the predefined trio's fixed colour, then a
+ * stable hash into the palette so a custom label keeps its colour everywhere.
  */
 
-export type TaskLabelColor =
-  | 'red'
-  | 'orange'
-  | 'amber'
-  | 'green'
-  | 'teal'
-  | 'blue'
-  | 'purple'
-  | 'pink'
-  | 'gray';
+import {
+  isTaskLabelColor,
+  type TaskLabelColor,
+} from '@/lib/shared/task_label_colors';
+
+export type { TaskLabelColor };
 
 /** Literal class strings so Tailwind's scanner picks them up. */
 export const LABEL_DOT_CLASS: Record<TaskLabelColor, string> = {
@@ -30,7 +27,7 @@ export const LABEL_DOT_CLASS: Record<TaskLabelColor, string> = {
   gray: 'bg-gray-400',
 };
 
-/** Labels offered out of the box in the picker, with their fixed colours. */
+/** Labels offered out of the box in the picker, with their default colours. */
 export const PREDEFINED_LABELS: ReadonlyArray<{
   name: string;
   color: TaskLabelColor;
@@ -55,14 +52,20 @@ const CUSTOM_PALETTE: TaskLabelColor[] = [
   'gray',
 ];
 
-export function labelColor(label: string): TaskLabelColor {
+/** The project's `taskLabelColors` map (label → palette name). */
+export type LabelColorOverrides = Record<string, string> | undefined;
+
+export function labelColor(
+  label: string,
+  overrides?: LabelColorOverrides,
+): TaskLabelColor {
+  const override = overrides?.[label];
+  if (override && isTaskLabelColor(override)) return override;
   const predefined = PREDEFINED_COLOR.get(label);
   if (predefined) return predefined;
   let hash = 0;
   for (let i = 0; i < label.length; i++) {
     hash = (hash * 31 + label.charCodeAt(i)) >>> 0;
   }
-  // Length bound above guarantees a non-empty palette index.
-  // oxlint-disable-next-line typescript/no-non-null-assertion
-  return CUSTOM_PALETTE[hash % CUSTOM_PALETTE.length]!;
+  return CUSTOM_PALETTE[hash % CUSTOM_PALETTE.length] ?? 'gray';
 }

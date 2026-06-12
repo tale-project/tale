@@ -6,10 +6,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Text } from '@tale/ui/text';
-import { ChevronRight, Plus } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
@@ -17,11 +16,7 @@ import { cn } from '@/lib/utils/cn';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';
 import { useTaskBoardDnd } from '../hooks/use-task-board-dnd';
-import {
-  TASK_STATUS_ORDER,
-  TASK_TERMINAL_STATUSES,
-  type TaskStatus,
-} from '../lib/display';
+import { TASK_STATUS_ORDER, type TaskStatus } from '../lib/display';
 import { partitionSubtasks, subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
@@ -30,29 +25,28 @@ import type { TaskRow } from './task-card';
 import {
   BlockedIndicator,
   CommentCountIndicator,
+  DueDateIndicator,
   SubtaskProgress,
 } from './task-indicators';
+import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
 import { TaskStatusBadge } from './task-status-badge';
 
 /**
  * Linear-style single-column list grouped by status. Each status is a
- * COLLAPSIBLE section (a slim header — chevron · status · count · add button —
- * over borderless rows) so the whole thread reads lightly and the user can fold
- * away statuses they don't care about. Subtasks nest under (and expand from)
- * their parent rather than getting their own section row. Drag mechanics are
- * shared with the board via {@link useTaskBoardDnd}; a top-level row can be
+ * COLLAPSIBLE section (a slim header — chevron · status · count — over
+ * hairline-separated rows) so the whole thread reads lightly and the user can
+ * fold away statuses they don't care about. Subtasks nest under (and expand
+ * from) their parent rather than getting their own section row. Drag mechanics
+ * are shared with the board via {@link useTaskBoardDnd}; a top-level row can be
  * dragged into any expanded lane.
  */
 export function TasksList({
   tasks,
   onOpenTask,
-  onAddTask,
   projectKey,
 }: {
   tasks: TaskRow[];
   onOpenTask?: (task: TaskRow) => void;
-  /** Open the create modal pre-set to this status (the section "+" button). */
-  onAddTask?: (status: TaskStatus) => void;
   projectKey?: string | null;
 }) {
   const { topLevel, childrenByParent } = useMemo(
@@ -116,7 +110,6 @@ export function TasksList({
               isCollapsed={collapsed.has(status)}
               onToggleCollapsed={toggleCollapsed}
               onOpenTask={onOpenTask}
-              onAddTask={onAddTask}
               projectKey={projectKey}
             />
           );
@@ -145,7 +138,6 @@ function ListSwimlane({
   isCollapsed,
   onToggleCollapsed,
   onOpenTask,
-  onAddTask,
   projectKey,
 }: {
   status: TaskStatus;
@@ -156,7 +148,6 @@ function ListSwimlane({
   isCollapsed: boolean;
   onToggleCollapsed: (status: TaskStatus) => void;
   onOpenTask?: (task: TaskRow) => void;
-  onAddTask?: (status: TaskStatus) => void;
   projectKey?: string | null;
 }) {
   const { t } = useT('tasks');
@@ -167,9 +158,9 @@ function ListSwimlane({
 
   return (
     <section>
-      {/* Slim, Linear-style section header: a single full-width toggle (chevron
-          + status + count) with an add button revealed on hover. */}
-      <div className="bg-background group/header sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5">
+      {/* Slim, Linear-style section header: a single full-width toggle
+          (chevron + status + count). */}
+      <div className="bg-background sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5">
         <button
           type="button"
           aria-expanded={!isCollapsed}
@@ -188,16 +179,6 @@ function ListSwimlane({
             {rows.length}
           </Text>
         </button>
-        {onAddTask && (
-          <button
-            type="button"
-            aria-label={t('actions.create')}
-            onClick={() => onAddTask(status)}
-            className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring/50 rounded p-1 opacity-0 transition group-hover/header:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
-          >
-            <Plus className="size-4" aria-hidden="true" />
-          </button>
-        )}
       </div>
       {!isCollapsed && (
         <div ref={setNodeRef} className={cn(isOver && 'bg-accent/30')}>
@@ -264,17 +245,12 @@ function TaskListRow({
   projectKey?: string | null;
 }) {
   const { t } = useT('tasks');
-  const { formatDate } = useFormatDate();
   const identifier = formatTaskIdentifier(projectKey, task.number);
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
   const blocked = useTaskBoardContext().isBlocked(task._id);
   const hasSubtasks = (subtasks?.length ?? 0) > 0;
   const { done, total } = subtaskProgress(subtasks);
-  const overdue =
-    task.dueDate !== undefined &&
-    task.dueDate < Date.now() &&
-    !TASK_TERMINAL_STATUSES.has(task.status);
 
   // Subtask rows are not draggable; only top-level rows participate in the DnD
   // sortable context. `useSortable` is still called unconditionally to respect
@@ -311,6 +287,9 @@ function TaskListRow({
       }}
       className={cn(
         'group focus-visible:ring-ring/50 flex w-full cursor-pointer items-center gap-2.5 py-1.5 pr-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+        // Hairline between rows, like a regular table; the floating drag clone
+        // keeps its card chrome instead.
+        !dragging && 'border-border/60 border-b',
         // Indent so row content lines up just past the section header's chevron.
         nested ? 'pl-12' : 'pl-9',
         nested
@@ -368,23 +347,29 @@ function TaskListRow({
       >
         {task.title}
       </Text>
+      {task.labels && task.labels.length > 0 && (
+        <span className="hidden shrink-0 items-center gap-1 md:flex">
+          {task.labels.slice(0, 3).map((label) => (
+            <TaskLabelBadge
+              key={label}
+              label={label}
+              projectId={task.projectId}
+              className="px-1.5 py-px text-[10px]"
+            />
+          ))}
+          <TaskLabelOverflow labels={task.labels.slice(3)} />
+        </span>
+      )}
       {hasSubtasks && (
         <SubtaskProgress done={done} total={total} className="shrink-0" />
       )}
       <BlockedIndicator blocked={blocked} className="shrink-0" />
       <CommentCountIndicator count={task.commentCount} className="shrink-0" />
-      {task.dueDate !== undefined && (
-        <Text
-          as="span"
-          variant="caption"
-          className={cn(
-            'shrink-0 text-xs tabular-nums',
-            overdue && 'text-red-600 dark:text-red-400',
-          )}
-        >
-          {formatDate(new Date(task.dueDate), 'short')}
-        </Text>
-      )}
+      <DueDateIndicator
+        dueDate={task.dueDate}
+        status={task.status}
+        className="shrink-0"
+      />
       <AssigneePicker
         organizationId={task.organizationId}
         projectId={task.projectId}

@@ -1,12 +1,18 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
-import type { EdgeTypes, NodeTypes } from '@xyflow/react';
-import { Network } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import {
+  useNodesInitialized,
+  useReactFlow,
+  type EdgeTypes,
+  type NodeTypes,
+} from '@xyflow/react';
+import { Network, Plus } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { FlowCanvas } from '@/app/components/flow/flow-canvas';
-import { AutomationAIChatPanel } from '@/app/features/automations/components/automation-ai-chat-panel';
+import { CreateAgentDialog } from '@/app/features/agents/components/agent-create-dialog';
 import { AutomationEdge } from '@/app/features/automations/components/automation-edge';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -36,11 +42,29 @@ function errorCode(error: unknown): string | undefined {
 }
 
 /**
+ * Center the viewport on one node once the graph has measured — the per-agent
+ * delegation tab's "show ME on the chart" affordance. Renders inside
+ * <FlowCanvas> (needs the React Flow store) and fires exactly once so later
+ * user panning isn't fought.
+ */
+function FocusOnNode({ slug }: { slug: string }) {
+  const { fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (!nodesInitialized || focusedRef.current) return;
+    focusedRef.current = true;
+    void fitView({ nodes: [{ id: slug }], maxZoom: 1, padding: 0.4 });
+  }, [nodesInitialized, fitView, slug]);
+  return null;
+}
+
+/**
  * The organigram: the agents-only, many-to-many DELEGATION graph on the shared
  * {@link FlowCanvas}. The graph is read-only on the canvas — all editing
- * happens in the side panel (or the AI editor), exactly like the automations
- * editor. The chart is functionally load-bearing: delegation, decomposition,
- * SLA escalation, and budget handoff all read these edges.
+ * happens in the side panel. The chart is functionally load-bearing:
+ * delegation, decomposition, SLA escalation, and budget handoff all read
+ * these edges.
  */
 export function OrganigramCanvas({
   organizationId,
@@ -53,11 +77,11 @@ export function OrganigramCanvas({
   focusSlug?: string;
 }) {
   const { t } = useT('organigram');
-  const { chart, isLoading } = useOrgChart(organizationId);
+  const { chart, isLoading, refetch } = useOrgChart(organizationId);
   const setDelegates = useSetAgentDelegates(organizationId);
   const setParents = useSetAgentParents(organizationId);
   const [selectedSlug, setSelectedSlug] = useState(focusSlug ?? null);
-  const [aiOpen, setAiOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { nodes, edges } = useMemo(
     () => layoutOrgChart(chart?.nodes ?? [], selectedSlug),
@@ -65,6 +89,9 @@ export function OrganigramCanvas({
   );
   const selected =
     chart?.nodes.find((node) => node.slug === selectedSlug) ?? null;
+  const focusExists =
+    !!focusSlug &&
+    (chart?.nodes.some((node) => node.slug === focusSlug) ?? false);
 
   const isSaving = setDelegates.isPending || setParents.isPending;
 
@@ -105,18 +132,23 @@ export function OrganigramCanvas({
           minZoom={0.3}
           maxZoom={1.5}
           backgroundProps={{ gap: 24 }}
-          onOpenAi={canEdit ? () => setAiOpen(true) : undefined}
-        />
+          centerActions={
+            canEdit ? (
+              <Button
+                size="icon"
+                variant="secondary"
+                aria-label={t('addAgent')}
+                title={t('addAgent')}
+                onClick={() => setCreateOpen(true)}
+              >
+                <Plus className="size-4" />
+              </Button>
+            ) : undefined
+          }
+        >
+          {focusSlug && focusExists && <FocusOnNode slug={focusSlug} />}
+        </FlowCanvas>
       </div>
-
-      {aiOpen && (
-        <AutomationAIChatPanel
-          mode="organigram"
-          organizationId={organizationId}
-          onClose={() => setAiOpen(false)}
-          overlay
-        />
-      )}
 
       {selected && chart && (
         <OrganigramPanel
@@ -138,6 +170,20 @@ export function OrganigramCanvas({
             )
           }
           onClose={() => setSelectedSlug(null)}
+        />
+      )}
+
+      {canEdit && (
+        <CreateAgentDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          organizationId={organizationId}
+          onCreated={(agentName) => {
+            setCreateOpen(false);
+            // Pull the chart (action-backed, non-reactive) and land on the
+            // new agent so its delegation can be wired up immediately.
+            void refetch().then(() => setSelectedSlug(agentName));
+          }}
         />
       )}
     </div>

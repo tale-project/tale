@@ -31,14 +31,27 @@ export function useListAuditLogsPaginated(args: ListAuditLogsPaginatedArgs) {
   );
 }
 
+interface ListErrorLogsPaginatedArgs {
+  organizationId: string;
+  category?: string;
+  initialNumItems: number;
+}
+
+export function useListErrorLogsPaginated(args: ListErrorLogsPaginatedArgs) {
+  const { initialNumItems, ...queryArgs } = args;
+  return useCachedPaginatedQuery(
+    api.audit_logs.queries.listErrorLogsPaginated,
+    queryArgs,
+    { initialNumItems },
+  );
+}
+
 export function useActivitySummary(
   organizationId: string,
-  startDate?: number,
-  endDate?: number,
+  periodDays: 7 | 30 | 90,
 ) {
   return useConvexQuery(api.audit_logs.queries.getActivitySummary, {
     organizationId,
-    startDate,
-    endDate,
+    periodDays,
   });
 }

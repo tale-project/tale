@@ -60,8 +60,9 @@ import { TaskStatusBadge } from './task-status-badge';
  *
  * Layout is Linear-style: a main column (title + description + edit-only body)
  * beside a property panel (Status · Priority · Assignee · Due date / Labels /
- * Author · Created). Dependencies render in the main column where they have the
- * width for their task chips.
+ * Dependencies / Author · Created). In edit mode the dialog has a FIXED height
+ * and each column scrolls on its own, so the modal never resizes as content
+ * (comments, activity, agent runs) streams in.
  */
 export function TaskModal({
   open,
@@ -86,7 +87,18 @@ export function TaskModal({
   const { t } = useT('tasks');
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="max-w-3xl">
+      <ResponsiveDialogContent
+        className={cn(
+          'max-w-3xl',
+          // Edit mode: pin the dialog height so it never jumps as comments /
+          // activity / agent runs load; the columns scroll internally instead.
+          taskId && 'flex h-[85dvh] flex-col overflow-hidden',
+        )}
+        // Edit mode: Radix would focus (and text-select) the first tabbable —
+        // the inline-editable title. Keep focus on the dialog instead; create
+        // mode keeps its intentional title autofocus.
+        onOpenAutoFocus={taskId ? (e) => e.preventDefault() : undefined}
+      >
         <ResponsiveDialogDescription className="sr-only">
           {t('detail.overview')}
         </ResponsiveDialogDescription>
@@ -118,15 +130,21 @@ function ModalLayout({
   footer?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      {header}
-      <div className="flex flex-col gap-6 md:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col gap-5">{main}</div>
-        <aside className="flex shrink-0 flex-col gap-4 md:w-60 md:border-l md:pl-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="shrink-0">{header}</div>
+      {/* Inside the fixed-height edit dialog each column owns its scroll; in
+          the auto-height create dialog these min-h/overflow rules are inert.
+          The negative-margin + padding pairs widen each scrollport slightly so
+          focus rings on full-width fields aren't clipped at the column edge. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row">
+        <div className="flex min-w-0 flex-1 flex-col gap-5 md:-mx-2 md:min-h-0 md:overflow-y-auto md:px-2 md:py-0.5">
+          {main}
+        </div>
+        <aside className="flex shrink-0 flex-col gap-4 md:-mr-2 md:min-h-0 md:w-[15.5rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6">
           {panel}
         </aside>
       </div>
-      {footer}
+      {footer && <div className="shrink-0">{footer}</div>}
     </div>
   );
 }
@@ -288,7 +306,11 @@ function CreateTaskBody({
           </PropertyField>
           <PanelDivider />
           <PropertyField label={t('fields.labels')} stacked>
-            <LabelEditor labels={labels} onChange={setLabels} />
+            <LabelEditor
+              labels={labels}
+              onChange={setLabels}
+              projectId={projectId}
+            />
           </PropertyField>
         </>
       }
@@ -446,13 +468,6 @@ function EditTaskBody({
               </Text>
             )}
           </section>
-
-          <TaskDependencies
-            task={task}
-            canEdit={canEdit}
-            projectKey={projectKey}
-            onOpenTask={onOpenTask}
-          />
 
           <TaskAgentRuns taskId={task._id} />
 
@@ -673,6 +688,7 @@ function EditTaskBody({
             <LabelEditor
               labels={task.labels ?? []}
               disabled={!canEdit}
+              projectId={task.projectId}
               onChange={(labels) =>
                 void updateTask
                   .mutateAsync({ taskId: task._id, labels })
@@ -680,6 +696,14 @@ function EditTaskBody({
               }
             />
           </PropertyField>
+
+          <PanelDivider />
+          <TaskDependencies
+            task={task}
+            canEdit={canEdit}
+            projectKey={projectKey}
+            onOpenTask={onOpenTask}
+          />
 
           <PanelDivider />
           <PropertyField label={t('fields.author')}>

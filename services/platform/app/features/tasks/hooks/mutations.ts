@@ -61,6 +61,10 @@ export function useBulkUpdateTasks() {
   return useConvexMutation(api.tasks.mutations.bulkUpdateTasks);
 }
 
+export function useSetLabelColor() {
+  return useConvexMutation(api.tasks.mutations.setLabelColor);
+}
+
 export function useSaveBoardView() {
   return useConvexMutation(api.tasks.mutations.saveBoardView);
 }

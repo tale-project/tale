@@ -81,73 +81,86 @@ interface ResponsiveDialogContentProps {
   className?: string;
   closeLabel?: string;
   hideClose?: boolean;
+  /**
+   * Radix `onOpenAutoFocus` passthrough. Call `event.preventDefault()` to stop
+   * the focus scope from focusing (and text-selecting) the first tabbable
+   * element — e.g. a dialog whose first control is an inline-editable title.
+   */
+  onOpenAutoFocus?: (event: Event) => void;
 }
 
 export const ResponsiveDialogContent = forwardRef<
   HTMLDivElement,
   ResponsiveDialogContentProps
->(({ children, className, closeLabel = 'Close', hideClose }, ref) => {
-  const isMobile = useIsMobile();
+>(
+  (
+    { children, className, closeLabel = 'Close', hideClose, onOpenAutoFocus },
+    ref,
+  ) => {
+    const isMobile = useIsMobile();
 
-  if (isMobile) {
+    if (isMobile) {
+      return (
+        <DrawerPrimitive.Portal>
+          <DrawerPrimitive.Overlay className="bg-bg-overlay fixed inset-0 z-50" />
+          <DrawerPrimitive.Content
+            ref={ref}
+            onOpenAutoFocus={onOpenAutoFocus}
+            className={cn(
+              'bg-background fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[92dvh] flex-col rounded-t-2xl',
+              'pb-(--safe-bottom) pl-(--safe-left) pr-(--safe-right)',
+              'data-[state=open]:animate-in data-[state=closed]:animate-out',
+              'motion-reduce:animate-none',
+              className,
+            )}
+          >
+            <div
+              aria-hidden="true"
+              className="bg-muted mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full"
+            />
+            <div className="overflow-y-auto px-4 pt-4 pb-6">{children}</div>
+          </DrawerPrimitive.Content>
+        </DrawerPrimitive.Portal>
+      );
+    }
+
     return (
-      <DrawerPrimitive.Portal>
-        <DrawerPrimitive.Overlay className="bg-bg-overlay fixed inset-0 z-50" />
-        <DrawerPrimitive.Content
-          ref={ref}
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
           className={cn(
-            'bg-background fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[92dvh] flex-col rounded-t-2xl',
-            'pb-(--safe-bottom) pl-(--safe-left) pr-(--safe-right)',
+            'bg-bg-overlay fixed inset-0 z-50',
+            'data-[state=open]:animate-in data-[state=closed]:animate-out',
+            'motion-reduce:animate-none',
+          )}
+        />
+        <DialogPrimitive.Content
+          ref={ref}
+          onOpenAutoFocus={onOpenAutoFocus}
+          className={cn(
+            'bg-background fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border p-6 shadow-lg',
+            // Never exceed the viewport: cap at 90dvh and scroll internally so a
+            // tall dialog (long form, comment/activity feeds) stays fully usable
+            // instead of overflowing off-screen.
+            'max-h-[90dvh] overflow-x-hidden overflow-y-auto',
             'data-[state=open]:animate-in data-[state=closed]:animate-out',
             'motion-reduce:animate-none',
             className,
           )}
         >
-          <div
-            aria-hidden="true"
-            className="bg-muted mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full"
-          />
-          <div className="overflow-y-auto px-4 pt-4 pb-6">{children}</div>
-        </DrawerPrimitive.Content>
-      </DrawerPrimitive.Portal>
+          {children}
+          {!hideClose && (
+            <DialogPrimitive.Close
+              aria-label={closeLabel}
+              className="ring-offset-background focus-visible:ring-ring absolute top-3 right-3 rounded-md p-1 opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </DialogPrimitive.Close>
+          )}
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
     );
-  }
-
-  return (
-    <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay
-        className={cn(
-          'bg-bg-overlay fixed inset-0 z-50',
-          'data-[state=open]:animate-in data-[state=closed]:animate-out',
-          'motion-reduce:animate-none',
-        )}
-      />
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cn(
-          'bg-background fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border p-6 shadow-lg',
-          // Never exceed the viewport: cap at 90dvh and scroll internally so a
-          // tall dialog (long form, comment/activity feeds) stays fully usable
-          // instead of overflowing off-screen.
-          'max-h-[90dvh] overflow-x-hidden overflow-y-auto',
-          'data-[state=open]:animate-in data-[state=closed]:animate-out',
-          'motion-reduce:animate-none',
-          className,
-        )}
-      >
-        {children}
-        {!hideClose && (
-          <DialogPrimitive.Close
-            aria-label={closeLabel}
-            className="ring-offset-background focus-visible:ring-ring absolute top-3 right-3 rounded-md p-1 opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Content>
-    </DialogPrimitive.Portal>
-  );
-});
+  },
+);
 ResponsiveDialogContent.displayName = 'ResponsiveDialogContent';
 
 export const ResponsiveDialogTitle = forwardRef<

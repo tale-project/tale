@@ -82,6 +82,7 @@ import { Route as DashboardIdSettingsGovernanceTrashRouteImport } from './routes
 import { Route as DashboardIdSettingsGovernanceSecurityMonitoringRouteImport } from './routes/dashboard/$id/settings/governance/security-monitoring';
 import { Route as DashboardIdSettingsGovernanceRunCodePolicyRouteImport } from './routes/dashboard/$id/settings/governance/run-code-policy';
 import { Route as DashboardIdSettingsGovernancePoliciesLimitsRouteImport } from './routes/dashboard/$id/settings/governance/policies-limits';
+import { Route as DashboardIdSettingsGovernanceLogsRouteImport } from './routes/dashboard/$id/settings/governance/logs';
 import { Route as DashboardIdSettingsGovernanceLegalHoldRouteImport } from './routes/dashboard/$id/settings/governance/legal-hold';
 import { Route as DashboardIdSettingsGovernanceGuardrailsRouteImport } from './routes/dashboard/$id/settings/governance/guardrails';
 import { Route as DashboardIdSettingsGovernanceFeedbackRouteImport } from './routes/dashboard/$id/settings/governance/feedback';
@@ -525,6 +526,12 @@ const DashboardIdSettingsGovernancePoliciesLimitsRoute =
     path: '/policies-limits',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
   } as any);
+const DashboardIdSettingsGovernanceLogsRoute =
+  DashboardIdSettingsGovernanceLogsRouteImport.update({
+    id: '/logs',
+    path: '/logs',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
+  } as any);
 const DashboardIdSettingsGovernanceLegalHoldRoute =
   DashboardIdSettingsGovernanceLegalHoldRouteImport.update({
     id: '/legal-hold',
@@ -810,6 +817,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
   '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute;
+  '/dashboard/$id/settings/governance/logs': typeof DashboardIdSettingsGovernanceLogsRoute;
   '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
   '/dashboard/$id/settings/governance/run-code-policy': typeof DashboardIdSettingsGovernanceRunCodePolicyRoute;
   '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
@@ -903,6 +911,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
   '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute;
+  '/dashboard/$id/settings/governance/logs': typeof DashboardIdSettingsGovernanceLogsRoute;
   '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
   '/dashboard/$id/settings/governance/run-code-policy': typeof DashboardIdSettingsGovernanceRunCodePolicyRoute;
   '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
@@ -1011,6 +1020,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
   '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute;
+  '/dashboard/$id/settings/governance/logs': typeof DashboardIdSettingsGovernanceLogsRoute;
   '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
   '/dashboard/$id/settings/governance/run-code-policy': typeof DashboardIdSettingsGovernanceRunCodePolicyRoute;
   '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
@@ -1118,6 +1128,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
     | '/dashboard/$id/settings/governance/legal-hold'
+    | '/dashboard/$id/settings/governance/logs'
     | '/dashboard/$id/settings/governance/policies-limits'
     | '/dashboard/$id/settings/governance/run-code-policy'
     | '/dashboard/$id/settings/governance/security-monitoring'
@@ -1211,6 +1222,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
     | '/dashboard/$id/settings/governance/legal-hold'
+    | '/dashboard/$id/settings/governance/logs'
     | '/dashboard/$id/settings/governance/policies-limits'
     | '/dashboard/$id/settings/governance/run-code-policy'
     | '/dashboard/$id/settings/governance/security-monitoring'
@@ -1318,6 +1330,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
     | '/dashboard/$id/settings/governance/legal-hold'
+    | '/dashboard/$id/settings/governance/logs'
     | '/dashboard/$id/settings/governance/policies-limits'
     | '/dashboard/$id/settings/governance/run-code-policy'
     | '/dashboard/$id/settings/governance/security-monitoring'
@@ -1856,6 +1869,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsGovernancePoliciesLimitsRouteImport;
       parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
     };
+    '/dashboard/$id/settings/governance/logs': {
+      id: '/dashboard/$id/settings/governance/logs';
+      path: '/logs';
+      fullPath: '/dashboard/$id/settings/governance/logs';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceLogsRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/legal-hold': {
       id: '/dashboard/$id/settings/governance/legal-hold';
       path: '/legal-hold';
@@ -2287,6 +2307,7 @@ interface DashboardIdSettingsGovernanceRouteRouteChildren {
   DashboardIdSettingsGovernanceFeedbackRoute: typeof DashboardIdSettingsGovernanceFeedbackRoute;
   DashboardIdSettingsGovernanceGuardrailsRoute: typeof DashboardIdSettingsGovernanceGuardrailsRoute;
   DashboardIdSettingsGovernanceLegalHoldRoute: typeof DashboardIdSettingsGovernanceLegalHoldRoute;
+  DashboardIdSettingsGovernanceLogsRoute: typeof DashboardIdSettingsGovernanceLogsRoute;
   DashboardIdSettingsGovernancePoliciesLimitsRoute: typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
   DashboardIdSettingsGovernanceRunCodePolicyRoute: typeof DashboardIdSettingsGovernanceRunCodePolicyRoute;
   DashboardIdSettingsGovernanceSecurityMonitoringRoute: typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
@@ -2309,6 +2330,8 @@ const DashboardIdSettingsGovernanceRouteRouteChildren: DashboardIdSettingsGovern
       DashboardIdSettingsGovernanceGuardrailsRoute,
     DashboardIdSettingsGovernanceLegalHoldRoute:
       DashboardIdSettingsGovernanceLegalHoldRoute,
+    DashboardIdSettingsGovernanceLogsRoute:
+      DashboardIdSettingsGovernanceLogsRoute,
     DashboardIdSettingsGovernancePoliciesLimitsRoute:
       DashboardIdSettingsGovernancePoliciesLimitsRoute,
     DashboardIdSettingsGovernanceRunCodePolicyRoute:

@@ -14,6 +14,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { isTaskLabelColor } from '../../lib/shared/task_label_colors';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
@@ -1502,6 +1503,40 @@ export const saveBoardView = mutation({
       createdAt: now,
       updatedAt: now,
     });
+  },
+});
+
+/**
+ * Set (or override) the display colour of a task label, project-wide. Colour
+ * is presentational only and project-scoped — labels themselves stay plain
+ * strings on tasks. Mirrors `saveBoardView`'s posture: a lightweight board
+ * preference, no audit entry.
+ */
+export const setLabelColor = mutation({
+  args: {
+    projectId: v.id('projects'),
+    label: v.string(),
+    color: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertTaskWritable(project, auth);
+
+    const label = args.label.trim().toLowerCase();
+    if (label.length === 0 || label.length > TASK_LABEL_CHARS_MAX) {
+      throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+    }
+    if (!isTaskLabelColor(args.color)) {
+      throw new ConvexError({ code: 'TASK_LABEL_COLOR_INVALID' });
+    }
+
+    await ctx.db.patch(args.projectId, {
+      taskLabelColors: { ...project.taskLabelColors, [label]: args.color },
+      updatedAt: Date.now(),
+    });
+    return null;
   },
 });
 

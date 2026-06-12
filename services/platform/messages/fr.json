@@ -696,21 +696,8 @@
       "description": "Es-tu sûr de vouloir supprimer « {name} » ? Cette action est irréversible."
     },
     "assistant": {
-      "automationDetails": "Détails de l'automatisation",
-      "previewImage": "Aperçu de {filename}",
-      "fallbackImage": "Image",
-      "fallbackFile": "Fichier",
-      "loading": "Chargement...",
-      "notFound": "Automatisation introuvable.",
-      "welcome": "Bonjour ! Je suis ton assistant d'automatisation. Je peux t'aider à créer, modifier et discuter de cette automatisation. Que souhaites-tu faire ?",
       "errorMessage": "Je suis désolé, j'ai rencontré une erreur. Merci de réessayer ou de consulter la console pour plus de détails.",
-      "thinking": {
-        "thinking": "Réflexion",
-        "analyzing": "Analyse du workflow",
-        "compiling": "Compilation d'une réponse"
-      },
-      "analyzeAttachments": "Merci d'analyser les fichiers joints.",
-      "messageHistory": "Historique des messages"
+      "analyzeAttachments": "Merci d'analyser les fichiers joints."
     },
     "tester": {
       "inputLabel": "Entrée de test (JSON)",
@@ -2848,7 +2835,7 @@
       "guardrails": "Garde-fous",
       "usage": "Utilisation",
       "feedback": "Retours",
-      "auditLogs": "Journaux d'audit",
+      "logs": "Journaux",
       "dataSubjectRequests": "Personnes concernées",
       "runCodePolicy": "Paquets run-code"
     },
@@ -5417,8 +5404,33 @@
       "auditLogs": "Journaux d'audit",
       "activityLogs": "Journaux d'activité",
       "errorLogs": "Journaux d'erreurs",
-      "activityComingSoon": "Les journaux d'activité seront bientôt disponibles.",
-      "errorComingSoon": "Les journaux d'erreurs seront bientôt disponibles.",
+      "activity": {
+        "period": {
+          "label": "Période",
+          "last7Days": "7 derniers jours",
+          "last30Days": "30 derniers jours",
+          "last90Days": "90 derniers jours"
+        },
+        "cards": {
+          "total": "Actions totales",
+          "success": "Succès",
+          "failure": "Échecs",
+          "denied": "Refus"
+        },
+        "byCategory": {
+          "title": "Activité par catégorie"
+        },
+        "topActors": {
+          "title": "Utilisateurs les plus actifs"
+        },
+        "empty": "Aucune activité sur cette période."
+      },
+      "errors": {
+        "entityLabel": "journaux d'erreurs",
+        "tableCaption": "Tableau des journaux d'erreurs",
+        "emptyTitle": "Aucun journal d'erreurs",
+        "emptyDescription": "Les actions échouées ou refusées apparaîtront ici."
+      },
       "blockCounters": {
         "tabLabel": "Blocages de connexion",
         "tableCaption": "Activité des blocages de connexion",
@@ -5968,6 +5980,12 @@
       "author": "Auteur",
       "created": "Créé le"
     },
+    "labels": {
+      "add": "Ajouter une étiquette…",
+      "create": "Créer « {label} »",
+      "changeColor": "Modifier la couleur",
+      "back": "Retour"
+    },
     "actions": {
       "create": "Créer une tâche",
       "comment": "Commenter",
@@ -5985,9 +6003,6 @@
     },
     "board": {
       "noTasks": "Aucune tâche"
-    },
-    "empty": {
-      "description": "Créez votre première tâche pour suivre le travail."
     },
     "detail": {
       "overview": "Aperçu",
@@ -6068,7 +6083,8 @@
     },
     "dueDate": {
       "label": "Échéance",
-      "overdue": "En retard"
+      "overdue": "En retard",
+      "due": "Échéance : {date}"
     },
     "mentionPreview": {
       "willRespond": "{slug} va répondre",
@@ -6812,7 +6828,7 @@
   "organigram": {
     "title": "Organigramme",
     "subtitle": "Comment ta main-d'œuvre IA délègue le travail — délégation, décomposition d'epics, escalade SLA et transfert de budget suivent tous ces liens.",
-    "backToAgents": "Agents",
+    "addAgent": "Ajouter un agent",
     "node": {
       "warning": "Un lien de délégation a été ignoré (il référençait un agent introuvable)."
     },

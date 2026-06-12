@@ -77,10 +77,12 @@ export function TaskDependencies({
   if (!canEdit && blockedBy.length === 0 && blocks.length === 0) return null;
 
   return (
+    // Lives in the modal's side property panel — the heading mirrors the
+    // panel's PropertyField label style so the column reads as one list.
     <section className="flex flex-col gap-3">
-      <Text as="h3" variant="label">
+      <h3 className="text-muted-foreground text-xs font-medium">
         {t('detail.dependencies')}
-      </Text>
+      </h3>
       <DependencyGroup
         label={t('detail.blockedBy')}
         items={blockedBy}

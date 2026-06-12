@@ -1,6 +1,5 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Badge } from '@tale/ui/badge';
 import { Text } from '@tale/ui/text';
 import { GitBranch } from 'lucide-react';
 
@@ -19,10 +18,11 @@ import {
   AgentWorkingIndicator,
   BlockedIndicator,
   CommentCountIndicator,
+  DueDateIndicator,
   NeedsReviewIndicator,
-  OverdueIndicator,
   SubtaskProgress,
 } from './task-indicators';
+import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
 
 export type TaskRow = Doc<'tasks'>;
 
@@ -107,15 +107,14 @@ export function TaskCard({
       {task.labels && task.labels.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {task.labels.slice(0, 4).map((label) => (
-            <Badge key={label} variant="outline" className="text-[10px]">
-              {label}
-            </Badge>
+            <TaskLabelBadge
+              key={label}
+              label={label}
+              projectId={task.projectId}
+              className="px-1.5 py-px text-[10px]"
+            />
           ))}
-          {task.labels.length > 4 && (
-            <Badge variant="outline" className="text-[10px]">
-              +{task.labels.length - 4}
-            </Badge>
-          )}
+          <TaskLabelOverflow labels={task.labels.slice(4)} />
         </div>
       )}
 
@@ -140,7 +139,7 @@ export function TaskCard({
           <BlockedIndicator blocked={blocked} />
           <AgentWorkingIndicator working={isAgentWorking(task._id)} />
           <NeedsReviewIndicator needsReview={needsReview(task._id)} />
-          <OverdueIndicator dueDate={task.dueDate} status={task.status} />
+          <DueDateIndicator dueDate={task.dueDate} status={task.status} />
           {total > 0 && <SubtaskProgress done={done} total={total} />}
           <CommentCountIndicator count={task.commentCount} />
         </div>

@@ -19,7 +19,7 @@ const GOVERNANCE_GROUPS = [
   'run-code-policy',
   'security-monitoring',
   'guardrails',
-  'audit-logs',
+  'logs',
   'usage',
   'legal-hold',
   'data-subject-requests',
@@ -36,7 +36,7 @@ interface GovernanceNavItem {
     | 'runCodePolicy'
     | 'securityAndMonitoring'
     | 'guardrails'
-    | 'auditLogs'
+    | 'logs'
     | 'usage'
     | 'legalHold'
     | 'dataSubjectRequests'
@@ -60,7 +60,7 @@ export const GOVERNANCE_NAV_ITEMS: GovernanceNavItem[] = [
     icon: ShieldAlert,
   },
   { slug: 'guardrails', labelKey: 'guardrails', icon: Shield },
-  { slug: 'audit-logs', labelKey: 'auditLogs', icon: ScrollText },
+  { slug: 'logs', labelKey: 'logs', icon: ScrollText },
   { slug: 'usage', labelKey: 'usage', icon: TrendingUp },
   { slug: 'legal-hold', labelKey: 'legalHold', icon: AlertOctagon },
   {

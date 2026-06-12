@@ -1,9 +1,7 @@
-import { Button } from '@tale/ui/button';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { ArrowLeft } from 'lucide-react';
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
+import { createFileRoute } from '@tanstack/react-router';
 
-import { ContentArea } from '@/app/components/layout/content-area';
-import { PageHeader } from '@/app/components/layout/page-header';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -26,6 +24,11 @@ export const Route = createFileRoute('/dashboard/$id/agents/organigram')({
   component: OrganigramPage,
 });
 
+/**
+ * Same page shape as the automations Metrics page: the agents layout's
+ * breadcrumb ("Agents › Organigram") is the way back, so the content opens
+ * with a plain title block instead of a PageHeader + back button.
+ */
 function OrganigramPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('organigram');
@@ -33,20 +36,14 @@ function OrganigramPage() {
   const canEdit = ability.can('read', 'developerSettings');
 
   return (
-    <ContentArea gap={6} className="py-4">
-      <PageHeader
-        as="h2"
-        title={t('title')}
-        description={t('subtitle')}
-        action={
-          <Button asChild size="sm" variant="ghost" icon={ArrowLeft}>
-            <Link to="/dashboard/$id/agents" params={{ id: organizationId }}>
-              {t('backToAgents')}
-            </Link>
-          </Button>
-        }
-      />
+    <Stack gap={6} className="p-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-base font-semibold">{t('title')}</h1>
+        <Text variant="caption" className="text-muted-foreground text-sm">
+          {t('subtitle')}
+        </Text>
+      </div>
       <OrganigramCanvas organizationId={organizationId} canEdit={canEdit} />
-    </ContentArea>
+    </Stack>
   );
 }

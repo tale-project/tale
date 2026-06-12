@@ -164,7 +164,10 @@ export function RequestsListSection({
         accessorKey: 'requestedAt',
         header: t('dataSubjectRequests.columns.requestedAt'),
         cell: ({ row }) => <TableDateCell date={row.original.requestedAt} />,
-        size: 150,
+        // Sized so the column total stays ≤ 940px (the DataTable min-width
+        // floor) and the table fits the settings content column on common
+        // laptop widths instead of clipping behind a horizontal scroll.
+        size: 140,
       },
     ],
     [t],

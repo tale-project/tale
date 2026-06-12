@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
   ReactFlowProvider,
@@ -344,6 +344,28 @@ function AutomationStepsInner({
         <div ref={containerRef} className="bg-background min-h-0 flex-[1_1_0]">
           <FlowCanvas
             onOpenAi={onOpenAIChat}
+            centerActions={
+              <>
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  title={t('steps.toolbar.addStep')}
+                  onClick={() => setIsCreateStepDialogOpen(true)}
+                >
+                  <Plus className="size-4" />
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  title={t('steps.toolbar.testAutomation')}
+                  onClick={handleOpenTestPanel}
+                  disabled={steps.length === 0}
+                >
+                  <TestTubeDiagonal className="size-4" />
+                </Button>
+              </>
+            }
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
@@ -467,34 +489,6 @@ function AutomationStepsInner({
                 </Stack>
               </Panel>
             )}
-
-            <Panel position="bottom-center" className="mb-4">
-              <HStack
-                gap={2}
-                className="ring-border bg-background rounded-lg p-1 shadow-sm ring-1"
-              >
-                <HStack gap={2}>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    title={t('steps.toolbar.addStep')}
-                    onClick={() => setIsCreateStepDialogOpen(true)}
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    title={t('steps.toolbar.testAutomation')}
-                    onClick={handleOpenTestPanel}
-                    disabled={steps.length === 0}
-                  >
-                    <TestTubeDiagonal className="size-4" />
-                  </Button>
-                </HStack>
-              </HStack>
-            </Panel>
           </FlowCanvas>
         </div>
 

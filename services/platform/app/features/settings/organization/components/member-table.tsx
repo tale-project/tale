@@ -82,6 +82,9 @@ export function MemberTable({
     [removeMember],
   );
 
+  // Column sizes double as the table's min-width floor (DataTable sums them).
+  // They must total ≤ 540px so the table fits the `SettingsPage narrow`
+  // 544px column on the Organization page without horizontal scroll.
   const columns = useMemo<ColumnDef<Member>[]>(
     () => [
       // Multi-row select — canonical 40px column. Enables bulk-remove via
@@ -109,20 +112,20 @@ export function MemberTable({
           const member = row.original;
           return (
             <Stack gap={0}>
-              <Text as="span" variant="label" className="block">
+              <Text as="span" variant="label" className="block truncate">
                 {member.displayName || member.email || tTables('cells.unknown')}
               </Text>
               {member.displayName &&
                 member.email &&
                 member.displayName !== member.email && (
-                  <Text as="span" variant="caption" className="block">
+                  <Text as="span" variant="caption" className="block truncate">
                     {member.email}
                   </Text>
                 )}
             </Stack>
           );
         },
-        size: 348,
+        size: 212,
       },
       {
         id: 'role',
@@ -142,7 +145,7 @@ export function MemberTable({
             </span>
           );
         },
-        size: 200,
+        size: 112,
       },
       {
         id: 'joined',
@@ -155,6 +158,7 @@ export function MemberTable({
             preset="relative"
           />
         ),
+        size: 120,
       },
       {
         id: 'actions',

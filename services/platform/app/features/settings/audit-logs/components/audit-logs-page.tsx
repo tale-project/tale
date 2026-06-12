@@ -2,14 +2,15 @@
 
 import { Button } from '@tale/ui/button';
 import { Tabs } from '@tale/ui/tabs';
-import { Text } from '@tale/ui/text';
 import { Download } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
+import { ActivityLogView } from '@/app/features/settings/audit-logs/components/activity-log-view';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { BlockCountersTable } from '@/app/features/settings/audit-logs/components/block-counters-table';
+import { ErrorLogTable } from '@/app/features/settings/audit-logs/components/error-log-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -201,18 +202,21 @@ export function AuditLogsPage({
               value: 'activity',
               label: t('logs.activityLogs'),
               content: (
-                <Text variant="muted" className="text-sm">
-                  {t('logs.activityComingSoon')}
-                </Text>
+                <ActivityLogView
+                  organizationId={organizationId}
+                  userEmailMap={userEmailMap}
+                />
               ),
             },
             {
               value: 'errors',
               label: t('logs.errorLogs'),
               content: (
-                <Text variant="muted" className="text-sm">
-                  {t('logs.errorComingSoon')}
-                </Text>
+                <ErrorLogTable
+                  organizationId={organizationId}
+                  category={category}
+                  userEmailMap={userEmailMap}
+                />
               ),
             },
           ]}

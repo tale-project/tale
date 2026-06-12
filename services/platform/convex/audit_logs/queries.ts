@@ -78,11 +78,44 @@ export const listAuditLogsPaginated = query({
   },
 });
 
+/**
+ * Errors-only view of the audit trail (status `failure` or `denied`),
+ * newest first. Backs the "Error logs" tab; same admin gate as the
+ * full audit log.
+ */
+export const listErrorLogsPaginated = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    organizationId: v.string(),
+    category: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
+    assertAuditLogReadAccess(member);
+
+    return await listAuditLogsPaginatedHelper(ctx, {
+      ...args,
+      onlyErrors: true,
+    });
+  },
+});
+
 export const getActivitySummary = query({
   args: {
     organizationId: v.string(),
-    startDate: v.optional(v.number()),
-    endDate: v.optional(v.number()),
+    // Window size instead of epoch bounds: callers pass a stable arg
+    // (7/30/90), so the client query cache keys don't churn on every
+    // mount the way a `Date.now()`-derived startDate would.
+    periodDays: v.optional(v.number()),
   },
   returns: v.object({
     totalActions: v.number(),
@@ -112,10 +145,10 @@ export const getActivitySummary = query({
     );
     assertAuditLogReadAccess(member);
 
+    const periodDays = args.periodDays ?? 7;
     return await AuditLogHelpers.getActivitySummary(ctx, {
       organizationId: args.organizationId,
-      startDate: args.startDate,
-      endDate: args.endDate,
+      startDate: Date.now() - periodDays * 24 * 60 * 60 * 1000,
     });
   },
 });

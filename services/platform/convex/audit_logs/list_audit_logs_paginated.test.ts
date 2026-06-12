@@ -97,6 +97,39 @@ describe('listAuditLogsPaginated', () => {
     expect(builder.filter).toHaveBeenCalledTimes(1);
   });
 
+  it('applies a status filter on the time index when onlyErrors is set', async () => {
+    const { ctx, builder } = createMockQueryBuilder();
+
+    await listAuditLogsPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: DEFAULT_PAGINATION_OPTS,
+      organizationId: 'org_1',
+      onlyErrors: true,
+    });
+
+    expect(builder.withIndex).toHaveBeenCalledWith(
+      'by_organizationId_and_timestamp',
+      expect.any(Function),
+    );
+    expect(builder.filter).toHaveBeenCalledTimes(1);
+  });
+
+  it('combines the category index with the onlyErrors status filter', async () => {
+    const { ctx, builder } = createMockQueryBuilder();
+
+    await listAuditLogsPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: DEFAULT_PAGINATION_OPTS,
+      organizationId: 'org_1',
+      category: 'auth',
+      onlyErrors: true,
+    });
+
+    expect(builder.withIndex).toHaveBeenCalledWith(
+      'by_org_category_timestamp',
+      expect.any(Function),
+    );
+    expect(builder.filter).toHaveBeenCalledTimes(1);
+  });
+
   it('returns pagination result', async () => {
     const docs = [
       { _id: 'al_1', action: 'create', category: 'auth' },

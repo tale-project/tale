@@ -1,7 +1,7 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import { Gauge, Network, Plus, Upload } from 'lucide-react';
+import { Gauge, Plus, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import {
@@ -43,15 +43,6 @@ export function AgentsActionMenu({ organizationId }: AgentsActionMenuProps) {
         label: t('agents.uploadDialog.menuItem'),
         icon: Upload,
         onClick: () => setUploadOpen(true),
-      },
-      {
-        label: t('agents.organigram.menuItem'),
-        icon: Network,
-        onClick: () =>
-          void navigate({
-            to: '/dashboard/$id/agents/organigram',
-            params: { id: organizationId },
-          }),
       },
       {
         label: t('agents.workforce.menuItem'),

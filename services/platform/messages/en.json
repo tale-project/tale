@@ -695,21 +695,8 @@
       "description": "Are you sure you want to delete \"{name}\"? This action cannot be undone."
     },
     "assistant": {
-      "automationDetails": "Automation details",
-      "previewImage": "Preview {filename}",
-      "fallbackImage": "Image",
-      "fallbackFile": "File",
-      "loading": "Loading...",
-      "notFound": "Automation not found.",
-      "welcome": "Hi! I'm your automation assistant. I can help you create, edit, and discuss this automation. What would you like to do?",
       "errorMessage": "I'm sorry, I encountered an error. Please try again or check the console for details.",
-      "thinking": {
-        "thinking": "Thinking",
-        "analyzing": "Analyzing workflow",
-        "compiling": "Compiling an answer"
-      },
-      "analyzeAttachments": "Please analyze the attached files.",
-      "messageHistory": "Message history"
+      "analyzeAttachments": "Please analyze the attached files."
     },
     "tester": {
       "inputLabel": "Test input (JSON)",
@@ -2847,7 +2834,7 @@
       "guardrails": "Guardrails",
       "usage": "Usage",
       "feedback": "Feedback",
-      "auditLogs": "Audit logs",
+      "logs": "Logs",
       "dataSubjectRequests": "Data subject requests",
       "runCodePolicy": "Run-code packages"
     },
@@ -5677,8 +5664,33 @@
       "auditLogs": "Audit logs",
       "activityLogs": "Activity logs",
       "errorLogs": "Error logs",
-      "activityComingSoon": "Activity logs are coming soon.",
-      "errorComingSoon": "Error logs are coming soon.",
+      "activity": {
+        "period": {
+          "label": "Period",
+          "last7Days": "Last 7 days",
+          "last30Days": "Last 30 days",
+          "last90Days": "Last 90 days"
+        },
+        "cards": {
+          "total": "Total actions",
+          "success": "Success",
+          "failure": "Failure",
+          "denied": "Denied"
+        },
+        "byCategory": {
+          "title": "Activity by category"
+        },
+        "topActors": {
+          "title": "Most active users"
+        },
+        "empty": "No activity in this period."
+      },
+      "errors": {
+        "entityLabel": "error logs",
+        "tableCaption": "Error logs data table",
+        "emptyTitle": "No error logs",
+        "emptyDescription": "Failed and denied actions will appear here."
+      },
       "blockCounters": {
         "tabLabel": "Sign-in blocks",
         "tableCaption": "Sign-in block activity",
@@ -6228,6 +6240,12 @@
       "author": "Author",
       "created": "Created"
     },
+    "labels": {
+      "add": "Add label…",
+      "create": "Create \"{label}\"",
+      "changeColor": "Change color",
+      "back": "Back"
+    },
     "actions": {
       "create": "Create task",
       "comment": "Comment",
@@ -6245,9 +6263,6 @@
     },
     "board": {
       "noTasks": "No tasks"
-    },
-    "empty": {
-      "description": "Create your first task to start tracking work."
     },
     "detail": {
       "overview": "Overview",
@@ -6328,7 +6343,8 @@
     },
     "dueDate": {
       "label": "Due date",
-      "overdue": "Overdue"
+      "overdue": "Overdue",
+      "due": "Due {date}"
     },
     "mentionPreview": {
       "willRespond": "{slug} will respond",
@@ -6811,7 +6827,7 @@
   "organigram": {
     "title": "Organigram",
     "subtitle": "How your AI workforce delegates work — delegation, epic decomposition, SLA escalation, and budget handoff all follow these edges.",
-    "backToAgents": "Agents",
+    "addAgent": "Add agent",
     "node": {
       "warning": "A delegation edge was dropped (it referenced a missing agent)."
     },

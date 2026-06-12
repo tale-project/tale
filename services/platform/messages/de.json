@@ -695,21 +695,8 @@
       "description": "Möchtest du \"{name}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
     },
     "assistant": {
-      "automationDetails": "Automatisierungsdetails",
-      "previewImage": "Vorschau {filename}",
-      "fallbackImage": "Bild",
-      "fallbackFile": "Datei",
-      "loading": "Lädt...",
-      "notFound": "Automatisierung nicht gefunden.",
-      "welcome": "Hallo! Ich bin dein Automatisierungsassistent. Ich kann dir helfen, diese Automatisierung zu erstellen, zu bearbeiten und zu besprechen. Was möchtest du tun?",
       "errorMessage": "Es tut mir leid, ein Fehler ist aufgetreten. Bitte versuche es erneut oder prüfe die Konsole für Details.",
-      "thinking": {
-        "thinking": "Denkt nach",
-        "analyzing": "Workflow wird analysiert",
-        "compiling": "Antwort wird erstellt"
-      },
-      "analyzeAttachments": "Bitte analysiere die angehängten Dateien.",
-      "messageHistory": "Nachrichtenverlauf"
+      "analyzeAttachments": "Bitte analysiere die angehängten Dateien."
     },
     "tester": {
       "inputLabel": "Testeingabe (JSON)",
@@ -2847,7 +2834,7 @@
       "guardrails": "Guardrails",
       "usage": "Nutzung",
       "feedback": "Feedback",
-      "auditLogs": "Audit-Logs",
+      "logs": "Protokolle",
       "dataSubjectRequests": "Anfragen betroffener Personen",
       "runCodePolicy": "Run-code-Pakete"
     },
@@ -5416,8 +5403,33 @@
       "auditLogs": "Audit-Protokolle",
       "activityLogs": "Aktivitätsprotokolle",
       "errorLogs": "Fehlerprotokolle",
-      "activityComingSoon": "Aktivitätsprotokolle sind bald verfügbar.",
-      "errorComingSoon": "Fehlerprotokolle sind bald verfügbar.",
+      "activity": {
+        "period": {
+          "label": "Zeitraum",
+          "last7Days": "Letzte 7 Tage",
+          "last30Days": "Letzte 30 Tage",
+          "last90Days": "Letzte 90 Tage"
+        },
+        "cards": {
+          "total": "Aktionen gesamt",
+          "success": "Erfolgreich",
+          "failure": "Fehlgeschlagen",
+          "denied": "Abgelehnt"
+        },
+        "byCategory": {
+          "title": "Aktivität nach Kategorie"
+        },
+        "topActors": {
+          "title": "Aktivste Benutzer"
+        },
+        "empty": "Keine Aktivität in diesem Zeitraum."
+      },
+      "errors": {
+        "entityLabel": "Fehlerprotokolle",
+        "tableCaption": "Fehlerprotokoll-Datentabelle",
+        "emptyTitle": "Keine Fehlerprotokolle",
+        "emptyDescription": "Fehlgeschlagene und abgelehnte Aktionen werden hier angezeigt."
+      },
       "blockCounters": {
         "tabLabel": "Anmeldeblockaden",
         "tableCaption": "Anmeldeblockaden",
@@ -5967,6 +5979,12 @@
       "author": "Autor",
       "created": "Erstellt"
     },
+    "labels": {
+      "add": "Label hinzufügen…",
+      "create": "„{label}“ erstellen",
+      "changeColor": "Farbe ändern",
+      "back": "Zurück"
+    },
     "actions": {
       "create": "Aufgabe erstellen",
       "comment": "Kommentieren",
@@ -5984,9 +6002,6 @@
     },
     "board": {
       "noTasks": "Keine Aufgaben"
-    },
-    "empty": {
-      "description": "Erstelle deine erste Aufgabe, um die Arbeit zu verfolgen."
     },
     "detail": {
       "overview": "Übersicht",
@@ -6067,7 +6082,8 @@
     },
     "dueDate": {
       "label": "Fälligkeitsdatum",
-      "overdue": "Überfällig"
+      "overdue": "Überfällig",
+      "due": "Fällig am {date}"
     },
     "mentionPreview": {
       "willRespond": "{slug} wird antworten",
@@ -6811,7 +6827,7 @@
   "organigram": {
     "title": "Organigramm",
     "subtitle": "Wie deine KI-Belegschaft Arbeit delegiert — Delegation, Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe folgen alle diesen Kanten.",
-    "backToAgents": "Agenten",
+    "addAgent": "Agent hinzufügen",
     "node": {
       "warning": "Eine Delegationskante wurde verworfen (sie verwies auf einen fehlenden Agenten)."
     },

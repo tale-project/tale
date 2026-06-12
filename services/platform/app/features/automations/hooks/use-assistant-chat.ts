@@ -2,39 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
 import {
   useCreateThread,
   useUnifiedChatWithAgent,
 } from '@/app/features/chat/hooks/mutations';
-import {
-  useDocumentWriteApprovals,
-  useHumanInputRequests,
-  useIntegrationApprovals,
-  useThreadMessages,
-  useWorkflowCreationApprovals,
-  useWorkflowRunApprovals,
-  useWorkflowUpdateApprovals,
-} from '@/app/features/chat/hooks/queries';
+import { useResolvedHumanInputRequests } from '@/app/features/chat/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useFileIndexingStatus } from '@/app/features/chat/hooks/use-file-indexing-status';
 import { useFileTranscriptionStatus } from '@/app/features/chat/hooks/use-file-transcription-status';
-import {
-  extractFileAttachments,
-  stripInternalFileReferences,
-} from '@/app/features/chat/hooks/use-message-processing';
+import { useMergedChatItems } from '@/app/features/chat/hooks/use-merged-chat-items';
+import { useMessageProcessing } from '@/app/features/chat/hooks/use-message-processing';
+import { usePendingMessages } from '@/app/features/chat/hooks/use-pending-messages';
+import { useThreadApprovals } from '@/app/features/chat/hooks/use-thread-approvals';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import {
-  getSystemMessageDisplay,
-  parseSystemMessageTag,
-} from '@/lib/shared/constants/system-message-tags';
-import { stripWorkflowContext } from '@/lib/utils/message-helpers';
 
-import type {
-  FilePart,
-  Message,
-} from '../components/automation-assistant/types';
 import { useReadWorkflow } from './file-queries';
 
 // Module-level guard to prevent duplicate sends (survives component remounts)
@@ -62,8 +46,6 @@ function canSendMessage(content: string, threadId: string | null): boolean {
 }
 
 interface UseAssistantChatOptions {
-  /** Which assistant the panel chats with (default: the workflow editor). */
-  mode?: 'workflow' | 'organigram';
   workflowSlug?: string;
   workflowName?: string;
   organizationId: string;
@@ -71,8 +53,17 @@ interface UseAssistantChatOptions {
   analyzeAttachmentsText: string;
 }
 
+/**
+ * Data layer for the workflow-editor AI panel. Message rendering is the MAIN
+ * CHAT pipeline, 1:1 — `useMessageProcessing` (streaming UIMessages with
+ * reasoning/tool parts for the thought timeline) → `usePendingMessages`
+ * (optimistic bubble via the panel's own ChatLayoutProvider) →
+ * `useMergedChatItems` (approval cards spliced into the flow) — so the panel
+ * renders through the same `ChatMessages`/`MessageBubble` stack as the chat
+ * page. Only the send path differs: the agent is pinned to
+ * `workflow-assistant` and each turn carries the edited workflow as context.
+ */
 export function useAssistantChat({
-  mode = 'workflow',
   workflowSlug,
   workflowName,
   organizationId,
@@ -93,25 +84,14 @@ export function useAssistantChat({
     isQueryLoading: isTranscriptionQueryLoading,
     statusMap: transcriptionStatuses,
   } = useFileTranscriptionStatus(attachments);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isPending, setIsPending] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const isSendingRef = useRef(false);
-  const [previewImage, setPreviewImage] = useState<{
-    isOpen: boolean;
-    src: string;
-    alt: string;
-  } | null>(null);
-  const { throttledScrollToBottom, cleanup } = useThrottledScroll({
-    delay: 16,
-  });
 
-  const assistantAgentSlug =
-    mode === 'organigram' ? 'organigram-assistant' : 'workflow-assistant';
+  const { setPendingMessage } = useChatLayout();
+
+  const assistantAgentSlug = 'workflow-assistant';
 
   const { mutateAsync: chatWithAgent } = useUnifiedChatWithAgent();
   const { mutateAsync: createChatThread } = useCreateThread();
@@ -125,31 +105,44 @@ export function useAssistantChat({
     };
   }, [readResult]);
 
-  const uiMessages = useThreadMessages(threadId);
-  const { approvals: workflowUpdateApprovals } = useWorkflowUpdateApprovals(
-    organizationId,
-    threadId ?? undefined,
-  );
-  const { approvals: workflowCreationApprovals } = useWorkflowCreationApprovals(
-    organizationId,
-    threadId ?? undefined,
-  );
-  const { approvals: workflowRunApprovals } = useWorkflowRunApprovals(
-    organizationId,
-    threadId ?? undefined,
-  );
-  const { requests: humanInputRequests } = useHumanInputRequests(
-    organizationId,
-    threadId ?? undefined,
-  );
-  const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
-    organizationId,
-    threadId ?? undefined,
-  );
-  const { approvals: integrationApprovals } = useIntegrationApprovals(
-    organizationId,
-    threadId ?? undefined,
-  );
+  // ---- Main-chat message pipeline ----------------------------------------
+  const {
+    messages: rawMessages,
+    loadMore,
+    canLoadMore,
+    isLoadingMore,
+  } = useMessageProcessing(threadId ?? undefined);
+
+  // Optimistic user bubble (set on send below), merged exactly like the chat
+  // page does it.
+  const messages = usePendingMessages({
+    threadId: threadId ?? undefined,
+    realMessages: rawMessages,
+  });
+
+  const approvals = useThreadApprovals(organizationId, threadId ?? undefined);
+  const { requests: resolvedHumanInputRequests } =
+    useResolvedHumanInputRequests(organizationId, threadId ?? undefined);
+
+  const {
+    messages: items,
+    activeApproval,
+    activeApprovalInline,
+  } = useMergedChatItems({
+    messages,
+    integrationApprovals: approvals.integrationApprovals,
+    workflowCreationApprovals: approvals.workflowCreationApprovals,
+    workflowUpdateApprovals: approvals.workflowUpdateApprovals,
+    workflowRunApprovals: approvals.workflowRunApprovals,
+    humanInputRequests: approvals.humanInputRequests,
+    resolvedHumanInputRequests,
+    locationRequests: approvals.locationRequests,
+    documentWriteApprovals: approvals.documentWriteApprovals,
+  });
+
+  // Always-current tail key for the optimistic bubble's clear baseline.
+  const lastMessageKeyRef = useRef<string | undefined>(undefined);
+  lastMessageKeyRef.current = rawMessages[rawMessages.length - 1]?.key;
 
   // Server-side loading state: is the agent currently generating?
   const { data: isGenerating } = useConvexQuery(
@@ -182,260 +175,39 @@ export function useAssistantChat({
     }
   }, [workflow, threadId, workflowSlug]);
 
-  // Transform uiMessages to Message[] format
-  const transformedMessages = useMemo(() => {
-    if (!uiMessages || uiMessages.length === 0) return [];
-
-    return uiMessages
-      .filter(
-        (m) =>
-          m.role === 'user' || m.role === 'assistant' || m.role === 'system',
-      )
-      .map((m) => {
-        const parts: unknown[] = Array.isArray(m.parts) ? m.parts : [];
-        const fileParts = parts
-          .filter(
-            (p): p is FilePart =>
-              typeof p === 'object' &&
-              p !== null &&
-              'type' in p &&
-              p.type === 'file' &&
-              'url' in p &&
-              typeof p.url === 'string' &&
-              'mediaType' in p &&
-              typeof p.mediaType === 'string',
-          )
-          .map((p) => ({
-            type: 'file' as const,
-            mediaType: p.mediaType,
-            filename: p.filename,
-            url: p.url,
-          }));
-
-        const rawText = m.text;
-        const fileAttachments =
-          m.role === 'user' && rawText
-            ? extractFileAttachments(rawText)
-            : undefined;
-
-        let systemMessageDisplay;
-        let systemMessageBody;
-        if (m.role === 'system' && rawText) {
-          const parsed = parseSystemMessageTag(rawText);
-          systemMessageDisplay = getSystemMessageDisplay(parsed.tag);
-          systemMessageBody = parsed.body;
-        }
-
-        return {
-          id: m.id,
-          role: m.role,
-          content: rawText
-            ? stripInternalFileReferences(
-                m.role === 'user' ? stripWorkflowContext(rawText) : rawText,
-              )
-            : '',
-          timestamp: new Date(m._creationTime),
-          fileParts: fileParts.length > 0 ? fileParts : undefined,
-          attachments:
-            fileAttachments && fileAttachments.length > 0
-              ? fileAttachments
-              : undefined,
-          automationContext: undefined,
-          clientMessageId: undefined,
-          systemMessageDisplay,
-          systemMessageBody,
-        };
-      });
-  }, [uiMessages]);
-
-  const messagesKey = useMemo(() => {
-    return transformedMessages
-      .map((m) => `${m.id}:${m.content.length}`)
-      .join('|');
-  }, [transformedMessages]);
-
-  const [pendingUserMessage, setPendingUserMessage] = useState<Message | null>(
-    null,
-  );
-  const pendingUserMessageRef = useRef(pendingUserMessage);
-  pendingUserMessageRef.current = pendingUserMessage;
-  const transformedMessagesRef = useRef(transformedMessages);
-  transformedMessagesRef.current = transformedMessages;
-
-  // Sync messages from thread
-  useEffect(() => {
-    const currentTransformed = transformedMessagesRef.current;
-    const currentPending = pendingUserMessageRef.current;
-    if (currentTransformed.length > 0) {
-      setMessages(currentTransformed);
-      if (currentPending) {
-        const pendingTimestamp = currentPending.timestamp.getTime();
-        const toleranceMs = 60000;
-        const pendingContent = currentPending.content.trim().toLowerCase();
-        const hasMatchingServerMessage = currentTransformed.some(
-          (m) =>
-            m.role === 'user' &&
-            (Math.abs(m.timestamp.getTime() - pendingTimestamp) < toleranceMs ||
-              m.content.trim().toLowerCase() === pendingContent),
-        );
-        if (hasMatchingServerMessage) {
-          setPendingUserMessage(null);
-        }
-      }
-    }
-  }, [messagesKey]);
-
-  const displayMessages = useMemo(() => {
-    const serverMessages =
-      transformedMessages.length > 0 ? transformedMessages : messages;
-
-    if (!pendingUserMessage) return serverMessages;
-    if (serverMessages.length === 0) {
-      return [pendingUserMessage];
-    }
-    const pendingTimestamp = pendingUserMessage.timestamp.getTime();
-    const toleranceMs = 60000;
-    const pendingContent = pendingUserMessage.content.trim().toLowerCase();
-
-    const hasMatchingServerMessage = serverMessages.some(
-      (m) =>
-        m.role === 'user' &&
-        (Math.abs(m.timestamp.getTime() - pendingTimestamp) < toleranceMs ||
-          m.content.trim().toLowerCase() === pendingContent),
-    );
-    if (!hasMatchingServerMessage) {
-      return [...serverMessages, pendingUserMessage];
-    }
-    return serverMessages;
-  }, [transformedMessages, messages, pendingUserMessage]);
-
-  const lastDisplayMessage =
-    displayMessages.length > 0
-      ? displayMessages[displayMessages.length - 1]
-      : null;
-  const isWaitingForResponse =
-    isLoading ||
-    (lastDisplayMessage !== null &&
-      (lastDisplayMessage.role === 'user' ||
-        !lastDisplayMessage.content.trim()));
-
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (displayMessages.length === 0) return;
-
-    if (containerRef.current) {
-      throttledScrollToBottom(containerRef.current, 'auto');
-    }
-  }, [displayMessages.length, throttledScrollToBottom]);
-
-  // Cleanup throttled scroll on unmount
-  useEffect(() => {
-    return cleanup;
-  }, [cleanup]);
-
-  const handleFileInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (files && files.length > 0) {
-        void uploadFiles(Array.from(files));
-      }
-      e.target.value = '';
-    },
-    [uploadFiles],
-  );
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      const imageFiles: File[] = [];
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type.startsWith('image/')) {
-          const file = item.getAsFile();
-          if (file) {
-            const extension = item.type.split('/')[1] || 'png';
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const renamedFile = new File(
-              [file],
-              `pasted-image-${timestamp}.${extension}`,
-              { type: file.type },
-            );
-            imageFiles.push(renamedFile);
-          }
-        }
-      }
-
-      if (imageFiles.length > 0) {
-        void uploadFiles(imageFiles);
-      }
-    },
-    [uploadFiles],
-  );
-
   // The chat composer (`ChatInput`) clears the attachment strip itself and
   // hands the snapshot over; calls without arguments fall back to reading
   // the hook's own state (legacy path).
-  const handleSendMessage = async (
-    messageOverride?: string,
-    attachmentsOverride?: ReturnType<typeof clearAttachments>,
-  ) => {
-    if (isSendingRef.current) return;
-    const rawMessage = messageOverride ?? inputValue;
-    const hasAttachments =
-      (attachmentsOverride?.length ?? attachments.length) > 0;
-    if (
-      (!rawMessage.trim() && !hasAttachments) ||
-      isLoading ||
-      !organizationId ||
-      isIndexing ||
-      isTranscribing ||
-      isTranscriptionQueryLoading
-    )
-      return;
+  const handleSendMessage = useCallback(
+    async (
+      messageOverride?: string,
+      attachmentsOverride?: ReturnType<typeof clearAttachments>,
+    ) => {
+      if (isSendingRef.current) return;
+      const rawMessage = messageOverride ?? inputValue;
+      const hasAttachments =
+        (attachmentsOverride?.length ?? attachments.length) > 0;
+      if (
+        (!rawMessage.trim() && !hasAttachments) ||
+        isLoading ||
+        !organizationId ||
+        isIndexing ||
+        isTranscribing ||
+        isTranscriptionQueryLoading
+      )
+        return;
 
-    const messageContent = rawMessage.trim();
+      const messageContent = rawMessage.trim();
 
-    if (!canSendMessage(messageContent, threadId)) {
-      return;
-    }
-
-    isSendingRef.current = true;
-
-    const clearedAttachments = attachmentsOverride ?? clearAttachments();
-    const attachmentsToSend =
-      clearedAttachments.length > 0 ? clearedAttachments : undefined;
-
-    const clientMessageId = `client-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const optimisticMessage: Message = {
-      id: `pending-${Date.now()}`,
-      role: 'user',
-      content: messageContent,
-      timestamp: new Date(),
-      clientMessageId,
-      attachments: attachmentsToSend,
-    };
-    setPendingUserMessage(optimisticMessage);
-
-    setInputValue('');
-    setIsPending(true);
-
-    try {
-      let currentThreadId = threadId;
-      if (!currentThreadId) {
-        const title =
-          messageContent.length > 50
-            ? `${messageContent.slice(0, 50)}...`
-            : messageContent;
-
-        currentThreadId = await createChatThread({
-          organizationId,
-          title,
-          chatType: 'workflow_assistant',
-        });
-        setThreadId(currentThreadId);
+      if (!canSendMessage(messageContent, threadId)) {
+        return;
       }
+
+      isSendingRef.current = true;
+
+      const clearedAttachments = attachmentsOverride ?? clearAttachments();
+      const attachmentsToSend =
+        clearedAttachments.length > 0 ? clearedAttachments : undefined;
 
       const mutationAttachments = attachmentsToSend
         ? attachmentsToSend.map((a) => ({
@@ -446,48 +218,102 @@ export function useAssistantChat({
           }))
         : undefined;
 
-      if (!currentThreadId) return;
-
-      await chatWithAgent({
-        agentSlug: assistantAgentSlug,
-        threadId: currentThreadId,
-        organizationId,
-        message: messageContent || analyzeAttachmentsText,
+      // Optimistic bubble through the shared pending-message channel (the
+      // panel mounts its own ChatLayoutProvider, so this never collides with
+      // the chat page). `lastMessageKey` is the clear baseline for existing
+      // threads; a brand-new thread clears on its first real message.
+      const pendingTimestamp = new Date();
+      setPendingMessage({
+        content: messageContent,
+        threadId: threadId ?? 'pending',
         attachments: mutationAttachments,
-        additionalContext: workflowSlug
-          ? {
-              target_workflow_id: workflowSlug,
-              target_workflow_name: workflowName ?? workflow?.name ?? '',
-            }
-          : undefined,
+        timestamp: pendingTimestamp,
+        lastMessageKey: threadId ? lastMessageKeyRef.current : undefined,
       });
-    } catch (error) {
-      console.error('Error calling workflow assistant:', error);
-      setIsPending(false);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: errorMessageText,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      isSendingRef.current = false;
-    }
-  };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void handleSendMessage();
-    }
-  };
+      setInputValue('');
+      setIsPending(true);
+
+      try {
+        let currentThreadId = threadId;
+        if (!currentThreadId) {
+          const title =
+            messageContent.length > 50
+              ? `${messageContent.slice(0, 50)}...`
+              : messageContent;
+
+          currentThreadId = await createChatThread({
+            organizationId,
+            title,
+            chatType: 'workflow_assistant',
+          });
+          setThreadId(currentThreadId);
+          // Re-key the optimistic bubble onto the real thread so it stays
+          // visible (and clears correctly) once the subscription attaches.
+          setPendingMessage({
+            content: messageContent,
+            threadId: currentThreadId ?? 'pending',
+            attachments: mutationAttachments,
+            timestamp: pendingTimestamp,
+          });
+        }
+
+        if (!currentThreadId) return;
+
+        await chatWithAgent({
+          agentSlug: assistantAgentSlug,
+          threadId: currentThreadId,
+          organizationId,
+          message: messageContent || analyzeAttachmentsText,
+          attachments: mutationAttachments,
+          additionalContext: workflowSlug
+            ? {
+                target_workflow_id: workflowSlug,
+                target_workflow_name: workflowName ?? workflow?.name ?? '',
+              }
+            : undefined,
+        });
+      } catch (error) {
+        console.error('Error calling workflow assistant:', error);
+        setIsPending(false);
+        setPendingMessage(null);
+        toast({ title: errorMessageText, variant: 'destructive' });
+      } finally {
+        isSendingRef.current = false;
+      }
+    },
+    [
+      inputValue,
+      attachments.length,
+      isLoading,
+      organizationId,
+      isIndexing,
+      isTranscribing,
+      isTranscriptionQueryLoading,
+      threadId,
+      clearAttachments,
+      setPendingMessage,
+      createChatThread,
+      chatWithAgent,
+      analyzeAttachmentsText,
+      workflowSlug,
+      workflowName,
+      workflow?.name,
+      errorMessageText,
+    ],
+  );
 
   return {
     workflow,
-    displayMessages,
+    threadId,
+    items,
+    activeApproval,
+    activeApprovalInline,
+    loadMore,
+    canLoadMore,
+    isLoadingMore,
     isLoading,
-    isWaitingForResponse,
+    isSendPending: isPending,
     inputValue,
     setInputValue,
     attachments,
@@ -499,20 +325,6 @@ export function useAssistantChat({
     indexingStatuses,
     isTranscribing: isTranscribing || isTranscriptionQueryLoading,
     transcriptionStatuses,
-    previewImage,
-    setPreviewImage,
-    containerRef,
-    messagesEndRef,
-    fileInputRef,
-    handleFileInputChange,
-    handlePaste,
     handleSendMessage,
-    handleKeyDown,
-    workflowUpdateApprovals,
-    workflowCreationApprovals,
-    workflowRunApprovals,
-    humanInputRequests,
-    documentWriteApprovals,
-    integrationApprovals,
   };
 }

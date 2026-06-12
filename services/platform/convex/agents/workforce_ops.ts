@@ -18,6 +18,9 @@
  * cache — one dir scan per org per minute across ALL chart consumers.
  */
 
+import { mkdir } from 'node:fs/promises';
+import path from 'node:path';
+
 import { ConvexError, v } from 'convex/values';
 
 import { RESERVED_AGENT_SLUGS } from '../../lib/shared/constants/agents';
@@ -26,12 +29,20 @@ import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { type ActionCtx, internalAction } from '../_generated/server';
 import { loadDelegateAgents } from '../agent_tools/delegation/load_delegation_agents';
-import { atomicWrite, readJsonFile } from '../lib/file_io';
+import {
+  atomicWrite,
+  generateHistoryTimestamp,
+  pruneHistory,
+  readFileSafe,
+  readJsonFile,
+} from '../lib/file_io';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import {
   MAX_FILE_SIZE_BYTES,
+  MAX_HISTORY_ENTRIES,
   parseAgentJson,
   resolveAgentFilePath,
+  resolveHistoryDir,
   serializeAgentJson,
   type AgentJsonConfig,
 } from './file_utils';
@@ -402,13 +413,34 @@ export const reassignOrUnassign = internalAction({
 
 // ---------------------------------------------------------------------------
 // Delegation-edge writers (shared by the organigram UI actions and the
-// organigram assistant tool — validation lives HERE so every writer gets it).
+// organigram_write agent tool — validation lives HERE so every writer gets it).
 //
 // The graph is a many-to-many DELEGATION graph stored as each agent's
 // `delegates` array (the agents it delegates to). There is no limitation
 // beyond a forbidden self-edge; cycles are allowed. `reportsTo` is the legacy
 // single-manager field — writers migrate it away as they touch agents.
 // ---------------------------------------------------------------------------
+
+/**
+ * Snapshot an agent file's CURRENT content into its version-history dir
+ * before a delegation write mutates it — the same snapshot-then-write
+ * contract `saveAgent`/`snapshotToHistory` (file_actions) give every other
+ * agent edit, so organigram changes show up in (and restore from) the agent
+ * History dropdown like any config edit. No-op when the file doesn't exist.
+ */
+async function snapshotAgentHistory(
+  orgSlug: string,
+  agentSlug: string,
+): Promise<void> {
+  const filePath = resolveAgentFilePath(orgSlug, agentSlug);
+  const currentContent = await readFileSafe(filePath);
+  if (!currentContent) return;
+  const historyDir = resolveHistoryDir(orgSlug, agentSlug);
+  await mkdir(historyDir, { recursive: true });
+  const timestamp = generateHistoryTimestamp();
+  await atomicWrite(path.join(historyDir, `${timestamp}.json`), currentContent);
+  await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
+}
 
 async function readAgentConfig(filePath: string): Promise<AgentJsonConfig> {
   const file = await readJsonFile<AgentJsonConfig>(
@@ -464,6 +496,7 @@ async function clearLegacyManager(
   }
   const config = file.data;
   delete config.reportsTo;
+  await snapshotAgentHistory(orgSlug, childSlug);
   await atomicWrite(filePath, serializeAgentJson(config));
 }
 
@@ -493,6 +526,7 @@ export async function writeAgentDelegates(args: {
   const previous = config.delegates ?? [];
   if (next.length > 0) config.delegates = next;
   else delete config.delegates;
+  await snapshotAgentHistory(orgSlug, agentSlug);
   await atomicWrite(filePath, serializeAgentJson(config));
 
   // A child removed here whose legacy `reportsTo` still points at us would be
@@ -541,6 +575,7 @@ export async function writeAgentParents(args: {
       : (config.delegates ?? []).filter((slug) => slug !== agentSlug);
     if (updated.length > 0) config.delegates = updated;
     else delete config.delegates;
+    await snapshotAgentHistory(orgSlug, entry.slug);
     await atomicWrite(filePath, serializeAgentJson(config));
   }
 
@@ -553,10 +588,11 @@ export async function writeAgentParents(args: {
 }
 
 // ---------------------------------------------------------------------------
-// Organigram assistant surface (consumed by the `organigram` agent tool)
+// Agent-tool surface (consumed by the `organigram_read` / `organigram_write`
+// agent tools)
 // ---------------------------------------------------------------------------
 
-/** Compact chart snapshot for the assistant's context window. */
+/** Compact chart snapshot for an agent's context window. */
 export const getChartOverview = internalAction({
   args: { organizationId: v.string() },
   returns: v.any(),
@@ -588,11 +624,12 @@ export const getChartOverview = internalAction({
 });
 
 /**
- * Set the agents one agent delegates to, on behalf of the organigram
- * assistant. Same validation + single write path as the canvas
- * (`writeAgentDelegates`), audited with the CHAT USER as the actor.
+ * Set the agents one agent delegates to, on behalf of an agent tool call.
+ * Same validation + single write path as the canvas
+ * (`writeAgentDelegates`, including the pre-write history snapshot),
+ * audited with the CHAT USER as the actor.
  */
-export const setDelegatesFromAssistant = internalAction({
+export const setDelegatesFromAgent = internalAction({
   args: {
     organizationId: v.string(),
     actorUserId: v.string(),
