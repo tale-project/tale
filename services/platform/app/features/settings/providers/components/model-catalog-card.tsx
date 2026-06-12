@@ -87,11 +87,8 @@ export function ModelCatalogCard({ organizationId }: ModelCatalogCardProps) {
   return (
     <PageSection
       as="h2"
-      titleSize="sm"
-      titleWeight="medium"
       title={t('providers.modelCatalog.title')}
       description={t('providers.modelCatalog.description')}
-      gap={3}
     >
       <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
         <Text as="span" variant="caption" className="text-muted-foreground">

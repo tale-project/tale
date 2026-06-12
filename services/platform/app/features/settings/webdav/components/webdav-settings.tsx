@@ -52,7 +52,7 @@ export function WebdavSettings(props: WebdavSettingsProps) {
     <Stack gap={8}>
       <SettingsSection
         title={t('connectionDetails.title')}
-        description={t('connectionDetails.description')}
+        description={t('description')}
       >
         <Stack gap={4}>
           <CopyableField label="URL" value={url} mono />

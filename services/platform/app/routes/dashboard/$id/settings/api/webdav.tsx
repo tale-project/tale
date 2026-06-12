@@ -5,7 +5,6 @@ import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { WebdavSettings } from '@/app/features/settings/webdav/components/webdav-settings';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
 import { api } from '@/convex/_generated/api';
-import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 import { seo } from '@/lib/utils/seo';
 
@@ -27,7 +26,6 @@ export const Route = createFileRoute('/dashboard/$id/settings/api/webdav')({
 function ApiWebdavPage() {
   const { id: organizationId } = Route.useParams();
   const { data: organization } = useOrganization(organizationId);
-  const { t } = useT('webdav');
 
   // Canonical deployment URL (SITE_URL), not the browser origin.
   const siteOrigin = useSiteUrl();
@@ -35,13 +33,7 @@ function ApiWebdavPage() {
 
   // Access is gated by the parent `api` route layout.
   return (
-    <SettingsPage
-      title={t('title', 'WebDAV')}
-      description={t(
-        'description',
-        'Mount Tale documents as a network drive in Finder, File Explorer, or any WebDAV client.',
-      )}
-    >
+    <SettingsPage narrow>
       <WebdavSettings
         organizationId={organizationId}
         orgSlug={orgSlug}

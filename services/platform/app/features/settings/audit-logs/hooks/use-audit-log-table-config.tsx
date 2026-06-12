@@ -114,11 +114,15 @@ export function useAuditLogTableConfig(
         header: t('logs.audit.columns.category'),
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => (
-          <Badge variant="outline" className="capitalize">
-            {t('logs.audit.categoryLabels.' + row.original.category)}
+          // `max-w-full truncate` keeps an overlong label inside its
+          // `table-fixed` column instead of spilling into the Status cell.
+          <Badge variant="outline" className="max-w-full truncate capitalize">
+            {t('logs.audit.categoryLabels.' + row.original.category, {
+              defaultValue: row.original.category,
+            })}
           </Badge>
         ),
-        size: 100,
+        size: 120,
       },
       {
         accessorKey: 'status',
@@ -135,8 +139,11 @@ export function useAuditLogTableConfig(
                     ? 'yellow'
                     : 'destructive'
               }
+              className="max-w-full truncate"
             >
-              {t('logs.audit.statusLabels.' + status)}
+              {t('logs.audit.statusLabels.' + status, {
+                defaultValue: status,
+              })}
             </Badge>
           );
         },

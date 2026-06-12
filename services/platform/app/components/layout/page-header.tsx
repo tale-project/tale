@@ -21,14 +21,14 @@ interface PageHeaderProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
 }
 
 /**
- * The ONE page title/description treatment shared across Settings and agent
- * pages, so every page reads with the same style and the same distance to its
- * content. Title is `text-lg` semibold; description is `text-sm` muted; a 4px
- * gap separates them. Static by design (the user's chosen behavior) — it scrolls
- * with the content rather than pinning to the top.
+ * The ONE page title/description treatment for top-level pages. Title is
+ * `text-lg` semibold; description is `text-sm` muted; a 4px gap separates
+ * them. Static by design (the user's chosen behavior) — it scrolls with the
+ * content rather than pinning to the top.
  *
- * `SettingsPage` renders its header through this; form pages (agent tabs, etc.)
- * render it directly as the first child of their `ContentArea`.
+ * Settings pages and agent tabs carry NO page title (their rail/tab strip
+ * already names the page) — they use section headers (`SettingsSection` /
+ * `SectionHeader`) instead.
  */
 export function PageHeader({
   title,

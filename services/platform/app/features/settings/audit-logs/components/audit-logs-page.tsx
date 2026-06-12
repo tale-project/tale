@@ -12,6 +12,7 @@ import { AuditLogTable } from '@/app/features/settings/audit-logs/components/aud
 import { BlockCountersTable } from '@/app/features/settings/audit-logs/components/block-counters-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
@@ -135,86 +136,88 @@ export function AuditLogsPage({
   }
 
   return (
-    <SettingsPage
-      title={t('logs.heading')}
-      description={t('logs.subheading')}
-      fitToContainer
-      headerAction={
-        isAdminUser && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Download}
-              onClick={() => handleExport('csv')}
-              disabled={exportAction.isPending}
-              aria-label={t('logs.audit.export.csvLabel')}
-            >
-              {exportAction.isPending
-                ? t('logs.audit.export.inProgress')
-                : t('logs.audit.export.csv')}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Download}
-              onClick={() => handleExport('json')}
-              disabled={exportAction.isPending}
-              aria-label={t('logs.audit.export.jsonLabel')}
-            >
-              {exportAction.isPending
-                ? t('logs.audit.export.inProgress')
-                : t('logs.audit.export.json')}
-            </Button>
-          </div>
-        )
-      }
-    >
-      <Tabs
-        defaultValue="audit"
-        className="flex min-h-0 flex-1 flex-col"
-        actions={
-          <DataTableFilters
-            filters={auditFilterConfigs}
-            onClearAll={handleClearFilters}
-          />
-        }
-        items={[
-          {
-            value: 'audit',
-            label: t('logs.auditLogs'),
-            content: (
-              <AuditLogTable
-                paginatedResult={paginatedResult}
-                userEmailMap={userEmailMap}
+    <SettingsPage fitToContainer>
+      <SettingsSection
+        title={t('logs.heading')}
+        description={t('logs.subheading')}
+        className="min-h-0 flex-1"
+      >
+        <Tabs
+          defaultValue="audit"
+          className="flex min-h-0 flex-1 flex-col"
+          actions={
+            <div className="flex items-center gap-2">
+              <DataTableFilters
+                filters={auditFilterConfigs}
+                onClearAll={handleClearFilters}
               />
-            ),
-          },
-          {
-            value: 'blocks',
-            label: t('logs.blockCounters.tabLabel'),
-            content: <BlockCountersTable organizationId={organizationId} />,
-          },
-          {
-            value: 'activity',
-            label: t('logs.activityLogs'),
-            content: (
-              <Text variant="muted" className="text-sm">
-                {t('logs.activityComingSoon')}
-              </Text>
-            ),
-          },
-          {
-            value: 'errors',
-            label: t('logs.errorLogs'),
-            content: (
-              <Text variant="muted" className="text-sm">
-                {t('logs.errorComingSoon')}
-              </Text>
-            ),
-          },
-        ]}
-      />
+              {isAdminUser && (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={Download}
+                    onClick={() => handleExport('csv')}
+                    disabled={exportAction.isPending}
+                    aria-label={t('logs.audit.export.csvLabel')}
+                  >
+                    {exportAction.isPending
+                      ? t('logs.audit.export.inProgress')
+                      : t('logs.audit.export.csv')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={Download}
+                    onClick={() => handleExport('json')}
+                    disabled={exportAction.isPending}
+                    aria-label={t('logs.audit.export.jsonLabel')}
+                  >
+                    {exportAction.isPending
+                      ? t('logs.audit.export.inProgress')
+                      : t('logs.audit.export.json')}
+                  </Button>
+                </>
+              )}
+            </div>
+          }
+          items={[
+            {
+              value: 'audit',
+              label: t('logs.auditLogs'),
+              content: (
+                <AuditLogTable
+                  paginatedResult={paginatedResult}
+                  userEmailMap={userEmailMap}
+                />
+              ),
+            },
+            {
+              value: 'blocks',
+              label: t('logs.blockCounters.tabLabel'),
+              content: <BlockCountersTable organizationId={organizationId} />,
+            },
+            {
+              value: 'activity',
+              label: t('logs.activityLogs'),
+              content: (
+                <Text variant="muted" className="text-sm">
+                  {t('logs.activityComingSoon')}
+                </Text>
+              ),
+            },
+            {
+              value: 'errors',
+              label: t('logs.errorLogs'),
+              content: (
+                <Text variant="muted" className="text-sm">
+                  {t('logs.errorComingSoon')}
+                </Text>
+              ),
+            },
+          ]}
+        />
+      </SettingsSection>
     </SettingsPage>
   );
 }

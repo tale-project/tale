@@ -43,8 +43,33 @@ function readStoredTheme(): Theme {
 function applyDocumentClass(resolved: ResolvedTheme) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
+  if (
+    root.classList.contains('dark') === (resolved === 'dark') &&
+    root.style.colorScheme === resolved
+  ) {
+    return;
+  }
+  // Flipping the root class swaps every color CSS variable at once. Elements
+  // that snap to the new palette and elements with `transition-colors` (which
+  // lerp over ~150ms) would otherwise change at different speeds, which reads
+  // as a flicker on hover-highlighted rows, active nav tiles, etc. Suppress
+  // all transitions for the flip, force a style flush so the new colors are
+  // committed while suppressed, then re-enable on the next frame.
+  const css = document.createElement('style');
+  css.appendChild(
+    document.createTextNode('*,*::before,*::after{transition:none!important}'),
+  );
+  document.head.appendChild(css);
+
   root.classList.toggle('dark', resolved === 'dark');
   root.style.colorScheme = resolved;
+
+  // Reading a computed style forces the recalc to happen now, while
+  // transitions are disabled.
+  void window.getComputedStyle(root).transition;
+  requestAnimationFrame(() => {
+    css.remove();
+  });
 }
 
 export interface ThemeProviderProps {

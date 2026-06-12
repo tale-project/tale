@@ -1,10 +1,10 @@
 import { PageSection } from '@tale/ui/page-section';
+import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useMemo, useState, useEffect } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { PageHeader } from '@/app/components/layout/page-header';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -260,8 +260,7 @@ function GeneralTab() {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <PageHeader
-        as="h2"
+      <SectionHeader
         title={t('agents.form.sectionGeneral')}
         description={t('agents.form.sectionGeneralDescription')}
       />
@@ -306,7 +305,6 @@ function GeneralTab() {
         title={t('agents.form.sectionAccess')}
         description={t('agents.form.sectionAccessDescription')}
         gap={6}
-        className="mt-8 border-t pt-8"
       >
         {teams && teams.length > 0 ? (
           <>
@@ -359,7 +357,6 @@ function GeneralTab() {
         title={t('agents.general.sectionAdvanced')}
         description={t('agents.general.sectionAdvancedDescription')}
         gap={6}
-        className="mt-8 border-t pt-8"
       >
         <FormSection>
           <Input

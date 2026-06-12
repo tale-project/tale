@@ -36,6 +36,7 @@ export type CheckId =
   | 'style-percent-nbsp'
   | 'style-currency'
   | 'style-ss'
+  | 'icu-brace-balance'
   | 'icu-placeholder-parity'
   | 'icu-plural-rules'
   | 'glossary-coverage'

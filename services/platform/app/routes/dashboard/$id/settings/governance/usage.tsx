@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { UsageMetricsPage } from '@/app/features/analytics/usage/usage-metrics-page';
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
 import { api } from '@/convex/_generated/api';
 
@@ -28,8 +29,8 @@ export const Route = createFileRoute(
 function UsageRoute() {
   const { id: organizationId } = Route.useParams();
   return (
-    <div className="pb-8">
+    <SettingsPage>
       <UsageMetricsPage organizationId={organizationId} />
-    </div>
+    </SettingsPage>
   );
 }

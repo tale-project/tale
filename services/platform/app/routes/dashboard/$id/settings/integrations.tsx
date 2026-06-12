@@ -1,12 +1,14 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { Button } from '@tale/ui/button';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { getTemplateIconUrl } from '@/app/features/settings/integrations/components/integration-upload/constants/integration-templates';
 import {
   type IntegrationListItem,
@@ -191,27 +193,29 @@ function IntegrationsPage() {
   };
 
   return (
-    <SettingsPage
-      title={tNav('integrations')}
-      description={tSettings('integrations.pageSubtitle')}
-      headerAction={
-        <Button onClick={() => setAddDialogOpen(true)}>
-          {tSettings('integrations.addCustomIntegration')}
-        </Button>
-      }
-    >
-      <Integrations
-        organizationId={organizationId}
-        integrations={allIntegrations}
-        ssoProvider={ssoProvider ?? null}
-        tab={search.tab ?? 'connected'}
-        onTabChange={handleTabChange}
-        initialSlug={search.slug}
-        onInitialSlugConsumed={clearSlugParam}
-        isLoading={isAppsLoading}
-        addDialogOpen={addDialogOpen}
-        onAddDialogOpenChange={setAddDialogOpen}
-      />
+    <SettingsPage>
+      <SettingsSection
+        title={tNav('integrations')}
+        description={tSettings('integrations.pageSubtitle')}
+        action={
+          <Button icon={Plus} onClick={() => setAddDialogOpen(true)}>
+            {tSettings('integrations.addCustomIntegration')}
+          </Button>
+        }
+      >
+        <Integrations
+          organizationId={organizationId}
+          integrations={allIntegrations}
+          ssoProvider={ssoProvider ?? null}
+          tab={search.tab ?? 'connected'}
+          onTabChange={handleTabChange}
+          initialSlug={search.slug}
+          onInitialSlugConsumed={clearSlugParam}
+          isLoading={isAppsLoading}
+          addDialogOpen={addDialogOpen}
+          onAddDialogOpenChange={setAddDialogOpen}
+        />
+      </SettingsSection>
     </SettingsPage>
   );
 }

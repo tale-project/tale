@@ -3,13 +3,13 @@
 import { Button } from '@tale/ui/button';
 import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
 import { PageSection } from '@tale/ui/page-section';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { FileText, Trash2, Upload } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { PageHeader } from '@/app/components/layout/page-header';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
@@ -212,8 +212,7 @@ export function AgentKnowledge({
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <PageHeader
-        as="h2"
+      <SectionHeader
         title={t('agents.form.sectionKnowledge')}
         description={
           <>

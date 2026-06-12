@@ -75,15 +75,8 @@ export function AccountForm() {
 // loading and loaded layouts are the SAME tree and cannot drift.
 // =============================================================================
 function AccountFormView({ hasCredential }: { hasCredential: boolean }) {
-  const { t: tNav } = useT('navigation');
-  const { t: tSettings } = useT('settings');
-
   return (
-    <SettingsPage
-      title={tNav('account')}
-      description={tSettings('menu.account.description')}
-      narrow
-    >
+    <SettingsPage narrow>
       <ProfileSection />
       <PasswordSection hasCredential={hasCredential} />
       <TwoFactorSection />

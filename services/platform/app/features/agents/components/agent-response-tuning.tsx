@@ -2,10 +2,10 @@
 
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { PageSection } from '@tale/ui/page-section';
+import { SectionHeader } from '@tale/ui/section-header';
 import { useCallback } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { PageHeader } from '@/app/components/layout/page-header';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { useT } from '@/lib/i18n/client';
 import type { ResponseTuningConfig } from '@/lib/shared/schemas/agents';
@@ -71,7 +71,7 @@ export function AgentResponseTuning(_props: AgentResponseTuningProps) {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <PageHeader as="h2" title={k('title')} description={k('autoNote')} />
+      <SectionHeader title={k('title')} description={k('autoNote')} />
 
       {/* The Auto router and adaptive reasoning governor handle these per
           message; everything here is an optional override, collapsed by default

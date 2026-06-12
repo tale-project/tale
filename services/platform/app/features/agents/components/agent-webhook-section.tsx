@@ -3,13 +3,13 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { CodeBlock } from '@tale/ui/code-block';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Check, Code, Copy, Plus, Trash2, Webhook } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { PageHeader } from '@/app/components/layout/page-header';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -291,9 +291,8 @@ export function AgentWebhookSection({
   }, [usageUrl, t]);
 
   return (
-    <ContentArea variant="panel" gap={6}>
-      <PageHeader
-        as="h2"
+    <ContentArea variant="narrow" gap={6}>
+      <SectionHeader
         title={t('agents.webhook.title')}
         description={t('agents.webhook.description')}
         action={

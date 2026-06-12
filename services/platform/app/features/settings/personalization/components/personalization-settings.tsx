@@ -202,51 +202,51 @@ function PersonalizationSettingsView({
   orgDefaultLoaded: boolean;
 }) {
   const { t } = useT('personalization');
-  const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
   const loading = useSkeleton();
 
   return (
-    <SettingsPage
-      title={tNav('personalization')}
-      description={
-        <>
-          {tSettings('menu.personalization.description')}{' '}
-          <a
-            href="https://tale.dev/legal/personalization"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground underline"
-          >
-            {t('page.privacyLink')}
-          </a>
-        </>
-      }
-      narrow
-    >
-      <CustomInstructionsToggleSection
-        organizationId={organizationId}
-        gate={customInstructionsGate}
-        orgDefaultLoaded={orgDefaultLoaded}
-      />
+    <SettingsPage narrow>
+      <SettingsSection
+        title={t('page.title')}
+        description={
+          <>
+            {tSettings('menu.personalization.description')}{' '}
+            <a
+              href="https://tale.dev/legal/personalization"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground underline"
+            >
+              {t('page.privacyLink')}
+            </a>
+          </>
+        }
+      >
+        <CustomInstructionsToggleSection
+          organizationId={organizationId}
+          gate={customInstructionsGate}
+          orgDefaultLoaded={orgDefaultLoaded}
+        />
+        <MemoriesToggleSection
+          organizationId={organizationId}
+          gate={memoriesGate}
+          orgDefaultLoaded={orgDefaultLoaded}
+        />
+        <VoiceOutputSection prefs={prefs} organizationId={organizationId} />
+      </SettingsSection>
       {(loading || customInstructionsGate.effective) && (
         <CustomInstructionsSection
           prefs={prefs ?? null}
           organizationId={organizationId}
         />
       )}
-      <MemoriesToggleSection
-        organizationId={organizationId}
-        gate={memoriesGate}
-        orgDefaultLoaded={orgDefaultLoaded}
-      />
       {(loading || memoriesGate.effective) && (
         <>
           <SavedMemoriesSection memories={approvedMemories ?? []} />
           <PendingMemoriesSection memories={pendingMemories ?? []} />
         </>
       )}
-      <VoiceOutputSection prefs={prefs} organizationId={organizationId} />
     </SettingsPage>
   );
 }

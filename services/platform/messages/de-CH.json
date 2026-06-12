@@ -170,11 +170,9 @@
     "webdav": "WebDAV"
   },
   "webdav": {
-    "title": "WebDAV",
     "description": "Hänge Tale-Dokumente als Netzlaufwerk im Finder, File Explorer oder einem beliebigen WebDAV-Client ein.",
     "connectionDetails": {
       "title": "Verbindungsdaten",
-      "description": "Verwende diese im Finder, File Explorer oder in einem beliebigen WebDAV-Client.",
       "usernameLabel": "Benutzername",
       "usernameHelp": "Deine Tale-Konto-E-Mail (oder dein Benutzername)",
       "passwordLabel": "Passwort",

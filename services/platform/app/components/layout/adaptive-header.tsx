@@ -123,7 +123,10 @@ export function AdaptiveHeaderRoot({
     <HStack
       gap={0}
       className={cn(
-        'hidden md:flex px-4 py-2 min-h-12 shrink-0',
+        // Fixed height (not min-h): action clusters (e.g. the settings
+        // Save/Discard buttons) would otherwise grow the strip by a pixel
+        // and shift the page content whenever they mount/unmount.
+        'hidden md:flex h-12 px-4 py-2 shrink-0',
         standalone && 'sticky top-0 z-20 bg-background/50 backdrop-blur-md',
         showBorder && 'border-b border-border',
         className,

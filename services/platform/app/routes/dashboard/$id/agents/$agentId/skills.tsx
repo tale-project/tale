@@ -1,11 +1,11 @@
 import { HStack, VStack } from '@tale/ui/layout';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowUpRight } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { PageHeader } from '@/app/components/layout/page-header';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { SkillsTable } from '@/app/features/skills/components/skills-table';
 import { useListSkills } from '@/app/features/skills/hooks/queries';
@@ -54,8 +54,7 @@ function SkillsTab() {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <PageHeader
-        as="h2"
+      <SectionHeader
         title={t('agents.form.sectionSkillBindings')}
         description={t('agents.form.sectionSkillBindingsDescription')}
       />

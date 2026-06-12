@@ -3,12 +3,12 @@ import { CodeBlock } from '@tale/ui/code-block';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { HStack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
+import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute } from '@tanstack/react-router';
 import { BookOpen } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { PageHeader } from '@/app/components/layout/page-header';
 import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -327,8 +327,7 @@ function InstructionsTab() {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <PageHeader
-        as="h2"
+      <SectionHeader
         title={t('agents.form.sectionInstructions')}
         description={t('agents.form.sectionInstructionsDescription')}
       />

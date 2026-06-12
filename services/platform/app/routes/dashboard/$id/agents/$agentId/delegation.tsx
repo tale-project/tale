@@ -1,7 +1,7 @@
+import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { PageHeader } from '@/app/components/layout/page-header';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -41,8 +41,7 @@ function DelegationTab() {
 
   return (
     <ContentArea gap={6} className="py-4">
-      <PageHeader
-        as="h2"
+      <SectionHeader
         title={t('agents.delegation.title')}
         description={t('agents.delegation.description')}
       />

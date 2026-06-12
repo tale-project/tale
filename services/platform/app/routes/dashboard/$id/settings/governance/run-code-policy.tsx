@@ -199,10 +199,11 @@ function RunCodePolicyRoute() {
   }, [testInput, testBucket, liveDraft]);
 
   return (
-    <SettingsPage
-      title={t('runCodePolicy.title')}
-      description={t('runCodePolicy.description')}
-    >
+    <SettingsPage narrow>
+      <PageSection
+        title={t('runCodePolicy.title')}
+        description={t('runCodePolicy.description')}
+      />
       <Skeletonize
         loading={isLoading}
         label={t('runCodePolicy.title')}

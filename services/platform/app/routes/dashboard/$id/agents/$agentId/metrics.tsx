@@ -1,9 +1,9 @@
 import { Badge } from '@tale/ui/badge';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { PageHeader } from '@/app/components/layout/page-header';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { api } from '@/convex/_generated/api';
@@ -154,8 +154,7 @@ function AgentMetricsTab() {
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <PageHeader
-        as="h2"
+      <SectionHeader
         title={t('scorecard.title')}
         description={t('scorecard.subtitle')}
       />

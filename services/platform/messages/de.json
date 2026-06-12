@@ -251,9 +251,9 @@
       "passkeyFailed": "Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es erneut oder nutze dein Passwort.",
       "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
       "accountLockedGeneric": "Konto wegen wiederholter Fehlversuche vorübergehend gesperrt. Bitte später erneut versuchen oder einen Administrator kontaktieren.",
-      "accountLockedSeconds": "Konto vorübergehend gesperrt. In {seconds, plural, one {# Sekunde} other {# Sekunden} erneut versuchen oder einen Administrator kontaktieren.",
-      "accountLockedMinutes": "Konto vorübergehend gesperrt. In {minutes, plural, one {# Minute} other {# Minuten} erneut versuchen oder einen Administrator kontaktieren.",
-      "accountLockedHours": "Konto vorübergehend gesperrt. In {hours, plural, one {# Stunde} other {# Stunden} erneut versuchen oder einen Administrator kontaktieren.",
+      "accountLockedSeconds": "Konto vorübergehend gesperrt. In {seconds, plural, one {# Sekunde} other {# Sekunden}} erneut versuchen oder einen Administrator kontaktieren.",
+      "accountLockedMinutes": "Konto vorübergehend gesperrt. In {minutes, plural, one {# Minute} other {# Minuten}} erneut versuchen oder einen Administrator kontaktieren.",
+      "accountLockedHours": "Konto vorübergehend gesperrt. In {hours, plural, one {# Stunde} other {# Stunden}} erneut versuchen oder einen Administrator kontaktieren.",
       "forgotPassword": "Passwort vergessen?",
       "forgotPasswordToast": {
         "title": "Wende dich an deinen Administrator",
@@ -609,7 +609,7 @@
         "clear": "Laufergebnisse ausblenden",
         "nodeBadgeLabel": "Ausführungsstatus: {status}",
         "duration": "Dauer: {duration}",
-        "attempts": "{count, plural, one {# Versuch} other {# Versuche}",
+        "attempts": "{count, plural, one {# Versuch} other {# Versuche}}",
         "loopProgress": "Durchlauf {current} von {total}",
         "output": "Ausgabe",
         "error": "Fehler",
@@ -776,9 +776,9 @@
     },
     "viewer": {
       "heading": "Was ist neu",
-      "subheading": "{count, plural, one {# Update} other {# Updates} seit v{from}",
+      "subheading": "{count, plural, one {# Update} other {# Updates}} seit v{from}",
       "subheadingNew": "Release Notes für v{to}",
-      "subheadingTruncated": "{count, plural, one {Das # neueste Update wird} other {Die # neuesten Updates werden} angezeigt. Frühere Änderungen seit v{from} findest du auf GitHub.",
+      "subheadingTruncated": "{count, plural, one {Das # neueste Update wird} other {Die # neuesten Updates werden}} angezeigt. Frühere Änderungen seit v{from} findest du auf GitHub.",
       "subheadingTooOld": "Release Notes für v{from} – v{to} werden hier nicht angezeigt — sie sind älter als die hier hinterlegten Releases.",
       "subheadingToUnpublished": "Release Notes für v{to} sind noch nicht veröffentlicht.",
       "tooOldExplain": "Hier zeigen wir nur die neuesten Releases. Öffne die vollständige Release-Historie auf GitHub, um diese Release Notes zu lesen.",
@@ -856,9 +856,9 @@
       "routingPhase": "Wählt Agent",
       "seconds": "{seconds} s",
       "durationLabel": "{seconds} s nachgedacht",
-      "toolsCount": "{count, plural, one {# Werkzeug} other {# Werkzeuge}",
-      "skillsCount": "{count, plural, one {# Skill} other {# Skills}",
-      "tokensCount": "{count, plural, one {# Token} other {# Tokens}",
+      "toolsCount": "{count, plural, one {# Werkzeug} other {# Werkzeuge}}",
+      "skillsCount": "{count, plural, one {# Skill} other {# Skills}}",
+      "tokensCount": "{count, plural, one {# Token} other {# Tokens}}",
       "summaryReasoningOnly": "Hat den Gedankengang gezeigt",
       "responding": "Antwortet"
     },
@@ -997,7 +997,7 @@
     "uploadFailed": "Upload fehlgeschlagen",
     "failedToUpload": "{filename} konnte nicht hochgeladen werden",
     "tooManyFiles": "Zu viele Dateien",
-    "tooManyFilesDescription": "Du kannst bis zu {max} Dateien pro Nachricht anhängen. {rejected} {rejected, plural, one {Datei wurde} other {Dateien wurden} nicht hinzugefügt.",
+    "tooManyFilesDescription": "Du kannst bis zu {max} Dateien pro Nachricht anhängen. {rejected} {rejected, plural, one {Datei wurde} other {Dateien wurden}} nicht hinzugefügt.",
     "totalSizeExceeded": "Anhänge zu gross",
     "totalSizeExceededDescription": "Die Gesamtgrösse der Anhänge darf {maxSize} MB nicht überschreiten. Entferne einige Dateien und versuche es erneut.",
     "duplicateFile": "Doppelte Datei",
@@ -1205,7 +1205,7 @@
       "visitPage": "Seite besuchen",
       "showAllSources": "Alle {count} Quellen anzeigen",
       "hideSources": "Quellen ausblenden",
-      "chunkCount": "{count, plural, one {# Abschnitt} other {# Abschnitte}"
+      "chunkCount": "{count, plural, one {# Abschnitt} other {# Abschnitte}}"
     },
     "feedback": {
       "thumbsUp": "Hilfreich",
@@ -1315,7 +1315,7 @@
       "runProgress": {
         "queued": "In Warteschlange",
         "preparing": "Sandbox wird vorbereitet",
-        "installingPackage": "{package}{version, select, undefined {} other { {version}} wird installiert",
+        "installingPackage": "{package}{version, select, undefined {} other { {version}}} wird installiert",
         "installing": "Abhängigkeiten installieren",
         "running": "Läuft"
       },
@@ -1379,7 +1379,7 @@
       }
     },
     "units": {
-      "stock": "{count, plural, one {# Einheit} other {# Einheiten}"
+      "stock": "{count, plural, one {# Einheit} other {# Einheiten}}"
     },
     "actions": {
       "save": "Speichern",
@@ -1431,10 +1431,10 @@
       "typeToConfirmLabel": "Tippe \"{phrase}\" zum Bestätigen"
     },
     "bulkActions": {
-      "itemsSelected": "{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}",
-      "confirmDeleteTitle": "{count, plural, one {# Element} other {# Elemente} löschen",
-      "confirmDeleteDescription": "Möchtest du {count, plural, one {dieses Element} other {diese {count} Elemente} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-      "deleteSuccess": "{count, plural, one {# Element} other {# Elemente} gelöscht",
+      "itemsSelected": "{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}}",
+      "confirmDeleteTitle": "{count, plural, one {# Element} other {# Elemente}} löschen",
+      "confirmDeleteDescription": "Möchtest du {count, plural, one {dieses Element} other {diese {count} Elemente}} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "deleteSuccess": "{count, plural, one {# Element} other {# Elemente}} gelöscht",
       "deleteFailed": "Einige Elemente konnten nicht gelöscht werden",
       "deleting": "Lösche..."
     },
@@ -1448,7 +1448,7 @@
       "pickFolder": "Ordner wählen",
       "pickZip": "ZIP wählen",
       "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend",
-      "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}",
+      "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}}",
       "conflictHint": "Bestehende Einträge werden überschrieben. Die vorherige Version wird in der Historie gesichert. Häkchen entfernen, um sie stattdessen zu überspringen.",
       "overwriteToggle": "Bestehende Einträge überschreiben",
       "statusExists": "Existiert bereits — wird übersprungen",
@@ -1500,7 +1500,7 @@
       "invalidJson": "Ungültiges JSON-Format",
       "uploadFile": "Bitte lade eine Datei hoch",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
-      "schemaValidationFailed": "Schema-Validierung fehlgeschlagen{error, select, empty {} other {: {error}}",
+      "schemaValidationFailed": "Schema-Validierung fehlgeschlagen{error, select, empty {} other {: {error}}}",
       "url": "Bitte gib eine gültige URL ein"
     },
     "aria": {
@@ -1651,7 +1651,7 @@
     },
     "bulkSend": {
       "title": "{count} Nachrichten senden",
-      "description": "Du sendest Antworten für {count, plural, one {# Konversation} other {# Konversationen}. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "description": "Du sendest Antworten für {count, plural, one {# Konversation} other {# Konversationen}}. Diese Aktion kann nicht rückgängig gemacht werden.",
       "send": "Senden"
     },
     "updating": "Konversationen werden aktualisiert...",
@@ -1660,26 +1660,26 @@
       "close": "Schließen",
       "reopen": "Erneut öffnen",
       "messagesSent": "Nachrichten gesendet",
-      "messagesSentDescription": "{successCount} Nachrichten gesendet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
+      "messagesSentDescription": "{successCount} Nachrichten gesendet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "sendFailed": "Nachrichten konnten nicht gesendet werden",
       "resolved": "Konversationen abgeschlossen",
-      "resolvedDescription": "{successCount} Konversationen abgeschlossen{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
+      "resolvedDescription": "{successCount} Konversationen abgeschlossen{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "resolveFailed": "Konversationen konnten nicht abgeschlossen werden",
       "reopened": "Konversationen erneut geöffnet",
-      "reopenedDescription": "{successCount} Konversationen erneut geöffnet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
+      "reopenedDescription": "{successCount} Konversationen erneut geöffnet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "reopenFailed": "Konversationen konnten nicht erneut geöffnet werden",
-      "selectedCount": "{count, plural, one {# ausgewählt} other {# ausgewählt}",
+      "selectedCount": "{count, plural, one {# ausgewählt} other {# ausgewählt}}",
       "archive": "Archivieren",
       "unarchive": "Dearchivieren",
       "archived": "Konversationen archiviert",
-      "archivedDescription": "{successCount} Konversationen archiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
+      "archivedDescription": "{successCount} Konversationen archiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "archiveFailed": "Konversationen konnten nicht archiviert werden",
       "unarchived": "Konversationen dearchiviert",
-      "unarchivedDescription": "{successCount} Konversationen dearchiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
+      "unarchivedDescription": "{successCount} Konversationen dearchiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "unarchiveFailed": "Konversationen konnten nicht dearchiviert werden",
       "markSpam": "Als Spam markieren",
       "markedAsSpam": "Konversationen als Spam markiert",
-      "markedAsSpamDescription": "{successCount} Konversationen als Spam markiert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}",
+      "markedAsSpamDescription": "{successCount} Konversationen als Spam markiert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "spamFailed": "Konversationen konnten nicht als Spam markiert werden"
     },
     "header": {
@@ -1713,7 +1713,7 @@
     "attachment": {
       "download": "Herunterladen",
       "downloading": "Lade herunter...",
-      "attachments": "{count, plural, one {# Anhang} other {# Anhänge}"
+      "attachments": "{count, plural, one {# Anhang} other {# Anhänge}}"
     },
     "panel": {
       "uploadFailed": "Anhänge konnten nicht hochgeladen werden. Bitte versuche es erneut.",
@@ -1739,7 +1739,7 @@
       "deleting": "Lösche...",
       "deleteSuccess": "Konversation gelöscht.",
       "deleteFailed": "Konversation konnte nicht gelöscht werden.",
-      "showEarlierMessages": "{count} frühere {count, plural, one {Nachricht} other {Nachrichten} anzeigen"
+      "showEarlierMessages": "{count} frühere {count, plural, one {Nachricht} other {Nachrichten}} anzeigen"
     },
     "list": {
       "empty": "Keine Konversationen in diesem Tab"
@@ -1816,7 +1816,7 @@
       "provideData": "Bitte gib Daten ein",
       "noValidData": "Keine gültigen Kundendaten gefunden",
       "success": "Import",
-      "successDescription": "{success} Kunden importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}",
+      "successDescription": "{success} Kunden importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "noneImported": "Es wurden keine Kunden importiert",
       "error": "Importfehler",
       "addCustomers": "Kunden hinzufügen",
@@ -2033,7 +2033,7 @@
       "dropZoneDescription": "PDF, DOCX, XLSX, CSV bis zu {maxSize} MB",
       "retryUpload": "Upload erneut versuchen",
       "retry": "Erneut versuchen",
-      "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente} hochgeladen — Indexierung läuft im Hintergrund",
+      "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente}} hochgeladen — Indexierung läuft im Hintergrund",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
       "unsupportedFileTypeDescription": "{name} ist kein unterstütztes Format. Unterstützte Formate: PDF, DOCX, XLSX, CSV, TXT, PPTX, Bilder.",
       "extensionBlocked": "{name}:.{ext}-Dateien sind durch die Upload-Richtlinie blockiert.",
@@ -2058,7 +2058,7 @@
     },
     "onedrive": {
       "importSettings": "Importeinstellungen",
-      "settingsDescription": "Wähle, wie deine {count} ausgewählten {count, plural, one {Element} other {Elemente} importiert werden sollen.",
+      "settingsDescription": "Wähle, wie deine {count} ausgewählten {count, plural, one {Element} other {Elemente}} importiert werden sollen.",
       "microsoftNotConnected": "Microsoft-Konto nicht verbunden",
       "microsoftNotConnectedDescription": "Um auf deine Microsoft 365-Dateien zuzugreifen, musst du dein Microsoft-Konto verknüpfen.",
       "folderEmpty": "Dieser Ordner ist leer.",
@@ -2080,8 +2080,8 @@
       "filesSyncedCount": "{count} von {total} Dateien synchronisiert",
       "importFailed": "Import fehlgeschlagen",
       "syncFailed": "Synchronisierung fehlgeschlagen",
-      "importItems": "{count} {count, plural, one {Element} other {Elemente} importieren",
-      "syncItems": "{count} {count, plural, one {Element} other {Elemente} synchronisieren"
+      "importItems": "{count} {count, plural, one {Element} other {Elemente}} importieren",
+      "syncItems": "{count} {count, plural, one {Element} other {Elemente}} synchronisieren"
     },
     "rag": {
       "status": {
@@ -2849,8 +2849,6 @@
       "feedback": "Feedback",
       "auditLogs": "Audit-Logs",
       "dataSubjectRequests": "Anfragen betroffener Personen",
-      "policiesAndLimitsDescription": "Budgets, Upload-Beschränkungen, Datenaufbewahrung, Feature-Flags und Sprachausgabe.",
-      "securityAndMonitoringDescription": "Anmelde-, Passwort- und Zwei-Faktor-Authentifizierungsrichtlinien.",
       "runCodePolicy": "Run-code-Pakete"
     },
     "runCodePolicy": {
@@ -3195,7 +3193,7 @@
       },
       "status": {
         "pending": "Offen",
-        "pendingCoolingOff": "Offen · noch {hours, plural, one {# Std.} other {# Std.} bis zur Ausführung",
+        "pendingCoolingOff": "Offen · noch {hours, plural, one {# Std.} other {# Std.}} bis zur Ausführung",
         "pendingAwaitingApproval": "Wartet auf Freigabe",
         "running": "Läuft",
         "done": "Abgeschlossen",
@@ -3275,8 +3273,8 @@
           "attribution": "Abgebrochen von {name}"
         },
         "fullBreakdownTitle": "Vollständige Aufschlüsselung über alle Datenkategorien",
-        "fullBreakdownEntry": "{rows, plural, =0 {0 gelöscht} one {# gelöscht} other {# gelöscht}{skippedByHold, plural, =0 {} other { · # durch Legal Hold übersprungen}",
-        "fullBreakdownNoData": "Keine Daten in {count, plural, one {# weiteren Kategorie} other {# weiteren Kategorien}."
+        "fullBreakdownEntry": "{rows, plural, =0 {0 gelöscht} one {# gelöscht} other {# gelöscht}}{skippedByHold, plural, =0 {} other { · # durch Legal Hold übersprungen}}",
+        "fullBreakdownNoData": "Keine Daten in {count, plural, one {# weiteren Kategorie} other {# weiteren Kategorien}}."
       },
       "auditActions": {
         "gdpr_erasure_requested": "Eingereicht",
@@ -3309,8 +3307,8 @@
         "orgHeld": "Ein organisationsweiter Legal Hold bewahrt jede Entität in diesem Tenant. Hebe ihn auf, bevor du es erneut versuchst.",
         "userCustodianHeld": "Die Person steht unter einem Custodian-Legal-Hold. Hebe ihn auf, bevor du es erneut versuchst.",
         "generic": "Ein aktiver Legal Hold bewahrt die Daten der Person.",
-        "threadsCount": "{count, plural, one {# bewahrte Konversation} other {# bewahrte Konversationen}.",
-        "documentsCount": "{count, plural, one {# bewahrtes Dokument} other {# bewahrte Dokumente}.",
+        "threadsCount": "{count, plural, one {# bewahrte Konversation} other {# bewahrte Konversationen}}.",
+        "documentsCount": "{count, plural, one {# bewahrtes Dokument} other {# bewahrte Dokumente}}.",
         "openLegalHold": "Legal-Hold-Einstellungen öffnen",
         "openLegalHoldAria": "Legal-Hold-Einstellungen öffnen"
       },
@@ -3356,7 +3354,7 @@
         "filedTitle": "Löschungsanfrage eingereicht",
         "filedDescription": "Die Kaskade läuft. Öffne den Beleg, um den Fortschritt zu verfolgen.",
         "extendedTitle": "Frist verlängert",
-        "extendedDescription": "{days, plural, =1 {# Tag} other {# Tage} zum Antwortfenster hinzugefügt.",
+        "extendedDescription": "{days, plural, =1 {# Tag} other {# Tage}} zum Antwortfenster hinzugefügt.",
         "retryTitle": "Erneuter Löschversuch gestartet",
         "retryDescription": "Die Kaskade wurde neu eingeplant.",
         "cancelledTitle": "Löschungsanfrage abgebrochen",
@@ -3509,7 +3507,7 @@
       "indexingStatus": "Indexierungsstatus",
       "updated": "Aktualisiert",
       "history": "Versionsverlauf",
-      "versionCount": "{count, plural, one {# frühere Version} other {# frühere Versionen}",
+      "versionCount": "{count, plural, one {# frühere Version} other {# frühere Versionen}}",
       "superseded": "Ersetzt",
       "supersededOn": "Ersetzt am {date}"
     }
@@ -3863,6 +3861,7 @@
   },
   "personalization": {
     "page": {
+      "title": "Benutzereinstellungen",
       "privacyLink": "Datenschutzhinweis",
       "enable": {
         "orgStateOn": "aktiv",
@@ -4102,7 +4101,7 @@
       "uploadProducts": "Produkte hochladen",
       "uploadFile": "Bitte lade eine Datei hoch",
       "success": "Import",
-      "successDescription": "{success} Produkte importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}",
+      "successDescription": "{success} Produkte importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "error": "Produkte konnten nicht importiert werden",
       "clickToUpload": "Klicken zum Hochladen",
       "supportedFormats": ".xlsx,.xls oder.csv",
@@ -4395,8 +4394,6 @@
       }
     },
     "organization": {
-      "pageTitle": "Organisation",
-      "pageDescription": "Verwalte deine Organisation und Mitglieder.",
       "title": "Organisation (optional)",
       "detailsTitle": "Organisationsdetails",
       "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",
@@ -4466,7 +4463,7 @@
       "teamDeleted": "Team gelöscht",
       "teamDeleteFailed": "Team konnte nicht gelöscht werden",
       "teamCreated": "Team erstellt",
-      "teamCreatedDescription": "Team {name} wurde mit {count} {count, plural, one {Mitglied} other {Mitgliedern} erstellt.",
+      "teamCreatedDescription": "Team {name} wurde mit {count} {count, plural, one {Mitglied} other {Mitgliedern}} erstellt.",
       "teamCreateFailed": "Team konnte nicht erstellt werden",
       "teamUpdated": "Team aktualisiert",
       "teamUpdateFailed": "Team konnte nicht aktualisiert werden",
@@ -4475,7 +4472,7 @@
       "noMembersToAdd": "Alle Organisationsmitglieder sind bereits in diesem Team",
       "noTeamMembers": "Noch keine Mitglieder in diesem Team",
       "sectionDescription": "Teams verwalten und Mitglieder in Gruppen organisieren.",
-      "memberCount": "{count} {count, plural, one {Mitglied} other {Mitglieder}",
+      "memberCount": "{count} {count, plural, one {Mitglied} other {Mitglieder}}",
       "teamName": "Teamname",
       "teamNamePlaceholder": "Teamname eingeben...",
       "saveChanges": "Änderungen speichern",
@@ -4645,7 +4642,7 @@
         },
         "structuredResponsesInjectedPrompt": "Die folgenden Anweisungen werden automatisch an den System-Prompt angehängt:",
         "browsePrompts": "Prompts durchsuchen",
-        "systemInstructionsCharCount": "{count, plural, one {# Zeichen} other {# Zeichen}"
+        "systemInstructionsCharCount": "{count, plural, one {# Zeichen} other {# Zeichen}}"
       },
       "delegation": {
         "title": "Delegation",
@@ -4860,13 +4857,13 @@
         "singleFileOnly": "Lege eine einzelne .zip-Datei ab, nicht mehrere Dateien.",
         "unexpectedError": "Ein unerwarteter Fehler ist aufgetreten",
         "bundleFiles": "Bundle-Dateien",
-        "fileCount": "{count, plural, one {# Datei} other {# Dateien}",
+        "fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
         "frontmatter": "Frontmatter",
         "license": "Lizenz",
         "recommendedPython": "Empfohlenes Python",
         "recommendedNode": "Empfohlenes Node",
         "disableModelInvocation": "Skill ist vor dem Modell verborgen — nur explizite Aufrufe.",
-        "unknownKeys": "{count, plural, one {# zusätzlicher Frontmatter-Eintrag bewahrt} other {# zusätzliche Frontmatter-Einträge bewahrt}",
+        "unknownKeys": "{count, plural, one {# zusätzlicher Frontmatter-Eintrag bewahrt} other {# zusätzliche Frontmatter-Einträge bewahrt}}",
         "submit": "Bundle hochladen",
         "submitting": "Lade hoch…",
         "uploadSuccess": "Skill-Bundle hochgeladen",
@@ -5297,7 +5294,7 @@
       "apiKeyEnter": "API-Schlüssel eingeben",
       "searchProvider": "Anbieter suchen...",
       "created": "Anbieter erstellt",
-      "modelCount": "{count, plural, one {# Modell} other {# Modelle}",
+      "modelCount": "{count, plural, one {# Modell} other {# Modelle}}",
       "removeModel": "Modell entfernen",
       "apiKeyPlaceholder": "API-Schlüssel eingeben",
       "providerNotFound": "Anbieter nicht gefunden: {name}",
@@ -5426,7 +5423,7 @@
         "tableCaption": "Anmeldeblockaden",
         "empty": "Keine abgelehnten Anmeldeversuche in den letzten 7 Tagen.",
         "emptyTitle": "Keine Anmeldeblockaden",
-        "footerCount": "{count, plural, one {# Ergebnis} other {# Ergebnisse} angezeigt",
+        "footerCount": "{count, plural, one {# Ergebnis} other {# Ergebnisse}} angezeigt",
         "columns": {
           "timestamp": "Zeitstempel",
           "user": "Benutzer",
@@ -5504,7 +5501,9 @@
           "workflow": "Workflow",
           "security": "Sicherheit",
           "admin": "Admin",
-          "ai": "KI"
+          "ai": "KI",
+          "skill": "Skill",
+          "agent": "Agent"
         },
         "statusLabels": {
           "success": "Erfolgreich",
@@ -5773,8 +5772,8 @@
       }
     },
     "dataResidency": {
-      "pageDescription": "Richte die Wissensdatenbank und den Dateispeicher dieses Deployments auf Infrastruktur aus, die du selbst kontrollierst. Änderungen greifen, sobald die RAG- und Convex-Container neu starten.",
       "readOnly": {
+        "title": "Nur Lesezugriff",
         "before": "Bearbeitung ist auf die in",
         "after": "(in der Deployment-.env) aufgeführten Operatoren beschränkt. Bitte einen Operator, deine E-Mail dort hinzuzufügen, und starte neu, um die Bearbeitung zu aktivieren.",
         "yourEmail": "Deine Anmelde-E-Mail ist {email}."
@@ -6345,7 +6344,7 @@
       "selectDataSource": "Bitte wähle eine Datenquelle",
       "provideData": "Bitte gib Lieferantendaten ein",
       "success": "Import",
-      "successDescription": "{success} Lieferanten importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}",
+      "successDescription": "{success} Lieferanten importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "error": "Lieferanten konnten nicht importiert werden",
       "errorCodes": {
         "duplicate_email": "Ein Lieferant mit dieser E-Mail existiert bereits",
@@ -6553,10 +6552,10 @@
     },
     "overview": {
       "statsHeading": "Statistiken",
-      "statsFiles": "{count, plural, one {# Datei} other {# Dateien}",
-      "statsChats": "{count, plural, one {# Chat} other {# Chats}",
-      "statsShared": "{count, plural, one {# geteilt} other {# geteilt}",
-      "statsIndexed": "{count, plural, one {# RAG-indexiert} other {# RAG-indexiert}",
+      "statsFiles": "{count, plural, one {# Datei} other {# Dateien}}",
+      "statsChats": "{count, plural, one {# Chat} other {# Chats}}",
+      "statsShared": "{count, plural, one {# geteilt} other {# geteilt}}",
+      "statsIndexed": "{count, plural, one {# RAG-indexiert} other {# RAG-indexiert}}",
       "newChatCta": "Neuer Chat in diesem Projekt",
       "identityDescription": "Name und Beschreibung des Projekts erscheinen in der Projektliste und in der Chat-Seitenleiste.",
       "sharingHeading": "Freigabe",
@@ -6766,11 +6765,9 @@
     }
   },
   "webdav": {
-    "title": "WebDAV",
     "description": "Hänge Tale-Dokumente als Netzlaufwerk im Finder, File Explorer oder einem beliebigen WebDAV-Client ein.",
     "connectionDetails": {
       "title": "Verbindungsdaten",
-      "description": "Verwende diese im Finder, File Explorer oder in einem beliebigen WebDAV-Client.",
       "usernameLabel": "Benutzername",
       "usernameHelp": "Deine Tale-Konto-E-Mail (oder dein Benutzername)",
       "passwordLabel": "Passwort",
@@ -6900,7 +6897,6 @@
     }
   },
   "runtimes": {
-    "title": "Runtimes",
     "description": "Führe Aufgaben-Arbeit auf deinen eigenen Maschinen aus — mit den Coding-Agent-CLIs, die du bereits nutzt (Claude Code, Codex, OpenCode).",
     "install": {
       "title": "Daemon verbinden",
@@ -6909,6 +6905,7 @@
       "createKey": "API-Schlüssel erstellen"
     },
     "list": {
+      "title": "Verbundene Daemons",
       "empty": "Noch keine Daemons verbunden",
       "emptyHint": "Führe bunx tale-daemon setup auf der Maschine aus, die Aufgaben ausführen soll.",
       "lastSeen": "zuletzt gesehen {age}",
