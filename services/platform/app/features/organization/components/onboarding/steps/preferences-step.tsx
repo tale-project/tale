@@ -48,7 +48,7 @@ export function PreferencesStep() {
   // ARIA radiogroup keyboard model: arrows/Home/End move focus AND selection
   // (radios select on focus), wrapping at the ends.
   const onLanguageKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    let nextIndex = tabbableIndex;
+    let nextIndex: number;
     switch (event.key) {
       case 'ArrowRight':
       case 'ArrowDown':
