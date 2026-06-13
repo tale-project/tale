@@ -130,17 +130,17 @@ export class SessionRoutes {
     return reaped;
   }
 
-  private toInfo(
-    sessionId: string,
-    state: SessionInfo['state'],
-  ): SessionInfo | null {
+  private toInfo(sessionId: string): SessionInfo | null {
     const s = this.registry.get(sessionId);
     if (!s) return null;
     return {
       sessionId: s.sessionId,
       organizationId: s.organizationId,
       profile: s.profile,
-      state,
+      // Sourced from the registry (set at create, refreshed by adoptExisting
+      // from the backend) rather than a hardcoded literal, so the wire state
+      // tracks the one field that records it instead of always saying 'ready'.
+      state: s.state,
       backend: this.backend.kind,
       createdAtMs: s.createdAtMs,
       lastActivityAtMs: s.createdAtMs,
@@ -245,7 +245,28 @@ export class SessionRoutes {
       );
     }
 
-    const endpoint = await this.backend.resolveEndpoint(req.sessionId);
+    let endpoint: string;
+    try {
+      endpoint = await this.backend.resolveEndpoint(req.sessionId);
+    } catch (err) {
+      // The backend object was created above but we can't address it. Roll it
+      // back rather than leak an unregistered, unroutable, never-reaped session
+      // (the sweep only walks the registry, so an unregistered backend object
+      // lingers until a spawner restart re-adopts it).
+      await this.backend.destroySession(req.sessionId).catch((destroyErr) => {
+        console.warn(
+          '[sandbox.session] rollback destroy after resolveEndpoint failure:',
+          destroyErr,
+        );
+      });
+      return jsonResponse(
+        {
+          error: 'create_failed',
+          message: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
     this.registry.set({
       sessionId: req.sessionId,
       organizationId: req.organizationId,
@@ -257,7 +278,7 @@ export class SessionRoutes {
       endpoint,
       liveExecs: new Map(),
     });
-    return jsonResponse({ session: this.toInfo(req.sessionId, 'ready') }, 201);
+    return jsonResponse({ session: this.toInfo(req.sessionId) }, 201);
   }
 
   /** GET /v1/sessions/:id — the platform's pre-turn aliveness probe keys its
@@ -268,7 +289,7 @@ export class SessionRoutes {
     if (await this.evictIfBackendGone(sessionId)) {
       return jsonResponse({ error: 'not_found' }, 404);
     }
-    const info = this.toInfo(sessionId, 'ready');
+    const info = this.toInfo(sessionId);
     if (!info) return jsonResponse({ error: 'not_found' }, 404);
     return jsonResponse({ session: info }, 200);
   }
@@ -276,22 +297,25 @@ export class SessionRoutes {
   handleList(organizationId: string | null): Response {
     const sessions = this.registry
       .list(organizationId ?? undefined)
-      .map((s) => this.toInfo(s.sessionId, 'ready'))
+      .map((s) => this.toInfo(s.sessionId))
       .filter((s): s is SessionInfo => s !== null);
     return jsonResponse({ sessions }, 200);
   }
 
   async handleDestroy(sessionId: string): Promise<Response> {
-    const existed =
-      this.registry.has(sessionId) ||
-      (await this.backend.destroySession(sessionId).catch(() => false));
-    if (this.registry.has(sessionId)) {
-      await this.backend.destroySession(sessionId).catch((err) => {
+    // Delete from the registry BEFORE awaiting the backend so a concurrent
+    // destroy of the same id sees an empty cache and can't double-call
+    // destroySession. The backend destroy then runs exactly once; its return
+    // value (false = nothing existed) covers the adopted-but-unregistered case.
+    const had = this.registry.has(sessionId);
+    if (had) this.registry.delete(sessionId);
+    const backendExisted = await this.backend
+      .destroySession(sessionId)
+      .catch((err) => {
         console.warn('[sandbox.session] destroy backend failed:', err);
+        return false;
       });
-      this.registry.delete(sessionId);
-    }
-    return jsonResponse({ destroyed: existed }, 200);
+    return jsonResponse({ destroyed: had || backendExisted }, 200);
   }
 
   /** POST /v1/sessions/:id/exec — proxies runnerd's NDJSON stream to SSE,

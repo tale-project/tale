@@ -22,6 +22,21 @@ function authHeaders(token: string): Record<string, string> {
   return token ? { [RUNNERD_TOKEN_HEADER]: token } : {};
 }
 
+/** Short-RPC fetch timeout for runnerd calls that must return promptly
+ * (cancel/stdin/env/files/fs). The long-lived streams (exec/attach) use the
+ * caller's SSE signal instead — an exec can legitimately run for minutes, so a
+ * short deadline would kill it. Without a timeout a hung daemon ties up the
+ * spawner's connection pool until Bun's (long) default fires. */
+const RUNNERD_RPC_TIMEOUT_MS = 30_000;
+/** Health-probe timeout. The idle reaper hits /healthz once per session in a
+ * sequential sweep, so a single hung daemon must not stall the whole pass. */
+const RUNNERD_HEALTH_TIMEOUT_MS = 5_000;
+/** Upper bound on the inter-newline NDJSON residual. A well-behaved runnerd
+ * emits newline-terminated lines (≤ a few hundred KB each); an unbounded
+ * residual means a malfunctioning/compromised daemon streaming without
+ * newlines — abort rather than grow the buffer until the spawner OOMs. */
+const MAX_NDJSON_BUFFER_BYTES = 1_048_576;
+
 /** GET /healthz — used by create-poll and the idle reaper. Throws on
  * unreachable/non-200 so callers can distinguish "not ready yet" (retry)
  * from "degraded". */
@@ -29,9 +44,10 @@ export async function runnerdHealth(
   opts: RunnerdClientOptions,
   signal?: AbortSignal,
 ): Promise<RunnerdHealth> {
+  const timeout = AbortSignal.timeout(RUNNERD_HEALTH_TIMEOUT_MS);
   const res = await fetch(`${opts.baseUrl}/healthz`, {
     headers: authHeaders(opts.token),
-    ...(signal ? { signal } : {}),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   });
   if (!res.ok) {
     throw new Error(`runnerd /healthz ${res.status}`);
@@ -120,28 +136,38 @@ async function pumpNdjson(
       buf = buf.slice(nl + 1);
       nl = buf.indexOf('\n');
     }
+    // Bound the residual partial line: a daemon streaming without newlines
+    // would otherwise grow `buf` until the spawner OOMs. Abort the pump (the
+    // route's catch sends `error` + evicts a gone backend).
+    if (buf.length > MAX_NDJSON_BUFFER_BYTES) {
+      throw new Error(
+        `runnerd NDJSON exceeded ${MAX_NDJSON_BUFFER_BYTES} bytes without a newline`,
+      );
+    }
   }
   emitLine(buf);
 }
 
-/** POST /execs/:id/cancel — best-effort. */
+/** POST /execs/:id/cancel. A transport failure THROWS (the route turns it into
+ * evict→404 / 502) so the platform can distinguish "exec already gone" (HTTP
+ * not-ok → false) from "runnerd unreachable" — swallowing both as false hid a
+ * hung daemon behind a misleading killed:false. */
 export async function runnerdCancelExec(
   opts: RunnerdClientOptions,
   execId: string,
 ): Promise<boolean> {
-  try {
-    const res = await fetch(
-      `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/cancel`,
-      { method: 'POST', headers: authHeaders(opts.token) },
-    );
-    if (!res.ok) return false;
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const body = (await res.json()) as { killed?: boolean };
-    return body.killed === true;
-  } catch (err) {
-    console.warn('[sandbox.session] runnerd cancel failed:', err);
-    return false;
-  }
+  const res = await fetch(
+    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/cancel`,
+    {
+      method: 'POST',
+      headers: authHeaders(opts.token),
+      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+    },
+  );
+  if (!res.ok) return false;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const body = (await res.json()) as { killed?: boolean };
+  return body.killed === true;
 }
 
 /** POST /execs/:id/stdin — append an NDJSON line to a held-open stdin and/or
@@ -161,6 +187,7 @@ export async function runnerdWriteStdin(
         'content-type': 'application/json',
       },
       body: JSON.stringify(write),
+      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
     },
   );
   if (!res.ok) throw new Error(`runnerd /stdin ${res.status}`);
@@ -199,6 +226,7 @@ export async function runnerdEnvPatch(
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
     body: JSON.stringify(patch),
+    signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`runnerd /env ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -221,6 +249,7 @@ export async function runnerdStageFiles(
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
     body: JSON.stringify({ files }),
+    signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`runnerd /files/stage ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -241,7 +270,10 @@ export async function runnerdListDir(
 ): Promise<RunnerdFsEntry[] | null> {
   const res = await fetch(
     `${opts.baseUrl}/fs/list?path=${encodeURIComponent(path)}`,
-    { headers: authHeaders(opts.token) },
+    {
+      headers: authHeaders(opts.token),
+      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+    },
   );
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`runnerd /fs/list ${res.status}`);
@@ -257,7 +289,10 @@ export async function runnerdReadFile(
 ): Promise<ArrayBuffer | null> {
   const res = await fetch(
     `${opts.baseUrl}/fs/read?path=${encodeURIComponent(path)}`,
-    { headers: authHeaders(opts.token) },
+    {
+      headers: authHeaders(opts.token),
+      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+    },
   );
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`runnerd /fs/read ${res.status}`);

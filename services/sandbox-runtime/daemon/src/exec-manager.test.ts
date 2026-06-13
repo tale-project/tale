@@ -64,6 +64,34 @@ describe('ExecManager', () => {
     expect(last).toMatchObject({ t: 'exit', exitCode: 0, cancelled: false });
   });
 
+  test('flushes all output before the terminal exit event (ordering contract)', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    // A large stdout burst immediately followed by exit: `cat` echoes the
+    // piped payload then EOFs and exits. The close-based finalize must deliver
+    // every chunk AND keep the terminal 'exit' strictly last — a finalize on
+    // bare 'exit' could let a trailing chunk emit after it.
+    const payload = 'x'.repeat(200_000);
+    await mgr.run(
+      {
+        ...base,
+        execId: 'ord1',
+        command: ['cat'],
+        cwd: ROOT,
+        stdinBase64: Buffer.from(payload).toString('base64'),
+      },
+      emit,
+    );
+    // Nothing dropped near exit.
+    expect(decode(events, 'stdout')).toBe(payload);
+    // 'exit' is the last event AND carries the highest seq → no stdout/stderr
+    // event slipped in after the terminal event.
+    const exit = events[events.length - 1];
+    expect(exit?.t).toBe('exit');
+    const maxSeq = Math.max(...events.map((e) => e.seq ?? 0));
+    expect(exit?.seq).toBe(maxSeq);
+  });
+
   test('shell form runs via bash -lc, propagates non-zero exit', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();

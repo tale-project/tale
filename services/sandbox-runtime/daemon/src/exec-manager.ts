@@ -22,6 +22,11 @@ import {
 } from './protocol.ts';
 
 const SIGKILL_GRACE_MS = 5_000;
+/** After the child's 'exit' fires, how long to wait for stdio 'close' (all
+ * output drained) before emitting the terminal event anyway. Bounds the case
+ * where a backgrounded grandchild inherited the stdout/stderr pipe and 'close'
+ * would otherwise never fire until the whole timeoutMs SIGKILLs the group. */
+const EXIT_DRAIN_GRACE_MS = 2_000;
 /** How many exited execs keep their ring for replay-after-disconnect. */
 const RECENT_EXEC_LIMIT = 16;
 
@@ -302,6 +307,11 @@ export class ExecManager {
     }
 
     child.stdout.on('data', (chunk: Buffer) => {
+      // Drop data that arrives after the terminal event (only reachable when a
+      // grace-forced finish raced a leaked-fd writer — see the 'exit'/'close'
+      // handling below). Keeps the start..stdout..exit order the platform
+      // adapters depend on and never mutates the already-retained ring.
+      if (settled) return;
       if (stdoutBytes >= req.stdoutMaxBytes) {
         stdoutTrunc = true;
         return;
@@ -310,6 +320,7 @@ export class ExecManager {
       ringEmit({ t: 'stdout', b64: chunk.toString('base64') });
     });
     child.stderr.on('data', (chunk: Buffer) => {
+      if (settled) return;
       if (stderrBytes >= req.stderrMaxBytes) {
         stderrTrunc = true;
         return;
@@ -325,10 +336,20 @@ export class ExecManager {
     }, req.timeoutMs);
 
     await new Promise<void>((resolve) => {
+      // Finalize on 'close' (every stdio stream drained → the terminal 'exit'
+      // event can't race a trailing stdout/stderr chunk), with a bounded
+      // fallback armed on 'exit': a backgrounded grandchild that inherited the
+      // pipe would otherwise hold 'close' off until the whole timeoutMs kills
+      // the group.
+      let exited = false;
+      let closed = false;
+      let exitCode = -1;
+      let drainTimer: ReturnType<typeof setTimeout> | null = null;
       const finish = (code: number) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        if (drainTimer) clearTimeout(drainTimer);
         if (record.graceTimer) clearTimeout(record.graceTimer);
         record.exitCode = code;
         this.onActivity();
@@ -349,6 +370,7 @@ export class ExecManager {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        if (drainTimer) clearTimeout(drainTimer);
         ringEmit({
           t: 'fail',
           code: 'BAD_REQUEST',
@@ -361,9 +383,19 @@ export class ExecManager {
       });
       child.on('exit', (code, signal) => {
         // 128 + signal number is the conventional shell exit for a signal.
-        const resolved =
-          code ?? (signal ? 128 + (SIGNAL_NUMBERS[signal] ?? 15) : -1);
-        finish(resolved);
+        exitCode = code ?? (signal ? 128 + (SIGNAL_NUMBERS[signal] ?? 15) : -1);
+        exited = true;
+        // stdio already closed (normal fast path) → emit now; otherwise wait a
+        // bounded grace for 'close' before forcing the terminal event.
+        if (closed) finish(exitCode);
+        else
+          drainTimer = setTimeout(() => finish(exitCode), EXIT_DRAIN_GRACE_MS);
+      });
+      child.on('close', () => {
+        // All stdio streams closed: every 'data' event has been delivered, so
+        // the terminal 'exit' event is now guaranteed last and complete.
+        closed = true;
+        if (exited) finish(exitCode);
       });
     });
   }

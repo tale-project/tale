@@ -10,6 +10,7 @@ import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { UnauthorizedError } from '../lib/rls/errors';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import type {
   BetterAuthFindManyResult,
@@ -105,11 +106,21 @@ export const listSandboxesForOrg = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: authUser.userId,
-      email: authUser.email,
-      name: authUser.name,
-    });
+    let member;
+    try {
+      member = await getOrganizationMember(ctx, args.organizationId, {
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch (err) {
+      // getOrganizationMember throws UnauthorizedError for non-members and
+      // disabled accounts; this query's contract is to return null in exactly
+      // those cases (the page renders access-denied), like the unauthenticated
+      // branch above. Re-throw anything else so real backend errors surface.
+      if (err instanceof UnauthorizedError) return null;
+      throw err;
+    }
     if (defineAbilityFor(member.role).cannot('read', 'developerSettings')) {
       return null;
     }
