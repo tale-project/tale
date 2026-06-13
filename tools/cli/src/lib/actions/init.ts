@@ -132,7 +132,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
     }
   }
 
-  logger.header('Initializing Tale Project');
+  logger.header('Initializing Tale');
 
   logger.info(`Project directory: ${target}`);
 
@@ -320,6 +320,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
         'providers',
         'openrouter.secrets.json',
       );
+      logger.step('Encrypting provider API key...');
       const { sopsEncryptJson } = await import('../crypto/sops-encrypt');
       const encrypted = await sopsEncryptJson(
         { apiKey: envResult.openrouterKey },

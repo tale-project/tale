@@ -14,6 +14,9 @@ function listTaleVolumes(): string[] {
     const result = execSync(`docker volume ls --filter ${filter} -q`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'ignore'],
+      // Bound the call so a slow or still-starting Docker daemon (common
+      // right after `tale setup` installs it) can't hang `tale init`.
+      timeout: 15_000,
     });
     return result.trim().split('\n').filter(Boolean);
   } catch (err) {
@@ -516,6 +519,10 @@ function warnIfOpenrouterSecretMissing(deployDir: string): void {
 async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
   const { password } = await import('@inquirer/prompts');
 
+  // Querying the Docker daemon can stall for a few seconds while it warms up
+  // (common right after `tale setup` installs it); announce it so the run
+  // doesn't look hung after the preceding step.
+  logger.step('Checking Docker for existing Tale volumes...');
   const existingVolumes = listTaleVolumes();
 
   if (existingVolumes.length > 0) {
