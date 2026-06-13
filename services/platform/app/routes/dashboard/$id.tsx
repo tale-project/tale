@@ -419,31 +419,15 @@ function NavRailPlaceholder() {
 export function DashboardShellFrame() {
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden md:flex-row">
-      {/* Mobile top bar — mirrors the resolved chat header (the default
-          landing): a leading cluster of action icons + the trailing account
-          avatar, so the real header slots in without reflow. Matches the
-          DashboardLayout header geometry above (px-4, min-h-12). */}
-      <div className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+      {/* Mobile top bar */}
+      <div className="bg-background border-border flex items-center gap-2 border-b p-2 pt-[calc(var(--safe-top)+0.5rem)] md:hidden">
         <Skeletonize loading>
-          <div className="flex min-h-12 items-center gap-2">
-            {/* Leading action icons (chat history / search / new chat). */}
-            <div className="flex flex-1 justify-start">
-              {Array.from({ length: 3 }, (_, i) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <div key={i} className="flex items-center justify-center p-2">
-                  <SkeletonBox>
-                    <div className="size-5" />
-                  </SkeletonBox>
-                </div>
-              ))}
-            </div>
-            {/* Trailing account avatar (UserButton). */}
-            <div className="flex items-center justify-center p-2">
-              <SkeletonCircle>
-                <div className="size-5" />
-              </SkeletonCircle>
-            </div>
-          </div>
+          <SkeletonBox>
+            <div className="size-8" />
+          </SkeletonBox>
+          <SkeletonBox>
+            <div className="h-4 w-32" />
+          </SkeletonBox>
         </Skeletonize>
       </div>
 
