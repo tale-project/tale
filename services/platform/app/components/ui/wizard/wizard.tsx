@@ -31,20 +31,13 @@ export interface WizardProps {
   /** Called when the user finishes the last step. May be async. */
   onFinish: () => void | Promise<void>;
   /**
-   * Builds the screen-reader progress announcement. Caller-provided so the
-   * string is translated; defaults to a plain "Step N of M: label".
+   * Builds the screen-reader progress announcement. Required and
+   * caller-provided so the announcement is always translated — the primitive
+   * never emits a hardcoded English string.
    */
-  formatProgress?: (current: number, total: number, label: string) => string;
+  formatProgress: (current: number, total: number, label: string) => string;
   className?: string;
   children: ReactNode;
-}
-
-function defaultFormatProgress(
-  current: number,
-  total: number,
-  label: string,
-): string {
-  return `Step ${current} of ${total}: ${label}`;
 }
 
 /**
@@ -59,7 +52,7 @@ export function Wizard({
   defaultActiveIndex = 0,
   onIndexChange,
   onFinish,
-  formatProgress = defaultFormatProgress,
+  formatProgress,
   className,
   children,
 }: WizardProps) {
@@ -72,6 +65,13 @@ export function Wizard({
   const [status, setStatus] = useState<WizardStatus>('idle');
   const [validity, setValidity] = useState<Record<string, boolean>>({});
   const beforeNextHandlers = useRef<Record<string, WizardBeforeNext>>({});
+
+  // Keep maxVisitedIndex in sync when a controlled `activeIndex` advances
+  // externally (or the step set changes), so goTo()'s "already-visited" gate
+  // doesn't desync from the actually-active step.
+  useEffect(() => {
+    setMaxVisitedIndex((prev) => Math.max(prev, activeIndex));
+  }, [activeIndex]);
 
   const activeStep = steps[activeIndex];
   const isFirst = activeIndex === 0;
@@ -108,7 +108,22 @@ export function Wizard({
     [validity],
   );
 
+  // Single guarded path for finishing: the `submitting` guard prevents a
+  // double-fire (duplicate side effects from repeated Finish clicks) and the
+  // try/catch surfaces a failing onFinish instead of an unhandled rejection.
+  const finish = useCallback(async () => {
+    setStatus('submitting');
+    try {
+      await onFinish();
+    } catch (err) {
+      console.error('Wizard onFinish failed:', err);
+    } finally {
+      setStatus('idle');
+    }
+  }, [onFinish]);
+
   const goNext = useCallback(() => {
+    if (status === 'submitting') return; // ignore re-entrant clicks
     const step = steps[activeIndex];
     if (!step || !isStepValid(step.id)) return;
 
@@ -128,24 +143,25 @@ export function Wizard({
         }
       }
       if (activeIndex >= steps.length - 1) {
-        await Promise.resolve(onFinish());
+        await finish();
       } else {
         moveTo(activeIndex + 1);
       }
     };
     void run();
-  }, [activeIndex, isStepValid, moveTo, onFinish, steps]);
+  }, [activeIndex, isStepValid, moveTo, finish, status, steps]);
 
   const goBack = useCallback(() => {
     if (activeIndex > 0) moveTo(activeIndex - 1);
   }, [activeIndex, moveTo]);
 
   const skip = useCallback(() => {
+    if (status === 'submitting') return;
     const step = steps[activeIndex];
     if (!step?.optional) return;
-    if (activeIndex >= steps.length - 1) void Promise.resolve(onFinish());
+    if (activeIndex >= steps.length - 1) void finish();
     else moveTo(activeIndex + 1);
-  }, [activeIndex, moveTo, onFinish, steps]);
+  }, [activeIndex, moveTo, finish, status, steps]);
 
   const goTo = useCallback(
     (index: number) => {

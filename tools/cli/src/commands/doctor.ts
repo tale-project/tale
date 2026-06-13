@@ -51,12 +51,17 @@ export async function checkDaemon(): Promise<Check> {
   if (status.reachable) {
     return { name: 'docker daemon', status: 'ok', detail: status.detail };
   }
+  // `daemonReachable()` fails for two very different reasons: the daemon is
+  // down, or the docker CLI isn't installed at all (ENOENT). Advising "start
+  // Docker" is wrong for the latter — point at install/`tale setup` instead.
+  const cliMissing = !tryRun('docker --version');
   return {
     name: 'docker daemon',
     status: 'fail',
     detail: `not reachable — ${status.detail}`,
-    fix:
-      process.platform === 'linux'
+    fix: cliMissing
+      ? 'Docker CLI not on PATH — install Docker (or run `tale setup`)'
+      : process.platform === 'linux'
         ? 'Start the Docker daemon (systemctl start docker) or open Docker Desktop'
         : 'Start Docker Desktop',
   };

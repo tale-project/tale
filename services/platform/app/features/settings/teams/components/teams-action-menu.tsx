@@ -22,8 +22,17 @@ export function TeamsActionMenu({
 }: TeamsActionMenuProps) {
   const { t: tSettings } = useT('settings');
   const [internalCreateOpen, setInternalCreateOpen] = useState(false);
-  const isCreateDialogOpen = controlledCreateOpen ?? internalCreateOpen;
-  const setIsCreateDialogOpen = onCreateOpenChange ?? setInternalCreateOpen;
+  // Controlled only when BOTH props are present. A lone `createOpen` would be
+  // read for rendering while writes still hit internal state — a dead path
+  // where clicks update state that no longer controls the dialog.
+  const controlled =
+    controlledCreateOpen !== undefined && onCreateOpenChange !== undefined;
+  const isCreateDialogOpen = controlled
+    ? (controlledCreateOpen ?? false)
+    : internalCreateOpen;
+  const setIsCreateDialogOpen = controlled
+    ? (onCreateOpenChange ?? setInternalCreateOpen)
+    : setInternalCreateOpen;
 
   return (
     <>

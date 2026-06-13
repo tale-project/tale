@@ -12,10 +12,12 @@ on:
       - main
     paths:
       - 'tools/cli/**'
+      - 'scripts/install-cli.*'
       - '.github/workflows/cli.yml'
   pull_request:
     paths:
       - 'tools/cli/**'
+      - 'scripts/install-cli.*'
       - '.github/workflows/cli.yml'
 
 permissions:
@@ -209,11 +211,15 @@ jobs:
       - name: Upload binaries
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pass workflow inputs through the environment and quote them in the
+          # shell, so the tag is treated as data — never interpolated as code.
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          REPO: ${{ github.repository }}
         run: |
-          gh release upload ${{ github.event.inputs.release_tag }} \
+          gh release upload "$RELEASE_TAG" \
             release/tale_linux \
             release/tale_macos \
             release/tale_windows.exe \
             release/tale_checksums.txt \
-            --repo ${{ github.repository }} \
+            --repo "$REPO" \
             --clobber

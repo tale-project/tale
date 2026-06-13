@@ -27,6 +27,15 @@ interface InitOptions {
   noEnv?: boolean;
 }
 
+/**
+ * Distinguishes "the user aborted" from "we initialized" so callers (e.g.
+ * `tale setup`) don't print success guidance after an abort. `mode` is the
+ * deploy intent chosen during `.env` setup, absent on `--no-env`/headless.
+ */
+type InitResult =
+  | { status: 'aborted' }
+  | { status: 'initialized'; mode?: DeployMode };
+
 const GITIGNORE_ENTRIES = [
   '.tale/',
   '.env',
@@ -40,9 +49,7 @@ const GITIGNORE_ENTRIES = [
   '**/*.secrets.json',
 ];
 
-export async function init(
-  options: InitOptions,
-): Promise<DeployMode | undefined> {
+export async function init(options: InitOptions): Promise<InitResult> {
   let directory = options.directory;
   let force = options.force ?? false;
   let mode: DeployMode | undefined;
@@ -59,7 +66,7 @@ export async function init(
         });
         if (!shouldReinit) {
           logger.info('Aborted.');
-          return;
+          return { status: 'aborted' };
         }
       } else {
         throw new Error(
@@ -115,7 +122,7 @@ export async function init(
         });
         if (!shouldOverwrite) {
           logger.info('Aborted.');
-          return;
+          return { status: 'aborted' };
         }
       } else {
         throw new Error(
@@ -364,7 +371,7 @@ export async function init(
     logger.info(`  ${step++}. Run "tale start" to launch the platform locally`);
   }
 
-  return mode;
+  return { status: 'initialized', mode };
 }
 
 // Top-level markers indicating a Tale project. Under the uniform org-first

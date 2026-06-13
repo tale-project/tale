@@ -11,13 +11,10 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import {
-  Wizard,
-  WizardFooter,
-  WizardProgress,
-  WizardStep,
-  type WizardStepMeta,
-} from '@/app/components/ui/wizard';
+import { type WizardStepMeta } from '@/app/components/ui/wizard/use-wizard';
+import { Wizard, WizardStep } from '@/app/components/ui/wizard/wizard';
+import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
+import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {

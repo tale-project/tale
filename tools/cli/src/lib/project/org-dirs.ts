@@ -17,8 +17,15 @@ import { join } from 'node:path';
  * dev compose generator (which host dirs to bind-mount).
  */
 
-/** Real organizations live here, relative to the project root. */
-export const ORGS_SUBDIR = join('.tale', 'orgs');
+/**
+ * Real organizations live here, relative to the project root. POSIX literal
+ * (not `join`): this is interpolated into Docker Compose bind-mount path
+ * strings (generate-dev-compose), which must use forward slashes — a
+ * `join('.tale','orgs')` would emit `.tale\orgs` on Windows and break the
+ * mount. `path.join(projectDir, ORGS_SUBDIR)` still normalizes correctly for
+ * on-disk reads.
+ */
+export const ORGS_SUBDIR = '.tale/orgs';
 
 /** The committed scaffold template directory at the project root. */
 const TEMPLATE_DIR = 'default';

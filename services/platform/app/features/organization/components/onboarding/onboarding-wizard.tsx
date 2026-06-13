@@ -11,13 +11,10 @@ import { useState } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
-import {
-  Wizard,
-  WizardFooter,
-  WizardProgress,
-  WizardStep,
-  type WizardStepMeta,
-} from '@/app/components/ui/wizard';
+import { type WizardStepMeta } from '@/app/components/ui/wizard/use-wizard';
+import { Wizard, WizardStep } from '@/app/components/ui/wizard/wizard';
+import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
+import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { UserButton } from '@/app/components/user-button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
@@ -255,7 +252,7 @@ export function OnboardingWizard() {
               {t('finish.heading')}
             </Heading>
             <Text variant="muted">{t('finish.subtitle')}</Text>
-            <ul className="mt-2 flex flex-col gap-3">
+            <ul role="list" className="mt-2 flex flex-col gap-3">
               <li className="flex items-start gap-2">
                 <KeyRound className="text-fg-muted mt-0.5 size-4" aria-hidden />
                 <span className="text-sm">{t('finish.providerItem')}</span>

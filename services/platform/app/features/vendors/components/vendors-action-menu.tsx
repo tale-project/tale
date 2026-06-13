@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus, HardDrive, NotepadText } from 'lucide-react';
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -29,18 +29,26 @@ export function VendorsActionMenu({
   const isDialogOpen = controlledCreateOpen ?? internalOpen;
   const setIsDialogOpen = onCreateOpenChange ?? setInternalOpen;
   const [importMode, setImportMode] = useState<ImportMode>('manual');
+  const openedViaMenuRef = useRef(false);
 
-  // The external CTA always opens manual entry, never the upload tab.
+  // The external empty-state CTA opens manual entry. The menu's own buttons set
+  // the mode themselves, so only reset when the open did NOT come from them —
+  // otherwise clicking "from device" would immediately flip back to manual.
   useEffect(() => {
-    if (controlledCreateOpen) setImportMode('manual');
+    if (controlledCreateOpen && !openedViaMenuRef.current) {
+      setImportMode('manual');
+    }
+    if (!controlledCreateOpen) openedViaMenuRef.current = false;
   }, [controlledCreateOpen]);
 
   const handleUploadClick = useCallback(() => {
+    openedViaMenuRef.current = true;
     setImportMode('upload');
     setIsDialogOpen(true);
   }, [setIsDialogOpen]);
 
   const handleManualEntryClick = useCallback(() => {
+    openedViaMenuRef.current = true;
     setImportMode('manual');
     setIsDialogOpen(true);
   }, [setIsDialogOpen]);

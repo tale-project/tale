@@ -120,8 +120,21 @@ function Verify-Checksum {
         $sums = (Invoke-WebRequest -Uri $sumsUrl -UseBasicParsing `
             -Headers @{ "User-Agent" = "tale-installer/1.0" } -ErrorAction Stop).Content
     } catch {
-        Write-Info "No checksum file published for $tag; skipping verification."
-        return
+        # Only a missing checksum file (404) is a legitimate skip — older
+        # releases predate checksum publishing. Any other failure (network,
+        # proxy, 5xx) must abort rather than silently install an unverified
+        # binary.
+        $statusCode = $null
+        if ($_.Exception.Response) {
+            try { $statusCode = [int]$_.Exception.Response.StatusCode }
+            catch { $statusCode = $null }
+        }
+        if ($statusCode -eq 404) {
+            Write-Info "No checksum file published for $tag; skipping verification."
+            return
+        }
+        $detail = if ($statusCode) { "HTTP $statusCode" } else { "network error" }
+        Write-Err "Could not fetch the checksum file for $tag ($detail). Aborting rather than installing an unverified binary."
     }
     $expected = $null
     foreach ($line in ($sums -split "`n")) {

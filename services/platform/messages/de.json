@@ -572,7 +572,7 @@
       "title": "Automatisierung erstellen",
       "tabBlank": "Leer",
       "tabTemplate": "Aus Vorlage",
-      "nameTooltip": "Wird zur ID der Automation in ihrer URL. Halte sie kurz — den Anzeigenamen kannst du später ändern.",
+      "nameTooltip": "Wird zur ID der Automatisierung in ihrer URL. Halte sie kurz — den Anzeigenamen kannst du später ändern.",
       "namePlaceholder": "z. B. Social-Media-Workflow",
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
       "creating": "Erstelle...",

@@ -16,6 +16,9 @@ const STEPS: WizardStepMeta[] = [
   { id: 'finish', label: 'Finish' },
 ];
 
+const fmt = (current: number, total: number, label: string) =>
+  `Step ${current} of ${total}: ${label}`;
+
 const meta: Meta<typeof Wizard> = {
   title: 'Wizard/Wizard',
   component: Wizard,
@@ -49,6 +52,7 @@ function Shell({
         steps={steps}
         defaultActiveIndex={defaultActiveIndex}
         onFinish={() => window.alert('Finished!')}
+        formatProgress={fmt}
       >
         <WizardProgress ariaLabel="Setup steps" />
         {steps.map((step) => (
@@ -95,7 +99,11 @@ export const WithValidationError: Story = {
     const valid = value.trim().length > 0;
     return (
       <div className="bg-bg-base ring-border-strong mx-auto max-w-xl rounded-xl p-6 shadow-sm ring-1">
-        <Wizard steps={steps} onFinish={() => window.alert('Finished!')}>
+        <Wizard
+          steps={steps}
+          onFinish={() => window.alert('Finished!')}
+          formatProgress={fmt}
+        >
           <WizardProgress ariaLabel="Setup steps" />
           <WizardStep id="name" valid={valid}>
             <Input
@@ -131,7 +139,11 @@ export const AsyncStep: Story = {
     ];
     return (
       <div className="bg-bg-base ring-border-strong mx-auto max-w-xl rounded-xl p-6 shadow-sm ring-1">
-        <Wizard steps={steps} onFinish={() => window.alert('Finished!')}>
+        <Wizard
+          steps={steps}
+          onFinish={() => window.alert('Finished!')}
+          formatProgress={fmt}
+        >
           <WizardProgress ariaLabel="Setup steps" />
           <WizardStep
             id="save"

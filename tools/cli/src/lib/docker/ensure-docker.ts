@@ -389,7 +389,13 @@ async function runDesktopExeInstall(): Promise<void> {
 }
 
 async function runGetDockerScript(): Promise<void> {
-  await exec('/bin/sh', ['-c', 'curl -fsSL https://get.docker.com | sh']);
+  // The Linux plan accepts a wget-only host (and may bootstrap a downloader),
+  // so honor whichever fetcher is present rather than hardcoding curl.
+  await exec('/bin/sh', [
+    '-c',
+    'if command -v curl >/dev/null 2>&1; then curl -fsSL https://get.docker.com | sh; ' +
+      'else wget -qO- https://get.docker.com | sh; fi',
+  ]);
   // Best-effort daemon start on systemd hosts; ignored where systemctl is absent.
   if (await commandExists('systemctl')) {
     await exec('sudo', ['systemctl', 'enable', '--now', 'docker']);

@@ -59,6 +59,11 @@ export function isLocalHostname(host: string): boolean {
   if (h.endsWith('.local') || h.endsWith('.localhost')) return true;
   // IPv4 (any address — public certs are issued for names, not IPs).
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return true;
+  // Bare IPv6 literal (optionally bracketed), e.g. `[::1]`, `fe80::1`,
+  // `2001:db8::1`. Like IPv4, a public CA never issues for an IP literal, so
+  // letsencrypt would fail the ACME challenge — treat it as local.
+  const v6 = h.replace(/^\[|\]$/g, '');
+  if (v6.includes(':') && /^[0-9a-f:]+$/.test(v6)) return true;
   return false;
 }
 

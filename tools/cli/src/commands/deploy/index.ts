@@ -103,7 +103,10 @@ export function createDeployCommand(): Command {
 
         // Catch fixable problems (daemon down, letsencrypt misconfig) before
         // mutating any container. Throws on a real deploy; warns on --dry-run.
-        await runDeployPreflight({ dryRun: options.dryRun });
+        // Pass the env source explicitly (TLS_MODE/HOST/TLS_EMAIL live in
+        // process.env, populated by loadEnv above) so preflight doesn't depend
+        // on an implicit default.
+        await runDeployPreflight({ dryRun: options.dryRun, env: process.env });
 
         const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;
         if (version === 'latest') {

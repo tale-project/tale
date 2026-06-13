@@ -11,6 +11,9 @@ describe('isLocalHostname', () => {
     ['127.0.0.1', true],
     ['10.0.0.5', true],
     ['::1', true],
+    ['fe80::1', true],
+    ['2001:db8::1', true],
+    ['[::1]', true],
     ['', true],
     ['demo.tale.dev', false],
     ['example.com', false],
@@ -56,6 +59,12 @@ describe('deriveDomainTls', () => {
   test('production + bare IP → downgraded to self-signed', () => {
     expect(
       deriveDomainTls({ mode: 'production', host: '192.168.1.10' }).tlsMode,
+    ).toBe('selfsigned');
+  });
+
+  test('production + bare IPv6 → downgraded to self-signed', () => {
+    expect(
+      deriveDomainTls({ mode: 'production', host: '2001:db8::1' }).tlsMode,
     ).toBe('selfsigned');
   });
 });

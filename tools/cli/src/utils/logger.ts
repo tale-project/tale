@@ -82,7 +82,7 @@ export function bannerText(version: string): string {
   return `  ${BOLD}${CYAN}◆ Tale${RESET} ${DIM}v${version}${RESET}  ${DIM}— your self-hosted AI workforce${RESET}`;
 }
 
-export function banner(version: string) {
+export function banner(version: string): void {
   blank();
   console.log(bannerText(version));
   blank();

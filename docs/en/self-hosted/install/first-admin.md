@@ -25,7 +25,7 @@ From the repo root:
 ./scripts/get-admin-key.sh
 ```
 
-The script prints a one-time key to stdout. Copy it — the script does not save it anywhere. If you installed with the `tale` CLI rather than a clone, the script is not in your tree, but it only wraps a generator that lives in the platform container — run it directly with `docker exec -it $(docker ps --format '{{.Names}}' | grep platform | head -1) ./generate-admin-key.sh`.
+The script prints a one-time key to stdout. Copy it — the script does not save it anywhere. If you installed with the `tale` CLI rather than a clone, the script is not in your tree — run `tale convex admin`, which finds the platform container for you and runs the same generator (more reliable than scraping `docker ps` for the container name).
 
 ## Step 2 — Sign up via SITE_URL
 

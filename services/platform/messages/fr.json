@@ -2167,8 +2167,8 @@
     }
   },
   "onboarding": {
-    "title": "Configurez votre espace de travail",
-    "subtitle": "Quelques étapes rapides et vous êtes prêt.",
+    "title": "Configure ton espace de travail",
+    "subtitle": "Quelques étapes rapides et c'est prêt.",
     "stepsAriaLabel": "Étapes d'intégration",
     "progress": "Étape {current} sur {total} : {label}",
     "steps": {
@@ -2178,25 +2178,25 @@
       "finish": "Terminer"
     },
     "workspace": {
-      "heading": "Nommez votre espace de travail",
-      "why": "C'est ainsi que votre équipe reconnaîtra cet espace de travail."
+      "heading": "Nomme ton espace de travail",
+      "why": "C'est ainsi que ton équipe reconnaîtra cet espace de travail."
     },
     "provider": {
       "heading": "Connecter un fournisseur d'IA",
-      "why": "Les agents et le chat nécessitent un fournisseur. Ajoutez-en un maintenant ou plus tard dans les paramètres — la plupart des fonctionnalités restent verrouillées jusque-là.",
+      "why": "Les agents et le chat nécessitent un fournisseur. Ajoutes-en un maintenant ou plus tard dans les paramètres — la plupart des fonctionnalités restent verrouillées jusque-là.",
       "cta": "Ouvrir les paramètres du fournisseur"
     },
     "team": {
-      "heading": "Invitez votre équipe",
-      "why": "Ajoutez des coéquipiers maintenant, ou invitez-les à tout moment depuis les paramètres.",
+      "heading": "Invite ton équipe",
+      "why": "Ajoute des coéquipiers maintenant, ou invite-les à tout moment depuis les paramètres.",
       "cta": "Gérer les personnes"
     },
     "finish": {
       "heading": "Tout est prêt",
-      "subtitle": "Voici ce que vous pouvez faire ensuite :",
-      "providerItem": "Connectez un fournisseur d'IA pour alimenter les agents et le chat.",
-      "agentItem": "Créez votre premier agent.",
-      "inviteItem": "Invitez des coéquipiers à collaborer.",
+      "subtitle": "Voici ce que tu peux faire ensuite :",
+      "providerItem": "Connecte un fournisseur d'IA pour alimenter les agents et le chat.",
+      "agentItem": "Crée ton premier agent.",
+      "inviteItem": "Invite des coéquipiers à collaborer.",
       "goToDashboard": "Aller au tableau de bord"
     }
   },

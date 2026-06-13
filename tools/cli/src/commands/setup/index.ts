@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
 import { Command } from 'commander';
 
 import pkg from '../../../package.json';
@@ -33,7 +36,16 @@ export function createSetupCommand(): Command {
         }
 
         logger.blank();
-        const existing = findProject(directory);
+        // With an explicit target, only treat THAT directory as an existing
+        // project — `findProject` walks up to ancestors, which would make
+        // `tale setup <new-subdir>` short-circuit when run inside a project.
+        // With no target, the ancestor walk is what we want (re-running inside
+        // a project should detect it).
+        const existing = directory
+          ? existsSync(join(resolve(directory), 'tale.json'))
+            ? resolve(directory)
+            : null
+          : findProject();
         if (existing !== null) {
           logger.info(`Existing Tale project detected at ${existing}.`);
           logger.info(
@@ -42,7 +54,8 @@ export function createSetupCommand(): Command {
           return;
         }
 
-        const mode = await init({ directory });
+        const result = await init({ directory });
+        if (result.status === 'aborted') return;
 
         logger.blank();
         if (docker.status === 'refused' || docker.status === 'failed') {
@@ -50,7 +63,7 @@ export function createSetupCommand(): Command {
             'Install Docker (see above), then run the launch command below.',
           );
         }
-        if (mode === 'production') {
+        if (result.mode === 'production') {
           logger.info('You\'re set up. Run "tale deploy" to go live.');
         } else {
           logger.info('You\'re set up. Run "tale start" to launch locally.');

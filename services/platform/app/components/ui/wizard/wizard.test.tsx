@@ -15,6 +15,9 @@ const STEPS: WizardStepMeta[] = [
   { id: 'three', label: 'Three' },
 ];
 
+const fmt = (current: number, total: number, label: string) =>
+  `Step ${current} of ${total}: ${label}`;
+
 function Harness({
   onFinish = vi.fn(),
   beforeNextOne,
@@ -23,7 +26,7 @@ function Harness({
   beforeNextOne?: WizardBeforeNext;
 }) {
   return (
-    <Wizard steps={STEPS} onFinish={onFinish}>
+    <Wizard steps={STEPS} onFinish={onFinish} formatProgress={fmt}>
       <WizardProgress ariaLabel="Steps" />
       <WizardStep id="one" onBeforeNext={beforeNextOne}>
         <p>Content one</p>
@@ -81,7 +84,7 @@ describe('Wizard validation gating', () => {
       { id: 'done', label: 'Done' },
     ];
     return (
-      <Wizard steps={steps} onFinish={vi.fn()}>
+      <Wizard steps={steps} onFinish={vi.fn()} formatProgress={fmt}>
         <WizardStep id="name" valid={value.length > 0}>
           <label htmlFor="n">Name</label>
           <input
