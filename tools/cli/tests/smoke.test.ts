@@ -118,6 +118,32 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
     SMOKE_TIMEOUT,
   );
 
+  // `start` and `deploy` are the two launch commands but were never exercised
+  // in the compiled binary — a crash in their import graph (or a SIGKILL on
+  // load) would slip past the grep-only bundle check. Parsing `--help` proves
+  // the command and its whole dependency tree load and run without dying.
+  test(
+    'start --help loads and documents the launch surface',
+    async () => {
+      const result = await run(['start', '--help'], dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Start Tale platform');
+      expect(result.stdout).toContain('--detach');
+    },
+    SMOKE_TIMEOUT,
+  );
+
+  test(
+    'deploy --help loads and documents the launch surface',
+    async () => {
+      const result = await run(['deploy', '--help'], dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.toLowerCase()).toContain('deploy');
+      expect(result.stdout).toContain('--dry-run');
+    },
+    SMOKE_TIMEOUT,
+  );
+
   test(
     'init scaffolds a complete project without .env',
     async () => {
