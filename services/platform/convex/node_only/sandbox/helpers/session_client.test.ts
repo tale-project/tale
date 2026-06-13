@@ -2,7 +2,7 @@
 // fetch is mocked to return SSE streams, including a mid-turn drop, and we
 // assert the drain re-attaches via sinceSeq and feeds each delta exactly once.
 
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import { drainSessionExecResilient } from './session_client';
 

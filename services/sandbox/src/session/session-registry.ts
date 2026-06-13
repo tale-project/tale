@@ -9,7 +9,7 @@
 
 import type { SandboxSessionProfile, SandboxSessionState } from '../wire.ts';
 
-export interface RegistrySession {
+interface RegistrySession {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;

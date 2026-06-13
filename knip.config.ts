@@ -1,6 +1,18 @@
 export default {
   ignoreBinaries: ['uv', 'uvx'],
-  ignore: ['examples/**', 'tools/plop/templates/**'],
+  ignore: [
+    'examples/**',
+    'tools/plop/templates/**',
+    // runnerd wire-protocol contract. `runnerd-protocol.ts` is the canonical
+    // source of truth; `daemon/src/protocol.ts` is a hand-kept byte-mirror (the
+    // daemon is bundled into the runtime image and cannot import across the
+    // service boundary). Each side consumes a different subset of the shared
+    // contract, so knip sees the members used only by the *other* side as dead
+    // — but they are the cross-service contract and must stay in sync. Exclude
+    // both from the dead-export sweep so the mirror stays complete.
+    'services/sandbox/src/session/runnerd-protocol.ts',
+    'services/sandbox-runtime/daemon/src/protocol.ts',
+  ],
   workspaces: {
     'services/platform': {
       vite: { config: ['vite.config.ts'] },

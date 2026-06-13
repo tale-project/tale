@@ -12,7 +12,7 @@ import {
   type RunnerdHealth,
 } from './runnerd-protocol.ts';
 
-export interface RunnerdClientOptions {
+interface RunnerdClientOptions {
   baseUrl: string;
   /** Per-session token (deriveRunnerdToken), or '' in unsigned dev mode. */
   token: string;
@@ -234,7 +234,7 @@ export async function runnerdEnvPatch(
   return body.denied ?? [];
 }
 
-export interface RunnerdStageResult {
+interface RunnerdStageResult {
   staged: Array<{ path: string; bytes: number }>;
   skipped: Array<{ path: string; reason: string }>;
 }
@@ -256,7 +256,7 @@ export async function runnerdStageFiles(
   return (await res.json()) as RunnerdStageResult;
 }
 
-export interface RunnerdFsEntry {
+interface RunnerdFsEntry {
   name: string;
   type: 'file' | 'dir' | 'other';
   size: number;

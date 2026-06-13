@@ -53,7 +53,7 @@ export interface StageItem {
   contentBase64?: string;
 }
 
-export interface StageResult {
+interface StageResult {
   staged: Array<{ path: string; bytes: number }>;
   skipped: Array<{ path: string; reason: string }>;
 }
@@ -109,7 +109,7 @@ export async function stageFiles(items: StageItem[]): Promise<StageResult> {
   return { staged, skipped };
 }
 
-export interface FsEntry {
+interface FsEntry {
   name: string;
   type: 'file' | 'dir' | 'other';
   size: number;

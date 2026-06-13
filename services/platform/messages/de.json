@@ -1001,8 +1001,7 @@
       "ready": "Bereit",
       "readyTooltip": "Die Sandbox ist warm und bereit — deine nächste Nachricht startet sofort.",
       "pinned": "Immer aktiv",
-      "pinnedTooltip": "Diese Sandbox ist angepinnt und bleibt immer aktiv.",
-      "ariaLabel": "Sandbox-Status"
+      "pinnedTooltip": "Diese Sandbox ist angepinnt und bleibt immer aktiv."
     },
     "searchConversations": "Konversationen durchsuchen",
     "invalidFiles": "Ungültige Dateien",

@@ -17,7 +17,7 @@ import {
 
 const MAX_ENV_VALUE = 32 * 1024;
 
-export interface CreateSessionRequest {
+interface CreateSessionRequest {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
@@ -26,7 +26,7 @@ export interface CreateSessionRequest {
   env: Record<string, string>;
 }
 
-export interface ExecSessionRequest {
+interface ExecSessionRequest {
   execId: string;
   command?: string[];
   shell?: string;

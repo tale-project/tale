@@ -96,9 +96,13 @@ function createMockCtx(
             .mockResolvedValue(
               threadMeta ? { userId: 'user_1', ...threadMeta } : null,
             ),
+          // settleQueueOnTurnEnd sweeps the chat message queue by status via
+          // `.withIndex(...).collect()`; no rows queued in these tests.
+          collect: vi.fn().mockResolvedValue([]),
         }),
       }),
       patch: vi.fn(),
+      delete: vi.fn(),
     },
     runQuery: vi.fn().mockImplementation((queryRef: string) => {
       // betterAuth adapter queries (getUserTeamIds + resolveBudgetContext)

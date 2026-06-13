@@ -1002,8 +1002,7 @@
       "ready": "Prête",
       "readyTooltip": "La sandbox est chaude et prête — ton prochain message démarre instantanément.",
       "pinned": "Toujours active",
-      "pinnedTooltip": "Cette sandbox est épinglée pour rester toujours active.",
-      "ariaLabel": "Statut de la sandbox"
+      "pinnedTooltip": "Cette sandbox est épinglée pour rester toujours active."
     },
     "searchConversations": "Rechercher dans les conversations",
     "invalidFiles": "Fichiers invalides",

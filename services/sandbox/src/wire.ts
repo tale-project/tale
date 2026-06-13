@@ -211,22 +211,6 @@ export const sandboxSessionProfileLiterals = ['default', 'agent'] as const;
 export type SandboxSessionProfile =
   (typeof sandboxSessionProfileLiterals)[number];
 
-/**
- * SSE event types emitted by `POST /v1/sessions/:id/exec`. Same grammar as
- * the one-shot stream so `spawner_client.ts`-style parsers are reusable:
- * `phase` (only ever `running` for session execs), `stdout`/`stderr` live
- * deltas (byte-faithful, ordered — the one-shot PHASE-marker stripping does
- * NOT apply here; agent adapters parse JSONL out of this stream), exactly
- * one terminal `result`, and zero or one transport `error`.
- */
-export const sandboxSessionExecSseEventLiterals = [
-  'phase',
-  'stdout',
-  'stderr',
-  'result',
-  'error',
-] as const;
-
 /** Terminal payload of a session exec (the SSE `result` event). */
 export interface SessionExecResponse {
   status: 'completed' | 'failed' | 'cancelled';

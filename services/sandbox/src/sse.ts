@@ -7,11 +7,11 @@
 // comment line every 20 s resets the idle clock through silent stretches
 // like `pip install` or a thinking agent) and always closes the stream.
 
-export interface SseHandle {
+interface SseHandle {
   send: (event: string, data: unknown) => void;
 }
 
-export const SSE_KEEPALIVE_INTERVAL_MS = 20_000;
+const SSE_KEEPALIVE_INTERVAL_MS = 20_000;
 
 export function sseResponse(
   run: (handle: SseHandle) => Promise<void>,
