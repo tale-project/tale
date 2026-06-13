@@ -98,6 +98,17 @@ function envNormalizeCommon() {
   if (!process.env.PORT) process.env.PORT = '3000';
   if (!process.env.HOSTNAME) process.env.HOSTNAME = '0.0.0.0';
 
+  // Third-party telemetry opt-out for local dev, set in code so `.env` stays
+  // clean. DO_NOT_TRACK is the cross-tool standard (consoledonottrack.com);
+  // the rest are explicit per-tool toggles. `??=` lets an explicit override
+  // win. (CI sets these in .github/actions/setup-turbo, Docker at runtime,
+  // Storybook via its own config.)
+  process.env.DO_NOT_TRACK ??= '1';
+  process.env.TURBO_TELEMETRY_DISABLED ??= '1';
+  process.env.STORYBOOK_DISABLE_TELEMETRY ??= '1';
+  process.env.SCARF_ANALYTICS ??= 'false';
+  process.env.HF_HUB_DISABLE_TELEMETRY ??= '1';
+
   const port = process.env.PORT || '3000';
   const host = process.env.HOST || 'localhost';
 
