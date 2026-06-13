@@ -339,6 +339,11 @@ export async function runAgentInSessionImpl(
   let lastMainActivityAt = Date.now();
   let lastMainEventWasText = args.resumeFrom !== undefined;
   const inflightToolUses = new Set<string>();
+  // Main-level Task spawns still running (a subset of inflightToolUses). When
+  // non-empty with no other main tool in flight, the main loop is blocked
+  // delegating to sub-agents — a deliverable-idle posture for stdin steering,
+  // exactly like a background-task wait (sub-agents just don't emit task_*).
+  const inflightSubAgents = new Set<string>();
   // Unconfirmed stdin steer rows may exist whenever we delivered (set below)
   // or resumed mid-turn (a prior segment may have delivered) — the next
   // completed text/result is the consumption evidence (a steered exchange
@@ -357,6 +362,14 @@ export async function runAgentInSessionImpl(
     const subtype = (p as { subtype?: unknown }).subtype;
     return typeof subtype === 'string' && subtype.startsWith('task_');
   };
+
+  /** Sub-agent (Agent/Task) chatter: text/tool/usage emitted INSIDE a sub-agent
+   * carry the parent Task's tool_use id. It must not count as main-loop
+   * activity — during a delegation the main loop is quiet while sub-agents
+   * stream, and treating their output as activity masks that idleness, so the
+   * steer never delivers until the whole batch returns. */
+  const isSubAgentTraffic = (e: AgentEvent): boolean =>
+    'parentToolUseId' in e && Boolean(e.parentToolUseId);
 
   const tripSteerSeam = (): void => {
     // drainActive guards a stray late trip (e.g. a sentinel parsed out of
@@ -507,7 +520,12 @@ export async function runAgentInSessionImpl(
    * wait for the next tick. */
   const lingerTick = async (): Promise<void> => {
     if (!stdinHold || !drainActive || handoff || eofSent || lingerBusy) return;
-    if (!agentResultSeen && pendingTasks.size === 0) return;
+    if (
+      !agentResultSeen &&
+      pendingTasks.size === 0 &&
+      inflightSubAgents.size === 0
+    )
+      return;
     lingerBusy = true;
     try {
       // Quiet-idle transition: background work pending, the main loop's last
@@ -524,6 +542,23 @@ export async function runAgentInSessionImpl(
         pendingTasks.size > 0 &&
         inflightToolUses.size === 0 &&
         lastMainEventWasText &&
+        Date.now() - lastMainActivityAt >= QUIET_IDLE_MS
+      ) {
+        setAgentIdle(true);
+        await flushProgress(true);
+      }
+      // Sub-agent wait: the main loop spawned Task sub-agent(s) and went quiet
+      // awaiting them — the same deliverable-idle posture as a background-task
+      // wait, but the blocker is an inflight tool, not a task_* ledger entry
+      // (so the guard above can't fire). The last main event is the Task
+      // tool-use (not text), so `lastMainEventWasText` is NOT required here.
+      // Sub-agent chatter is excluded from `lastMainActivityAt` (isSubAgentTraffic),
+      // so the debounce reflects genuine main-loop silence.
+      if (
+        !agentIdle &&
+        !agentResultSeen &&
+        inflightSubAgents.size > 0 &&
+        inflightToolUses.size === inflightSubAgents.size &&
         Date.now() - lastMainActivityAt >= QUIET_IDLE_MS
       ) {
         setAgentIdle(true);
@@ -616,7 +651,7 @@ export async function runAgentInSessionImpl(
       // result (re-)enters it (quiet-idle re-enters it from the linger loop).
       // Background task_* chatter must not look like activity — during a
       // workflow wait it is the ONLY traffic, and it must not mask idleness.
-      if (stdinHold && !isBackgroundTraffic(e)) {
+      if (stdinHold && !isBackgroundTraffic(e) && !isSubAgentTraffic(e)) {
         lastMainActivityAt = Date.now();
         setAgentIdle(false);
         lastMainEventWasText = e.type === 'text' || e.type === 'result';
@@ -634,10 +669,18 @@ export async function runAgentInSessionImpl(
         // A settle with the model already idle can be the last blocker — let
         // the linger loop's immediate check decide (it may EOF).
         if (stdinHold && agentResultSeen) void lingerTick();
-      } else if (e.type === 'tool-use' && e.toolUseId) {
+      } else if (e.type === 'tool-use' && e.toolUseId && !e.parentToolUseId) {
+        // Track MAIN-level tool uses only — the quiet-idle guards reason about
+        // the main loop, and a sub-agent's own inflight tools (parentToolUseId
+        // set) must not count as the main loop being busy. A main-level Task
+        // tool-use IS a sub-agent spawn.
         inflightToolUses.add(e.toolUseId);
+        if (e.toolName === 'Task') inflightSubAgents.add(e.toolUseId);
       } else if (e.type === 'tool-result' && e.toolUseId) {
+        // Sub-agent internal results carry parentToolUseId and were never added
+        // — delete is a harmless no-op for ids we don't track.
         inflightToolUses.delete(e.toolUseId);
+        inflightSubAgents.delete(e.toolUseId);
       }
       if (e.type === 'text-delta' || e.type === 'text') {
         progressText += e.text;

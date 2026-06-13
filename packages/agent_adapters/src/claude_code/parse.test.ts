@@ -265,6 +265,46 @@ describe('ClaudeCodeParser', () => {
     // sub-agent message has its own id and its tokens are genuine spend.
     const usage = events.filter((e) => e.type === 'usage');
     expect(usage).toHaveLength(4);
+    // Sub-agent usage carries the parent Task id so the drain doesn't read it
+    // as main-loop activity (quiet-idle detection during delegation); main-agent
+    // usage has none.
+    const withParent = usage.filter(
+      (e) => e.type === 'usage' && e.parentToolUseId === 'tu_task1',
+    );
+    const withoutParent = usage.filter(
+      (e) => e.type === 'usage' && e.parentToolUseId === undefined,
+    );
+    expect(withParent).toHaveLength(2);
+    expect(withoutParent).toHaveLength(2);
+  });
+
+  it('tags a streamed text-delta with the parent Task id when it is a sub-agent', () => {
+    const parser = new ClaudeCodeParser();
+    const subDelta = JSON.stringify({
+      type: 'stream_event',
+      parent_tool_use_id: 'tu_task1',
+      event: { delta: { type: 'text_delta', text: 'sub thinking' } },
+    });
+    const mainDelta = JSON.stringify({
+      type: 'stream_event',
+      event: { delta: { type: 'text_delta', text: 'main thinking' } },
+    });
+    const events = [
+      ...parser.feed(`${subDelta}\n`),
+      ...parser.feed(`${mainDelta}\n`),
+    ];
+    const sub = events.find(
+      (e) => e.type === 'text-delta' && e.text === 'sub thinking',
+    );
+    const main = events.find(
+      (e) => e.type === 'text-delta' && e.text === 'main thinking',
+    );
+    expect(sub?.type === 'text-delta' ? sub.parentToolUseId : 'x').toBe(
+      'tu_task1',
+    );
+    expect(
+      main?.type === 'text-delta' ? main.parentToolUseId : 'x',
+    ).toBeUndefined();
   });
 
   it('handles a second init (model re-invoked after a background task)', () => {

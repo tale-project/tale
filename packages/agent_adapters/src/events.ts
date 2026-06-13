@@ -32,7 +32,10 @@ export type AgentEvent =
       agentSessionId?: string;
       model?: string;
     }
-  | { type: 'text-delta'; text: string }
+  /** `parentToolUseId`: set when this delta streamed from a sub-agent (parent
+   * Task's `toolUseId`); absent for the main agent. Lets the drain treat
+   * sub-agent streaming as non-main activity for quiet-idle detection. */
+  | { type: 'text-delta'; text: string; parentToolUseId?: string }
   /** A completed assistant text block (as opposed to streaming deltas).
    * `parentToolUseId` is set when this block was emitted by a sub-agent (the
    * agent's own Task/Agent tool) rather than the main agent — it holds the
@@ -56,7 +59,9 @@ export type AgentEvent =
       /** Set for a sub-agent's tool result (parent Task's `toolUseId`). */
       parentToolUseId?: string;
     }
-  | ({ type: 'usage' } & AgentUsage)
+  /** `parentToolUseId`: set when this usage block belongs to a sub-agent's
+   * assistant message; absent for the main agent. */
+  | ({ type: 'usage'; parentToolUseId?: string } & AgentUsage)
   | {
       type: 'result';
       status: AgentResultStatus;

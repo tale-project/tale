@@ -108,7 +108,19 @@ export class ClaudeCodeParser implements AgentEventParser {
       const delta = obj(inner?.delta);
       if (str(delta?.type) === 'text_delta') {
         const text = str(delta?.text);
-        if (text) return [{ type: 'text-delta', text }];
+        if (text) {
+          // Sub-agent deltas carry the parent Task's tool_use id at top level,
+          // same as the completed assistant/user events — propagate it so the
+          // drain doesn't count sub-agent streaming as main-loop activity.
+          const parentToolUseId = str(ev.parent_tool_use_id);
+          return [
+            {
+              type: 'text-delta',
+              text,
+              ...(parentToolUseId ? { parentToolUseId } : {}),
+            },
+          ];
+        }
       }
       return [];
     }
@@ -154,6 +166,8 @@ export class ClaudeCodeParser implements AgentEventParser {
           outputTokens: num(usage.output_tokens),
           cacheReadTokens: num(usage.cache_read_input_tokens),
           cacheWriteTokens: num(usage.cache_creation_input_tokens),
+          // Sub-agent usage must not read as main-loop activity (quiet-idle).
+          ...(parentToolUseId ? { parentToolUseId } : {}),
         });
       }
       return events;
