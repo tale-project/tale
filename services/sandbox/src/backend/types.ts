@@ -306,9 +306,19 @@ export interface SessionBackend {
    * live session destroyed.
    */
   sessionExists(sessionId: string): Promise<boolean>;
-  /** Tear down container/Pod (+ Secret on K8s) and the workspace. Idempotent;
-   * returns false when nothing existed. */
+  /** Tear down container/Pod (+ Secret on K8s) and DELETE the workspace
+   * (host dir / PVC). The ONLY data-deleting verb — reached only via the
+   * explicit Destroy path. Idempotent; returns false when nothing existed. */
   destroySession(sessionId: string): Promise<boolean>;
+  /**
+   * Stop the container/Pod (+ Secret on K8s) to release compute, but PRESERVE
+   * the workspace (host dir / PVC) so a later createSession with the same
+   * sessionId re-attaches it. This is the idle/TTL-reaper outcome — never
+   * deletes data. Idempotent; returns false when nothing existed. THROWS on a
+   * transient backend hiccup (never returns false on a blip — same contract as
+   * destroySession), so the reaper leaves a flaky session for the next sweep.
+   */
+  stopSession(sessionId: string): Promise<boolean>;
   /** List live session objects (label-selected), for boot re-adoption, the
    * GET /v1/sessions route, and the TTL/idle sweep. */
   listSessions(organizationId?: string): Promise<BackendSession[]>;

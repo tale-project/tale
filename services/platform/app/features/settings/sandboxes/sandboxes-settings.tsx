@@ -3,7 +3,7 @@ import { PageSection } from '@tale/ui/page-section';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { FunctionReturnType } from 'convex/server';
 import { Pin, PinOff, Square, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -49,6 +49,19 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   const setPinned = useConvexAction(
     api.node_only.sandbox.session_admin_actions.setSandboxPinned,
   );
+
+  // Reconcile platform rows with the spawner on mount so a session the idle/TTL
+  // reaper released shows as "Stopped" rather than a stale "Idle". The spawner
+  // is pull-only (no lifecycle callback), so this opportunistic probe — not a
+  // cron — is what keeps the fleet view honest. Fire-and-forget; the action
+  // logs its own per-session failures.
+  const reconcile = useConvexAction(
+    api.node_only.sandbox.session_admin_actions.reconcileOrgSessions,
+  );
+  const reconcileMutate = reconcile.mutate;
+  useEffect(() => {
+    reconcileMutate({ organizationId });
+  }, [organizationId, reconcileMutate]);
 
   // The session id whose control is mid-flight (disables that row's buttons).
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -112,10 +125,16 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         cell: ({ row }) => {
           const s = row.original;
           const paused = s.currentOp?.pausedReason === 'budget';
+          // `stopped` = compute released, workspace preserved (hibernated). It's
+          // never busy, so check it before the busy/idle branch — otherwise it
+          // would mislabel as "Idle" (which means a live, non-busy container).
+          const stopped = s.status === 'stopped';
           return (
             <div className="flex flex-wrap gap-1">
               {paused ? (
                 <Badge variant="destructive">{t('status.pausedBudget')}</Badge>
+              ) : stopped ? (
+                <Badge variant="yellow">{t('status.stopped')}</Badge>
               ) : s.busy ? (
                 <Badge variant="green">{t('status.running')}</Badge>
               ) : (

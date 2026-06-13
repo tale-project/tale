@@ -34,6 +34,10 @@ export const sandboxSessionsTable = defineTable({
     v.literal('creating'),
     v.literal('active'),
     v.literal('degraded'),
+    // Compute released (container/Pod stopped by the idle/TTL reaper) but the
+    // workspace is PRESERVED — resumable on the next turn. Not terminal; data
+    // is removed only by an explicit 'destroyed'.
+    v.literal('stopped'),
     v.literal('destroyed'),
     v.literal('expired'),
     v.literal('failed'),
@@ -217,6 +221,10 @@ export const SANDBOX_SESSION_LIVE_STATUSES = [
   'creating',
   'active',
   'degraded',
+  // Hibernated (compute released, workspace preserved) — still a LIVE
+  // incarnation: the management page lists it, sessionId-keyed reads/patches
+  // act on it, and the next turn resumes it in place (same createdAt).
+  'stopped',
 ] as const;
 
 export function isLiveSessionStatus(

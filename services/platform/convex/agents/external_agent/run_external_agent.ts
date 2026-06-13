@@ -177,38 +177,65 @@ export const runExternalAgentTurn = internalAction({
       const ownerId = args.userId
         ? userOwnerId(args.organizationId, args.userId)
         : args.threadId;
-      let existing = await ctx.runQuery(
+      const existing = await ctx.runQuery(
         internal.sandbox.session_queries.getActiveSessionByOwner,
         { ownerType, ownerId },
       );
-      // Phantom check BEFORE reuse: the spawner reaps sessions (idle/TTL) and
-      // its registry is in-memory, so an `active` platform row can point at a
-      // session that no longer exists — previously that 404'd the turn and
-      // only healed the row for the NEXT send. Probe first: a definitive 404
-      // clears the stale rows and falls through to the create path below, so
-      // the turn recreates the session transparently. Transport errors throw
-      // (a spawner blip must not trigger a spurious recreate).
-      if (existing && !(await sessionIsAlive(existing.sessionId))) {
-        console.warn(
-          '[runExternalAgentTurn] phantom session, recreating in place:',
-          existing.sessionId,
-        );
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.destroyActiveSessionsByOwner,
-          { ownerType, ownerId },
-        );
-        existing = null;
-      }
-      // Lower bound for the --resume lookup: ops from a PRIOR session (same
-      // deterministic id, since destroyed) must not be resumed. The reused
-      // session uses its own createdAt; a freshly created one uses now (it
-      // has no ops yet either way).
+      // Liveness check BEFORE reuse: the spawner STOPS sessions (idle/TTL) and
+      // its registry is in-memory, so a live platform row can point at a
+      // container that's no longer running. The workspace is PRESERVED across a
+      // stop, so a gone container means "resume", not "recreate fresh" —
+      // re-create against the same deterministic id (re-attaches the host dir /
+      // PVC) keeping the SAME incarnation so the per-thread --resume
+      // conversation continues. Data is removed only by an explicit Destroy, so
+      // we NEVER destroy the row here. Transport errors throw (a spawner blip
+      // must not trigger a spurious resume/recreate).
+      //
+      // `sessionCreatedAt` is the --resume lower bound: a reused/resumed
+      // session keeps its own createdAt (same incarnation); a freshly created
+      // one uses now (it has no ops yet either way).
       let sessionCreatedAt: number;
       if (existing) {
         sessionId = existing.sessionId;
         sessionCreatedAt = existing.createdAt;
+        const alive = await sessionIsAlive(existing.sessionId);
+        if (!alive) {
+          console.warn(
+            '[runExternalAgentTurn] resuming stopped session in place:',
+            sessionId,
+          );
+          try {
+            await sessionCreate({
+              sessionId,
+              organizationId: args.organizationId,
+              profile: 'agent',
+            });
+          } catch (createErr) {
+            // 409: the container is actually still live (race with the reaper /
+            // a re-adopted session). That's a successful resume, NOT an orphan
+            // — reaping it here would wipe the preserved workspace.
+            if (!(createErr instanceof SessionDuplicateError)) throw createErr;
+            console.warn(
+              '[runExternalAgentTurn] resume found live session (409), reusing:',
+              sessionId,
+            );
+          }
+        }
+        // Normalize the row to active (refresh idle/TTL window, keep createdAt)
+        // whenever we just resumed (container was gone) OR the snapshot shows a
+        // hibernated row. Reading `!alive` here (not just the snapshot) closes a
+        // reconcile race: the reaper-reconcile could flip this row to `stopped`
+        // between the read above and now — re-creating the container without
+        // this would leave a running session mislabeled "Stopped".
+        if (!alive || existing.status === 'stopped') {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.resumeStoppedSession,
+            { organizationId: args.organizationId, sessionId },
+          );
+        }
         // Re-push pin to the spawner: its registry is in-memory, so a spawner
-        // restart loses the always-on exemption — the platform row is the truth.
+        // restart (or a resume's fresh container) loses the always-on
+        // exemption — the platform row is the truth.
         if (existing.pinned === true) {
           await sessionSetPinned(sessionId, true).catch((err) =>
             console.warn('[runExternalAgentTurn] re-pin failed:', err),
@@ -612,21 +639,19 @@ export const runExternalAgentTurn = internalAction({
         agentKind: args.agentKind,
         error: message,
       });
-      // Self-heal the phantom: a reused session that's gone spawner-side leaves
-      // an `active` platform row that would 404 every future turn. Clear it so
-      // the next turn creates a fresh session.
-      if (err instanceof SessionNotFoundError) {
-        const ownerType = args.userId ? OWNER_TYPE_USER : OWNER_TYPE_THREAD;
-        const ownerId = args.userId
-          ? userOwnerId(args.organizationId, args.userId)
-          : args.threadId;
+      // Self-heal: a reused session gone spawner-side mid-turn (container
+      // stopped/crashed) leaves a live platform row that would 404 every future
+      // turn. The workspace is PRESERVED (stop ≠ destroy), so mark the row
+      // `stopped` — the next turn RESUMES it in place (re-attach, same
+      // incarnation), not a fresh empty sandbox.
+      if (err instanceof SessionNotFoundError && sessionId !== null) {
         await ctx
           .runMutation(
-            internal.sandbox.session_mutations.destroyActiveSessionsByOwner,
-            { ownerType, ownerId },
+            internal.sandbox.session_mutations.markSessionRowStopped,
+            { organizationId: args.organizationId, sessionId },
           )
           .catch((e) =>
-            console.warn('[runExternalAgentTurn] self-heal clear failed:', e),
+            console.warn('[runExternalAgentTurn] self-heal stop failed:', e),
           );
       }
       try {

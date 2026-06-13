@@ -6,7 +6,7 @@
 // container DNS name on tale-sandbox-net. Cleanup.ts's one-shot sweep ignores
 // these (distinct `tale.sandbox-session=1` label).
 
-import { chown, mkdir, rm } from 'node:fs/promises';
+import { chown, mkdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
@@ -53,6 +53,13 @@ export class DockerSessionBackend implements SessionBackend {
     const uid = Number(profile.user.split(':')[0] ?? '65534');
     const gid = Number(profile.user.split(':')[1] ?? '65534');
 
+    // A pre-existing workspace dir means this is a RESUME of a stopped session
+    // (idle reaper removed the container but kept the data). A failed create
+    // here must NOT delete that dir — a transient runnerd-startup blip on
+    // resume would otherwise wipe the user's preserved work. Fresh creates
+    // (no dir yet) keep cleaning up the half-made empty dir.
+    const preexisting = await this.workspaceDirExists(workspaceHostDir);
+
     // Workspace dir survives the container; chown to the container's uid so
     // the unprivileged session process can write it.
     await mkdir(workspaceHostDir, { recursive: true });
@@ -91,24 +98,33 @@ export class DockerSessionBackend implements SessionBackend {
 
     const run = await runDocker(fullArgv, { timeoutMs: 30_000 });
     if (run.exitCode !== 0) {
-      // Clean up a half-created container before surfacing the failure.
+      // Clean up a half-created container before surfacing the failure. On a
+      // resume (preexisting dir), preserve the workspace; only a fresh create
+      // deletes its own empty dir.
       await dockerRm(containerName).catch(() => {});
-      await rm(workspaceHostDir, { recursive: true, force: true }).catch(
-        () => {},
-      );
+      if (!preexisting) {
+        await rm(workspaceHostDir, { recursive: true, force: true }).catch(
+          () => {},
+        );
+      }
       throw new Error(
         `docker run (session) failed: ${run.stderr.trim() || run.stdout.trim()}`,
       );
     }
 
-    // Poll runnerd until ready; on timeout tear the container down.
+    // Poll runnerd until ready; on timeout tear the container down — but a
+    // resume keeps its preserved workspace (stop, not destroy).
     try {
       await waitForRunnerd(
         { baseUrl: await this.resolveEndpoint(spec.sessionId), token },
         this.cfg.session.createHealthTimeoutMs,
       );
     } catch (err) {
-      await this.destroySession(spec.sessionId);
+      if (preexisting) {
+        await this.stopSession(spec.sessionId);
+      } else {
+        await this.destroySession(spec.sessionId);
+      }
       throw err;
     }
   }
@@ -147,7 +163,22 @@ export class DockerSessionBackend implements SessionBackend {
     );
   }
 
-  async destroySession(sessionId: string): Promise<boolean> {
+  /** Does the host workspace dir already exist? Distinguishes a resume (dir
+   * present) from a fresh create so a failed create never deletes preserved
+   * data. */
+  private async workspaceDirExists(workspaceHostDir: string): Promise<boolean> {
+    try {
+      await stat(workspaceHostDir);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Remove the container (best-effort), leaving the workspace dir untouched.
+   * Shared by stopSession (keep dir) and destroySession (which then deletes
+   * the dir). Returns whether the container existed. */
+  private async removeContainer(sessionId: string): Promise<boolean> {
     const containerName = sessionContainerName(sessionId);
     let existed = false;
     try {
@@ -162,6 +193,11 @@ export class DockerSessionBackend implements SessionBackend {
     await dockerRm(containerName).catch((err) => {
       console.warn(`[sandbox.session] dockerRm ${containerName} failed:`, err);
     });
+    return existed;
+  }
+
+  async destroySession(sessionId: string): Promise<boolean> {
+    const existed = await this.removeContainer(sessionId);
     await rm(this.workspaceDir(sessionId), {
       recursive: true,
       force: true,
@@ -172,6 +208,12 @@ export class DockerSessionBackend implements SessionBackend {
       );
     });
     return existed;
+  }
+
+  async stopSession(sessionId: string): Promise<boolean> {
+    // Release compute but PRESERVE the host workspace dir — a later
+    // createSession with the same sessionId re-mounts it (resume).
+    return this.removeContainer(sessionId);
   }
 
   async listSessions(organizationId?: string): Promise<BackendSession[]> {

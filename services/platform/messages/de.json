@@ -6998,6 +6998,7 @@
       "running": "Läuft",
       "idle": "Inaktiv",
       "pausedBudget": "Pausiert (Budget)",
+      "stopped": "Gestoppt",
       "pinned": "Angepinnt"
     },
     "task": {

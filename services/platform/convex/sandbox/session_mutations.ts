@@ -167,6 +167,10 @@ export const setSessionPinned = internalMutation({
  * row (a throw between reserve and the spawner create returning) can't pin the
  * owner/org cap forever. The actual container teardown + token revoke is the
  * caller's job (an action that reads these and calls the spawner + Bifrost).
+ *
+ * `stopped` rows are EXEMPT: a hibernated session's workspace is preserved
+ * indefinitely until an explicit Destroy (it holds no compute and doesn't pin
+ * the RAM-oriented org cap), so the TTL must never auto-expire it.
  */
 export const recoverStuckSessions = internalMutation({
   args: { limit: v.optional(v.number()) },
@@ -176,6 +180,7 @@ export const recoverStuckSessions = internalMutation({
     const expired: Id<'sandboxSessions'>[] = [];
     const limit = args.limit ?? 50;
     for (const status of SANDBOX_SESSION_LIVE_STATUSES) {
+      if (status === 'stopped') continue;
       for await (const row of ctx.db
         .query('sandboxSessions')
         .withIndex('by_status', (q) => q.eq('status', status))) {
@@ -190,33 +195,6 @@ export const recoverStuckSessions = internalMutation({
       }
     }
     return expired;
-  },
-});
-
-/**
- * Self-heal: mark every active/creating session row for an owner as destroyed.
- * Called when a reused session turns out to be gone spawner-side (the phantom
- * row left after a container was reaped out-of-band) — clearing it lets the
- * next turn (or an in-turn retry) create a fresh session instead of looping on
- * a 404. Returns the count cleared.
- */
-export const destroyActiveSessionsByOwner = internalMutation({
-  args: { ownerType: v.string(), ownerId: v.string() },
-  returns: v.number(),
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    let cleared = 0;
-    for await (const row of ctx.db
-      .query('sandboxSessions')
-      .withIndex('by_owner', (q) =>
-        q.eq('ownerType', args.ownerType).eq('ownerId', args.ownerId),
-      )) {
-      if (row.status === 'creating' || row.status === 'active') {
-        await ctx.db.patch(row._id, { status: 'destroyed', destroyedAt: now });
-        cleared += 1;
-      }
-    }
-    return cleared;
   },
 });
 
@@ -241,6 +219,66 @@ export const markSessionRowDestroyed = internalMutation({
       destroyed = true;
     }
     return destroyed;
+  },
+});
+
+/**
+ * Reconcile a row to `stopped` when the spawner has released its container
+ * (idle/TTL reaper) but the workspace is preserved. Org-scoped; acts on the
+ * LIVE row only. Skips a row that is pinned (never reaped) or already
+ * `stopped`. Never stamps `destroyedAt` — this is hibernation, not teardown.
+ * Used by the management-page reconcile so the UI shows "Stopped" honestly.
+ * Returns whether a row flipped.
+ */
+export const markSessionRowStopped = internalMutation({
+  args: { organizationId: v.string(), sessionId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    let stopped = false;
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.organizationId !== args.organizationId) continue;
+      if (!isLiveSessionStatus(row.status)) continue;
+      if (row.status === 'stopped' || row.pinned === true) continue;
+      await ctx.db.patch(row._id, { status: 'stopped' });
+      stopped = true;
+    }
+    return stopped;
+  },
+});
+
+/**
+ * Resume in place: normalize the LIVE row to `active`, refresh `lastActivityAt`,
+ * and reset the idle/TTL window — but PRESERVE `createdAt` so the per-thread
+ * `--resume` lookup still scopes to the same incarnation (files AND
+ * conversation continue). A pinned row keeps its far-future `expiresAt`.
+ * Org-scoped. Deliberately acts on ANY live status (not just `stopped`): it is
+ * idempotent on an already-`active` row (a harmless activity refresh), which
+ * lets the turn call it on resume without re-reading the post-reconcile status.
+ * Returns whether a row was patched.
+ */
+export const resumeStoppedSession = internalMutation({
+  args: { organizationId: v.string(), sessionId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    let resumed = false;
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.organizationId !== args.organizationId) continue;
+      if (!isLiveSessionStatus(row.status)) continue;
+      await ctx.db.patch(row._id, {
+        status: 'active',
+        lastActivityAt: now,
+        ...(row.pinned === true
+          ? {}
+          : { expiresAt: now + SANDBOX_SESSION_MAX_LIFETIME_MS }),
+      });
+      resumed = true;
+    }
+    return resumed;
   },
 });
 

@@ -49,6 +49,7 @@ let fakeServer: ReturnType<typeof Bun.serve>;
 let fakeBaseUrl = '';
 const created = new Set<string>();
 const destroyed = new Set<string>();
+const stopped = new Set<string>();
 const stdinWrites: Array<{ execId: string; b64?: string; eof?: boolean }> = [];
 // Mutable so the sweepExpired tests can drive runnerd's reported activity/liveExecs.
 const fakeHealth = { lastActivityAtMs: 0, liveExecs: 0 };
@@ -170,6 +171,12 @@ const fakeBackend: SessionBackend = {
   async destroySession(sessionId: string) {
     const had = created.has(sessionId);
     destroyed.add(sessionId);
+    return had;
+  },
+  async stopSession(sessionId: string) {
+    // Stop releases compute but PRESERVES the workspace — never marks destroyed.
+    const had = created.has(sessionId);
+    stopped.add(sessionId);
     return had;
   },
   async listSessions(): Promise<BackendSession[]> {
@@ -368,7 +375,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     ).toBe(404);
   });
 
-  test('sweepExpired idle-reaps an idle session but NOT one with a live exec', async () => {
+  test('sweepExpired idle-reaps via STOP (preserve), NOT destroy, and skips a live exec', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
       JSON.stringify({ sessionId: 'idle1', organizationId: 'org_sweep' }),
@@ -381,11 +388,31 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(await routes.sweepExpired()).toBe(0);
     expect((await routes.handleGet('idle1')).status).toBe(200);
 
-    // No live exec + stale activity → idle-reaped.
+    // No live exec + stale activity → idle-reaped via STOP: compute released,
+    // workspace PRESERVED (resumable). Never destroyed.
     fakeHealth.liveExecs = 0;
     expect(await routes.sweepExpired()).toBe(1);
+    expect(stopped.has('idle1')).toBe(true);
+    expect(destroyed.has('idle1')).toBe(false);
     expect((await routes.handleGet('idle1')).status).toBe(404);
     fakeHealth.lastActivityAtMs = 0;
+  });
+
+  test('sweepExpired TTL-reaps via STOP (preserve), NOT destroy', async () => {
+    // A session past its hard lifetime is stopped, not destroyed — data is
+    // removed only by an explicit Destroy (decision: persist until Destroy).
+    const shortTtl = { ...cfg, session: { ...cfg.session, maxLifetimeMs: 1 } };
+    const routes = new SessionRoutes(shortTtl, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'ttl1', organizationId: 'org_ttl' }),
+    );
+    fakeHealth.liveExecs = 0;
+    // Sweep with a clock well past expiresAtMs (createdAt + 1ms): the TTL branch
+    // fires first (short-circuiting the idle check) regardless of sub-ms timing.
+    expect(await routes.sweepExpired(Date.now() + 10_000)).toBe(1);
+    expect(stopped.has('ttl1')).toBe(true);
+    expect(destroyed.has('ttl1')).toBe(false);
+    expect((await routes.handleGet('ttl1')).status).toBe(404);
   });
 
   test('sweepExpired skips a PINNED session (always-on)', async () => {
@@ -425,8 +452,10 @@ describe('SessionRoutes (fake runnerd)', () => {
       backendGone.add('dead-z1');
       const res = await routes.handleGet('dead-z1');
       expect(res.status).toBe(404);
-      // Evicted + leftovers reaped: the registry entry is gone for good.
-      expect(destroyed.has('dead-z1')).toBe(true);
+      // The stale registry entry is evicted (404 for good), but the workspace
+      // is PRESERVED — a gone container is a resumable stopped state, not a
+      // teardown. Data is removed only by an explicit Destroy.
+      expect(destroyed.has('dead-z1')).toBe(false);
       expect((await routes.handleGet('dead-z1')).status).toBe(404);
     });
 
@@ -456,7 +485,8 @@ describe('SessionRoutes (fake runnerd)', () => {
         JSON.stringify({ set: { A: 'b' } }),
       );
       expect(gone.status).toBe(404);
-      expect(destroyed.has('dead-z2')).toBe(true);
+      // Evicted from the registry, workspace preserved (not destroyed).
+      expect(destroyed.has('dead-z2')).toBe(false);
 
       // Transient: runnerd unreachable but the backend object is alive.
       await routes.handleCreate(
@@ -494,7 +524,7 @@ describe('SessionRoutes (fake runnerd)', () => {
       ).toBe(404);
     });
 
-    test('sweepExpired reaps a zombie instead of skipping it until TTL', async () => {
+    test('sweepExpired evicts a zombie instead of skipping it until TTL', async () => {
       const routes = new SessionRoutes(cfg, fakeBackend);
       await routes.handleCreate(
         JSON.stringify({ sessionId: 'dead-z5', organizationId: 'org_z' }),
@@ -502,10 +532,12 @@ describe('SessionRoutes (fake runnerd)', () => {
       // runnerd unreachable + backend object alive → transient, kept.
       expect(await routes.sweepExpired()).toBe(0);
       expect((await routes.handleGet('dead-z5')).status).toBe(200);
-      // Backend object gone → reaped this sweep.
+      // Backend object gone → evicted this sweep (registry entry dropped). The
+      // workspace is preserved (no destroy) — a gone backend is resumable.
       backendGone.add('dead-z5');
       expect(await routes.sweepExpired()).toBe(1);
-      expect(destroyed.has('dead-z5')).toBe(true);
+      expect(destroyed.has('dead-z5')).toBe(false);
+      expect((await routes.handleGet('dead-z5')).status).toBe(404);
     });
   });
 
@@ -561,7 +593,8 @@ describe('SessionRoutes (fake runnerd)', () => {
       backendGone.add('dead-s1');
       const gone = await routes.handleExecStdin('dead-s1', 'e1', '{}');
       expect(gone.status).toBe(404);
-      expect(destroyed.has('dead-s1')).toBe(true);
+      // Evicted from the registry, workspace preserved (not destroyed).
+      expect(destroyed.has('dead-s1')).toBe(false);
 
       await routes.handleCreate(
         JSON.stringify({ sessionId: 'dead-s2', organizationId: 'org_s' }),

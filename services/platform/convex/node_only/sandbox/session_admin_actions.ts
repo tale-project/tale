@@ -15,6 +15,7 @@ import { requireOrgAdminOrDeveloper } from '../../lib/auth/require_org_admin_or_
 import {
   sessionCancelExec,
   sessionDestroy,
+  sessionIsAlive,
   sessionSetPinned,
 } from './helpers/session_client';
 
@@ -110,6 +111,54 @@ export const destroySandbox = action({
       console.warn(`[destroySandbox] delete ops ${args.sessionId}:`, err);
     }
     return { destroyed };
+  },
+});
+
+/**
+ * Reconcile the org's session rows with the spawner so the management page
+ * shows "Stopped" honestly. The idle/TTL reaper releases a container
+ * autonomously (spawner is pull-only — no callback), leaving the platform row
+ * `active`; this probes each active/degraded row and flips the gone ones to
+ * `stopped` (the workspace is preserved; the next turn resumes it). Triggered
+ * opportunistically on page mount — no cron. Best-effort per session: a
+ * transient spawner blip leaves that row for the next reconcile.
+ */
+export const reconcileOrgSessions = action({
+  args: { organizationId: v.string() },
+  returns: v.object({ stopped: v.number() }),
+  handler: async (ctx, args): Promise<{ stopped: number }> => {
+    await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    const candidates = await ctx.runQuery(
+      internal.sandbox.session_queries.listReconcilableSessionsForOrg,
+      { organizationId: args.organizationId },
+    );
+    let stopped = 0;
+    for (const { sessionId } of candidates) {
+      let alive: boolean;
+      try {
+        alive = await sessionIsAlive(sessionId);
+      } catch (err) {
+        console.warn(
+          `[reconcileOrgSessions] liveness ${sessionId} failed:`,
+          err,
+        );
+        continue;
+      }
+      if (alive) continue;
+      try {
+        const flipped = await ctx.runMutation(
+          internal.sandbox.session_mutations.markSessionRowStopped,
+          { organizationId: args.organizationId, sessionId },
+        );
+        if (flipped) stopped += 1;
+      } catch (err) {
+        console.warn(
+          `[reconcileOrgSessions] mark stopped ${sessionId} failed:`,
+          err,
+        );
+      }
+    }
+    return { stopped };
   },
 });
 

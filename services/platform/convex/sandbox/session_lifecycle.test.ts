@@ -224,3 +224,144 @@ describe('setSessionPinned', () => {
     expect(live?.expiresAt).toBeLessThan(Date.now() + 2 * 86_400_000);
   });
 });
+
+describe('markSessionRowStopped', () => {
+  it('flips the live active row to stopped WITHOUT a destroyedAt (hibernation)', async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, { status: 'destroyed', createdAt: 0 });
+    const liveId = await insertSession(t, { status: 'active', createdAt: 20 });
+
+    const stopped = await t.mutation(
+      internal.sandbox.session_mutations.markSessionRowStopped,
+      { organizationId: ORG, sessionId: SID },
+    );
+    expect(stopped).toBe(true);
+    const live = (await allSessions(t)).find((r) => r._id === liveId);
+    expect(live?.status).toBe('stopped');
+    // Hibernation is not teardown — the destroyedAt stamp must stay unset so the
+    // row is never read as terminal.
+    expect(live?.destroyedAt).toBeUndefined();
+  });
+
+  it('skips a pinned row (always-on is never reaped)', async () => {
+    const t = convexTest(schema, modules);
+    const liveId = await insertSession(t, {
+      status: 'active',
+      createdAt: 0,
+      pinned: true,
+    });
+    const stopped = await t.mutation(
+      internal.sandbox.session_mutations.markSessionRowStopped,
+      { organizationId: ORG, sessionId: SID },
+    );
+    expect(stopped).toBe(false);
+    expect((await allSessions(t)).find((r) => r._id === liveId)?.status).toBe(
+      'active',
+    );
+  });
+
+  it("never flips another org's row", async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, {
+      status: 'active',
+      organizationId: OTHER_ORG,
+      createdAt: 0,
+    });
+    const stopped = await t.mutation(
+      internal.sandbox.session_mutations.markSessionRowStopped,
+      { organizationId: ORG, sessionId: SID },
+    );
+    expect(stopped).toBe(false);
+    expect((await allSessions(t))[0]?.status).toBe('active');
+  });
+});
+
+describe('resumeStoppedSession', () => {
+  it('flips stopped → active, PRESERVING createdAt (for --resume continuity)', async () => {
+    const t = convexTest(schema, modules);
+    const liveId = await insertSession(t, {
+      status: 'stopped',
+      createdAt: 12_345,
+    });
+
+    const resumed = await t.mutation(
+      internal.sandbox.session_mutations.resumeStoppedSession,
+      { organizationId: ORG, sessionId: SID },
+    );
+    expect(resumed).toBe(true);
+    const live = (await allSessions(t)).find((r) => r._id === liveId);
+    expect(live?.status).toBe('active');
+    // Same incarnation: createdAt is the --resume lower bound, must not move.
+    expect(live?.createdAt).toBe(12_345);
+    expect(live?.lastActivityAt).toBeGreaterThan(0);
+    // Non-pinned: TTL window refreshed to ~now + 24h.
+    expect(live?.expiresAt).toBeGreaterThan(Date.now());
+    expect(live?.expiresAt).toBeLessThan(Date.now() + 2 * 86_400_000);
+  });
+
+  it('keeps a pinned row far-future expiresAt on resume', async () => {
+    const t = convexTest(schema, modules);
+    const farFuture = Date.now() + 5 * 365 * 86_400_000;
+    const liveId = await t.run((ctx) =>
+      ctx.db.insert('sandboxSessions', {
+        organizationId: ORG,
+        sessionId: SID,
+        profile: 'agent',
+        status: 'stopped',
+        ownerType: 'user',
+        ownerId: 'user_1',
+        createdBy: 'user_1',
+        createdAt: 0,
+        expiresAt: farFuture,
+        pinned: true,
+      }),
+    );
+    await t.mutation(internal.sandbox.session_mutations.resumeStoppedSession, {
+      organizationId: ORG,
+      sessionId: SID,
+    });
+    const live = (await allSessions(t)).find((r) => r._id === liveId);
+    expect(live?.status).toBe('active');
+    expect(live?.expiresAt).toBe(farFuture);
+  });
+});
+
+describe('getActiveSessionByOwner', () => {
+  it('returns a stopped row so the next turn RESUMES it (not a fresh sandbox)', async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, { status: 'destroyed', createdAt: 0 });
+    await insertSession(t, { status: 'stopped', createdAt: 20 });
+
+    const row = await t.query(
+      internal.sandbox.session_queries.getActiveSessionByOwner,
+      { ownerType: 'user', ownerId: 'user_1' },
+    );
+    expect(row?.status).toBe('stopped');
+    expect(row?.createdAt).toBe(20);
+  });
+});
+
+describe('recoverStuckSessions', () => {
+  it('exempts stopped rows from TTL expiry, but expires a stuck active row', async () => {
+    const t = convexTest(schema, modules);
+    // Both rows are past expiresAt (createdAt 0 → expiresAt 86400000, in 1970).
+    await insertSession(t, { status: 'stopped', createdAt: 0 });
+    const activeOrg = 'org_stuck';
+    const activeId = await insertSession(t, {
+      status: 'active',
+      organizationId: activeOrg,
+      createdAt: 0,
+    });
+
+    await t.mutation(
+      internal.sandbox.session_mutations.recoverStuckSessions,
+      {},
+    );
+
+    const rows = await allSessions(t);
+    // Stopped is hibernated indefinitely — persists until an explicit Destroy.
+    expect(rows.find((r) => r.status === 'stopped')).toBeDefined();
+    // The stuck active row is expired (leaked-row TTL backstop still works).
+    expect(rows.find((r) => r._id === activeId)?.status).toBe('expired');
+  });
+});

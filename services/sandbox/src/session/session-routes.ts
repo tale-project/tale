@@ -81,10 +81,12 @@ export class SessionRoutes {
   }
 
   /**
-   * TTL/idle reaper, called periodically. Destroys sessions past their
-   * lifetime (cheap registry check) or idle past their idle timeout (queried
-   * from runnerd's activity clock, so it stays correct after a spawner
-   * restart). Returns the number reaped.
+   * TTL/idle reaper, called periodically. STOPS (releases compute, PRESERVES
+   * the workspace) any session past its lifetime (cheap registry check) or idle
+   * past its idle timeout (queried from runnerd's activity clock, so it stays
+   * correct after a spawner restart). Neither idle nor TTL deletes data — only
+   * an explicit Destroy does. The next turn resumes a stopped session by
+   * re-creating against the preserved workspace. Returns the number reaped.
    */
   async sweepExpired(nowMs: number = Date.now()): Promise<number> {
     let reaped = 0;
@@ -116,8 +118,10 @@ export class SessionRoutes {
         }
       }
       if (expired) {
-        await this.backend.destroySession(s.sessionId).catch((err) => {
-          console.warn('[sandbox.session] sweep destroy failed:', err);
+        // Stop, never destroy: idle/TTL release compute but keep the workspace
+        // so the session resumes with its data on the next turn.
+        await this.backend.stopSession(s.sessionId).catch((err) => {
+          console.warn('[sandbox.session] sweep stop failed:', err);
         });
         this.registry.delete(s.sessionId);
         reaped += 1;
@@ -155,12 +159,14 @@ export class SessionRoutes {
    *
    * Called from runnerd-failure paths and the aliveness probe: verifies the
    * backend object with the DEFINITIVE `sessionExists` check; on
-   * confirmed-gone it best-effort destroys (reaps the leftover workspace /
-   * Secret) and evicts the registry entry so this and subsequent calls
-   * resolve to 404 → `SessionNotFoundError` → the platform recreates the
-   * session in place. A THROWING check means "can't judge" (backend hiccup):
-   * keep the entry — a transient blip must never get a live session
-   * destroyed. Returns true when a zombie was evicted.
+   * confirmed-gone it evicts only the stale registry entry so this and
+   * subsequent calls resolve to 404 → `SessionNotFoundError` → the platform
+   * resumes the session in place (re-create against the PRESERVED workspace).
+   * It does NOT delete the workspace: a gone container is now a resumable
+   * stopped state, and data is removed only by an explicit Destroy. A THROWING
+   * check means "can't judge" (backend hiccup): keep the entry — a transient
+   * blip must never evict a live session. Returns true when a stale entry was
+   * evicted.
    */
   private async evictIfBackendGone(sessionId: string): Promise<boolean> {
     if (!this.registry.has(sessionId)) return false;
@@ -176,14 +182,8 @@ export class SessionRoutes {
     }
     if (alive) return false;
     console.warn(
-      `[sandbox.session] ${sessionId} backend object gone; evicting zombie registry entry`,
+      `[sandbox.session] ${sessionId} backend object gone; evicting stale registry entry (workspace preserved for resume)`,
     );
-    await this.backend.destroySession(sessionId).catch((err) => {
-      console.warn(
-        `[sandbox.session] zombie cleanup for ${sessionId} failed:`,
-        err,
-      );
-    });
     this.registry.delete(sessionId);
     return true;
   }

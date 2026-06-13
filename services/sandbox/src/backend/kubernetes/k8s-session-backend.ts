@@ -24,6 +24,7 @@ import {
   buildSessionPod,
   sessionPodNameFor,
   sessionSecretNameFor,
+  sessionWorkspacePvcNameFor,
 } from './k8s-session-pod-spec.ts';
 
 const SESSION_LABEL_SELECTOR = 'tale.sandbox-session=1';
@@ -42,6 +43,12 @@ export class KubernetesSessionBackend implements SessionBackend {
   }
 
   async createSession(spec: SessionSpec): Promise<void> {
+    // A pre-existing workspace PVC means this is a RESUME of a stopped session.
+    // A failed create here must NOT delete that PVC (it holds the user's
+    // preserved data) — stop instead. Fresh creates clean up fully.
+    const preexisting = await this.workspacePvcExists(spec.sessionId);
+    await this.ensureWorkspacePvc(spec.sessionId);
+
     const secret: V1Secret = {
       apiVersion: 'v1',
       kind: 'Secret',
@@ -79,7 +86,7 @@ export class KubernetesSessionBackend implements SessionBackend {
         ),
       );
     } catch (err) {
-      await this.destroySession(spec.sessionId);
+      await this.cleanupFailedCreate(spec.sessionId, preexisting);
       throw err;
     }
 
@@ -94,8 +101,21 @@ export class KubernetesSessionBackend implements SessionBackend {
         this.cfg.session.createHealthTimeoutMs,
       );
     } catch (err) {
-      await this.destroySession(spec.sessionId);
+      await this.cleanupFailedCreate(spec.sessionId, preexisting);
       throw err;
+    }
+  }
+
+  /** On a failed create: stop (keep PVC) when resuming a session whose PVC
+   * pre-existed, else destroy (delete the half-made PVC). */
+  private async cleanupFailedCreate(
+    sessionId: string,
+    preexisting: boolean,
+  ): Promise<void> {
+    if (preexisting) {
+      await this.stopSession(sessionId);
+    } else {
+      await this.destroySession(sessionId);
     }
   }
 
@@ -136,7 +156,10 @@ export class KubernetesSessionBackend implements SessionBackend {
     return pod.status?.phase === 'Running';
   }
 
-  async destroySession(sessionId: string): Promise<boolean> {
+  /** Delete the Pod + Secret, leaving the workspace PVC intact. Shared by
+   * stopSession (keep PVC) and destroySession (which then deletes the PVC).
+   * Returns whether the Pod existed. */
+  private async removePodAndSecret(sessionId: string): Promise<boolean> {
     const podName = sessionPodNameFor(sessionId);
     let existed = false;
     try {
@@ -168,6 +191,121 @@ export class KubernetesSessionBackend implements SessionBackend {
       }
     }
     return existed;
+  }
+
+  async destroySession(sessionId: string): Promise<boolean> {
+    const existed = await this.removePodAndSecret(sessionId);
+    await this.deleteWorkspacePvc(sessionId);
+    return existed;
+  }
+
+  async stopSession(sessionId: string): Promise<boolean> {
+    // Release compute but PRESERVE the workspace PVC — a later createSession
+    // re-mounts it (resume).
+    return this.removePodAndSecret(sessionId);
+  }
+
+  /** Does the session's workspace PVC already exist? (resume vs fresh create) */
+  private async workspacePvcExists(sessionId: string): Promise<boolean> {
+    try {
+      await this.client.core.readNamespacedPersistentVolumeClaim(
+        {
+          name: sessionWorkspacePvcNameFor(sessionId),
+          namespace: this.cfg.k8s.namespace,
+        },
+        apiTimeout(),
+      );
+      return true;
+    } catch (err) {
+      if (httpStatusCode(err) === 404) return false;
+      // Unknown (API hiccup): assume it might exist so we don't risk a fresh
+      // create racing a real PVC — ensureWorkspacePvc tolerates 409 anyway.
+      console.warn(
+        `[sandbox.session] read workspace PVC for ${sessionId} failed:`,
+        err,
+      );
+      return true;
+    }
+  }
+
+  /** Idempotently create the per-session workspace PVC (RWO). The PVC is the
+   * durable home of /workspace across stop/resume; only destroySession removes
+   * it. Tolerates "already exists" (resume) and concurrent-create 409s. */
+  private async ensureWorkspacePvc(sessionId: string): Promise<void> {
+    const name = sessionWorkspacePvcNameFor(sessionId);
+    try {
+      await this.client.core.readNamespacedPersistentVolumeClaim(
+        { name, namespace: this.cfg.k8s.namespace },
+        apiTimeout(),
+      );
+      return; // already exists (resume)
+    } catch (err) {
+      // 404 → create below. A non-404 read error (timeout / 503 during cluster
+      // churn) is NOT fatal: fall through to a 409-tolerant create. If the PVC
+      // already exists the create returns 409 (handled as success); if it
+      // doesn't, the create makes it. Throwing here would fail the turn over a
+      // transient read even though the create would have recovered.
+      if (httpStatusCode(err) !== 404) {
+        console.warn(
+          `[sandbox.session] read workspace PVC ${name} failed (attempting create):`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+    // RWO: one Pod per session. Multi-node operators must supply a storage
+    // class whose volumes can re-bind where a resume Pod schedules.
+    const storageClassName = process.env.SANDBOX_K8S_CACHE_STORAGECLASS;
+    try {
+      await this.client.core.createNamespacedPersistentVolumeClaim(
+        {
+          namespace: this.cfg.k8s.namespace,
+          body: {
+            apiVersion: 'v1',
+            kind: 'PersistentVolumeClaim',
+            metadata: {
+              name,
+              labels: { 'tale.sandbox-session-ws': '1' },
+              annotations: { 'tale.dev/session-id': sessionId },
+            },
+            spec: {
+              accessModes: ['ReadWriteOnce'],
+              ...(storageClassName ? { storageClassName } : {}),
+              resources: {
+                requests: { storage: this.cfg.k8s.workspaceSizeLimit },
+              },
+            },
+          },
+        },
+        apiTimeout(),
+      );
+    } catch (err) {
+      if (httpStatusCode(err) === 409) return; // concurrent ensure won
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `k8s session: failed to create workspace PVC ${name}: ${msg}`,
+        {
+          cause: err,
+        },
+      );
+    }
+  }
+
+  /** Delete the session's workspace PVC (data deletion — destroy path only). */
+  private async deleteWorkspacePvc(sessionId: string): Promise<void> {
+    const name = sessionWorkspacePvcNameFor(sessionId);
+    try {
+      await this.client.core.deleteNamespacedPersistentVolumeClaim(
+        { name, namespace: this.cfg.k8s.namespace },
+        apiTimeout(),
+      );
+    } catch (err) {
+      if (httpStatusCode(err) !== 404) {
+        console.warn(
+          `[sandbox.session] delete workspace PVC for ${sessionId} failed:`,
+          err,
+        );
+      }
+    }
   }
 
   async listSessions(organizationId?: string): Promise<BackendSession[]> {

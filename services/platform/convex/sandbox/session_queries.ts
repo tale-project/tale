@@ -5,8 +5,10 @@ import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { isLiveSessionStatus } from './sessions_schema';
 
-/** The active (creating|active) session owned by an entity, or null. Used by
- * the external-agent turn to reuse a thread's session across turns. */
+/** The live (creating|active|stopped) session owned by an entity, or null.
+ * Used by the external-agent turn to reuse a thread's session across turns.
+ * Includes `stopped` (hibernated, workspace preserved) so the turn RESUMES it
+ * in place rather than falling through to a fresh empty sandbox. */
 export const getActiveSessionByOwner = internalQuery({
   args: {
     ownerType: v.string(),
@@ -18,7 +20,13 @@ export const getActiveSessionByOwner = internalQuery({
       .withIndex('by_owner', (q) =>
         q.eq('ownerType', args.ownerType).eq('ownerId', args.ownerId),
       )) {
-      if (row.status === 'creating' || row.status === 'active') return row;
+      if (
+        row.status === 'creating' ||
+        row.status === 'active' ||
+        row.status === 'stopped'
+      ) {
+        return row;
+      }
     }
     return null;
   },
@@ -204,6 +212,30 @@ export const listActiveSessionsByOwner = internalQuery({
         q.eq('ownerType', args.ownerType).eq('ownerId', args.ownerId),
       )) {
       if (row.status !== 'destroyed' && row.status !== 'expired') out.push(row);
+    }
+    return out;
+  },
+});
+
+/** Live sessions in an org whose container *should* be running (active or
+ * degraded, not pinned) — the candidates the management-page reconcile probes
+ * to flip to `stopped` once the spawner has released them. Excludes `creating`
+ * (mid-spin-up; a false-negative liveness probe would wrongly hibernate it) and
+ * `stopped` (already reconciled). */
+export const listReconcilableSessionsForOrg = internalQuery({
+  args: { organizationId: v.string() },
+  returns: v.array(v.object({ sessionId: v.string() })),
+  handler: async (ctx, args) => {
+    const out: { sessionId: string }[] = [];
+    for (const status of ['active', 'degraded'] as const) {
+      for await (const row of ctx.db
+        .query('sandboxSessions')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', status),
+        )) {
+        if (row.pinned === true) continue;
+        out.push({ sessionId: row.sessionId });
+      }
     }
     return out;
   },

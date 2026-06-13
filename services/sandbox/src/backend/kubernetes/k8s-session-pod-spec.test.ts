@@ -11,6 +11,7 @@ import {
   buildSessionPod,
   sessionPodNameFor,
   sessionSecretNameFor,
+  sessionWorkspacePvcNameFor,
 } from './k8s-session-pod-spec.ts';
 
 const cfg: SpawnerConfig = {
@@ -92,6 +93,24 @@ describe('buildSessionPod', () => {
     // Distinct session label so the one-shot sweep ignores it.
     expect(pod.metadata?.labels?.['tale.sandbox-session']).toBe('1');
     expect(pod.metadata?.labels?.['tale.sandbox']).toBeUndefined();
+  });
+
+  test('workspace is a per-session PVC (survives stop), not emptyDir', () => {
+    const pod = buildSessionPod(cfg, input);
+    const ws = pod.spec?.volumes?.find((v) => v.name === 'workspace');
+    // PVC-backed so a stop (Pod delete, PVC kept) preserves /workspace for
+    // resume; emptyDir would die with the Pod.
+    expect(ws?.emptyDir).toBeUndefined();
+    expect(ws?.persistentVolumeClaim?.claimName).toBe(
+      sessionWorkspacePvcNameFor('sess-abc-123'),
+    );
+    expect(sessionWorkspacePvcNameFor('sess-abc-123')).toBe(
+      `${sessionPodNameFor('sess-abc-123')}-ws`,
+    );
+    const c = pod.spec?.containers[0];
+    expect(c?.volumeMounts?.some((m) => m.mountPath === '/workspace')).toBe(
+      true,
+    );
   });
 
   test('default profile maps to uid 65534', () => {

@@ -27,9 +27,24 @@ runnerd skips the check, mirroring the spawner's own opt-in HMAC policy.
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity
 clock are authoritative. On boot the spawner re-adopts running sessions
-(`SessionRoutes.adoptExisting`); a periodic reaper (`sweepExpired`) destroys
+(`SessionRoutes.adoptExisting`); a periodic reaper (`sweepExpired`) **stops**
 sessions past their TTL (registry check) or idle timeout (runnerd `/healthz`
 `lastActivityAtMs`).
+
+### Stop vs destroy — the data-preservation contract
+
+The reaper **stops** (`backend.stopSession`), it does not destroy: the
+container/Pod is removed to release compute, but the **workspace is preserved**
+(host bind-dir on Docker, per-session PVC on K8s). Neither the idle timeout nor
+the hard TTL ever deletes data — they only hibernate. The next turn **resumes**
+a stopped session by re-creating against the same deterministic `sessionId`,
+which re-attaches the same workspace (`createSession`'s `mkdir`/PVC-ensure are
+idempotent), so files **and** the per-thread Claude `--resume` conversation
+continue (the platform keeps the same incarnation `createdAt`). The only path
+that deletes a workspace is the **explicit Destroy** (management page →
+`destroySession`); `evictIfBackendGone` evicts a stale registry entry without
+touching the workspace. Pinned ("always-on") and live-exec sessions are exempt
+from the reaper entirely.
 
 ## Secret-management model (tiered — the security invariant)
 
@@ -64,22 +79,32 @@ in-place container restart — this _is_ the session-persistence mechanism.
 ## Kubernetes specifics
 
 One long-lived Pod per session (`buildSessionPod`), `restartPolicy: Always`
-(a runner crash restarts in place against the surviving `emptyDir` workspace;
-runnerd re-boots idempotently → brief `degraded` blip, session intact). Single
+(a runner crash restarts in place against the surviving workspace; runnerd
+re-boots idempotently → brief `degraded` blip, session intact). Single
 `runner` container — staging/harvest are runnerd's job, so there is **no** stage
 initContainer / harvest sidecar. `automountServiceAccountToken: false`,
 readiness probe on the unauthenticated `/readyz`, per-session Secret
 (`<pod>-spec`) carrying the runnerd token + seed env via `envFrom`.
 
-PVC is intentionally **not** used for the session workspace: bare Pods don't
-reschedule, so PVC durability buys nothing without a controller. v1 uses
-`emptyDir` (8 Gi `sizeLimit`) with documented node-failure loss semantics; a
-StatefulSet-style controller is the v2 path if node-failure survival is needed.
+The workspace is a **per-session PVC** (`<pod>-ws`, `ReadWriteOnce`, sized by
+`SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`, storage class from
+`SANDBOX_K8S_CACHE_STORAGECLASS`), `ensure`d before the Pod (read-before-create,
+409-tolerant — same pattern as the per-org cache PVCs). It is the durable home
+of `/workspace` across stop→resume: `stopSession` deletes the Pod + Secret but
+**keeps** the PVC; only `destroySession` deletes it. **RWO caveat:** an RWO PVC
+binds to a node, so on a multi-node cluster a resume Pod must be schedulable
+where the volume can attach — operators needing cross-node resume must supply a
+storage class whose volumes re-bind (e.g. a networked/CSI RWO backend), else a
+resume can stall pending volume attach. Orphan PVCs (a spawner crash between Pod
+delete and PVC delete during an explicit destroy) are rare under the
+delete-only-on-Destroy model; a label-selector sweep (`tale.sandbox-session-ws`)
+is a follow-up if they accumulate.
 
 ### RBAC delta (vs the one-shot backend)
 
 The session backend needs, in the sandbox namespace, on `pods` and `secrets`:
-`get`, `list`, `create`, `delete`. **No `pods/exec`, ever.**
+`get`, `list`, `create`, `delete`; and on `persistentvolumeclaims`: `get`,
+`create`, `delete` (the per-session workspace PVC). **No `pods/exec`, ever.**
 
 ### NetworkPolicy
 
@@ -96,7 +121,8 @@ The session backend needs, in the sandbox namespace, on `pods` and `secrets`:
   the session route layer against a fake runnerd, the agent adapters.
 - Image conformance (no LLM, no cluster): `tests/container-sandbox-runtime-test.sh`.
 - E2E on kind (needs a cluster): create → exec → kill-container-restart →
-  idle-reap → destroy; cross-replica exec/destroy. (Pending — requires a kind
-  cluster + the built agent image.)
+  idle-reap-stop → resume (workspace + PVC preserved) → explicit destroy (PVC
+  deleted); cross-replica exec/destroy. (Pending — requires a kind cluster + the
+  built agent image.)
 - Live agent smoke (secret-gated, needs real provider creds via Bifrost):
   one real `claude -p` + `opencode run` turn end-to-end. (Pending.)

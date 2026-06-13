@@ -54,6 +54,13 @@ export function sessionSecretNameFor(sessionId: string): string {
   return `${sessionPodNameFor(sessionId)}-spec`;
 }
 
+/** Per-session workspace PVC name. The PVC outlives the Pod (a stop deletes the
+ * Pod but keeps the PVC), so /workspace data survives idle-stop + resume and is
+ * removed only by destroySession. */
+export function sessionWorkspacePvcNameFor(sessionId: string): string {
+  return `${sessionPodNameFor(sessionId)}-ws`;
+}
+
 /** Default profile mirrors the one-shot caps (uid 65534). */
 const DEFAULT_PROFILE: Pick<
   SessionAgentProfileConfig,
@@ -112,8 +119,9 @@ export function buildSessionPod(
       },
     },
     spec: {
-      // In-place restart on crash; the emptyDir workspace survives, runnerd
-      // re-boots idempotently.
+      // In-place restart on crash; the PVC-backed workspace survives, runnerd
+      // re-boots idempotently. The PVC also survives a deliberate stop (Pod
+      // deleted, PVC kept) so an idle-stopped session resumes with its data.
       restartPolicy: 'Always',
       automountServiceAccountToken: false,
       enableServiceLinks: false,
@@ -127,7 +135,9 @@ export function buildSessionPod(
       volumes: [
         {
           name: 'workspace',
-          emptyDir: { sizeLimit: cfg.k8s.workspaceSizeLimit },
+          persistentVolumeClaim: {
+            claimName: sessionWorkspacePvcNameFor(inp.sessionId),
+          },
         },
         { name: 'tmp', emptyDir: { medium: 'Memory', sizeLimit: '512Mi' } },
         // /dev/shm — Chromium (Playwright) crashes on the 64Mi default.
