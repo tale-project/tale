@@ -202,6 +202,39 @@ describe('ClaudeCodeParser', () => {
     ]);
   });
 
+  it('surfaces a main-level TaskOutput as a named tool-use with no parent (steering invariant)', () => {
+    // The quiet-idle 'waittool' posture keys on a main-level TaskOutput
+    // (block=true) being in flight: it must parse as a tool-use named exactly
+    // 'TaskOutput' with NO parentToolUseId, so the linger loop counts it in
+    // inflightWaitTools (a main-loop wait) rather than as sub-agent traffic.
+    const parser = new ClaudeCodeParser();
+    const line = JSON.stringify({
+      type: 'assistant',
+      message: {
+        id: 'msg_to',
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu_taskoutput1',
+            name: 'TaskOutput',
+            input: { task_id: 'b30iiqn5g', block: true },
+          },
+        ],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    });
+    const toolUse = parser.feed(`${line}\n`).find((e) => e.type === 'tool-use');
+    expect(toolUse).toMatchObject({
+      type: 'tool-use',
+      toolUseId: 'toolu_taskoutput1',
+      toolName: 'TaskOutput',
+    });
+    expect(
+      toolUse?.type === 'tool-use' ? toolUse.parentToolUseId : 'x',
+    ).toBeUndefined();
+  });
+
   it('attaches parentToolUseId to sub-agent events and omits it for the main agent', () => {
     const subText = readFileSync(SUBAGENT_FIXTURE, 'utf8');
     const events = parseChunked(subText, 1_000);

@@ -40,6 +40,7 @@ import {
   type ExecCursor,
   type SessionExecResult,
 } from './helpers/session_client';
+import { quietIdleDecision } from './quiet_idle';
 import {
   matchConsumedSteerFiles,
   steerDirFor,
@@ -329,13 +330,14 @@ export async function runAgentInSessionImpl(
   let eofWatchdog: ReturnType<typeof setTimeout> | undefined;
   let lingerBusy = false;
   // Quiet-idle inputs: when the MAIN loop last produced anything (background
-  // task_* traffic excluded), whether its last word was a completed text
-  // block, and which main-loop tool calls still await results. On resume the
-  // text flag seeds TRUE: a continuation that re-attaches into a quiet
-  // workflow wait replays no main-loop events (only task_* chatter), so it
-  // could never re-derive the flag — and a wrong TRUE merely queues the
-  // delivery at the CLI's next boundary (lossless), while a wrong FALSE
-  // re-creates the unsteerable blind spot.
+  // task_* and sub-agent traffic excluded — see lastMainActivityAt). The
+  // quiet-idle decision keys on this silence plus the inflight-tool sets
+  // (quietIdleDecision) and no longer reads lastMainEventWasText. That flag now
+  // serves ONLY the stdin-confirm path below: the next completed text/result
+  // after a stdin delivery is the consumption evidence. On resume it seeds TRUE
+  // because a continuation re-attaching into a quiet wait replays no main-loop
+  // events to re-derive it — a wrong TRUE merely queues at the CLI's next
+  // boundary (lossless), a wrong FALSE would drop a delivery's confirmation.
   let lastMainActivityAt = Date.now();
   let lastMainEventWasText = args.resumeFrom !== undefined;
   const inflightToolUses = new Set<string>();
@@ -344,6 +346,12 @@ export async function runAgentInSessionImpl(
   // delegating to sub-agents — a deliverable-idle posture for stdin steering,
   // exactly like a background-task wait (sub-agents just don't emit task_*).
   const inflightSubAgents = new Set<string>();
+  // Blocking task-read tools still running (a subset of inflightToolUses).
+  // TaskOutput with block=true parks the main loop on a background task; when
+  // the only main-level tools in flight are these, the agent issued a blocking
+  // read and is waiting — the same deliverable-idle posture as a background-task
+  // wait, but the blocker is an inflight tool rather than an empty set.
+  const inflightWaitTools = new Set<string>();
   // Unconfirmed stdin steer rows may exist whenever we delivered (set below)
   // or resumed mid-turn (a prior segment may have delivered) — the next
   // completed text/result is the consumption evidence (a steered exchange
@@ -523,43 +531,34 @@ export async function runAgentInSessionImpl(
     if (
       !agentResultSeen &&
       pendingTasks.size === 0 &&
-      inflightSubAgents.size === 0
+      inflightSubAgents.size === 0 &&
+      inflightWaitTools.size === 0
     )
       return;
     lingerBusy = true;
     try {
-      // Quiet-idle transition: background work pending, the main loop's last
-      // word was a completed text block, no tool results outstanding, and
-      // nothing but task_* chatter for the debounce window — the model is
-      // waiting on the background task. Stdin messages ARE processed in this
-      // state (verified: ~5s round-trip mid-workflow), so flag the exec idle
-      // and let the delivery branch below take over. The op-row flush makes
-      // steer_delivery leave future enqueues to this loop too — forced,
-      // because no stdout flows here to trigger the throttled flush.
+      // Quiet-idle transition: the main loop has gone silent (background task_*
+      // and sub-agent chatter are excluded from lastMainActivityAt) while
+      // parked on background work — a pending task with no main tool in flight,
+      // a blocking task-read (TaskOutput), or sub-agent delegation. quietIdle-
+      // Decision distinguishes the three; all are the same deliverable-idle
+      // posture. Stdin messages ARE processed here (~5s round-trip mid-workflow
+      // / mid-TaskOutput-wait, verified 2.1.173), so flag the exec idle and let
+      // the delivery branch below take over. The op-row flush is forced — no
+      // stdout flows here to carry it — and makes steer_delivery leave future
+      // enqueues to this loop too.
       if (
-        !agentIdle &&
-        !agentResultSeen &&
-        pendingTasks.size > 0 &&
-        inflightToolUses.size === 0 &&
-        lastMainEventWasText &&
-        Date.now() - lastMainActivityAt >= QUIET_IDLE_MS
-      ) {
-        setAgentIdle(true);
-        await flushProgress(true);
-      }
-      // Sub-agent wait: the main loop spawned Task sub-agent(s) and went quiet
-      // awaiting them — the same deliverable-idle posture as a background-task
-      // wait, but the blocker is an inflight tool, not a task_* ledger entry
-      // (so the guard above can't fire). The last main event is the Task
-      // tool-use (not text), so `lastMainEventWasText` is NOT required here.
-      // Sub-agent chatter is excluded from `lastMainActivityAt` (isSubAgentTraffic),
-      // so the debounce reflects genuine main-loop silence.
-      if (
-        !agentIdle &&
-        !agentResultSeen &&
-        inflightSubAgents.size > 0 &&
-        inflightToolUses.size === inflightSubAgents.size &&
-        Date.now() - lastMainActivityAt >= QUIET_IDLE_MS
+        quietIdleDecision({
+          agentIdle,
+          agentResultSeen,
+          pendingTasks: pendingTasks.size,
+          inflightToolUses: inflightToolUses.size,
+          inflightSubAgents: inflightSubAgents.size,
+          inflightWaitTools: inflightWaitTools.size,
+          lastMainActivityAt,
+          now: Date.now(),
+          quietIdleMs: QUIET_IDLE_MS,
+        }) !== 'none'
       ) {
         setAgentIdle(true);
         await flushProgress(true);
@@ -673,14 +672,18 @@ export async function runAgentInSessionImpl(
         // Track MAIN-level tool uses only — the quiet-idle guards reason about
         // the main loop, and a sub-agent's own inflight tools (parentToolUseId
         // set) must not count as the main loop being busy. A main-level Task
-        // tool-use IS a sub-agent spawn.
+        // tool-use IS a sub-agent spawn; a main-level TaskOutput (block=true)
+        // is a blocking task-read the model parks on.
         inflightToolUses.add(e.toolUseId);
         if (e.toolName === 'Task') inflightSubAgents.add(e.toolUseId);
+        else if (e.toolName === 'TaskOutput')
+          inflightWaitTools.add(e.toolUseId);
       } else if (e.type === 'tool-result' && e.toolUseId) {
         // Sub-agent internal results carry parentToolUseId and were never added
         // — delete is a harmless no-op for ids we don't track.
         inflightToolUses.delete(e.toolUseId);
         inflightSubAgents.delete(e.toolUseId);
+        inflightWaitTools.delete(e.toolUseId);
       }
       if (e.type === 'text-delta' || e.type === 'text') {
         progressText += e.text;

@@ -815,6 +815,7 @@ import type * as node_only_sandbox_bifrost_admin from "../node_only/sandbox/bifr
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_helpers_spawner_client from "../node_only/sandbox/helpers/spawner_client.js";
 import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
+import type * as node_only_sandbox_quiet_idle from "../node_only/sandbox/quiet_idle.js";
 import type * as node_only_sandbox_run_agent from "../node_only/sandbox/run_agent.js";
 import type * as node_only_sandbox_session_admin_actions from "../node_only/sandbox/session_admin_actions.js";
 import type * as node_only_sandbox_session_credentials from "../node_only/sandbox/session_credentials.js";
@@ -2229,6 +2230,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/helpers/spawner_client": typeof node_only_sandbox_helpers_spawner_client;
   "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
+  "node_only/sandbox/quiet_idle": typeof node_only_sandbox_quiet_idle;
   "node_only/sandbox/run_agent": typeof node_only_sandbox_run_agent;
   "node_only/sandbox/session_admin_actions": typeof node_only_sandbox_session_admin_actions;
   "node_only/sandbox/session_credentials": typeof node_only_sandbox_session_credentials;
