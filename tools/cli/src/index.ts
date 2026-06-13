@@ -72,6 +72,13 @@ program.addCommand(createMigrateCommand().helpGroup(ADVANCED), {
   hidden: true,
 });
 
+// Docs link honors TALE_DOCS_URL (mirrors @tale/ui/seo/globals) so a
+// self-hosted or staging deployment can point users at its own docs; the
+// default is the public docs site at https://tale.dev/docs.
+const DOCS_URL =
+  process.env.TALE_DOCS_URL ??
+  `${process.env.TALE_SITE_URL ?? 'https://tale.dev'}/docs`;
+
 // Branded wordmark above the help, and a few real examples below it.
 program.addHelpText('beforeAll', () => `\n${logger.bannerText(pkg.version)}\n`);
 program.addHelpText(
@@ -84,7 +91,7 @@ program.addHelpText(
     '  $ tale start                 Launch locally (self-signed TLS)',
     '  $ tale deploy                Deploy to your domain (zero-downtime)',
     '',
-    'Docs: https://docs.tale.dev',
+    `Docs: ${DOCS_URL}`,
     '',
   ].join('\n'),
 );
