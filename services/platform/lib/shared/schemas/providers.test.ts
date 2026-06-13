@@ -52,6 +52,45 @@ describe('providerJsonSchema', () => {
     });
   });
 
+  describe('apiFormat', () => {
+    it('accepts provider-level and per-model apiFormat', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        apiFormat: 'anthropic',
+        models: [
+          {
+            id: 'test/model-1',
+            displayName: 'Test Model 1',
+            tags: ['chat'],
+            apiFormat: 'openai',
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.apiFormat).toBe('anthropic');
+        expect(result.data.models[0].apiFormat).toBe('openai');
+      }
+    });
+
+    it('defaults apiFormat to undefined when not set', () => {
+      const result = providerJsonSchema.safeParse(baseProvider);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.apiFormat).toBeUndefined();
+        expect(result.data.models[0].apiFormat).toBeUndefined();
+      }
+    });
+
+    it('rejects an unknown apiFormat value', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        apiFormat: 'grpc',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe('model ID uniqueness', () => {
     it('rejects duplicate model IDs', () => {
       const result = providerJsonSchema.safeParse({

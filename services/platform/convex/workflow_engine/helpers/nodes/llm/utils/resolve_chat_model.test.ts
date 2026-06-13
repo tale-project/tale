@@ -26,6 +26,7 @@ const stubResolved = (modelId = 'm', providerName = 'p') => ({
     modelId,
     baseUrl: 'http://example',
     apiKey: 'key',
+    apiFormat: 'openai' as const,
     tags: ['chat'],
     supportsStructuredOutputs: false,
   },
@@ -120,6 +121,7 @@ describe('assertChatTag', () => {
     modelId: 'foo/bar',
     baseUrl: 'http://x',
     apiKey: 'k',
+    apiFormat: 'openai' as const,
     tags,
     supportsStructuredOutputs: false,
   });

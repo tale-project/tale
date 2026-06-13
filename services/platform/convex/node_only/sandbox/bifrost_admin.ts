@@ -75,6 +75,65 @@ export function toGatewayModelRef(taleModelRef: string): string {
   return taleModelRef.replace(':', '/').replace(/@[^@/]+$/, '');
 }
 
+/** Whether Bifrost has a built-in provider implementation for this name (and so
+ * owns its wire format + rejects custom_provider_config). Exported so the
+ * gateway loader can group standard providers (one native record per slug) vs
+ * custom ones (per-model upstreams). */
+export function isStandardGatewayProvider(name: string): boolean {
+  return BIFROST_STANDARD_PROVIDERS.has(name);
+}
+
+/** Bifrost provider name for a CUSTOM model's per-model upstream. The model's
+ * effective (baseUrl, apiFormat, key) lives on its own provider record so that
+ * model-level overrides actually route (Bifrost holds one base_url +
+ * base_provider_type per record). Sanitize `/` out of the NAME segment —
+ * Bifrost routes on the FIRST `/`, so the provider-name part must contain none;
+ * the model id keeps its own form (matched against the key catalog after the
+ * prefix is stripped). */
+function customGatewayProviderName(slug: string, modelId: string): string {
+  return `${slug}__${modelId}`.replace(/\//g, '_');
+}
+
+export interface GatewayRouting {
+  /** Bifrost provider name the request routes to. */
+  gatewayProvider: string;
+  /** Full gateway model ref (`<gatewayProvider>/<modelId>`) for ANTHROPIC_MODEL
+   * + the VK allowed_models. */
+  gatewayModel: string;
+}
+
+/**
+ * Map a Tale (providerSlug, modelId) onto Bifrost routing. Standard slug → the
+ * native provider record (`<slug>/<modelId>`); custom slug → the model's own
+ * per-model upstream (`<slug>__<modelId>/<modelId>`). Single source of truth
+ * shared by the adapter (ANTHROPIC_MODEL), the mint (VK provider binding), and
+ * the gateway loader (record names) so they can never drift.
+ */
+export function resolveGatewayRouting(
+  providerSlug: string,
+  modelId: string,
+): GatewayRouting {
+  if (isStandardGatewayProvider(providerSlug)) {
+    return {
+      gatewayProvider: providerSlug,
+      gatewayModel: `${providerSlug}/${modelId}`,
+    };
+  }
+  const name = customGatewayProviderName(providerSlug, modelId);
+  return { gatewayProvider: name, gatewayModel: `${name}/${modelId}` };
+}
+
+/** Resolve routing from a full Tale model ref (`provider:model[@quant]`). */
+export function resolveGatewayRoutingFromRef(
+  taleModelRef: string,
+): GatewayRouting {
+  const gatewayRef = toGatewayModelRef(taleModelRef);
+  const slash = gatewayRef.indexOf('/');
+  const slug = slash === -1 ? gatewayRef : gatewayRef.slice(0, slash);
+  const modelId = slash === -1 ? gatewayRef : gatewayRef.slice(slash + 1);
+  return resolveGatewayRouting(slug, modelId);
+}
+
 export interface MintVirtualKeyArgs {
   /** Hard spend cap; Bifrost rejects inference once exhausted. */
   budgetCents: number;
@@ -110,18 +169,20 @@ export interface MintedVirtualKey {
 export async function mintVirtualKey(
   args: MintVirtualKeyArgs,
 ): Promise<MintedVirtualKey> {
-  // Group allowed models by gateway provider; allow both the bare and the
-  // provider-qualified spellings so the allowlist matches however the
-  // resolver normalizes the request model.
+  // Group allowed models by the GATEWAY provider they route to (per-model for
+  // custom providers; the slug for standard). Allow both the bare model id and
+  // the full gateway ref so the allowlist matches however the resolver
+  // normalizes the request model. resolveGatewayRouting is the same mapping the
+  // adapter + gateway loader use, so the VK binds the exact record that serves.
   const byProvider = new Map<string, string[]>();
   for (const taleRef of args.allowedModels) {
-    const gatewayRef = toGatewayModelRef(taleRef);
-    const slash = gatewayRef.indexOf('/');
-    const provider = slash === -1 ? gatewayRef : gatewayRef.slice(0, slash);
-    const bare = slash === -1 ? gatewayRef : gatewayRef.slice(slash + 1);
-    const models = byProvider.get(provider) ?? [];
-    models.push(bare, gatewayRef);
-    byProvider.set(provider, models);
+    const { gatewayProvider, gatewayModel } =
+      resolveGatewayRoutingFromRef(taleRef);
+    const slash = gatewayModel.indexOf('/');
+    const bare = slash === -1 ? gatewayModel : gatewayModel.slice(slash + 1);
+    const models = byProvider.get(gatewayProvider) ?? [];
+    models.push(bare, gatewayModel);
+    byProvider.set(gatewayProvider, models);
   }
   if (byProvider.size === 0) {
     // Empty allowed_models = deny-all in v1.5.13; never mint such a key.
@@ -239,11 +300,17 @@ export async function getVirtualKeySpendCents(
   return dollars === null ? null : dollars * 100;
 }
 
-/** Provider names Bifrost v1.4.8 recognizes natively (built-in base URL +
- * request shaping). Anything else is a custom provider needing
- * `custom_provider_config`, which we don't provision yet. Source:
- * core/schemas/bifrost.go @ transports/v1.4.8. */
-const NATIVE_BIFROST_PROVIDERS = new Set([
+/** Provider names Bifrost handles with a built-in implementation (its own base
+ * URL + request shaping). Mirrors Bifrost's `StandardProviders`
+ * (core/schemas/bifrost.go @ core/v1.5.13). This is NOT a Tale allowlist of
+ * "permitted" providers — users may add ANY provider (the chat path treats
+ * every provider as OpenAI-compatible against its own base URL). It is the set
+ * Bifrost RESERVES: it rejects `custom_provider_config` on these names with a
+ * 400 ("cannot be created on standard providers"), and overriding their
+ * `network_config.base_url` breaks the built-in URL construction. So a standard
+ * provider keeps native dispatch; every OTHER provider is provisioned as a
+ * custom OpenAI-compatible upstream (see ensureProviderConfig). */
+const BIFROST_STANDARD_PROVIDERS = new Set([
   'openai',
   'azure',
   'anthropic',
@@ -266,13 +333,19 @@ const NATIVE_BIFROST_PROVIDERS = new Set([
   'replicate',
   'vllm',
   'runway',
+  'fireworks',
 ]);
 
 export interface ProviderProvision {
-  /** Bifrost provider name. Must be one of the native names (see
-   * NATIVE_BIFROST_PROVIDERS) — non-native upstreams are skipped. */
+  /** Bifrost provider name. A standard Bifrost name (see
+   * BIFROST_STANDARD_PROVIDERS) uses native dispatch; any other name is
+   * provisioned as a custom upstream (see resolveGatewayRouting / per-model
+   * naming) and so requires a `baseUrl`. */
   name: string;
   baseUrl?: string;
+  /** Wire format for a CUSTOM upstream → Bifrost `base_provider_type`. Absent ⇒
+   * 'openai'. Ignored for standard providers (Bifrost owns their format). */
+  apiFormat?: 'openai' | 'anthropic';
   apiKey: string;
   /** Tale model refs the key may serve; translated to the gateway spelling. */
   models: string[];
@@ -291,30 +364,52 @@ export interface ProviderProvision {
 const pushedProviderFingerprints = new Map<string, string>();
 
 function providerFingerprint(p: ProviderProvision): string {
-  // baseUrl is deliberately excluded — it is never pushed to the gateway
-  // (native providers carry their own base URL; see putGatewayProvider).
+  // baseUrl IS included: for a custom (non-standard) provider it is pushed to
+  // the gateway as network_config.base_url, so a base-URL-only change must bust
+  // the memo and re-provision. Inert for standard providers (their baseUrl is
+  // never pushed, and is a stable value).
   return createHash('sha256')
     .update(
       JSON.stringify({
         apiKey: p.apiKey,
+        baseUrl: p.baseUrl ?? null,
+        apiFormat: p.apiFormat ?? null,
         models: p.models.map(toGatewayModelRef).sort(),
       }),
     )
     .digest('hex');
 }
 
-/** A non-native (custom) upstream needs a base URL, but v1.4.8 routes it via
- * `custom_provider_config`, not a bare `network_config.base_url` — which we
- * don't model yet. Skip + log rather than provision a broken provider. The
- * default agents only use native providers (openrouter), so this is inert
- * for them; revisit when a custom OpenAI-compatible upstream is required.
- * Returns true when the provider was skipped. */
-function skipNonNative(p: ProviderProvision): boolean {
-  if (NATIVE_BIFROST_PROVIDERS.has(p.name)) return false;
+/** Whether Bifrost has a built-in implementation for this provider name (and so
+ * rejects custom_provider_config / a base_url override on it). Standard names
+ * keep native dispatch; everything else is provisioned as a custom
+ * OpenAI-compatible upstream. */
+function isStandardProvider(p: ProviderProvision): boolean {
+  return isStandardGatewayProvider(p.name);
+}
+
+/** True when a provider cannot be provisioned at all: a non-standard (custom)
+ * upstream with no base URL. Bifrost requires `network_config.base_url` for a
+ * custom provider, so there is nothing to point it at — warn + skip. Standard
+ * providers (no base_url needed) and custom providers WITH a base_url both
+ * proceed. */
+function skipUnprovisionable(p: ProviderProvision): boolean {
+  if (isStandardProvider(p) || p.baseUrl) return false;
   console.warn(
-    `[bifrost] skipping non-native provider '${p.name}' (custom base-URL provisioning not supported)`,
+    `[bifrost] skipping custom provider '${p.name}' (no base URL to route to)`,
   );
   return true;
+}
+
+/** Bifrost's OpenAI handler always appends `/v1/chat/completions` to a custom
+ * provider's base_url, but Tale provider configs store the base URL WITH a
+ * `/v1` (the chat path appends only `/chat/completions`). Strip a trailing
+ * `/v1` (or `/v1/`) before pushing so the gateway builds `<base>/v1/chat/
+ * completions`, not `<base>/v1/v1/chat/completions` (Bifrost issue #2356).
+ * Assumes the upstream exposes chat at `<base>/v1/chat/completions` — the
+ * DeepSeek/Together/standard OpenAI-compatible convention. */
+function stripTrailingV1(url: string): string {
+  return url.replace(/\/v1\/?$/, '');
 }
 
 /**
@@ -367,43 +462,128 @@ async function resolveOrgProviderKeyId(
   return keys.find((k) => k.name === want)?.id ?? null;
 }
 
+/** DELETE /api/providers/:name — remove a provider RECORD (and its key
+ * sub-resources). v1.5.13 actually deletes the record (verified: GET 404s
+ * after). Used to recreate a custom provider whose immutable
+ * `base_provider_type` must change (openai↔anthropic) — Bifrost forbids
+ * mutating it in place. Tolerates 404 (already gone). */
+async function deleteGatewayProvider(name: string): Promise<void> {
+  const res = await fetch(
+    `${bifrostUrl()}/api/providers/${encodeURIComponent(name)}`,
+    {
+      method: 'DELETE',
+      headers: managementHeaders(),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (!res.ok && res.status !== 404) {
+    throw new Error(
+      `bifrost delete provider ${name} failed (${res.status}): ${await res.text()}`,
+    );
+  }
+}
+
 /** PUT /api/providers/:name — provider RECORD config only (network +
  * concurrency). In v1.5.13 keys are NOT embedded here (they're a sub-resource,
  * see ensureProviderKey); a keys[] in this body is ignored. concurrency must
  * be > 0 or the config validator 400s. Idempotent; safe to call every
- * provision. Native providers carry their own base URL — overriding it breaks
- * the built-in URL construction — so we only widen the timeout and, for
- * OpenRouter, add the Tale attribution headers: `extra_headers` ride every
- * upstream request the gateway makes (v1.5.13 NetworkConfig.ExtraHeaders,
- * applied by the openrouter provider), so sandbox-agent traffic shows up as
- * Tale on OpenRouter's dashboard instead of Unknown. Same canonical helper as
- * the in-platform chat path. */
-async function ensureProviderConfig(p: ProviderProvision): Promise<void> {
+ * provision.
+ *
+ * A STANDARD Bifrost provider carries its own base URL — overriding it breaks
+ * the built-in URL construction, and Bifrost rejects custom_provider_config on
+ * it (400) — so we only widen the timeout and, for OpenRouter, add the Tale
+ * attribution headers: `extra_headers` ride every upstream request the gateway
+ * makes (v1.5.13 NetworkConfig.ExtraHeaders), so sandbox-agent traffic shows up
+ * as Tale on OpenRouter's dashboard instead of Unknown. Same canonical helper
+ * as the in-platform chat path.
+ *
+ * A CUSTOM (non-standard) provider is provisioned as an OpenAI-compatible
+ * upstream: `network_config.base_url` (its own, with a trailing `/v1` stripped —
+ * see stripTrailingV1) + `custom_provider_config` declaring base_provider_type
+ * "openai" and the request types the agent path uses. This makes the gateway
+ * contract identical to the chat path's createOpenAICompatible contract, so any
+ * provider that works in chat works for external agents (incl. the /anthropic
+ * route, which translates Anthropic↔OpenAI for any non-Claude model). */
+async function ensureProviderConfig(
+  p: ProviderProvision,
+): Promise<{ recreated: boolean }> {
   const attribution = providerAttributionHeaders({
     providerName: p.name,
     baseUrl: p.baseUrl ?? '',
   });
+  const custom = !isStandardProvider(p);
+  const anthropic = custom && p.apiFormat === 'anthropic';
+  // Anthropic base_url is the `/anthropic` endpoint verbatim — the native
+  // Anthropic provider appends `/v1/messages` itself (NO /v1 strip, unlike the
+  // openai handler which appends /v1/chat/completions, see stripTrailingV1).
+  const baseUrl =
+    custom && p.baseUrl
+      ? anthropic
+        ? p.baseUrl
+        : stripTrailingV1(p.baseUrl)
+      : undefined;
   const body = {
     network_config: {
       default_request_timeout_in_seconds: 600,
+      ...(baseUrl ? { base_url: baseUrl } : {}),
       ...(Object.keys(attribution).length > 0
         ? { extra_headers: attribution }
         : {}),
     },
     concurrency_and_buffer_size: { concurrency: 1000, buffer_size: 5000 },
+    ...(custom
+      ? {
+          custom_provider_config: anthropic
+            ? // Omit allowed_requests ⇒ allow-all ⇒ the Responses path stays
+              // (no Responses→Chat fallback), so Claude Code's web_search
+              // server tool survives to DeepSeek's /anthropic endpoint.
+              { base_provider_type: 'anthropic' }
+            : {
+                base_provider_type: 'openai',
+                // Restrict to chat so the OpenAI handler forces the
+                // /v1/chat/completions path (most custom openai upstreams have
+                // no /v1/responses).
+                allowed_requests: {
+                  chat_completion: true,
+                  chat_completion_stream: true,
+                },
+              },
+        }
+      : {}),
   };
-  const res = await fetch(
-    `${bifrostUrl()}/api/providers/${encodeURIComponent(p.name)}`,
-    {
+  const putConfig = () =>
+    fetch(`${bifrostUrl()}/api/providers/${encodeURIComponent(p.name)}`, {
       method: 'PUT',
       headers: managementHeaders(),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15_000),
-    },
-  );
-  if (!res.ok) {
-    throw new Error(`bifrost provider config ${p.name} failed (${res.status})`);
+    });
+
+  const res = await putConfig();
+  if (res.ok) return { recreated: false };
+
+  // `base_provider_type` and the presence of `custom_provider_config` are
+  // IMMUTABLE in Bifrost — a PUT that changes them 400s ("base_provider_type
+  // cannot be changed from X to Y after creation"). This happens when a custom
+  // provider's apiFormat flips (openai↔anthropic). Recreate: delete the record
+  // (its keys go too — caller re-POSTs) then PUT fresh.
+  const errBody = await res.text();
+  if (res.status === 400 && /cannot be (changed|removed)/i.test(errBody)) {
+    console.warn(
+      `[bifrost] provider '${p.name}' base type is immutable; recreating: ${errBody}`,
+    );
+    await deleteGatewayProvider(p.name);
+    const retry = await putConfig();
+    if (!retry.ok) {
+      throw new Error(
+        `bifrost provider config ${p.name} failed after recreate (${retry.status}): ${await retry.text()}`,
+      );
+    }
+    return { recreated: true };
   }
+  throw new Error(
+    `bifrost provider config ${p.name} failed (${res.status}): ${errBody}`,
+  );
 }
 
 /**
@@ -433,7 +613,7 @@ async function writeProviderKey(
   });
   if (!res.ok) {
     throw new Error(
-      `bifrost ${existing ? 'update' : 'create'} key for ${p.name}/org ${organizationId} failed (${res.status})`,
+      `bifrost ${existing ? 'update' : 'create'} key for ${p.name}/org ${organizationId} failed (${res.status}): ${await res.text()}`,
     );
   }
 }
@@ -463,8 +643,10 @@ async function provisionOne(
   ) {
     return; // fully provisioned by this process already
   }
-  await ensureProviderConfig(p);
-  await writeProviderKey(organizationId, p, existing);
+  const { recreated } = await ensureProviderConfig(p);
+  // A recreate (immutable base-type change) deletes the record + its keys, so
+  // the previously-fetched key row is gone — POST a fresh one (existing=null).
+  await writeProviderKey(organizationId, p, recreated ? null : existing);
   pushedProviderFingerprints.set(memoKey, providerFingerprint(p));
 }
 
@@ -479,7 +661,7 @@ export async function reprovisionProvider(
   organizationId: string,
   p: ProviderProvision,
 ): Promise<void> {
-  if (skipNonNative(p)) return;
+  if (skipUnprovisionable(p)) return;
   await provisionOne(organizationId, p);
 }
 
@@ -495,14 +677,28 @@ export async function reprovisionProvider(
  * Per-org keys coexist under one shared provider record, so multiple orgs
  * holding distinct keys for the same provider no longer clobber each other,
  * and each session VK binds to its own org's key (see mintVirtualKey).
+ *
+ * Per-provider resilient: a single provider's failure is logged and skipped
+ * rather than aborting the whole reconcile. The org's providers all get
+ * provisioned here (not just the turn's model provider), so one misconfigured
+ * upstream must not starve the others — the turn's actual provider still gets
+ * its key, and a genuinely broken one surfaces via mintVirtualKey's
+ * fail-closed error, not a silent gap here.
  */
 export async function provisionProviders(
   organizationId: string,
   providers: ProviderProvision[],
 ): Promise<void> {
   for (const p of providers) {
-    if (skipNonNative(p)) continue;
-    await provisionOne(organizationId, p);
+    if (skipUnprovisionable(p)) continue;
+    try {
+      await provisionOne(organizationId, p);
+    } catch (err) {
+      console.warn(
+        `[bifrost] provisioning provider '${p.name}' for org '${organizationId}' failed (continuing):`,
+        err,
+      );
+    }
   }
 }
 

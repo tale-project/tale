@@ -34,6 +34,14 @@ export interface ResolvedModelData {
   baseUrl: string;
   apiKey: string;
   modelId: string;
+  /**
+   * Effective wire format (model override ?? provider ?? 'openai'). The chat
+   * factory is OpenAI-compatible-only today, so this is informational for the
+   * chat path (an 'anthropic' provider falls back to the OpenAI client and
+   * errors at the wire level); the external-agent gateway uses it to pick the
+   * Bifrost base_provider_type. See `apiFormatSchema` in shared/schemas.
+   */
+  apiFormat: 'openai' | 'anthropic';
   tags: string[];
   dimensions?: number;
   maxOutputTokens?: number;
@@ -337,6 +345,15 @@ function createCompatibleProvider(
   modelData: ResolvedModelData,
   opts?: { supportsStructuredOutputs?: boolean },
 ) {
+  // apiFormat seam (chat path): only the OpenAI-compatible wire format is
+  // implemented here today, so EVERY provider falls back to this client. An
+  // `apiFormat: 'anthropic'` provider therefore reaches the OpenAI-compatible
+  // client and will error at the wire level if used in chat — that is a
+  // user-owned misconfiguration (the external-agent gateway handles anthropic
+  // natively). To support anthropic chat models later, branch here:
+  //   if (modelData.apiFormat === 'anthropic') return createAnthropicProvider(modelData);
+  // (add `@ai-sdk/anthropic` + gate the OpenAI-REST-only resolvers — image /
+  // embeddings / transcription / TTS — for anthropic providers).
   const debugFetch = createDebugFetch(modelData.providerName);
   return createOpenAICompatible({
     name: modelData.providerName,

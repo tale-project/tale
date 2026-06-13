@@ -30,8 +30,8 @@ import {
   hashVirtualKey,
   mintVirtualKey,
   provisionProviders,
+  resolveGatewayRoutingFromRef,
   revokeVirtualKey,
-  toGatewayModelRef,
 } from '../../node_only/sandbox/bifrost_admin';
 import {
   SessionDuplicateError,
@@ -501,9 +501,12 @@ export const runExternalAgentTurn = internalAction({
           execId: id,
           agentSlug: args.agentKind,
           prompt: args.rawPrompt,
-          // The agent CLI sends this verbatim to the gateway, which rejects
-          // the colon-qualified Tale form — translate at the boundary.
-          model: toGatewayModelRef(args.modelRef),
+          // The agent CLI sends this verbatim to the gateway. Use the canonical
+          // gateway routing so the request hits the SAME Bifrost record the VK
+          // is bound to (per-model `<slug>__<modelId>` for custom providers;
+          // `<slug>/<modelId>` for standard). Must match mintVirtualKey, which
+          // derives the binding from the same resolver.
+          model: resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
           ...(agentSessionId !== null && { agentSessionId }),
           ...(systemPromptAppend !== '' && { systemPromptAppend }),
           ...(args.permissionMode !== undefined && {

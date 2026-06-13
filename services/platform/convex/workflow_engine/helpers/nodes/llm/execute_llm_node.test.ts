@@ -62,6 +62,7 @@ const stubResolved = (modelId: string, providerName = 'openrouter') => ({
     modelId,
     baseUrl: 'http://example',
     apiKey: 'key',
+    apiFormat: 'openai' as const,
     tags: ['chat'],
     supportsStructuredOutputs: false,
   },
