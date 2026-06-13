@@ -92,11 +92,12 @@ function extractResultText(output: unknown): string {
   if (typeof output === 'string') return output;
   if (Array.isArray(output)) {
     const texts = output
-      .map((b) =>
+      .map((b: unknown) =>
         b !== null &&
         typeof b === 'object' &&
-        typeof (b as { text?: unknown }).text === 'string'
-          ? (b as { text: string }).text
+        'text' in b &&
+        typeof b.text === 'string'
+          ? b.text
           : '',
       )
       .filter((t) => t !== '');

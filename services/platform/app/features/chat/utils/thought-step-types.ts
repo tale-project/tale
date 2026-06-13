@@ -54,10 +54,8 @@ export function subAgentSteps(
 ): SubAgentStep[] | undefined {
   const out = step.output;
   if (out === null || typeof out !== 'object') return undefined;
-  const steps = (out as { steps?: unknown }).steps;
-  return Array.isArray(steps) && steps.length > 0
-    ? (steps as SubAgentStep[])
-    : undefined;
+  const steps = (out as { steps?: SubAgentStep[] }).steps;
+  return Array.isArray(steps) && steps.length > 0 ? steps : undefined;
 }
 
 /** The sub-agent's final report (markdown) folded onto a Task step's `output`. */
