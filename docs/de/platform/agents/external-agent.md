@@ -1,15 +1,15 @@
 ---
 title: Externe Agenten
-description: Integrierte Agenten — Claude Code und OpenCode — die in einer isolierten Sandbox laufen; du chattest direkt mit einem, während er Dateien bearbeitet, Befehle ausführt und die Arbeit über mehrere Runden fortsetzt.
+description: Der integrierte Agent Claude Code, der in einer isolierten Sandbox läuft; du chattest direkt mit ihm, während er Dateien bearbeitet, Befehle ausführt und die Arbeit über mehrere Runden fortsetzt.
 ---
 
-Tale liefert zwei integrierte **externe Agenten** — **Claude Code** und **OpenCode** —, deren gesamte Runde in einer isolierten Sandbox läuft. Statt der normalen Chat-Schleife wird deine Nachricht an diesen Coding-Agenten übergeben, der in einem frischen Container lebt, Dateien bearbeitet, Befehle ausführt und zurückmeldet. Du sprichst im Chat direkt mit ihm, und er behält dasselbe Arbeitsverzeichnis und denselben Gesprächsverlauf über mehrere Runden, sodass eine Folgeanweisung wie „füge jetzt einen Test dafür hinzu" dort weitermacht, wo er aufgehört hat.
+Tale liefert einen integrierten **externen Agenten** — **Claude Code** —, dessen gesamte Runde in einer isolierten Sandbox läuft. Statt der normalen Chat-Schleife wird deine Nachricht an diesen Coding-Agenten übergeben, der in einem frischen Container lebt, Dateien bearbeitet, Befehle ausführt und zurückmeldet. Du sprichst im Chat direkt mit ihm, und er behält dasselbe Arbeitsverzeichnis und denselben Gesprächsverlauf über mehrere Runden, sodass eine Folgeanweisung wie „füge jetzt einen Test dafür hinzu" dort weitermacht, wo er aufgehört hat.
 
-Es ist dieselbe Idee, als würde man eines dieser Werkzeuge auf einer entfernten Maschine ausführen — nur ist die Maschine eine verwaltete Sandbox, die der Workspace kontrolliert. Diese Seite behandelt, wie du sie nutzt, was die Sandbox erreichen kann und was nicht, und wie abgerechnet wird.
+Es ist dieselbe Idee, als würde man ein solches Werkzeug auf einer entfernten Maschine ausführen — nur ist die Maschine eine verwaltete Sandbox, die der Workspace kontrolliert. Diese Seite behandelt, wie du ihn nutzt, was die Sandbox erreichen kann und was nicht, und wie abgerechnet wird.
 
 ## Mit einem Coding-Agenten sprechen
 
-Wähle im Chat-Auswahlmenü **Claude Code** oder **OpenCode** und beschreibe eine Aufgabe in normaler Sprache — „schreibe ein kleines Python-CLI und teste es", „klone dieses Repo und behebe den Fehler in Issue #42". Der Agent arbeitet in seiner Sandbox: Er plant, schreibt Dateien, führt Shell-Befehle aus und installiert bei Bedarf Pakete, dann antwortet er mit dem, was er getan hat. Während er arbeitet, siehst du eine Denkanzeige; die Antwort erscheint, wenn die Runde abgeschlossen ist.
+Wähle im Chat-Auswahlmenü **Claude Code** und beschreibe eine Aufgabe in normaler Sprache — „schreibe ein kleines Python-CLI und teste es", „klone dieses Repo und behebe den Fehler in Issue #42". Der Agent arbeitet in seiner Sandbox: Er plant, schreibt Dateien, führt Shell-Befehle aus und installiert bei Bedarf Pakete, dann antwortet er mit dem, was er getan hat. Während er arbeitet, siehst du eine Denkanzeige; die Antwort erscheint, wenn die Runde abgeschlossen ist.
 
 Du musst nicht warten, bis eine Runde fertig ist. Das Eingabefeld bleibt offen, während der Agent arbeitet: Alles, was du sendest, wird eingereiht, erscheint sofort mit dem Hinweis **Eingereiht** im Thread und wird dem laufenden Agenten bei nächster Gelegenheit übergeben — bei Claude Code mitten in der Runde, an der nächsten Werkzeuggrenze, sodass eine Korrektur wie „nimm pnpm statt npm" ankommt, während die Arbeit noch läuft. Eine eingereihte Nachricht lässt sich entfernen (das × neben dem Hinweis), bis der Agent sie übernimmt. Mit **Stopp** beendest du die aktuelle Runde; noch eingereihte Nachrichten werden wenige Sekunden später automatisch als nächste Runde gesendet, mit unverändertem Kontext des Agenten.
 
@@ -23,7 +23,7 @@ Wenn du unter [Integrationen](/platform/integrations/overview) GitHub verbunden 
 
 ## Engines und Modelle
 
-Du wählst das Coding-Werkzeug, indem du den Agenten wählst — **Claude Code** oder **OpenCode** —, jeweils ein eigener Eintrag im Chat-Auswahlmenü. Das Modell ist davon unabhängig: Es stammt aus der Liste der unterstützten Modelle des Agenten, genau wie bei jedem anderen Agenten — wähle es im Modellauswahlmenü. Beachte, dass die Prompts eines Coding-Agenten am besten mit der Modellfamilie funktionieren, für die er entworfen wurde; die Kombination mit einem nicht verwandten Modell funktioniert zwar, die Qualität schwankt aber.
+**Claude Code** ist ein eigener Eintrag im Chat-Auswahlmenü. Das Modell ist davon unabhängig: Es stammt aus der Liste der unterstützten Modelle des Agenten, genau wie bei jedem anderen Agenten — wähle es im Modellauswahlmenü. Beachte, dass die Prompts eines Coding-Agenten am besten mit der Modellfamilie funktionieren, für die er entworfen wurde; die Kombination mit einem nicht verwandten Modell funktioniert zwar, die Qualität schwankt aber.
 
 ## Kosten und Budget
 

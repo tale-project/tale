@@ -1,9 +1,9 @@
 ---
 title: tale-daemon
-description: Exécuter le travail des tâches sur vos propres machines avec des CLIs d'agents de code locaux (Claude Code, Codex, OpenCode) — installation, cadence, isolation, permissions et gestion des échecs.
+description: Exécuter le travail des tâches sur vos propres machines avec des CLIs d'agents de code locaux (Claude Code, Codex) — installation, cadence, isolation, permissions et gestion des échecs.
 ---
 
-`tale-daemon` exécute les tâches du board Tale sur une machine que vous contrôlez, avec les CLIs d'agents de code que vous avez déjà : **Claude Code** (`claude`), **Codex** (`codex`) et **OpenCode** (`opencode`). Liez un agent à une runtime dans sa configuration : ses tâches affectées sont envoyées au daemon au lieu de la boucle de modèle interne de Tale ; le résultat revient en commentaire (avec statistique de diff) et la tâche se gare à _En revue_ comme tout travail d'agent.
+`tale-daemon` exécute les tâches du board Tale sur une machine que vous contrôlez, avec les CLIs d'agents de code que vous avez déjà : **Claude Code** (`claude`) et **Codex** (`codex`). Liez un agent à une runtime dans sa configuration : ses tâches affectées sont envoyées au daemon au lieu de la boucle de modèle interne de Tale ; le résultat revient en commentaire (avec statistique de diff) et la tâche se gare à _En revue_ comme tout travail d'agent.
 
 ## Installation
 

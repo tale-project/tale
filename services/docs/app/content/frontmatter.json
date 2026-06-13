@@ -277,7 +277,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Agents externes",
-      "description": "Des agents intégrés — Claude Code et OpenCode — qui s'exécutent dans un bac à sable isolé ; vous discutez directement avec l'un d'eux pendant qu'il modifie des fichiers, lance des commandes et poursuit le travail sur plusieurs tours."
+      "description": "L'agent intégré Claude Code, qui s'exécute dans un bac à sable isolé ; vous discutez directement avec lui pendant qu'il modifie des fichiers, lance des commandes et poursuit le travail sur plusieurs tours."
     }
   },
   "fr:platform/agents/delegation": {
@@ -814,7 +814,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "tale-daemon",
-      "description": "Exécuter le travail des tâches sur vos propres machines avec des CLIs d'agents de code locaux (Claude Code, Codex, OpenCode) — installation, cadence, isolation, permissions et gestion des échecs."
+      "description": "Exécuter le travail des tâches sur vos propres machines avec des CLIs d'agents de code locaux (Claude Code, Codex) — installation, cadence, isolation, permissions et gestion des échecs."
     }
   },
   "fr:self-hosted/overview": {
@@ -1357,7 +1357,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "External agents",
-      "description": "Built-in agents — Claude Code and OpenCode — that run inside an isolated sandbox; you chat with one directly as it edits files, runs commands, and continues the work across turns."
+      "description": "The built-in Claude Code agent that runs inside an isolated sandbox; you chat with it directly as it edits files, runs commands, and continues the work across turns."
     }
   },
   "en:platform/agents/delegation": {
@@ -1894,7 +1894,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "tale-daemon",
-      "description": "Run task work on your own machines with local coding-agent CLIs (Claude Code, Codex, OpenCode) — setup, pacing, isolation, permissions, and failure handling."
+      "description": "Run task work on your own machines with local coding-agent CLIs (Claude Code, Codex) — setup, pacing, isolation, permissions, and failure handling."
     }
   },
   "en:self-hosted/overview": {
@@ -2437,7 +2437,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Externe Agenten",
-      "description": "Integrierte Agenten — Claude Code und OpenCode — die in einer isolierten Sandbox laufen; du chattest direkt mit einem, während er Dateien bearbeitet, Befehle ausführt und die Arbeit über mehrere Runden fortsetzt."
+      "description": "Der integrierte Agent Claude Code, der in einer isolierten Sandbox läuft; du chattest direkt mit ihm, während er Dateien bearbeitet, Befehle ausführt und die Arbeit über mehrere Runden fortsetzt."
     }
   },
   "de:platform/agents/delegation": {
@@ -2974,7 +2974,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "tale-daemon",
-      "description": "Aufgaben-Arbeit auf eigenen Maschinen mit lokalen Coding-Agent-CLIs (Claude Code, Codex, OpenCode) — Setup, Taktung, Isolation, Berechtigungen und Fehlerbehandlung."
+      "description": "Aufgaben-Arbeit auf eigenen Maschinen mit lokalen Coding-Agent-CLIs (Claude Code, Codex) — Setup, Taktung, Isolation, Berechtigungen und Fehlerbehandlung."
     }
   },
   "de:self-hosted/overview": {
