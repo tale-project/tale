@@ -360,6 +360,12 @@ export async function handleTurnOutcome(
       // rendering them as a bare "Tool" (long parallel subagent calls
       // routinely straddle seams).
       ...(result.toolNames !== undefined && { toolNames: result.toolNames }),
+      // childToolUseId → immediate parentToolUseId across the turn, so a post-
+      // seam segment can fold a pre-seam sub-agent's later result under its
+      // top-level Task ancestor (mirrors toolNames).
+      ...(result.toolUseParents !== undefined && {
+        toolUseParents: result.toolUseParents,
+      }),
       // stdin-hold lifecycle (claude-code): whether the per-turn agent result
       // already streamed (pre-seam) and which background tasks were still
       // pending — the continuation's linger loop must not EOF a process whose
@@ -616,6 +622,7 @@ export async function loadCheckpoint(
   agentSessionId?: string;
   planText?: string;
   toolNames?: Record<string, string>;
+  toolUseParents?: Record<string, string>;
   agentResultSeen?: boolean;
   agentIdle?: boolean;
   pendingTaskIds?: string[];
@@ -630,6 +637,7 @@ export async function loadCheckpoint(
       agentSessionId?: string;
       planText?: string;
       toolNames?: Record<string, string>;
+      toolUseParents?: Record<string, string>;
       agentResultSeen?: boolean;
       agentIdle?: boolean;
       pendingTaskIds?: string[];

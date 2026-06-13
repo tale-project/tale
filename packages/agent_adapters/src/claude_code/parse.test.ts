@@ -15,6 +15,10 @@ const PLAN_FIXTURE = join(
   import.meta.dirname,
   '../../fixtures/claude_code/plan-mode-turn.jsonl',
 );
+const SUBAGENT_FIXTURE = join(
+  import.meta.dirname,
+  '../../fixtures/claude_code/subagent-turn.jsonl',
+);
 
 /** Feed a fixture through the parser in arbitrary byte-sized chunks so the
  * test exercises mid-line splits (the JSONL reassembler's whole job). */
@@ -196,6 +200,71 @@ describe('ClaudeCodeParser', () => {
     expect(parser.feed(`${settled}\n`)).toEqual([
       { type: 'task-settled', taskId: 'b30iiqn5g', status: 'stopped' },
     ]);
+  });
+
+  it('attaches parentToolUseId to sub-agent events and omits it for the main agent', () => {
+    const subText = readFileSync(SUBAGENT_FIXTURE, 'utf8');
+    const events = parseChunked(subText, 1_000);
+
+    // The main agent launches the sub-agent via the Task tool — no parent.
+    const taskUse = events.find(
+      (e) => e.type === 'tool-use' && e.toolName === 'Task',
+    );
+    expect(taskUse).toMatchObject({ type: 'tool-use', toolUseId: 'tu_task1' });
+    expect(
+      taskUse?.type === 'tool-use' ? taskUse.parentToolUseId : 'x',
+    ).toBeUndefined();
+
+    // The sub-agent's WebSearch call carries the parent Task's id.
+    const subUse = events.find(
+      (e) => e.type === 'tool-use' && e.toolName === 'WebSearch',
+    );
+    expect(subUse).toMatchObject({
+      type: 'tool-use',
+      toolUseId: 'tu_ws1',
+      parentToolUseId: 'tu_task1',
+    });
+
+    // The sub-agent's tool result is tagged too.
+    const subResult = events.find(
+      (e) => e.type === 'tool-result' && e.toolUseId === 'tu_ws1',
+    );
+    expect(subResult).toMatchObject({
+      type: 'tool-result',
+      parentToolUseId: 'tu_task1',
+    });
+
+    // The Task's own result (the sub-agent's report) belongs to the main agent.
+    const taskResult = events.find(
+      (e) => e.type === 'tool-result' && e.toolUseId === 'tu_task1',
+    );
+    expect(
+      taskResult?.type === 'tool-result' ? taskResult.parentToolUseId : 'x',
+    ).toBeUndefined();
+
+    // Sub-agent text carries the parent; main-agent text does not.
+    const texts = events.filter((e) => e.type === 'text');
+    const subNarration = texts.find(
+      (e) => e.type === 'text' && e.text.startsWith('Running 5'),
+    );
+    expect(
+      subNarration?.type === 'text' ? subNarration.parentToolUseId : undefined,
+    ).toBe('tu_task1');
+    const mainText = texts.find(
+      (e) => e.type === 'text' && e.text.startsWith("I'll launch"),
+    );
+    expect(
+      mainText?.type === 'text' ? mainText.parentToolUseId : 'x',
+    ).toBeUndefined();
+  });
+
+  it('meters sub-agent usage (distinct message ids are real token spend)', () => {
+    const subText = readFileSync(SUBAGENT_FIXTURE, 'utf8');
+    const events = parseChunked(subText, 1_000);
+    // Four distinct message ids → four usage events (main×2 + sub×2); a
+    // sub-agent message has its own id and its tokens are genuine spend.
+    const usage = events.filter((e) => e.type === 'usage');
+    expect(usage).toHaveLength(4);
   });
 
   it('handles a second init (model re-invoked after a background task)', () => {

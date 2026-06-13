@@ -74,6 +74,28 @@ describe('buildMessageSegments', () => {
     expect(toolCount).toBe(1);
   });
 
+  it('passes a folded Task tool-result output through intact, counted as one tool', () => {
+    // A sub-agent Task whose `output` carries `{report, steps}` (what the
+    // persisted path yields after toUIMessages unwraps the json tool-result):
+    // the nested steps are NOT separate top-level tools.
+    const folded = {
+      report: '## Report',
+      steps: [{ toolName: 'WebSearch', output: 'hits' }],
+    };
+    const { segments, toolCount } = buildMessageSegments([
+      {
+        type: 'tool-Task',
+        toolCallId: 'task1',
+        state: 'output-available',
+        input: { description: 'Research' },
+        output: folded,
+      },
+    ]);
+    expect(segments).toHaveLength(1);
+    expect(toolCount).toBe(1);
+    expect((segments[0] as { output: unknown }).output).toEqual(folded);
+  });
+
   it('detects redacted reasoning (done + empty)', () => {
     const { segments, hasReasoning } = buildMessageSegments([
       { type: 'reasoning', text: '', state: 'done' },

@@ -88,6 +88,97 @@ describe('buildExternalAgentParts', () => {
     expect(parts).toEqual([]);
   });
 
+  it('folds a sub-agent into its parent Task part and drops its narration', () => {
+    const parts = buildExternalAgentParts([
+      ev({ type: 'text', text: "I'll research that." }),
+      ev({
+        type: 'tool-use',
+        toolUseId: 'task1',
+        toolName: 'Task',
+        input: { description: 'Research' },
+      }),
+      // Sub-agent narration (dropped) + tool call (folded).
+      ev({
+        type: 'text',
+        text: 'Running searches now.',
+        parentToolUseId: 'task1',
+      }),
+      ev({
+        type: 'tool-use',
+        toolUseId: 'ws1',
+        toolName: 'WebSearch',
+        input: { query: 'frameworks' },
+        parentToolUseId: 'task1',
+      }),
+      ev({
+        type: 'tool-result',
+        toolUseId: 'ws1',
+        output: 'LangChain, CrewAI',
+        isError: false,
+        parentToolUseId: 'task1',
+      }),
+      ev({
+        type: 'tool-result',
+        toolUseId: 'task1',
+        output: '## Report\n\nLangChain leads.',
+        isError: false,
+      }),
+    ]);
+    // Top level = the main agent's narration (reasoning) + the Task card only.
+    // No top-level WebSearch card and no sub-agent narration leaked in.
+    const typed = parts as Array<Record<string, unknown>>;
+    expect(typed.some((p) => p.type === 'tool-WebSearch')).toBe(false);
+    expect(
+      typed.some(
+        (p) => p.type === 'reasoning' && p.text === 'Running searches now.',
+      ),
+    ).toBe(false);
+    const task = typed.find((p) => p.type === 'tool-Task');
+    expect(task?.state).toBe('output-available');
+    expect(task?.output).toEqual({
+      report: '## Report\n\nLangChain leads.',
+      steps: [
+        {
+          toolName: 'WebSearch',
+          input: { query: 'frameworks' },
+          output: 'LangChain, CrewAI',
+        },
+      ],
+    });
+  });
+
+  it('exposes the folded Task to the segments builder as one tool (steps nested)', () => {
+    const parts = buildExternalAgentParts([
+      ev({
+        type: 'tool-use',
+        toolUseId: 'task1',
+        toolName: 'Task',
+        input: { description: 'Research' },
+      }),
+      ev({
+        type: 'tool-use',
+        toolUseId: 'ws1',
+        toolName: 'WebSearch',
+        input: {},
+        parentToolUseId: 'task1',
+      }),
+      ev({
+        type: 'tool-result',
+        toolUseId: 'task1',
+        output: 'report',
+        isError: false,
+      }),
+    ]);
+    const { segments, toolCount } = buildMessageSegments(parts);
+    // The 157-WebSearch problem collapses: the header counts the Task only.
+    expect(toolCount).toBe(1);
+    const tool = segments.find((s) => s.kind === 'tool');
+    expect(tool).toMatchObject({ toolName: 'Task' });
+    expect(
+      (tool as { output: { steps: unknown[] } }).output.steps,
+    ).toHaveLength(1);
+  });
+
   it('produces parts the existing segments builder consumes', () => {
     const parts = buildExternalAgentParts([
       ev({ type: 'text', text: 'Reading the issue.' }),

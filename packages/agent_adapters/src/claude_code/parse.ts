@@ -116,18 +116,29 @@ export class ClaudeCodeParser implements AgentEventParser {
     if (type === 'assistant') {
       const message = obj(ev.message);
       const events: AgentEvent[] = [];
+      // Top-level (sibling of `message`): the parent Task's tool_use id when a
+      // sub-agent emitted this message, `null`/absent for the main agent. `str`
+      // coalesces `null` → undefined, so main-agent events carry no field.
+      const parentToolUseId = str(ev.parent_tool_use_id);
       for (const block of arr(message?.content)) {
         const b = obj(block);
         const bt = str(b?.type);
         if (bt === 'text') {
           const text = str(b?.text);
-          if (text) events.push({ type: 'text', text });
+          if (text) {
+            events.push({
+              type: 'text',
+              text,
+              ...(parentToolUseId ? { parentToolUseId } : {}),
+            });
+          }
         } else if (bt === 'tool_use') {
           events.push({
             type: 'tool-use',
             toolUseId: str(b?.id) ?? '',
             toolName: str(b?.name) ?? '',
             input: b?.input,
+            ...(parentToolUseId ? { parentToolUseId } : {}),
           });
         }
       }
@@ -151,6 +162,9 @@ export class ClaudeCodeParser implements AgentEventParser {
     if (type === 'user') {
       const message = obj(ev.message);
       const events: AgentEvent[] = [];
+      // A sub-agent's tool results arrive on a `user` event carrying the parent
+      // Task's tool_use id at top level (same as the matching assistant events).
+      const parentToolUseId = str(ev.parent_tool_use_id);
       for (const block of arr(message?.content)) {
         const b = obj(block);
         const bt = str(b?.type);
@@ -161,6 +175,7 @@ export class ClaudeCodeParser implements AgentEventParser {
           };
           if (b?.content !== undefined) out.output = b.content;
           if (typeof b?.is_error === 'boolean') out.isError = b.is_error;
+          if (parentToolUseId) out.parentToolUseId = parentToolUseId;
           events.push(out);
         } else if (bt === 'text') {
           // Steer-hook injection surfacing as a synthetic user message. Only

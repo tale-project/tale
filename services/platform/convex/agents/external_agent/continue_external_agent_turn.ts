@@ -106,6 +106,9 @@ export const continueExternalAgentTurn = internalAction({
           ...(checkpoint.toolNames !== undefined && {
             toolNames: checkpoint.toolNames,
           }),
+          ...(checkpoint.toolUseParents !== undefined && {
+            toolUseParents: checkpoint.toolUseParents,
+          }),
           ...(checkpoint.agentResultSeen === true && {
             agentResultSeen: true,
           }),

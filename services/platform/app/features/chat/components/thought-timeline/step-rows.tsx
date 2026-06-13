@@ -8,13 +8,25 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { isRecord } from '@/lib/utils/type-guards';
 
 import { formatToolDetail } from '../../utils/format-tool-detail';
 import { routeReasonLabel, type RouteReason } from '../../utils/route-reason';
-import type { ThoughtStep } from '../../utils/thought-step-types';
+import {
+  subAgentReport,
+  subAgentSteps,
+  type SubAgentStep,
+  type ThoughtStep,
+} from '../../utils/thought-step-types';
+import {
+  markdownComponents,
+  markdownWrapperStyles,
+} from '../message-bubble/markdown-renderer';
 import { TypewriterText } from '../typewriter-text';
 import { REASONING_MARKDOWN_COMPONENTS } from './reasoning-markdown';
 import { toolIcon } from './tool-icon';
@@ -162,6 +174,68 @@ function clampDetail(text: string): string {
     : text;
 }
 
+/** Synthesize a tool `ThoughtStep` from a folded sub-agent step so the nested
+ *  rows render through the SAME `ToolStepRow` as top-level tools. A step with no
+ *  output yet (live, mid-flight) reads as still-providing-input so it spins. */
+function synthSubStep(
+  parentId: string,
+  s: SubAgentStep,
+  index: number,
+): Extract<ThoughtStep, { kind: 'tool' }> {
+  const state = s.isError
+    ? 'output-error'
+    : s.output !== undefined
+      ? 'output-available'
+      : 'input-available';
+  return {
+    kind: 'tool',
+    id: `${parentId}-sub-${index}`,
+    toolName: s.toolName,
+    state,
+    input: isRecord(s.input) ? s.input : undefined,
+    output: s.output,
+    errorText: s.isError && typeof s.output === 'string' ? s.output : undefined,
+  };
+}
+
+/** The expanded body of a sub-agent Task/Agent card: the sub-agent's final
+ *  report (markdown) above its tool steps, each nested through `ToolStepRow`.
+ *  Replaces the raw `{report,steps}` JSON the folded output would otherwise
+ *  dump, and reuses STEP_INDENT for the one shared subordination level. */
+function SubAgentActivity({
+  parentId,
+  report,
+  steps,
+  active,
+}: {
+  parentId: string;
+  report: string | undefined;
+  steps: SubAgentStep[];
+  active: boolean;
+}) {
+  return (
+    <div className={cn('mt-2 flex flex-col gap-2', STEP_INDENT)}>
+      {report && (
+        <div className={cn(markdownWrapperStyles, 'max-w-none text-sm')}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={markdownComponents}
+          >
+            {report}
+          </ReactMarkdown>
+        </div>
+      )}
+      {steps.map((s, i) => (
+        <ToolStepRow
+          key={`${parentId}-sub-${i}`}
+          step={synthSubStep(parentId, s, i)}
+          active={active}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function ToolStepRow({
   step,
   active,
@@ -177,11 +251,16 @@ export function ToolStepRow({
     active &&
     (step.state === 'input-streaming' || step.state === 'input-available');
   const isError = step.state === 'output-error';
+  // A Task/Agent card folds its sub-agent's activity (report + tool steps) into
+  // `output`; render that nested instead of the raw JSON blob.
+  const subSteps = subAgentSteps(step);
   const inputText = toolInputText(step);
-  const outputText = toolOutputText(step);
+  // Suppress the raw output `<pre>` for a folded Task — its `output` is the
+  // `{report,steps}` object, surfaced by the nested timeline below.
+  const outputText = subSteps ? undefined : toolOutputText(step);
   // Only the agent-tool steps (Bash/Read/…) carry input+output worth drilling
   // into; the expander appears when there's detail to show.
-  const hasDetail = Boolean(inputText || outputText);
+  const hasDetail = Boolean(inputText || outputText || subSteps);
   return (
     <StepRow
       icon={toolIcon(step.toolName)}
@@ -210,6 +289,14 @@ export function ToolStepRow({
               >
                 {clampDetail(outputText)}
               </pre>
+            )}
+            {subSteps && (
+              <SubAgentActivity
+                parentId={step.id}
+                report={subAgentReport(step)}
+                steps={subSteps}
+                active={active}
+              />
             )}
           </div>
         ) : undefined

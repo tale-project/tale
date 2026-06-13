@@ -33,14 +33,28 @@ export type AgentEvent =
       model?: string;
     }
   | { type: 'text-delta'; text: string }
-  /** A completed assistant text block (as opposed to streaming deltas). */
-  | { type: 'text'; text: string }
-  | { type: 'tool-use'; toolUseId: string; toolName: string; input: unknown }
+  /** A completed assistant text block (as opposed to streaming deltas).
+   * `parentToolUseId` is set when this block was emitted by a sub-agent (the
+   * agent's own Task/Agent tool) rather than the main agent — it holds the
+   * parent Task's `toolUseId`; absent for main-agent text. */
+  | { type: 'text'; text: string; parentToolUseId?: string }
+  /** `parentToolUseId`: set for a sub-agent's tool call (parent Task's
+   * `toolUseId`); absent for the main agent. Lets the timeline nest sub-agent
+   * activity under its Task card instead of flattening it. */
+  | {
+      type: 'tool-use';
+      toolUseId: string;
+      toolName: string;
+      input: unknown;
+      parentToolUseId?: string;
+    }
   | {
       type: 'tool-result';
       toolUseId: string;
       output?: unknown;
       isError?: boolean;
+      /** Set for a sub-agent's tool result (parent Task's `toolUseId`). */
+      parentToolUseId?: string;
     }
   | ({ type: 'usage' } & AgentUsage)
   | {

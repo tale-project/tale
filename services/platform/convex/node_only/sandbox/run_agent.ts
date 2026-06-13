@@ -134,6 +134,10 @@ export interface RunAgentInSessionArgs {
     /** toolUseId → toolName for every tool-use seen by earlier segments, so a
      * result landing after the seam still renders under its real tool name. */
     toolNames?: Record<string, string>;
+    /** childToolUseId → immediate parentToolUseId for sub-agent tool-uses seen
+     * by earlier segments, so a sub-agent tool-result landing after the seam
+     * still folds under its top-level Task ancestor (mirrors toolNames). */
+    toolUseParents?: Record<string, string>;
     /** stdin-hold lifecycle carried across the seam: whether the per-turn
      * agent result already streamed pre-seam, whether the model was idle at
      * the seam, and which background tasks were still pending. Without these
@@ -173,6 +177,10 @@ export interface RunAgentInSessionResult {
    * turn has seen so far, checkpointed so a continuation segment can name the
    * orphan results of pre-seam tool calls. */
   toolNames?: Record<string, string>;
+  /** status==='continued' only: childToolUseId → immediate parentToolUseId for
+   * every sub-agent tool-use this turn has seen, checkpointed so a continuation
+   * segment can fold a pre-seam sub-agent's later result under its Task. */
+  toolUseParents?: Record<string, string>;
   /** status==='continued' only: this seam was tripped by an OBSERVED steer
    * injection — the in-sandbox hook delivered queued user message(s) into the
    * running turn (Stop-hook stream sentinel, or consumed.* markers found by
@@ -265,6 +273,12 @@ export async function runAgentInSessionImpl(
   // result landing segments after its use still renders under its real name.
   const toolNames = new Map<string, string>(
     Object.entries(args.resumeFrom?.toolNames ?? {}),
+  );
+  // childToolUseId → immediate parentToolUseId for every sub-agent tool-use this
+  // TURN has seen, seeded from the checkpoint on resume. Lets buildAssistantContent
+  // fold a sub-agent result landing segments after its use under the right Task.
+  const toolUseParents = new Map<string, string>(
+    Object.entries(args.resumeFrom?.toolUseParents ?? {}),
   );
   // Handoff control (hoisted so flushProgress can trip it): the budget deadline
   // OR the per-message byte budget aborts the drain → the run returns 'continued'
@@ -649,6 +663,9 @@ export async function runAgentInSessionImpl(
         if (stdinHold) void lingerTick();
       } else if (e.type === 'tool-use') {
         if (e.toolUseId && e.toolName) toolNames.set(e.toolUseId, e.toolName);
+        if (e.toolUseId && e.parentToolUseId) {
+          toolUseParents.set(e.toolUseId, e.parentToolUseId);
+        }
         if (e.toolName === 'ExitPlanMode') {
           // The proposed plan rides the tool input (input.plan — verified on
           // CLI 2.1.173; the call itself is denied by plan mode / the
@@ -752,7 +769,12 @@ export async function runAgentInSessionImpl(
     // on the same throttle. This is the record that survives an early end (the
     // op buffer is capped + cleared); best-effort so a transient patch failure
     // never aborts the live run.
-    const content = buildAssistantContent(timeline, finalText ?? '', toolNames);
+    const content = buildAssistantContent(
+      timeline,
+      finalText ?? '',
+      toolNames,
+      toolUseParents,
+    );
     if (args.onTimeline) {
       try {
         await args.onTimeline(content);
@@ -969,9 +991,11 @@ export async function runAgentInSessionImpl(
           timeline,
           finalText ?? '',
           toolNames,
+          toolUseParents,
         ),
         lastSeq: cursor.lastSeq,
         toolNames: Object.fromEntries(toolNames),
+        toolUseParents: Object.fromEntries(toolUseParents),
         // Ternary (not &&): steerSeam is only assigned inside the flush
         // closure, so TS narrows the `let` to its `false` initializer here.
         ...(steerSeam ? { steerSeam: true } : {}),
@@ -1039,6 +1063,7 @@ export async function runAgentInSessionImpl(
     timeline,
     finalText ?? '',
     toolNames,
+    toolUseParents,
   );
 
   return {

@@ -58,9 +58,10 @@ function externalAgentToolSummary(
       const url = str(input.url);
       return url ? `WebFetch · ${extractHostname(url)}` : null;
     }
-    case 'Task': {
+    case 'Task':
+    case 'Agent': {
       const desc = str(input.description);
-      return desc ? `Task · ${truncate(desc, 60)}` : null;
+      return desc ? `${toolName} · ${truncate(desc, 60)}` : null;
     }
     default:
       return null;

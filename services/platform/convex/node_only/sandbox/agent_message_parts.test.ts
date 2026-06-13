@@ -160,6 +160,226 @@ describe('buildAssistantContent', () => {
   });
 });
 
+describe('buildAssistantContent — sub-agent folding', () => {
+  // A main agent launches one Task sub-agent that does a WebSearch and returns
+  // a report; then the main agent answers.
+  const subAgentTurn = (): AgentEvent[] => [
+    { type: 'text', text: "I'll research that." },
+    {
+      type: 'tool-use',
+      toolUseId: 'task1',
+      toolName: 'Task',
+      input: { description: 'Research' },
+    },
+    {
+      type: 'text',
+      text: 'Running searches now.',
+      parentToolUseId: 'task1',
+    },
+    {
+      type: 'tool-use',
+      toolUseId: 'ws1',
+      toolName: 'WebSearch',
+      input: { query: 'frameworks' },
+      parentToolUseId: 'task1',
+    },
+    {
+      type: 'tool-result',
+      toolUseId: 'ws1',
+      output: 'LangChain, CrewAI',
+      isError: false,
+      parentToolUseId: 'task1',
+    },
+    {
+      type: 'text',
+      text: '## Report\n\nLangChain leads.',
+      parentToolUseId: 'task1',
+    },
+    {
+      type: 'tool-result',
+      toolUseId: 'task1',
+      output: '## Report\n\nLangChain leads.',
+      isError: false,
+    },
+    { type: 'text', text: 'Summary above.' },
+  ];
+
+  it('folds sub-agent steps + report into the parent Task tool-result output', () => {
+    const parts = buildAssistantContent(
+      subAgentTurn(),
+      'Summary above.',
+    ) as Array<Record<string, unknown>>;
+
+    // No top-level WebSearch card and no sub-agent narration text leaked.
+    expect(
+      parts.some((p) => p.type === 'tool-call' && p.toolName === 'WebSearch'),
+    ).toBe(false);
+    expect(
+      parts.some(
+        (p) => p.type === 'text' && p.text === 'Running searches now.',
+      ),
+    ).toBe(false);
+
+    // The Task tool-result carries the folded activity as json output.
+    const taskResult = parts.find(
+      (p) => p.type === 'tool-result' && p.toolCallId === 'task1',
+    ) as {
+      output: { type: string; value: { report: string; steps: unknown[] } };
+    };
+    expect(taskResult.output.type).toBe('json');
+    expect(taskResult.output.value.report).toBe(
+      '## Report\n\nLangChain leads.',
+    );
+    expect(taskResult.output.value.steps).toEqual([
+      {
+        toolName: 'WebSearch',
+        input: { query: 'frameworks' },
+        output: 'LangChain, CrewAI',
+      },
+    ]);
+
+    // The Task tool-call card itself is preserved at the top level.
+    expect(
+      parts.some((p) => p.type === 'tool-call' && p.toolName === 'Task'),
+    ).toBe(true);
+    // Main-agent text bookends survive.
+    expect(parts[0]).toEqual({ type: 'text', text: "I'll research that." });
+    expect(parts[parts.length - 1]).toEqual({
+      type: 'text',
+      text: 'Summary above.',
+    });
+  });
+
+  it('falls back to the last sub-agent text when the Task result is empty', () => {
+    const events = subAgentTurn();
+    // Blank the Task tool-result content.
+    const idx = events.findIndex(
+      (e) => e.type === 'tool-result' && e.toolUseId === 'task1',
+    );
+    events[idx] = {
+      type: 'tool-result',
+      toolUseId: 'task1',
+      output: '',
+      isError: false,
+    };
+    const parts = buildAssistantContent(events, 'Summary above.') as Array<
+      Record<string, unknown>
+    >;
+    const taskResult = parts.find(
+      (p) => p.type === 'tool-result' && p.toolCallId === 'task1',
+    ) as { output: { value: { report: string } } };
+    expect(taskResult.output.value.report).toBe(
+      '## Report\n\nLangChain leads.',
+    );
+  });
+
+  it('resolves a cross-seam sub-agent result via the knownToolParents seed', () => {
+    // The Task tool-use + WebSearch tool-use happened in a PRIOR segment; this
+    // segment only sees the sub-agent's tool-result. The seed maps it to its
+    // top-level Task so it still folds (not a bare top-level card).
+    const events: AgentEvent[] = [
+      {
+        type: 'tool-result',
+        toolUseId: 'ws1',
+        output: 'late result',
+        isError: false,
+        parentToolUseId: 'task1',
+      },
+      {
+        type: 'tool-result',
+        toolUseId: 'task1',
+        output: 'final report',
+        isError: false,
+      },
+    ];
+    const parts = buildAssistantContent(
+      events,
+      '',
+      new Map([['ws1', 'WebSearch']]),
+      new Map([['ws1', 'task1']]),
+    ) as Array<Record<string, unknown>>;
+    // No top-level card for the sub-agent result.
+    expect(parts.some((p) => p.toolCallId === 'ws1')).toBe(false);
+    const taskResult = parts.find((p) => p.toolCallId === 'task1') as {
+      output: {
+        type: string;
+        value: { steps: Array<{ toolName: string; output: string }> };
+      };
+    };
+    expect(taskResult.output.type).toBe('json');
+    expect(taskResult.output.value.steps).toEqual([
+      { toolName: 'WebSearch', output: 'late result' },
+    ]);
+  });
+
+  it('caps a runaway Task step list and records the dropped count', () => {
+    const events: AgentEvent[] = [
+      { type: 'tool-use', toolUseId: 'task1', toolName: 'Task', input: {} },
+    ];
+    // Many fat sub-agent steps to blow past MAX_SUBSTEPS_BYTES (200 KB).
+    for (let i = 0; i < 400; i++) {
+      events.push({
+        type: 'tool-use',
+        toolUseId: `s${i}`,
+        toolName: 'WebFetch',
+        input: { url: `https://x/${i}` },
+        parentToolUseId: 'task1',
+      });
+      events.push({
+        type: 'tool-result',
+        toolUseId: `s${i}`,
+        output: 'z'.repeat(2_000),
+        isError: false,
+        parentToolUseId: 'task1',
+      });
+    }
+    events.push({
+      type: 'tool-result',
+      toolUseId: 'task1',
+      output: 'report',
+      isError: false,
+    });
+    const parts = buildAssistantContent(events, '') as Array<
+      Record<string, unknown>
+    >;
+    const taskResult = parts.find(
+      (p) => p.type === 'tool-result' && p.toolCallId === 'task1',
+    ) as {
+      output: { value: { steps: unknown[]; truncatedSteps?: number } };
+    };
+    expect(taskResult.output.value.truncatedSteps).toBeGreaterThan(0);
+    expect(taskResult.output.value.steps.length).toBeLessThan(400);
+  });
+
+  it('is byte-identical to the pre-fold output for a pure main-agent turn', () => {
+    // No parentToolUseId anywhere → the folding pass is a no-op; the Task tool
+    // here has no sub-steps so it stays a plain text tool-result.
+    const events: AgentEvent[] = [
+      {
+        type: 'tool-use',
+        toolUseId: 'task1',
+        toolName: 'Task',
+        input: { description: 'x' },
+      },
+      {
+        type: 'tool-result',
+        toolUseId: 'task1',
+        output: 'plain result',
+        isError: false,
+      },
+    ];
+    const parts = buildAssistantContent(events, 'done') as Array<
+      Record<string, unknown>
+    >;
+    expect(
+      parts.find((p) => p.type === 'tool-result' && p.toolCallId === 'task1'),
+    ).toMatchObject({
+      type: 'tool-result',
+      output: { type: 'text', value: 'plain result' },
+    });
+  });
+});
+
 describe('estimateContentBytes (S4 segmentation guard)', () => {
   it('measures a plain string by UTF-8 byte length, not char count', () => {
     expect(estimateContentBytes('abc')).toBe(3);
