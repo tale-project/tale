@@ -45,42 +45,16 @@ describe('ExternalAgentLiveTimeline', () => {
     expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
   });
 
-  it('renders only the placeholder when placeholderOnly is set (mid-turn steer)', () => {
-    mockedUseSessionProgress.mockReturnValue(runningProgress);
-
-    render(
-      <ExternalAgentLiveTimeline
-        threadId="thread-1"
-        phase="thinking"
-        placeholderOnly
-      />,
-    );
-
-    expect(screen.getByTestId('thinking')).toBeInTheDocument();
-    expect(screen.queryByTestId('thought-header')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('tool-row')).not.toBeInTheDocument();
-    // The subscription stays live even in placeholder mode — the op's
-    // lastEventAt drives the placeholder's honest-silence label.
-    expect(mockedUseSessionProgress).toHaveBeenCalledWith('thread-1');
-    expect(screen.getByTestId('thinking').dataset['lastEventAt']).toBe(
-      String(runningProgress.lastEventAt),
-    );
-  });
-
   it('anchors the silence signal on startedAt before the first event', () => {
     const { lastEventAt: _omitted, ...withoutLastEvent } = runningProgress;
+    // No events yet → no thought segments → falls back to the placeholder,
+    // whose honest-silence label anchors on startedAt.
     mockedUseSessionProgress.mockReturnValue({
       ...withoutLastEvent,
       recentEvents: [],
     });
 
-    render(
-      <ExternalAgentLiveTimeline
-        threadId="thread-1"
-        phase="thinking"
-        placeholderOnly
-      />,
-    );
+    render(<ExternalAgentLiveTimeline threadId="thread-1" phase="thinking" />);
 
     expect(screen.getByTestId('thinking').dataset['lastEventAt']).toBe(
       String(runningProgress.startedAt),

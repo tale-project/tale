@@ -963,10 +963,8 @@
       "full": "La file d'attente des messages est pleine",
       "alreadyPickedUp": "L'agent a déjà pris ce message en compte",
       "deleteFailed": "Impossible de retirer le message en attente",
-      "badgeQueued": "En attente",
-      "badgeSending": "Envoi…",
+      "pendingCount": "{count, plural, one {# message en attente} other {# messages en attente}}",
       "badgeDelivered": "En attente de l'agent",
-      "badgePickedUp": "Pris en compte",
       "deleteQueued": "Retirer le message en attente"
     },
     "errorGenerating": "Une erreur s'est produite",

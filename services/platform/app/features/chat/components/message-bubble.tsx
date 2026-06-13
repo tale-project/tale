@@ -15,7 +15,6 @@ import {
   RotateCcw,
   Square,
   Volume2,
-  X,
 } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
@@ -97,16 +96,6 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   onSavePrompt?: (messageId: string, content: string) => void;
   onUnsavePrompt?: (messageId: string) => void;
   isSavedPrompt?: boolean;
-  /**
-   * Queue mode (external-agent threads): delivery state of a user message
-   * sent while a turn was running. Renders a pill under the bubble —
-   * 'queued' (waiting, deletable), 'claimed' (next turn starting),
-   * 'delivered'/'consumed' (handed to / picked up by the running agent).
-   * Undefined for normal messages.
-   */
-  queuedStatus?: 'queued' | 'claimed' | 'delivered' | 'consumed';
-  /** Delete this still-queued message (only passed while status='queued'). */
-  onDeleteQueued?: () => void;
   /** Extra content rendered in the user message toolbar (e.g. BranchNavigator). */
   toolbarExtra?: React.ReactNode;
   /**
@@ -202,8 +191,6 @@ function MessageBubbleComponent({
   onSavePrompt,
   onUnsavePrompt,
   isSavedPrompt,
-  queuedStatus,
-  onDeleteQueued,
   toolbarExtra,
   isLastAssistantMessage = false,
   isFreshSinceMount = false,
@@ -857,29 +844,6 @@ function MessageBubbleComponent({
                 >
                   {isExpanded ? tChat('showLess') : tChat('showMore')}
                 </button>
-              </div>
-            )}
-            {isUser && queuedStatus && (
-              <div className="mt-1 flex items-center justify-end gap-1.5">
-                <span className="bg-muted text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs">
-                  {queuedStatus === 'queued'
-                    ? tChat('queue.badgeQueued')
-                    : queuedStatus === 'claimed'
-                      ? tChat('queue.badgeSending')
-                      : queuedStatus === 'delivered'
-                        ? tChat('queue.badgeDelivered')
-                        : tChat('queue.badgePickedUp')}
-                </span>
-                {queuedStatus === 'queued' && onDeleteQueued && (
-                  <button
-                    type="button"
-                    onClick={onDeleteQueued}
-                    aria-label={tChat('queue.deleteQueued')}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
               </div>
             )}
             {message.isFailed && (

@@ -962,10 +962,8 @@
       "full": "Die Nachrichten-Warteschlange ist voll",
       "alreadyPickedUp": "Der Agent hat diese Nachricht bereits übernommen",
       "deleteFailed": "Eingereihte Nachricht konnte nicht entfernt werden",
-      "badgeQueued": "Eingereiht",
-      "badgeSending": "Wird gesendet…",
+      "pendingCount": "{count, plural, one {# Nachricht eingereiht} other {# Nachrichten eingereiht}}",
       "badgeDelivered": "Wartet auf den Agenten",
-      "badgePickedUp": "Übernommen",
       "deleteQueued": "Eingereihte Nachricht entfernen"
     },
     "errorGenerating": "Etwas ist schiefgelaufen",

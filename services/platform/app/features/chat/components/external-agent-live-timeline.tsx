@@ -26,14 +26,6 @@ interface ExternalAgentLiveTimelineProps {
   phase: 'routing' | 'thinking';
   routedAgentName?: string;
   routeReason?: RouteReason;
-  /** Mid-turn steer (external-agent queue mode): the running turn's live
-   *  timeline is already rendering inside the still-streaming assistant
-   *  bubble ABOVE the queued user message, so rendering it here too would
-   *  duplicate that turn's activity below the steer and visibly "jump"
-   *  upward at the seam. When true, skip the running-timeline branch and
-   *  render only the placeholder (the session-op subscription stays — its
-   *  lastEventAt drives the placeholder's honest-silence label). */
-  placeholderOnly?: boolean;
 }
 
 /**
@@ -51,15 +43,14 @@ export function ExternalAgentLiveTimeline({
   phase,
   routedAgentName,
   routeReason,
-  placeholderOnly,
 }: ExternalAgentLiveTimelineProps) {
   const progress = useSessionProgress(threadId);
   const parts = useMemo(
     () =>
-      !placeholderOnly && progress?.status === 'running'
+      progress?.status === 'running'
         ? buildExternalAgentParts(progress.recentEvents)
         : [],
-    [placeholderOnly, progress?.status, progress?.recentEvents],
+    [progress?.status, progress?.recentEvents],
   );
   const { segments, toolCount, skillCount, hasReasoning } = useMemo(
     () => buildMessageSegments(parts),
@@ -75,11 +66,7 @@ export function ExternalAgentLiveTimeline({
       ? (progress.lastEventAt ?? progress.startedAt)
       : undefined;
 
-  if (
-    !placeholderOnly &&
-    progress?.status === 'running' &&
-    thoughtSegments.length > 0
-  ) {
+  if (progress?.status === 'running' && thoughtSegments.length > 0) {
     return (
       <div className="px-4 py-3">
         <MessageThoughtHeader

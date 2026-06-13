@@ -962,10 +962,8 @@
       "full": "Message queue is full",
       "alreadyPickedUp": "The agent already picked this message up",
       "deleteFailed": "Could not remove the queued message",
-      "badgeQueued": "Queued",
-      "badgeSending": "Sending…",
+      "pendingCount": "{count, plural, one {# message queued} other {# messages queued}}",
       "badgeDelivered": "Waiting for agent",
-      "badgePickedUp": "Picked up",
       "deleteQueued": "Remove queued message"
     },
     "errorGenerating": "Something went wrong",

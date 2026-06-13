@@ -37,11 +37,24 @@ vi.mock('../_generated/server', async (importOriginal) => {
     ...mod,
     internalMutation: (config: Record<string, unknown>) => config,
     internalQuery: (config: Record<string, unknown>) => config,
+    query: (config: Record<string, unknown>) => config,
+    mutation: (config: Record<string, unknown>) => config,
   };
 });
 
+// Public query/mutation handlers gate on auth + thread access; convexTest can't
+// register betterAuth, so stub both to a fixed authorized user (see
+// reference_convextest_components memory). Handlers are then callable directly.
+vi.mock('../lib/rls/auth/get_auth_user_identity', () => ({
+  getAuthUserIdentity: vi.fn().mockResolvedValue({ userId: 'user_1' }),
+}));
+vi.mock('../lib/rls/auth/can_access_thread', () => ({
+  canAccessThread: vi.fn().mockResolvedValue({ _id: 'meta_1' }),
+}));
+
 import {
   listDeliveredForExec,
+  listQueuedMessages,
   markConsumed,
   markDelivered,
   markStdinRedelivered,
@@ -543,5 +556,30 @@ describe('delivery channel stamping', () => {
     expect(m1?.deliveredChannel).toBeUndefined();
     expect(m1?.deliveredExecId).toBeUndefined();
     expect(m2?.status).toBe('consumed');
+  });
+});
+
+describe('listQueuedMessages', () => {
+  const listQueuedMessagesHandler = (
+    listQueuedMessages as unknown as MutationDef<
+      { threadId: string; organizationId?: string },
+      Array<{ messageId: string; text: string; createdAt: number }>
+    >
+  ).handler;
+
+  it('returns the message text and sorts by createdAt (send order)', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({ messageId: 'm3', text: 'third', createdAt: 30 }),
+        queueRow({ messageId: 'm1', text: 'first', createdAt: 10 }),
+        queueRow({ messageId: 'm2', text: 'second', createdAt: 20 }),
+      ],
+    };
+    const { ctx } = makeCtx(tables);
+    const result = await listQueuedMessagesHandler(ctx, {
+      threadId: 'thread_1',
+    });
+    expect(result.map((r) => r.messageId)).toEqual(['m1', 'm2', 'm3']);
+    expect(result.map((r) => r.text)).toEqual(['first', 'second', 'third']);
   });
 });

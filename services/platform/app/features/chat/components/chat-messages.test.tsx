@@ -38,20 +38,13 @@ vi.mock('./thought-timeline', () => ({
   ThinkingIndicator: () => <div data-testid="thinking" />,
 }));
 
-// Probe: the footer fix is about WHICH variant the live timeline renders, so
-// capture the placeholderOnly prop instead of pulling in the real component
-// (whose session-op subscription the test environment can't satisfy).
+// Probe: the footer fix is about WHETHER the live timeline renders at all, so
+// stub it to a marker div (its session-op subscription the test environment
+// can't satisfy). A still-streaming assistant ABOVE the last user message means
+// that message is a mid-turn steer the running turn already owns, so the footer
+// is suppressed entirely (the bubble above carries the indicator).
 vi.mock('./external-agent-live-timeline', () => ({
-  ExternalAgentLiveTimeline: ({
-    placeholderOnly,
-  }: {
-    placeholderOnly?: boolean;
-  }) => (
-    <div
-      data-testid="live-footer"
-      data-placeholder-only={String(placeholderOnly === true)}
-    />
-  ),
+  ExternalAgentLiveTimeline: () => <div data-testid="live-footer" />,
 }));
 
 vi.mock('./approval-card-renderer', () => ({
@@ -215,10 +208,7 @@ describe('ChatMessages', () => {
         <ChatMessages {...defaultProps} isLoading items={[toItem(user1())]} />,
       );
 
-      expect(screen.getByTestId('live-footer')).toHaveAttribute(
-        'data-placeholder-only',
-        'false',
-      );
+      expect(screen.getByTestId('live-footer')).toBeInTheDocument();
     });
 
     it('suppresses the live timeline when a streaming assistant sits above the last user message', () => {
@@ -237,10 +227,7 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.getByTestId('live-footer')).toHaveAttribute(
-        'data-placeholder-only',
-        'true',
-      );
+      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
     });
 
     it('suppresses for an EMPTY streaming shell above (not yet painted)', () => {
@@ -259,10 +246,7 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.getByTestId('live-footer')).toHaveAttribute(
-        'data-placeholder-only',
-        'true',
-      );
+      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
     });
 
     it('does NOT suppress when the assistant above already completed', () => {
@@ -280,10 +264,7 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.getByTestId('live-footer')).toHaveAttribute(
-        'data-placeholder-only',
-        'false',
-      );
+      expect(screen.getByTestId('live-footer')).toBeInTheDocument();
     });
 
     it('suppresses across multiple queued steers (users in between are skipped)', () => {
@@ -312,10 +293,7 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.getByTestId('live-footer')).toHaveAttribute(
-        'data-placeholder-only',
-        'true',
-      );
+      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
     });
 
     it('unmounts the footer once the fresh post-seam bubble paints below the steer', () => {

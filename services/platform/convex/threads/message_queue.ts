@@ -531,6 +531,7 @@ export const listQueuedMessages = query({
     v.object({
       queueId: v.id('chatMessageQueue'),
       messageId: v.string(),
+      text: v.string(),
       status: v.union(
         v.literal('queued'),
         v.literal('claimed'),
@@ -555,9 +556,13 @@ export const listQueuedMessages = query({
       .query('chatMessageQueue')
       .withIndex('by_threadId_status', (q) => q.eq('threadId', args.threadId))
       .collect();
+    // Send order: the strip renders these in the order the user typed them.
+    // The index is keyed on (threadId, status), so the collect is unordered.
+    rows.sort((a, b) => a.createdAt - b.createdAt);
     return rows.map((r) => ({
       queueId: r._id,
       messageId: r.messageId,
+      text: r.text,
       status: r.status,
       createdAt: r.createdAt,
     }));

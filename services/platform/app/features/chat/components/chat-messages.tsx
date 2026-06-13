@@ -201,15 +201,6 @@ interface ChatMessagesProps {
   onUnsavePrompt?: (messageId: string) => void;
   /** Map of messageId → promptId for messages that have been saved as prompts. */
   savedMessageMap?: Map<string, string>;
-  /** Queue mode (external-agent threads): messageId → queue row state for
-   *  user messages sent while a turn was running. Drives the bubble pill +
-   *  delete affordance. */
-  queuedMessageMap?: Map<
-    string,
-    { queueId: string; status: 'queued' | 'claimed' | 'delivered' | 'consumed' }
-  >;
-  /** Delete a still-queued message (bubble X) before the agent picks it up. */
-  onDeleteQueuedMessage?: (messageId: string) => void;
   onRetry?: () => void;
   /** Regenerate a specific assistant message as a new branch (3-dots menu). */
   onRegenerate?: (messageId: string) => void;
@@ -263,8 +254,6 @@ export const ChatMessages = memo(function ChatMessages({
   onSavePrompt,
   onUnsavePrompt,
   savedMessageMap,
-  queuedMessageMap,
-  onDeleteQueuedMessage,
   onRetry,
   onRegenerate,
   editingMessageId,
@@ -740,18 +729,6 @@ export const ChatMessages = memo(function ChatMessages({
                   ? savedMessageMap.has(message.id)
                   : false
               }
-              queuedStatus={
-                isUserMessage
-                  ? queuedMessageMap?.get(message.id)?.status
-                  : undefined
-              }
-              onDeleteQueued={
-                isUserMessage &&
-                onDeleteQueuedMessage &&
-                queuedMessageMap?.get(message.id)?.status === 'queued'
-                  ? () => onDeleteQueuedMessage(message.id)
-                  : undefined
-              }
               isLastAssistantMessage={
                 !isUserMessage && message.key === lastAssistantMessageKey
               }
@@ -927,7 +904,15 @@ export const ChatMessages = memo(function ChatMessages({
     lastUserMessageKey?.startsWith('pending-') ?? false;
   const responseFooterLive =
     (isLoading || lastUserIsPendingOptimistic) &&
-    !hasRenderableAssistantResponse ? (
+    !hasRenderableAssistantResponse &&
+    // A still-streaming assistant ABOVE the last user message means that user
+    // message is a mid-turn steer that the running turn already absorbed (a
+    // just-revealed `consumed` queue message), and the live activity is shown
+    // in that bubble above. Rendering a gap-shell below it would flash a
+    // misleading "Thinking · Ns" anchored to the FULL turn's start until the
+    // seam's reply bubble paints — so suppress it; the bubble above owns the
+    // indicator.
+    !streamingAssistantAboveLastUser ? (
       // For external-agent (Claude Code / OpenCode) turns this swaps the bare
       // placeholder for a live tool-use timeline driven by the thread's sandbox
       // session op; it falls back to the same ThinkingIndicator for normal chat.
@@ -937,7 +922,6 @@ export const ChatMessages = memo(function ChatMessages({
         routedAgentName={liveRoute?.agentName}
         routeReason={liveRoute?.reason}
         turnStartMs={generationStartMs ?? undefined}
-        placeholderOnly={streamingAssistantAboveLastUser}
       />
     ) : null;
   // Approval cards own internal live regions for their executing/error
