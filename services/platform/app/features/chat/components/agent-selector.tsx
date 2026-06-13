@@ -4,7 +4,7 @@ import { Button } from '@tale/ui/button';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Bot, ChevronDown, Plus, SlidersHorizontal } from 'lucide-react';
+import { Bot, Box, ChevronDown, Plus, SlidersHorizontal } from 'lucide-react';
 import { memo, type ReactNode, useCallback, useMemo, useState } from 'react';
 
 import {
@@ -74,6 +74,11 @@ export const AgentSelector = memo(function AgentSelector({
         const missingTitle = missing[0]
           ? (readiness.titleBySlug.get(missing[0]) ?? missing[0])
           : undefined;
+        // External agents (Claude Code / OpenCode) run in a sandbox VM — mark
+        // them in the picker so the user knows which agents are sandboxed
+        // before selecting one. The missing-integration hint takes priority
+        // (more actionable); both share the single labelBadge slot.
+        const isExternalAgent = agent.primaryBehavior === 'external-agent';
         return {
           value: agent.name,
           label: agent.displayName,
@@ -86,6 +91,11 @@ export const AgentSelector = memo(function AgentSelector({
           labelBadge: missingTitle ? (
             <span className="text-muted-foreground text-xs">
               {tComposer('requiresIntegration', { name: missingTitle })}
+            </span>
+          ) : isExternalAgent ? (
+            <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+              <Box className="size-3" aria-hidden="true" />
+              {t('sandbox.label')}
             </span>
           ) : undefined,
           ready: missing.length === 0,
