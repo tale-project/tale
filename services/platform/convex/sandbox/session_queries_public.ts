@@ -142,9 +142,17 @@ export const listSandboxesForOrg = query({
       } | null = null;
       let busy = false;
       let currentRunning = false;
+      // Cumulative spend across every task this sandbox incarnation has run.
+      // There's one op row per turn, each carrying that turn's full VK spend
+      // (seam writes overwrite within a turn, never accumulate), so the sum is
+      // the sandbox's lifetime spend — usageLedger isn't session-keyed, so this
+      // is the only per-sandbox source. Non-`agent-run` ops have no spentCents
+      // → contribute 0.
+      let totalSpentCents = 0;
       for await (const op of ctx.db
         .query('sandboxSessionOps')
         .withIndex('by_sessionId', (q) => q.eq('sessionId', s.sessionId))) {
+        totalSpentCents += op.spentCents ?? 0;
         // A finalized op is done even if its status was never flipped off
         // 'running' (the recovery/error paths set finalizedAt + revoke the VK
         // but leave status as-is). Treat finalizedAt as the authoritative
@@ -194,6 +202,7 @@ export const listSandboxesForOrg = query({
         expiresAt: s.expiresAt,
         lastActivityAt: s.lastActivityAt ?? null,
         busy,
+        totalSpentCents,
         currentOp: current,
       });
     }

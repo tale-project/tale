@@ -1,5 +1,4 @@
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { FunctionReturnType } from 'convex/server';
@@ -9,6 +8,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
@@ -157,7 +157,10 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {
         id: 'spend',
         header: t('columns.spend'),
-        cell: ({ row }) => formatCents(row.original.currentOp?.spentCents),
+        // Cumulative spend across every task this sandbox has run. `|| undefined`
+        // renders a never-billed sandbox as "—" rather than a misleading $0.00.
+        cell: ({ row }) =>
+          formatCents(row.original.totalSpentCents || undefined),
       },
       {
         accessorKey: 'createdAt',
@@ -171,61 +174,56 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           const s = row.original;
           const busy = pendingId === s.sessionId;
           return (
-            <div className="flex justify-end gap-1">
-              {s.busy && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(
-                      s.sessionId,
-                      () =>
-                        stop.mutateAsync({
-                          organizationId,
-                          sessionId: s.sessionId,
-                        }),
-                      'toast.stopped',
-                    )
-                  }
-                >
-                  <Square className="size-4" />
-                  {t('actions.stop')}
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                onClick={() =>
-                  void run(
-                    s.sessionId,
-                    () =>
-                      setPinned.mutateAsync({
-                        organizationId,
-                        sessionId: s.sessionId,
-                        pinned: !s.pinned,
-                      }),
-                    s.pinned ? 'toast.unpinned' : 'toast.pinned',
-                  )
-                }
-              >
-                {s.pinned ? (
-                  <PinOff className="size-4" />
-                ) : (
-                  <Pin className="size-4" />
-                )}
-                {s.pinned ? t('actions.unpin') : t('actions.pin')}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                onClick={() => setConfirmDestroy(s.sessionId)}
-              >
-                <Trash2 className="size-4" />
-                {t('actions.destroy')}
-              </Button>
+            <div className="flex justify-end">
+              <EntityRowActions
+                actions={[
+                  {
+                    key: 'stop',
+                    label: t('actions.stop'),
+                    icon: Square,
+                    // Stop only applies to a sandbox running a task.
+                    visible: s.busy,
+                    disabled: busy,
+                    onClick: () =>
+                      void run(
+                        s.sessionId,
+                        () =>
+                          stop.mutateAsync({
+                            organizationId,
+                            sessionId: s.sessionId,
+                          }),
+                        'toast.stopped',
+                      ),
+                  },
+                  {
+                    key: 'pin',
+                    label: s.pinned ? t('actions.unpin') : t('actions.pin'),
+                    icon: s.pinned ? PinOff : Pin,
+                    disabled: busy,
+                    onClick: () =>
+                      void run(
+                        s.sessionId,
+                        () =>
+                          setPinned.mutateAsync({
+                            organizationId,
+                            sessionId: s.sessionId,
+                            pinned: !s.pinned,
+                          }),
+                        s.pinned ? 'toast.unpinned' : 'toast.pinned',
+                      ),
+                  },
+                  {
+                    key: 'destroy',
+                    label: t('actions.destroy'),
+                    icon: Trash2,
+                    // Auto-gets a separator above it; the confirm dialog below
+                    // gates the actual teardown.
+                    destructive: true,
+                    disabled: busy,
+                    onClick: () => setConfirmDestroy(s.sessionId),
+                  },
+                ]}
+              />
             </div>
           );
         },

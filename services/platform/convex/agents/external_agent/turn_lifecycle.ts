@@ -142,6 +142,27 @@ export async function finalizeTurnSideEffects(
           },
         );
       }
+      // Mirror the same polled spend onto the op row so the management page's
+      // cumulative Spend column reflects this turn — the seam writes only cover
+      // multi-segment turns; a single-segment turn lands its spend here. Same
+      // `> 0` guard as the ledger write above (never stamp a misleading $0.00
+      // before Bifrost has aggregated). Own try/catch so a stamp failure can't
+      // block the VK revoke below.
+      const finalSpendCents = costCents ?? 0;
+      if (finalSpendCents > 0) {
+        try {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.recordSessionOpSpend,
+            {
+              sessionId: turn.sessionId,
+              execId: turn.execId,
+              spentCents: finalSpendCents,
+            },
+          );
+        } catch (spendErr) {
+          console.warn('[finalizeTurn] op spend stamp failed:', spendErr);
+        }
+      }
     } catch (usageErr) {
       console.warn('[finalizeTurn] usage sync failed:', usageErr);
     }

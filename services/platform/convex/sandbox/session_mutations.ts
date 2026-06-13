@@ -492,6 +492,34 @@ export const claimSessionOpFinalize = internalMutation({
 });
 
 /**
+ * Stamp the final in-task LLM spend (cents) on a turn's op row at terminal
+ * finalize. Separate from `upsertSessionOp` because that forces a `status` and
+ * re-stamps `finishedAt`; here we patch ONLY `spentCents`. Called once per turn
+ * by the exactly-once finalize winner (after it polls the VK), so the
+ * management page's cumulative Spend column reflects single-segment turns that
+ * never hit a continuation seam. No-ops silently if the op row was reaped
+ * between the finalize claim and the spend poll.
+ */
+export const recordSessionOpSpend = internalMutation({
+  args: {
+    sessionId: v.string(),
+    execId: v.string(),
+    spentCents: v.number(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.execId !== args.execId) continue;
+      await ctx.db.patch(row._id, { spentCents: args.spentCents });
+      return true;
+    }
+    return false; // row gone → no-op
+  },
+});
+
+/**
  * @deprecated Kept callable for the deploy window only: in-flight pre-deploy
  * drains still poll this per flush. New drains derive steer-pending from the
  * delivered queue rows and trip the seam at the OBSERVED injection instead
