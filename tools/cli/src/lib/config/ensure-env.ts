@@ -109,28 +109,6 @@ export function deriveDomainTls(input: {
   };
 }
 
-const OPENROUTER_KEY_PREFIX = 'sk-or-';
-
-async function warnIfInvalidKeyFormat(key: string): Promise<boolean> {
-  if (key.startsWith(OPENROUTER_KEY_PREFIX)) return true;
-
-  if (process.stdin.isTTY && process.stdout.isTTY) {
-    const { confirm } = await import('@inquirer/prompts');
-    logger.warn(
-      `This key does not start with "${OPENROUTER_KEY_PREFIX}", which is the expected format for OpenRouter API keys.`,
-    );
-    return await confirm({
-      message: 'Continue with this key anyway?',
-      default: true,
-    });
-  }
-
-  logger.warn(
-    `API key does not match expected OpenRouter format (prefix "${OPENROUTER_KEY_PREFIX}"). Proceeding anyway.`,
-  );
-  return true;
-}
-
 /** Parse a .env file into a key-value map (ignores comments and blank lines). */
 function parseEnvFile(content: string): Record<string, string> {
   const env: Record<string, string> = {};
@@ -153,7 +131,6 @@ interface EnvSetupOptions {
 interface EnvSetupResult {
   success: boolean;
   agePublicKey?: string;
-  openrouterKey?: string;
   /**
    * Set when `ensureEnv` filled in missing auto-gen secrets (most relevant:
    * `SANDBOX_TOKEN`) — so the deploy action can force-recreate the
@@ -517,8 +494,6 @@ function warnIfOpenrouterSecretMissing(deployDir: string): void {
 }
 
 async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
-  const { password } = await import('@inquirer/prompts');
-
   // Querying the Docker daemon can stall for a few seconds while it warms up
   // (common right after `tale setup` installs it); announce it so the run
   // doesn't look hung after the preceding step.
@@ -567,25 +542,6 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
   const { host, siteUrl, tlsMode, tlsEmail, mode } = await promptDomainAndTls();
 
   logger.blank();
-  logger.header('API Configuration');
-
-  const openrouterKey = await password({
-    message: 'Enter your OpenRouter API key (from https://openrouter.ai):',
-    mask: '*',
-    validate: (value) => {
-      if (!value.trim()) {
-        return 'OpenRouter API key is required';
-      }
-      return true;
-    },
-  });
-  const shouldContinue = await warnIfInvalidKeyFormat(openrouterKey);
-  if (!shouldContinue) {
-    logger.info('Aborted. Please re-run with a valid API key.');
-    return { success: false };
-  }
-
-  logger.blank();
   logger.step('Generating security secrets...');
 
   const dbPassword = generatePassword();
@@ -624,7 +580,6 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
   return {
     success: true,
     agePublicKey: ageKeypair.publicKey,
-    openrouterKey,
     mode,
   };
 }

@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
@@ -305,34 +305,6 @@ export async function init(options: InitOptions): Promise<InitResult> {
     logger.blank();
     const envResult = await ensureEnv({ deployDir: target });
     mode = envResult.mode;
-
-    // Persist the OpenRouter API key collected during env setup as a SOPS-
-    // encrypted file. `ensureEnv` always provisions a SOPS age keypair at
-    // init time, so `agePublicKey` is invariably present here. Operators who
-    // want plaintext-mode storage do so by clearing `SOPS_AGE_KEY` in .env
-    // after init and re-saving keys via Settings → AI providers; the
-    // encrypted-vs-plaintext mode is a runtime save-path decision, not an
-    // init-time choice.
-    if (envResult.openrouterKey && envResult.agePublicKey) {
-      const secretsPath = join(
-        target,
-        'default',
-        'providers',
-        'openrouter.secrets.json',
-      );
-      logger.step('Encrypting provider API key...');
-      const { sopsEncryptJson } = await import('../crypto/sops-encrypt');
-      const encrypted = await sopsEncryptJson(
-        { apiKey: envResult.openrouterKey },
-        envResult.agePublicKey,
-      );
-      // 0600: SOPS-encrypted, but least-privilege convention for any
-      // `*.secrets.*` file. Limits readability to the owner.
-      await writeFile(secretsPath, encrypted, { mode: 0o600 });
-      logger.success(
-        'Encrypted provider API key into default/providers/openrouter.secrets.json',
-      );
-    }
   }
 
   logger.blank();
@@ -350,26 +322,21 @@ export async function init(options: InitOptions): Promise<InitResult> {
   ]);
   logger.blank();
   const needsCd = resolve(process.cwd()) !== resolve(target);
+  const relTarget = relative(process.cwd(), target) || '.';
   let step = 1;
 
   logger.info('Next steps:');
   if (needsCd) {
-    logger.info(`  ${step++}. Run "cd ${target}" to enter your project`);
+    logger.info(`  ${step++}. cd ${relTarget}`);
   }
-  logger.info(
-    `  ${step++}. Edit the default/ template (agents, workflows, integrations, skills, branding) — it seeds every new organization you create`,
-  );
-  logger.info(
-    `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,
-  );
   // The same project is ready for both a local trial and a real deployment;
   // surface whichever the operator just chose as the obvious next command.
   if (mode === 'production') {
     logger.info(
-      `  ${step++}. Run "tale deploy" to launch the platform on your domain`,
+      `  ${step++}. tale deploy   (launch the platform on your domain)`,
     );
   } else {
-    logger.info(`  ${step++}. Run "tale start" to launch the platform locally`);
+    logger.info(`  ${step++}. tale start    (launch the platform locally)`);
   }
 
   return { status: 'initialized', mode };
