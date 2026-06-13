@@ -170,11 +170,6 @@ export function useEnqueueMessage() {
   return useConvexMutation(api.threads.message_queue.enqueueMessage);
 }
 
-/** Delete a still-queued message (bubble X) before the agent picks it up. */
-export function useDeleteQueuedMessage() {
-  return useConvexMutation(api.threads.message_queue.deleteQueuedMessage);
-}
-
 export function useShareThread() {
   return useConvexMutation(api.threads.mutations.shareThread);
 }

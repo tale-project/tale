@@ -959,12 +959,7 @@
     "generationStopped": "Generation stopped",
     "queue": {
       "placeholder": "The agent is working — new messages are queued for it…",
-      "full": "Message queue is full",
-      "alreadyPickedUp": "The agent already picked this message up",
-      "deleteFailed": "Could not remove the queued message",
-      "pendingCount": "{count, plural, one {# message queued} other {# messages queued}}",
-      "badgeDelivered": "Waiting for agent",
-      "deleteQueued": "Remove queued message"
+      "full": "Message queue is full"
     },
     "errorGenerating": "Something went wrong",
     "retryGeneration": "Try again",

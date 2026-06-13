@@ -959,12 +959,7 @@
     "generationStopped": "Generierung gestoppt",
     "queue": {
       "placeholder": "Der Agent arbeitet — neue Nachrichten werden für ihn eingereiht…",
-      "full": "Die Nachrichten-Warteschlange ist voll",
-      "alreadyPickedUp": "Der Agent hat diese Nachricht bereits übernommen",
-      "deleteFailed": "Eingereihte Nachricht konnte nicht entfernt werden",
-      "pendingCount": "{count, plural, one {# Nachricht eingereiht} other {# Nachrichten eingereiht}}",
-      "badgeDelivered": "Wartet auf den Agenten",
-      "deleteQueued": "Eingereihte Nachricht entfernen"
+      "full": "Die Nachrichten-Warteschlange ist voll"
     },
     "errorGenerating": "Etwas ist schiefgelaufen",
     "retryGeneration": "Erneut versuchen",

@@ -35,7 +35,6 @@ import { useListProviders } from '../../settings/providers/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
 import {
-  useDeleteQueuedMessage,
   useEditAndBranch,
   useEnqueueMessage,
   useForkOwnThread,
@@ -73,7 +72,6 @@ import { useThreadApprovals } from '../hooks/use-thread-approvals';
 import { useThreadImages } from '../hooks/use-thread-images';
 import { useUserContext } from '../hooks/use-user-context';
 import type { FileAttachment } from '../types';
-import { filterVisibleMessages } from '../utils/filter-visible-messages';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { ChatInput } from './chat-input';
@@ -82,10 +80,6 @@ import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { ChatMessagesSkeleton } from './chat-messages-skeleton';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
-import {
-  PendingQueueStrip,
-  type PendingQueueItem,
-} from './pending-queue-strip';
 import { SelectionQuoteButton } from './selection-quote-button';
 import { WelcomeView } from './welcome-view';
 
@@ -406,66 +400,35 @@ export function ChatInterface({
   // new-chat remount. Null on idle threads (gated server-side on isGenerating).
   const generationStartMs = threadMeta?.generationStartTime ?? null;
 
-  // Queued-message rows for this external-agent thread. The timeline message is
-  // saved at enqueue, so each queued message is ALSO in `messages`; the
-  // still-waiting ones are hidden from the conversation (rendered in the
-  // pending-queue strip above the composer instead) and revealed inline only
-  // once the agent claims/consumes them. Skipped for non-external threads.
-  const { data: queuedMessages } = useConvexQuery(
-    api.threads.message_queue.listQueuedMessages,
-    isExternalAgentThread && dataThreadId
-      ? { threadId: dataThreadId, organizationId }
-      : 'skip',
-  );
-  // `undefined` => the subscription is still resolving (vs `[]` = no queue).
-  // The filter below distinguishes the two to avoid a refresh-time flash.
-  const queuedMessageMap = useMemo(() => {
-    if (queuedMessages === undefined) return undefined;
-    const map = new Map<
-      string,
-      {
-        queueId: Id<'chatMessageQueue'>;
-        status: 'queued' | 'claimed' | 'delivered' | 'consumed';
-        text: string;
-      }
-    >();
-    for (const q of queuedMessages) {
-      map.set(q.messageId, {
-        queueId: q.queueId,
-        status: q.status,
-        text: q.text,
-      });
-    }
-    return map;
-  }, [queuedMessages]);
-
-  // Hide queued/delivered follow-ups from the conversation (shown in the strip).
-  const visibleMessages = useMemo(
-    () =>
-      isExternalAgentThread
-        ? filterVisibleMessages(
-            messages,
-            queuedMessageMap,
-            isGenerating ?? false,
-          )
-        : messages,
-    [messages, queuedMessageMap, isExternalAgentThread, isGenerating],
-  );
-
-  // Pending-queue strip items: the still-waiting follow-ups, in send order
-  // (backend sorts by createdAt). Derived from the SAME queue snapshot as the
-  // hide-filter above, so the queued→claimed flip moves a message out of the
-  // strip and into the conversation in one consistent update.
-  const queueStripItems = useMemo(() => {
-    const items: PendingQueueItem[] = [];
-    for (const q of queuedMessages ?? []) {
-      // Control-flow narrows q.status to the strip's 'queued' | 'delivered'.
-      if (q.status === 'queued' || q.status === 'delivered') {
-        items.push({ queueId: q.queueId, status: q.status, text: q.text });
+  // A follow-up sent while a turn runs is steered into the running turn and
+  // renders inline immediately (saved at enqueue) — steering now picks it up
+  // fast enough that a separate "waiting" area is unnecessary. Its "Thinking · Ns"
+  // timer must count from when the user sent IT, not the whole turn's elapsed
+  // time: re-anchor to the latest current-turn follow-up's creation time. The
+  // initiating prompt is the first user message at/after the turn start (its
+  // save lags markGenerating, so it sorts after generationStartMs); any later
+  // one (count >= 2) is a follow-up. Fall back to the server turn-start (which
+  // includes the routing wait) for the first response. Completed bubbles latch
+  // their own durations / use stored durationMs, so this only resets the
+  // in-progress response's live timer.
+  const effectiveGenerationStartMs = useMemo(() => {
+    if (generationStartMs === null) return null;
+    let lastFollowUpMs: number | undefined;
+    let currentTurnUserCount = 0;
+    for (const msg of messages) {
+      if (
+        msg.role === 'user' &&
+        msg._creationTime !== undefined &&
+        msg._creationTime >= generationStartMs
+      ) {
+        currentTurnUserCount += 1;
+        lastFollowUpMs = msg._creationTime;
       }
     }
-    return items;
-  }, [queuedMessages]);
+    return currentTurnUserCount >= 2 && lastFollowUpMs !== undefined
+      ? lastFollowUpMs
+      : generationStartMs;
+  }, [generationStartMs, messages]);
 
   // Merge messages with approvals and human input requests
   const {
@@ -473,7 +436,7 @@ export function ChatInterface({
     activeApproval,
     activeApprovalInline,
   } = useMergedChatItems({
-    messages: visibleMessages,
+    messages,
     integrationApprovals,
     workflowCreationApprovals,
     workflowUpdateApprovals,
@@ -519,26 +482,6 @@ export function ChatInterface({
   const queueModeActive = isExternalAgentThread && (isGenerating ?? false);
 
   const { mutateAsync: enqueueMessage } = useEnqueueMessage();
-  const { mutateAsync: deleteQueuedMessage } = useDeleteQueuedMessage();
-
-  // Remove a still-queued follow-up from the pending strip. The backend only
-  // deletes rows still in `queued` (a claimed/delivered row is already on its
-  // way to the agent) — the `alreadyPickedUp` toast covers the race.
-  const handleRemoveQueued = useCallback(
-    (queueId: Id<'chatMessageQueue'>) => {
-      void deleteQueuedMessage({ queueId })
-        .then((result) => {
-          if (!result.deleted) {
-            toast({ title: t('queue.alreadyPickedUp') });
-          }
-        })
-        .catch((err: unknown) => {
-          console.error('[chat] deleteQueuedMessage failed:', err);
-          toast({ title: t('queue.deleteFailed'), variant: 'destructive' });
-        });
-    },
-    [deleteQueuedMessage, toast, t],
-  );
 
   // Hand off to the authoritative signal the moment it arrives: clear the
   // optimistic flag once the server reports generating, so a fast response
@@ -1176,7 +1119,7 @@ export function ChatInterface({
                 <ThreadMessageMetadataProvider
                   threadId={dataThreadId ?? null}
                   liveRoute={liveRoute ?? null}
-                  generationStartMs={generationStartMs}
+                  generationStartMs={effectiveGenerationStartMs}
                 >
                   <ChatMessages
                     items={itemsForRender}
@@ -1189,7 +1132,7 @@ export function ChatInterface({
                     isSendPending={isSendPending}
                     isAutoRoute={isAutoRoute}
                     liveRoute={liveRoute}
-                    generationStartMs={generationStartMs}
+                    generationStartMs={effectiveGenerationStartMs}
                     lastUserMessageRef={lastUserMessageRef}
                     containerRef={containerRef}
                     activeApproval={activeApproval}
@@ -1314,14 +1257,6 @@ export function ChatInterface({
                     threadImages={threadImages}
                     currentModelSupportsEdit={currentModelSupportsEdit}
                     currentModelLabel={currentModelLabel}
-                  />
-                </div>
-              )}
-              {queueStripItems.length > 0 && (
-                <div className="mx-auto w-full max-w-(--chat-max-width)">
-                  <PendingQueueStrip
-                    items={queueStripItems}
-                    onRemove={handleRemoveQueued}
                   />
                 </div>
               )}
