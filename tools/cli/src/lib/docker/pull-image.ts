@@ -1,12 +1,31 @@
-import * as logger from '../../utils/logger';
-import { docker } from './docker';
+import * as defaultLogger from '../../utils/logger';
+import { docker as defaultDocker } from './docker';
 
 function isManifestNotFound(stderr: string): boolean {
   const lower = stderr.toLowerCase();
   return lower.includes('not found') || lower.includes('manifest unknown');
 }
 
-export async function pullImage(image: string): Promise<boolean> {
+/**
+ * Side-effecting dependencies, injectable so the unit test can pass fakes
+ * instead of reaching for `mock.module`. Bun's `mock.module` is process-global
+ * and is not reset between files, so mocking the shared `docker`/`logger`
+ * modules here is order-fragile across the suite — it surfaced as Windows-only
+ * failures once sibling test files shifted the file-evaluation order. Plain DI
+ * keeps the test hermetic; production callers still invoke `pullImage(image)`.
+ */
+interface PullImageDeps {
+  docker: typeof defaultDocker;
+  logger: Pick<typeof defaultLogger, 'info' | 'error' | 'warn'>;
+}
+
+export async function pullImage(
+  image: string,
+  { docker, logger }: PullImageDeps = {
+    docker: defaultDocker,
+    logger: defaultLogger,
+  },
+): Promise<boolean> {
   logger.info(`Pulling image: ${image}`);
   try {
     const result = await docker('pull', image);
