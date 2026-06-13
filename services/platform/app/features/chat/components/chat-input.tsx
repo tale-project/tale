@@ -55,6 +55,7 @@ import { KbMentionPopover } from './kb-mention-popover';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { QuotedReferenceChip } from './quoted-reference-chip';
+import { SandboxStateIndicator } from './sandbox-state-indicator';
 import { SavePromptMenu } from './save-prompt-menu';
 import { VideoLinkChip } from './video-link-chip';
 import { VoiceModeToggle } from './voice-mode-toggle';
@@ -1235,6 +1236,10 @@ export function ChatInput({
                       threadId={threadId}
                       organizationId={organizationId}
                       disabled={attachDisabled}
+                    />
+                    <SandboxStateIndicator
+                      threadId={threadId}
+                      organizationId={organizationId}
                     />
                   </HStack>
                 ))}

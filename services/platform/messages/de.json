@@ -987,6 +987,23 @@
       "actTooltip": "Ausführungsmodus: Der Agent setzt deine Anweisungen direkt um",
       "toggleFailed": "Modus konnte nicht gewechselt werden"
     },
+    "sandbox": {
+      "label": "Sandbox",
+      "tooltip": "Läuft in einer isolierten Sandbox-VM mit eigenem dauerhaftem Arbeitsbereich — sie kann echte Befehle ausführen und Pakete installieren, sicher von deinem Computer getrennt.",
+      "working": "Arbeitet",
+      "workingTooltip": "Der Agent führt gerade eine Aufgabe in seiner Sandbox aus.",
+      "sleeping": "Schläft",
+      "sleepingTooltip": "Die Sandbox schläft — deine Dateien sind gespeichert und sie wird mit deiner nächsten Nachricht aufgeweckt (dauert ein paar Sekunden).",
+      "starting": "Startet",
+      "startingTooltip": "Die Sandbox wird gestartet.",
+      "recovering": "Erholt sich",
+      "recoveringTooltip": "In der Sandbox ist ein Problem aufgetreten und sie wird wiederhergestellt — deine nächste Nachricht wird erneut versucht.",
+      "ready": "Bereit",
+      "readyTooltip": "Die Sandbox ist warm und bereit — deine nächste Nachricht startet sofort.",
+      "pinned": "Immer aktiv",
+      "pinnedTooltip": "Diese Sandbox ist angepinnt und bleibt immer aktiv.",
+      "ariaLabel": "Sandbox-Status"
+    },
     "searchConversations": "Konversationen durchsuchen",
     "invalidFiles": "Ungültige Dateien",
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrößenlimit von {maxSize} MB.",

@@ -988,6 +988,23 @@
       "actTooltip": "Mode exécution : l'agent applique directement tes instructions",
       "toggleFailed": "Impossible de changer de mode"
     },
+    "sandbox": {
+      "label": "Sandbox",
+      "tooltip": "S'exécute dans une VM sandbox isolée avec son propre espace de travail persistant — elle peut exécuter de vraies commandes et installer des paquets, à l'écart de ton ordinateur.",
+      "working": "En cours",
+      "workingTooltip": "L'agent exécute actuellement une tâche dans sa sandbox.",
+      "sleeping": "En veille",
+      "sleepingTooltip": "La sandbox est en veille — tes fichiers sont enregistrés et elle se réveille à ton prochain message (cela prend quelques secondes).",
+      "starting": "Démarrage",
+      "startingTooltip": "La sandbox démarre.",
+      "recovering": "Récupération",
+      "recoveringTooltip": "La sandbox a rencontré un problème et récupère — ton prochain message réessaiera.",
+      "ready": "Prête",
+      "readyTooltip": "La sandbox est chaude et prête — ton prochain message démarre instantanément.",
+      "pinned": "Toujours active",
+      "pinnedTooltip": "Cette sandbox est épinglée pour rester toujours active.",
+      "ariaLabel": "Statut de la sandbox"
+    },
     "searchConversations": "Rechercher dans les conversations",
     "invalidFiles": "Fichiers invalides",
     "fileSizeExceededMultiple": "{names} dépasse(nt) la limite de taille de fichier de {maxSize} Mo.",

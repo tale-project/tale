@@ -300,6 +300,20 @@ export function useSessionProgress(threadId: string | null | undefined) {
   return data ?? null;
 }
 
+/**
+ * The thread's live sandbox-session lifecycle state (creating/active/degraded/
+ * stopped + pinned), for the ambient "Sandbox" status pill. Null for normal
+ * chat threads or threads with no live sandbox. Composed with
+ * `useSessionProgress` (the live op) to show "Working" while a turn runs.
+ */
+export function useThreadSandboxState(threadId: string | null | undefined) {
+  const { data } = useConvexQuery(
+    api.sandbox.session_queries_public.getThreadSandboxState,
+    threadId ? { threadId } : 'skip',
+  );
+  return data ?? null;
+}
+
 export function useActiveApprovals(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.approvals.queries.listActiveApprovalsByOrganization,

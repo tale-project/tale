@@ -16,6 +16,7 @@ import type {
   BetterAuthFindManyResult,
   BetterAuthUser,
 } from '../members/types';
+import { userOwnerId } from './session_naming';
 import { isLiveSessionStatus } from './sessions_schema';
 
 /**
@@ -88,6 +89,78 @@ export const getActiveSessionOp = query({
       }
     }
     return latest;
+  },
+});
+
+/**
+ * The thread's live sandbox-session lifecycle state, for the ambient "Sandbox"
+ * status pill in the composer. Returns null when the caller can't access the
+ * thread or it has no live sandbox session (a normal chat thread, or one whose
+ * sandbox was destroyed). "Running" is NOT derived here — the pill composes
+ * this with `getActiveSessionOp` (the live op) client-side.
+ *
+ * Owner resolution MIRRORS run_external_agent.ts (the turn runtime): a sandbox
+ * is owned per (org, user) — `userOwnerId(org, userId)` — with a thread-owned
+ * fallback when there's no userId/org. Keying off the THREAD's userId (not the
+ * viewer's) means an org co-member who opened a shared thread sees the OWNER's
+ * sandbox state. That parity is intentional, not an oversight: `canAccessThread`
+ * already admits exactly that audience, and `getActiveSessionOp` above already
+ * exposes the higher-sensitivity live op (tool names, progress text) to them.
+ * These four lifecycle fields carry no sessionId / key / workspace content, so
+ * they're strictly less sensitive — not a new disclosure.
+ */
+export const getThreadSandboxState = query({
+  args: { threadId: v.string() },
+  returns: v.union(
+    v.object({
+      status: v.union(
+        v.literal('creating'),
+        v.literal('active'),
+        v.literal('degraded'),
+        v.literal('stopped'),
+      ),
+      pinned: v.boolean(),
+      agentKind: v.union(v.string(), v.null()),
+      lastActivityAt: v.union(v.number(), v.null()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    if (!metadata) return null;
+
+    // Owner key must match the turn runtime (run_external_agent.ts) exactly, or
+    // this reads a different row than the one the agent runs in: user-owned
+    // (org, user) when both are present, else the thread-owned fallback. The
+    // literals mirror its OWNER_TYPE_USER / OWNER_TYPE_THREAD constants.
+    const userOwned = Boolean(metadata.userId && metadata.organizationId);
+    const ownerType = userOwned ? 'user' : 'thread';
+    const ownerId =
+      userOwned && metadata.userId && metadata.organizationId
+        ? userOwnerId(metadata.organizationId, metadata.userId)
+        : args.threadId;
+
+    // Single indexed read on by_owner. The deterministic per-(org,user)
+    // sessionId is reused across incarnations, so the index also holds terminal
+    // (destroyed/expired/failed) rows for the same owner — isLiveSessionStatus
+    // skips them. Inlined rather than calling getActiveSessionByOwner because
+    // that helper omits `degraded`, which we surface to the user as "Recovering".
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_owner', (q) =>
+        q.eq('ownerType', ownerType).eq('ownerId', ownerId),
+      )) {
+      if (!isLiveSessionStatus(row.status)) continue;
+      return {
+        status: row.status,
+        pinned: row.pinned === true,
+        agentKind: row.agentKind ?? null,
+        lastActivityAt: row.lastActivityAt ?? null,
+      };
+    }
+    return null;
   },
 });
 
