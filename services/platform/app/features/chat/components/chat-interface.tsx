@@ -685,7 +685,27 @@ export function ChatInterface({
     // and is steered into the running turn / drained at the next boundary.
     if (queueModeActive && dataThreadId && effectiveAgent?.name) {
       const draftSnapshot = inputValue;
+      // Baseline for the optimistic-bubble reconciliation (see
+      // usePendingMessages): the running turn's streaming assistant is the
+      // current last message; its key is stable. When the real queued user
+      // message lands at the tail, currentLastKey diverges and the optimistic
+      // bubble swaps out for it. Capture BEFORE clearing the input.
+      const lastMessageKey = messages[messages.length - 1]?.key;
       clearInputValue();
+      // Echo the queued message instantly (no waiting for the server round-trip
+      // and subscription) AND fix auto-scroll in one move: setting the snap
+      // intent right before setPendingMessage — with no await between — mounts
+      // the optimistic bubble in the same commit, so the scroll machine's
+      // MutationObserver consumes the intent with lastUserMessageRef already on
+      // the new bubble and snaps it to the viewport top. Queue mode is never an
+      // empty chat, so always 'smooth' (never the first-message instant jump).
+      scrollIntentRef.current = 'smooth';
+      setPendingMessage({
+        content: message,
+        threadId: dataThreadId,
+        timestamp: new Date(),
+        lastMessageKey,
+      });
       try {
         const queuedModelId = selectedModelOverrides[effectiveAgent.name];
         await enqueueMessage({
@@ -700,6 +720,10 @@ export function ChatInterface({
         });
       } catch (err) {
         setInputValue(draftSnapshot);
+        // Roll back the optimistic bubble — the message never made it to the
+        // queue (QUEUE_FULL / network blip), so it must not linger in the
+        // timeline.
+        setPendingMessage(null);
         const data: unknown = err instanceof ConvexError ? err.data : null;
         const code =
           typeof data === 'object' &&
