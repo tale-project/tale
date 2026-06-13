@@ -9,7 +9,7 @@ import { t } from '../helpers/i18n';
  * session. A fresh user has no organization, so `/dashboard` routes into the
  * wizard at `/dashboard/create-organization` — `default` is never
  * auto-created. The wizard creates the org on the first "Next", the optional
- * provider/team steps are skippable, and "Finish" lands on the org dashboard.
+ * provider step is skippable, and "Finish" lands on the org dashboard.
  */
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -50,14 +50,13 @@ test.describe('onboarding wizard', () => {
     await expect(next).toBeEnabled();
     await next.click();
 
-    // Org created → advanced to the optional provider step. Skip provider + team.
+    // Org created → advanced to the optional provider step; skip it to Finish.
     const skip = page.getByRole('button', {
       name: t('common.actions.skip'),
       exact: true,
     });
     await expect(skip).toBeVisible();
-    await skip.click(); // provider → team
-    await skip.click(); // team → finish
+    await skip.click(); // provider → finish
 
     await page
       .getByRole('button', {
