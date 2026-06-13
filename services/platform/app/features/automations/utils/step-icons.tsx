@@ -92,20 +92,57 @@ export function getStepActionType(
     : undefined;
 }
 
+/**
+ * Type → color mapping for step cards. Colors are chosen to evoke the step's
+ * role and to stay clear of the green/red the Yes/No arrows use, so box color
+ * and edge color never get confused:
+ *   start    → blue    (the entry point)
+ *   condition→ amber   (a decision — the universal flowchart "choose" color)
+ *   loop     → cyan    (a repeat / cycle)
+ *   llm      → violet  (AI reasoning)
+ *   action   → indigo  (a process step that does work)
+ *   output   → slate   (a neutral terminator)
+ */
+
 /** Tailwind chip classes for a step type's badge (light + dark variants). */
 export function getStepTypeColor(stepType: string): string {
   switch (stepType) {
     case 'start':
+    case 'trigger':
       return 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300';
     case 'llm':
-      return 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300';
+      return 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300';
     case 'condition':
       return 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300';
     case 'loop':
       return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300';
     case 'action':
-      return 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300';
+      return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300';
+    case 'output':
+      return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
     default:
       return 'bg-muted text-muted-foreground';
+  }
+}
+
+/** Left-accent border color per step type — lets the reader recognize a step's
+ *  kind at a glance (blue = start, amber = decision, cyan = loop, …). */
+export function getStepAccentBorder(stepType: string): string {
+  switch (stepType) {
+    case 'start':
+    case 'trigger':
+      return 'border-l-blue-500';
+    case 'llm':
+      return 'border-l-violet-500';
+    case 'condition':
+      return 'border-l-amber-500';
+    case 'loop':
+      return 'border-l-cyan-500';
+    case 'action':
+      return 'border-l-indigo-500';
+    case 'output':
+      return 'border-l-slate-400';
+    default:
+      return 'border-l-muted-foreground/40';
   }
 }

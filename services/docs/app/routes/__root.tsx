@@ -30,6 +30,13 @@ const SearchDialog = lazy(() =>
   })),
 );
 
+// Deploy mount-point (Vite's BASE_URL, always trailing-slashed) without the
+// trailing slash — `''` at root, `/docs` under a sub-path. The search index is
+// a static asset served beneath this prefix, so fetching it bare (`/search-
+// index-de.json`) at a sub-path deploy hits the parent app's SPA fallback and
+// returns HTML instead of JSON. `client.ts` appends its own leading slash.
+const SEARCH_BASE_URL = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+
 function isSpecialEndpoint(pathname: string): boolean {
   return (
     pathname.endsWith('.md') ||
@@ -141,6 +148,7 @@ function RootLayout() {
             open={searchOpen}
             onOpenChange={setSearchOpen}
             sectionLabel={sectionLabel}
+            baseUrl={SEARCH_BASE_URL}
           />
         </Suspense>
       ) : null}

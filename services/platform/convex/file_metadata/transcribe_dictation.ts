@@ -8,14 +8,10 @@ import { action } from '../_generated/server';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { resolveTranscriptionModel } from '../providers/resolve_model';
+import { requestTranscription } from './transcription_request';
 
 const TRANSCRIBE_API_TIMEOUT_MS = 60_000;
 const MAX_DICTATION_BYTES = 8 * 1024 * 1024;
-
-interface TranscriptionResponse {
-  text?: string;
-  duration?: number;
-}
 
 /**
  * One-shot transcription for short dictation snippets recorded via
@@ -64,50 +60,26 @@ export const transcribeDictation = action({
       organizationId: args.organizationId,
     });
 
-    // Whisper validates by file extension. Map the recorded MIME to the
-    // closest accepted extension; `.ogg`/`.webm`/`.mp4` cover what
-    // MediaRecorder produces in Firefox / Chromium / Safari.
+    // Whisper validates by file extension (multipart) / `input_audio.format`
+    // (json-base64). Map the recorded MIME to the closest accepted token;
+    // `.ogg`/`.webm`/`.mp4` cover what MediaRecorder produces in
+    // Firefox / Chromium / Safari.
     const ext = pickExtensionFromMime(args.mimeType);
     const audioBlob = new Blob([args.audio], { type: args.mimeType });
 
-    const formData = new FormData();
-    formData.append('file', audioBlob, `dictation.${ext}`);
-    formData.append('model', modelData.modelId);
-    formData.append('response_format', 'verbose_json');
+    // Dictation snippets are short, so a single request handles the whole clip.
+    // `duration` is only returned by the multipart/verbose_json path; on
+    // json-base64 it's absent and we simply skip usage metering (the clip is
+    // tiny). Empty audio yields '' so the `v.string()` return validator holds.
+    const result = await requestTranscription({
+      model: modelData,
+      blob: audioBlob,
+      fileName: `dictation.${ext}`,
+      format: ext,
+      timeoutMs: TRANSCRIBE_API_TIMEOUT_MS,
+    });
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      TRANSCRIBE_API_TIMEOUT_MS,
-    );
-
-    let response: Response;
-    try {
-      response = await fetch(`${modelData.baseUrl}/audio/transcriptions`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${modelData.apiKey}` },
-        body: formData,
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `Transcription API ${response.status}: ${errorText.slice(0, 200)}`,
-      );
-    }
-
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- OpenAI-compatible response shape
-    const result = (await response.json()) as TranscriptionResponse;
-
-    // Some OpenAI-compatible servers omit `text` on empty audio. Default
-    // to '' rather than letting Convex's `v.string()` return-validator
-    // throw on the way out — the caller treats empty as "nothing to
-    // transcribe" and silently keeps the input unchanged.
-    const text = typeof result.text === 'string' ? result.text : '';
+    const text = result.text;
     const durationSec = result.duration ?? 0;
 
     if (durationSec > 0) {

@@ -5,8 +5,8 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
-import { API_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/api/nav-items';
-import { GOVERNANCE_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/governance/nav-items';
+import { API_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
+import { GOVERNANCE_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/governance/-nav-items';
 import { useT } from '@/lib/i18n/client';
 import type { AppAction, AppSubject } from '@/lib/permissions/ability';
 import { cn } from '@/lib/utils/cn';

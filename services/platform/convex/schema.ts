@@ -81,7 +81,11 @@ import {
   agentSecretAccessTable,
   projectSecretsTable,
 } from './projects/secrets/schema';
-import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
+import {
+  promptCategoriesTable,
+  promptDefaultProvisionsTable,
+  promptTemplatesTable,
+} from './prompts/schema';
 import { reasoningProfilesTable } from './reasoning_profiles/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
 import {
@@ -161,6 +165,7 @@ export default defineSchema({
   usageLedger: usageLedgerTable,
   promptTemplates: promptTemplatesTable,
   promptCategories: promptCategoriesTable,
+  promptDefaultProvisions: promptDefaultProvisionsTable,
   messageFeedback: messageFeedbackTable,
   mcpServers: mcpServersTable,
   brandingBindings: brandingBindingsTable,

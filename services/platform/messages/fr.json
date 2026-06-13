@@ -266,10 +266,6 @@
       "lockoutAdvisory": "Des échecs répétés verrouillent temporairement le compte."
     },
     "signup": {
-      "signupTitle": "Crée ton compte",
-      "creating": "Création...",
-      "createButton": "Créer",
-      "accountCreated": "Compte créé avec succès !",
       "wrongCredentials": "Courriel ou mot de passe incorrect"
     },
     "validation": {
@@ -600,7 +596,7 @@
         "apiNotWired": "Les API publiques pour la modification des étapes de workflow ne sont pas encore connectées."
       },
       "banners": {
-        "hasActiveTriggers": "Cette automatisation a des déclencheurs actifs — les modifications prennent effet immédiatement."
+        "hasActiveTriggers": "Cette automatisation est active — les modifications enregistrées s’appliquent aux nouvelles exécutions."
       },
       "toolbar": {
         "testAutomation": "Tester l'automatisation",
@@ -636,6 +632,10 @@
       "loop": "Boucle",
       "action": "Action",
       "output": "Sortie"
+    },
+    "edges": {
+      "yes": "Oui",
+      "no": "Non"
     },
     "step": {
       "openStep": "Ouvrir l'étape {name}",
@@ -2172,24 +2172,37 @@
     "stepsAriaLabel": "Étapes d'intégration",
     "progress": "Étape {current} sur {total} : {label}",
     "steps": {
+      "preferences": "Préférences",
+      "account": "Compte",
       "workspace": "Espace de travail",
-      "provider": "Fournisseur d'IA",
-      "team": "Équipe",
+      "provider": "OpenRouter",
       "finish": "Terminer"
+    },
+    "preferences": {
+      "heading": "Personnalise",
+      "why": "Choisis ta langue et ton thème. Tu peux les changer à tout moment.",
+      "languageLabel": "Langue",
+      "themeLabel": "Thème"
+    },
+    "account": {
+      "heading": "Crée ton compte propriétaire",
+      "why": "C'est le premier compte de cette installation Tale ; il dispose donc de tous les droits d'administration. Tu ajouteras des coéquipiers plus tard."
     },
     "workspace": {
       "heading": "Nomme ton espace de travail",
-      "why": "C'est ainsi que ton équipe reconnaîtra cet espace de travail."
+      "why": "C'est ainsi que ton équipe reconnaîtra cet espace de travail.",
+      "languageDescription": "La langue par défaut du contenu de cet espace, comme la bibliothèque de prompts."
     },
     "provider": {
-      "heading": "Connecter un fournisseur d'IA",
-      "why": "Les agents et le chat nécessitent un fournisseur. Ajoutes-en un maintenant ou plus tard dans les paramètres — la plupart des fonctionnalités restent verrouillées jusque-là.",
-      "cta": "Ouvrir les paramètres du fournisseur"
-    },
-    "team": {
-      "heading": "Invite ton équipe",
-      "why": "Ajoute des coéquipiers maintenant, ou invite-les à tout moment depuis les paramètres.",
-      "cta": "Gérer les personnes"
+      "heading": "Connecter OpenRouter",
+      "why": "Une seule clé OpenRouter débloque le chat, la génération et l'édition d'images, le mode vocal et plus encore, parmi des centaines de modèles de tous les grands laboratoires. Nous préconfigurons une sélection recommandée pour que tu sois prêt immédiatement.",
+      "keyLabel": "Clé API OpenRouter",
+      "keyPlaceholder": "sk-or-...",
+      "keyHelp": "Stockée chiffrée. Laisse vide pour la configurer plus tard dans les paramètres.",
+      "hasKeyQuestion": "Tu n'as pas encore de clé ?",
+      "getKeyLink": "En créer une sur OpenRouter",
+      "saveError": "Impossible de se connecter à OpenRouter avec cette clé. Vérifie-la et réessaie.",
+      "noModelsError": "Aucun modèle n'était disponible pour cette clé."
     },
     "finish": {
       "heading": "Tout est prêt",
@@ -6963,7 +6976,9 @@
     "humans": {
       "title": "Humains",
       "subtitle": "Agents de premier niveau : {count}"
-    }
+    },
+    "saved": "Délégation enregistrée",
+    "unsavedChanges": "Modifications non enregistrées"
   },
   "workforce": {
     "title": "Workforce",

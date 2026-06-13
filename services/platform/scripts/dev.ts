@@ -222,75 +222,39 @@ function ensureLocalAdminKey() {
 }
 
 function loadEnvFiles() {
-  const repoEnvPath = join(repoRoot, '.env');
-  const repoEnvLocalPath = join(repoRoot, '.env.local');
-  const platformEnvPath = join(platformRoot, '.env');
-  const platformEnvLocalPath = join(platformRoot, '.env.local');
+  // Lowest → highest precedence; a later file's value wins on collision
+  // (platform overrides repo, `.local` overrides base).
+  const sources = [
+    { label: 'repo/.env', path: join(repoRoot, '.env') },
+    { label: 'repo/.env.local', path: join(repoRoot, '.env.local') },
+    { label: 'platform/.env', path: join(platformRoot, '.env') },
+    { label: 'platform/.env.local', path: join(platformRoot, '.env.local') },
+  ];
 
-  console.log('[dev] 📁 Loading environment variables...');
-  console.log(`[dev] 🔍 Checking paths:`);
-  console.log(
-    `[dev]   - Repo .env: ${repoEnvPath} (exists: ${existsSync(repoEnvPath)})`,
-  );
-  console.log(
-    `[dev]   - Repo .env.local: ${repoEnvLocalPath} (exists: ${existsSync(repoEnvLocalPath)})`,
-  );
-  console.log(
-    `[dev]   - Platform .env: ${platformEnvPath} (exists: ${existsSync(platformEnvPath)})`,
-  );
-  console.log(
-    `[dev]   - Platform .env.local: ${platformEnvLocalPath} (exists: ${existsSync(platformEnvLocalPath)})`,
-  );
+  const mergedEnv: Record<string, string> = {};
+  const contributors: string[] = [];
+  for (const { label, path } of sources) {
+    const vars = parseDotEnv(path);
+    const count = Object.keys(vars).length;
+    if (count > 0) contributors.push(`${label} (${count})`);
+    Object.assign(mergedEnv, vars);
+  }
 
-  const repoBaseEnv = parseDotEnv(repoEnvPath);
-  const repoLocalEnv = parseDotEnv(repoEnvLocalPath);
-  const platformBaseEnv = parseDotEnv(platformEnvPath);
-  const platformLocalEnv = parseDotEnv(platformEnvLocalPath);
-
-  console.log(`[dev] 📊 Loaded from files:`);
-  console.log(`[dev]   - Repo .env: ${Object.keys(repoBaseEnv).length} vars`);
-  console.log(
-    `[dev]   - Repo .env.local: ${Object.keys(repoLocalEnv).length} vars`,
-  );
-  console.log(
-    `[dev]   - Platform .env: ${Object.keys(platformBaseEnv).length} vars`,
-  );
-  console.log(
-    `[dev]   - Platform .env.local: ${Object.keys(platformLocalEnv).length} vars`,
-  );
-
-  const mergedEnv = {
-    ...repoBaseEnv,
-    ...repoLocalEnv,
-    ...platformBaseEnv,
-    ...platformLocalEnv,
-  };
-
-  console.log(
-    `[dev] 📦 Total unique vars after merge: ${Object.keys(mergedEnv).length}`,
-  );
-
+  // Pre-existing process.env wins over .env files — only fill the gaps.
   let loadedCount = 0;
   let skippedCount = 0;
   for (const [key, value] of Object.entries(mergedEnv)) {
-    if (!(key in process.env)) {
+    if (key in process.env) {
+      skippedCount++;
+    } else {
       process.env[key] = value;
       loadedCount++;
-    } else {
-      skippedCount++;
     }
   }
 
+  const from = contributors.length > 0 ? contributors.join(', ') : 'none';
   console.log(
-    `[dev] ✅ Loaded ${loadedCount} environment variables from .env files`,
-  );
-  if (skippedCount > 0) {
-    console.log(
-      `[dev] ⏭️  Skipped ${skippedCount} variables (already in process.env)`,
-    );
-  }
-  console.log(
-    `[dev] 📍 Priority: services/platform/.env.local > services/platform/.env > repo root/.env.local > repo root/.env`,
+    `[dev] 📁 Env from ${from} → ${loadedCount} applied, ${skippedCount} already set`,
   );
 }
 

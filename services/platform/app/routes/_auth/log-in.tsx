@@ -98,7 +98,7 @@ export function LogInPage() {
 
   useEffect(() => {
     if (!trustedHeadersEnabled && hasUsers === false) {
-      void navigate({ to: '/sign-up' });
+      void navigate({ to: '/setup' });
     }
   }, [trustedHeadersEnabled, hasUsers, navigate]);
 

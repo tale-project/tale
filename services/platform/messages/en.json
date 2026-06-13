@@ -265,10 +265,6 @@
       "lockoutAdvisory": "Repeated failed attempts will temporarily lock the account."
     },
     "signup": {
-      "signupTitle": "Create your account",
-      "creating": "Creating...",
-      "createButton": "Create",
-      "accountCreated": "Account created successfully!",
       "wrongCredentials": "Wrong email or password"
     },
     "validation": {
@@ -599,7 +595,7 @@
         "apiNotWired": "Public APIs for editing workflow steps are not wired up yet."
       },
       "banners": {
-        "hasActiveTriggers": "This automation has active triggers — edits take effect immediately."
+        "hasActiveTriggers": "This automation is active — saved changes apply to new runs."
       },
       "toolbar": {
         "testAutomation": "Test automation",
@@ -635,6 +631,10 @@
       "loop": "Loop",
       "action": "Action",
       "output": "Output"
+    },
+    "edges": {
+      "yes": "Yes",
+      "no": "No"
     },
     "step": {
       "openStep": "Open {name} step",
@@ -2171,24 +2171,37 @@
     "stepsAriaLabel": "Onboarding steps",
     "progress": "Step {current} of {total}: {label}",
     "steps": {
+      "preferences": "Preferences",
+      "account": "Account",
       "workspace": "Workspace",
-      "provider": "AI provider",
-      "team": "Team",
+      "provider": "OpenRouter",
       "finish": "Finish"
+    },
+    "preferences": {
+      "heading": "Make it yours",
+      "why": "Pick your language and theme. You can change these anytime.",
+      "languageLabel": "Language",
+      "themeLabel": "Theme"
+    },
+    "account": {
+      "heading": "Create your owner account",
+      "why": "This is the first account on this Tale install, so it gets full admin rights. You'll add teammates later."
     },
     "workspace": {
       "heading": "Name your workspace",
-      "why": "This is how your team will recognize this workspace."
+      "why": "This is how your team will recognize this workspace.",
+      "languageDescription": "The default language for this workspace's content, like the prompt library."
     },
     "provider": {
-      "heading": "Connect an AI provider",
-      "why": "Agents and chat need a provider. Add one now or later in Settings — most features stay locked until you do.",
-      "cta": "Open provider settings"
-    },
-    "team": {
-      "heading": "Invite your team",
-      "why": "Add teammates now, or invite them anytime from Settings.",
-      "cta": "Manage people"
+      "heading": "Connect OpenRouter",
+      "why": "One OpenRouter key unlocks chat, image generation & editing, voice and more across hundreds of models from every major lab. We'll preconfigure a recommended set so you're ready immediately.",
+      "keyLabel": "OpenRouter API key",
+      "keyPlaceholder": "sk-or-...",
+      "keyHelp": "Stored encrypted. Leave blank to set this up later in Settings.",
+      "hasKeyQuestion": "Don't have a key yet?",
+      "getKeyLink": "Create one at OpenRouter",
+      "saveError": "We couldn't connect to OpenRouter with that key. Check it and try again.",
+      "noModelsError": "No models were available for that key."
     },
     "finish": {
       "heading": "You're all set",
@@ -6962,7 +6975,9 @@
     "humans": {
       "title": "Humans",
       "subtitle": "Top-level agents: {count}"
-    }
+    },
+    "saved": "Delegation saved",
+    "unsavedChanges": "Unsaved changes"
   },
   "workforce": {
     "title": "Workforce",

@@ -7,7 +7,10 @@
   "defaults": {
     "chat": "deepseek/deepseek-v4-flash",
     "vision": "qwen/qwen3-vl-32b-instruct",
-    "embedding": "qwen/qwen3-embedding-8b"
+    "embedding": "qwen/qwen3-embedding-8b",
+    "image-generation": "black-forest-labs/flux.2-pro",
+    "transcription": "openai/whisper-1",
+    "text-to-speech": "openai/gpt-4o-mini-tts-2025-12-15"
   },
   "models": [
     {
@@ -583,6 +586,38 @@
       "cost": {
         "imageCentsPerImage": 4
       }
+    },
+    {
+      "id": "openai/whisper-1",
+      "displayName": "Whisper v1",
+      "description": "Speech-to-text for voice dictation and audio-file transcription. transcriptionMode 'json-base64' selects OpenRouter's audio-transcription request shape (JSON input_audio); leave it off only when pointing this provider at a multipart OpenAI-compatible server. To swap models, browse openrouter.ai/models (Speech-to-Text) and update the id + defaults.transcription.",
+      "tags": ["transcription"],
+      "transcriptionMode": "json-base64",
+      "cost": { "centsPerAudioMinute": 0.6 }
+    },
+    {
+      "id": "openai/gpt-4o-mini-tts-2025-12-15",
+      "displayName": "GPT-4o mini TTS",
+      "description": "Low-cost voice-mode speech synthesis, locale-mapped voices. Verify the current model id at openrouter.ai/models (Text-to-Speech) — TTS model versions are dated and rotate; update the id + defaults.text-to-speech together if it changes. NOTE: the cost below is a per-character approximation used only by Tale's budget/ledger; the upstream meters per token, so recalibrate against your own usage mix (CJK and other high-audio-token scripts under-estimate most).",
+      "tags": ["text-to-speech"],
+      "audioFormat": "mp3",
+      "defaultVoice": "alloy",
+      "voicesByLocale": {
+        "en": "alloy",
+        "de": "nova",
+        "de-CH": "nova",
+        "fr": "shimmer"
+      },
+      "defaultInstructions": "Speak in a warm, natural conversational tone with smooth, even pacing. Sound like a friendly person talking, not a news anchor.",
+      "instructionsByLocale": {
+        "en": "Speak in a warm, natural conversational tone with smooth, even pacing. Sound like a friendly person talking, not a news anchor.",
+        "de": "Sprich in einem warmen, natürlichen Gesprächston mit ruhigem, gleichmäßigem Tempo. Klinge wie eine freundliche Person, nicht wie ein Nachrichtensprecher.",
+        "de-CH": "Sprich in einem warmen, natürlichen Gesprächston mit ruhigem, gleichmäßigem Tempo. Klinge wie eine freundliche Person, nicht wie ein Nachrichtensprecher.",
+        "fr": "Parle d'une voix chaleureuse et naturelle, avec un rythme régulier et posé. Sois comme une personne amicale qui parle, pas comme un présentateur de journal télévisé."
+      },
+      "cost": {
+        "centsPerMillionCharacters": 1500
+      }
     }
   ],
   "i18n": {
@@ -702,6 +737,12 @@
         },
         "black-forest-labs/flux.2-flex": {
           "description": "FLUX.2 optimiert für Typografie und Mehrfach-Referenzbearbeitung"
+        },
+        "openai/whisper-1": {
+          "description": "Speech-to-Text für Sprachdiktat und Audio-Transkription. transcriptionMode 'json-base64' wählt das Audio-Transkriptions-Format von OpenRouter (JSON input_audio); deaktiviere es nur, wenn dieser Provider auf einen multipart-OpenAI-kompatiblen Server zeigt. Zum Modellwechsel openrouter.ai/models (Speech-to-Text) durchsuchen und id + defaults.transcription aktualisieren."
+        },
+        "openai/gpt-4o-mini-tts-2025-12-15": {
+          "description": "Günstige Sprachsynthese für den Voice-Modus, locale-zugeordnete Stimmen. Aktuelle Modell-id unter openrouter.ai/models (Text-to-Speech) prüfen — TTS-Versionen sind datiert und rotieren; id + defaults.text-to-speech gemeinsam aktualisieren. HINWEIS: Der cost-Wert ist eine Zeichen-Näherung nur für Tales Budget/Ledger; der Upstream rechnet pro Token ab — gegen den realen Nutzungs-Mix kalibrieren."
         }
       }
     },
@@ -821,6 +862,12 @@
         },
         "black-forest-labs/flux.2-flex": {
           "description": "FLUX.2 optimisé pour la typographie et l'édition multi-références"
+        },
+        "openai/whisper-1": {
+          "description": "Reconnaissance vocale pour la dictée et la transcription de fichiers audio. transcriptionMode 'json-base64' sélectionne le format de transcription audio d'OpenRouter (JSON input_audio) ; ne le désactive que si ce fournisseur pointe vers un serveur compatible OpenAI en multipart. Pour changer de modèle, parcours openrouter.ai/models (Speech-to-Text) et mets à jour l'id + defaults.transcription."
+        },
+        "openai/gpt-4o-mini-tts-2025-12-15": {
+          "description": "Synthèse vocale économique pour le mode vocal, voix mappées par locale. Vérifie l'id du modèle actuel sur openrouter.ai/models (Text-to-Speech) — les versions TTS sont datées et changent ; mets à jour l'id + defaults.text-to-speech ensemble. NOTE : le coût ci-dessous est une approximation par caractère utilisée uniquement par le budget/ledger de Tale ; l'upstream facture au token — recalibre selon ton usage réel."
         }
       }
     }

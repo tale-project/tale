@@ -13,6 +13,7 @@ import {
   workflowJsonSchema,
   type WorkflowJsonConfig,
 } from '../../lib/shared/schemas/workflows';
+import { canonicalizeWorkflowConfig } from '../../lib/shared/utils/canonicalize-config';
 import {
   getConfigRoot,
   safeJoinWithinDir,
@@ -121,7 +122,7 @@ export function resolveHistoryDir(
 }
 
 export function serializeWorkflowJson(config: WorkflowJsonConfig): string {
-  return serializeJson(config);
+  return serializeJson(canonicalizeWorkflowConfig(config));
 }
 
 export function parseWorkflowJson(content: string): WorkflowJsonConfig {

@@ -13,25 +13,29 @@ The reference is the file format on disk and the order operations follow when ad
 
 ```json
 {
-  "displayName": "OpenAI",
-  "description": "Whisper + GPT-4o-mini-tts for voice mode.",
-  "baseUrl": "https://api.openai.com/v1",
+  "displayName": "OpenRouter",
+  "description": "Chat, vision, embeddings, voice, and image generation through one key.",
+  "baseUrl": "https://openrouter.ai/api/v1",
+  "secretsEnv": "TALE_PROVIDER_KEY_OPENROUTER",
   "defaults": {
-    "transcription": "whisper-1",
-    "text-to-speech": "gpt-4o-mini-tts"
+    "transcription": "openai/whisper-1",
+    "text-to-speech": "openai/gpt-4o-mini-tts-2025-12-15"
   },
   "models": [
     {
-      "id": "whisper-1",
+      "id": "openai/whisper-1",
       "displayName": "Whisper v1",
       "tags": ["transcription"],
+      "transcriptionMode": "json-base64",
       "cost": { "centsPerAudioMinute": 0.6 }
     }
   ]
 }
 ```
 
-The full set of fields lives in [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers) — `openai.json`, `openrouter.json`, and `vercel-gateway.json` cover the three shapes you are likely to need.
+The full set of fields lives in [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers). The shipped default is a single `openrouter.json` that covers chat, vision, embeddings, transcription, text-to-speech, and image generation — one key for everything. To call a vendor directly instead of through OpenRouter, add another file (for example an `openai.json` pointed at `https://api.openai.com/v1`); see [Models out of the box](/platform/models) for the full default catalogue.
+
+`transcriptionMode` selects how a `transcription` model's request body is shaped: `json-base64` (OpenRouter's `input_audio` envelope) or, when omitted, `multipart` — the OpenAI/Whisper `multipart/form-data` upload that vLLM, LocalAI, and a direct OpenAI key also expect. Set it to match whichever transcription endpoint you point at.
 
 ### Model capabilities and auto-sync
 

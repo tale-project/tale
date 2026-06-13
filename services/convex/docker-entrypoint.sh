@@ -404,6 +404,29 @@ run_seed() {
     done
   fi
 
+  # --- Prompts (flat) ---
+  local prompts_dir="${data_dir}/default/prompts"
+  local prompts_builtin="/app/builtin/default/prompts"
+  mkdir -p "$prompts_dir"
+  if [ -d "$prompts_builtin" ] && [ "$(ls -A "$prompts_builtin" 2>/dev/null)" ]; then
+    for src in "$prompts_builtin"/*.json; do
+      [ -f "$src" ] || continue
+      local name="$(basename "$src")"
+      local slug="$(basename "$src" .json)"
+      local dest="$prompts_dir/$name"
+      local history_dir="$prompts_dir/.history/$slug"
+      if [ "$FORCE_SEED" = "true" ]; then
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded prompt $name (forced)"
+      elif [ -f "$dest" ]; then
+        echo "   ⏭ Skipping prompt $name (already exists)"
+      elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+        echo "   ⏭ Skipping prompt $name (user has modifications in .history)"
+      else
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded prompt $name"
+      fi
+    done
+  fi
+
   # --- Workflows (nested folder/name.json) ---
   local workflows_dir="${data_dir}/default/workflows"
   local workflows_builtin="/app/builtin/default/workflows"

@@ -47,14 +47,17 @@ tale --version
 
 Die CLI gibt ihre Version aus. Wird der Befehl nicht gefunden, hat der Installer das Binary ausserhalb des `PATH` abgelegt — die Installer-Ausgabe benennt das Zielverzeichnis.
 
-## Schritt 3 — Den Admin-Key konfigurieren
+## Schritt 3 — Konfiguration prüfen
+
+Es gibt kein `tale config set` — alles, was die CLI braucht, liegt im Projekt, das `tale init` angelegt hat. Führ jeden `tale`-Befehl aus diesem Verzeichnis heraus aus (die CLI läuft den Baum hoch, um `tale.json` zu finden), und prüf, dass es aufgelöst wird:
 
 ```bash
-tale config set host tale.example.com
-tale config set admin-key <key-aus-erster-admin>
+tale config show
 ```
 
-Die CLI speichert die Konfiguration unter `~/.config/tale/config.yml`. Der Admin-Key authentifiziert die Aufrufe der CLI an den Platform-Container; den Platform-Container neu zu starten rotiert den Key, also frisch ihn dann auf.
+Der Host, auf dem der Proxy antwortet, die TLS-Einstellungen und alle Secrets liegen im `.env` des Projekts. Um den Host zu ändern, bearbeite dort `HOST` oder übergib `--host` an `tale start` / `tale deploy`. Um einen entfernten Host zu betreiben, richte den Docker-Kontext deiner Shell (oder `DOCKER_HOST`) darauf aus — die CLI spricht denselben Docker-Endpunkt an wie jeder `docker`-Befehl.
+
+Der einmalige Admin-Key, der bei der Anmeldung das erste **Owner**-Konto beansprucht, ist von der CLI-Konfiguration getrennt — erzeug ihn bei Bedarf mit `tale convex admin` (siehe [Erster Admin](/de/self-hosted/install/first-admin)).
 
 ## Schritt 4 — tale deploy ausführen
 
@@ -128,7 +131,7 @@ Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten V
 
 ### Wartung
 
-`tale upgrade` — die CLI auf die neueste Version aktualisieren und Projektdateien synchronisieren.
+`tale upgrade` (Alias `tale update`) — die CLI auf die neueste Version aktualisieren und Projektdateien synchronisieren.
 
 - `-v, --version <version>` — genau diese Version installieren (z. B. `0.9.0`) statt der neuesten; erlaubt Downgrades.
 - `-f, --force` — Neudownload erzwingen und lokal geänderte Dateien überschreiben.
@@ -157,8 +160,9 @@ Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten V
 
 ## Fehlersuche
 
-- **`tale --version` druckt, aber `tale deploy` bricht mit „host not configured" ab.** Lauf zuerst `tale config set host …`; die CLI übernimmt den Host nicht aus `.env`.
-- **`tale deploy` bricht mit „auth failed" ab.** Der Admin-Key ist rotiert, seit du ihn konfiguriert hast. Lauf erneut `./scripts/get-admin-key.sh` auf dem Host und `tale config set admin-key …` auf der Workstation.
+- **`tale deploy` trifft die falsche Maschine.** Die CLI nutzt den Docker-Kontext / `DOCKER_HOST` deiner Shell. Wechsle mit `docker context use …` (oder setz `DOCKER_HOST`), sodass er auf den gewünschten Host zeigt, und lauf erneut.
+- **`tale deploy` nutzt den falschen Host-Alias.** Der Host, auf dem der Proxy antwortet, kommt aus `HOST` im `.env` des Projekts, nicht aus einem separaten CLI-Speicher. Bearbeite `.env` oder übergib `--host`, um ihn für einen Lauf zu überschreiben.
+- **Der Anmelde-Bildschirm weist den Admin-Key ab.** Der Bootstrap-Key rotiert jedes Mal, wenn der Platform-Container neu startet. Erzeug mit `tale convex admin` einen frischen und nutz ihn sofort.
 - **Installer scheitert auf macOS mit einer Gatekeeper-Warnung.** Das Binary ist signiert, aber auf Apple Silicon noch nicht notarisiert; der Installer druckt den `xattr`-Befehl, um das Quarantäne-Flag zu löschen.
 - **`tale` nach der Installation auf Linux nicht gefunden.** Der Installer legt das Binary in `/usr/local/bin` ab; verifizier, dass das Verzeichnis im `PATH` des Users ist (`echo $PATH`).
 

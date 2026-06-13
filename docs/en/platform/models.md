@@ -1,21 +1,19 @@
 ---
 title: Models out of the box
-description: Which providers and models a fresh Tale instance ships with — OpenRouter for chat and vision, OpenAI for voice, Vercel AI Gateway for image generation.
+description: Which provider and models a fresh Tale instance ships with — OpenRouter covers chat, vision, embeddings, voice, and image generation through a single key.
 ---
 
-A fresh Tale instance ships with three providers configured: OpenRouter for chat, vision, and embeddings; OpenAI for speech-to-text and text-to-speech; Vercel AI Gateway for image generation. The default agents in `examples/default/agents/` reach for models in one of those three buckets, and most teams stay on the defaults for weeks before swapping anything. This page lists what is shipped and links to each provider's full catalogue.
+A fresh Tale instance ships with one provider configured: **OpenRouter**, covering chat, vision, embeddings, speech-to-text, text-to-speech, and image generation. The default agents in `examples/default/agents/` reach for OpenRouter models, and most teams stay on the defaults for weeks before swapping anything. One key, one rate limit, one bill — and you can still add a direct vendor (OpenAI, a local Ollama/vLLM server, a Bedrock proxy) whenever a workload needs it. This page lists what is shipped and links to the full catalogue.
 
-Models drift faster than docs. The lists below are correct at the time `examples/default/providers/*.json` was written; the canonical truth is the JSON files, and the canonical "what is reachable today" is what the **Settings > Providers** page shows on your instance.
+Models drift faster than docs. The lists below are correct at the time `examples/default/providers/openrouter.json` was written; the canonical truth is the JSON file, and the canonical "what is reachable today" is what the **Settings > Providers** page shows on your instance.
 
-## The three providers
+## The default provider
 
-| Provider              | Default role                   | Why this one                                                                                              | Documentation                                                                  |
-| --------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| **OpenRouter**        | Chat, vision, embeddings       | One key reaches dozens of frontier and open-weight models with consistent pricing and a single rate limit | [openrouter.ai/models](https://openrouter.ai/models)                           |
-| **OpenAI**            | Speech-to-text, text-to-speech | Whisper is the practical baseline for transcription; gpt-4o-mini-tts is the cheapest reliable TTS         | [platform.openai.com/docs/models](https://platform.openai.com/docs/models)     |
-| **Vercel AI Gateway** | Image generation               | One OpenAI-compatible endpoint covers FLUX, Imagen, and Nano Banana without per-vendor keys               | [vercel.com/docs/ai-gateway/models](https://vercel.com/docs/ai-gateway/models) |
+| Provider       | Default role                                                               | Why this one                                                                                                                              | Documentation                                        |
+| -------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **OpenRouter** | Chat, vision, embeddings, speech-to-text, text-to-speech, image generation | One key reaches dozens of frontier and open-weight models — plus audio and image models — with consistent pricing and a single rate limit | [openrouter.ai/models](https://openrouter.ai/models) |
 
-Every provider above is an OpenAI-compatible endpoint Tale calls over HTTPS with a bearer token. You can replace any of them with a different provider (including a local Ollama or vLLM server) by editing the matching JSON under your instance's `TALE_CONFIG_DIR/<orgSlug>/providers/` — under the org-first layout, provider catalogs are per-org (each org's subtree holds its own `providers/` directory).
+OpenRouter is an OpenAI-compatible endpoint Tale calls over HTTPS with a bearer token. You can replace it (or add more providers alongside it, including a local Ollama or vLLM server) by editing the JSON under your instance's `TALE_CONFIG_DIR/<orgSlug>/providers/` — under the org-first layout, provider catalogs are per-org (each org's subtree holds its own `providers/` directory).
 
 ## OpenRouter — chat, vision, embeddings
 
@@ -37,27 +35,27 @@ OpenRouter is a multi-model gateway. The shipped config picks `deepseek-v4-flash
 
 The full and live catalogue lives at [openrouter.ai/models](https://openrouter.ai/models). Any model OpenRouter exposes can be added to your instance by editing the `models` array in `<orgSlug>/providers/openrouter.json` under `TALE_CONFIG_DIR` (per-org under the org-first layout).
 
-## OpenAI — speech-to-text and text-to-speech
+## OpenRouter — speech-to-text and text-to-speech
 
-The shipped OpenAI provider config is intentionally narrow — voice only. The two models cover the loop that [voice mode](/platform/chat/voice-mode) needs:
+The same OpenRouter key covers the audio loop that [voice mode](/platform/chat/voice-mode) needs:
 
-- **whisper-1** — speech-to-text. The transcription provider whenever a user records a message.
-- **gpt-4o-mini-tts** — text-to-speech. The default voice provider for agent replies played back as audio.
+- **openai/whisper-1** — speech-to-text. The transcription provider whenever a user records a message. The shipped config sets `transcriptionMode: "json-base64"`, which selects OpenRouter's audio-transcription request shape.
+- **openai/gpt-4o-mini-tts-2025-12-15** — text-to-speech. The default voice provider for agent replies played back as audio, with locale-mapped voices.
 
-Add chat and vision models to the OpenAI provider config if you want to call them directly without going through OpenRouter — useful for teams already on an OpenAI Enterprise contract. The full model list lives at [platform.openai.com/docs/models](https://platform.openai.com/docs/models).
+TTS model versions are dated and rotate, so confirm the current slug on the **Speech-to-Text** and **Text-to-Speech** collections at [openrouter.ai/models](https://openrouter.ai/models) and update the `id` plus the matching `defaults` entry together if it changes. Prefer calling Whisper or gpt-4o-mini-tts directly against OpenAI instead? Add an `openai.json` provider pointed at `https://api.openai.com/v1` and leave `transcriptionMode` unset (the default `multipart` shape is what OpenAI expects).
 
-## Vercel AI Gateway — image generation
+## OpenRouter — image generation
 
-The Vercel AI Gateway exposes image-generation endpoints from multiple vendors over a single OpenAI-compatible URL. The default image model is FLUX.2 [pro]; the shipped list:
+Image generation and editing run through OpenRouter's `/chat/completions` multimodal path. The default image model is FLUX.2 [pro]; the shipped list:
 
-- **Black Forest Labs** — FLUX 2 [pro], FLUX 1.1 [pro] Ultra, FLUX.1 Kontext Pro, FLUX.1 Kontext Max.
-- **Google** — Imagen 4, Imagen 4 Fast, Imagen 4 Ultra, Nano Banana (Gemini 2.5 Flash Image).
+- **Black Forest Labs** — FLUX.2 [max], FLUX.2 [pro], FLUX.2 [flex] — each generates and edits (reference-image) images.
+- **Google** — Nano Banana (Gemini 2.5 Flash Image) — generation plus reference-image editing.
 
-The wider catalogue is at [vercel.com/docs/ai-gateway/models](https://vercel.com/docs/ai-gateway/models).
+The wider catalogue is at [openrouter.ai/models](https://openrouter.ai/models) (Image collection).
 
 ## Swapping or adding providers
 
-The three providers above are defaults, not requirements. Replace any of them with a different OpenAI-compatible endpoint by editing the JSON in `TALE_CONFIG_DIR/<orgSlug>/providers/` — point it at your own API, change the `models` array, and Tale reloads on next start. A local Ollama instance, a private vLLM cluster, or a Bedrock proxy all fit the same shape. The mechanics live under [Configuration → providers](/self-hosted/configuration/providers); the admin-UI form for the same config lives at [Providers](/platform/admin/providers).
+OpenRouter is the default, not a requirement. Replace it with a different OpenAI-compatible endpoint, or add more providers alongside it, by editing the JSON in `TALE_CONFIG_DIR/<orgSlug>/providers/` — point a file at your own API, set its `models` array, and Tale reloads on next start. A local Ollama instance, a private vLLM cluster, a direct OpenAI contract, or a Bedrock proxy all fit the same shape. The mechanics live under [Configuration → providers](/self-hosted/configuration/providers); the admin-UI form for the same config lives at [Providers](/platform/admin/providers).
 
 ## Where this fits
 

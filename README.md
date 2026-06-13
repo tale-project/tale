@@ -197,7 +197,7 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 - **[Projects](docs/en/platform/projects/overview.md)** — shared workspace for files, chats, project agents
 - **[Automation concepts](docs/en/platform/automations/concepts.md)** — workflows, triggers, approval gates
 - **[Integrations overview](docs/en/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
-- **[Models out of the box](docs/en/platform/models.md)** — OpenRouter, OpenAI, Vercel AI Gateway plus the shipped model lists
+- **[Models out of the box](docs/en/platform/models.md)** — OpenRouter as the single default provider, plus the shipped model lists
 
 </details>
 

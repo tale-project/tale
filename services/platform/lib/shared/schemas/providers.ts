@@ -18,6 +18,26 @@ const imageGenerationModeLiterals = ['images-api', 'chat-multimodal'] as const;
 const imageGenerationModeSchema = z.enum(imageGenerationModeLiterals);
 
 /**
+ * How a `transcription` model's HTTP request body is shaped — the two
+ * OpenAI-compatible audio-transcription conventions in the wild differ enough
+ * that one field can't serve both:
+ *
+ *  - `multipart` → `multipart/form-data` with a binary `file` field and
+ *    `response_format: verbose_json` (OpenAI Whisper, vLLM, LocalAI,
+ *    faster-whisper-server). Returns `{ text, duration, segments }`, so
+ *    paragraph breaks and `[HH:MM:SS]` timestamps survive.
+ *  - `json-base64` → a JSON body with `input_audio: { data: <base64>, format }`
+ *    (OpenRouter). Returns `{ text, usage }` only — no segments/duration, so
+ *    timestamped transcripts gracefully degrade to plain text and billing
+ *    falls back to the locally-measured audio duration.
+ *
+ * Omitted ⇒ `multipart`, the long-standing default that keeps every existing
+ * self-hosted OpenAI-compatible whisper server working unchanged.
+ */
+const transcriptionModeLiterals = ['multipart', 'json-base64'] as const;
+const transcriptionModeSchema = z.enum(transcriptionModeLiterals);
+
+/**
  * Keys the AI SDK's openai-compatible chat provider treats specially and
  * silently strips from `providerOptions[<providerName>]` before spreading into
  * the request body. Source:
@@ -388,6 +408,9 @@ const modelDefinitionSchema = z.object({
   /** Per-model override of the provider-level `apiFormat`; see `apiFormatSchema`. */
   apiFormat: apiFormatSchema.optional(),
   imageGenerationMode: imageGenerationModeSchema.optional(),
+  /** Transcription request convention; see `transcriptionModeSchema`. Only
+   * meaningful on models tagged `'transcription'`. */
+  transcriptionMode: transcriptionModeSchema.optional(),
   cost: z
     .object({
       inputCentsPerMillion: z.number().nonnegative().finite().optional(),

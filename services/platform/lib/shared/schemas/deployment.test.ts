@@ -22,7 +22,7 @@ describe('deploymentConfigSchema', () => {
       version: 1,
       dataStores: {
         knowledgePostgres: {
-          host: 'pg.gematik.internal',
+          host: 'pg.acme.internal',
           database: 'tale_knowledge',
           user: 'tale_rw',
         },
@@ -38,7 +38,7 @@ describe('deploymentConfigSchema', () => {
           },
         },
         appPostgres: {
-          host: 'pg.gematik.internal',
+          host: 'pg.acme.internal',
           database: 'tale',
           user: 'tale_rw',
         },
@@ -96,7 +96,7 @@ describe('convexStorageSchema', () => {
     const r = convexStorageSchema.safeParse({
       mode: 's3',
       region: 'auto',
-      endpoint: 'https://minio.gematik.internal',
+      endpoint: 'https://minio.acme.internal',
       forcePathStyle: true,
       buckets: {
         files: 'f',

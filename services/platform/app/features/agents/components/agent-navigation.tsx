@@ -21,6 +21,7 @@ import { api } from '@/convex/_generated/api';
 import type { AgentJsonConfig } from '@/convex/agents/file_utils';
 import { useT } from '@/lib/i18n/client';
 import { agentJsonSchema } from '@/lib/shared/schemas/agents';
+import { canonicalizeAgentConfig } from '@/lib/shared/utils/canonicalize-config';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 import { normalizeAgentConfig } from '@/lib/shared/utils/normalize-agent-config';
 import { changedKeys } from '@/lib/utils/structural-equal';
@@ -91,9 +92,17 @@ function computeDirtyKeys(
   savedConfig: AgentJsonConfig | null | undefined,
 ): ReadonlySet<string> {
   if (!config || !savedConfig) return new Set<string>();
+  // Compare canonical forms so a set-like array reordered on disk doesn't
+  // light up a tab's dirty dot when `isDirty` (also canonical) reads clean.
   // oxlint-disable typescript/no-unsafe-type-assertion -- record reflection
-  const cfg = config as unknown as Record<string, unknown>;
-  const saved = savedConfig as unknown as Record<string, unknown>;
+  const cfg = canonicalizeAgentConfig(config) as unknown as Record<
+    string,
+    unknown
+  >;
+  const saved = canonicalizeAgentConfig(savedConfig) as unknown as Record<
+    string,
+    unknown
+  >;
   // oxlint-enable typescript/no-unsafe-type-assertion
   return changedKeys(cfg, saved);
 }

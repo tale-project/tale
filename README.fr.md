@@ -197,7 +197,7 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 - **[Projets](docs/fr/platform/projects/overview.md)** — espace de travail partagé pour fichiers, chats et agents de Projet
 - **[Concepts d'automatisation](docs/fr/platform/automations/concepts.md)** — workflows, déclencheurs, portes d'approbation
 - **[Aperçu des intégrations](docs/fr/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
-- **[Modèles livrés en standard](docs/fr/platform/models.md)** — OpenRouter, OpenAI, Vercel AI Gateway et les listes de modèles livrées
+- **[Modèles livrés en standard](docs/fr/platform/models.md)** — OpenRouter comme unique fournisseur par défaut, plus les listes de modèles livrées
 
 </details>
 

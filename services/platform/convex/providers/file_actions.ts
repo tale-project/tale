@@ -117,6 +117,9 @@ const resolvedModelDataValidator = v.object({
   imageGenerationMode: v.optional(
     v.union(v.literal('images-api'), v.literal('chat-multimodal')),
   ),
+  transcriptionMode: v.optional(
+    v.union(v.literal('multipart'), v.literal('json-base64')),
+  ),
   inputCentsPerMillion: v.optional(v.number()),
   outputCentsPerMillion: v.optional(v.number()),
   imageCentsPerImage: v.optional(v.number()),
@@ -568,6 +571,7 @@ function buildResolvedTagModel(
       provider.config.supportsStructuredOutputs ??
       false,
     imageGenerationMode: definition.imageGenerationMode,
+    transcriptionMode: definition.transcriptionMode,
     inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
     outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
     imageCentsPerImage: definition.cost?.imageCentsPerImage,
@@ -1137,6 +1141,7 @@ export async function resolveModelDataInline(
         provider.config.supportsStructuredOutputs ??
         false,
       imageGenerationMode: definition.imageGenerationMode,
+      transcriptionMode: definition.transcriptionMode,
       inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
       outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
       imageCentsPerImage: definition.cost?.imageCentsPerImage,
@@ -1851,23 +1856,49 @@ async function runTranscriptionProbe(
   baseUrl: string,
   apiKey: string,
   modelId: string,
+  transcriptionMode: 'multipart' | 'json-base64' = 'multipart',
 ): Promise<ProbeResult> {
   const url = buildProbeUrl(baseUrl, 'audio/transcriptions');
   const start = Date.now();
   try {
-    const formData = new FormData();
-    formData.append(
-      'file',
-      new Blob([makeSilentWav()], { type: 'audio/wav' }),
-      'probe.wav',
-    );
-    formData.append('model', modelId);
+    // The probe must use the SAME request convention the real transcription
+    // call will, so a green checkmark guarantees the wire shape is accepted.
+    // `json-base64` (OpenRouter) wants a JSON `input_audio` envelope; every
+    // other OpenAI-compatible server wants `multipart/form-data`.
+    const wav = makeSilentWav();
+    const probeInit =
+      transcriptionMode === 'json-base64'
+        ? {
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: modelId,
+              input_audio: {
+                data: Buffer.from(wav).toString('base64'),
+                format: 'wav',
+              },
+            }),
+          }
+        : (() => {
+            const formData = new FormData();
+            formData.append(
+              'file',
+              new Blob([wav], { type: 'audio/wav' }),
+              'probe.wav',
+            );
+            formData.append('model', modelId);
+            return {
+              headers: { Authorization: `Bearer ${apiKey}` },
+              body: formData,
+            };
+          })();
     // safeFetch enforces redirect: 'manual' + per-hop host policy so a 302
     // to IMDS can't carry the bearer token along.
     const response = await safeFetch(url, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: formData,
+      ...probeInit,
       timeoutMs: 15_000,
     });
     const latencyMs = Date.now() - start;
@@ -2310,7 +2341,14 @@ export const testProviderConnection = action({
           ),
         );
       } else if (isTranscription) {
-        probes.push(runTranscriptionProbe(config.baseUrl, apiKey, model.id));
+        probes.push(
+          runTranscriptionProbe(
+            config.baseUrl,
+            apiKey,
+            model.id,
+            model.transcriptionMode,
+          ),
+        );
       } else if (isTextToSpeech) {
         // Schema's `superRefine` (lib/shared/schemas/providers.ts) rejects
         // TTS models that have neither `defaultVoice` nor a non-empty

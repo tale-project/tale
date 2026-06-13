@@ -393,7 +393,7 @@ function AutomationStepsInner({
               zIndex: 0,
             }}
             deleteKeyCode={['Backspace', 'Delete']}
-            nodesDraggable
+            nodesDraggable={false}
             nodesConnectable
             nodesFocusable
             edgesFocusable

@@ -16,6 +16,7 @@ import {
 import { assertValidOrgSlug } from '../lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '../lib/shared/constants/reserved-org-slugs';
 import { sessionIdleWindowSeconds } from '../lib/shared/session-idle';
+import { getOrganizationDefaultLocale } from '../lib/shared/utils/get-organization-default-locale';
 import { isRecord, getString } from '../lib/utils/type-guards';
 import { components, internal } from './_generated/api';
 import { DataModel } from './_generated/dataModel';
@@ -329,6 +330,13 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
     baseURL: siteUrl,
     trustedOrigins: [new URL(siteUrl).origin],
     database: authComponent.adapter(ctx),
+    // Explicitly opt out of Better Auth's anonymous usage telemetry. It ships
+    // disabled by default today, but pinning it here keeps it off regardless
+    // of any future change to that default.
+    // See https://better-auth.com/docs/reference/telemetry
+    telemetry: {
+      enabled: false,
+    },
     // Configure simple, non-verified email/password to get started
     emailAndPassword: {
       enabled: true,
@@ -726,6 +734,23 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                   internal.workflows.provision_defaults
                     .syncDefaultWorkflowInstallations,
                   { organizationId: data.organization.id, orgSlug: slug },
+                );
+                // Seed the default prompt-library catalog (global prompts) in
+                // the org's chosen language (from the wizard, persisted as the
+                // `defaultLocale` metadata). Same deferral rationale as the
+                // workflow pack — the provisioner self-retries while the
+                // scaffold copies files.
+                await runCtx.scheduler.runAfter(
+                  10_000,
+                  internal.prompts.provision_defaults
+                    .syncDefaultPromptInstallations,
+                  {
+                    organizationId: data.organization.id,
+                    orgSlug: slug,
+                    locale: getOrganizationDefaultLocale(
+                      data.organization.metadata,
+                    ),
+                  },
                 );
               } catch (err) {
                 console.error(

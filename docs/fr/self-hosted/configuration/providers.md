@@ -13,25 +13,29 @@ La référence est le format de fichier sur disque et l'ordre des opérations à
 
 ```json
 {
-  "displayName": "OpenAI",
-  "description": "Whisper + GPT-4o-mini-tts pour le mode voix.",
-  "baseUrl": "https://api.openai.com/v1",
+  "displayName": "OpenRouter",
+  "description": "Chat, vision, embeddings, voix et génération d'images via une seule clé.",
+  "baseUrl": "https://openrouter.ai/api/v1",
+  "secretsEnv": "TALE_PROVIDER_KEY_OPENROUTER",
   "defaults": {
-    "transcription": "whisper-1",
-    "text-to-speech": "gpt-4o-mini-tts"
+    "transcription": "openai/whisper-1",
+    "text-to-speech": "openai/gpt-4o-mini-tts-2025-12-15"
   },
   "models": [
     {
-      "id": "whisper-1",
+      "id": "openai/whisper-1",
       "displayName": "Whisper v1",
       "tags": ["transcription"],
+      "transcriptionMode": "json-base64",
       "cost": { "centsPerAudioMinute": 0.6 }
     }
   ]
 }
 ```
 
-L'ensemble complet des champs vit dans [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers) — `openai.json`, `openrouter.json` et `vercel-gateway.json` couvrent les trois formes dont tu auras probablement besoin.
+L'ensemble complet des champs vit dans [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers). Le défaut livré est un seul `openrouter.json` qui couvre le chat, la vision, les embeddings, la transcription, la synthèse vocale et la génération d'images — une clé pour tout. Pour appeler un fournisseur directement plutôt que via OpenRouter, ajoute un autre fichier (par exemple un `openai.json` pointant vers `https://api.openai.com/v1`) ; voir [Modèles livrés en standard](/fr/platform/models) pour le catalogue complet par défaut.
+
+`transcriptionMode` sélectionne la forme du corps de requête d'un modèle `transcription` : `json-base64` (l'enveloppe `input_audio` d'OpenRouter) ou, s'il est omis, `multipart` — l'upload `multipart/form-data` OpenAI/Whisper qu'attendent aussi vLLM, LocalAI et une clé OpenAI directe. Définis-le selon l'endpoint de transcription que tu vises.
 
 ### Capacités des modèles et synchronisation auto
 

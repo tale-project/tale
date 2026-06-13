@@ -9,7 +9,11 @@ import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { getStepIconComponent } from '../utils/step-icons';
+import {
+  getStepAccentBorder,
+  getStepIconComponent,
+  getStepTypeColor,
+} from '../utils/step-icons';
 import { useAutomationCallbacks } from './automation-callbacks-context';
 import { useNodeExecutionStatus } from './execution-status-context';
 import { InvisibleHandle } from './invisible-handle';
@@ -45,26 +49,16 @@ export function AutomationStep({ data }: AutomationStepProps) {
   const bottomTargetLeft = data.hasBidirectionalBottom ? '45%' : '50%';
   const bottomSourceLeft = data.hasBidirectionalBottom ? '55%' : '50%';
 
-  const STEP_TYPE_STYLES: Record<string, string> = {
-    start: 'bg-blue-100 text-blue-600',
-    trigger: 'bg-blue-100 text-blue-600',
-    llm: 'bg-purple-100 text-purple-600',
-    condition: 'bg-amber-100 text-amber-600',
-    loop: 'bg-cyan-100 text-cyan-600',
-    action: 'bg-orange-100 text-orange-600',
-    output: 'bg-green-100 text-green-600',
-  };
-
   const getIcon = (
     stepType: Doc<'wfStepDefs'>['stepType'],
     actionType?: string,
   ) => {
-    const baseClass = 'size-5 p-1 rounded-sm shrink-0';
-    const styleClass = STEP_TYPE_STYLES[stepType] || 'bg-muted';
+    const baseClass = 'size-6 p-1 rounded-md shrink-0';
+    const styleClass = getStepTypeColor(stepType);
 
     const IconComponent = getStepIconComponent(stepType, actionType);
     if (!IconComponent) {
-      return <div className="bg-muted size-5 rounded-full" />;
+      return <div className="bg-muted size-6 rounded-full" />;
     }
     return <IconComponent className={cn(baseClass, styleClass)} />;
   };
@@ -93,7 +87,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
         'w-[18.75rem] rounded-lg border bg-card shadow-sm hover:shadow-md transition-shadow cursor-pointer text-left focus:outline-none',
         data.isTerminalNode
           ? 'border-dashed border-2 border-muted-foreground/50'
-          : 'border-border',
+          : cn('border-border border-l-4', getStepAccentBorder(data.stepType)),
         nodeStatus?.status === 'running' && 'ring-2 ring-blue-400',
         nodeStatus?.status === 'failed' && 'ring-2 ring-destructive',
         nodeStatus?.status === 'waiting' && 'ring-2 ring-amber-400',

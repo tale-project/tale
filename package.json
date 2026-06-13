@@ -149,6 +149,9 @@
     "convex-helpers@0.1.114": "patches/convex-helpers@0.1.114.patch",
     "@convex-dev/agent@0.6.1": "patches/@convex-dev%2Fagent@0.6.1.patch"
   },
+  "scarfSettings": {
+    "enabled": false
+  },
   "trustedDependencies": [
     "core-js-pure",
     "esbuild"

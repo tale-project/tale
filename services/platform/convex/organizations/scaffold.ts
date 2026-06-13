@@ -53,6 +53,7 @@ import {
   validateOrgSlug,
   verifyPathWithinBase,
 } from '../lib/file_io';
+import { resolvePromptsDir } from '../prompts/file_utils';
 import { resolveProvidersDir } from '../providers/file_utils';
 import { resolveSkillsDir } from '../skills/file_utils';
 import { resolveWorkflowsDir } from '../workflows/file_utils';
@@ -84,6 +85,10 @@ type Domain = {
 // org including default itself.
 const DOMAINS: Domain[] = [
   { name: 'agents', resolve: resolveAgentsDir, kind: 'flat' },
+  // Default prompt-library catalog. One JSON per prompt, no subdirs. The
+  // `autoInstall` files are seeded as global prompt rows post-scaffold by
+  // `prompts/provision_defaults.ts:syncDefaultPromptInstallations`.
+  { name: 'prompts', resolve: resolvePromptsDir, kind: 'flat' },
   { name: 'providers', resolve: resolveProvidersDir, kind: 'flat' },
   { name: 'integrations', resolve: resolveIntegrationsDir, kind: 'bundle' },
   { name: 'workflows', resolve: resolveWorkflowsDir, kind: 'tree' },

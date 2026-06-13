@@ -15,6 +15,7 @@ import {
   type ResponseTuningConfig,
   type SkillBindingResolvedEntry,
 } from '../../lib/shared/schemas/agents';
+import { canonicalizeAgentConfig } from '../../lib/shared/utils/canonicalize-config';
 import {
   getConfigRoot,
   safeJoinWithinDir,
@@ -172,7 +173,7 @@ export function agentNameFromFileName(fileName: string): string {
 }
 
 export function serializeAgentJson(config: AgentJsonConfig): string {
-  return serializeJson(config);
+  return serializeJson(canonicalizeAgentConfig(config));
 }
 
 export function parseAgentJson(content: string): AgentJsonConfig {

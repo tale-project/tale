@@ -211,18 +211,24 @@
 }
 
 .dark {
-  --color-bg-base: #030712;
+  /* Dark surfaces + prose use Tailwind's NEUTRAL family (true grayscale), not
+     GRAY (blue-tinted). The old gray-950 base (#030712 → rgb 3,7,18) gave the
+     whole @tale/ui-based surface — most visibly the docs page background — a
+     cool blue cast that didn't match the platform's neutral HSL shell
+     (`--background: 0 0% 3.92%`). Each value below is the neutral-N equivalent
+     of the gray-N it replaces (same lightness, hue stripped). */
+  --color-bg-base: #0a0a0a;
   --color-bg-elevated: #0f0f0f;
   --color-bg-muted: #1a1a1a;
-  --color-bg-overlay: rgba(3, 7, 18, 0.8);
+  --color-bg-overlay: rgba(10, 10, 10, 0.8);
 
-  /* Body prose lifts a notch (gray-300 vs gray-400) for legibility on dark
-     backgrounds. fg-subtle slides up to fill the lower-contrast slot for
+  /* Body prose lifts a notch (neutral-300 vs neutral-400) for legibility on
+     dark backgrounds. fg-subtle slides up to fill the lower-contrast slot for
      captions / muted metadata. */
-  --color-fg-base: #f3f4f6;
-  --color-fg-muted: #d1d5db;
-  --color-fg-subtle: #9ca3af;
-  --color-fg-inverse: #030712;
+  --color-fg-base: #f5f5f5;
+  --color-fg-muted: #d4d4d4;
+  --color-fg-subtle: #a3a3a3;
+  --color-fg-inverse: #0a0a0a;
 
   --color-border-base: #404040;
   --color-border-strong: #525252;

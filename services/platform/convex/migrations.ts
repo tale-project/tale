@@ -66,5 +66,14 @@ export const runAll = internalAction({
       internal.migrations.provision_task_ops_pack.provisionTaskOpsPackAllOrgs,
       {},
     );
+    // The default prompt-library catalog comes PREINSTALLED: seed every
+    // existing org (new orgs get it from the org-creation hook). Idempotent —
+    // per-prompt provision rows make re-runs no-ops, and org edits/deletes of
+    // a seeded prompt are never overridden.
+    await ctx.runAction(
+      internal.migrations.provision_default_prompts
+        .provisionDefaultPromptsAllOrgs,
+      {},
+    );
   },
 });

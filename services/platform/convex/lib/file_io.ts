@@ -23,6 +23,7 @@ import {
 import path from 'node:path';
 
 import { isValidOrgSlug as sharedIsValidOrgSlug } from '../../lib/shared/constants/org-slug';
+import { sortObjectKeysDeep } from '../../lib/shared/utils/canonicalize-config';
 
 const TIMESTAMP_REGEX = /^\d{13,}(-[a-f0-9]+)?$/;
 
@@ -463,7 +464,12 @@ export async function readFileBufferSafe(
 }
 
 /**
- * Serialize a JSON config, filtering out null/undefined/empty-array values.
+ * Serialize a JSON config, filtering out null/undefined/empty-array values
+ * and sorting every object's keys so the on-disk form is canonical (stable
+ * diffs, no key-order false positives in dirty-state comparison). Array
+ * element order is preserved — it can be semantic; sort set-like arrays
+ * explicitly via the per-domain canonicalizers in
+ * `lib/shared/utils/canonicalize-config`.
  */
 export function serializeJson(data: object): string {
   const cleaned = Object.fromEntries(
@@ -472,7 +478,7 @@ export function serializeJson(data: object): string {
         v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0),
     ),
   );
-  return JSON.stringify(cleaned, null, 2) + '\n';
+  return JSON.stringify(sortObjectKeysDeep(cleaned), null, 2) + '\n';
 }
 
 /**

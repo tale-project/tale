@@ -159,7 +159,7 @@ function statusIcon(s: Check['status']): string {
 export function createDoctorCommand(): Command {
   return new Command('doctor')
     .description(
-      'Preflight checks for sandbox / artifact_run host requirements (docker, runsc, userns-remap, secrets).',
+      'Run host preflight checks (Docker, daemon, gVisor, userns-remap, sandbox token)',
     )
     .action(async () => {
       // Surface SANDBOX_TOKEN as the user actually configured it. Without

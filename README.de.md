@@ -197,7 +197,7 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 - **[Projekte](docs/de/platform/projects/overview.md)** — geteilter Workspace für Dateien, Chats und Projekt-Agents
 - **[Automatisierungs-Konzepte](docs/de/platform/automations/concepts.md)** — Workflows, Trigger, Genehmigungstore
 - **[Integrationen-Übersicht](docs/de/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
-- **[Modelle out of the box](docs/de/platform/models.md)** — OpenRouter, OpenAI, Vercel AI Gateway plus die ausgelieferten Modelllisten
+- **[Modelle out of the box](docs/de/platform/models.md)** — OpenRouter als einziger Default-Provider, plus die ausgelieferten Modelllisten
 
 </details>
 

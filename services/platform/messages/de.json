@@ -265,10 +265,6 @@
       "lockoutAdvisory": "Wiederholte Fehlversuche sperren das Konto vorübergehend."
     },
     "signup": {
-      "signupTitle": "Erstelle Dein Konto",
-      "creating": "Erstelle...",
-      "createButton": "Erstellen",
-      "accountCreated": "Konto erstellt!",
       "wrongCredentials": "Falsche E-Mail oder falsches Passwort"
     },
     "validation": {
@@ -599,7 +595,7 @@
         "apiNotWired": "Öffentliche APIs zum Bearbeiten von Workflow-Schritten sind noch nicht verbunden."
       },
       "banners": {
-        "hasActiveTriggers": "Diese Automatisierung hat aktive Trigger — Änderungen werden sofort wirksam."
+        "hasActiveTriggers": "Diese Automatisierung ist aktiv — gespeicherte Änderungen gelten für neue Ausführungen."
       },
       "toolbar": {
         "testAutomation": "Automatisierung testen",
@@ -635,6 +631,10 @@
       "loop": "Schleife",
       "action": "Aktion",
       "output": "Ausgabe"
+    },
+    "edges": {
+      "yes": "Ja",
+      "no": "Nein"
     },
     "step": {
       "openStep": "Schritt {name} öffnen",
@@ -2171,24 +2171,37 @@
     "stepsAriaLabel": "Onboarding-Schritte",
     "progress": "Schritt {current} von {total}: {label}",
     "steps": {
+      "preferences": "Einstellungen",
+      "account": "Konto",
       "workspace": "Arbeitsbereich",
-      "provider": "KI-Anbieter",
-      "team": "Team",
+      "provider": "OpenRouter",
       "finish": "Fertig"
+    },
+    "preferences": {
+      "heading": "Mach es zu deinem",
+      "why": "Wähle deine Sprache und dein Design. Du kannst beides jederzeit ändern.",
+      "languageLabel": "Sprache",
+      "themeLabel": "Design"
+    },
+    "account": {
+      "heading": "Erstelle dein Inhaberkonto",
+      "why": "Dies ist das erste Konto auf dieser Tale-Installation und erhält daher volle Administratorrechte. Teammitglieder fügst du später hinzu."
     },
     "workspace": {
       "heading": "Benenne deinen Arbeitsbereich",
-      "why": "So erkennt dein Team diesen Arbeitsbereich."
+      "why": "So erkennt dein Team diesen Arbeitsbereich.",
+      "languageDescription": "Die Standardsprache für die Inhalte dieses Arbeitsbereichs, etwa die Prompt-Bibliothek."
     },
     "provider": {
-      "heading": "KI-Anbieter verbinden",
-      "why": "Agenten und Chat brauchen einen Anbieter. Füge jetzt oder später in den Einstellungen einen hinzu — die meisten Funktionen bleiben bis dahin gesperrt.",
-      "cta": "Anbieter-Einstellungen öffnen"
-    },
-    "team": {
-      "heading": "Lade dein Team ein",
-      "why": "Füge jetzt Teammitglieder hinzu oder lade sie jederzeit in den Einstellungen ein.",
-      "cta": "Personen verwalten"
+      "heading": "OpenRouter verbinden",
+      "why": "Ein OpenRouter-Schlüssel schaltet Chat, Bildgenerierung & -bearbeitung, Sprachmodus und mehr über Hunderte Modelle aller großen Anbieter frei. Wir konfigurieren eine empfohlene Auswahl vor, damit du sofort loslegen kannst.",
+      "keyLabel": "OpenRouter-API-Schlüssel",
+      "keyPlaceholder": "sk-or-...",
+      "keyHelp": "Verschlüsselt gespeichert. Leer lassen, um dies später in den Einstellungen einzurichten.",
+      "hasKeyQuestion": "Noch keinen Schlüssel?",
+      "getKeyLink": "Bei OpenRouter erstellen",
+      "saveError": "Mit diesem Schlüssel konnten wir keine Verbindung zu OpenRouter herstellen. Prüfe ihn und versuche es erneut.",
+      "noModelsError": "Für diesen Schlüssel waren keine Modelle verfügbar."
     },
     "finish": {
       "heading": "Alles bereit",
@@ -6962,7 +6975,9 @@
     "humans": {
       "title": "Menschen",
       "subtitle": "Agenten der obersten Ebene: {count}"
-    }
+    },
+    "saved": "Delegation gespeichert",
+    "unsavedChanges": "Nicht gespeicherte Änderungen"
   },
   "workforce": {
     "title": "Workforce",

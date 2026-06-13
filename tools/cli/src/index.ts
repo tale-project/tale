@@ -65,7 +65,12 @@ program.addCommand(createConfigCommand().helpGroup(MAINTAIN));
 
 program.addCommand(createAuthCommand().helpGroup(ADVANCED));
 program.addCommand(createConvexCommand().helpGroup(ADVANCED));
-program.addCommand(createMigrateCommand().helpGroup(ADVANCED));
+// Deprecated (forward migration now runs automatically on start/deploy/update);
+// keep it working for the `config-layout --cleanup-old` step but hide it from
+// `tale --help` so the top-level listing stays clean.
+program.addCommand(createMigrateCommand().helpGroup(ADVANCED), {
+  hidden: true,
+});
 
 // Branded wordmark above the help, and a few real examples below it.
 program.addHelpText('beforeAll', () => `\n${logger.bannerText(pkg.version)}\n`);

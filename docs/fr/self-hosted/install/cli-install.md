@@ -47,14 +47,17 @@ tale --version
 
 La CLI imprime sa version. Si la commande n'est pas trouvée, l'installeur a déposé le binaire hors du `PATH` — la sortie de l'installeur nomme le répertoire de destination.
 
-## Étape 3 — Configurer la clé admin
+## Étape 3 — Vérifier la configuration
+
+Il n'y a pas de `tale config set` — tout ce dont la CLI a besoin vit dans le projet créé par `tale init`. Lance chaque commande `tale` depuis ce répertoire (la CLI remonte l'arborescence pour trouver `tale.json`), et vérifie qu'il se résout :
 
 ```bash
-tale config set host tale.example.com
-tale config set admin-key <clé-de-premier-admin>
+tale config show
 ```
 
-La CLI enregistre la configuration sous `~/.config/tale/config.yml`. La clé admin authentifie les appels de la CLI vers le conteneur platform ; redémarrer le conteneur platform fait tourner la clé, donc rafraîchis-la à ce moment-là.
+L'hôte sur lequel le proxy répond, les réglages TLS et tous les secrets vivent dans le `.env` du projet. Pour changer l'hôte, modifie `HOST` là-bas ou passe `--host` à `tale start` / `tale deploy`. Pour piloter un hôte distant, pointe le contexte Docker de ton shell (ou `DOCKER_HOST`) dessus — la CLI parle au même endpoint Docker que n'importe quelle commande `docker`.
+
+La clé admin à usage unique qui revendique le premier compte **Owner** à l'inscription est séparée de la configuration de la CLI — génère-la avec `tale convex admin` au besoin (voir [Premier admin](/fr/self-hosted/install/first-admin)).
 
 ## Étape 4 — Lancer tale deploy
 
@@ -128,7 +131,7 @@ Lance `tale <commande> --help` pour la liste de référence de ta version instal
 
 ### Maintenance
 
-`tale upgrade` — mettre à jour le CLI vers la dernière version et synchroniser les fichiers projet.
+`tale upgrade` (alias `tale update`) — mettre à jour le CLI vers la dernière version et synchroniser les fichiers projet.
 
 - `-v, --version <version>` — installer exactement cette version (p. ex. `0.9.0`) au lieu de la dernière ; autorise les rétrogradations.
 - `-f, --force` — forcer le re-téléchargement et écraser les fichiers modifiés localement.
@@ -157,8 +160,9 @@ Lance `tale <commande> --help` pour la liste de référence de ta version instal
 
 ## Dépannage
 
-- **`tale --version` s'imprime mais `tale deploy` échoue avec « host not configured ».** Lance d'abord `tale config set host …` ; la CLI ne prend pas l'hôte depuis `.env`.
-- **`tale deploy` échoue avec « auth failed ».** La clé admin a tourné depuis que tu l'as configurée. Relance `./scripts/get-admin-key.sh` sur l'hôte et `tale config set admin-key …` sur la station.
+- **`tale deploy` vise la mauvaise machine.** La CLI utilise le contexte Docker / `DOCKER_HOST` de ton shell. Bascule avec `docker context use …` (ou définis `DOCKER_HOST`) pour qu'il pointe sur l'hôte voulu, puis relance.
+- **`tale deploy` utilise le mauvais alias d'hôte.** L'hôte sur lequel le proxy répond vient de `HOST` dans le `.env` du projet, pas d'un stockage CLI séparé. Modifie `.env` ou passe `--host` pour le remplacer le temps d'un lancement.
+- **L'écran d'inscription rejette la clé admin.** La clé d'amorçage tourne à chaque redémarrage du conteneur platform. Génère-en une fraîche avec `tale convex admin` et utilise-la tout de suite.
 - **L'installeur échoue sur macOS avec un avertissement Gatekeeper.** Le binaire est signé mais pas encore notarié sur Apple Silicon ; l'installeur imprime la commande `xattr` pour effacer le drapeau de quarantaine.
 - **`tale` introuvable après installation sous Linux.** L'installeur dépose le binaire dans `/usr/local/bin` ; vérifie que le répertoire est dans le `PATH` de l'utilisateur (`echo $PATH`).
 

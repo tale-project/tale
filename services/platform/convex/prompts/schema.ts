@@ -140,3 +140,19 @@ export const promptCategoriesTable = defineTable({
     'createdBy',
   ])
   .index('by_organizationId_and_nameLower', ['organizationId', 'nameLower']);
+
+/**
+ * One row per (org, prompt slug) the DEFAULT-prompt provisioner has handled.
+ * Existence means "this org got this default prompt seeded once" — an org that
+ * later edits or deletes the seeded prompt is never re-provisioned behind its
+ * back (opt-outs stick across reseeds and upgrades). Mirrors
+ * `wfDefaultProvisionsTable` for the default-workflow pack.
+ */
+export const promptDefaultProvisionsTable = defineTable({
+  organizationId: v.string(),
+  promptSlug: v.string(),
+  /** The seeded prompt row, so a future content upgrade can target it. */
+  promptId: v.id('promptTemplates'),
+  contentHash: v.string(),
+  provisionedAt: v.number(),
+}).index('by_org_slug', ['organizationId', 'promptSlug']);

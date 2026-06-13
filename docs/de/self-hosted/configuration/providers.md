@@ -13,25 +13,29 @@ Die Referenz ist das Dateiformat auf Platte und die Reihenfolge der Operationen,
 
 ```json
 {
-  "displayName": "OpenAI",
-  "description": "Whisper + GPT-4o-mini-tts für Voice-Modus.",
-  "baseUrl": "https://api.openai.com/v1",
+  "displayName": "OpenRouter",
+  "description": "Chat, Vision, Embeddings, Sprache und Bildgenerierung über einen Key.",
+  "baseUrl": "https://openrouter.ai/api/v1",
+  "secretsEnv": "TALE_PROVIDER_KEY_OPENROUTER",
   "defaults": {
-    "transcription": "whisper-1",
-    "text-to-speech": "gpt-4o-mini-tts"
+    "transcription": "openai/whisper-1",
+    "text-to-speech": "openai/gpt-4o-mini-tts-2025-12-15"
   },
   "models": [
     {
-      "id": "whisper-1",
+      "id": "openai/whisper-1",
       "displayName": "Whisper v1",
       "tags": ["transcription"],
+      "transcriptionMode": "json-base64",
       "cost": { "centsPerAudioMinute": 0.6 }
     }
   ]
 }
 ```
 
-Die vollständige Menge der Felder lebt in [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers) — `openai.json`, `openrouter.json` und `vercel-gateway.json` decken die drei Formen ab, die du wahrscheinlich brauchst.
+Die vollständige Menge der Felder lebt in [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers). Der ausgelieferte Default ist eine einzige `openrouter.json`, die Chat, Vision, Embeddings, Transkription, Text-to-Speech und Bildgenerierung abdeckt — ein Key für alles. Um einen Anbieter direkt statt über OpenRouter aufzurufen, füg eine weitere Datei hinzu (z. B. eine `openai.json`, die auf `https://api.openai.com/v1` zeigt); siehe [Modelle out of the box](/de/platform/models) für den vollen Default-Katalog.
+
+`transcriptionMode` wählt, wie der Request-Body eines `transcription`-Modells geformt wird: `json-base64` (OpenRouters `input_audio`-Envelope) oder, wenn weggelassen, `multipart` — der OpenAI/Whisper-`multipart/form-data`-Upload, den auch vLLM, LocalAI und ein direkter OpenAI-Key erwarten. Setz es passend zum Transkriptions-Endpunkt, auf den du zeigst.
 
 ### Modell-Capabilities und Auto-Sync
 
