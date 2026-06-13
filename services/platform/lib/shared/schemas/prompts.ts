@@ -68,7 +68,7 @@ export const promptJsonSchema = z.object({
 
 export type PromptJsonConfig = z.infer<typeof promptJsonSchema>;
 
-export interface ResolvedPromptDisplay {
+interface ResolvedPromptDisplay {
   title: string;
   content: string;
   description?: string;

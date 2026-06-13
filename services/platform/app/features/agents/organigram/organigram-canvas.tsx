@@ -298,7 +298,7 @@ export function OrganigramCanvas({
                   onClick={() => void handleSave()}
                 >
                   {isSaving ? (
-                    <Loader2 className="size-3.5 animate-spin sm:mr-1.5" />
+                    <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none sm:mr-1.5" />
                   ) : (
                     <Save className="size-3.5 sm:mr-1.5" />
                   )}

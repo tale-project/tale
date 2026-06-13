@@ -22,8 +22,6 @@ import {
 } from '../../lib/shared/schemas/prompts';
 import { getConfigRoot, sha256, validateOrgSlug } from '../lib/file_io';
 
-export { sha256 };
-
 /**
  * Prompt slug: lowercase alphanumeric + hyphens/underscores, no nesting.
  * Examples: "summarize-text", "weigh-pros-and-cons".
@@ -61,3 +59,5 @@ export function parsePromptJson(content: string): PromptJsonConfig {
   }
   return result.data;
 }
+
+export { sha256 };

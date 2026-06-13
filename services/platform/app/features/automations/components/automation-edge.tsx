@@ -10,12 +10,9 @@ import {
 } from '@xyflow/react';
 import { CSSProperties, useMemo } from 'react';
 
-const EMPTY_STYLE: CSSProperties = {};
+import type { ElkPoint } from '@/app/components/flow/layout/elk-layout';
 
-interface ElkPoint {
-  x: number;
-  y: number;
-}
+const EMPTY_STYLE: CSSProperties = {};
 
 interface AutomationEdgeProps extends EdgeProps {
   type?: 'smoothstep' | 'bezier' | 'straight' | 'default';

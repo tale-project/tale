@@ -769,7 +769,7 @@ async function syncProjectFiles(
     // Pre-`.tale/orgs/` layout: orgs used to sit at the project root. They are
     // no longer pushed from there — real orgs live under `.tale/orgs/<slug>/`.
     logger.warn(
-      `${prefix}Found org-shaped director${staleRootOrgDirs.length === 1 ? 'y' : 'ies'} at the project root (${staleRootOrgDirs.join(', ')}/). ` +
+      `${prefix}Found org-shaped ${staleRootOrgDirs.length === 1 ? 'directory' : 'directories'} at the project root (${staleRootOrgDirs.join(', ')}/). ` +
         `Real organizations now live under .tale/orgs/<slug>/ and these will NOT be pushed. ` +
         `Move them under .tale/orgs/ to deploy them.`,
     );

@@ -94,12 +94,12 @@ export const provisionDefaultPrompt = internalMutation({
     assertPromptSizes(normalized);
 
     const content = normalized.content ?? '';
-    if (content.trim() === '') return null;
+    const title = normalized.title ?? '';
+    // A seeded default with no usable content or title is a malformed catalog
+    // entry — skip it (the provisioner logs it as failed and retries once the
+    // catalog file is fixed) rather than persisting a placeholder title.
+    if (content.trim() === '' || title.trim() === '') return null;
 
-    const title =
-      normalized.title && normalized.title.length > 0
-        ? normalized.title
-        : 'Untitled prompt';
     const now = Date.now();
 
     const scope = 'global' as const;

@@ -48,9 +48,19 @@ export function sortObjectKeysDeep<T>(value: T): T {
   return value;
 }
 
-/** Lexicographic sort + dedupe of a string array. */
+/**
+ * Deterministic, locale-independent string order (UTF-16 code unit) — matches
+ * `Object.keys().sort()` in {@link sortObjectKeysDeep} so canonical output is
+ * byte-identical across machines and runtimes. `localeCompare` is not: its
+ * ordering depends on the host ICU locale/version.
+ */
+function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Lexicographic (code-unit) sort + dedupe of a string array. */
 function sortStrings(values: readonly string[]): string[] {
-  return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+  return [...new Set(values)].sort(byCodeUnit);
 }
 
 /**
@@ -85,7 +95,7 @@ export function sortStringArrayFields<T extends object>(
  * `conversationStarters` (display order) — sorting those would change runtime
  * or display behavior.
  */
-export const AGENT_SET_ARRAY_FIELDS = [
+const AGENT_SET_ARRAY_FIELDS = [
   'toolNames',
   'integrationBindings',
   'workflows',
@@ -117,7 +127,7 @@ export function canonicalizeWorkflowConfig<T extends object>(config: T): T {
     next.steps = [...steps].sort((a, b) => {
       const aSlug = isPlainObject(a) ? String(a.stepSlug ?? '') : '';
       const bSlug = isPlainObject(b) ? String(b.stepSlug ?? '') : '';
-      return aSlug.localeCompare(bSlug);
+      return byCodeUnit(aSlug, bSlug);
     });
   }
 
@@ -137,7 +147,7 @@ export function canonicalizeWorkflowConfig<T extends object>(config: T): T {
     integrations.sort((a, b) => {
       const aName = isPlainObject(a) ? String(a.name ?? '') : '';
       const bName = isPlainObject(b) ? String(b.name ?? '') : '';
-      return aName.localeCompare(bName);
+      return byCodeUnit(aName, bName);
     });
     next.requires = { ...requires, integrations };
   }

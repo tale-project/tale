@@ -79,7 +79,7 @@ export const transcribeDictation = action({
       timeoutMs: TRANSCRIBE_API_TIMEOUT_MS,
     });
 
-    const text = result.text;
+    const text = result.text ?? '';
     const durationSec = result.duration ?? 0;
 
     if (durationSec > 0) {

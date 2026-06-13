@@ -4,6 +4,7 @@ import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Text } from '@tale/ui/text';
 import { ThemeSwitcher } from '@tale/ui/theme-switcher';
+import { useRef, type KeyboardEvent } from 'react';
 
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { useT } from '@/lib/i18n/client';
@@ -21,7 +22,8 @@ const LOCALES: ReadonlyArray<{ code: string; label: string }> = [
 function baseLanguage(locale: string): string {
   try {
     return new Intl.Locale(locale).language ?? locale;
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse locale tag:', locale, error);
     return locale;
   }
 }
@@ -35,6 +37,40 @@ export function PreferencesStep() {
   const { t } = useT('onboarding');
   const { locale, setLocale } = useLocale();
   const active = baseLanguage(locale);
+  const radioRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const activeIndex = LOCALES.findIndex(({ code }) => code === active);
+  // Roving tabindex: the active radio is the group's single tab stop. If the
+  // stored locale matches no option, fall back to the first so the group stays
+  // keyboard-reachable.
+  const tabbableIndex = activeIndex >= 0 ? activeIndex : 0;
+
+  // ARIA radiogroup keyboard model: arrows/Home/End move focus AND selection
+  // (radios select on focus), wrapping at the ends.
+  const onLanguageKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    let nextIndex = tabbableIndex;
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        nextIndex = (tabbableIndex + 1) % LOCALES.length;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        nextIndex = (tabbableIndex - 1 + LOCALES.length) % LOCALES.length;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = LOCALES.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    setLocale(LOCALES[nextIndex].code);
+    radioRefs.current[nextIndex]?.focus();
+  };
 
   return (
     <WizardStep id="preferences">
@@ -51,15 +87,20 @@ export function PreferencesStep() {
           role="radiogroup"
           aria-label={t('preferences.languageLabel')}
           className="flex flex-wrap gap-2"
+          onKeyDown={onLanguageKeyDown}
         >
-          {LOCALES.map(({ code, label }) => {
+          {LOCALES.map(({ code, label }, index) => {
             const isActive = active === code;
             return (
               <button
                 key={code}
+                ref={(el) => {
+                  radioRefs.current[index] = el;
+                }}
                 type="button"
                 role="radio"
                 aria-checked={isActive}
+                tabIndex={index === tabbableIndex ? 0 : -1}
                 onClick={() => setLocale(code)}
                 className={cn(
                   'focus-visible:ring-ring rounded-md border px-3 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',

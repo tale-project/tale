@@ -50,7 +50,8 @@ const ORG_LOCALES: { value: string; label: string }[] = [
 function baseLanguage(locale: string): string {
   try {
     return new Intl.Locale(locale).language ?? locale;
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse locale tag:', locale, error);
     return locale;
   }
 }

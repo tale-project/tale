@@ -86,7 +86,7 @@ export function OnboardingWizard({
         {/* No session yet on first-run until the account step completes. */}
         {user ? <UserButton align="end" /> : null}
       </header>
-      <div className="mx-auto w-full max-w-xl flex-1 px-4 py-12">
+      <main className="mx-auto w-full max-w-xl flex-1 px-4 py-12">
         <Heading level={1} className="mb-2">
           {t('title')}
         </Heading>
@@ -120,7 +120,7 @@ export function OnboardingWizard({
             skipLabel={tCommon('actions.skip')}
           />
         </Wizard>
-      </div>
+      </main>
     </div>
   );
 }

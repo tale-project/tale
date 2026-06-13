@@ -57,7 +57,11 @@ export function WizardProgress({ ariaLabel, className }: WizardProgressProps) {
       </div>
 
       {/* ── ≥ sm: numbered steps ───────────────────────────────────── */}
-      <ol aria-label={ariaLabel} className="hidden items-start sm:flex">
+      <ol
+        role="list"
+        aria-label={ariaLabel}
+        className="hidden items-start sm:flex"
+      >
         {steps.map((step, index) => {
           const isActive = index === activeIndex;
           const isComplete = index < activeIndex;

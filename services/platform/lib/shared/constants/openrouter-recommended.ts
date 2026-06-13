@@ -9,7 +9,7 @@ export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 /** Where the wizard sends users who don't have a key yet. */
 export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
 
-export interface RecommendedModel {
+interface RecommendedModel {
   id: string;
   displayName: string;
   tags: ModelTag[];

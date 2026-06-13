@@ -159,26 +159,34 @@ export function ProjectAgentsTab({
         base.modelMode !== next.modelMode ||
         !structuralEqual(base.modelList, next.modelList);
       try {
+        // Fire both writes together so the save is all-or-nothing from the
+        // toast's perspective; each mutation is idempotent on retry.
+        const writes: Promise<unknown>[] = [];
         if (agentChanged) {
-          await updateAgents({
-            projectId,
-            agentMode: next.agentMode,
-            recommendedAgentSlugs: next.agentList,
-            // Mirror into the allowed slot only when restricted, so the
-            // server-side gate sees the same set as the UI's single list.
-            allowedAgentSlugs:
-              next.agentMode === 'restricted' ? next.agentList : [],
-          });
+          writes.push(
+            updateAgents({
+              projectId,
+              agentMode: next.agentMode,
+              recommendedAgentSlugs: next.agentList,
+              // Mirror into the allowed slot only when restricted, so the
+              // server-side gate sees the same set as the UI's single list.
+              allowedAgentSlugs:
+                next.agentMode === 'restricted' ? next.agentList : [],
+            }),
+          );
         }
         if (modelChanged) {
-          await updateModels({
-            projectId,
-            modelMode: next.modelMode,
-            recommendedModels: next.modelList,
-            allowedModels:
-              next.modelMode === 'restricted' ? next.modelList : [],
-          });
+          writes.push(
+            updateModels({
+              projectId,
+              modelMode: next.modelMode,
+              recommendedModels: next.modelList,
+              allowedModels:
+                next.modelMode === 'restricted' ? next.modelList : [],
+            }),
+          );
         }
+        await Promise.all(writes);
         toast({ title: t('agents.saveSuccess'), variant: 'success' });
       } catch (error) {
         console.error('updateProject agent/model settings failed', error);

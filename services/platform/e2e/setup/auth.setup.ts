@@ -19,7 +19,7 @@ import {
  *
  * Fresh users always land on `/dashboard/create-organization` (the onboarding
  * wizard) — `default` is never auto-created. The wizard creates the org on the
- * first "Next", then the optional provider/team steps are skipped and "Finish"
+ * first "Next", then the optional provider step is skipped and "Finish"
  * navigates to `/dashboard/<orgId>`. A user who already has an org (local
  * re-run) lands straight on `/dashboard/<orgId>`.
  */
@@ -53,14 +53,13 @@ setup('create owner account and organization', async ({ page }) => {
     await expect(nextButton).toBeEnabled();
     await nextButton.click();
 
-    // Skip the optional provider + team steps, then Finish to the dashboard.
+    // Skip the optional provider step, then Finish to the dashboard.
     const skipButton = page.getByRole('button', {
       name: t('common.actions.skip'),
       exact: true,
     });
     await expect(skipButton).toBeVisible();
-    await skipButton.click(); // provider → team
-    await skipButton.click(); // team → finish
+    await skipButton.click(); // provider → finish
 
     await page
       .getByRole('button', {
