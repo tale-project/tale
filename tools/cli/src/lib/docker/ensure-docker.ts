@@ -39,7 +39,7 @@ export type InstallStrategyKind =
   | 'get-docker' // curl/wget get.docker.com | sh (+ bootstrap a downloader first)
   | 'manual'; // no automated path — print guidance + docs link, never a dead end
 
-export interface InstallStrategy {
+interface InstallStrategy {
   kind: InstallStrategyKind;
   /** Short human label for the consent prompt / progress line. */
   label: string;
@@ -47,7 +47,7 @@ export interface InstallStrategy {
   steps: string[];
 }
 
-export interface DockerInstallPlan {
+interface DockerInstallPlan {
   platform: DockerPlatform;
   /**
    * Strategies attempted in order until the daemon is reachable. The last
@@ -56,7 +56,7 @@ export interface DockerInstallPlan {
   strategies: InstallStrategy[];
 }
 
-export const DOCKER_DOCS_URL = 'https://docs.docker.com/get-docker/';
+const DOCKER_DOCS_URL = 'https://docs.docker.com/get-docker/';
 
 function manualStrategy(platform: DockerPlatform): InstallStrategy {
   return {
@@ -169,7 +169,7 @@ export function planDockerInstall(probe: DockerEnvProbe): DockerInstallPlan {
   return { platform: probe.platform, strategies };
 }
 
-export function currentDockerPlatform(): DockerPlatform | null {
+function currentDockerPlatform(): DockerPlatform | null {
   switch (process.platform) {
     case 'darwin':
       return 'macos';
@@ -207,7 +207,7 @@ async function detectLinuxPackageManager(): Promise<LinuxPackageManager | null> 
 }
 
 /** Snapshot the host tooling. Side-effecting; stubbed in tests. */
-export async function probeDockerEnv(
+async function probeDockerEnv(
   platform: DockerPlatform,
 ): Promise<DockerEnvProbe> {
   const [hasBrew, hasWinget, hasCurl, hasWget, hasWsl, packageManager] =
@@ -232,14 +232,14 @@ export async function probeDockerEnv(
   };
 }
 
-export interface DockerState {
+interface DockerState {
   cliPresent: boolean;
   daemonReachable: boolean;
   detail: string;
 }
 
 /** Is Docker installed and is its engine answering? */
-export async function detectDockerState(): Promise<DockerState> {
+async function detectDockerState(): Promise<DockerState> {
   const cliPresent = await commandExists('docker');
   if (!cliPresent) {
     return {
@@ -260,7 +260,7 @@ const DAEMON_READY_TIMEOUT_MS = 120_000;
 const DAEMON_POLL_INTERVAL_MS = 2_000;
 
 /** Poll until the daemon answers or the timeout elapses. */
-export async function waitForDockerReady(
+async function waitForDockerReady(
   timeoutMs = DAEMON_READY_TIMEOUT_MS,
   intervalMs = DAEMON_POLL_INTERVAL_MS,
   now: () => number = () => Date.now(),
@@ -274,14 +274,14 @@ export async function waitForDockerReady(
   }
 }
 
-export interface EnsureDockerOptions {
+interface EnsureDockerOptions {
   /** Skip the consent prompt (e.g. `--yes`, CI). */
   assumeYes?: boolean;
   /** Whether a TTY is attached. Defaults to the real stdin/stdout. */
   interactive?: boolean;
 }
 
-export interface EnsureDockerResult {
+interface EnsureDockerResult {
   status: 'ready' | 'installed' | 'refused' | 'failed';
   detail: string;
 }
@@ -340,13 +340,17 @@ async function runBrewInstall(): Promise<void> {
 }
 
 async function runDmgInstall(): Promise<void> {
-  // Drive the official disk image without Homebrew.
+  // Drive the official disk image without Homebrew. Match the disk image to
+  // the host CPU: the arm64 image won't launch on an Intel Mac (and vice
+  // versa), so hardcoding one arch turns the dmg fallback into a ~2-minute
+  // dead end (a download + a daemon-ready timeout) on the other.
+  const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
   await exec('/bin/bash', [
     '-c',
     [
       'set -e',
       'dmg="$(mktemp -t Docker).dmg"',
-      'curl -fsSL https://desktop.docker.com/mac/main/arm64/Docker.dmg -o "$dmg"',
+      `curl -fsSL https://desktop.docker.com/mac/main/${arch}/Docker.dmg -o "$dmg"`,
       'hdiutil attach "$dmg" -nobrowse -quiet',
       'cp -R /Volumes/Docker/Docker.app /Applications/',
       'hdiutil detach /Volumes/Docker -quiet',

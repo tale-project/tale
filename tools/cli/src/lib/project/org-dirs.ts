@@ -21,14 +21,14 @@ import { join } from 'node:path';
 export const ORGS_SUBDIR = join('.tale', 'orgs');
 
 /** The committed scaffold template directory at the project root. */
-export const TEMPLATE_DIR = 'default';
+const TEMPLATE_DIR = 'default';
 
 /**
  * Org-slug regex aligned with
  * services/platform/lib/shared/constants/org-slug.ts (64-char cap). Duplicated
  * here because the compiled CLI binary cannot import convex sources at runtime.
  */
-export const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 /** Per-domain config dirs each org (and the template) holds. */
 export const ORG_DOMAIN_DIRS = [
@@ -61,13 +61,13 @@ export function isDeployableOrgSlug(name: string): boolean {
   return name !== TEMPLATE_DIR && ORG_SLUG_REGEX.test(name);
 }
 
-export interface OrgDir {
+interface OrgDir {
   slug: string;
   /** Absolute path to the org's config dir on the host. */
   srcDir: string;
 }
 
-export interface OrgDiscovery {
+interface OrgDiscovery {
   /** Deployable real orgs found under `.tale/orgs/<slug>/`. */
   orgs: OrgDir[];
   /** Legacy flat per-domain dirs at the project root → hard error on deploy. */

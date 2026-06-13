@@ -14,13 +14,13 @@ import { isLocalHostname } from '../config/ensure-env';
  * operator sees them without having to run `tale doctor` separately.
  */
 
-export interface TlsConfig {
+interface TlsConfig {
   tlsMode: string | undefined;
   host: string | undefined;
   tlsEmail: string | undefined;
 }
 
-export interface PreflightIssue {
+interface PreflightIssue {
   message: string;
 }
 
@@ -52,14 +52,14 @@ export function validateTlsPrereqs(config: TlsConfig): PreflightIssue[] {
   return issues;
 }
 
-export interface DeployPreflightOptions {
+interface DeployPreflightOptions {
   /** Read TLS settings from here (defaults to process.env after loadEnv). */
   env?: NodeJS.ProcessEnv;
   /** Dry-run reports problems but never blocks. */
   dryRun?: boolean;
 }
 
-export interface DeployPreflightResult {
+interface DeployPreflightResult {
   ok: boolean;
   blocking: PreflightIssue[];
 }

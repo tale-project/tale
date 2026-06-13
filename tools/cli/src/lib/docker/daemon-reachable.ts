@@ -1,6 +1,6 @@
 import { exec } from './exec';
 
-export interface DaemonStatus {
+interface DaemonStatus {
   reachable: boolean;
   detail: string;
 }

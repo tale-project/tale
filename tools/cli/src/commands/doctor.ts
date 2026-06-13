@@ -16,7 +16,7 @@ import * as logger from '../utils/logger';
  * for the sandbox-foundation rollout.
  */
 
-export interface Check {
+interface Check {
   name: string;
   status: 'ok' | 'warn' | 'fail';
   detail: string;
@@ -33,7 +33,7 @@ function tryRun(cmd: string): string | undefined {
   }
 }
 
-export function checkDocker(): Check {
+function checkDocker(): Check {
   const version = tryRun('docker --version');
   if (!version) {
     return {

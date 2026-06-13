@@ -39,7 +39,7 @@ function generatePassword(): string {
 /** How the operator intends to run Tale — the single up-front question. */
 export type DeployMode = 'trial' | 'production';
 
-export interface DomainTlsConfig {
+interface DomainTlsConfig {
   mode: DeployMode;
   host: string;
   siteUrl: string;
