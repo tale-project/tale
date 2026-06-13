@@ -24,6 +24,18 @@ interface RollbackOptions {
 }
 
 /**
+ * `pullImage` is injectable so the unit test can supply a fake without
+ * `mock.module`-ing the shared pull-image module. That mock is process-global
+ * in Bun and is not reset between files; it leaked into pull-image.test.ts and
+ * broke its suite on Windows (where Bun's per-file mock scoping doesn't hold).
+ * The rollback's other collaborators are still swapped via mock.module in the
+ * test — none of them has a sibling suite that imports the real module.
+ */
+interface RollbackDeps {
+  pullImage?: typeof pullImage;
+}
+
+/**
  * Printed whenever the rollback gate refuses. Minor and major upgrades can
  * run forward-only data migrations, so re-deploying an older binary on top
  * of migrated data corrupts the instance instead of recovering it — the
@@ -44,8 +56,12 @@ function printSnapshotRestoreRunbook(): void {
   logger.info('       tale deploy --all');
 }
 
-export async function rollback(options: RollbackOptions): Promise<void> {
+export async function rollback(
+  options: RollbackOptions,
+  deps: RollbackDeps = {},
+): Promise<void> {
   const { env } = options;
+  const pull = deps.pullImage ?? pullImage;
 
   await withLock(env.DEPLOY_DIR, 'rollback', async () => {
     logger.header('Rolling Back Deployment');
@@ -118,7 +134,7 @@ export async function rollback(options: RollbackOptions): Promise<void> {
     logger.step('Pulling previous version images...');
     for (const service of ROTATABLE_SERVICES) {
       const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
-      const success = await pullImage(image);
+      const success = await pull(image);
       if (!success) {
         throw new Error(`Failed to pull image: ${image}`);
       }
