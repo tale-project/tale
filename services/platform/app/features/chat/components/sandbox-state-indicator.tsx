@@ -28,7 +28,13 @@ function SpinningLoader({ className }: { className?: string }) {
   return <Loader2 className={cn(className, 'animate-spin')} />;
 }
 
-type SandboxBadgeVariant = 'outline' | 'yellow' | 'orange' | 'green';
+// Three calm buckets per the cross-product convention (Gitpod/Codespaces/VS
+// Code): green = alive (warm or working), slate = dormant (sleeping / not yet
+// provisioned — a normal, recoverable, data-preserved state, NOT an alarming
+// red/yellow), orange = transitional (starting / recovering). Filled fills give
+// the chip its own visual language so it doesn't blend into the ghost/outline
+// toolbar controls beside it.
+type SandboxBadgeVariant = 'green' | 'slate' | 'orange';
 
 /**
  * Ambient composer pill that mirrors the thread's sandbox VM lifecycle, so the
@@ -70,60 +76,69 @@ export function SandboxStateIndicator({
 
   let variant: SandboxBadgeVariant;
   let icon: ComponentType<{ className?: string }>;
-  let label: string;
+  let stateLabel: string | null;
   let tooltip: string;
 
   if (running) {
     variant = 'green';
-    icon = Spinner;
-    label = t('sandbox.working');
+    icon = Spinner; // the only state that animates — motion = "happening now"
+    stateLabel = t('sandbox.working');
     tooltip = t('sandbox.workingTooltip');
   } else if (state?.status === 'stopped') {
-    variant = 'yellow';
+    variant = 'slate';
     icon = Moon;
-    label = t('sandbox.sleeping');
+    stateLabel = t('sandbox.sleeping');
     tooltip = t('sandbox.sleepingTooltip');
   } else if (state?.status === 'creating') {
-    variant = 'outline';
+    variant = 'orange';
     icon = Spinner;
-    label = t('sandbox.starting');
+    stateLabel = t('sandbox.starting');
     tooltip = t('sandbox.startingTooltip');
   } else if (state?.status === 'degraded') {
     variant = 'orange';
     icon = AlertTriangle;
-    label = t('sandbox.recovering');
+    stateLabel = t('sandbox.recovering');
     tooltip = t('sandbox.recoveringTooltip');
   } else if (state?.status === 'active') {
     // Warm container, idle — the next message starts instantly.
-    variant = 'outline';
+    variant = 'green';
     icon = Box;
-    label = t('sandbox.ready');
+    stateLabel = t('sandbox.ready');
     tooltip = t('sandbox.readyTooltip');
   } else {
     // No live session yet (the agent is selected but hasn't run in this
     // thread): show the resting identity so the user perceives the sandbox VM
     // before the first turn provisions it.
-    variant = 'outline';
+    variant = 'slate';
     icon = Box;
-    label = t('sandbox.label');
+    stateLabel = null;
     tooltip = t('sandbox.tooltip');
   }
 
+  // The visible label stays just "Sandbox" so the chip stays compact in a busy
+  // composer toolbar (agent picker + model picker + Plan/Act already compete for
+  // width). The live state rides on color + icon + tooltip, with the state word
+  // folded into the accessible name for screen readers — the same identity-only
+  // + color approach as VS Code's remote-status pill. `shrink-0` keeps it from
+  // being squeezed into a truncated "Sandbox · W…".
+  const identity = t('sandbox.label');
+  const accessibleLabel = stateLabel ? `${identity} · ${stateLabel}` : identity;
+
   return (
-    <div
-      className="flex items-center gap-1"
-      aria-label={t('sandbox.ariaLabel')}
-    >
+    <div className="flex items-center gap-1">
       <Tooltip content={tooltip} side="top" contentClassName="max-w-xs">
-        <span className="inline-flex cursor-help">
+        <span
+          className="inline-flex shrink-0 cursor-help"
+          aria-label={accessibleLabel}
+        >
           <Badge variant={variant} icon={icon} className="h-8 rounded-full">
-            {label}
+            {identity}
           </Badge>
         </span>
       </Tooltip>
       {state?.pinned && (
         <Tooltip content={t('sandbox.pinnedTooltip')} side="top">
-          <span className="inline-flex cursor-help">
+          <span className="inline-flex shrink-0 cursor-help">
             <Badge variant="blue" icon={Pin} className="h-8 rounded-full">
               {t('sandbox.pinned')}
             </Badge>
