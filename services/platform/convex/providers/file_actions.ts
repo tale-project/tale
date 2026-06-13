@@ -1212,7 +1212,7 @@ async function syncProviderToGateway(
       );
       return;
     }
-    await reprovisionProvider(provider);
+    await reprovisionProvider(organizationId, provider);
   } catch (err) {
     console.warn(
       `[syncProviderToGateway] best-effort gateway sync failed for '${providerName}' (continuing):`,

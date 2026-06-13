@@ -266,25 +266,31 @@ export const runExternalAgentTurn = internalAction({
           internal.sandbox.session_mutations.setSessionStatus,
           { rowId, status: 'active', lastActivityAt: Date.now() },
         );
+      }
 
-        // Once per session create: push the org's providers + harden the
-        // gateway auth posture (idempotent). Best-effort — a hiccup degrades
-        // to the prior manual-config behavior rather than killing the turn.
-        try {
-          const gatewayProviders = await loadOrgGatewayProviders(
-            ctx,
-            args.organizationId,
-          );
-          if (gatewayProviders.length > 0) {
-            await provisionProviders(gatewayProviders);
-          }
-          await applyGatewayConfig();
-        } catch (provisionErr) {
-          console.warn(
-            '[runExternalAgentTurn] gateway provisioning failed (continuing):',
-            provisionErr,
-          );
+      // EVERY turn (created OR reused): ensure the org's per-org upstream key
+      // + provider config + gateway auth posture are in the gateway, BEFORE
+      // the mint below binds the VK to that key. provisionProviders is
+      // idempotent and memoized (steady-state = one GET per provider, no
+      // writes), so this is cheap on a reused session; running it only at
+      // create left reused sessions (the common case) with no key for the
+      // mint to bind to — mintVirtualKey then fails closed. NOT best-effort
+      // for the result, but its failure surfaces as the mint's fail-closed
+      // error rather than a silently over-permissive key.
+      try {
+        const gatewayProviders = await loadOrgGatewayProviders(
+          ctx,
+          args.organizationId,
+        );
+        if (gatewayProviders.length > 0) {
+          await provisionProviders(args.organizationId, gatewayProviders);
         }
+        await applyGatewayConfig();
+      } catch (provisionErr) {
+        console.warn(
+          '[runExternalAgentTurn] gateway provisioning failed (continuing):',
+          provisionErr,
+        );
       }
 
       // 2. Inject Tier-2 integration credentials. Per-turn (not just at

@@ -12,16 +12,22 @@
 // Raw provider API keys + the management token are Tier-0 secrets — they live
 // only here (Convex) and in Bifrost, never in the sandbox.
 //
-// NOTE: the governance endpoint paths + field names below are verified
-// against the pinned maximhq/bifrost:v1.4.8 (transports/bifrost-http/
-// handlers/governance.go at tag transports/v1.4.8): VK create takes
-// `name` (required) + `provider_configs[]` (array, per-provider
-// allowed_models) + `budget` (singular; reset_duration must parse as a
-// duration — 'never' is rejected), `team_id`/`customer_id` are mutually
-// exclusive FK references (we encode attribution in `name` instead), and
-// the response wraps the key as `{ virtual_key: { id, value } }`.
+// NOTE: endpoint paths + field names are verified against the pinned
+// maximhq/bifrost:v1.5.13 (spike 2026-06-13; see
+// reference-bifrost-provider-api-v1513). Key shape vs the old v1.4.8:
+//   - upstream KEYS are a provider SUB-RESOURCE (`/api/providers/:p/keys`,
+//     CRUD), NOT embedded in the provider PUT (a keys[] there is ignored).
+//     Per-org keys coexist under one shared provider record.
+//   - VK create takes `name` + `provider_configs[]` where each config has
+//     `keys: [<key id>]` + `allow_all_keys` (binds the VK to specific upstream
+//     keys) + `allowed_models` (deny-by-default ENFORCED on inference, incl.
+//     the /anthropic route; an EMPTY list denies all) + `budget` (singular;
+//     reset_duration must parse — 'never' is rejected). Response wraps the key
+//     as `{ virtual_key: { id, value } }`.
 
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
+
+import { providerAttributionHeaders } from '../../providers/provider_attribution';
 
 function bifrostUrl(): string {
   return process.env.BIFROST_URL ?? 'http://bifrost:8080';
@@ -86,7 +92,21 @@ export interface MintedVirtualKey {
   keyId: string;
 }
 
-/** POST /api/governance/virtual-keys — mint a session-scoped key. */
+/** POST /api/governance/virtual-keys — mint a session-scoped key.
+ *
+ * v1.5.13 enforces both axes (verified by spike, see
+ * reference-bifrost-provider-api-v1513):
+ *   - `provider_configs[].keys: [<this org's key id>]` + `allow_all_keys:false`
+ *     binds the VK to THIS org's upstream key only — a request can never be
+ *     served by another org's key under the same provider (cross-org
+ *     isolation; v1.4.8 had no such binding and routed to whatever global key
+ *     occupied the provider slot).
+ *   - `allowed_models` is deny-by-default enforced on the inference path
+ *     (incl. the /anthropic route the adapter uses) — a request for a model
+ *     outside the list is rejected 403 model_blocked, not forwarded upstream.
+ *     An EMPTY list denies everything, so we fail closed (throw) rather than
+ *     mint a deny-all key if no model resolves.
+ */
 export async function mintVirtualKey(
   args: MintVirtualKeyArgs,
 ): Promise<MintedVirtualKey> {
@@ -103,17 +123,43 @@ export async function mintVirtualKey(
     models.push(bare, gatewayRef);
     byProvider.set(provider, models);
   }
+  if (byProvider.size === 0) {
+    // Empty allowed_models = deny-all in v1.5.13; never mint such a key.
+    throw new Error('mintVirtualKey: no allowed models resolved');
+  }
+  // Bind each provider config to THIS org's key id (resolved by stable name).
+  // The key must already exist (provisionProviders ran at session create);
+  // fail closed if not — an unbound/over-permissive key is the bug we're
+  // closing, so a missing key must surface, not silently widen access.
+  const providerConfigs: Array<{
+    provider: string;
+    key_ids: string[];
+    allow_all_keys: boolean;
+    allowed_models: string[];
+  }> = [];
+  for (const [provider, allowedModels] of byProvider) {
+    const keyId = await resolveOrgProviderKeyId(provider, args.organizationId);
+    if (!keyId) {
+      throw new Error(
+        `mintVirtualKey: no gateway key for provider '${provider}' / org '${args.organizationId}' (provisioning did not run or failed)`,
+      );
+    }
+    // v1.5.13: the WRITE field is `key_ids` (read back as `keys:[{...}]`).
+    // Sending `keys:[id]` is silently ignored → an empty binding which, with
+    // allow_all_keys:false, denies ALL keys (verified against v1.5.13).
+    providerConfigs.push({
+      provider,
+      key_ids: [keyId],
+      allow_all_keys: false,
+      allowed_models: allowedModels,
+    });
+  }
   const body = {
     // team_id/customer_id are mutually-exclusive FK references in Bifrost;
     // we anchor attribution in the (required) name instead. Bifrost has no
     // native TTL; the session watchdog revokes on expiry.
     name: `tale-${args.organizationId}-${args.sessionId}-${Date.now().toString(36)}`,
-    provider_configs: [...byProvider.entries()].map(
-      ([provider, allowedModels]) => ({
-        provider,
-        allowed_models: allowedModels,
-      }),
-    ),
+    provider_configs: providerConfigs,
     budget: {
       max_limit: args.budgetCents / 100, // governance API is dollars
       // Smallest accepted horizon ('never' is rejected); the key is revoked
@@ -272,49 +318,78 @@ function skipNonNative(p: ProviderProvision): boolean {
 }
 
 /**
- * Globally-unique key name for the pushed gateway key. Bifrost's config store
- * has a GLOBAL unique index on key name (config_keys.idx_key_name @ v1.4.8) —
- * an unnamed key lands as '' and the SECOND ''-named key anywhere in the
- * store fails the whole write with a 500 ("a record with this name already
- * exists"), so every pushed key must carry a fresh unique name. Random (not
- * fingerprint-derived): re-pushing the same config must never reuse the
- * previous push's name, or the new key row would collide with the very row it
- * is replacing.
+ * Stable per-(org,provider) upstream-key name. v1.5.13 keys are a provider
+ * sub-resource, but their NAME must be unique GLOBALLY across all providers
+ * (config store: "API key names must be unique across providers" — carried
+ * over from v1.4.8's global key-name index). So the name embeds BOTH the org
+ * and the provider: `tale-<orgId>-<provider>`. This lets each org's key
+ * coexist under one shared provider record (no last-writer-wins clobber) AND
+ * keeps one org's per-provider keys from colliding with each other. The id is
+ * bifrost-side state (changes if its store is reset); the NAME is the durable
+ * handle the mint path resolves by.
  */
-function gatewayKeyName(providerName: string): string {
-  return `tale-${providerName}-${randomBytes(6).toString('hex')}`;
+function gatewayKeyName(organizationId: string, provider: string): string {
+  return `tale-${organizationId}-${provider}`;
 }
 
-/**
- * `PUT /api/providers/:name` — full-record upsert (verified against v1.4.8:
- * creates the provider when absent, otherwise REPLACES its key set — payload
- * keys without a matching id are added, existing keys missing from the
- * payload are deleted). This is the only working rotation path on v1.4.8:
- * `POST` 409s on an existing provider, and `DELETE /api/providers/:name` does
- * NOT remove the record (its handler only clears the provider's model
- * catalog), so delete-then-recreate can never work. An earlier note here
- * blamed PUT for 500ing with "record already exists" — that 500 is the global
- * key-NAME collision (see gatewayKeyName), not a provider-record conflict.
- * The swap is a single store write: there is no window where the provider is
- * absent, and virtual keys reference the provider by name (no FK), so
- * in-flight sessions keep working across a rotation. Memoizes the pushed
- * fingerprint on success.
- */
-async function putGatewayProvider(p: ProviderProvision): Promise<void> {
+interface GatewayKey {
+  id: string;
+  name: string;
+  models: string[];
+}
+
+/** GET /api/providers/:provider/keys — the provider's key sub-resources
+ * (v1.5.13; values are masked). Empty when the provider has no keys / is
+ * absent. */
+async function listProviderKeys(provider: string): Promise<GatewayKey[]> {
+  const res = await fetch(
+    `${bifrostUrl()}/api/providers/${encodeURIComponent(provider)}/keys`,
+    {
+      method: 'GET',
+      headers: managementHeaders(),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (!res.ok) return [];
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = (await res.json()) as { keys?: GatewayKey[] | null };
+  return parsed.keys ?? [];
+}
+
+/** Resolve THIS org's upstream-key id for a provider (by stable name). Null
+ * when absent — the mint path treats that as fail-closed. */
+async function resolveOrgProviderKeyId(
+  provider: string,
+  organizationId: string,
+): Promise<string | null> {
+  const want = gatewayKeyName(organizationId, provider);
+  const keys = await listProviderKeys(provider);
+  return keys.find((k) => k.name === want)?.id ?? null;
+}
+
+/** PUT /api/providers/:name — provider RECORD config only (network +
+ * concurrency). In v1.5.13 keys are NOT embedded here (they're a sub-resource,
+ * see ensureProviderKey); a keys[] in this body is ignored. concurrency must
+ * be > 0 or the config validator 400s. Idempotent; safe to call every
+ * provision. Native providers carry their own base URL — overriding it breaks
+ * the built-in URL construction — so we only widen the timeout and, for
+ * OpenRouter, add the Tale attribution headers: `extra_headers` ride every
+ * upstream request the gateway makes (v1.5.13 NetworkConfig.ExtraHeaders,
+ * applied by the openrouter provider), so sandbox-agent traffic shows up as
+ * Tale on OpenRouter's dashboard instead of Unknown. Same canonical helper as
+ * the in-platform chat path. */
+async function ensureProviderConfig(p: ProviderProvision): Promise<void> {
+  const attribution = providerAttributionHeaders({
+    providerName: p.name,
+    baseUrl: p.baseUrl ?? '',
+  });
   const body = {
-    keys: [
-      {
-        name: gatewayKeyName(p.name),
-        value: p.apiKey,
-        models: p.models.map(toGatewayModelRef),
-        weight: 1,
-      },
-    ],
-    // Native providers carry their own base URL — overriding it via
-    // network_config.base_url breaks the built-in URL construction (verified:
-    // openrouter 500s "failed to execute HTTP request"). Only widen the
-    // timeout for long agent turns.
-    network_config: { default_request_timeout_in_seconds: 600 },
+    network_config: {
+      default_request_timeout_in_seconds: 600,
+      ...(Object.keys(attribution).length > 0
+        ? { extra_headers: attribution }
+        : {}),
+    },
     concurrency_and_buffer_size: { concurrency: 1000, buffer_size: 5000 },
   };
   const res = await fetch(
@@ -327,70 +402,108 @@ async function putGatewayProvider(p: ProviderProvision): Promise<void> {
     },
   );
   if (!res.ok) {
-    throw new Error(
-      `bifrost provision provider ${p.name} failed (${res.status})`,
-    );
+    throw new Error(`bifrost provider config ${p.name} failed (${res.status})`);
   }
-  pushedProviderFingerprints.set(p.name, providerFingerprint(p));
 }
 
 /**
- * Push one provider's current key + model list into the gateway, replacing
- * whatever record is there (see putGatewayProvider). The provider-save
- * actions call this so a key rotation reaches the gateway immediately instead
- * of at the next session create. Throws on failure — callers own the degrade
- * posture; the memo stays unset, so the next session-create provision
- * retries.
+ * POST (create) / PUT (rotate) THIS org's upstream key as a sub-resource of
+ * the provider (v1.5.13). `existing` is the already-resolved key row (or null)
+ * so the caller's single GET serves both the skip check and this write.
  */
-export async function reprovisionProvider(p: ProviderProvision): Promise<void> {
-  if (skipNonNative(p)) return;
-  await putGatewayProvider(p);
-}
-
-/**
- * Reconcile the org's providers into Bifrost: PUT each provider that is
- * absent from the gateway or whose desired key/model fingerprint differs from
- * what this process last pushed. Called once per session create so a fresh
- * gateway (or a rotated key) gets its upstream before the first mint; the
- * provider-save actions also push eagerly via reprovisionProvider, making
- * this the self-heal catch-up for pushes that failed (gateway down) or
- * happened in another process.
- *
- * NOTE: providers are global in Bifrost (the per-session VK scopes models, not
- * the upstream key), so provision and the write-time push are last-writer-wins
- * across orgs. A deployment with two orgs holding DISTINCT keys for the same
- * provider name would need per-org provider names — out of scope for the
- * single-key-per-deployment norm; revisit if multi-key-per-provider lands.
- */
-export async function provisionProviders(
-  providers: ProviderProvision[],
+async function writeProviderKey(
+  organizationId: string,
+  p: ProviderProvision,
+  existing: GatewayKey | null,
 ): Promise<void> {
-  const existing = await listProviderNames();
-  for (const p of providers) {
-    if (skipNonNative(p)) continue;
-    if (
-      existing.has(p.name) &&
-      pushedProviderFingerprints.get(p.name) === providerFingerprint(p)
-    ) {
-      continue;
-    }
-    await putGatewayProvider(p);
-  }
-}
-
-/** Names of providers already configured in Bifrost (for idempotent provision). */
-async function listProviderNames(): Promise<Set<string>> {
-  const res = await fetch(`${bifrostUrl()}/api/providers`, {
-    method: 'GET',
+  const keyBody = {
+    name: gatewayKeyName(organizationId, p.name),
+    value: p.apiKey,
+    models: p.models.map(toGatewayModelRef),
+    weight: 1,
+  };
+  const url = existing
+    ? `${bifrostUrl()}/api/providers/${encodeURIComponent(p.name)}/keys/${encodeURIComponent(existing.id)}`
+    : `${bifrostUrl()}/api/providers/${encodeURIComponent(p.name)}/keys`;
+  const res = await fetch(url, {
+    method: existing ? 'PUT' : 'POST',
     headers: managementHeaders(),
+    body: JSON.stringify(keyBody),
     signal: AbortSignal.timeout(15_000),
   });
-  if (!res.ok) return new Set();
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = (await res.json()) as { providers?: Array<{ name?: string }> };
-  return new Set(
-    (parsed.providers ?? []).map((p) => p.name ?? '').filter(Boolean),
-  );
+  if (!res.ok) {
+    throw new Error(
+      `bifrost ${existing ? 'update' : 'create'} key for ${p.name}/org ${organizationId} failed (${res.status})`,
+    );
+  }
+}
+
+/**
+ * Ensure a provider's record config + this org's key sub-resource are in the
+ * gateway. One GET (list keys) drives both the skip check and the POST-vs-PUT
+ * decision: when this org's key already exists AND the fingerprint memo
+ * (keyed by org:provider) matches, the whole provider is skipped — no config
+ * PUT, no key write — so steady-state session-create is one GET per provider.
+ * An empty memo (fresh process) or a missing key rewrites once, which is also
+ * what picks up `TALE_PROVIDER_KEY_*` env rotations. GET masks the key value,
+ * so memo drift — not a value diff — is the rotation signal.
+ */
+async function provisionOne(
+  organizationId: string,
+  p: ProviderProvision,
+): Promise<void> {
+  const memoKey = `${organizationId}:${p.name}`;
+  const existing =
+    (await listProviderKeys(p.name)).find(
+      (k) => k.name === gatewayKeyName(organizationId, p.name),
+    ) ?? null;
+  if (
+    existing &&
+    pushedProviderFingerprints.get(memoKey) === providerFingerprint(p)
+  ) {
+    return; // fully provisioned by this process already
+  }
+  await ensureProviderConfig(p);
+  await writeProviderKey(organizationId, p, existing);
+  pushedProviderFingerprints.set(memoKey, providerFingerprint(p));
+}
+
+/**
+ * Push one provider's current key + model list into the gateway for an org.
+ * The provider-save actions call this so a key rotation reaches the gateway
+ * immediately instead of at the next session create. Throws on failure —
+ * callers own the degrade posture; the memo stays unset, so the next
+ * session-create provision retries.
+ */
+export async function reprovisionProvider(
+  organizationId: string,
+  p: ProviderProvision,
+): Promise<void> {
+  if (skipNonNative(p)) return;
+  await provisionOne(organizationId, p);
+}
+
+/**
+ * Reconcile the org's providers into Bifrost: ensure each provider's record
+ * config + this org's upstream key (per-org key sub-resource — see
+ * ensureProviderKey). Called once per session create so a fresh gateway (or a
+ * rotated key) is in place before the first mint; the provider-save actions
+ * also push eagerly via reprovisionProvider, making this the self-heal
+ * catch-up for pushes that failed (gateway down) or happened in another
+ * process.
+ *
+ * Per-org keys coexist under one shared provider record, so multiple orgs
+ * holding distinct keys for the same provider no longer clobber each other,
+ * and each session VK binds to its own org's key (see mintVirtualKey).
+ */
+export async function provisionProviders(
+  organizationId: string,
+  providers: ProviderProvision[],
+): Promise<void> {
+  for (const p of providers) {
+    if (skipNonNative(p)) continue;
+    await provisionOne(organizationId, p);
+  }
 }
 
 /**
@@ -433,7 +546,12 @@ export async function applyGatewayConfig(): Promise<void> {
   const clientConfig = {
     ...current,
     log_retention_days: logRetention,
+    // Inference requires a minted VK (closes open-inference)...
     enforce_auth_on_inference: true,
+    // ...and governance (allowed_models / key binding) is enforced on that VK.
+    // Without this v1.5.x stores allowed_models but does not enforce it on the
+    // inference path — the gap this whole change closes.
+    enforce_governance_header: true,
   };
   const body: Record<string, unknown> = { client_config: clientConfig };
   const pw = adminPassword();

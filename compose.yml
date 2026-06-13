@@ -693,7 +693,7 @@ services:
   # host bun-dev path). PINNED image — the project has had VK auth regressions.
   # ============================================================================
   bifrost:
-    image: maximhq/bifrost:${BIFROST_VERSION:-v1.4.8}
+    image: maximhq/bifrost:${BIFROST_VERSION:-v1.5.13}
     pull_policy: ${PULL_POLICY:-build}
     container_name: tale-bifrost
     env_file:
