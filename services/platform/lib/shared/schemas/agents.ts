@@ -248,18 +248,6 @@ export const agentJsonSchema = z
       .max(100)
       .optional(),
     /**
-     * Legacy single-manager reporting line (slug of this agent's manager).
-     * Superseded by `delegates` (the inverse edge); still read so
-     * pre-migration configs keep rendering, and migrated away on the next
-     * organigram write that touches this agent.
-     */
-    reportsTo: z
-      .string()
-      .min(1)
-      .max(64)
-      .regex(/^[a-z0-9][a-z0-9_-]*$/)
-      .optional(),
-    /**
      * Monthly spend guardrail (Paperclip-style). Month-to-date spend comes
      * from the usageLedger per agentSlug; at `warnPct` the agent gets an
      * economy instruction injected and admins are notified once; at

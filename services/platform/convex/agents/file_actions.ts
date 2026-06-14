@@ -84,7 +84,7 @@ type AgentAuditAction =
  * Best-effort audit emit for agent writes — never blocks the user-visible
  * operation. Mirrors `logSkillAudit` in skills/file_actions.ts. Capability
  * fields (toolNames, integrationBindings, workflowBindings, skillBindings,
- * reportsTo, roleRestriction) belong in the state diff so a reviewer can
+ * delegates, roleRestriction) belong in the state diff so a reviewer can
  * see exactly what changed; the agent-side audit was previously absent
  * altogether, making skillBindings widening invisible.
  */
@@ -139,7 +139,6 @@ function captureCapability(
     ...(config.roleRestriction && { roleRestriction: config.roleRestriction }),
     // Delegation edges: grant this agent a delegate_* tool per target.
     ...(config.delegates && { delegates: config.delegates }),
-    ...(config.reportsTo && { reportsTo: config.reportsTo }),
     // Guardrails: spend authority + parallelism are capability-grade.
     ...(config.budget && { budget: config.budget }),
     ...(config.maxConcurrentTasks !== undefined && {
@@ -348,15 +347,14 @@ export const saveAgent = action({
       ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
       : memberAuth;
 
-    // `delegates` / `reportsTo` (the organigram delegation edges) have exactly
-    // ONE write path: the organigram actions (`setAgentDelegates` /
-    // `setAgentParents`). The settings form must never carry them — a stale
-    // form would silently re-wire delegation — so incoming values are dropped
-    // and the on-disk values re-applied here.
+    // `delegates` (the organigram delegation edges) has exactly ONE write
+    // path: the organigram actions (`setAgentDelegates` / `setAgentParents`).
+    // The settings form must never carry it — a stale form would silently
+    // re-wire delegation — so the incoming value is dropped and the on-disk
+    // value re-applied here.
     config = {
       ...config,
       delegates: prevAgent.ok ? prevAgent.config.delegates : undefined,
-      reportsTo: prevAgent.ok ? prevAgent.config.reportsTo : undefined,
     };
 
     // Cross-validate supportedModels against provider model lists.
@@ -613,9 +611,9 @@ export const duplicateAgent = action({
         )
       : undefined;
 
-    const legacyDisplayName = source.config.displayName;
-    const suffixedTopLevel = legacyDisplayName
-      ? `${legacyDisplayName}${suffix}`
+    const topLevelDisplayName = source.config.displayName;
+    const suffixedTopLevel = topLevelDisplayName
+      ? `${topLevelDisplayName}${suffix}`
       : undefined;
 
     // `skillBindings` carries over to the copy (the copy should have the

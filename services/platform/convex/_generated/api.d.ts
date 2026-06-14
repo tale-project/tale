@@ -373,7 +373,6 @@ import type * as folders_internal_queries from "../folders/internal_queries.js";
 import type * as folders_mutations from "../folders/mutations.js";
 import type * as folders_queries from "../folders/queries.js";
 import type * as governance_budget_enforcement from "../governance/budget_enforcement.js";
-import type * as governance_cache from "../governance/cache.js";
 import type * as governance_chat_filter_categories from "../governance/chat_filter/categories.js";
 import type * as governance_chat_filter_detector from "../governance/chat_filter/detector.js";
 import type * as governance_chat_filter_enforcer from "../governance/chat_filter/enforcer.js";
@@ -407,6 +406,7 @@ import type * as governance_moderation_provider_secrets from "../governance/mode
 import type * as governance_moderation_provider_test_action from "../governance/moderation_provider/test_action.js";
 import type * as governance_mutations from "../governance/mutations.js";
 import type * as governance_policy_acknowledgements from "../governance/policy_acknowledgements.js";
+import type * as governance_policy_audit from "../governance/policy_audit.js";
 import type * as governance_precheck from "../governance/precheck.js";
 import type * as governance_queries from "../governance/queries.js";
 import type * as governance_read_guardrails_policies from "../governance/read_guardrails_policies.js";
@@ -1765,7 +1765,6 @@ declare const fullApi: ApiFromModules<{
   "folders/mutations": typeof folders_mutations;
   "folders/queries": typeof folders_queries;
   "governance/budget_enforcement": typeof governance_budget_enforcement;
-  "governance/cache": typeof governance_cache;
   "governance/chat_filter/categories": typeof governance_chat_filter_categories;
   "governance/chat_filter/detector": typeof governance_chat_filter_detector;
   "governance/chat_filter/enforcer": typeof governance_chat_filter_enforcer;
@@ -1799,6 +1798,7 @@ declare const fullApi: ApiFromModules<{
   "governance/moderation_provider/test_action": typeof governance_moderation_provider_test_action;
   "governance/mutations": typeof governance_mutations;
   "governance/policy_acknowledgements": typeof governance_policy_acknowledgements;
+  "governance/policy_audit": typeof governance_policy_audit;
   "governance/precheck": typeof governance_precheck;
   "governance/queries": typeof governance_queries;
   "governance/read_guardrails_policies": typeof governance_read_guardrails_policies;

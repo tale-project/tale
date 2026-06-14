@@ -62,9 +62,9 @@ export function validateRequiredParameters(
     }
   }
 
-  // Also check the legacy 'required' array at the schema level (for backward compatibility)
-  const legacyRequired = operationConfig.parametersSchema.required || [];
-  for (const paramName of legacyRequired) {
+  // Also honor the schema-level 'required' array (standard JSON-schema form).
+  const schemaLevelRequired = operationConfig.parametersSchema.required || [];
+  for (const paramName of schemaLevelRequired) {
     // Skip if already checked via per-property required
     if (properties[paramName]?.required === true) {
       continue;

@@ -113,13 +113,6 @@ export interface AgentJsonConfig {
    */
   delegates?: string[];
   /**
-   * Legacy single-manager reporting line (slug of this agent's manager).
-   * Superseded by `delegates`; still read so pre-migration configs render,
-   * and migrated away on the next organigram write touching this agent.
-   * Mirrors `agentJsonSchema.reportsTo`.
-   */
-  reportsTo?: string;
-  /**
    * Monthly spend guardrail: warn at `warnPct` (default 80), refuse new runs
    * at `pausePct` (default 100) of `monthlyCents`, measured against the
    * usageLedger's month-to-date spend for this agentSlug. Mirrors

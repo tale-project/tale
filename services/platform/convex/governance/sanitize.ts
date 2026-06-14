@@ -229,7 +229,7 @@ function blockError(
   categoryIds: string[];
   categoryLabels: string[];
 }> {
-  const legacyPrefix =
+  const prefix =
     code === 'pii.blocked'
       ? 'Message blocked: PII detected'
       : code === 'chat_filter.blocked'
@@ -238,7 +238,7 @@ function blockError(
   // Surface admin-edited labels in the user-visible message (e.g. "脏话"
   // instead of "custom_mgskmh") while keeping the raw slugs in `.data` for
   // dashboards / correlation.
-  const message = `${legacyPrefix} (${categoryLabels.join(', ')}).`;
+  const message = `${prefix} (${categoryLabels.join(', ')}).`;
   return new ConvexError({
     message,
     code,

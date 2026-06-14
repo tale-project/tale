@@ -7,7 +7,7 @@ import {
   metadataDiffers,
   prependVersionEntry,
   resolveRestoreTarget,
-  synthesizeLegacyV1Entry,
+  synthesizeV1Entry,
   type PromptVersionMetadata,
   type VersionHistoryEntry,
 } from './version_history';
@@ -267,7 +267,7 @@ describe('resolveRestoreTarget', () => {
   });
 });
 
-describe('synthesizeLegacyV1Entry', () => {
+describe('synthesizeV1Entry', () => {
   it('captures the row’s current state as a v1 entry', () => {
     const existing = makePromptDoc({
       version: undefined,
@@ -282,7 +282,7 @@ describe('synthesizeLegacyV1Entry', () => {
       _creationTime: 7_777,
       createdBy: 'user_legacy',
     });
-    expect(synthesizeLegacyV1Entry(existing)).toEqual({
+    expect(synthesizeV1Entry(existing)).toEqual({
       version: 1,
       content: 'baseline',
       publishedAt: 7_777,
@@ -306,7 +306,7 @@ describe('synthesizeLegacyV1Entry', () => {
       categoryId: fakeId,
       _creationTime: 8_888,
     });
-    const entry = synthesizeLegacyV1Entry(existing);
+    const entry = synthesizeV1Entry(existing);
     expect(entry.categoryId).toBe(fakeId);
   });
 });

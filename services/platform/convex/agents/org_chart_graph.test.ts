@@ -38,20 +38,6 @@ describe('buildOrgChart', () => {
     expect(chart.reports.get('beta')).toEqual(['shared']);
   });
 
-  it('folds legacy reportsTo in as an inverse edge and dedupes it', () => {
-    const chart = buildOrgChart([
-      { slug: 'mgr', delegates: ['worker'] },
-      // worker ALSO carries a legacy reportsTo to mgr — same edge, deduped.
-      { slug: 'worker', reportsTo: 'mgr' },
-      // legacy-only edge (no delegates side).
-      { slug: 'intern', reportsTo: 'mgr' },
-    ]);
-
-    expect(chart.warnings).toEqual([]);
-    expect(chart.reports.get('mgr')).toEqual(['intern', 'worker']);
-    expect(chart.parents.get('intern')).toBe('mgr');
-  });
-
   it('keeps multi-root forests rootless in the parents map', () => {
     const chart = buildOrgChart([
       { slug: 'a', delegates: ['a1'] },
@@ -71,17 +57,6 @@ describe('buildOrgChart', () => {
     expect(chart.reports.has('boss')).toBe(false);
     expect(chart.warnings).toEqual([
       { type: 'dangling', slug: 'boss', manager: 'ghost' },
-    ]);
-  });
-
-  it('drops a dangling legacy manager with a warning (agent becomes root)', () => {
-    const chart = buildOrgChart([
-      { slug: 'orphan', reportsTo: 'deleted-manager' },
-    ]);
-
-    expect(chart.parents.has('orphan')).toBe(false);
-    expect(chart.warnings).toEqual([
-      { type: 'dangling', slug: 'orphan', manager: 'deleted-manager' },
     ]);
   });
 
@@ -129,9 +104,14 @@ describe('chainOfCommand', () => {
   });
 
   it('caps depth', () => {
-    const entries: OrgChartEntry[] = [{ slug: 'n0' }];
-    for (let i = 1; i <= ORG_CHART_MAX_DEPTH + 5; i++) {
-      entries.push({ slug: `n${i}`, reportsTo: `n${i - 1}` });
+    // Deep delegation chain n0 → n1 → … so each n{i+1}'s parent is n{i}.
+    const entries: OrgChartEntry[] = [];
+    for (let i = 0; i <= ORG_CHART_MAX_DEPTH + 5; i++) {
+      entries.push(
+        i < ORG_CHART_MAX_DEPTH + 5
+          ? { slug: `n${i}`, delegates: [`n${i + 1}`] }
+          : { slug: `n${i}` },
+      );
     }
     const { parents } = buildOrgChart(entries);
 

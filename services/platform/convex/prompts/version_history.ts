@@ -7,10 +7,11 @@ export type PromptVersionMetadata = {
   title: string;
   description?: string;
   /**
-   * Legacy free-form category string. Coexists with `categoryId` during the
-   * `promptCategories` transition — see `promptTemplatesTable.category`.
-   * Builders write both fields into the snapshot so a future cleanup
-   * migration can backfill ids from the strings if needed.
+   * Free-form category string. Coexists with `categoryId`: default/seeded
+   * prompts carry only the string (the catalog files set `category`, never
+   * an id), and any write lazy-resolves it to a `promptCategories` row —
+   * see `promptTemplatesTable.category`. Snapshots carry whichever the row
+   * had at that version so Restore re-applies the same representation.
    */
   category?: string;
   /** See `promptTemplatesTable.categoryId`. */
@@ -41,10 +42,13 @@ export type VersionHistoryEntry = {
 };
 
 /**
- * Find the versionHistory entry the user is asking to restore. For pre-
- * versioning rows (`versionHistory` empty), `targetVersion === 1` is the
- * synthesized legacy v1 — the same shape `getPromptHistory` displays —
- * so the dialog and the mutation stay in lockstep.
+ * Find the versionHistory entry the user is asking to restore. Every prompt
+ * created on this codebase is born with a populated `versionHistory`; the
+ * empty-history branch is a defensive normalizer for the optional schema
+ * field (`versionHistory` is `v.optional`). When it is empty,
+ * `targetVersion === 1` resolves to a v1 synthesized from current row state —
+ * the same shape `getPromptHistory` displays — so the dialog and the mutation
+ * stay in lockstep.
  */
 export function resolveRestoreTarget(
   existing: Doc<'promptTemplates'>,
@@ -54,7 +58,7 @@ export function resolveRestoreTarget(
   const direct = entries.find((h) => h.version === targetVersion);
   if (direct) return direct;
   if (entries.length === 0 && targetVersion === 1) {
-    return synthesizeLegacyV1Entry(existing);
+    return synthesizeV1Entry(existing);
   }
   return undefined;
 }
@@ -62,11 +66,12 @@ export function resolveRestoreTarget(
 /**
  * Build a v1 entry from a prompt's current row state. Used in two places:
  * `getPromptHistory` (display-only, when versionHistory is empty) and
- * `resolveRestoreTarget` (the actual restore target when a user rolls back
- * a pre-versioning row to v1). Both paths must read the same shape or the
- * dialog and the mutation drift apart.
+ * `resolveRestoreTarget` (the restore target when rolling a history-less row
+ * back to v1). Both paths must read the same shape or the dialog and the
+ * mutation drift apart. Because `version`/`versionHistory` are optional on
+ * the schema, this also backstops any row that somehow lacks inline history.
  */
-export function synthesizeLegacyV1Entry(
+export function synthesizeV1Entry(
   prompt: Doc<'promptTemplates'>,
 ): VersionHistoryEntry {
   return {
@@ -126,11 +131,12 @@ interface BuildVersionEntryArgs {
  * Centralizes the `existing.version + 1`, `Date.now()`, and FIFO-cap logic so
  * `updatePrompt` and `restoreFromVersion` stay in lockstep.
  *
- * Legacy JIT-seed: if `existing` predates this feature (no `version` /
- * `versionHistory`), its current row state — content AND metadata — is
+ * JIT v1 seed: if `existing` has no inline `version` / `versionHistory`
+ * (defensive — every prompt created here is born with both, but the schema
+ * fields are optional), its current row state — content AND metadata — is
  * captured as v1 before the new entry is recorded as v2. Otherwise the
- * original pre-versioning content would be silently overwritten on first
- * edit and lost from history.
+ * original content would be silently overwritten on first edit and lost
+ * from history.
  *
  * `droppedVersions` propagates the FIFO eviction list from
  * `prependVersionEntry` so the caller can audit history truncation.
@@ -153,7 +159,7 @@ export function buildNextVersionEntry({
     existing.versionHistory && existing.versionHistory.length > 0
       ? existing.versionHistory
       : existing.version === undefined
-        ? [synthesizeLegacyV1Entry(existing)]
+        ? [synthesizeV1Entry(existing)]
         : [];
   const baseVersion = existing.version ?? 1;
   const newVersion = baseVersion + 1;
@@ -228,10 +234,9 @@ export function metadataDiffers(
     return true;
   }
   // Both string and id are compared so that the lazy-migration write
-  // (clears string, stamps id) is recognized as a metadata change and
-  // bumps the version. After the cleanup migration only `categoryId`
-  // remains meaningful, but the string check is harmless when both
-  // fields are undefined.
+  // (clears the seeded `category` string, stamps `categoryId`) is
+  // recognized as a metadata change and bumps the version. The string
+  // check is harmless when both fields are undefined.
   if ((prev.category ?? undefined) !== (next.category ?? undefined)) {
     return true;
   }

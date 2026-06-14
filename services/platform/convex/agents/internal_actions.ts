@@ -368,7 +368,6 @@ export async function listAgentsForOrg(orgSlug: string): Promise<unknown[]> {
           // through this 60s cache so chart readers, delegation merging, and
           // the organigram UI never need a second dir scan.
           delegates: result.config.delegates,
-          reportsTo: result.config.reportsTo,
           budget: result.config.budget,
           maxConcurrentTasks: result.config.maxConcurrentTasks,
         };
