@@ -12,6 +12,7 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
+COPY packages/agent_adapters/package.json ./packages/agent_adapters/
 COPY packages/tale_daemon/package.json ./packages/tale_daemon/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
@@ -23,6 +24,7 @@ COPY services/rag/package.json ./services/rag/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
 COPY services/sandbox/package.json ./services/sandbox/
+COPY services/sandbox-runtime/daemon/package.json ./services/sandbox-runtime/daemon/
 COPY services/controller/package.json ./services/controller/
 COPY services/web/package.json ./services/web/
 COPY services/docs/package.json ./services/docs/

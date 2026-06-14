@@ -70,8 +70,31 @@ export const listArchivedThreads = query({
  * Sized to cover the longest legitimate run: self-hosted Convex actions have a
  * 30-minute Docker ceiling, and the researcher agent runs up to ~25 min. A
  * 5-minute buffer above the hard ceiling avoids killing the UI on slow tails.
+ *
+ * Staleness is judged against the latest sign of life — `generationStartTime`
+ * OR `generationHeartbeatAt` (bumped ~20s by the sandbox runner) — so
+ * external-agent turns that legitimately outlive this window via cross-action
+ * continuation stay "generating" as long as they keep heartbeating.
  */
 const GENERATION_STALE_THRESHOLD_MS = 30 * 60 * 1000 + 5 * 60 * 1000;
+
+/**
+ * Shared stale-guard: a 'generating' thread counts as live when it has no
+ * liveness timestamps at all (legacy rows — preserve the historical "no
+ * startTime → not stale" semantics) or its most recent sign of life is within
+ * the threshold.
+ */
+function isGenerationFresh(metadata: {
+  generationStartTime?: number;
+  generationHeartbeatAt?: number;
+}): boolean {
+  const lastAliveAt = Math.max(
+    metadata.generationStartTime ?? 0,
+    metadata.generationHeartbeatAt ?? 0,
+  );
+  if (lastAliveAt === 0) return true;
+  return Date.now() - lastAliveAt <= GENERATION_STALE_THRESHOLD_MS;
+}
 
 export const isThreadGenerating = query({
   args: { threadId: v.string() },
@@ -89,14 +112,9 @@ export const isThreadGenerating = query({
     if (metadata.generationStatus !== 'generating') return false;
 
     // Guard against stuck generationStatus: if the action crashed without
-    // cleanup, the generation start time lets us detect staleness and
-    // unblock the client instead of requiring a page refresh.
-    if (metadata.generationStartTime) {
-      const elapsed = Date.now() - metadata.generationStartTime;
-      if (elapsed > GENERATION_STALE_THRESHOLD_MS) return false;
-    }
-
-    return true;
+    // cleanup, the liveness timestamps let us detect staleness and unblock
+    // the client instead of requiring a page refresh.
+    return isGenerationFresh(metadata);
   },
 });
 
@@ -312,6 +330,9 @@ export const getThreadMeta = query({
       // generating (mirrors liveRoute), so an idle thread never carries a stale
       // start; `null` otherwise.
       generationStartTime: v.union(v.number(), v.null()),
+      // External-agent plan/act posture (composer toggle + plan-card flow).
+      // `null` when the row has no explicit mode — callers treat it as 'act'.
+      externalAgentMode: v.union(v.literal('plan'), v.literal('act'), v.null()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -322,13 +343,8 @@ export const getThreadMeta = query({
     if (!metadata) return null;
 
     // Live generation status (mirrors isThreadGenerating, incl. stale guard).
-    let isGenerating = false;
-    if (metadata.generationStatus === 'generating') {
-      isGenerating =
-        !metadata.generationStartTime ||
-        Date.now() - metadata.generationStartTime <=
-          GENERATION_STALE_THRESHOLD_MS;
-    }
+    const isGenerating =
+      metadata.generationStatus === 'generating' && isGenerationFresh(metadata);
 
     // Fork info — owner-only, forked threads only (mirrors getThreadForkInfo).
     const forkInfo =
@@ -376,6 +392,7 @@ export const getThreadMeta = query({
         isGenerating && metadata.generationStartTime
           ? metadata.generationStartTime
           : null,
+      externalAgentMode: metadata.externalAgentMode ?? null,
     };
   },
 });

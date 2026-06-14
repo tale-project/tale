@@ -41,6 +41,44 @@
 
 set -e
 
+# ---------------------------------------------------------------------------
+# Session daemon dispatch (sessions plan). The spawner launches a long-lived
+# session container with a single positional arg `daemon` (see
+# session/docker-session-args.ts); everything else is the one-shot
+# /v1/execute path below, untouched. runnerd is PID 1 of a session container,
+# so we `exec` it (SIGTERM from container-stop must reach it directly).
+# ---------------------------------------------------------------------------
+if [ "$1" = "daemon" ]; then
+  # Bootstrap the persistent workspace skeleton. HOME lives here so agent
+  # state (~/.claude, ~/.config/opencode, ~/.gitconfig) survives every exec
+  # and container restart within the session. Idempotent — the dirs already
+  # exist on a container restart against the same workspace volume.
+  mkdir -p \
+    /workspace/repo \
+    /workspace/uploads \
+    /workspace/output \
+    /workspace/.home \
+    /workspace/.deps/python \
+    /workspace/.deps/node \
+    /workspace/.tmp
+  # Stale per-exec steer queues (mid-turn message injection): a container
+  # (re)start means no exec is live, so leftover steer/consumed files are
+  # garbage from a previous incarnation — drop them. The platform re-queues
+  # anything it hadn't reconciled.
+  rm -rf /workspace/.tale/steer
+  # Same install env the one-shot path exports, so inline pip/npm from a
+  # session exec lands in the writable, on-PYTHONPATH/NODE_PATH location.
+  export HOME=/workspace/.home
+  export TMPDIR=/workspace/.tmp
+  export PIP_TARGET=/workspace/.deps/python
+  export PYTHONPATH=/workspace/.deps/python${PYTHONPATH:+:$PYTHONPATH}
+  export PIP_DISABLE_PIP_VERSION_CHECK=1
+  export NPM_CONFIG_PREFIX=/workspace/.deps/node
+  export NODE_PATH=/workspace/.deps/node/lib/node_modules
+  export PATH=/workspace/.deps/python/bin:/workspace/.deps/node/bin:$PATH
+  exec node /usr/local/lib/tale/runnerd.mjs
+fi
+
 LANG_NAME="$1"
 PACKAGES_FILE="${2:-/workspace/code/packages.json}"
 # $3 (options.json path) is reserved for future flags; currently unused.
@@ -89,7 +127,8 @@ mkdir -p \
 # (python, node, bash) inherits the same writable paths. The container
 # is the security boundary; install-time guards (--only-binary,
 # --ignore-scripts) added nothing on top of cap-drop=ALL + read-only
-# root + nobody user + egress allowlist, so they're gone.
+# root + nobody user + proxied egress behind the IP-layer SSRF
+# firewall, so they're gone.
 export HOME=/workspace/.home
 # /tmp is a 128 MB tmpfs; pip/npm unpack big dep trees (e.g. markitdown[pptx]
 # pulls python-pptx + pdfminer + magika) and blow it out with ENOSPC. Park the

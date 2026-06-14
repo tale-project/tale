@@ -1,0 +1,20 @@
+#!/bin/bash
+# tale-plan-gate — PreToolUse hook (matcher: ExitPlanMode) that denies the
+# call so a proposed plan ALWAYS ends the turn and surfaces as a chat approval
+# card, never self-approves into execution.
+#
+# Why: headless `-p` has no approval UI. Under `--permission-mode plan` the
+# CLI denies ExitPlanMode anyway, but its bare "Exit plan mode?" denial is
+# weak — verified on 2.1.173 that under bypassPermissions the model can shrug
+# it off and keep executing. Hooks run BEFORE the permission-mode step, so
+# this deny applies in every mode, and the reason text explicitly instructs
+# the model to stop. The platform detects the captured plan (input.plan rides
+# the denied call) at turn end and gates execution on the user's approval.
+#
+# Same safety posture as tale-steer-hook: never break a normal turn — always
+# exit 0; a jq failure produces no output and the CLI falls back to its own
+# (mode-level) handling.
+trap 'exit 0' ERR
+cat > /dev/null 2>&1 || true # drain hook stdin; matcher already scoped us
+jq -cn '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Plan recorded. Present the complete plan in your final message, then end your turn immediately — the user will review and approve it in the chat UI before any execution. Do NOT call ExitPlanMode again and do NOT start executing the task."}}'
+exit 0

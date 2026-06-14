@@ -46,7 +46,7 @@ The base graph brings up eight containers:
 - `tale-db` — Postgres. The persistent store.
 - `tale-rag` — Python FastAPI. Embeddings, retrieval.
 - `tale-crawler` — the crawler service. Website knowledge sources.
-- `tale-sandbox-egress` and `tale-sandbox` — the sandbox plane. Run-code containers behind an egress allowlist.
+- `tale-sandbox-egress` and `tale-sandbox` — the sandbox plane. Run-code containers behind an egress proxy (open by default; lock down with `SANDBOX_EGRESS_ALLOWLIST`).
 
 [Container architecture](/self-hosted/operate/container-architecture) goes deeper on what owns what.
 

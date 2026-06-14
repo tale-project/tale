@@ -956,6 +956,10 @@
     "send": "Nachricht senden",
     "stopGenerating": "Generierung stoppen",
     "generationStopped": "Generierung gestoppt",
+    "queue": {
+      "placeholder": "Der Agent arbeitet — neue Nachrichten werden für ihn eingereiht…",
+      "full": "Die Nachrichten-Warteschlange ist voll"
+    },
     "errorGenerating": "Etwas ist schiefgelaufen",
     "retryGeneration": "Erneut versuchen",
     "showMore": "Mehr anzeigen",
@@ -974,6 +978,30 @@
     "budgetWarningTypeCost": "Kosten",
     "budgetWarningTypeRequests": "Anfragen",
     "placeholder": "Frag zu Kunden, Produkten oder Dokumenten...",
+    "planMode": {
+      "label": "Planen- oder Ausführen-Modus",
+      "plan": "Planen",
+      "act": "Ausführen",
+      "planTooltip": "Planungsmodus: Der Agent erkundet nur lesend und schlägt dir einen Plan zur Genehmigung vor",
+      "actTooltip": "Ausführungsmodus: Der Agent setzt deine Anweisungen direkt um",
+      "toggleFailed": "Modus konnte nicht gewechselt werden"
+    },
+    "sandbox": {
+      "label": "Sandbox",
+      "tooltip": "Läuft in einer isolierten Sandbox-VM mit eigenem dauerhaftem Arbeitsbereich — sie kann echte Befehle ausführen und Pakete installieren, sicher von deinem Computer getrennt.",
+      "working": "Arbeitet",
+      "workingTooltip": "Der Agent führt gerade eine Aufgabe in seiner Sandbox aus.",
+      "sleeping": "Schläft",
+      "sleepingTooltip": "Die Sandbox schläft — deine Dateien sind gespeichert und sie wird mit deiner nächsten Nachricht aufgeweckt (dauert ein paar Sekunden).",
+      "starting": "Startet",
+      "startingTooltip": "Die Sandbox wird gestartet.",
+      "recovering": "Erholt sich",
+      "recoveringTooltip": "In der Sandbox ist ein Problem aufgetreten und sie wird wiederhergestellt — deine nächste Nachricht wird erneut versucht.",
+      "ready": "Bereit",
+      "readyTooltip": "Die Sandbox ist warm und bereit — deine nächste Nachricht startet sofort.",
+      "pinned": "Immer aktiv",
+      "pinnedTooltip": "Diese Sandbox ist angepinnt und bleibt immer aktiv."
+    },
     "searchConversations": "Konversationen durchsuchen",
     "invalidFiles": "Ungültige Dateien",
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrößenlimit von {maxSize} MB.",
@@ -1870,6 +1898,23 @@
     "statusRejected": "Diese Dokumentspeicherung wurde abgelehnt.",
     "allFilesFailed": "Alle {count} Dateien konnten nicht gespeichert werden",
     "errorSaveFailed": "Dokument konnte nicht gespeichert werden"
+  },
+  "planApproval": {
+    "cardTitle": "Vorgeschlagener Plan",
+    "approve": "Genehmigen & ausführen",
+    "approveTooltip": "Plan genehmigen und Ausführung starten",
+    "reject": "Ablehnen",
+    "rejectTooltip": "Diesen Plan ablehnen",
+    "keepTypingHint": "Oder schreib unten weiter, um den Plan zu verfeinern.",
+    "statusApproved": "Plan genehmigt – Ausführung gestartet.",
+    "statusRejected": "Dieser Plan wurde abgelehnt.",
+    "statusSuperseded": "Durch einen neueren Plan ersetzt.",
+    "errorTurnRunning": "Der Agent arbeitet noch – warte, bis er fertig ist, oder stoppe ihn zuerst.",
+    "errorAlreadyResolved": "Dieser Plan wurde bereits entschieden.",
+    "errorApproveFailed": "Plan konnte nicht genehmigt werden",
+    "errorRejectFailed": "Plan konnte nicht abgelehnt werden",
+    "showMore": "Ganzen Plan anzeigen",
+    "showLess": "Weniger anzeigen"
   },
   "documents": {
     "entityLabel": "Dokumente",
@@ -3773,6 +3818,10 @@
     "webdav": {
       "title": "WebDAV",
       "description": "Tale-Dokumente als Netzlaufwerk einhängen."
+    },
+    "sandboxes": {
+      "title": "Sandboxes",
+      "description": "Verwalten Sie die Remote-Agent-Sandboxes Ihrer Organisation."
     }
   },
   "navigation": {
@@ -3809,7 +3858,8 @@
       "primaryNavigation": "Hauptnavigation"
     },
     "dataResidency": "Datenresidenz",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "sandboxes": "Sandboxes"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -4350,6 +4400,9 @@
       },
       "governance": {
         "description": "Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung."
+      },
+      "sandboxes": {
+        "description": "Always-on Remote-Agent-Sandboxes verwalten."
       }
     },
     "account": {
@@ -5198,6 +5251,10 @@
       "displayNamePlaceholder": "z. B. OpenAI",
       "descriptionPlaceholder": "z. B. OpenAI GPT-Modelle",
       "baseUrlPlaceholder": "z. B. https://api.openai.com/v1",
+      "apiFormat": "API-Format",
+      "apiFormatHelp": "Das API-Format, das der Endpunkt dieses Anbieters spricht. Belasse es bei OpenAI-kompatibel, sofern der Anbieter keinen nativen Anthropic-Endpunkt bereitstellt (z. B. .../anthropic). Anbieter im Anthropic-Format funktionieren mit externen Agenten (Claude Code); der In-App-Chat verwendet den OpenAI-kompatiblen Client.",
+      "apiFormatOpenai": "OpenAI-kompatibel (Standard)",
+      "apiFormatAnthropic": "Anthropic",
       "secretsEnv": "Umgebungsvariable für den API-Schlüssel",
       "secretsEnvPlaceholder": "z. B. TALE_PROVIDER_KEY_OPENROUTER",
       "secretsEnvHelp": "Liest den API-Schlüssel aus dieser Umgebungsvariable statt aus der Secrets-Datei. Eine Wertänderung erfordert einen Neustart der Plattform.",
@@ -6943,5 +7000,53 @@
       "degraded": "Beeinträchtigt",
       "offline": "Offline"
     }
+  },
+  "sandboxes": {
+    "title": "Sandboxes",
+    "description": "Always-on Remote-Agent-Sandboxes für Ihre Organisation. Jedes Mitglied erhält eine dauerhafte Sandbox pro Organisation; pinnen Sie eine an, damit sie immer bereit ist.",
+    "columns": {
+      "owner": "Eigentümer",
+      "agent": "Agent",
+      "status": "Status",
+      "task": "Aktuelle Aufgabe",
+      "spend": "Kosten",
+      "created": "Erstellt",
+      "actions": "Aktionen"
+    },
+    "status": {
+      "running": "Läuft",
+      "idle": "Inaktiv",
+      "pausedBudget": "Pausiert (Budget)",
+      "stopped": "Gestoppt",
+      "pinned": "Angepinnt"
+    },
+    "task": {
+      "none": "Keine aktive Aufgabe",
+      "thread": "Thread",
+      "continuations": "Fortsetzungen"
+    },
+    "actions": {
+      "stop": "Stoppen",
+      "pin": "Anpinnen",
+      "unpin": "Lösen",
+      "destroy": "Zerstören"
+    },
+    "destroyConfirm": {
+      "title": "Sandbox zerstören?",
+      "description": "Dies baut den Container und seinen Workspace ab. Laufende Aufgaben werden abgebrochen. Die nächste Chat-Nachricht erstellt eine neue Sandbox.",
+      "confirm": "Zerstören"
+    },
+    "toast": {
+      "stopped": "Aufgabe gestoppt",
+      "pinned": "Sandbox angepinnt",
+      "unpinned": "Sandbox gelöst",
+      "destroyed": "Sandbox zerstört",
+      "error": "Aktion fehlgeschlagen"
+    },
+    "empty": {
+      "title": "Keine aktiven Sandboxes",
+      "description": "Sandboxes starten automatisch, wenn ein Mitglied mit einem Coding-Agenten chattet."
+    },
+    "accessDenied": "Sie benötigen Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten."
   }
 }

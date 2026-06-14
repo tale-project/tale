@@ -28,6 +28,11 @@ vi.mock('../../_generated/api', () => ({
         generateThreadTitle: 'mock-generateThreadTitle',
       },
     },
+    documents: {
+      internal_queries: {
+        verifyStorageIdsBelongToOrg: 'mock-verifyStorageIds',
+      },
+    },
   },
 }));
 
@@ -96,14 +101,22 @@ function createMockCtx(
             .mockResolvedValue(
               threadMeta ? { userId: 'user_1', ...threadMeta } : null,
             ),
+          // settleQueueOnTurnEnd sweeps the chat message queue by status via
+          // `.withIndex(...).collect()`; no rows queued in these tests.
+          collect: vi.fn().mockResolvedValue([]),
         }),
       }),
       patch: vi.fn(),
+      delete: vi.fn(),
     },
     runQuery: vi.fn().mockImplementation((queryRef: string) => {
       // betterAuth adapter queries (getUserTeamIds + resolveBudgetContext)
       if (queryRef === 'mock-betterAuth-findMany') {
         return Promise.resolve({ page: [], isDone: true });
+      }
+      // Attachment org-ownership gate (verifyStorageIdsBelongToOrg) → owned.
+      if (queryRef === 'mock-verifyStorageIds') {
+        return Promise.resolve(true);
       }
       return Promise.resolve({ userId: 'user_1' });
     }),

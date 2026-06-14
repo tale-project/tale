@@ -1,0 +1,84 @@
+#!/bin/bash
+# tale-steer-hook <post|stop> — inject platform-queued user messages into the
+# RUNNING Claude Code turn at a tool-use / stop boundary.
+#
+# Registered in /etc/claude-code/managed-settings.json (PostToolUse + Stop).
+# The platform stages queue files as $TALE_STEER_DIR/steer-<seq>-<msgId>.json
+# ({messageId, text, createdAt}) via the session files/stage API; this script
+# claims each file with an atomic rename, emits the combined text back to the
+# model, and leaves a consumed.<name> marker the platform's terminal
+# reconciliation reads (consumed ⇒ in the transcript; still steer-*.json ⇒
+# re-queued for the next turn).
+#
+# This runs after EVERY tool call of every turn in the session container — the
+# empty-dir fast path must stay one process spawn, and no failure mode may
+# break a normal turn (always exit 0, never exit 2: exit 2 feeds stderr to the
+# model).
+#
+# PostToolUse also fires for SUBAGENT tool calls (Agent-tool sidechains and
+# Workflow subagents; verified on 2.1.173). Consuming there would inject the
+# user's message into the subagent's conversation — the main loop never sees
+# it, yet the consumed.* marker tells the platform it was delivered. Subagent
+# payloads carry a non-empty `agent_id` (plus `agent_type`), main-loop payloads
+# don't; `transcript_path` is the main session's file in BOTH cases, so it
+# cannot discriminate. Only a positively-parsed main-loop payload may consume:
+# on parse failure we skip, leaving the files for a later boundary or the
+# finalize rollback (lossless, possibly slower — never swallowed).
+trap 'exit 0' ERR
+# Slice by characters, not bytes. The session image (python:3.12-slim-bookworm)
+# sets no locale, so bash defaults to C and `${payload:0:16000}` below would cut
+# on a raw byte offset — splitting a multibyte UTF-8 codepoint mid-sequence and
+# emitting a garbled tail. C.UTF-8 is built into bookworm's glibc (no locale-gen
+# needed) and makes the substring expansion codepoint-aware.
+export LC_ALL=C.UTF-8
+EVENT="${1:-post}"
+SRC=$(jq -r 'if (.agent_id // "") == "" then "main" else "sub" end' 2> /dev/null) || SRC=""
+[ -n "$TALE_STEER_DIR" ] || exit 0
+[ -d "$TALE_STEER_DIR" ] || exit 0
+shopt -s nullglob
+files=("$TALE_STEER_DIR"/steer-*.json)
+[ ${#files[@]} -gt 0 ] || exit 0
+[ "$SRC" = "main" ] || exit 0
+
+msgs=""
+ids=""
+for f in "${files[@]}"; do
+  base=$(basename "$f")
+  claimed="$TALE_STEER_DIR/.claimed.$$.$base"
+  # Atomic claim: rename wins exactly once even when parallel tool calls run
+  # two hook instances concurrently. A crash mid-consume leaves the file in
+  # .claimed.* — no consumed marker — so the platform re-queues it (at-least-
+  # once across turns, at-most-once within one turn).
+  mv -- "$f" "$claimed" 2> /dev/null || continue
+  if ! text=$(jq -er '.text' "$claimed" 2> /dev/null); then
+    # Partial write (stage still in flight): restore for the next boundary.
+    mv -- "$claimed" "$f" 2> /dev/null || true
+    continue
+  fi
+  id=$(jq -r '.messageId // empty' "$claimed" 2> /dev/null)
+  # Empty text = a tombstone: the platform re-delivered this message over the
+  # exec's held-open stdin (lingering delivery) and blanked the file so we
+  # don't inject it a second time. Consume silently — marker only, no payload.
+  if [ -n "$text" ]; then
+    msgs+="$text"$'\n\n'
+    ids+="${id},"
+  fi
+  mv -- "$claimed" "$TALE_STEER_DIR/consumed.$base" 2> /dev/null || true
+done
+[ -n "$msgs" ] || exit 0
+
+# The [TALE_STEER ids=...] sentinel is parsed by the platform when the
+# injection surfaces in stream-json output (Stop-hook path) to flip the UI
+# "picked up" state early; PostToolUse additionalContext never reaches stdout
+# and is reconciled from the consumed.* markers instead.
+payload="[TALE_STEER ids=${ids%,}] The user sent the following message(s) while you were working. Adjust your current work to incorporate them now:
+
+${msgs}"
+payload=${payload:0:16000}
+if [ "$EVENT" = "stop" ]; then
+  jq -cn --arg r "$payload" '{decision:"block", reason:$r}'
+else
+  jq -cn --arg r "$payload" \
+    '{hookSpecificOutput:{hookEventName:"PostToolUse", additionalContext:$r}}'
+fi
+exit 0

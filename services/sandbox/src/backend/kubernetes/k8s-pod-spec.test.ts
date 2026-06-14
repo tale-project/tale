@@ -6,6 +6,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
+import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { EXEC_SPEC_MOUNT_DIR, secretNameFor } from './exec-spec.ts';
 import { buildSandboxPod, podNameFor } from './k8s-pod-spec.ts';
@@ -27,7 +28,7 @@ const cfg: SpawnerConfig = {
   maxTimeoutMs: 300_000,
   maxConcurrent: 4,
   hostSessionRoot: '/var/lib/tale-sandbox/sessions',
-  cacheVolumePrefix: { pip: 'pip', npm: 'npm' },
+  cacheVolumePrefix: { pip: 'pip', npm: 'npm', bun: 'bun' },
   egressNetwork: 'tale-sandbox-net',
   egressProxy: 'http://sandbox-egress:3128',
   stdoutMaxBytes: 5_242_880,
@@ -35,6 +36,7 @@ const cfg: SpawnerConfig = {
   outputFileMaxBytes: 52_428_800,
   outputTotalMaxBytes: 104_857_600,
   maxRequestBodyBytes: 262_144,
+  session: TEST_SESSION_CONFIG,
 };
 
 const goodInput = {

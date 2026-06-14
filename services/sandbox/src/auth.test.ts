@@ -89,6 +89,43 @@ describe('verify — replay protection', () => {
   });
 });
 
+describe('verify — query-string binding (wire contract)', () => {
+  // Clients sign the FULL request path including the query string (see
+  // session_client's signedHeaders), so the server MUST verify against
+  // url.pathname + url.search. Verifying pathname-only silently 401s every
+  // query-bearing call (the /files?path=… listing was broken this way).
+  const QUERY_PATH = '/v1/sessions/s-1/files?path=.tale%2Fsteer%2Fexec-1';
+
+  test('accepts when verified against the same path+query', () => {
+    const now = Date.now();
+    const ts = String(now);
+    const sig = sign('GET', QUERY_PATH, ts, '', TOKEN);
+    expect(verify('GET', QUERY_PATH, '', sig, ts, TOKEN, now).ok).toBe(true);
+  });
+
+  test('rejects when the server drops the query before verifying', () => {
+    const now = Date.now();
+    const ts = String(now);
+    const sig = sign('GET', QUERY_PATH, ts, '', TOKEN);
+    const pathnameOnly = '/v1/sessions/s-1/files';
+    expect(verify('GET', pathnameOnly, '', sig, ts, TOKEN, now)).toEqual({
+      ok: false,
+      reason: 'bad_signature',
+    });
+  });
+
+  test('rejects a tampered query under an otherwise valid signature', () => {
+    const now = Date.now();
+    const ts = String(now);
+    const sig = sign('GET', QUERY_PATH, ts, '', TOKEN);
+    const tampered = '/v1/sessions/s-1/files?path=%2Fetc';
+    expect(verify('GET', tampered, '', sig, ts, TOKEN, now)).toEqual({
+      ok: false,
+      reason: 'bad_signature',
+    });
+  });
+});
+
 describe('verify — failure discriminators', () => {
   test('missing signature header', () => {
     const now = Date.now();

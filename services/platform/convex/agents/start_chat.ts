@@ -89,6 +89,9 @@ export const startChat = internalMutation({
     autoRouteReason: v.optional(autoRouteReasonValidator),
     /** Cache pre-warm: prime the prompt cache without persisting anything. */
     prewarm: v.optional(v.boolean()),
+    /** Queued-message drain turn: skip saving the user message (already
+     *  persisted at enqueue) and use this message id as the prompt message. */
+    queuedPromptMessageId: v.optional(v.string()),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -185,6 +188,7 @@ export const startChat = internalMutation({
       prewarm: args.prewarm,
       requestStartMs: args.requestStartMs,
       deferGeneration: args.deferGeneration,
+      queuedPromptMessageId: args.queuedPromptMessageId,
       // Skip the duplicate betterAuth member + team lookups in
       // resolveBudgetContext — both came from the governance query (or the
       // getOrganizationMember above).

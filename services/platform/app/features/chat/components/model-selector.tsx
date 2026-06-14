@@ -196,6 +196,13 @@ export const ModelSelector = memo(function ModelSelector({
       if (info.hidden && ref !== activeOverride) return false;
       return true;
     });
+    // External agents (Claude Code etc.) receive the bare model id — the
+    // quantization qualifier is stripped at the gateway boundary
+    // (toGatewayModelRef), so offering fp8/fp4 variants would be a no-op
+    // choice. Keep one bare entry per model instead.
+    if (activeAgent?.primaryBehavior === 'external-agent') {
+      return filteredByTag;
+    }
     // Split each base model that declares quantizations into one selectable
     // entry per variant (e.g. GLM 5.1 → GLM 5.1 fp8 + GLM 5.1 fp4). Models
     // without a quantizations array are kept as a single entry.
@@ -209,6 +216,7 @@ export const ModelSelector = memo(function ModelSelector({
     requiredTag,
     effectiveAgent?.name,
     selectedModelOverrides,
+    activeAgent?.primaryBehavior,
   ]);
 
   // Governance policies match on plain model ids; strip qualifiers before asking.

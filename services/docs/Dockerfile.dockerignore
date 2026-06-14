@@ -122,6 +122,7 @@ services/proxy/
 services/sandbox/
 services/sandbox-egress/
 services/sandbox-runtime/
+!services/sandbox-runtime/daemon/package.json
 packages/tale_knowledge/
 packages/tale_shared/
 packages/tale_telemetry/

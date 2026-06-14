@@ -488,9 +488,12 @@ describe('useMessageProcessing', () => {
       } as unknown as ReturnType<typeof useUIMessages>);
 
       rerender();
-      // Should keep isStreaming true so TypewriterText can mount and animate
+      // Should keep isStreaming true so TypewriterText can mount and animate —
+      // tagged isFinalReveal so "still working" affordances (trailing dots)
+      // know the turn already finished.
       const filledMsg = result.current.messages.find((m) => m.key === msgKey);
       expect(filledMsg?.isStreaming).toBe(true);
+      expect(filledMsg?.isFinalReveal).toBe(true);
       expect(filledMsg?.content).toBe(
         'Here are the search results for your documents...',
       );
@@ -603,6 +606,211 @@ describe('useMessageProcessing', () => {
       } as unknown as ReturnType<typeof useUIMessages>);
 
       const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.key === 'msg-2')?.isStreaming,
+      ).toBe(false);
+    });
+  });
+
+  // External-agent (Claude Code / OpenCode) turns persist incrementally with
+  // status 'pending' for the WHOLE run — the last assistant message must read
+  // as streaming while the thread generates, even between tool calls (no
+  // in-flight tool part), so the toolbar/header/footer don't flicker "done".
+  describe('pending last-assistant streaming (external-agent turns)', () => {
+    const settledToolParts = [
+      {
+        type: 'tool-Bash' as const,
+        toolCallId: 'call-1',
+        state: 'output-available' as const,
+        input: { command: 'bun install' },
+        output: 'ok',
+      },
+    ];
+    const inFlightToolParts = [
+      {
+        type: 'tool-Bash' as const,
+        toolCallId: 'call-2',
+        state: 'input-available' as const,
+        input: { command: 'bun dev' },
+      },
+    ];
+
+    function setGenerating(isGenerating: boolean) {
+      setQueryResult(api.threads.queries.getThreadMeta, {
+        isGenerating,
+        failedErrors: {},
+        forkInfo: null,
+        projectId: null,
+      });
+    }
+
+    it('treats the last pending assistant as streaming while generating, even with all tools settled', () => {
+      setGenerating(true);
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({ id: 'msg-1', order: 0, role: 'user', text: 'Go' }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: 'Installing dependencies first.',
+            status: 'pending',
+            parts: settledToolParts,
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const liveMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(liveMsg?.isStreaming).toBe(true);
+      // A genuinely-running external turn is NOT the typewriter-mount
+      // carry-over — trailing dots may show.
+      expect(liveMsg?.isFinalReveal).toBe(false);
+    });
+
+    it('does not treat the last pending assistant as streaming once generation stops', () => {
+      setGenerating(false);
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({ id: 'msg-1', order: 0, role: 'user', text: 'Go' }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: 'partial',
+            status: 'pending',
+            parts: settledToolParts,
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.key === 'msg-2')?.isStreaming,
+      ).toBe(false);
+    });
+
+    it('does not revive an orphaned pending message in history while a later turn generates', () => {
+      setGenerating(true);
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({ id: 'msg-1', order: 0, role: 'user', text: 'Go' }),
+          // Orphan: pending, no in-flight tool, NOT the last assistant.
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: 'orphaned',
+            status: 'pending',
+            parts: settledToolParts,
+          }),
+          createUIMessage({
+            id: 'msg-3',
+            order: 2,
+            role: 'user',
+            text: 'Again',
+          }),
+          createUIMessage({
+            id: 'msg-4',
+            order: 3,
+            role: 'assistant',
+            text: '',
+            status: 'pending',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.key === 'msg-2')?.isStreaming,
+      ).toBe(false);
+      expect(
+        result.current.messages.find((m) => m.key === 'msg-4')?.isStreaming,
+      ).toBe(true);
+    });
+
+    it('keeps the pre-existing in-flight-tool case for a non-last pending message', () => {
+      setGenerating(true);
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({ id: 'msg-1', order: 0, role: 'user', text: 'Go' }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'pending',
+            parts: inFlightToolParts,
+          }),
+          createUIMessage({
+            id: 'msg-3',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'success',
+            stepOrder: 1,
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.key === 'msg-2')?.isStreaming,
+      ).toBe(true);
+    });
+
+    it('flips to not-streaming when the pending message lands as success', () => {
+      setGenerating(true);
+      const pendingTurn = [
+        createUIMessage({ id: 'msg-1', order: 0, role: 'user', text: 'Go' }),
+        createUIMessage({
+          id: 'msg-2',
+          order: 1,
+          role: 'assistant',
+          text: 'working',
+          status: 'pending',
+          parts: settledToolParts,
+        }),
+      ];
+      mockUseUIMessages.mockReturnValue({
+        results: pendingTurn,
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result, rerender } = renderHook(() =>
+        useMessageProcessing('thread-1'),
+      );
+      expect(
+        result.current.messages.find((m) => m.key === 'msg-2')?.isStreaming,
+      ).toBe(true);
+
+      setGenerating(false);
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          pendingTurn[0],
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: 'done',
+            status: 'success',
+            parts: settledToolParts,
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+      rerender();
+
       expect(
         result.current.messages.find((m) => m.key === 'msg-2')?.isStreaming,
       ).toBe(false);

@@ -24,9 +24,9 @@ Das Anhängen geschieht pro Agent: zwei Agents können dieselbe Fähigkeit anhä
 
 ## Fähigkeits-Skripte und die Sandbox
 
-Fähigkeits-Skripte laufen in derselben Sandbox wie das **Code-ausführen**-Tool: Python oder Node, erlaubte Pakete pro Fähigkeit deklariert, Netzwerk-Egress kontrolliert durch die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) der Organisation. Der Vertrag des Skripts ist eine typisierte Eingabe und eine typisierte Ausgabe; was dazwischen läuft, ist dir überlassen.
+Fähigkeits-Skripte laufen in derselben Sandbox wie das **Code-ausführen**-Tool: Python oder Node, erlaubte Pakete pro Fähigkeit deklariert, Paket-Installationen geregelt durch die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) der Organisation. Netzwerk-Egress aus der Sandbox ist standardmäßig offen; selbst gehostete Operatoren können ihn auf Deployment-Ebene einschränken. Der Vertrag des Skripts ist eine typisierte Eingabe und eine typisierte Ausgabe; was dazwischen läuft, ist dir überlassen.
 
-Die Vertrauensgrenze ist scharf. Ein Fähigkeits-Skript kann von jedem Agent aufgerufen werden, an den es angehängt ist. Behandle das Veröffentlichen einer Fähigkeit so, als würdest du die Vertrauensoberfläche jedes Agents weiten, der sie aufgreift; die [Governance-Richtlinie zu Run-Code](/de/platform/admin/governance/run-code-policy) regelt, welche Pakete und welche Netzwerkziele erlaubt sind.
+Die Vertrauensgrenze ist scharf. Ein Fähigkeits-Skript kann von jedem Agent aufgerufen werden, an den es angehängt ist. Behandle das Veröffentlichen einer Fähigkeit so, als würdest du die Vertrauensoberfläche jedes Agents weiten, der sie aufgreift; die [Governance-Richtlinie zu Run-Code](/de/platform/admin/governance/run-code-policy) regelt, welche Pakete das Skript installieren darf.
 
 ## Versionierung
 

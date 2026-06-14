@@ -52,6 +52,14 @@ describe('ThinkingIndicator', () => {
     expect(screen.queryByText(/Routed to/)).not.toBeInTheDocument();
   });
 
+  it('renders no expand toggle (it shares the non-interactive header with the bubble)', () => {
+    // The gap shell is never expandable: ThoughtHeader gets the reserved-width
+    // spacer, not a chevron/button, so the brain/label sit at the exact x-offset
+    // the bubble will use — zero jitter when the bubble takes over.
+    render(<ThinkingIndicator phase="thinking" />);
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('passes an accessibility audit', async () => {
     const { container } = render(
       <ThinkingIndicator

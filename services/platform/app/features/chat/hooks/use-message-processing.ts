@@ -69,6 +69,11 @@ export interface ChatMessage {
   _creationTime?: number;
   order?: number;
   isStreaming?: boolean;
+  /** One-cycle isStreaming carry-over for a message that landed terminal WITH
+   *  text after being observed streaming-and-empty: kept streaming so
+   *  TypewriterText mounts animated, but the turn is already finished —
+   *  "still working" affordances (trailing dots) must not show. */
+  isFinalReveal?: boolean;
   isAborted?: boolean;
   isFailed?: boolean;
   error?: string;
@@ -264,6 +269,21 @@ export function useMessageProcessing(
       }
     }
 
+    // The thread's LAST assistant message — the only one a live turn can be
+    // writing into. External-agent turns persist incrementally with status
+    // 'pending' for the whole run (never 'streaming'), so the pending branch
+    // below treats this message as streaming while the thread generates;
+    // scoping to the last assistant keeps an ORPHANED pending message in
+    // history from going live again when a later turn runs.
+    let lastAssistantKey: string | undefined;
+    for (let i = uiMessages.length - 1; i >= 0; i--) {
+      const candidate = uiMessages[i];
+      if (candidate && candidate.role === 'assistant') {
+        lastAssistantKey = candidate.key;
+        break;
+      }
+    }
+
     const currentKeys = new Set<string>();
 
     const result = uiMessages
@@ -316,6 +336,7 @@ export function useMessageProcessing(
           m.role === 'assistant' && hasInFlightTool(m.parts);
 
         let isStreaming = false;
+        let isFinalReveal = false;
         if (m.status === 'streaming') {
           streamingKeysRef.current.add(m.key);
           isStreaming = true;
@@ -328,22 +349,36 @@ export function useMessageProcessing(
           // If this message was streaming with no text and now has content,
           // keep isStreaming=true for one cycle so TypewriterText can mount
           // with animation instead of showing the full response instantly.
+          // `isFinalReveal` tags the carried cycle so "still working"
+          // affordances (the bubble's trailing dots) know the turn is in fact
+          // already finished.
           if (emptyStreamingKeysRef.current.has(m.key) && m.text) {
             isStreaming = true;
+            isFinalReveal = true;
           }
           emptyStreamingKeysRef.current.delete(m.key);
           streamingKeysRef.current.delete(m.key);
         } else {
-          // This branch is reached only for status==='pending'. AND
-          // hasInFlightTool with the thread-level generation signal: a live
-          // tool-only turn still shows the active timeline (isGenerating is
-          // true during generation), but an ORPHANED pending message — whose
-          // tool was never resolved after a hard process kill that bypassed the
-          // server's pending→success/failed reconciliation — won't latch a
-          // spinner forever once generation has stopped (or gone stale).
+          // This branch is reached only for status==='pending'. AND the
+          // message-level signals with the thread-level generation signal so
+          // an ORPHANED pending message — never reconciled to success/failed
+          // after a hard process kill — won't latch a spinner forever once
+          // generation has stopped (or gone stale). Two live shapes:
+          //   - The LAST assistant message while the thread generates: an
+          //     external-agent (Claude Code / OpenCode) turn persists its
+          //     timeline incrementally with status 'pending' for the WHOLE
+          //     run, so it must read as streaming even between tool calls
+          //     (previously it flickered "done" the moment a tool result
+          //     landed, surfacing the toolbar + duplicate footer timeline
+          //     mid-turn).
+          //   - A non-last pending message with a tool mid-flight: the
+          //     pre-existing tool-only-turn case (observed before any
+          //     reasoning/text streams).
           isStreaming =
             streamingKeysRef.current.has(m.key) ||
-            (messageHasInFlightTool && !!isGenerating);
+            (m.role === 'assistant' &&
+              !!isGenerating &&
+              (m.key === lastAssistantKey || messageHasInFlightTool));
         }
 
         const attachments =
@@ -363,6 +398,7 @@ export function useMessageProcessing(
           _creationTime: m._creationTime,
           order: m.order,
           isStreaming,
+          isFinalReveal,
           isAborted:
             m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),
           isFailed:

@@ -1,9 +1,9 @@
 ---
 title: Run-code-Richtlinie
-description: Die Paket-Zulassungsliste und Egress-Kontrollen, die regeln, was sandgeboxtes Run code installieren und welche URLs es erreichen darf. Admins und Inhaber lesen das, wenn ein Agent eine neue Bibliothek braucht oder wenn ein Regulierer die Netzwerkziele benennt, die eine Sandbox berühren darf.
+description: Die Paket-Zulassungsliste und -Sperrliste, die regeln, was sandgeboxtes Run code installieren darf. Admins und Inhaber lesen das, wenn ein Agent eine neue Bibliothek braucht oder wenn ein Audit fragt, warum ein Paket zu einem bestimmten Zeitpunkt blockiert war.
 ---
 
-Run-code-Richtlinie ist die Oberfläche, auf der du entscheidest, welche Python- und Node-Pakete die Sandbox zur Laufzeit installieren kann und damit, welche Netzwerkziele die Sandbox über diese Pakete erreichen darf. Skills mit Skripten und das Run-code-Tool laufen beide in derselben Sandbox; diese Richtlinie ist die einzige Naht, an der du anziehst oder lockerst, was sie tun dürfen. Admins und Inhaber lesen diese Seite, wenn ein Agent eine neue Bibliothek braucht, wenn ein Regulierer die Ziele benennt, die eine Sandbox berühren darf, oder wenn ein Audit fragt, warum ein Paket zu einem bestimmten Zeitpunkt blockiert war.
+Run-code-Richtlinie ist die Oberfläche, auf der du entscheidest, welche Python- und Node-Pakete die Sandbox zur Laufzeit installieren kann. Skills mit Skripten und das Run-code-Tool laufen beide in derselben Sandbox; diese Richtlinie ist die einzige Naht, an der du anziehst oder lockerst, was sie installieren dürfen. Admins und Inhaber lesen diese Seite, wenn ein Agent eine neue Bibliothek braucht oder wenn ein Audit fragt, warum ein Paket zu einem bestimmten Zeitpunkt blockiert war.
 
 ## Ein durchgespielter Wechsel
 
@@ -28,7 +28,7 @@ Das Test-Panel auf derselben Seite erlaubt dir, pip- oder npm-Spezifikationen ei
 
 ## Netzwerk-Egress und Skills
 
-Die Paket-Richtlinie regelt, _was_ in der Sandbox läuft. Dieselbe Sandbox läuft Skill-Skripte — siehe die [Skills-Konzeptseite](/de/platform/agents/skills) — und die Egress-Zulassungsliste, die ausgehendes HTTP aus Sandbox-Code regelt, wird im selben Governance-Bereich für selbst gehostete Deployments konfiguriert. Behandle das Veröffentlichen eines Skills mit Skript als Erweiterung der Vertrauensfläche für jeden Agent, der es aufnimmt; die Paket-Richtlinie und die Egress-Zulassungsliste entscheiden zusammen, was das Skript tun darf.
+Die Paket-Richtlinie regelt, _was_ in der Sandbox läuft. Dieselbe Sandbox läuft Skill-Skripte — siehe die [Skills-Konzeptseite](/de/platform/agents/skills). Ausgehendes Netzwerk aus Sandbox-Code ist standardmäßig offen, Cloud-Metadaten und private Adressbereiche sind immer blockiert; bei selbst gehosteten Deployments kann der Operator es auf Deployment-Ebene auf eine Hostname-Zulassungsliste einschränken — die Anleitung steht in [Hardening](/de/self-hosted/operate/security/hardening). Behandle das Veröffentlichen eines Skills mit Skript als Erweiterung der Vertrauensfläche für jeden Agent, der es aufnimmt; die Paket-Richtlinie und die Egress-Richtlinie des Deployments entscheiden zusammen, was das Skript tun darf.
 
 ## Wo das hingehört
 

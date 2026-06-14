@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
@@ -76,6 +77,7 @@ export function ProviderEditPanel({
   const [form, setForm] = useState({
     name: providerName,
     baseUrl: config.baseUrl,
+    apiFormat: config.apiFormat ?? 'openai',
     perLocale: buildPerLocale(config, defaultLocale),
   });
 
@@ -87,6 +89,7 @@ export function ProviderEditPanel({
     setForm({
       name: providerName,
       baseUrl: config.baseUrl,
+      apiFormat: config.apiFormat ?? 'openai',
       perLocale: buildPerLocale(config, defaultLocale),
     });
     setEditingLocale(defaultLocale);
@@ -170,6 +173,10 @@ export function ProviderEditPanel({
           displayName: defaultFields.displayName.trim(),
           description: defaultFields.description.trim() || undefined,
           baseUrl: form.baseUrl,
+          // Default (openai) is stored as absent so standard providers stay
+          // clean and pass the standard-provider validation; only persist a
+          // non-default anthropic choice.
+          apiFormat: form.apiFormat === 'anthropic' ? 'anthropic' : undefined,
           i18n: Object.keys(newI18n).length > 0 ? newI18n : undefined,
         });
         toast({ title: t('providers.saved'), variant: 'success' });
@@ -203,6 +210,7 @@ export function ProviderEditPanel({
 
   const isDirty = useMemo(() => {
     if (form.baseUrl !== config.baseUrl) return true;
+    if (form.apiFormat !== (config.apiFormat ?? 'openai')) return true;
     for (const locale of SUPPORTED_LOCALES) {
       const next = form.perLocale[locale];
       if (locale === defaultLocale) {
@@ -245,6 +253,22 @@ export function ProviderEditPanel({
         value={form.baseUrl}
         onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
         placeholder={t('providers.baseUrlPlaceholder')}
+      />
+
+      <Select
+        label={t('providers.apiFormat')}
+        description={t('providers.apiFormatHelp')}
+        value={form.apiFormat}
+        onValueChange={(v) => {
+          // Guard the spurious onValueChange('') Radix emits during async-load
+          // flux (would falsely set/dirty the field).
+          if (v !== 'openai' && v !== 'anthropic') return;
+          setForm((f) => ({ ...f, apiFormat: v }));
+        }}
+        options={[
+          { value: 'openai', label: t('providers.apiFormatOpenai') },
+          { value: 'anthropic', label: t('providers.apiFormatAnthropic') },
+        ]}
       />
 
       <LocaleTabs

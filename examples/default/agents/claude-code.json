@@ -1,0 +1,52 @@
+{
+  "primaryBehavior": "external-agent",
+  "agentKind": "claude-code",
+  "supportedModels": [
+    "openrouter:anthropic/claude-sonnet-4.6",
+    "openrouter:anthropic/claude-opus-4.6",
+    "openrouter:anthropic/claude-haiku-4.5",
+    "openrouter:deepseek/deepseek-v4-flash",
+    "openrouter:moonshotai/kimi-k2.6",
+    "openrouter:z-ai/glm-5.1"
+  ],
+  "timeoutMs": 1800000,
+  "composerMode": {
+    "label": "Claude Code",
+    "icon": "terminal",
+    "tooltip": "Run Claude Code in an isolated sandbox and chat with it directly",
+    "order": 40
+  },
+  "visibleInChat": true,
+  "i18n": {
+    "de": {
+      "displayName": "Claude Code",
+      "description": "Anthropics Coding-Agent Claude Code, ausgeführt in einer isolierten Sandbox — du chattest direkt mit ihm, während er Dateien bearbeitet, Befehle ausführt und über mehrere Runden weiterarbeitet.",
+      "conversationStarters": [
+        "Klone das Repo und behebe das in Issue #42 beschriebene Problem",
+        "Schreibe ein kleines CLI-Tool in Python und teste es",
+        "Refaktoriere dieses Modul und lass die Tests laufen",
+        "Erstelle einen Branch und öffne einen Pull Request mit deiner Änderung"
+      ]
+    },
+    "en": {
+      "displayName": "Claude Code",
+      "description": "Anthropic's Claude Code coding agent, running in an isolated sandbox — chat with it directly as it edits files, runs commands, and continues across turns.",
+      "conversationStarters": [
+        "Clone the repo and fix the bug described in issue #42",
+        "Write a small Python CLI tool and test it",
+        "Refactor this module and run the tests",
+        "Create a branch and open a pull request with your change"
+      ]
+    },
+    "fr": {
+      "displayName": "Claude Code",
+      "description": "L'agent de code Claude Code d'Anthropic, exécuté dans un bac à sable isolé — discutez directement avec lui pendant qu'il modifie des fichiers, lance des commandes et poursuit le travail sur plusieurs tours.",
+      "conversationStarters": [
+        "Clone le dépôt et corrige le bug décrit dans l'issue #42",
+        "Écris un petit outil CLI en Python et teste-le",
+        "Refactorise ce module et lance les tests",
+        "Crée une branche et ouvre une pull request avec ta modification"
+      ]
+    }
+  }
+}

@@ -538,11 +538,10 @@ services:
   # ============================================================================
   # Tale Sandbox Egress (tinyproxy) — HTTPS forward proxy
   # ----------------------------------------------------------------------------
-  # Filters CONNECT host requests against an allow-list of package registries
-  # (pypi.org, files.pythonhosted.org, registry.npmjs.org, github package
-  # endpoints). Sandbox runtime containers reach pypi/npm via this proxy; all
-  # other internet is unreachable because the sandbox bridge is `internal:true`.
-  # See plan §2.
+  # Open egress by default: CONNECT :443 to any public host. Setting
+  # SANDBOX_EGRESS_ALLOWLIST switches it to a default-deny hostname
+  # allowlist. Either way this proxy is the sandbox runtime containers'
+  # only outbound path, because the sandbox bridge is `internal:true`.
   # ============================================================================
   sandbox-egress:
     image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION:-latest}
@@ -554,13 +553,27 @@ services:
     env_file:
       - .env
     restart: unless-stopped
-    # NET_ADMIN lets the entrypoint install iptables REJECT rules for
-    # IMDS (169.254.169.254) and RFC1918 ranges as defense-in-depth
-    # against DNS-rebind on an allowlisted hostname. Without this cap
-    # the entrypoint warns and skips the firewall. Mirrors the convex
-    # container — see services/convex/docker-entrypoint.sh.
+    # Drop the full default capability set, then add back ONLY what the
+    # container provably needs (least privilege; shrinks the attack surface of
+    # a NET_ADMIN-holding, internet-facing proxy). Verified live against the
+    # image — a tighter set breaks the entrypoint, a looser one is wasted.
+    #   NET_ADMIN     — install the iptables OUTPUT REJECT rules for IMDS
+    #                   (169.254.169.254) + RFC1918 (the only hostname-
+    #                   independent egress fence; fail-closed without it).
+    #   DAC_OVERRIDE  — entrypoint.sh (root) touches/creates the tinyproxy log
+    #                   inside /var/log/tinyproxy, which the image owns by
+    #                   `nobody`; without it the touch fails Permission denied.
+    #   CHOWN         — chown that log file to nobody.
+    #   SETUID/SETGID — tinyproxy drops privileges to nobody after bind.
+    # (NET_RAW / MKNOD / SETPCAP / SETFCAP / etc. are NOT needed.)
+    cap_drop:
+      - ALL
     cap_add:
       - NET_ADMIN
+      - DAC_OVERRIDE
+      - CHOWN
+      - SETUID
+      - SETGID
     healthcheck:
       # Plain TCP-listen check: if tinyproxy is up the port answers. We
       # intentionally do NOT CONNECT-probe an external host (pypi/npm)
@@ -583,11 +596,11 @@ services:
     networks:
       # `sandbox` faces the runtime containers (their only outbound path,
       # since tale-sandbox-net is `--internal`). `internal` provides
-      # outbound NAT to pypi/npmjs/etc — `--internal` networks can't reach
-      # the host bridge. Egress peers on `internal` are NOT a meaningful
-      # new attack surface (the hostname allowlist + RFC1918/IMDS iptables
-      # rules limit them to the same registries they could already reach
-      # directly via their own NAT).
+      # outbound NAT — `--internal` networks can't reach the host bridge.
+      # Egress peers on `internal` are NOT a meaningful new attack
+      # surface: the RFC1918/IMDS iptables rules still apply, and the
+      # proxy only reaches the same internet those peers already reach
+      # directly via their own NAT.
       - sandbox
       - internal
 
@@ -658,6 +671,69 @@ services:
     depends_on:
       sandbox-egress:
         condition: service_healthy
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - internal
+      - sandbox
+
+  # ============================================================================
+  # Tale LLM Gateway — Bifrost (OSS, Apache-2.0) for sandbox AGENT SESSIONS
+  # ----------------------------------------------------------------------------
+  # The only path from an in-sandbox coding agent (Claude Code / OpenCode) to an
+  # LLM. Dual-homed onto `internal` (platform provisions providers + mints
+  # session virtual keys via the governance API) and `sandbox` (agents reach it
+  # at http://bifrost:8080 over the internal bridge — NOT through tinyproxy).
+  #
+  # Raw provider API keys live ONLY here + in the platform; the sandbox holds a
+  # session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at
+  # session destroy. The platform is the source of truth for providers/models;
+  # it provisions Bifrost via the governance API on session create
+  # (convex/node_only/sandbox/bifrost_admin.ts: provisionProviders +
+  # applyGatewayConfig).
+  #
+  # SECURITY: Bifrost auth is config-store driven (NOT env vars — v1.4.8 never
+  # read the old BIFROST_MANAGEMENT_TOKEN / BIFROST_ENFORCE_VIRTUAL_KEYS).
+  # applyGatewayConfig() pushes, idempotently on session create:
+  #   - client.enforce_auth_on_inference=true → inference rejects anything but a
+  #     minted virtual key (the data-plane gate).
+  #   - auth_config (admin basic-auth over /api/*) when BIFROST_ADMIN_PASSWORD is
+  #     set → the management plane stops being anonymous on the internal network.
+  # No published port (loopback publish lives in compose.bifrost-dev.yml for the
+  # host bun-dev path). PINNED image — the project has had VK auth regressions.
+  # ============================================================================
+  bifrost:
+    image: maximhq/bifrost:${BIFROST_VERSION:-v1.5.13}
+    # External image (no build: block here), so the repo-wide `build` default is
+    # invalid for this service — pull the pinned tag when absent instead.
+    pull_policy: ${PULL_POLICY:-missing}
+    container_name: tale-bifrost
+    env_file:
+      - .env
+    # No bifrost-read env knobs: auth + VK enforcement are config-store fields
+    # the platform pushes via applyGatewayConfig() (admin creds come from the
+    # platform's BIFROST_ADMIN_USERNAME / BIFROST_ADMIN_PASSWORD, never set on
+    # the bifrost container itself).
+    volumes:
+      # SQLite config/log store (providers + minted keys + auth config survive
+      # restarts). Wipe this volume to re-bootstrap auth from scratch.
+      - bifrost-data:/app/data
+    restart: unless-stopped
+    mem_limit: 512m
+    healthcheck:
+      # The bifrost image ships busybox wget but no curl.
+      test:
+        [
+          'CMD-SHELL',
+          'wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     logging:
       driver: 'json-file'
       options:
@@ -769,6 +845,11 @@ volumes:
 
   # Persistent storage for Crawler data (website registry + per-site URL databases)
   crawler-data:
+    driver: local
+
+  # Bifrost LLM gateway SQLite store (provisioned providers + minted session
+  # virtual keys). Survives restarts so in-flight sessions keep working.
+  bifrost-data:
     driver: local
 
 # ============================================================================

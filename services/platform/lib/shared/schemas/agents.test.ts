@@ -89,3 +89,53 @@ describe('agentJsonSchema carries the new optional blocks', () => {
     expect(agentJsonSchema.safeParse(baseAgent).success).toBe(true);
   });
 });
+
+describe('agentJsonSchema — external-agent primaryBehavior', () => {
+  const externalBase = {
+    displayName: 'Coding Agent',
+    supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
+    primaryBehavior: 'external-agent' as const,
+  };
+
+  it('accepts external-agent with agentKind (no systemInstructions required)', () => {
+    expect(
+      agentJsonSchema.safeParse({ ...externalBase, agentKind: 'claude-code' })
+        .success,
+    ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({ ...externalBase, agentKind: 'opencode' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('accepts external-agent without agentKind (runtime defaults claude-code)', () => {
+    expect(agentJsonSchema.safeParse(externalBase).success).toBe(true);
+  });
+
+  it('rejects tool-loop fields on an external-agent', () => {
+    expect(
+      agentJsonSchema.safeParse({ ...externalBase, toolNames: ['run_code'] })
+        .success,
+    ).toBe(false);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        integrationBindings: ['github'],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an invalid agentKind', () => {
+    expect(
+      agentJsonSchema.safeParse({ ...externalBase, agentKind: 'codex' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects agentKind on a non-external-agent', () => {
+    expect(
+      agentJsonSchema.safeParse({ ...baseAgent, agentKind: 'claude-code' })
+        .success,
+    ).toBe(false);
+  });
+});

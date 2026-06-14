@@ -5,27 +5,27 @@ import { DEFAULT_LOGGING } from '../types';
 /**
  * Sandbox egress proxy — tinyproxy on `sandbox` (faces the runtime
  * containers) + `internal` (the only Docker network in this stack with
- * outbound NAT to pypi/npmjs/etc; `tale-sandbox-net` is created with
- * `--internal` so runtime containers cannot bypass the proxy).
+ * outbound NAT; `tale-sandbox-net` is created with `--internal` so
+ * runtime containers cannot bypass the proxy).
  *
- * Filters CONNECT host requests against a configurable allow-list
- * (default: pypi.org, files.pythonhosted.org, registry.npmjs.org,
- * github package endpoints). Replaces the originally-planned iptables IP
- * allow-list which R1.3/R2.1 showed was unsafe due to shared Fastly /
- * Cloudflare CDN IPs.
+ * Open egress by default: CONNECT :443 to any public host. Setting
+ * SANDBOX_EGRESS_ALLOWLIST switches the proxy to a default-deny
+ * hostname allow-list (pipe-separated regexes; restart to apply).
  *
  * NET_ADMIN is granted so the container's entrypoint installs iptables
- * REJECT rules for IMDS (169.254.169.254) and RFC1918 ranges; this is
- * defense-in-depth against a DNS-rebind attack flipping an allowlisted
- * hostname to a private IP between tinyproxy's lookup and the kernel
- * connect(). Mirrors services/convex/docker-entrypoint.sh.
+ * REJECT rules for IMDS (169.254.169.254) and RFC1918 ranges. In the
+ * default open mode these rules are the only hostname-independent
+ * egress fence; with an allowlist they additionally cover DNS-rebind
+ * flipping an allowlisted hostname to a private IP between tinyproxy's
+ * lookup and the kernel connect(). Mirrors
+ * services/convex/docker-entrypoint.sh.
  *
  * Egress IS reachable from `internal` peers (rag, crawler, platform,
- * web) — but only as a hostname-filtered proxy that can already reach
- * the same registries those peers can reach directly via their own NAT.
- * The proxy is not a meaningful new attack surface for those peers; the
- * isolation it provides is for the `--internal` sandbox network, where
- * it is the only outbound path.
+ * web) — but the IMDS/RFC1918 rules still apply and the proxy only
+ * reaches the same internet those peers can reach directly via their
+ * own NAT. The proxy is not a meaningful new attack surface for those
+ * peers; the isolation it provides is for the `--internal` sandbox
+ * network, where it is the only outbound path.
  */
 export function createSandboxEgressService(
   config: ServiceConfig,
@@ -35,7 +35,14 @@ export function createSandboxEgressService(
     container_name: `${getProjectId()}-sandbox-egress`,
     env_file: ['.env'],
     restart: 'unless-stopped',
-    cap_add: ['NET_ADMIN'],
+    // Least privilege: drop the full default cap set, add back only what the
+    // container provably needs (verified live against the image). NET_ADMIN
+    // installs the iptables SSRF firewall; DAC_OVERRIDE lets root touch/create
+    // the tinyproxy log in the nobody-owned /var/log/tinyproxy; CHOWN chowns it
+    // to nobody; SETUID/SETGID let tinyproxy drop privileges to nobody after
+    // bind. Keep in sync with the sandbox-egress service in compose.yml.
+    cap_drop: ['ALL'],
+    cap_add: ['NET_ADMIN', 'DAC_OVERRIDE', 'CHOWN', 'SETUID', 'SETGID'],
     // tinyproxy + tail = trivial footprint; the cap is here to bound a
     // misbehaving allowlist-regex DoS that pegs CPU or floods the log.
     mem_limit: '512m',

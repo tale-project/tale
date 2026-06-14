@@ -29,10 +29,10 @@ import { hasThoughtSteps } from '../utils/thought-predicates';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
+import { ExternalAgentLiveTimeline } from './external-agent-live-timeline';
 import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
-import { ThinkingIndicator } from './thought-timeline';
 import { VirtualizedChatMessageList } from './virtualized-chat-message-list';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
 
@@ -332,6 +332,26 @@ export const ChatMessages = memo(function ChatMessages({
     return item.type === 'message' ? item.data.key : null;
   }, [items, lastUserIdx]);
 
+  // A still-streaming assistant bubble ABOVE the last user message means that
+  // message is a queued mid-turn steer: the running turn keeps patching the
+  // bubble above until the steer seam opens a fresh one below. The post-send
+  // footer must then NOT render the live exec timeline — it would duplicate
+  // the running turn's activity below the steer, then visibly "jump" up when
+  // the seam opens the real reply bubble. Scoped to the MOST RECENT assistant
+  // before the last user message so a stale streaming flag deep in history
+  // can't suppress a normal turn; non-assistant items in between (user rows,
+  // approval cards) are skipped so multiple queued steers still gate. Reads
+  // raw items (not painted bubbles) so an empty streaming shell — hidden by
+  // `shouldShow` — also suppresses.
+  const streamingAssistantAboveLastUser = useMemo(() => {
+    for (let i = lastUserIdx - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.type !== 'message' || item.data.role !== 'assistant') continue;
+      return item.data.isStreaming === true;
+    }
+    return false;
+  }, [items, lastUserIdx]);
+
   // The thread's last ASSISTANT message keeps an always-visible toolbar;
   // every other bubble reveals its toolbar on hover/focus only.
   const lastAssistantMessageKey = useMemo(() => {
@@ -553,6 +573,7 @@ export const ChatMessages = memo(function ChatMessages({
           <ApprovalCardRenderer
             item={item}
             organizationId={organizationId}
+            threadId={threadId}
             onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
             onSendMessage={onSendMessage}
           />
@@ -883,9 +904,20 @@ export const ChatMessages = memo(function ChatMessages({
     lastUserMessageKey?.startsWith('pending-') ?? false;
   const responseFooterLive =
     (isLoading || lastUserIsPendingOptimistic) &&
-    !hasRenderableAssistantResponse ? (
-      <ThinkingIndicator
-        className="px-4 py-3"
+    !hasRenderableAssistantResponse &&
+    // A still-streaming assistant ABOVE the last user message means that user
+    // message is a mid-turn steer that the running turn already absorbed (a
+    // just-revealed `consumed` queue message), and the live activity is shown
+    // in that bubble above. Rendering a gap-shell below it would flash a
+    // misleading "Thinking · Ns" anchored to the FULL turn's start until the
+    // seam's reply bubble paints — so suppress it; the bubble above owns the
+    // indicator.
+    !streamingAssistantAboveLastUser ? (
+      // For external-agent (Claude Code / OpenCode) turns this swaps the bare
+      // placeholder for a live tool-use timeline driven by the thread's sandbox
+      // session op; it falls back to the same ThinkingIndicator for normal chat.
+      <ExternalAgentLiveTimeline
+        threadId={threadId}
         phase={isAutoRoute && !liveRoute ? 'routing' : 'thinking'}
         routedAgentName={liveRoute?.agentName}
         routeReason={liveRoute?.reason}

@@ -8,6 +8,7 @@ import { HumanInputRequestCard } from './human-input-request-card';
 import { IntegrationApprovalCard } from './integration-approval-card';
 import { KnowledgeWriteApprovalCard } from './knowledge-write-approval-card';
 import { LocationRequestCard } from './location-request-card';
+import { PlanApprovalCard } from './plan-approval-card';
 import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
 import { WorkflowRunApprovalCard } from './workflow-run-approval-card';
 import { WorkflowUpdateApprovalCard } from './workflow-update-approval-card';
@@ -15,6 +16,8 @@ import { WorkflowUpdateApprovalCard } from './workflow-update-approval-card';
 interface ApprovalCardRendererProps {
   item: ChatItem;
   organizationId: string;
+  /** Owning thread — required by cards that act on the thread (plan card). */
+  threadId?: string;
   onHumanInputResponseSubmitted?: () => void;
   onSendMessage?: (message: string) => void;
 }
@@ -28,6 +31,7 @@ interface ApprovalCardRendererProps {
 export function ApprovalCardRenderer({
   item,
   organizationId,
+  threadId,
   onHumanInputResponseSubmitted,
   onSendMessage,
 }: ApprovalCardRendererProps) {
@@ -132,6 +136,18 @@ export function ApprovalCardRenderer({
           executionError={item.data.executionError}
         />
       );
+      break;
+    case 'plan_approval':
+      card =
+        threadId !== undefined ? (
+          <PlanApprovalCard
+            approvalId={item.data._id}
+            organizationId={organizationId}
+            threadId={threadId}
+            status={item.data.status}
+            metadata={item.data.metadata}
+          />
+        ) : null;
       break;
     default:
       // Any other non-message ChatItem kind renders no card.

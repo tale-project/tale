@@ -46,7 +46,7 @@ Der Basis-Graph fährt acht Container hoch:
 - `tale-db` — Postgres. Der persistente Speicher.
 - `tale-rag` — Python-FastAPI. Embeddings, Retrieval.
 - `tale-crawler` — der Crawler-Service. Website-Wissensquellen.
-- `tale-sandbox-egress` und `tale-sandbox` — die Sandbox-Ebene. Run-Code-Container hinter einer Egress-Allowlist.
+- `tale-sandbox-egress` und `tale-sandbox` — die Sandbox-Ebene. Run-Code-Container hinter einem Egress-Proxy (standardmäßig offen; sperrbar mit `SANDBOX_EGRESS_ALLOWLIST`).
 
 [Container-Architektur](/de/self-hosted/operate/container-architecture) vertieft, was was besitzt.
 

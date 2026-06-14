@@ -5,7 +5,10 @@ import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
-import { checkBudget } from './budget_enforcement';
+import {
+  checkBudget,
+  computeRollingRemainingCostCents,
+} from './budget_enforcement';
 import {
   checkModelAccess,
   getAccessibleModels,
@@ -133,6 +136,57 @@ export const checkBudgetForRequest = internalQuery({
       allowed: result.allowed,
       reason: result.reason,
       code: result.code,
+    };
+  },
+});
+
+/**
+ * Budget evaluation for an external-agent turn (action caller). Folds two
+ * decisions into one round-trip:
+ *  - `allowed`/`reason`: the rolling-cap verdict WITH `prospectiveCostCents`
+ *    (the turn's in-task VK spend so far) added, so a long task's own spend
+ *    counts toward the cap at each continuation seam — not just retrospective
+ *    ledger rows. Over budget → the caller pauses the turn cleanly at the seam.
+ *  - `rollingRemainingCents`: the tightest remaining cost headroom, for sizing
+ *    the per-turn Bifrost VK so the gateway's hard cap == the rolling cap
+ *    (null = uncapped → caller uses its flat default).
+ */
+export const evaluateExternalAgentBudget = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    prospectiveCostCents: v.optional(v.number()),
+  },
+  returns: v.object({
+    allowed: v.boolean(),
+    reason: v.optional(v.string()),
+    rollingRemainingCents: v.union(v.number(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const { userTeamIds, userRole } = await resolveBudgetContext(
+      ctx,
+      args.organizationId,
+      args.userId,
+    );
+    const check = await checkBudget(
+      ctx,
+      args.organizationId,
+      args.userId,
+      userTeamIds,
+      userRole,
+      args.prospectiveCostCents ?? 0,
+    );
+    const rollingRemainingCents = await computeRollingRemainingCostCents(
+      ctx,
+      args.organizationId,
+      args.userId,
+      userTeamIds,
+      userRole,
+    );
+    return {
+      allowed: check.allowed,
+      ...(check.reason !== undefined && { reason: check.reason }),
+      rollingRemainingCents,
     };
   },
 });

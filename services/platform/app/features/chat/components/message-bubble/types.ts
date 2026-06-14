@@ -15,6 +15,11 @@ export interface Message {
   role: 'user' | 'assistant';
   timestamp: Date;
   isStreaming?: boolean;
+  /** The one-cycle isStreaming carry-over for a message that landed terminal
+   *  WITH text after being observed streaming-and-empty: isStreaming stays
+   *  true so TypewriterText mounts animated, but the turn itself is already
+   *  finished — "still working" affordances (trailing dots) must not show. */
+  isFinalReveal?: boolean;
   isAborted?: boolean;
   isFailed?: boolean;
   error?: string;

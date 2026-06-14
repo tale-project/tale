@@ -298,7 +298,7 @@ export interface SpawnerConfig {
   maxTimeoutMs: number;
   maxConcurrent: number;
   hostSessionRoot: string;
-  cacheVolumePrefix: { pip: string; npm: string };
+  cacheVolumePrefix: { pip: string; npm: string; bun: string };
   egressNetwork: string;
   egressProxy: string;
   stdoutMaxBytes: number;
@@ -308,4 +308,54 @@ export interface SpawnerConfig {
   // Maximum request body size (bytes) for /v1/execute. Defaults to 256 KB
   // to bound the unsigned-mode OOM surface (audit finding).
   maxRequestBodyBytes: number;
+  // Persistent-session knobs (sessions plan; env SANDBOX_SESSION_* /
+  // SANDBOX_MAX_SESSIONS*). Always populated by loadConfig; consumed by the
+  // session routes + session backends only — the one-shot /v1/execute path
+  // never reads these.
+  session: SessionConfig;
+}
+
+export interface SessionConfig {
+  /** Spawner-wide concurrent session cap (replica-local on Docker). */
+  maxSessions: number;
+  /** Per-org concurrent session cap (defense in depth; the platform's
+   * reserveSessionSlotAndInsert is the authoritative org gate). */
+  maxSessionsPerOrg: number;
+  /** Hard wall-clock ceiling on a session's lifetime. */
+  maxLifetimeMs: number;
+  /** Idle ceiling — sessions with no runnerd activity past this are reaped. */
+  maxIdleMs: number;
+  /** Default + ceiling for per-exec timeoutMs inside a session. */
+  execDefaultTimeoutMs: number;
+  execMaxTimeoutMs: number;
+  /** Create-time budget for container launch + runnerd /healthz to go green
+   * (covers a cold image pull on K8s). */
+  createHealthTimeoutMs: number;
+  /** Resource caps for the `agent` profile session containers. The `default`
+   * profile mirrors the one-shot caps and is not configurable separately. */
+  agentProfile: SessionAgentProfileConfig;
+}
+
+export interface SessionAgentProfileConfig {
+  cpus: number;
+  /** Docker quantity string, e.g. '4g' (memory-swap is pinned to the same
+   * value — no swap headroom, matching the one-shot containers). */
+  memory: string;
+  pidsLimit: number;
+  nofileSoft: number;
+  nofileHard: number;
+  /** Per-file size ulimit in bytes. */
+  fsizeBytes: number;
+  /** tmpfs /tmp size (docker quantity string). */
+  tmpfsSize: string;
+  /** /dev/shm size — Docker's 64m default crashes Chromium (Playwright). */
+  shmSize: string;
+  /** uid:gid the agent-profile container runs as (the image's `agent` user;
+   * non-root is load-bearing — Claude Code refuses bypassPermissions as
+   * root). Validated at config load (uid/gid integers >= 1). */
+  user: string;
+  /** Parsed `user` uid, validated >= 1 at config load. */
+  uid: number;
+  /** Parsed `user` gid, validated >= 1 at config load. */
+  gid: number;
 }

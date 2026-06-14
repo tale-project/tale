@@ -1,0 +1,12 @@
+# Host bun-dev override: publish Bifrost's management/data port on loopback so
+# the host-running Convex (bun dev) can mint/revoke session virtual keys.
+# compose.yml publishes no Bifrost port by design (prod posture); this file is
+# dev-only. Pair with BIFROST_URL=http://127.0.0.1:8080 in
+# services/platform/.env.local (synced into the Convex deployment env).
+#
+# Usage:
+#   docker compose -f compose.yml -f compose.bifrost-dev.yml up -d bifrost
+services:
+  bifrost:
+    ports:
+      - '127.0.0.1:8080:8080'

@@ -110,6 +110,15 @@ read/write it without the (absent) presigned URLs.
 Ship this as the deployment's recommended manifest; the backend code stays
 compatible whether or not it is applied (it does not enforce egress itself).
 
+Note the asymmetry with the compose stack: on Docker, `tale-sandbox-net` is an
+`--internal` bridge and the egress proxy's entrypoint installs IMDS/RFC1918
+iptables rules, so the proxy is the runtime's only outbound path even with no
+operator action. On k8s there is **no built-in network-layer enforcement at
+all** — the spawner only sets `HTTP_PROXY`/`HTTPS_PROXY` env vars, which a
+process is free to ignore. The proxy itself is open at the hostname layer by
+default (`SANDBOX_EGRESS_ALLOWLIST` opt-in), so this NetworkPolicy is the
+_only_ egress fence on k8s; do not run untrusted workloads without it.
+
 ## Verification status
 
 Unit-tested (no cluster): the Pod shape + the security invariant (Secret never

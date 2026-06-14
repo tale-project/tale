@@ -21,7 +21,7 @@ Lis ceci avant de `docker compose up`. Reviens-y quand tu débogues un incident 
 
 **tale-crawler** est le crawler de connaissances web : il récupère et indexe les URL déclarées comme entités Site web.
 
-**tale-sandbox** et **tale-sandbox-egress** exécutent du code en sandbox pour l'outil **Exécuter du code** et les scripts de compétence. Le conteneur egress est le seul chemin que la sandbox a vers le réseau ; la politique d'allowlist vit dans la [politique run-code](/fr/platform/admin/governance/run-code-policy).
+**tale-sandbox** et **tale-sandbox-egress** exécutent du code en sandbox pour l'outil **Exécuter du code** et les scripts de compétence. Le conteneur egress est le seul chemin que la sandbox a vers le réseau. L'egress est ouvert par défaut — le code en sandbox atteint n'importe quel hôte public en HTTPS, tandis que les métadonnées cloud et les plages d'adresses privées restent bloquées au niveau IP ; restreins-le à une allowlist d'hôtes avec `SANDBOX_EGRESS_ALLOWLIST`, décrite dans [Durcissement](/fr/self-hosted/operate/security/hardening).
 
 ## Données sur le disque
 

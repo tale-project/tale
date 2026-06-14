@@ -178,6 +178,41 @@ export async function cascadeDeleteThreadChildren(
     args.holds = holds;
   }
 
+  // 0. Sandbox sessions are per-USER now (one persistent sandbox shared across
+  // all the user's threads), so deleting a thread must NOT tear down the
+  // sandbox — only prune this thread's progress/op rows. Legacy thread-owned
+  // sessions (pre-per-user) are still destroyed for back-compat; the per-user
+  // sandbox idle/TTL-reaps on its own. Op deletion + teardown are scheduled
+  // (mutations can't make the HTTP teardown calls).
+  await ctx.scheduler.runAfter(
+    0,
+    internal.sandbox.session_mutations.deleteOpsForThread,
+    { threadId },
+  );
+  const legacyThreadSessions = [];
+  for await (const row of ctx.db
+    .query('sandboxSessions')
+    .withIndex('by_owner', (q) =>
+      q.eq('ownerType', 'thread').eq('ownerId', threadId),
+    )) {
+    if (row.status !== 'destroyed' && row.status !== 'expired') {
+      legacyThreadSessions.push(row);
+    }
+  }
+  if (legacyThreadSessions.length > 0) {
+    for (const row of legacyThreadSessions) {
+      await ctx.db.patch(row._id, {
+        status: 'destroyed',
+        destroyedAt: Date.now(),
+      });
+    }
+    await ctx.scheduler.runAfter(
+      0,
+      internal.node_only.sandbox.session_teardown.teardownThreadSessions,
+      { sessionIds: legacyThreadSessions.map((r) => r.sessionId) },
+    );
+  }
+
   // 1. messageMetadata — paged
   const metadataPage = await ctx.db
     .query('messageMetadata')

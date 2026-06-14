@@ -37,7 +37,7 @@ Le chemin chaud est court. Si la latence du chat semble fausse, le conteneur à 
 
 ## Le plan sandbox
 
-L'exécution de code en sandbox tourne dans `tale-sandbox`, avec `tale-sandbox-egress` comme seule couture réseau. La séparation en deux conteneurs est délibérée : `tale-sandbox` lui-même n'a aucune sortie réseau ; chaque requête que le code sandbox fait passe par `tale-sandbox-egress`, qui applique l'allowlist de la [politique run-code](/fr/platform/admin/governance/run-code-policy) avant de laisser passer. Si le conteneur egress est down, le code sandbox qui a besoin du réseau échoue en mode fermé avec « egress denied » — pas un timeout silencieux.
+L'exécution de code en sandbox tourne dans `tale-sandbox`, avec `tale-sandbox-egress` comme seule couture réseau. La séparation en deux conteneurs est délibérée : `tale-sandbox` lui-même n'a aucune sortie réseau ; chaque requête que le code sandbox fait passe par `tale-sandbox-egress`, qui bloque les métadonnées cloud et les plages privées au niveau IP et — quand l'opérateur définit `SANDBOX_EGRESS_ALLOWLIST` — impose en plus une allowlist d'hôtes en refus par défaut. Si le conteneur egress est down, le code sandbox qui a besoin du réseau échoue en mode fermé avec « egress denied » — pas un timeout silencieux.
 
 La sandbox est le seul conteneur qui exécute du code potentiellement non fiable (scripts de compétence fournis par l'utilisateur, invocations **Exécuter du code** d'agent). Le reste de la stack exécute le code propre à la plateforme.
 

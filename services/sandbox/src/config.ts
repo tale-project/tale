@@ -28,6 +28,36 @@ function numEnv(
   return n;
 }
 
+/**
+ * Parse + validate a `uid:gid` env (SANDBOX_AGENT_USER). Both must be integers
+ * >= 1 — a malformed value (`"invalid"` ⇒ NaN, `":"` ⇒ 0:0 = root) would
+ * otherwise silently land the agent container on root, defeating the non-root
+ * hardening that Claude Code's bypassPermissions depends on. Returns the
+ * canonical `uid:gid` string plus the parsed numerics for backends that need
+ * either form.
+ */
+function userEnv(
+  name: string,
+  fallback: string,
+): { user: string; uid: number; gid: number } {
+  const raw = process.env[name];
+  const value = raw === undefined || raw.trim() === '' ? fallback : raw.trim();
+  if (!/^\d+:\d+$/.test(value)) {
+    throw new Error(
+      `Env var ${name} must be 'uid:gid' (digits only); got: ${JSON.stringify(value)}`,
+    );
+  }
+  const [uidStr, gidStr] = value.split(':');
+  const uid = Number(uidStr);
+  const gid = Number(gidStr);
+  if (uid < 1 || gid < 1) {
+    throw new Error(
+      `Env var ${name} must have uid >= 1 and gid >= 1 (no root); got: ${value}`,
+    );
+  }
+  return { user: `${uid}:${gid}`, uid, gid };
+}
+
 export function loadConfig(): SpawnerConfig {
   const rawRuntime = process.env.SANDBOX_RUNTIME ?? 'runc';
   if (rawRuntime !== 'runc' && rawRuntime !== 'runsc') {
@@ -50,7 +80,11 @@ export function loadConfig(): SpawnerConfig {
     );
   }
   const cacheMode: 'none' | 'pvc' = rawCacheMode;
-  const rawToken = process.env.SANDBOX_TOKEN;
+  // Trim so a whitespace-only value (e.g. SANDBOX_TOKEN='  ') is treated as
+  // UNSET like empty-string — otherwise it would silently enable HMAC with a
+  // trivially weak space key. Consistent with numEnv/userEnv above and the
+  // client side (spawner_client / session_client also trim).
+  const rawToken = process.env.SANDBOX_TOKEN?.trim();
 
   // Cross-backend env combos are accepted (so a single env file can serve
   // both deployment shapes) but warn — a silently-ignored knob reads like a
@@ -117,6 +151,8 @@ export function loadConfig(): SpawnerConfig {
         process.env.SANDBOX_PIP_CACHE_VOLUME_PREFIX ?? 'tale-sandbox-pip-cache',
       npm:
         process.env.SANDBOX_NPM_CACHE_VOLUME_PREFIX ?? 'tale-sandbox-npm-cache',
+      bun:
+        process.env.SANDBOX_BUN_CACHE_VOLUME_PREFIX ?? 'tale-sandbox-bun-cache',
     },
     egressNetwork: process.env.SANDBOX_EGRESS_NETWORK ?? 'tale-sandbox-net',
     egressProxy:
@@ -148,5 +184,56 @@ export function loadConfig(): SpawnerConfig {
       2 * 1024 * 1024,
       { min: 4 * 1024 },
     ),
+    session: {
+      // Spawner-wide cap = the host-RAM guard (each agent session ≈ 2 cpu / 4 g);
+      // operators size it to the box. Sessions are per-USER now, so the per-org
+      // cap should NOT bind before the host cap — keep it high (effectively
+      // "one sandbox per active user, host RAM is the real limit").
+      maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 10, { min: 1 }),
+      maxSessionsPerOrg: numEnv('SANDBOX_MAX_SESSIONS_PER_ORG', 50, { min: 1 }),
+      maxLifetimeMs: numEnv(
+        'SANDBOX_SESSION_MAX_LIFETIME_MS',
+        24 * 60 * 60 * 1000,
+        { min: 60_000 },
+      ),
+      maxIdleMs: numEnv('SANDBOX_SESSION_MAX_IDLE_MS', 30 * 60 * 1000, {
+        min: 60_000,
+      }),
+      execDefaultTimeoutMs: numEnv(
+        'SANDBOX_SESSION_EXEC_DEFAULT_TIMEOUT_MS',
+        10 * 60 * 1000,
+        { min: 1_000 },
+      ),
+      // Per-exec hard ceiling. Raised from 2h to 24h so a long agent task isn't
+      // SIGKILLed mid-run by runnerd; a single task is bounded by budget /
+      // completion / manual stop, not a wall clock. Env-tunable higher.
+      execMaxTimeoutMs: numEnv(
+        'SANDBOX_SESSION_EXEC_MAX_TIMEOUT_MS',
+        24 * 60 * 60 * 1000,
+        { min: 1_000 },
+      ),
+      createHealthTimeoutMs: numEnv(
+        'SANDBOX_SESSION_CREATE_TIMEOUT_MS',
+        180_000,
+        { min: 5_000 },
+      ),
+      agentProfile: {
+        cpus: numEnv('SANDBOX_AGENT_CPUS', 2, { min: 1 }),
+        memory: process.env.SANDBOX_AGENT_MEMORY ?? '4g',
+        pidsLimit: numEnv('SANDBOX_AGENT_PIDS', 512, { min: 64 }),
+        nofileSoft: numEnv('SANDBOX_AGENT_NOFILE_SOFT', 4096, { min: 256 }),
+        nofileHard: numEnv('SANDBOX_AGENT_NOFILE_HARD', 8192, { min: 256 }),
+        fsizeBytes: numEnv('SANDBOX_AGENT_FSIZE_BYTES', 512 * 1024 * 1024, {
+          min: 1024 * 1024,
+        }),
+        tmpfsSize: process.env.SANDBOX_AGENT_TMP_SIZE ?? '512m',
+        shmSize: process.env.SANDBOX_AGENT_SHM_SIZE ?? '512m',
+        // The image's `agent` user (uid 10001). Overridable only for
+        // emergency rollback to nobody — Claude Code's bypassPermissions
+        // requires non-root either way. Validated to a real uid:gid >= 1 so a
+        // malformed override can't silently drop the container onto root.
+        ...userEnv('SANDBOX_AGENT_USER', '10001:10001'),
+      },
+    },
   };
 }

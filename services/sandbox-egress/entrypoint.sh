@@ -3,29 +3,49 @@
 #
 # App-level launch for the sandbox egress proxy. `docker-entrypoint.sh`
 # runs first and installs the IP-layer SSRF firewall; we render the
-# tinyproxy allowlist + config and exec tinyproxy.
+# tinyproxy config (open egress by default, or a default-deny allowlist
+# when the operator sets SANDBOX_EGRESS_ALLOWLIST) and exec tinyproxy.
 
 set -e
 
-DEFAULT_ALLOWLIST='^pypi\.org$
-^files\.pythonhosted\.org$
-^registry\.npmjs\.org$
-^objects\.githubusercontent\.com$
-^codeload\.github\.com$'
-
-# Operator override: one regex per line, or `|`-separated for compose-friendly
-# single-line env values.
+# Operator opt-in lockdown. SANDBOX_EGRESS_ALLOWLIST is one hostname regex
+# per line, or `|`-separated for compose-friendly single-line env values.
+#   non-empty      => default-deny: only matching hosts are proxied.
+#   unset or empty => open egress: no hostname filtering at all.
+# The IP-layer SSRF firewall (IMDS + link-local + RFC1918 REJECT, installed
+# by docker-entrypoint.sh) applies in BOTH modes. LLM traffic never transits
+# this proxy either way (NO_PROXY=bifrost on the runtime containers).
 if [ -n "$SANDBOX_EGRESS_ALLOWLIST" ]; then
   echo "$SANDBOX_EGRESS_ALLOWLIST" | tr '|' '\n' > /etc/tinyproxy/allowlist
+  FILTER_BLOCK='# Host-name allow-list (default-deny), rendered from SANDBOX_EGRESS_ALLOWLIST.
+FilterDefaultDeny Yes
+FilterCaseSensitive No
+FilterExtended Yes
+FilterURLs Off
+Filter "/etc/tinyproxy/allowlist"'
+  EGRESS_MODE=allowlist
 else
-  printf '%s\n' "$DEFAULT_ALLOWLIST" > /etc/tinyproxy/allowlist
+  # Omit the Filter directive entirely. tinyproxy 1.11.x treats an EMPTY
+  # filter file with FilterDefaultDeny Yes as deny-everything, and exits
+  # EX_DATAERR when the Filter path doesn't exist — leaving the directive
+  # out is the only unambiguous "no hostname filtering" configuration.
+  FILTER_BLOCK='# Open egress: no hostname filter (SANDBOX_EGRESS_ALLOWLIST unset or empty).'
+  EGRESS_MODE=open
 fi
+export FILTER_BLOCK
 
-envsubst < /etc/tinyproxy/tinyproxy.conf.template > /etc/tinyproxy/tinyproxy.conf
+# Explicit SHELL-FORMAT so envsubst only ever substitutes ${FILTER_BLOCK};
+# a future literal `$` in the template can't be silently eaten.
+envsubst '${FILTER_BLOCK}' \
+  < /etc/tinyproxy/tinyproxy.conf.template > /etc/tinyproxy/tinyproxy.conf
 
-echo "[sandbox-egress] starting tinyproxy on :3128"
-echo "[sandbox-egress] CONNECT allow-list:"
-sed 's/^/  /' /etc/tinyproxy/allowlist
+echo "[sandbox-egress] starting tinyproxy on :3128 (egress mode: ${EGRESS_MODE})"
+if [ "$EGRESS_MODE" = allowlist ]; then
+  echo "[sandbox-egress] CONNECT allow-list:"
+  sed 's/^/  /' /etc/tinyproxy/allowlist
+else
+  echo "[sandbox-egress] open egress: CONNECT to any public host on :443 (IP-layer SSRF firewall still blocks IMDS/RFC1918; set SANDBOX_EGRESS_ALLOWLIST to restrict)"
+fi
 echo "[sandbox-egress] config:"
 sed 's/^/  /' /etc/tinyproxy/tinyproxy.conf
 

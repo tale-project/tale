@@ -41,6 +41,15 @@ export const threadMetadataTable = defineTable({
   cancelledMessageId: v.optional(v.string()),
   generationStartTime: v.optional(v.number()),
   /**
+   * Liveness heartbeat for long-running generations. External-agent turns can
+   * legitimately outlive the stale threshold measured from
+   * `generationStartTime` alone (always-on runs, cross-action continuation);
+   * the sandbox runner bumps this every ~20s so staleness is judged against
+   * the most recent sign of life, while `generationStartTime` stays fixed as
+   * the turn's wall-clock anchor for the live "Thinking · Ns" timer.
+   */
+  generationHeartbeatAt: v.optional(v.number()),
+  /**
    * Adaptive Reasoning Governor (Layer C) per-thread learning state: per
    * difficulty-class Welford statistics of observed reasoning tokens plus an
    * "under-resourced" EMA, letting the governor learn a difficulty→need curve
@@ -217,6 +226,16 @@ export const threadMetadataTable = defineTable({
    */
   canvasOpen: v.optional(v.boolean()),
   canvasActiveFilePath: v.optional(v.string()),
+  /**
+   * External-agent (Claude Code) turn posture for this thread. `plan` runs
+   * each turn read-only (`--permission-mode plan`): the agent explores and
+   * proposes a plan that surfaces as an approval card; `act` (or missing —
+   * the default) is the existing full-access behavior. Sticky per thread;
+   * flipped by the composer toggle, by plan-card approval (→ `act`), and by
+   * plan detection at turn end (→ `plan`, so an agent-initiated plan leaves
+   * the toggle reflecting reality).
+   */
+  externalAgentMode: v.optional(v.union(v.literal('plan'), v.literal('act'))),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [
@@ -257,3 +276,61 @@ export const threadMetadataTable = defineTable({
   // Projects feature: "my chats in this project" — used by the Threads tab's
   // "Your chats" segment without scanning all threads in the project first.
   .index('by_projectId_and_userId', ['projectId', 'userId']);
+
+/**
+ * Messages sent while a turn is running (Claude-Code-TUI-style "keep typing
+ * while it works"). Each row pairs a timeline user message (already saved at
+ * enqueue, so it renders immediately) with delivery state:
+ *
+ *   queued    — waiting; drained into one combined turn at the next terminal
+ *               turn boundary (`settleQueueOnTurnEnd`).
+ *   claimed   — picked up by a drain batch; `claimedByStreamId` is the drain
+ *               turn's stream. Rows are deleted when that turn ends.
+ *   delivered — staged into the RUNNING exec's steer dir (external-agent
+ *               mid-turn steering); `deliveredExecId` keys the terminal
+ *               reconciliation that flips it to consumed or back to queued.
+ *   consumed  — the in-sandbox hook injected it into the running turn; the
+ *               content is in the agent transcript. Deleted at turn end.
+ *
+ * Identity/audit fields are denormalized because the drain runs from internal
+ * mutations with no auth context.
+ */
+export const chatMessageQueueTable = defineTable({
+  organizationId: v.string(),
+  threadId: v.string(),
+  userId: v.string(),
+  userEmail: v.string(),
+  userName: v.string(),
+  /** Thread's agent slug at enqueue — the drain turn re-enters the normal
+   * generation pipeline under this slug. */
+  agentSlug: v.string(),
+  /** Thread's selected model id at enqueue. The boundary-drain turn re-enters
+   * runChatTurnGeneration, which otherwise resolves modelId=undefined → the
+   * org default — silently swapping the user's pick (and 403'ing outright
+   * when the session VK is single-model). Optional: legacy rows + Auto. */
+  modelId: v.optional(v.string()),
+  /** Agent-component message _id of the timeline row saved at enqueue. */
+  messageId: v.string(),
+  /** Exact persisted content; drain prompt source. */
+  text: v.string(),
+  status: v.union(
+    v.literal('queued'),
+    v.literal('claimed'),
+    v.literal('delivered'),
+    v.literal('consumed'),
+  ),
+  claimedByStreamId: v.optional(v.string()),
+  deliveredExecId: v.optional(v.string()),
+  /** Which channel carried a 'delivered' row: 'file' = staged steer-*.json the
+   * in-image hook consumes at a tool/stop boundary (consumed.* marker is the
+   * evidence); 'stdin' = pushed into the held-open stream-json stdin while the
+   * exec lingered idle (the next agent result is the evidence — there is no
+   * marker, so terminal reconciliation must NOT trust markers for these).
+   * Cleared whenever the row rolls back to 'queued'. */
+  deliveredChannel: v.optional(v.union(v.literal('file'), v.literal('stdin'))),
+  createdAt: v.number(),
+  claimedAt: v.optional(v.number()),
+  deliveredAt: v.optional(v.number()),
+})
+  .index('by_threadId_status', ['threadId', 'status'])
+  .index('by_organizationId', ['organizationId']);

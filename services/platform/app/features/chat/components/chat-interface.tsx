@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { useNavigate, useSearch } from '@tanstack/react-router';
+import { ConvexError } from 'convex/values';
 import { m, AnimatePresence } from 'framer-motion';
 import { Archive, ArrowDown, Share } from 'lucide-react';
 import {
@@ -35,6 +36,7 @@ import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
 import {
   useEditAndBranch,
+  useEnqueueMessage,
   useForkOwnThread,
   useMarkThreadRead,
   useUnarchiveThread,
@@ -303,6 +305,10 @@ export function ChatInterface({
   );
   const isImageGenAgent =
     activeAgentMeta?.primaryBehavior === 'image-generation';
+  // External-agent (sandbox session) threads support queue mode: the composer
+  // stays usable while a turn runs and sends enqueue for the running agent.
+  const isExternalAgentThread =
+    activeAgentMeta?.primaryBehavior === 'external-agent';
   const threadImages = useThreadImages(isImageGenAgent ? messages : undefined);
   const { providers: providersForEdit } = useListProviders(organizationId);
   const activeModelRef = effectiveAgent?.name
@@ -369,6 +375,7 @@ export function ChatInterface({
     locationRequests,
     documentWriteApprovals,
     knowledgeWriteApprovals,
+    planApprovals,
   } = useThreadApprovals(organizationId, dataThreadId);
 
   // Resolved human-input requests — rendered inline in the history with the
@@ -376,6 +383,52 @@ export function ChatInterface({
   // pending/executing rows).
   const { requests: resolvedHumanInputRequests } =
     useResolvedHumanInputRequests(organizationId, dataThreadId);
+
+  // Thread metadata (generation status + the server turn-start anchor for the
+  // "Thinking · Ns" timer). Pulled up here so the queued-message filter below
+  // can run before useMergedChatItems splices in approvals. forkInfo/liveRoute
+  // below read the same `threadMeta`.
+  const { data: threadMeta } = useConvexQuery(
+    api.threads.queries.getThreadMeta,
+    dataThreadId ? { threadId: dataThreadId } : 'skip',
+  );
+  const isGenerating = threadMeta?.isGenerating;
+  // The in-flight turn's server start (markGenerating, BEFORE Auto routing) —
+  // the authoritative anchor for the "Thinking · Ns" timer. Sharing ONE
+  // server clock across the gap shell and the in-bubble timeline is what keeps
+  // the timer from resetting at the routing→agent handoff and across the
+  // new-chat remount. Null on idle threads (gated server-side on isGenerating).
+  const generationStartMs = threadMeta?.generationStartTime ?? null;
+
+  // A follow-up sent while a turn runs is steered into the running turn and
+  // renders inline immediately (saved at enqueue) — steering now picks it up
+  // fast enough that a separate "waiting" area is unnecessary. Its "Thinking · Ns"
+  // timer must count from when the user sent IT, not the whole turn's elapsed
+  // time: re-anchor to the latest current-turn follow-up's creation time. The
+  // initiating prompt is the first user message at/after the turn start (its
+  // save lags markGenerating, so it sorts after generationStartMs); any later
+  // one (count >= 2) is a follow-up. Fall back to the server turn-start (which
+  // includes the routing wait) for the first response. Completed bubbles latch
+  // their own durations / use stored durationMs, so this only resets the
+  // in-progress response's live timer.
+  const effectiveGenerationStartMs = useMemo(() => {
+    if (generationStartMs === null) return null;
+    let lastFollowUpMs: number | undefined;
+    let currentTurnUserCount = 0;
+    for (const msg of messages) {
+      if (
+        msg.role === 'user' &&
+        msg._creationTime !== undefined &&
+        msg._creationTime >= generationStartMs
+      ) {
+        currentTurnUserCount += 1;
+        lastFollowUpMs = msg._creationTime;
+      }
+    }
+    return currentTurnUserCount >= 2 && lastFollowUpMs !== undefined
+      ? lastFollowUpMs
+      : generationStartMs;
+  }, [generationStartMs, messages]);
 
   // Merge messages with approvals and human input requests
   const {
@@ -393,21 +446,15 @@ export function ChatInterface({
     locationRequests,
     documentWriteApprovals,
     knowledgeWriteApprovals,
+    planApprovals,
   });
 
   // Block input when any pending or executing approval exists
   const hasActiveApproval = activeApproval !== null;
 
-  // Consolidated thread metadata behind ONE access check + subscription (fork
-  // info, generation status, project). useMessageProcessing reads the same
-  // getThreadMeta with identical args, so they share a single Convex
-  // subscription per thread switch instead of four separate ones.
-  const { data: threadMeta } = useConvexQuery(
-    api.threads.queries.getThreadMeta,
-    dataThreadId ? { threadId: dataThreadId } : 'skip',
-  );
-
-  // Fork info — for showing divider in forked threads
+  // Fork info — for showing divider in forked threads. `threadMeta` (a single
+  // getThreadMeta subscription shared with useMessageProcessing) is pulled up
+  // above the queued-message filter.
   const forkInfo = threadMeta?.forkInfo ?? undefined;
 
   // The in-flight turn's resolved Auto route (broadcast mid-turn by the backend),
@@ -420,16 +467,6 @@ export function ChatInterface({
     return { agentName: agent?.displayName ?? lr.agentSlug, reason: lr.reason };
   }, [threadMeta?.liveRoute, agents]);
 
-  // Server-derived generation status (reactive Convex subscription)
-  const isGenerating = threadMeta?.isGenerating;
-
-  // The in-flight turn's server start (markGenerating, BEFORE Auto routing) —
-  // the authoritative anchor for the "Thinking · Ns" timer. Sharing ONE
-  // server clock across the gap shell and the in-bubble timeline is what keeps
-  // the timer from resetting at the routing→agent handoff and across the
-  // new-chat remount. Null on idle threads (gated server-side on isGenerating).
-  const generationStartMs = threadMeta?.generationStartTime ?? null;
-
   // Client-side optimistic flag — set on send click, released when the
   // server subscription confirms or the send fails. Closes the ~200–550 ms
   // gap between click and `chatWithAgent` completing `markGenerating`
@@ -437,6 +474,14 @@ export function ChatInterface({
   // button below reads real `isGenerating` via `onStopGenerating` gating.
   const isSendPending = useIsSendPending(dataThreadId);
   const isLoading = (isGenerating ?? false) || isSendPending;
+
+  // Queue mode: external-agent thread with a server-confirmed in-flight turn.
+  // Keyed on real `isGenerating` (not the optimistic isSendPending) so an
+  // enqueue can only race a turn the server actually started — during the
+  // optimistic window the composer behaves exactly as before.
+  const queueModeActive = isExternalAgentThread && (isGenerating ?? false);
+
+  const { mutateAsync: enqueueMessage } = useEnqueueMessage();
 
   // Hand off to the authoritative signal the moment it arrives: clear the
   // optimistic flag once the server reports generating, so a fast response
@@ -634,6 +679,67 @@ export function ChatInterface({
     sentAttachments?: FileAttachment[],
     kbReferences?: KbMention[],
   ) => {
+    // Queue mode: a turn is running on this external-agent thread — enqueue
+    // instead of dispatching. Text-only (ChatInput blocks attachment sends in
+    // queue mode); the message lands in the timeline immediately server-side
+    // and is steered into the running turn / drained at the next boundary.
+    if (queueModeActive && dataThreadId && effectiveAgent?.name) {
+      const draftSnapshot = inputValue;
+      // Baseline for the optimistic-bubble reconciliation (see
+      // usePendingMessages): the running turn's streaming assistant is the
+      // current last message; its key is stable. When the real queued user
+      // message lands at the tail, currentLastKey diverges and the optimistic
+      // bubble swaps out for it. Capture BEFORE clearing the input.
+      const lastMessageKey = messages[messages.length - 1]?.key;
+      clearInputValue();
+      // Echo the queued message instantly (no waiting for the server round-trip
+      // and subscription) AND fix auto-scroll in one move: setting the snap
+      // intent right before setPendingMessage — with no await between — mounts
+      // the optimistic bubble in the same commit, so the scroll machine's
+      // MutationObserver consumes the intent with lastUserMessageRef already on
+      // the new bubble and snaps it to the viewport top. Queue mode is never an
+      // empty chat, so always 'smooth' (never the first-message instant jump).
+      scrollIntentRef.current = 'smooth';
+      setPendingMessage({
+        content: message,
+        threadId: dataThreadId,
+        timestamp: new Date(),
+        lastMessageKey,
+      });
+      try {
+        const queuedModelId = selectedModelOverrides[effectiveAgent.name];
+        await enqueueMessage({
+          threadId: dataThreadId,
+          organizationId,
+          message,
+          agentSlug: effectiveAgent.name,
+          // Carry the picked model so the boundary drain re-enters generation
+          // with it, not the org default (a single-model session VK 403s on
+          // the wrong one).
+          ...(queuedModelId !== undefined && { modelId: queuedModelId }),
+        });
+      } catch (err) {
+        setInputValue(draftSnapshot);
+        // Roll back the optimistic bubble — the message never made it to the
+        // queue (QUEUE_FULL / network blip), so it must not linger in the
+        // timeline.
+        setPendingMessage(null);
+        const data: unknown = err instanceof ConvexError ? err.data : null;
+        const code =
+          typeof data === 'object' &&
+          data !== null &&
+          'code' in data &&
+          typeof data.code === 'string'
+            ? data.code
+            : undefined;
+        toast({
+          title:
+            code === 'QUEUE_FULL' ? t('queue.full') : t('toast.sendFailed'),
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
     // Scroll-intent now set inside `useSendMessage` adjacent to each
     // setPendingMessage call — see `scrollIntentRef` prop above. Setting
     // it here would re-introduce the video-link race window where a
@@ -1037,7 +1143,7 @@ export function ChatInterface({
                 <ThreadMessageMetadataProvider
                   threadId={dataThreadId ?? null}
                   liveRoute={liveRoute ?? null}
-                  generationStartMs={generationStartMs}
+                  generationStartMs={effectiveGenerationStartMs}
                 >
                   <ChatMessages
                     items={itemsForRender}
@@ -1050,7 +1156,7 @@ export function ChatInterface({
                     isSendPending={isSendPending}
                     isAutoRoute={isAutoRoute}
                     liveRoute={liveRoute}
-                    generationStartMs={generationStartMs}
+                    generationStartMs={effectiveGenerationStartMs}
                     lastUserMessageRef={lastUserMessageRef}
                     containerRef={containerRef}
                     activeApproval={activeApproval}
@@ -1181,17 +1287,20 @@ export function ChatInterface({
               <ChatInput
                 className="mx-auto w-full max-w-(--chat-max-width)"
                 placeholder={
-                  isImageGenAgent
-                    ? activeEditingImage && currentModelSupportsEdit
-                      ? t('imageEdit.placeholder')
-                      : t('imageEdit.placeholderCreate')
-                    : t('placeholder')
+                  queueModeActive
+                    ? t('queue.placeholder')
+                    : isImageGenAgent
+                      ? activeEditingImage && currentModelSupportsEdit
+                        ? t('imageEdit.placeholder')
+                        : t('imageEdit.placeholderCreate')
+                      : t('placeholder')
                 }
                 value={inputValue}
                 onChange={setInputValue}
                 onSendMessage={handleSendMessage}
                 onStopGenerating={isGenerating ? stopGenerating : undefined}
                 isLoading={isLoading}
+                queueModeActive={queueModeActive}
                 disabled={hasNoAgents || hasActiveApproval}
                 disabledReason={
                   hasNoAgents

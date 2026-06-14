@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ThoughtStep } from '../../utils/thought-step-types';
 import { MessageThoughtHeader } from './message-thought-header';
 
 vi.mock('@/lib/i18n/client', () => ({
@@ -20,6 +22,7 @@ vi.mock('@/lib/i18n/client', () => ({
         'thoughtProcess.skillsCount': plural('count', 'skill', 'skills'),
         'thoughtProcess.tokensCount': plural('count', 'token', 'tokens'),
         'thoughtProcess.summaryReasoningOnly': 'Showed its reasoning',
+        'thinking.redacted': 'Thought about this privately',
       };
       return map[key] ?? key;
     },
@@ -108,5 +111,90 @@ describe('MessageThoughtHeader', () => {
       />,
     );
     expect(screen.getByText('Showed its reasoning')).toBeInTheDocument();
+  });
+
+  const reasoning = (
+    id: string,
+    text: string,
+    redacted = false,
+  ): Extract<ThoughtStep, { kind: 'reasoning' }> => ({
+    kind: 'reasoning',
+    id,
+    text,
+    state: 'done',
+    redacted,
+  });
+
+  it('renders no expand toggle when there is no reasoning to reveal', () => {
+    render(
+      <MessageThoughtHeader
+        {...base}
+        isStreaming={false}
+        hasAnswerStarted
+        durationMs={2000}
+        toolCount={1}
+      />,
+    );
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('reveals the reasoning prose behind a chevron toggle (collapsed by default)', async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageThoughtHeader
+        {...base}
+        isStreaming={false}
+        hasAnswerStarted
+        durationMs={3000}
+        hasReasoning
+        reasoningSteps={[reasoning('r1', 'Reasoning prose alpha')]}
+      />,
+    );
+    const toggle = screen.getByRole('button', { name: /Thought for 3s/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText(/Reasoning prose alpha/)).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(/Reasoning prose alpha/)).toBeInTheDocument();
+  });
+
+  it('reveals all reasoning blocks in order when expanded', async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageThoughtHeader
+        {...base}
+        isStreaming={false}
+        hasAnswerStarted
+        durationMs={6000}
+        toolCount={2}
+        hasReasoning
+        reasoningSteps={[
+          reasoning('r1', 'First thought block'),
+          reasoning('r2', 'Second thought block'),
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole('button'));
+    expect(screen.getByText(/First thought block/)).toBeInTheDocument();
+    expect(screen.getByText(/Second thought block/)).toBeInTheDocument();
+  });
+
+  it('shows the neutral note for a redacted reasoning block', async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageThoughtHeader
+        {...base}
+        isStreaming={false}
+        hasAnswerStarted
+        durationMs={2000}
+        toolCount={1}
+        reasoningSteps={[reasoning('r1', '', true)]}
+      />,
+    );
+    await user.click(screen.getByRole('button'));
+    expect(
+      screen.getByText('Thought about this privately'),
+    ).toBeInTheDocument();
   });
 });

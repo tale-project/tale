@@ -7,6 +7,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { CoreV1Api, V1Pod, V1Secret } from '@kubernetes/client-node';
 
+import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { ExecuteRequest, SpawnerConfig } from '../../types.ts';
 import type { ExecuteOptions, SweepOptions } from '../types.ts';
 import { secretNameFor } from './exec-spec.ts';
@@ -39,7 +40,7 @@ const cfg: SpawnerConfig = {
   maxTimeoutMs: 300_000,
   maxConcurrent: 4,
   hostSessionRoot: '/var/lib/tale-sandbox/sessions',
-  cacheVolumePrefix: { pip: 'pip', npm: 'npm' },
+  cacheVolumePrefix: { pip: 'pip', npm: 'npm', bun: 'bun' },
   egressNetwork: 'tale-sandbox-net',
   egressProxy: 'http://sandbox-egress:3128',
   stdoutMaxBytes: 5_242_880,
@@ -47,6 +48,7 @@ const cfg: SpawnerConfig = {
   outputFileMaxBytes: 52_428_800,
   outputTotalMaxBytes: 104_857_600,
   maxRequestBodyBytes: 262_144,
+  session: TEST_SESSION_CONFIG,
 };
 
 const NOW = 1_700_000_000_000;

@@ -956,6 +956,10 @@
     "send": "Send message",
     "stopGenerating": "Stop generating",
     "generationStopped": "Generation stopped",
+    "queue": {
+      "placeholder": "The agent is working — new messages are queued for it…",
+      "full": "Message queue is full"
+    },
     "errorGenerating": "Something went wrong",
     "retryGeneration": "Try again",
     "showMore": "Show more",
@@ -974,6 +978,30 @@
     "budgetWarningTypeCost": "cost",
     "budgetWarningTypeRequests": "request",
     "placeholder": "Ask about customers, products, or documents…",
+    "planMode": {
+      "label": "Plan or act mode",
+      "plan": "Plan",
+      "act": "Act",
+      "planTooltip": "Plan mode: the agent explores read-only and proposes a plan for your approval",
+      "actTooltip": "Act mode: the agent executes directly",
+      "toggleFailed": "Couldn't switch mode"
+    },
+    "sandbox": {
+      "label": "Sandbox",
+      "tooltip": "Runs in an isolated sandbox VM with its own persistent workspace — it can run real commands and install packages, safely separated from your computer.",
+      "working": "Working",
+      "workingTooltip": "The agent is running a task in its sandbox right now.",
+      "sleeping": "Sleeping",
+      "sleepingTooltip": "The sandbox is asleep — your files are saved and it wakes on your next message (takes a few seconds).",
+      "starting": "Starting",
+      "startingTooltip": "The sandbox is starting up.",
+      "recovering": "Recovering",
+      "recoveringTooltip": "The sandbox hit a problem and is recovering — your next message will retry.",
+      "ready": "Ready",
+      "readyTooltip": "The sandbox is warm and ready — your next message starts instantly.",
+      "pinned": "Always on",
+      "pinnedTooltip": "This sandbox is pinned to stay always-on."
+    },
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
     "fileSizeExceededMultiple": "{names} exceeded the {maxSize}MB file size limit.",
@@ -1870,6 +1898,23 @@
     "statusRejected": "This document save was rejected.",
     "allFilesFailed": "All {count} files failed to save",
     "errorSaveFailed": "Failed to save document"
+  },
+  "planApproval": {
+    "cardTitle": "Proposed plan",
+    "approve": "Approve & execute",
+    "approveTooltip": "Approve the plan and start execution",
+    "reject": "Reject",
+    "rejectTooltip": "Reject this plan",
+    "keepTypingHint": "Or keep typing below to refine the plan.",
+    "statusApproved": "Plan approved — execution started.",
+    "statusRejected": "This plan was rejected.",
+    "statusSuperseded": "Replaced by a newer plan.",
+    "errorTurnRunning": "The agent is still working — wait for the turn to finish or stop it first.",
+    "errorAlreadyResolved": "This plan was already resolved.",
+    "errorApproveFailed": "Couldn't approve the plan",
+    "errorRejectFailed": "Couldn't reject the plan",
+    "showMore": "Show full plan",
+    "showLess": "Show less"
   },
   "documents": {
     "entityLabel": "documents",
@@ -3773,6 +3818,10 @@
     "webdav": {
       "title": "WebDAV",
       "description": "Mount Tale documents as a network drive."
+    },
+    "sandboxes": {
+      "title": "Sandboxes",
+      "description": "Manage your organization's remote agent sandboxes."
     }
   },
   "navigation": {
@@ -3809,7 +3858,8 @@
       "primaryNavigation": "Primary navigation"
     },
     "dataResidency": "Data residency",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "sandboxes": "Sandboxes"
   },
   "notifications": {
     "title": "Notifications",
@@ -4611,6 +4661,9 @@
       },
       "governance": {
         "description": "Policies, security, audit logs, and data retention."
+      },
+      "sandboxes": {
+        "description": "Manage always-on remote agent sandboxes."
       }
     },
     "account": {
@@ -5459,6 +5512,10 @@
       "displayNamePlaceholder": "e.g., OpenAI",
       "descriptionPlaceholder": "e.g., OpenAI GPT models",
       "baseUrlPlaceholder": "e.g., https://api.openai.com/v1",
+      "apiFormat": "API format",
+      "apiFormatHelp": "The API format this provider's endpoint speaks. Leave as OpenAI-compatible unless the provider exposes a native Anthropic endpoint (e.g. .../anthropic). Anthropic-format providers work with external agents (Claude Code); the in-app chat uses the OpenAI-compatible client.",
+      "apiFormatOpenai": "OpenAI-compatible (default)",
+      "apiFormatAnthropic": "Anthropic",
       "secretsEnv": "API key environment variable",
       "secretsEnvPlaceholder": "e.g., TALE_PROVIDER_KEY_OPENROUTER",
       "secretsEnvHelp": "Read the API key from this environment variable instead of the secrets file. Changing the value requires restarting the platform.",
@@ -6943,5 +7000,53 @@
       "degraded": "Degraded",
       "offline": "Offline"
     }
+  },
+  "sandboxes": {
+    "title": "Sandboxes",
+    "description": "Always-on remote agent sandboxes for your organization. Each member gets one persistent sandbox per organization; pin one to keep it always ready.",
+    "columns": {
+      "owner": "Owner",
+      "agent": "Agent",
+      "status": "Status",
+      "task": "Current task",
+      "spend": "Spend",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "status": {
+      "running": "Running",
+      "idle": "Idle",
+      "pausedBudget": "Paused (budget)",
+      "stopped": "Stopped",
+      "pinned": "Pinned"
+    },
+    "task": {
+      "none": "No active task",
+      "thread": "Thread",
+      "continuations": "continuations"
+    },
+    "actions": {
+      "stop": "Stop",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "destroy": "Destroy"
+    },
+    "destroyConfirm": {
+      "title": "Destroy sandbox?",
+      "description": "This tears down the container and its workspace. Any running task is cancelled. The next chat message recreates a fresh sandbox.",
+      "confirm": "Destroy"
+    },
+    "toast": {
+      "stopped": "Task stopped",
+      "pinned": "Sandbox pinned",
+      "unpinned": "Sandbox unpinned",
+      "destroyed": "Sandbox destroyed",
+      "error": "Action failed"
+    },
+    "empty": {
+      "title": "No active sandboxes",
+      "description": "Sandboxes start automatically when a member chats with a coding agent."
+    },
+    "accessDenied": "You need developer or admin access to manage sandboxes."
   }
 }

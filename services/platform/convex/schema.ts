@@ -84,6 +84,12 @@ import {
 import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
 import { reasoningProfilesTable } from './reasoning_profiles/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
+import {
+  sandboxCredentialAccessTable,
+  sandboxSessionOpsTable,
+  sandboxSessionsTable,
+  sandboxSessionTokensTable,
+} from './sandbox/sessions_schema';
 import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
@@ -102,7 +108,7 @@ import {
 import { threadFilesTable } from './thread_files/schema';
 import { threadTodosTable } from './thread_todos/schema';
 import { threadBranchesTable } from './threads/branch_schema';
-import { threadMetadataTable } from './threads/schema';
+import { chatMessageQueueTable, threadMetadataTable } from './threads/schema';
 import { ttsAudioChunksTable, ttsGcCursorTable } from './tts/schema';
 import { twoFactorAttemptsTable } from './two_factor/schema';
 import { userMemoriesTable } from './user_memories/schema';
@@ -192,6 +198,7 @@ export default defineSchema({
   threadBranches: threadBranchesTable,
   threadFiles: threadFilesTable,
   threadMetadata: threadMetadataTable,
+  chatMessageQueue: chatMessageQueueTable,
   threadTodos: threadTodosTable,
   ttsAudioChunks: ttsAudioChunksTable,
   ttsGcCursor: ttsGcCursorTable,
@@ -227,6 +234,10 @@ export default defineSchema({
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,
   sandboxExecutions: sandboxExecutionsTable,
+  sandboxSessions: sandboxSessionsTable,
+  sandboxSessionTokens: sandboxSessionTokensTable,
+  sandboxSessionOps: sandboxSessionOpsTable,
+  sandboxCredentialAccess: sandboxCredentialAccessTable,
   skillUploadClaims: skillUploadClaimTable,
   skillUploadIntents: skillUploadIntentTable,
   videoLinkJobs: videoLinkJobsTable,

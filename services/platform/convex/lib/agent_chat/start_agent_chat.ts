@@ -26,6 +26,7 @@ import { resolveFeatureFlags } from '../../governance/feature_enforcement';
 import { resolveBudgetContext } from '../../governance/resolve_budget_context';
 import { persistentStreaming } from '../../streaming/helpers';
 import type { AutoRouteReason } from '../../streaming/validators';
+import { settleQueueOnTurnEnd } from '../../threads/message_queue';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
 import { AGENT_CONTEXT_CONFIGS } from '../context_management/constants';
@@ -165,6 +166,13 @@ export interface StartAgentChatArgs {
    * real turn exactly. An over-budget prewarm is skipped silently.
    */
   prewarm?: boolean;
+  /**
+   * Queued-message drain turn (threads/message_queue.ts): the user message(s)
+   * were already persisted at enqueue, so SKIP saving `message` as a new user
+   * message and use this id (the last queued message) as the prompt message.
+   * Also suppresses first-message side effects (title generation).
+   */
+  queuedPromptMessageId?: string;
 }
 
 export interface StartAgentChatResult {
@@ -268,6 +276,7 @@ export async function startAgentChat(
         generationStatus: 'generating' as const,
         streamId,
         generationStartTime: Date.now(),
+        generationHeartbeatAt: undefined,
         updatedAt: Date.now(),
         cancelledAt: undefined,
         cancelledMessageId: undefined,
@@ -297,6 +306,22 @@ export async function startAgentChat(
     computeDeduplicationState(existingMessages, message);
 
   const hasAttachments = attachments && attachments.length > 0;
+  // SECURITY (IDOR): each attachment fileId is a raw `_storage` id we are about
+  // to turn into a presigned URL (buildMessageWithAttachments) and hand to the
+  // generation action. Verify each is owned by THIS org BEFORE exposing it — an
+  // unvalidated fileId from another org would be a cross-tenant file read. Same
+  // gate the rag_search / document-write paths use.
+  if (attachments && attachments.length > 0) {
+    const owned = await ctx.runQuery(
+      internal.documents.internal_queries.verifyStorageIdsBelongToOrg,
+      { organizationId, storageIds: attachments.map((a) => a.fileId) },
+    );
+    if (!owned) {
+      throw new Error(
+        'One or more attachments do not belong to this organization.',
+      );
+    }
+  }
   const referencedFiles = prewarm ? [] : (args.referencedFiles ?? []);
 
   // Build message content with attachment markdown, then append the
@@ -315,11 +340,16 @@ export async function startAgentChat(
   // Save user message if not a duplicate
   let promptMessageId: string;
   const isFirstMessage =
-    !messageAlreadyExists && existingMessages.page.length === 0;
+    !messageAlreadyExists &&
+    existingMessages.page.length === 0 &&
+    !args.queuedPromptMessageId;
   if (prewarm) {
     // Prewarm never persists a user message; the throwaway prompt is supplied
     // directly to the generation action below.
     promptMessageId = '';
+  } else if (args.queuedPromptMessageId) {
+    // Drain turn: the queued user messages are already in the timeline.
+    promptMessageId = args.queuedPromptMessageId;
   } else if (!messageAlreadyExists) {
     const { messageId } = await saveMessage(ctx, components.agent, {
       threadId,
@@ -385,10 +415,19 @@ export async function startAgentChat(
         message: { role: 'assistant', content: budgetMessage },
       });
       if (threadMeta) {
-        await ctx.db.patch(threadMeta._id, {
-          generationStatus: 'idle' as const,
-          updatedAt: Date.now(),
-        });
+        // Turn boundary (early finalize): settle/drain the message queue —
+        // a drained batch re-enters here and gets its own budget notice.
+        const { drained } = await settleQueueOnTurnEnd(
+          ctx,
+          threadMeta,
+          streamId || undefined,
+        );
+        if (!drained) {
+          await ctx.db.patch(threadMeta._id, {
+            generationStatus: 'idle' as const,
+            updatedAt: Date.now(),
+          });
+        }
       }
 
       await createAuditLog(ctx, {
@@ -513,10 +552,17 @@ export async function startAgentChat(
         },
       });
       if (threadMeta) {
-        await ctx.db.patch(threadMeta._id, {
-          generationStatus: 'idle' as const,
-          updatedAt: Date.now(),
-        });
+        const { drained } = await settleQueueOnTurnEnd(
+          ctx,
+          threadMeta,
+          streamId || undefined,
+        );
+        if (!drained) {
+          await ctx.db.patch(threadMeta._id, {
+            generationStatus: 'idle' as const,
+            updatedAt: Date.now(),
+          });
+        }
       }
       return { messageAlreadyExists, streamId };
     }
@@ -586,6 +632,42 @@ export async function startAgentChat(
       },
     );
 
+    return { messageAlreadyExists, streamId };
+  }
+
+  // External-agent agents (Claude Code / OpenCode in a sandbox session) bypass
+  // the platform tool loop — the whole turn runs in the session and streams
+  // back into the thread. Nothing to prewarm.
+  if (prewarm && enforcedConfig.primaryBehavior === 'external-agent') {
+    return { messageAlreadyExists, streamId };
+  }
+  if (enforcedConfig.primaryBehavior === 'external-agent') {
+    debugLog('SCHEDULE_EXTERNAL_AGENT', {
+      threadId,
+      model,
+      agentKind: enforcedConfig.agentKind ?? 'claude-code',
+    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.agents.external_agent.run_external_agent.runExternalAgentTurn,
+      {
+        threadId,
+        promptMessageId,
+        modelRef: model,
+        rawPrompt: trimmedMessage,
+        systemInstructions: enforcedConfig.instructions || undefined,
+        agentKind: enforcedConfig.agentKind ?? 'claude-code',
+        // Single mode-resolution point: every turn entry (composer send, queue
+        // drain, plan approval) re-enters here and reads the thread's sticky
+        // plan/act posture fresh.
+        permissionMode:
+          threadMeta?.externalAgentMode === 'plan' ? 'plan' : 'execute',
+        streamId: streamId || undefined,
+        agentSlug: args.agentSlug,
+        organizationId,
+        userId,
+      },
+    );
     return { messageAlreadyExists, streamId };
   }
 

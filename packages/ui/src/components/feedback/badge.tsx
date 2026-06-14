@@ -15,6 +15,7 @@ export const badgeVariants = cva(
         yellow: 'bg-yellow-100 hover:bg-yellow-100/80 text-yellow-800',
         blue: 'bg-blue-100 hover:bg-blue-100/80 text-blue-800',
         green: 'bg-green-100 hover:bg-green-100/80 text-green-800',
+        slate: 'bg-slate-100 hover:bg-slate-100/80 text-slate-700',
       },
     },
     defaultVariants: {
@@ -32,6 +33,7 @@ const dotVariants = cva('size-1.5 m-1 rounded-full', {
       yellow: 'bg-yellow-600',
       blue: 'bg-blue-600',
       green: 'bg-green-600',
+      slate: 'bg-slate-600',
     },
   },
   defaultVariants: {

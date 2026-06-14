@@ -77,6 +77,46 @@ export function useStableStreamText(text: string, isStreaming: boolean) {
 }
 
 // ============================================================================
+// REVEAL COMPLETION
+// ============================================================================
+
+/**
+ * Fires `onComplete` each time the reveal animation reaches the end of the
+ * (non-streaming) text, latching so it fires once per completed reveal.
+ *
+ * The latch resets when streaming resumes AND when the reveal regresses
+ * without an SDK streaming phase: an external-agent turn grows its trailing
+ * done-state text segment across persisted flushes (adjacent text coalesces
+ * into ONE segment id), so `progress` drops below 1 while `isStreaming` stays
+ * false. Without that reset, `onComplete` would never re-fire for the grown
+ * tail and the toolbar would wait on the bubble's 10s safety timer instead of
+ * the reveal signal.
+ */
+export function useRevealCompletion(
+  progress: number,
+  isStreaming: boolean,
+  onComplete?: () => void,
+) {
+  const hasCompletedRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      progress === 1 &&
+      !isStreaming &&
+      !hasCompletedRef.current &&
+      onComplete
+    ) {
+      hasCompletedRef.current = true;
+      onComplete();
+    }
+
+    if (isStreaming || progress < 1) {
+      hasCompletedRef.current = false;
+    }
+  }, [progress, isStreaming, onComplete]);
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -101,26 +141,7 @@ function TypewriterTextComponent({
     isStreaming,
   });
 
-  // Track completion to fire onComplete callback
-  const hasCompletedRef = useRef(false);
-
-  // Fire onComplete when animation finishes
-  useEffect(() => {
-    if (
-      progress === 1 &&
-      !isStreaming &&
-      !hasCompletedRef.current &&
-      onComplete
-    ) {
-      hasCompletedRef.current = true;
-      onComplete();
-    }
-
-    // Reset completion tracking when streaming starts again
-    if (isStreaming) {
-      hasCompletedRef.current = false;
-    }
-  }, [progress, isStreaming, onComplete]);
+  useRevealCompletion(progress, isStreaming, onComplete);
 
   // No typing cursor: the segment fade itself signals "still generating" —
   // a blinking caret on the last clause reads as noise next to it.

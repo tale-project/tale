@@ -24,7 +24,11 @@ import type {
   Language,
   SpawnerConfig,
 } from '../types.ts';
-import type { SandboxPhaseEvent } from '../wire.ts';
+import type {
+  SandboxPhaseEvent,
+  SandboxSessionProfile,
+  SandboxSessionState,
+} from '../wire.ts';
 
 /**
  * Per-execution staging + harvest directory on the SPAWNER's local
@@ -236,6 +240,88 @@ export interface ExecutionBackend {
 
   /** Reap orphaned runtimes/dirs left by crashes or stale runs. */
   sweepOrphans(opts: SweepOptions): Promise<number>;
+}
+
+// ---------------------------------------------------------------------------
+// Persistent sessions (sessions plan, milestone A). A SessionBackend manages
+// LONG-LIVED runtime containers/Pods running the in-container runnerd daemon;
+// the spawner's session routes proxy in-session operations to runnerd over
+// HTTP (Docker: container DNS name on tale-sandbox-net; K8s: Pod IP). The
+// interface is deliberately thin — exec/file/env operations are runnerd's
+// job, addressed via `resolveEndpoint`; the backend owns only the
+// container/Pod lifecycle.
+// ---------------------------------------------------------------------------
+
+/** What `createSession()` needs to launch a session container/Pod. */
+export interface SessionSpec {
+  sessionId: string;
+  organizationId: string;
+  profile: SandboxSessionProfile;
+  /** Clamped by the route layer to cfg.session.maxLifetimeMs / maxIdleMs. */
+  ttlMs: number;
+  idleTimeoutMs: number;
+  /** Initial session env (deny-list validated route-side; runnerd
+   * re-enforces). Reaches the daemon's env store, NOT the container's
+   * process env — docker inspect must never show user values. */
+  env: Record<string, string>;
+  createdAtMs: number;
+}
+
+/** A backend's record of one live session, reconstructed from backend-object
+ * labels/annotations on boot re-adoption (the registry is a cache, not the
+ * source of truth). */
+export interface BackendSession {
+  sessionId: string;
+  organizationId: string;
+  profile: SandboxSessionProfile;
+  createdAtMs: number;
+  ttlMs: number;
+  idleTimeoutMs: number;
+  /** Liveness as far as the backend object can tell (running container vs
+   * exited). `degraded` here means the object exists but isn't running;
+   * runnerd reachability is layered on top by the route/registry layer. */
+  state: Extract<SandboxSessionState, 'ready' | 'degraded'>;
+}
+
+export interface SessionBackend {
+  readonly kind: 'docker' | 'kubernetes';
+  /**
+   * Launch the session container/Pod and wait until runnerd's /healthz
+   * answers (budget: cfg.session.createHealthTimeoutMs). On failure the
+   * backend cleans up whatever it created before throwing — a failed create
+   * never leaks a container. Returns once the session is `ready`.
+   */
+  createSession(spec: SessionSpec): Promise<void>;
+  /** Base URL of the session's runnerd (e.g. http://tale-sbx-ses-<id>:8200).
+   * Resolved per call — on K8s the Pod IP can change across container
+   * restarts. Throws if the backend object doesn't exist. */
+  resolveEndpoint(sessionId: string): Promise<string>;
+  /**
+   * DEFINITIVE liveness check of the backend object: true only when the
+   * container/Pod exists AND is running. Returns false on a confirmed
+   * "object gone/dead" answer (docker "No such object", K8s 404, exited
+   * container) — the zombie-registry-eviction signal. THROWS when the
+   * backend can't answer (daemon/API hiccup): callers MUST treat a throw as
+   * "unknown", never as "gone" — a transient backend blip must not get a
+   * live session destroyed.
+   */
+  sessionExists(sessionId: string): Promise<boolean>;
+  /** Tear down container/Pod (+ Secret on K8s) and DELETE the workspace
+   * (host dir / PVC). The ONLY data-deleting verb — reached only via the
+   * explicit Destroy path. Idempotent; returns false when nothing existed. */
+  destroySession(sessionId: string): Promise<boolean>;
+  /**
+   * Stop the container/Pod (+ Secret on K8s) to release compute, but PRESERVE
+   * the workspace (host dir / PVC) so a later createSession with the same
+   * sessionId re-attaches it. This is the idle/TTL-reaper outcome — never
+   * deletes data. Idempotent; returns false when nothing existed. THROWS on a
+   * transient backend hiccup (never returns false on a blip — same contract as
+   * destroySession), so the reaper leaves a flaky session for the next sweep.
+   */
+  stopSession(sessionId: string): Promise<boolean>;
+  /** List live session objects (label-selected), for boot re-adoption, the
+   * GET /v1/sessions route, and the TTL/idle sweep. */
+  listSessions(organizationId?: string): Promise<BackendSession[]>;
 }
 
 export type { SpawnerConfig };

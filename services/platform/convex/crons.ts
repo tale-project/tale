@@ -131,6 +131,35 @@ crons.cron(
   {},
 );
 
+// Sandbox SESSION slot reclamation — flip a leaked session row (a throw between
+// reserve and the spawner create returning, or a container reaped out-of-band)
+// past its hard lifetime to `expired` so it stops pinning the per-(org) and
+// per-owner active-session caps forever. Exempts `stopped` (hibernated, no
+// compute, workspace preserved) and any row with a RUNNING agent-run op (an
+// unbounded turn legitimately outlives the 24h TTL — guarded inside the
+// mutation). Same shape as the execution watchdog above; this is the row-level
+// counterpart the spawner's liveExecs reaper mirrors container-side.
+crons.cron(
+  'recover stuck sandbox sessions (every 5 min)',
+  '*/5 * * * *',
+  internal.sandbox.session_mutations.recoverStuckSessions,
+  {},
+);
+
+// External-agent turn recovery — the connection-independent counterpart. A
+// turn whose draining action died (crash / redeploy / 30min ceiling) without
+// finalizing is found by its stale heartbeat and finalized exactly-once
+// (VK revoke + usage ledger + clear generation + mark message failed + cancel
+// the lingering exec). The cross-action continuation covers the planned long
+// turn; this covers the crash.
+crons.cron(
+  'recover stuck external-agent turns (every 2 min)',
+  '*/2 * * * *',
+  internal.agents.external_agent.recover_external_agent_turns
+    .recoverStuckExternalAgentTurns,
+  {},
+);
+
 // GDPR erasure watchdog (round-2 V5 P0-14) - the same shape as the
 // transcription watchdog above. Convex actions hard-stop at 30 min;
 // `gdprErasureRequests` rows whose subject has too many rows / RAG

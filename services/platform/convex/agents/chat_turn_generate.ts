@@ -105,6 +105,9 @@ export const runChatTurnGeneration = internalAction({
         }),
       ),
     ),
+    /** Queued-message drain turn (threads/message_queue.ts): the user
+     *  message(s) are already persisted — startChat must not re-save. */
+    queuedPromptMessageId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -352,6 +355,7 @@ export const runChatTurnGeneration = internalAction({
           requestStartMs: args.requestStartMs,
           deferGeneration: true,
           prewarm: args.prewarm,
+          queuedPromptMessageId: args.queuedPromptMessageId,
           // Shared-ctx: the governance query above already fetched + verified
           // org membership (role) and team IDs. Reuse them so startChat skips
           // its getOrganizationMember and budget skips getUserTeamIds + the
@@ -399,7 +403,12 @@ export const runChatTurnGeneration = internalAction({
         '[runChatTurnGeneration] failed',
         err instanceof Error ? err.message : err,
       );
-      await clearGen().catch(() => {});
+      await clearGen().catch((clearErr: unknown) =>
+        console.warn(
+          '[runChatTurnGeneration] clearGenerationStatus on failure path failed:',
+          clearErr instanceof Error ? clearErr.message : clearErr,
+        ),
+      );
       throw err;
     }
   },

@@ -24,9 +24,9 @@ The attachment is per agent: two agents can attach the same skill and the agent'
 
 ## Skill scripts and the sandbox
 
-Skill scripts run in the same sandbox as the **Run code** tool: Python or Node, allowed packages declared per skill, network egress controlled by the org's [run-code policy](/platform/admin/governance/run-code-policy). The script's contract is a typed input and a typed output; what runs in between is yours.
+Skill scripts run in the same sandbox as the **Run code** tool: Python or Node, allowed packages declared per skill, package installs gated by the org's [run-code policy](/platform/admin/governance/run-code-policy). Network egress from the sandbox is open by default; self-hosted operators can restrict it at the deployment level. The script's contract is a typed input and a typed output; what runs in between is yours.
 
-The trust boundary is sharp. A skill script can be invoked by any agent it is attached to. Treat publishing a skill as widening the trust surface for every agent that picks it up; the [governance policy on run-code](/platform/admin/governance/run-code-policy) gates which packages and which network destinations are allowed.
+The trust boundary is sharp. A skill script can be invoked by any agent it is attached to. Treat publishing a skill as widening the trust surface for every agent that picks it up; the [governance policy on run-code](/platform/admin/governance/run-code-policy) gates which packages the script can install.
 
 ## Versioning
 

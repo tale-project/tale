@@ -9,9 +9,12 @@
  *   - `MessageThoughtHeader`→ message-bubble.tsx (the in-bubble status strip)
  *   - `InlineReasoning` / `ToolStepRow` / `RoutingStepRow` / `STEP_INDENT`
  *                            → message-segments.tsx (the inline detail rows)
+ *   - `ThinkingDots`        → message-bubble.tsx (the trailing "still working"
+ *                             affordance at the end of a streaming message)
  */
 
 export { InlineReasoning } from './inline-reasoning';
 export { MessageThoughtHeader } from './message-thought-header';
 export { RoutingStepRow, STEP_INDENT, ToolStepRow } from './step-rows';
+export { ThinkingDots } from './thinking-dots';
 export { ThinkingIndicator } from './thinking-indicator';

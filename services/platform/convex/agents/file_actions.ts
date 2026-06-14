@@ -205,6 +205,7 @@ export const listAgents = action({
             description: result.config.description,
             visibleInChat: result.config.visibleInChat,
             primaryBehavior: result.config.primaryBehavior,
+            agentKind: result.config.agentKind,
             supportedModels: result.config.supportedModels,
             toolNames: result.config.toolNames,
             integrationBindings: result.config.integrationBindings,

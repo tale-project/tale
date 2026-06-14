@@ -38,6 +38,7 @@ import {
   type SandboxErrorCode,
   type SandboxStepResult,
 } from '../../sandbox/wire';
+import { sessionCancelExec } from './helpers/session_client';
 import { spawnerCancel, spawnerExecute } from './helpers/spawner_client';
 
 type ExecuteCodeResult = {
@@ -580,6 +581,39 @@ export const cancelExecutionsForThread = internalAction({
       } catch (err) {
         console.warn(
           `[sandbox.cancelExecutionsForThread] cancelExecutionRecord(${row._id}) failed:`,
+          err,
+        );
+      }
+    }
+    return cancelled;
+  },
+});
+
+/**
+ * Cancel every RUNNING session exec attached to a thread (the external-agent
+ * Stop path). The external-agent turn writes `sandboxSessionOps`, NOT the
+ * one-shot `sandboxExecutions` table that `cancelExecutionsForThread` scans —
+ * so without this, clicking Stop never reaches the in-sandbox agent process
+ * (it only died as a side effect of the caller disconnecting). For each running
+ * op we POST the session exec-cancel (SIGTERM→SIGKILL the process group); the
+ * run's own finalize then persists the partial timeline + marks it failed.
+ */
+export const cancelSessionExecsForThread = internalAction({
+  args: { threadId: v.string() },
+  returns: v.number(),
+  handler: async (ctx: ActionCtx, args) => {
+    const ops = await ctx.runQuery(
+      internal.sandbox.session_queries.listRunningOpsByThread,
+      { threadId: args.threadId },
+    );
+    let cancelled = 0;
+    for (const op of ops) {
+      try {
+        await sessionCancelExec(op.sessionId, op.execId);
+        cancelled += 1;
+      } catch (err) {
+        console.warn(
+          `[sandbox.cancelSessionExecsForThread] sessionCancelExec(${op.sessionId}/${op.execId}) failed (continuing):`,
           err,
         );
       }

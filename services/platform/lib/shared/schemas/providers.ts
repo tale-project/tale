@@ -346,6 +346,19 @@ const secretsEnvSchema = z
     'must start with TALE_PROVIDER_KEY_ and contain only letters, digits, and underscores',
   );
 
+/**
+ * The wire format (request/response schema) the provider's endpoint speaks —
+ * NOT the transport or the vendor. `openai` = OpenAI Chat Completions shape
+ * (the default; what `createOpenAICompatible` and most providers use);
+ * `anthropic` = Anthropic Messages shape (e.g. DeepSeek's `/anthropic`
+ * endpoint, which natively serves Claude Code server tools like web search).
+ * Settable per provider and per model (model overrides provider); absent ⇒
+ * `openai`. Drives the external-agent gateway's `base_provider_type`; the chat
+ * path is OpenAI-compatible-only for now (anthropic providers used in chat fall
+ * back to the OpenAI client and error at the wire level).
+ */
+const apiFormatSchema = z.enum(['openai', 'anthropic']);
+
 const modelDefinitionSchema = z.object({
   id: z.string().min(1).max(200),
   displayName: z.string().min(1).max(200),
@@ -372,6 +385,8 @@ const modelDefinitionSchema = z.object({
   baseUrl: z.string().url().optional(),
   /** Per-model override of the provider-level `secretsEnv`; see `secretsEnvSchema`. */
   secretsEnv: secretsEnvSchema.optional(),
+  /** Per-model override of the provider-level `apiFormat`; see `apiFormatSchema`. */
+  apiFormat: apiFormatSchema.optional(),
   imageGenerationMode: imageGenerationModeSchema.optional(),
   cost: z
     .object({
@@ -494,6 +509,8 @@ export const providerJsonSchema = z
      * `secretsEnvSchema`.
      */
     secretsEnv: secretsEnvSchema.optional(),
+    /** Wire format this provider's endpoint speaks; see `apiFormatSchema`. */
+    apiFormat: apiFormatSchema.optional(),
     supportsStructuredOutputs: z.boolean().optional(),
     defaults: providerDefaultsSchema.optional(),
     /**

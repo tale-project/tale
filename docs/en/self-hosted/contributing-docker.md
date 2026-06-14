@@ -45,7 +45,7 @@ The supported extension points for forks are at the Dockerfile level. The image'
 - **Caddyfile** — `services/proxy/Caddyfile` controls routing and TLS termination. Custom headers, custom subdomains, and custom rate limits land here.
 - **Platform plop templates** — `services/platform/Dockerfile` runs a build step that bakes in the messages, the schema, and the static assets. A fork that ships custom UI strings or extra routes builds the platform image.
 - **RAG document extractors** — `services/rag/app/routers/documents.py` is where new file formats register; a fork that needs an extractor for a proprietary file type patches here.
-- **Sandbox egress allowlist** — `services/sandbox-egress/tinyproxy.conf` is what the runtime allowlist compiles into. The runtime path goes through the [run-code policy](/platform/admin/governance/run-code-policy) screen; the build-time default lives here.
+- **Sandbox egress proxy** — `services/sandbox-egress/tinyproxy.conf.template` is the proxy config the entrypoint renders at startup: open egress by default, or a default-deny hostname filter when `SANDBOX_EGRESS_ALLOWLIST` is set. A fork that needs different proxy behaviour patches here.
 
 What is not a supported seam: the platform container's runtime code (`services/platform/app/`) — those files are application code, not configuration. Patches there are a real fork and ride the upgrade tax.
 

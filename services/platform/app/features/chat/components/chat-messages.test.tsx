@@ -38,6 +38,15 @@ vi.mock('./thought-timeline', () => ({
   ThinkingIndicator: () => <div data-testid="thinking" />,
 }));
 
+// Probe: the footer fix is about WHETHER the live timeline renders at all, so
+// stub it to a marker div (its session-op subscription the test environment
+// can't satisfy). A still-streaming assistant ABOVE the last user message means
+// that message is a mid-turn steer the running turn already owns, so the footer
+// is suppressed entirely (the bubble above carries the indicator).
+vi.mock('./external-agent-live-timeline', () => ({
+  ExternalAgentLiveTimeline: () => <div data-testid="live-footer" />,
+}));
+
 vi.mock('./approval-card-renderer', () => ({
   ApprovalCardRenderer: () => <div data-testid="approval-card" />,
 }));
@@ -185,6 +194,135 @@ describe('ChatMessages', () => {
       render(<ChatMessages {...defaultProps} items={[toItem(abortedMsg)]} />);
 
       expect(screen.getByTestId('message-assistant')).toBeInTheDocument();
+    });
+  });
+
+  describe('post-send footer (mid-turn steer)', () => {
+    const user1 = () =>
+      createMessage({ id: 'u1', role: 'user', content: 'first question' });
+    const user2 = () =>
+      createMessage({ id: 'u2', role: 'user', content: 'queued steer' });
+
+    it('renders the live timeline for a normal send', () => {
+      render(
+        <ChatMessages {...defaultProps} isLoading items={[toItem(user1())]} />,
+      );
+
+      expect(screen.getByTestId('live-footer')).toBeInTheDocument();
+    });
+
+    it('suppresses the live timeline when a streaming assistant sits above the last user message', () => {
+      const streamingA = createMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: 'working on it…',
+        isStreaming: true,
+      });
+
+      render(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          items={[toItem(user1()), toItem(streamingA), toItem(user2())]}
+        />,
+      );
+
+      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
+    });
+
+    it('suppresses for an EMPTY streaming shell above (not yet painted)', () => {
+      const emptyShell = createMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: '',
+        isStreaming: true,
+      });
+
+      render(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          items={[toItem(user1()), toItem(emptyShell), toItem(user2())]}
+        />,
+      );
+
+      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
+    });
+
+    it('does NOT suppress when the assistant above already completed', () => {
+      const doneA = createMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: 'done',
+      });
+
+      render(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          items={[toItem(user1()), toItem(doneA), toItem(user2())]}
+        />,
+      );
+
+      expect(screen.getByTestId('live-footer')).toBeInTheDocument();
+    });
+
+    it('suppresses across multiple queued steers (users in between are skipped)', () => {
+      const streamingA = createMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: 'working…',
+        isStreaming: true,
+      });
+      const user3 = createMessage({
+        id: 'u3',
+        role: 'user',
+        content: 'second queued steer',
+      });
+
+      render(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          items={[
+            toItem(user1()),
+            toItem(streamingA),
+            toItem(user2()),
+            toItem(user3),
+          ]}
+        />,
+      );
+
+      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
+    });
+
+    it('unmounts the footer once the fresh post-seam bubble paints below the steer', () => {
+      const sealedA = createMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: 'segment one',
+      });
+      const freshBubble = createMessage({
+        id: 'a2',
+        role: 'assistant',
+        content: 'answering the steer',
+        isStreaming: true,
+      });
+
+      render(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          items={[
+            toItem(user1()),
+            toItem(sealedA),
+            toItem(user2()),
+            toItem(freshBubble),
+          ]}
+        />,
+      );
+
+      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
     });
   });
 

@@ -354,6 +354,17 @@ jobs:
           docker tag "ghcr.io/tale-project/tale/tale-sandbox-runtime:latest" \
             "tale-sandbox-runtime:latest"
 
+      # bifrost is an external Docker Hub image (not built by us, not on GHCR).
+      # Its compose `pull_policy: ${PULL_POLICY:-missing}` collapses to `never`
+      # under the smoke stack's PULL_POLICY=never, so compose won't fetch it and
+      # `up` aborts with "No such image". Pre-pull the pinned tag (resolved from
+      # compose.yml's default) so it's present locally before the stack starts.
+      - name: Pull bifrost image (third-party)
+        run: |
+          BIFROST_VERSION="$(grep -oP 'maximhq/bifrost:\$\{BIFROST_VERSION:-\K[^}]+' compose.yml)"
+          echo "Pulling maximhq/bifrost:${BIFROST_VERSION}..."
+          docker pull "maximhq/bifrost:${BIFROST_VERSION}"
+
       - name: Run smoke tests
         run: bash tests/container-smoke-test.sh
         env:

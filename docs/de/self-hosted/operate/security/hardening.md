@@ -59,7 +59,15 @@ Ein Backup, das nicht wiederhergestellt wurde, ist eine Hoffnung, kein Backup. D
 
 ## Sandbox-Isolation
 
-Run-Code ist die riskanteste Oberfläche im Produkt — der einzige Ort, an dem benutzergelieferter Input zu ausgeführtem Code wird. Die Defaults sind bereits streng: `tale-sandbox-egress` setzt eine Host-Allowlist durch, `tale-sandbox` läuft ohne privilegierte Caps, und das Netzwerk zwischen ihnen ist intern. Der Hardening-Hebel ist die Allowlist selbst — halt sie kurz, bevorzuge spezifische Hosts gegenüber Wildcards und auditier Ergänzungen über den [Run-Code-Richtlinien](/de/platform/admin/governance/run-code-policy)-Bildschirm statt durch direkte Datei-Edits.
+Run-Code ist die riskanteste Oberfläche im Produkt — der einzige Ort, an dem benutzergelieferter Input zu ausgeführtem Code wird. `tale-sandbox` läuft ohne privilegierte Caps, sein Netzwerk ist intern, und `tale-sandbox-egress` ist sein einziger ausgehender Pfad. Auf Hostname-Ebene ist dieser Pfad standardmäßig offen: sandboxierter Code erreicht jeden öffentlichen Host über HTTPS, während Cloud-Metadaten-Endpunkte und private Adressbereiche auf IP-Ebene immer blockiert sind — dieser Boden hält in jeder Konfiguration.
+
+Der Hardening-Hebel ist `SANDBOX_EGRESS_ALLOWLIST`. Setz die Variable in `.env` auf eine Pipe-getrennte Liste von Hostname-Regexen und erzeuge `tale-sandbox-egress` neu — der Proxy kippt auf Default-Deny, nur passende Hosts sind erreichbar. Ein Lockdown auf reine Registries, der pip, npm, uv und Git über HTTPS am Laufen hält:
+
+```bash
+SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$|^registry\.npmjs\.org$|^objects\.githubusercontent\.com$|^codeload\.github\.com$|^github\.com$|^api\.github\.com$
+```
+
+Halt die Liste kurz und bevorzuge spezifische Hosts gegenüber Wildcards. Paket-Installationen regelt separat die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy).
 
 ## Monitoring
 

@@ -44,6 +44,11 @@ import {
   invalidateSecretsCache,
 } from '../lib/sops';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
+import {
+  isStandardGatewayProvider,
+  reprovisionProvider,
+  resolveGatewayRouting,
+} from '../node_only/sandbox/bifrost_admin';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import {
   requireDeveloperSettingsAccess,
@@ -104,6 +109,7 @@ const resolvedModelDataValidator = v.object({
   baseUrl: v.string(),
   apiKey: v.string(),
   modelId: v.string(),
+  apiFormat: v.union(v.literal('openai'), v.literal('anthropic')),
   tags: v.array(v.string()),
   dimensions: v.optional(v.number()),
   maxOutputTokens: v.optional(v.number()),
@@ -552,6 +558,8 @@ function buildResolvedTagModel(
     baseUrl: definition.baseUrl ?? provider.config.baseUrl,
     apiKey,
     modelId: definition.id,
+    apiFormat:
+      definition.apiFormat ?? provider.config.apiFormat ?? ('openai' as const),
     tags: [...definition.tags],
     dimensions: definition.dimensions,
     maxOutputTokens: definition.maxOutputTokens,
@@ -814,6 +822,9 @@ export const listProviders = action({
             displayName: result.config.displayName,
             description: result.config.description,
             baseUrl: result.config.baseUrl,
+            // Wire format (default openai); model entries carry the effective
+            // value. Lets picker/UI surfaces reason about anthropic providers.
+            apiFormat: result.config.apiFormat ?? 'openai',
             modelCount: result.config.models.length,
             defaults: result.config.defaults,
             // Whether this provider has an API key configured — lets the chat
@@ -825,6 +836,8 @@ export const listProviders = action({
               displayName: m.displayName,
               description: m.description ?? '',
               tags: m.tags,
+              // Effective wire format (model ?? provider ?? openai).
+              apiFormat: m.apiFormat ?? result.config.apiFormat ?? 'openai',
               hasBaseUrlOverride: m.baseUrl != null,
               hasApiKeyOverride:
                 modelKeys?.[m.id] != null || envSecret(m.secretsEnv) != null,
@@ -899,6 +912,25 @@ export const saveProvider = action({
     for (const model of config.models) {
       if (model.baseUrl !== undefined) checkProviderHostPolicy(model.baseUrl);
     }
+    // `apiFormat` only governs CUSTOM (non-standard) providers — Bifrost owns
+    // the wire format for its standard names and would ignore (or 400 on) a
+    // custom_provider_config. Reject it on a standard slug so the field never
+    // silently misleads (e.g. `anthropic` on `openrouter`).
+    if (
+      isStandardGatewayProvider(args.providerName) &&
+      (config.apiFormat !== undefined ||
+        config.models.some((m) => m.apiFormat !== undefined))
+    ) {
+      throw new ConvexError({
+        code: 'INVALID_PROVIDER_CONFIG',
+        issues: [
+          {
+            path: 'apiFormat',
+            message: `apiFormat applies to custom providers only; '${args.providerName}' is a built-in provider whose wire format the gateway already knows.`,
+          },
+        ],
+      });
+    }
     // Optimistic concurrency: if the caller passed `expectedHash`, the file
     // on disk must hash to that value. Reading + writing isn't truly atomic
     // here, but combined with `atomicWrite`'s same-tmp-then-rename it
@@ -918,6 +950,9 @@ export const saveProvider = action({
     const content = serializeProviderJson(config);
     const filePath = resolveProviderFilePath(orgSlug, args.providerName);
     await atomicWrite(filePath, content);
+    // Model-list changes must reach the gateway too — the Bifrost provider
+    // record freezes keys[].models at provision time.
+    await syncProviderToGateway(ctx, args.organizationId, args.providerName);
     return { hash: sha256(content) };
   },
 });
@@ -1088,6 +1123,9 @@ export async function resolveModelDataInline(
       providerName: provider.name,
       baseUrl: definition.baseUrl ?? provider.config.baseUrl,
       apiKey: resolveModelApiKey(provider, definition),
+      // Effective wire format: model override ?? provider ?? 'openai' (same
+      // precedence as baseUrl). Drives the external-agent gateway base type.
+      apiFormat: definition.apiFormat ?? provider.config.apiFormat ?? 'openai',
       // The wire-side request uses the bare config id; the variant lives
       // only in providerOptions.provider.quantizations.
       modelId: bareModelId,
@@ -1126,6 +1164,121 @@ export async function resolveModelDataInline(
     code: 'UNKNOWN_MODEL',
     message: `Model "${bareModelId}" not found${effectiveProviderName ? ` in provider "${effectiveProviderName}"` : ' in any provider'}. Available: ${allModelIds.join(', ')}`,
   });
+}
+
+/** One upstream provider, ready to push into the Bifrost gateway. */
+export interface GatewayProvider {
+  /** Bifrost provider record name: the slug for a standard provider, or the
+   * per-model gateway name (`resolveGatewayRouting`) for a custom one. */
+  name: string;
+  baseUrl?: string;
+  /** Wire format for a custom record → Bifrost base_provider_type. */
+  apiFormat?: 'openai' | 'anthropic';
+  apiKey: string;
+  models: string[];
+}
+
+/**
+ * Load the org's configured providers as Bifrost gateway records. Reuses the
+ * same loader + key-resolution the chat path uses (`loadAllProviders` +
+ * `resolveModelApiKeyOrNull`) so the gateway tracks exactly what the platform
+ * would call directly. Returns [] when the org has no usable providers.
+ *
+ * Grouping follows the gateway resolution rule (see resolveGatewayRouting):
+ *   - STANDARD slug → ONE native record per provider, exposing every model with
+ *     a resolvable key (Bifrost owns the base URL + wire format).
+ *   - CUSTOM slug → ONE record PER MODEL, named `<slug>__<modelId>`, carrying
+ *     that model's effective (baseUrl ?? provider.baseUrl, apiFormat, key) — so
+ *     model-level overrides actually route on the agent path (Bifrost holds one
+ *     base_url + base_provider_type per record).
+ */
+export async function loadOrgGatewayProviders(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<GatewayProvider[]> {
+  const orgSlug = await resolveOrgSlug(ctx, organizationId);
+  let providers: ProviderWithSecrets[];
+  try {
+    providers = await loadAllProviders(orgSlug);
+  } catch {
+    return [];
+  }
+  const out: GatewayProvider[] = [];
+  for (const provider of providers) {
+    if (isStandardGatewayProvider(provider.name)) {
+      // One native record; pick the first resolvable key to anchor it and
+      // expose every model id with a resolvable key.
+      let apiKey: string | null = null;
+      const models: string[] = [];
+      for (const model of provider.config.models) {
+        const key = resolveModelApiKeyOrNull(provider, model);
+        if (key) {
+          apiKey ??= key;
+          models.push(model.id);
+        }
+      }
+      if (apiKey && models.length > 0) {
+        out.push({ name: provider.name, apiKey, models });
+      }
+      continue;
+    }
+    // Custom: a per-model upstream so each model's endpoint/format/key routes.
+    for (const model of provider.config.models) {
+      const key = resolveModelApiKeyOrNull(provider, model);
+      if (!key) continue;
+      out.push({
+        name: resolveGatewayRouting(provider.name, model.id).gatewayProvider,
+        baseUrl: model.baseUrl ?? provider.config.baseUrl,
+        apiFormat: model.apiFormat ?? provider.config.apiFormat ?? 'openai',
+        apiKey: key,
+        models: [model.id],
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Best-effort push of one provider's current key + model list into the Bifrost
+ * gateway. The gateway's provider record is a derived cache: without this
+ * write-time hook, a rotated key would reach Bifrost only via the
+ * session-create reconcile — and running sandbox sessions would keep the stale
+ * key until then. Never throws — a deployment without Bifrost just hits a fast
+ * connection error here, and the operator's save must succeed regardless (same
+ * degrade posture as the session-create provisioning in run_external_agent.ts).
+ * Known follow-up: deleteProvider leaves the gateway record orphaned.
+ */
+async function syncProviderToGateway(
+  ctx: ActionCtx,
+  organizationId: string,
+  providerName: string,
+): Promise<void> {
+  try {
+    const providers = await loadOrgGatewayProviders(ctx, organizationId);
+    // A custom provider now expands to one gateway record PER MODEL
+    // (`<slug>__<modelId>`), so match the saved slug AND its per-model records.
+    // (Benign over-match if another slug is a `<providerName>__…` prefix — the
+    // reprovision is idempotent + memoized.)
+    const records = providers.filter(
+      (p) => p.name === providerName || p.name.startsWith(`${providerName}__`),
+    );
+    if (records.length === 0) {
+      // Key no longer resolves (cleared, or env-sourced without the env set).
+      // Leave the stale gateway record to the session-create reconcile.
+      console.warn(
+        `[syncProviderToGateway] provider '${providerName}' has no resolvable key/models; skipping gateway sync`,
+      );
+      return;
+    }
+    for (const record of records) {
+      await reprovisionProvider(organizationId, record);
+    }
+  } catch (err) {
+    console.warn(
+      `[syncProviderToGateway] best-effort gateway sync failed for '${providerName}' (continuing):`,
+      sanitizeError(err),
+    );
+  }
 }
 
 /**
@@ -2350,6 +2503,7 @@ async function runSaveProviderSecret(
     await atomicWriteSecret(secretsPath, plaintext);
     invalidateSecretsCache(secretsPath);
     await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
+    await syncProviderToGateway(ctx, args.organizationId, args.providerName);
     return null;
   }
 
@@ -2436,6 +2590,7 @@ async function runSaveProviderSecret(
   await atomicWriteSecret(secretsPath, encrypted);
   invalidateSecretsCache(secretsPath);
   await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
+  await syncProviderToGateway(ctx, args.organizationId, args.providerName);
 
   return null;
 }

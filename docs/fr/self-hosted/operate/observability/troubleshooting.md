@@ -75,7 +75,7 @@ docker compose ps tale-sandbox-egress
 docker compose logs --tail=100 tale-sandbox-egress
 ```
 
-Si le conteneur est sain, la requête a touché l'allowlist. La liste des hôtes permis vit dans la [politique run-code](/fr/platform/admin/governance/run-code-policy) ; ajoute la destination ou réécris l'appel d'outil de l'agent pour utiliser un hôte autorisé.
+Si le conteneur est sain et que tu as défini `SANDBOX_EGRESS_ALLOWLIST`, la requête a touché l'allowlist — étends la variable dans `.env` et recrée `tale-sandbox-egress`. Sans allowlist, le proxy est ouvert au niveau des hôtes ; vérifie plutôt la cible : seul le port 443 est tunnelisé pour HTTPS, et les adresses de métadonnées cloud et de plages privées sont toujours bloquées au niveau IP.
 
 ## Le sign-in revient en boucle à l'écran de sign-in
 

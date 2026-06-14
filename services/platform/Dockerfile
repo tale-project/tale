@@ -19,6 +19,7 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
+COPY packages/agent_adapters/package.json ./packages/agent_adapters/
 COPY packages/tale_daemon/package.json ./packages/tale_daemon/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
@@ -30,6 +31,7 @@ COPY services/rag/package.json ./services/rag/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
 COPY services/sandbox/package.json ./services/sandbox/
+COPY services/sandbox-runtime/daemon/package.json ./services/sandbox-runtime/daemon/
 COPY services/controller/package.json ./services/controller/
 COPY services/web/package.json ./services/web/
 COPY services/docs/package.json ./services/docs/
@@ -69,6 +71,14 @@ COPY services/platform/vite.config.ts \
      ./services/platform/
 
 COPY packages/ui ./packages/ui
+
+# convex/node_only/sandbox/run_agent.ts bundles `@tale/agent-adapters` at
+# deploy time (it's NOT in convex.json externalPackages — the package exports
+# raw .ts that esbuild must compile). The runtime stage ships /app/packages
+# wholesale (for the `@tale/*` node_modules symlinks), so the source has to be
+# present here in the builder or the convex deploy fails with "Could not
+# resolve @tale/agent-adapters" and the platform never goes healthy.
+COPY packages/agent_adapters ./packages/agent_adapters
 
 COPY services/platform/app ./services/platform/app
 COPY services/platform/lib ./services/platform/lib
@@ -114,6 +124,7 @@ COPY services/platform/server.ts \
 FROM builder AS pruner
 
 COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
+COPY --from=workspace-deps /app/packages/agent_adapters/package.json /tmp/workspace/packages/agent_adapters/
 COPY --from=workspace-deps /app/packages/tale_knowledge/package.json /tmp/workspace/packages/tale_knowledge/
 COPY --from=workspace-deps /app/packages/tale_shared/package.json /tmp/workspace/packages/tale_shared/
 COPY --from=workspace-deps /app/packages/tale_telemetry/package.json /tmp/workspace/packages/tale_telemetry/
@@ -124,6 +135,7 @@ COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/service
 COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services/db/
 COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
 COPY --from=workspace-deps /app/services/sandbox/package.json /tmp/workspace/services/sandbox/
+COPY --from=workspace-deps /app/services/sandbox-runtime/daemon/package.json /tmp/workspace/services/sandbox-runtime/daemon/
 COPY --from=workspace-deps /app/services/controller/package.json /tmp/workspace/services/controller/
 COPY --from=workspace-deps /app/services/web/package.json /tmp/workspace/services/web/
 COPY --from=workspace-deps /app/services/docs/package.json /tmp/workspace/services/docs/

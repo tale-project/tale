@@ -11,6 +11,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type {
   KnowledgeWriteMetadata,
+  PlanApprovalMetadata,
   WorkflowCreationMetadata,
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
@@ -172,9 +173,14 @@ export interface ChatAgent {
   /**
    * Root behavior. Omitted = 'chat'. 'image-generation' flips the composer
    * into direct image-gen mode (model picker filters on image tag, EditingBanner
-   * activates when the thread has images).
+   * activates when the thread has images). 'external-agent' (Claude Code /
+   * OpenCode in a sandbox session) enables queue mode: the composer stays
+   * usable while a turn runs and messages queue for the running agent.
    */
-  primaryBehavior?: 'chat' | 'image-generation';
+  primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
+  /** Which external agent CLI backs an 'external-agent' behavior. Gates
+   * CLI-specific UI like the plan/act composer toggle (claude-code only). */
+  agentKind?: 'claude-code' | 'opencode';
   supportedModels?: string[];
   toolNames?: string[];
   integrationBindings?: string[];
@@ -218,8 +224,14 @@ export function useChatAgents(organizationId: string) {
           primaryBehavior:
             'primaryBehavior' in a &&
             (a.primaryBehavior === 'chat' ||
-              a.primaryBehavior === 'image-generation')
+              a.primaryBehavior === 'image-generation' ||
+              a.primaryBehavior === 'external-agent')
               ? a.primaryBehavior
+              : undefined,
+          agentKind:
+            'agentKind' in a &&
+            (a.agentKind === 'claude-code' || a.agentKind === 'opencode')
+              ? a.agentKind
               : undefined,
           supportedModels: a.supportedModels,
           integrationBindings: Array.isArray(a.integrationBindings)
@@ -272,6 +284,34 @@ export function useThreadMessages(threadId: string | null) {
   });
 
   return results;
+}
+
+/**
+ * Live external-agent (Claude Code / OpenCode) progress for a thread. Returns
+ * the latest in-session `agent-run` op (status + recentEvents) so the chat can
+ * render a real-time tool-use timeline mid-turn. Null for normal chat threads
+ * (no sandbox session ops) — the caller falls back to the plain placeholder.
+ */
+export function useSessionProgress(threadId: string | null | undefined) {
+  const { data } = useConvexQuery(
+    api.sandbox.session_queries_public.getActiveSessionOp,
+    threadId ? { threadId } : 'skip',
+  );
+  return data ?? null;
+}
+
+/**
+ * The thread's live sandbox-session lifecycle state (creating/active/degraded/
+ * stopped + pinned), for the ambient "Sandbox" status pill. Null for normal
+ * chat threads or threads with no live sandbox. Composed with
+ * `useSessionProgress` (the live op) to show "Working" while a turn runs.
+ */
+export function useThreadSandboxState(threadId: string | null | undefined) {
+  const { data } = useConvexQuery(
+    api.sandbox.session_queries_public.getThreadSandboxState,
+    threadId ? { threadId } : 'skip',
+  );
+  return data ?? null;
 }
 
 export function useActiveApprovals(organizationId: string) {
@@ -602,6 +642,15 @@ export interface DocumentWriteApproval {
   metadata: DocumentWriteMetadata;
   executedAt?: number;
   executionError?: string;
+  _creationTime: number;
+  messageId?: string;
+}
+
+/** External-agent plan proposal (plan/act workflow) awaiting approve/reject. */
+export interface PlanApproval {
+  _id: Id<'approvals'>;
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
+  metadata: PlanApprovalMetadata;
   _creationTime: number;
   messageId?: string;
 }

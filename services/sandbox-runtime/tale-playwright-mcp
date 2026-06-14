@@ -1,0 +1,15 @@
+#!/bin/sh
+# Playwright MCP launcher: bridge the container egress env to Chromium flags.
+# Chromium ignores HTTPS_PROXY/NO_PROXY env vars, and the sandbox network is
+# internal-only — without an explicit --proxy-server the browser can only
+# reach in-container addresses. Behavior flags (--headless etc.) stay in the
+# agent adapters; this shim only does env→flag bridging.
+# Playwright force-appends <-loopback> to the Chromium bypass list whenever a
+# proxy is set, which overrides the explicit localhost/127.0.0.1 entries below
+# (later rules win) and sends loopback traffic to tinyproxy — whose loopback
+# is a different container. Disable that so in-container dev servers stay
+# reachable from the browser.
+export PLAYWRIGHT_DISABLE_FORCED_CHROMIUM_PROXIED_LOOPBACK=1
+[ -n "${HTTPS_PROXY:-}" ] && set -- "$@" --proxy-server "$HTTPS_PROXY"
+[ -n "${NO_PROXY:-}" ] && set -- "$@" --proxy-bypass "$NO_PROXY"
+exec mcp-server-playwright "$@"

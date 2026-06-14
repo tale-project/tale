@@ -1,9 +1,9 @@
 ---
 title: tale-daemon
-description: Aufgaben-Arbeit auf eigenen Maschinen mit lokalen Coding-Agent-CLIs (Claude Code, Codex, OpenCode) — Setup, Taktung, Isolation, Berechtigungen und Fehlerbehandlung.
+description: Aufgaben-Arbeit auf eigenen Maschinen mit lokalen Coding-Agent-CLIs (Claude Code, Codex) — Setup, Taktung, Isolation, Berechtigungen und Fehlerbehandlung.
 ---
 
-`tale-daemon` führt Tale-Board-Aufgaben auf einer Maschine aus, die du kontrollierst — mit den Coding-Agent-CLIs, die du bereits hast: **Claude Code** (`claude`), **Codex** (`codex`) und **OpenCode** (`opencode`). Binde einen Agenten in seiner Konfiguration an eine Runtime, und seine zugewiesenen Aufgaben werden an den Daemon geschickt statt an Tales interne Modell-Schleife; das Ergebnis landet als Kommentar (mit Diff-Statistik) auf der Aufgabe, die wie jede andere Agenten-Arbeit bei _In Review_ parkt.
+`tale-daemon` führt Tale-Board-Aufgaben auf einer Maschine aus, die du kontrollierst — mit den Coding-Agent-CLIs, die du bereits hast: **Claude Code** (`claude`) und **Codex** (`codex`). Binde einen Agenten in seiner Konfiguration an eine Runtime, und seine zugewiesenen Aufgaben werden an den Daemon geschickt statt an Tales interne Modell-Schleife; das Ergebnis landet als Kommentar (mit Diff-Statistik) auf der Aufgabe, die wie jede andere Agenten-Arbeit bei _In Review_ parkt.
 
 ## Setup
 

@@ -1,9 +1,9 @@
 ---
 title: Run-code policy
-description: The package allowlist and egress controls that gate what sandboxed Run code can install and which URLs it can reach. Admins and Owners read this when an agent needs a new library or when a regulator names the network destinations a sandbox may touch.
+description: The package allowlist and denylist that gate what sandboxed Run code can install. Admins and Owners read this when an agent needs a new library or when an audit asks why a package was blocked at a given time.
 ---
 
-Run-code policy is the surface where you decide which Python and Node packages the sandbox can install at execution time and, by extension, which network destinations the sandbox can reach through those packages. Skills with scripts and the Run code tool both run in the same sandbox; this policy is the single seam where you tighten or loosen what they can do. Admins and Owners read this page when an agent needs a new library, when a regulator names the destinations a sandbox may touch, or when an audit asks why a package was blocked at a given time.
+Run-code policy is the surface where you decide which Python and Node packages the sandbox can install at execution time. Skills with scripts and the Run code tool both run in the same sandbox; this policy is the single seam where you tighten or loosen what they can install. Admins and Owners read this page when an agent needs a new library, or when an audit asks why a package was blocked at a given time.
 
 ## A worked switch
 
@@ -28,7 +28,7 @@ The Test panel on the same page lets you paste pip or npm specs and see whether 
 
 ## Network egress and skills
 
-The package policy gates _what_ runs in the sandbox. The same sandbox runs skill scripts — see the [Skills concept](/platform/agents/skills) page — and the egress allowlist that gates outbound HTTP from sandbox code is configured on the same Governance area for self-hosted deployments. Treat publishing a skill with a script as widening the trust surface for every agent that picks it up; the package policy and the egress allowlist together decide what the script can do.
+The package policy gates _what_ runs in the sandbox. The same sandbox runs skill scripts — see the [Skills concept](/platform/agents/skills) page. Outbound network from sandbox code is open by default, with cloud-metadata and private-range targets always blocked; on self-hosted deployments the operator can restrict it to a hostname allowlist at the deployment level — the walk lives in [Hardening](/self-hosted/operate/security/hardening). Treat publishing a skill with a script as widening the trust surface for every agent that picks it up; the package policy and the deployment's egress policy together decide what the script can do.
 
 ## Where this fits
 

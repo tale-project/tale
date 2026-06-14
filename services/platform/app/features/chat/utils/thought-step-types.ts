@@ -35,6 +35,41 @@ export type ThoughtStep =
       errorText?: string;
     };
 
+/** One sub-agent tool call, folded under its parent Task tool card. Mirrors the
+ *  persisted `SubAgentStepData` (services/.../agent_message_parts.ts) — both the
+ *  live and persisted paths put this shape on the Task step's `output.steps`. */
+export interface SubAgentStep {
+  toolName: string;
+  input?: unknown;
+  output?: unknown;
+  isError?: boolean;
+}
+
+/** Pull the folded sub-agent steps off a tool step's `output`, if present. Both
+ *  the live builder and the persisted path (after toUIMessages unwraps the json
+ *  tool-result) leave `{ report, steps }` on `output`. Returns the steps array
+ *  only when it's a non-empty list, so callers can branch on truthiness. */
+export function subAgentSteps(
+  step: Extract<ThoughtStep, { kind: 'tool' }>,
+): SubAgentStep[] | undefined {
+  const out = step.output;
+  if (out === null || typeof out !== 'object') return undefined;
+  const steps = (out as { steps?: SubAgentStep[] }).steps;
+  return Array.isArray(steps) && steps.length > 0 ? steps : undefined;
+}
+
+/** The sub-agent's final report (markdown) folded onto a Task step's `output`. */
+export function subAgentReport(
+  step: Extract<ThoughtStep, { kind: 'tool' }>,
+): string | undefined {
+  const out = step.output;
+  if (out === null || typeof out !== 'object') return undefined;
+  const report = (out as { report?: unknown }).report;
+  return typeof report === 'string' && report.trim() !== ''
+    ? report
+    : undefined;
+}
+
 /** Skill-runtime tools surfaced in the parts stream. A skill "use" is a
  *  distinct `skillSlug` across these, not a raw tool-call count — so they're
  *  counted as skills, not tools, in the timeline summary. */

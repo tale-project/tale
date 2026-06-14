@@ -15,6 +15,59 @@ export interface ToolDetail {
   displayText: string;
 }
 
+/**
+ * One-line summary of an external-agent (Claude Code / OpenCode) tool call,
+ * surfacing the load-bearing argument so the timeline reads "Bash · gh pr diff"
+ * instead of a bare "Bash". Returns null for tools handled by the platform
+ * formatter below. Pure string work — no i18n (the content is the arg itself).
+ */
+function externalAgentToolSummary(
+  toolName: string,
+  input?: Record<string, unknown>,
+): string | null {
+  if (!input) return null;
+  const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+  switch (toolName) {
+    case 'Bash': {
+      const cmd = str(input.command);
+      return cmd ? `Bash · ${truncate(cmd, 80)}` : null;
+    }
+    case 'ExitPlanMode':
+      // Plan/act workflow: the call carries the full plan in input.plan; the
+      // row reads as the proposal event (the plan itself renders in the
+      // approval card + the expanded row body).
+      return 'Proposed a plan';
+    case 'EnterPlanMode':
+      return 'Entered plan mode';
+    case 'Read':
+    case 'Edit':
+    case 'Write':
+    case 'NotebookEdit': {
+      const path = str(input.file_path) ?? str(input.notebook_path);
+      return path ? `${toolName} · ${truncate(path, 70)}` : null;
+    }
+    case 'Grep': {
+      const pat = str(input.pattern);
+      return pat ? `Grep · ${truncate(pat, 60)}` : null;
+    }
+    case 'Glob': {
+      const pat = str(input.pattern);
+      return pat ? `Glob · ${truncate(pat, 60)}` : null;
+    }
+    case 'WebFetch': {
+      const url = str(input.url);
+      return url ? `WebFetch · ${extractHostname(url)}` : null;
+    }
+    case 'Task':
+    case 'Agent': {
+      const desc = str(input.description);
+      return desc ? `${toolName} · ${truncate(desc, 60)}` : null;
+    }
+    default:
+      return null;
+  }
+}
+
 export function extractHostname(url: string): string {
   try {
     const parsed = new URL(url);
@@ -52,6 +105,11 @@ export function formatToolDetail(
         query: truncate(input.query, 25),
       }),
     };
+  }
+
+  const externalSummary = externalAgentToolSummary(toolName, input);
+  if (externalSummary) {
+    return { toolName, displayText: externalSummary };
   }
 
   if (toolName.startsWith('delegate_')) {

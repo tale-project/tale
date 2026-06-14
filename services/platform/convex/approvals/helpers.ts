@@ -321,6 +321,25 @@ export async function updateApprovalStatus(
     throw new Error('Approval not found');
   }
 
+  // Approval FSM guard. A user-initiated approve/reject is only valid from
+  // `pending` → `executing` (approve) | `rejected` (reject); `completed` is set
+  // by the internal execution path. Without this guard a stale or buggy client
+  // could drive an illegal transition (e.g. completed → executing, which would
+  // re-dispatch the erasure schedule). Convex OCC serializes concurrent
+  // mutations, so re-reading the status here ALSO closes the concurrent
+  // approve/reject race: the loser retries, sees the now-resolved status, and
+  // is rejected instead of silently clobbering the winner's decision.
+  if (current.status !== 'pending') {
+    throw new Error(
+      `Cannot change approval from '${current.status}' to '${args.status}': only a pending approval can be approved or rejected.`,
+    );
+  }
+  if (args.status !== 'executing' && args.status !== 'rejected') {
+    throw new Error(
+      `Invalid approval decision '${args.status}': expected 'executing' (approve) or 'rejected'.`,
+    );
+  }
+
   let approverName: string | undefined;
   const userRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
     model: 'user',

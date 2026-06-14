@@ -137,5 +137,6 @@ services/sandbox/
 !services/sandbox/package.json
 services/sandbox-egress/
 services/sandbox-runtime/
+!services/sandbox-runtime/daemon/package.json
 services/docs/
 !services/docs/package.json

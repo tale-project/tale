@@ -85,6 +85,11 @@ interface MessageSegmentsProps {
   /** Whether the owning assistant message is still streaming — gates the live
    *  typewriter (trailing text), reasoning typewriter, and tool spinners. */
   active: boolean;
+  /** When the thought header owns the reasoning (it renders a single expandable
+   *  control for ALL reasoning blocks), skip the inline reasoning rows here so
+   *  they aren't shown twice. Only the action rows (tools, routing) stay inline.
+   *  False (e.g. redacted-only reasoning with no header) keeps the inline note. */
+  headerOwnsReasoning?: boolean;
   /** Citation numbers present in this message, for inline `[N]` injection. */
   citationNumbers: Set<number>;
   onSendFollowUp?: (message: string) => void;
@@ -122,6 +127,7 @@ function prepareText(text: string, citationNumbers: Set<number>): string {
 function MessageSegmentsImpl({
   segments,
   active,
+  headerOwnsReasoning,
   citationNumbers,
   onSendFollowUp,
   messageId,
@@ -162,6 +168,9 @@ function MessageSegmentsImpl({
               />
             );
           case 'reasoning':
+            // The thought header owns reasoning (single expandable control) —
+            // skip the inline block so it isn't shown twice.
+            if (headerOwnsReasoning) return null;
             return (
               <InlineReasoning
                 key={segment.id}

@@ -19,6 +19,19 @@ vi.mock('../_generated/api', () => ({
       messages: { updateMessage: 'mock-updateMessage' },
     },
   },
+  internal: {
+    node_only: {
+      sandbox: {
+        internal_actions: {
+          cancelExecutionsForThread: 'mock-cancelExecs',
+          cancelSessionExecsForThread: 'mock-cancelSessionExecs',
+        },
+      },
+    },
+    threads: {
+      message_queue: { drainQueuedMessages: 'mock-drainQueuedMessages' },
+    },
+  },
 }));
 
 import { cancelGeneration } from './cancel_generation';
@@ -555,5 +568,89 @@ describe('cancelGeneration — edge cases', () => {
     await cancelGeneration(ctx as unknown as MutationCtx, 'user_1', 'thread_1');
 
     expect(ctx.runMutation).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================================
+// drainQueue (user-facing Stop auto-resumes queued messages)
+// ============================================================================
+
+describe('cancelGeneration — drainQueue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListStreams.mockResolvedValue([]);
+    mockAbortStream.mockResolvedValue(undefined);
+    mockListMessages.mockResolvedValue({ page: [] });
+  });
+
+  /** Table-aware mock ctx: threadMetadata query yields the meta row, the
+   * chatMessageQueue query yields `queuedRow` (or nothing). */
+  function createQueueCtx(queuedRow: Record<string, unknown> | null) {
+    const ctx = {
+      runQuery: vi.fn().mockResolvedValue({ userId: 'user_1' }),
+      runMutation: vi.fn().mockResolvedValue(undefined),
+      scheduler: { runAfter: vi.fn().mockResolvedValue(undefined) },
+      db: {
+        query: vi.fn((table: string) => ({
+          withIndex: vi.fn().mockReturnValue({
+            first: vi
+              .fn()
+              .mockResolvedValue(
+                table === 'chatMessageQueue' ? queuedRow : { _id: 'meta_1' },
+              ),
+          }),
+        })),
+        patch: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+    return ctx;
+  }
+
+  it('schedules the deferred drain when queued messages exist', async () => {
+    const ctx = createQueueCtx({ _id: 'q_1', status: 'queued' });
+
+    await cancelGeneration(
+      ctx as unknown as MutationCtx,
+      'user_1',
+      'thread_1',
+      null,
+      { drainQueue: true },
+    );
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      3000,
+      'mock-drainQueuedMessages',
+      { threadId: 'thread_1' },
+    );
+  });
+
+  it('does not schedule a drain when the queue is empty', async () => {
+    const ctx = createQueueCtx(null);
+
+    await cancelGeneration(
+      ctx as unknown as MutationCtx,
+      'user_1',
+      'thread_1',
+      null,
+      { drainQueue: true },
+    );
+
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
+      3000,
+      'mock-drainQueuedMessages',
+      expect.anything(),
+    );
+  });
+
+  it('never drains by default (supersede path keeps old semantics)', async () => {
+    const ctx = createQueueCtx({ _id: 'q_1', status: 'queued' });
+
+    await cancelGeneration(ctx as unknown as MutationCtx, 'user_1', 'thread_1');
+
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
+      3000,
+      'mock-drainQueuedMessages',
+      expect.anything(),
+    );
   });
 });

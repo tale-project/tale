@@ -176,6 +176,14 @@ async function sweepHostSessionDirs(
   let removed = 0;
   for (const e of entries) {
     if (!e.isDirectory()) continue;
+    // Persistent agent-session workspaces (`ses-<sessionId>`, see
+    // session-naming.ts) are lifecycle-managed by destroySession + the
+    // session TTL/idle sweep — NEVER by this one-shot dir sweep. Without
+    // this skip the 5-min periodic sweep deletes any live session's
+    // workspace once its top-level mtime passes the one-shot watchdog
+    // cutoff (~10 min), yanking the bind mount out from under a running
+    // container.
+    if (e.name.startsWith('ses-')) continue;
     if (isInFlight(e.name)) continue;
     const abs = join(cfg.hostSessionRoot, e.name);
     let st;
@@ -357,29 +365,38 @@ export function installSignalHandlers(
     }
     shuttingDown = true;
     console.log(`[sandbox] received ${sig}; draining in-flight executions`);
+    // Wrap the whole drain in try/finally so process.exit ALWAYS runs: a
+    // rejected backend.shutdown() (or any awaited step) would otherwise leave
+    // the handler hung and the container ignoring SIGTERM until docker SIGKILLs
+    // it at the stop timeout.
     try {
-      stopAccepting();
+      try {
+        stopAccepting();
+      } catch (err) {
+        console.warn(`[sandbox.shutdown] stopAccepting failed:`, err);
+      }
+      // Abort-only: each execute() observes the abort and performs its own
+      // teardown (kill/remove container, delete Pod+Secret); the drain loop
+      // below waits on those finally blocks via the in-flight registry.
+      for (const id of inFlightIds()) {
+        cancelExecution(id);
+      }
+      const deadline = Date.now() + 20_000;
+      while (inFlightIds().length > 0 && Date.now() < deadline) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 200));
+      }
+      const remaining = inFlightIds();
+      if (remaining.length > 0) {
+        console.warn(
+          `[sandbox] shutdown deadline; ${remaining.length} execution(s) still in-flight (${remaining.join(', ')})`,
+        );
+      }
+      await backend.shutdown();
     } catch (err) {
-      console.warn(`[sandbox.shutdown] stopAccepting failed:`, err);
+      console.error('[sandbox.shutdown] drain/shutdown failed:', err);
+    } finally {
+      process.exit(0);
     }
-    // Abort-only: each execute() observes the abort and performs its own
-    // teardown (kill/remove container, delete Pod+Secret); the drain loop
-    // below waits on those finally blocks via the in-flight registry.
-    for (const id of inFlightIds()) {
-      cancelExecution(id);
-    }
-    const deadline = Date.now() + 20_000;
-    while (inFlightIds().length > 0 && Date.now() < deadline) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 200));
-    }
-    const remaining = inFlightIds();
-    if (remaining.length > 0) {
-      console.warn(
-        `[sandbox] shutdown deadline; ${remaining.length} execution(s) still in-flight (${remaining.join(', ')})`,
-      );
-    }
-    await backend.shutdown();
-    process.exit(0);
   };
   process.on('SIGTERM', () => void onTerm('SIGTERM'));
   process.on('SIGINT', () => void onTerm('SIGINT'));

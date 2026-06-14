@@ -195,4 +195,43 @@ describe('ProviderEditPanel', () => {
       models: { m1: { description: 'altes Modell' } },
     });
   });
+
+  function getBaseUrlInput() {
+    return screen.getByRole('textbox', {
+      name: /^settings\.providers\.baseUrl\b/i,
+    });
+  }
+
+  it('persists apiFormat as undefined by default (clean for standard providers)', async () => {
+    configMock.mockReturnValue({ ...baseConfig });
+    const { user } = renderPanel();
+    await user.type(getBaseUrlInput(), '2'); // dirty so submit is enabled
+    const payload = await clickSubmit(user);
+    expect(payload.apiFormat).toBeUndefined();
+  });
+
+  it('carries an existing anthropic apiFormat through save', async () => {
+    configMock.mockReturnValue({ ...baseConfig, apiFormat: 'anthropic' });
+    const { user } = renderPanel();
+    await user.type(getBaseUrlInput(), '2');
+    const payload = await clickSubmit(user);
+    expect(payload.apiFormat).toBe('anthropic');
+  });
+
+  it('lets the user switch the apiFormat to Anthropic', async () => {
+    configMock.mockReturnValue({ ...baseConfig });
+    const { user } = renderPanel();
+    await user.click(
+      screen.getByRole('combobox', {
+        name: /^settings\.providers\.apiFormat\b/i,
+      }),
+    );
+    await user.click(
+      await screen.findByRole('option', {
+        name: /settings\.providers\.apiFormatAnthropic/i,
+      }),
+    );
+    const payload = await clickSubmit(user);
+    expect(payload.apiFormat).toBe('anthropic');
+  });
 });

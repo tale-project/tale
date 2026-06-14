@@ -37,7 +37,7 @@ The hot path is short. If chat latency feels wrong, the container to blame is al
 
 ## The sandbox plane
 
-Sandboxed code execution runs in `tale-sandbox` with `tale-sandbox-egress` as the only network seam. The two-container split is deliberate: `tale-sandbox` itself has no outbound network; every request the sandboxed code makes goes through `tale-sandbox-egress`, which applies the [run-code policy](/platform/admin/governance/run-code-policy) allowlist before letting it through. If the egress container is down, sandboxed code that needs the network fails closed with "egress denied" — not a silent timeout.
+Sandboxed code execution runs in `tale-sandbox` with `tale-sandbox-egress` as the only network seam. The two-container split is deliberate: `tale-sandbox` itself has no outbound network; every request the sandboxed code makes goes through `tale-sandbox-egress`, which blocks cloud-metadata and private-range targets at the IP layer and — when the operator sets `SANDBOX_EGRESS_ALLOWLIST` — enforces a default-deny hostname allowlist on top. If the egress container is down, sandboxed code that needs the network fails closed with "egress denied" — not a silent timeout.
 
 The sandbox is the only container that runs untrusted-ish code (user-supplied skill scripts, agent `Run code` invocations). The rest of the stack runs the platform's own code.
 

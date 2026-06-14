@@ -41,6 +41,7 @@ function baseModelData(
     baseUrl: 'https://api.openai.com/v1',
     apiKey: 'sk-test',
     modelId: 'gpt-4o-mini-tts',
+    apiFormat: 'openai',
     tags: ['text-to-speech'],
     supportsStructuredOutputs: false,
     defaultVoice: 'alloy',

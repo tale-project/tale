@@ -372,3 +372,89 @@ describe('useMergedChatItems — inline resolved human-input requests', () => {
     ).toBe(true);
   });
 });
+
+describe('useMergedChatItems — inline plan approvals', () => {
+  function makePlanApproval(
+    id: string,
+    status: 'pending' | 'executing' | 'completed' | 'rejected',
+    messageId: string,
+    creationTime: number,
+  ) {
+    return {
+      _id: id as never,
+      status,
+      metadata: {
+        plan: '# Plan',
+        planSource: 'exit_plan_mode' as const,
+        agentSlug: 'claude-code',
+        modelRef: 'm',
+        requestedAt: creationTime,
+      },
+      _creationTime: creationTime,
+      messageId,
+    };
+  }
+
+  const baseMessages = [
+    makeMessage('u1', 1000, 'user'),
+    makeMessage('a1', 2000, 'assistant'),
+    makeMessage('u2', 3000, 'user'),
+  ];
+
+  it('splices the plan card immediately after its source assistant message', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        planApprovals: [makePlanApproval('plan1', 'pending', 'a1', 2500)],
+      }),
+    );
+    const keys = result.current.messages.map(
+      (i) => getMessageId(i) ?? `${i.type}:${getApprovalId(i)}`,
+    );
+    expect(keys).toEqual(['u1', 'a1', 'plan_approval:plan1', 'u2']);
+  });
+
+  it('NEVER populates activeApproval (the composer must stay usable)', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        planApprovals: [makePlanApproval('plan1', 'pending', 'a1', 2500)],
+      }),
+    );
+    expect(result.current.activeApproval).toBeNull();
+  });
+
+  it('drops plan cards whose source message is not loaded (pagination)', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        planApprovals: [
+          makePlanApproval('plan1', 'pending', 'not-loaded', 2500),
+        ],
+      }),
+    );
+    expect(
+      result.current.messages.some((i) => i.type === 'plan_approval'),
+    ).toBe(false);
+  });
+
+  it('orders multiple plan cards under one message by creation time', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        planApprovals: [
+          makePlanApproval('plan2', 'pending', 'a1', 2600),
+          makePlanApproval('plan1', 'rejected', 'a1', 2500),
+        ],
+      }),
+    );
+    const planIds = result.current.messages
+      .filter((i) => i.type === 'plan_approval')
+      .map((i) => getApprovalId(i));
+    expect(planIds).toEqual(['plan1', 'plan2']);
+  });
+});
