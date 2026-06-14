@@ -45,7 +45,13 @@ declare -A SIZE_BUDGETS=(
     # silently broken strip still trips this check)
     [sandbox]=320
     [sandbox-egress]=80
-    [sandbox-runtime]=900
+    # Persistent agent sessions (single-image decision) bundle the full coding
+    # stack into this one image: Node 24 + bun + uv on the python:3.12-slim base,
+    # the pinned Claude Code + OpenCode CLIs, the Playwright MCP, a Chromium
+    # build (~400 MB) with its system libs, and gh. That lands ~1.87 GB in CI;
+    # budget = that measured size + ~10% headroom. (The one-shot /v1/execute role
+    # uses the same image — size is a one-time per-node pull cost.)
+    [sandbox-runtime]=2100
 )
 
 header() {
