@@ -429,7 +429,7 @@ export async function ensureDocker(
   // CLI present, daemon down: try to wake it rather than reinstall.
   if (state.cliPresent) {
     logger.step(
-      'Docker is installed but its engine is not responding — starting it…',
+      'Docker is installed but its engine is not responding — starting it...',
     );
     if (platform === 'macos') await launchDockerDesktopMac();
     else if (platform === 'linux' && (await commandExists('systemctl'))) {

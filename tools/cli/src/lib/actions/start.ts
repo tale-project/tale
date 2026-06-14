@@ -207,12 +207,16 @@ export async function start(options: StartOptions): Promise<void> {
       : { volumePrefix: `${getProjectId()}-dev_` },
   });
 
-  // Zero-prerequisite: install/start Docker if needed, then fall back to the
-  // strict assertion for the residual "still not usable" case.
+  // Zero-prerequisite: install/start Docker if needed. ensureDocker already
+  // tried to start/install the engine and returns actionable guidance when it
+  // can't — surface that and stop, rather than falling through to
+  // assertDockerAvailable whose `docker info` would just time out again on an
+  // engine we already know is down (the cryptic "Command timed out after 10s").
   const docker = await ensureDocker({ assumeYes: options.assumeYes });
   if (docker.status === 'refused' || docker.status === 'failed') {
-    logger.warn(docker.detail);
+    throw new Error(docker.detail);
   }
+  // Residual safety net for the "ensureDocker said ready but it isn't" case.
   await assertDockerAvailable();
 
   // Ensure dev infrastructure under a project-scoped lock so parallel
