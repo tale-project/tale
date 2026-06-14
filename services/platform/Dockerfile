@@ -72,6 +72,14 @@ COPY services/platform/vite.config.ts \
 
 COPY packages/ui ./packages/ui
 
+# convex/node_only/sandbox/run_agent.ts bundles `@tale/agent-adapters` at
+# deploy time (it's NOT in convex.json externalPackages — the package exports
+# raw .ts that esbuild must compile). The runtime stage ships /app/packages
+# wholesale (for the `@tale/*` node_modules symlinks), so the source has to be
+# present here in the builder or the convex deploy fails with "Could not
+# resolve @tale/agent-adapters" and the platform never goes healthy.
+COPY packages/agent_adapters ./packages/agent_adapters
+
 COPY services/platform/app ./services/platform/app
 COPY services/platform/lib ./services/platform/lib
 COPY services/platform/convex ./services/platform/convex
