@@ -80,11 +80,7 @@ Lance `tale <commande> --help` pour la liste de référence de ta version instal
 
 ### Installation
 
-`tale setup [directory]` — premier lancement guidé : installe Docker s'il est absent, puis échafaude un projet. `directory` est optionnel (par défaut : le répertoire courant).
-
-- `-y, --yes` — accepter l'installation de Docker et les valeurs par défaut sans confirmation (pour la CI / les shells non interactifs).
-
-`tale init [directory]` — créer un projet. Pose une question — essai local ou domaine de production — et génère les réglages TLS, tous les secrets et les fichiers pour éditeurs IA. `directory` est optionnel (par défaut : le répertoire courant).
+`tale init [directory]` — créer un projet : échafaude les configs d'exemple, `AGENTS.md` + `CLAUDE.md` et un `.env` local par défaut (localhost, certificat auto-signé, secrets générés). Aucune question et aucun Docker — le domaine de production et le TLS sont choisis plus tard, lors de `tale deploy`. `directory` est optionnel (par défaut : le répertoire courant).
 
 - `-f, --force` — écraser un `tale.json` existant au lieu d'abandonner.
 - `--no-env` — échafauder le projet mais ignorer la génération du `.env`.
@@ -97,7 +93,7 @@ Lance `tale <commande> --help` pour la liste de référence de ta version instal
 - `-y, --yes` — accepter automatiquement la migration de l'ancien agencement de config si elle est détectée.
 - `--skip-backup` — ignorer le snapshot de volume pris avant cette migration.
 
-`tale deploy` — déploiement blue-green sans interruption de la version actuelle du CLI.
+`tale deploy` — déploiement blue-green sans interruption de la version actuelle du CLI. Au premier déploiement, il demande votre domaine de production et l'e-mail Let's Encrypt (ou passez `--host`).
 
 - `-a, --all` — mettre aussi à jour les services d'infrastructure avec état, pas seulement ceux qui tournent par roulement.
 - `-s, --services <list>` — ne mettre à jour que ces services séparés par des virgules (par défaut : tous les services rotatifs).
@@ -144,8 +140,6 @@ Lance `tale <commande> --help` pour la liste de référence de ta version instal
 - `-f, --force` — ignorer l'invite de confirmation.
 - `-a, --all` — supprimer aussi les conteneurs d'infrastructure avec état.
 - `--dry-run` — prévisualiser la réinitialisation sans rien modifier.
-
-`tale doctor` — exécuter les vérifications préalables de l'hôte (Docker, daemon, gVisor, userns-remap, jeton sandbox). Aucun argument.
 
 `tale config` — gérer la configuration du CLI. Utilise le sous-commande `show` pour afficher la configuration résolue.
 

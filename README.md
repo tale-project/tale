@@ -87,8 +87,7 @@ All files in `agents/`, `workflows/`, and `integrations/` are live-reloaded — 
 ### Development
 
 ```bash
-tale setup                         # Guided first run: installs Docker (if missing), scaffolds a project
-tale init [directory]              # Create a new project with example configs
+tale init [directory]              # Create a new project with example configs (no Docker needed)
 tale start                         # Start all services locally
 tale start --detach                # Start in background
 tale start --port 8443             # Use a custom HTTPS port

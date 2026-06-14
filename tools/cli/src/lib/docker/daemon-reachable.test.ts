@@ -28,7 +28,7 @@ describe('daemonReachable', () => {
     expect(execMock).toHaveBeenCalledWith(
       'docker',
       ['version', '--format', '{{.Server.Version}}'],
-      // Bounded so a hung daemon can't freeze callers (`tale doctor`/`start`).
+      // Bounded so a hung daemon can't freeze callers (`tale start`/`deploy`).
       { silent: true, timeout: 10 },
     );
   });

@@ -18,8 +18,8 @@ export function findProject(startDir?: string): string | null {
 }
 
 /**
- * Look one level *down* for a project. `tale init` / `tale setup` scaffold
- * into a named subdirectory, so a common mistake is running a command from the
+ * Look one level *down* for a project. `tale init` scaffolds into a named
+ * subdirectory, so a common mistake is running a command from the
  * parent — where the project is a child, not an ancestor (all {@link
  * findProject} walks). Returns the first child directory containing a
  * `tale.json`, or null.

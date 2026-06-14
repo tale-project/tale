@@ -8,14 +8,12 @@ import { createCleanupCommand } from './commands/cleanup';
 import { createConfigCommand } from './commands/config';
 import { createConvexCommand } from './commands/convex';
 import { createDeployCommand } from './commands/deploy';
-import { createDoctorCommand } from './commands/doctor';
 import { createInitCommand } from './commands/init';
 import { createLogsCommand } from './commands/logs';
 import { createMigrateCommand } from './commands/migrate';
 import { createResetCommand } from './commands/reset';
 import { createRestoreCommand } from './commands/restore';
 import { createRollbackCommand } from './commands/rollback';
-import { createSetupCommand } from './commands/setup';
 import { createStartCommand } from './commands/start';
 import { createStatusCommand } from './commands/status';
 import { createUpgradeCommand } from './commands/upgrade';
@@ -46,7 +44,6 @@ const OPERATE = 'Operate:';
 const MAINTAIN = 'Maintain:';
 const ADVANCED = 'Advanced:';
 
-program.addCommand(createSetupCommand().helpGroup(SETUP));
 program.addCommand(createInitCommand().helpGroup(SETUP));
 program.addCommand(createStartCommand().helpGroup(SETUP));
 program.addCommand(createDeployCommand().helpGroup(SETUP));
@@ -60,7 +57,6 @@ program.addCommand(createRollbackCommand().helpGroup(OPERATE));
 program.addCommand(createUpgradeCommand().helpGroup(MAINTAIN));
 program.addCommand(createCleanupCommand().helpGroup(MAINTAIN));
 program.addCommand(createResetCommand().helpGroup(MAINTAIN));
-program.addCommand(createDoctorCommand().helpGroup(MAINTAIN));
 program.addCommand(createConfigCommand().helpGroup(MAINTAIN));
 
 program.addCommand(createAuthCommand().helpGroup(ADVANCED));
@@ -81,20 +77,7 @@ const DOCS_URL =
 
 // Branded wordmark above the help, and a few real examples below it.
 program.addHelpText('beforeAll', () => `\n${logger.bannerText(pkg.version)}\n`);
-program.addHelpText(
-  'after',
-  [
-    '',
-    'Examples:',
-    '  $ tale setup                 Install Docker (if needed) and scaffold a project',
-    '  $ tale init                  Create a project — pick local trial or production',
-    '  $ tale start                 Launch locally (self-signed TLS)',
-    '  $ tale deploy                Deploy to your domain (zero-downtime)',
-    '',
-    `Docs: ${DOCS_URL}`,
-    '',
-  ].join('\n'),
-);
+program.addHelpText('after', `\nDocs: ${DOCS_URL}\n`);
 
 // Bare `tale` shows the branded, grouped overview instead of an error.
 if (process.argv.length <= 2) {

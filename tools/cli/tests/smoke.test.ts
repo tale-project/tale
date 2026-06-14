@@ -67,31 +67,20 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
   );
 
   test(
-    '--help lists the grouped command surface with examples',
+    '--help lists the grouped command surface',
     async () => {
       const result = await run(['--help'], dir);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain(
         'Tale CLI - deployment and management tools',
       );
-      for (const command of ['setup', 'init', 'config', 'doctor', 'status']) {
+      for (const command of ['init', 'start', 'deploy', 'config', 'status']) {
         expect(result.stdout).toContain(command);
       }
-      // Grouped overview + examples (the "clear overview" requirement).
-      for (const section of ['Setup:', 'Operate:', 'Maintain:', 'Examples:']) {
+      // Grouped overview headings (the "clear overview" requirement).
+      for (const section of ['Setup:', 'Operate:', 'Maintain:']) {
         expect(result.stdout).toContain(section);
       }
-    },
-    SMOKE_TIMEOUT,
-  );
-
-  test(
-    'setup --help documents the guided entry point',
-    async () => {
-      const result = await run(['setup', '--help'], dir);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('-y, --yes');
-      expect(result.stdout.toLowerCase()).toContain('docker');
     },
     SMOKE_TIMEOUT,
   );
@@ -140,20 +129,6 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
       expect(result.exitCode).toBe(0);
       expect(result.stdout.toLowerCase()).toContain('deploy');
       expect(result.stdout).toContain('--dry-run');
-    },
-    SMOKE_TIMEOUT,
-  );
-
-  // doctor runs real preflight checks (docker CLI, daemon, gVisor, userns,
-  // sandbox token). Every docker probe is timeout-bounded, so the command must
-  // terminate with a real verdict — never hang or get SIGKILLed — whatever the
-  // daemon's state. A regression that drops a timeout would hang this test.
-  test(
-    'doctor runs every preflight check and exits without hanging',
-    async () => {
-      const result = await run(['doctor'], dir);
-      expect([0, 1]).toContain(result.exitCode);
-      expect(`${result.stdout}${result.stderr}`).toContain('docker');
     },
     SMOKE_TIMEOUT,
   );
@@ -244,6 +219,23 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
 
       // --no-env honored: no .env scaffolded.
       expect(existsSync(join(proj, '.env'))).toBe(false);
+    },
+    SMOKE_TIMEOUT,
+  );
+
+  test(
+    'init writes a non-interactive local-default .env (no prompts, no Docker)',
+    async () => {
+      // Without --no-env, init writes a ready-to-run local .env: localhost +
+      // self-signed + generated secrets. It must work in this non-TTY harness
+      // (no "How will you run Tale?" prompt, no Docker contact).
+      const result = await run(['init', 'proj', '--force'], dir);
+      expect(result.exitCode).toBe(0);
+      const env = await readFile(join(dir, 'proj', '.env'), 'utf-8');
+      expect(env).toContain('HOST=localhost');
+      expect(env).toContain('TLS_MODE=selfsigned');
+      expect(env).toMatch(/SANDBOX_TOKEN=.+/);
+      expect(env).toMatch(/SOPS_AGE_KEY=.+/);
     },
     SMOKE_TIMEOUT,
   );

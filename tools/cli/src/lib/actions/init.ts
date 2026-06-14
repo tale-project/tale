@@ -4,7 +4,6 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
-import type { DeployMode } from '../config/ensure-env';
 import { computeContentHash, writeChecksums } from '../project/checksums';
 import {
   fetchReference,
@@ -28,13 +27,13 @@ interface InitOptions {
 }
 
 /**
- * Distinguishes "the user aborted" from "we initialized" so callers (e.g.
- * `tale setup`) don't print success guidance after an abort. `mode` is the
- * deploy intent chosen during `.env` setup, absent on `--no-env`/headless.
+ * Distinguishes "the user aborted" from "we initialized" so callers don't
+ * print success guidance after an abort. `directory` is the resolved project
+ * directory the scaffold was written to.
  */
 type InitResult =
   | { status: 'aborted' }
-  | { status: 'initialized'; mode?: DeployMode; directory: string };
+  | { status: 'initialized'; directory: string };
 
 const GITIGNORE_ENTRIES = [
   '.tale/',
@@ -52,7 +51,6 @@ const GITIGNORE_ENTRIES = [
 export async function init(options: InitOptions): Promise<InitResult> {
   let directory = options.directory;
   let force = options.force ?? false;
-  let mode: DeployMode | undefined;
 
   // Check if cwd is already a Tale project before prompting for project name
   const cwdTaleJson = join(process.cwd(), 'tale.json');
@@ -140,7 +138,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
   await mkdir(target, { recursive: true });
 
   // Fetch reference code
-  logger.step('Copying reference code to .tale/reference/...');
+  logger.step('Copying reference code...');
   await mkdir(join(target, '.tale'), { recursive: true });
   // Real organizations (created in-app) are runtime data and live here, kept
   // out of the committed `default/` template. Created up front so the
@@ -174,10 +172,11 @@ export async function init(options: InitOptions): Promise<InitResult> {
     join(defaultOrgDir, 'integrations'),
   );
 
-  // Create branding directory with empty config
-  logger.step('Creating branding configuration...');
+  // Copy branding from embedded examples (keep an images/ dir for uploads)
+  logger.step('Copying branding configuration...');
+  const brandingFiles = getEmbeddedExamples('branding');
+  await writeEmbeddedFiles(brandingFiles, join(defaultOrgDir, 'branding'));
   await mkdir(join(defaultOrgDir, 'branding', 'images'), { recursive: true });
-  await writeFile(join(defaultOrgDir, 'branding', 'branding.json'), '{}\n');
   await writeFile(join(defaultOrgDir, 'branding', 'images', '.gitkeep'), '');
 
   // Copy provider configs (public JSON only, not encrypted secrets)
@@ -248,10 +247,12 @@ export async function init(options: InitOptions): Promise<InitResult> {
       computeContentHash(content),
     );
   }
-  allFiles.set(
-    join('default', 'branding', 'branding.json'),
-    computeContentHash('{}\n'),
-  );
+  for (const [relPath, content] of brandingFiles) {
+    allFiles.set(
+      join('default', 'branding', relPath),
+      computeContentHash(content),
+    );
+  }
 
   const checksums: Checksums = {
     cliVersion: pkg.version,
@@ -292,12 +293,10 @@ export async function init(options: InitOptions): Promise<InitResult> {
   // Ensure .gitignore
   await ensureGitignore(target);
 
-  // .env setup
+  // .env setup — local defaults (production domain/TLS is chosen at deploy).
   if (!options.noEnv) {
     const { ensureEnv } = await import('../config/ensure-env');
-    logger.blank();
-    const envResult = await ensureEnv({ deployDir: target });
-    mode = envResult.mode;
+    await ensureEnv({ deployDir: target });
   }
 
   logger.blank();
@@ -322,17 +321,10 @@ export async function init(options: InitOptions): Promise<InitResult> {
   if (needsCd) {
     logger.info(`  ${step++}. cd ${relTarget}`);
   }
-  // The same project is ready for both a local trial and a real deployment;
-  // surface whichever the operator just chose as the obvious next command.
-  if (mode === 'production') {
-    logger.info(
-      `  ${step++}. tale deploy   (launch the platform on your domain)`,
-    );
-  } else {
-    logger.info(`  ${step++}. tale start    (launch the platform locally)`);
-  }
+  logger.info(`  ${step++}. tale start    (launch locally)`);
+  logger.info(`  ${step++}. tale deploy   (when ready, deploy to your domain)`);
 
-  return { status: 'initialized', mode, directory: target };
+  return { status: 'initialized', directory: target };
 }
 
 // Top-level markers indicating a Tale project. Under the uniform org-first

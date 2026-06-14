@@ -1,6 +1,6 @@
-import { checkDaemon, checkSandboxToken } from '../../commands/doctor';
 import * as logger from '../../utils/logger';
 import { isLocalHostname } from '../config/ensure-env';
+import { checkDaemon, checkSandboxToken } from '../docker/health-checks';
 
 /**
  * Gate `tale deploy` on the handful of things that would otherwise fail it
@@ -11,7 +11,7 @@ import { isLocalHostname } from '../config/ensure-env';
  *    cannot issue for localhost / a bare IP / a missing email),
  *
  * plus a non-blocking summary of the advisory sandbox-hardening checks so the
- * operator sees them without having to run `tale doctor` separately.
+ * operator sees them inline, before the deploy proceeds.
  */
 
 interface TlsConfig {
@@ -95,7 +95,7 @@ export async function runDeployPreflight(
   blocking.push(...tlsIssues);
 
   // 3. Advisory, non-blocking: surface the sandbox secret check so operators
-  //    see it inline rather than having to run `tale doctor`.
+  //    see it inline before the deploy proceeds.
   const sandbox = checkSandboxToken(env);
   if (sandbox.status !== 'ok') {
     logger.warn(`${sandbox.name}: ${sandbox.detail}`);

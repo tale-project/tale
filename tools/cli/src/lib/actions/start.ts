@@ -138,7 +138,7 @@ interface StartOptions {
 export async function start(options: StartOptions): Promise<void> {
   let projectDir = findProject();
   if (!projectDir) {
-    // `tale init` / `tale setup` scaffold into a named subdirectory, so a
+    // `tale init` scaffolds into a named subdirectory, so a
     // common mistake is running `tale start` one level up. Point at the child
     // project rather than silently initializing a second one on top.
     const childProject = findChildProject();

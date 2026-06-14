@@ -75,15 +75,9 @@ export function table(rows: [string, string][]) {
 }
 
 /**
- * A small, tasteful wordmark shown by `tale setup`, `tale` with no args, and
- * `--help`. Intentionally minimal — no heavy ASCII art, no extra deps.
+ * A small, tasteful wordmark shown for bare `tale` and `--help`. Intentionally
+ * minimal — no heavy ASCII art, no extra deps.
  */
 export function bannerText(version: string): string {
   return `  ${BOLD}${CYAN}◆ Tale${RESET} ${DIM}v${version}${RESET}  ${DIM}— your self-hosted AI workforce${RESET}`;
-}
-
-export function banner(version: string): void {
-  blank();
-  console.log(bannerText(version));
-  blank();
 }

@@ -80,11 +80,7 @@ Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten V
 
 ### Einrichtung
 
-`tale setup [directory]` — geführter Erststart: installiert Docker, falls es fehlt, und legt dann ein Projekt an. `directory` ist optional (Standard: das aktuelle Verzeichnis).
-
-- `-y, --yes` — Docker-Installation und Standardwerte ohne Rückfrage akzeptieren (für CI / nicht-interaktive Shells).
-
-`tale init [directory]` — ein Projekt anlegen. Stellt eine Frage — lokaler Test oder Produktiv-Domain — und erzeugt TLS-Einstellungen, alle Secrets und KI-Editor-Dateien. `directory` ist optional (Standard: das aktuelle Verzeichnis).
+`tale init [directory]` — ein Projekt anlegen: erzeugt die Beispiel-Configs, `AGENTS.md` + `CLAUDE.md` sowie eine lokale Standard-`.env` (localhost, selbstsigniertes Zertifikat, generierte Secrets). Keine Rückfragen und kein Docker — Produktiv-Domain und TLS werden später bei `tale deploy` gewählt. `directory` ist optional (Standard: das aktuelle Verzeichnis).
 
 - `-f, --force` — eine vorhandene `tale.json` überschreiben statt abzubrechen.
 - `--no-env` — das Projekt anlegen, aber die `.env`-Generierung überspringen.
@@ -97,7 +93,7 @@ Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten V
 - `-y, --yes` — die Legacy-Config-Layout-Migration automatisch akzeptieren, falls erkannt.
 - `--skip-backup` — den vor dieser Migration erstellten Volume-Snapshot überspringen.
 
-`tale deploy` — Blue-Green-Deployment ohne Ausfallzeit der aktuellen CLI-Version.
+`tale deploy` — Blue-Green-Deployment ohne Ausfallzeit der aktuellen CLI-Version. Beim ersten Deploy fragt es nach deiner Produktiv-Domain und der Let's-Encrypt-E-Mail (oder übergib `--host`).
 
 - `-a, --all` — auch die zustandsbehafteten Infrastruktur-Dienste aktualisieren, nicht nur die rotierbaren.
 - `-s, --services <list>` — nur diese kommagetrennten Dienste aktualisieren (Standard: alle rotierbaren Dienste).
@@ -144,8 +140,6 @@ Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten V
 - `-f, --force` — die Bestätigungsabfrage überspringen.
 - `-a, --all` — auch die zustandsbehafteten Infrastruktur-Container entfernen.
 - `--dry-run` — den Reset vorab anzeigen, ohne Änderungen.
-
-`tale doctor` — Host-Preflight-Checks ausführen (Docker, Daemon, gVisor, userns-remap, Sandbox-Token). Keine Argumente.
 
 `tale config` — CLI-Konfiguration verwalten. Mit dem Unterbefehl `show` die aufgelöste Konfiguration ausgeben.
 

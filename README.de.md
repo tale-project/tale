@@ -87,8 +87,7 @@ Alle Dateien in `agents/`, `workflows/` und `integrations/` werden live neu gela
 ### Entwicklung
 
 ```bash
-tale setup                         # Geführter Erststart: installiert Docker (falls nötig), legt ein Projekt an
-tale init [directory]              # Neues Projekt mit Beispiel-Configs anlegen
+tale init [directory]              # Neues Projekt mit Beispiel-Configs anlegen (kein Docker nötig)
 tale start                         # Alle Dienste lokal starten
 tale start --detach                # Im Hintergrund starten
 tale start --port 8443             # Eigenen HTTPS-Port nutzen

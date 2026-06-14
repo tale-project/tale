@@ -237,10 +237,10 @@ main() {
     install_binary
     verify_installation
 
-    # Hand off to the guided, TypeScript-driven setup: it installs Docker if
-    # needed and scaffolds a project — zero prerequisites from here.
+    # Hand off to the CLI: `tale init` scaffolds a project (no prerequisites);
+    # `tale start` then installs/starts Docker on demand and launches locally.
     echo
-    success "Next: run 'tale setup' to install Docker (if needed) and create your project."
+    success "Next: run 'tale init' to create your project, then 'tale start' to launch it."
 }
 
 main

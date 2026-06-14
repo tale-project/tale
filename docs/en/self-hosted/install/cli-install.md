@@ -80,11 +80,7 @@ Run `tale <command> --help` for the authoritative list at your installed version
 
 ### Setup
 
-`tale setup [directory]` — guided first run: installs Docker if it is missing, then scaffolds a project. `directory` is optional (default: the current directory).
-
-- `-y, --yes` — accept the Docker install and defaults without prompting (for CI / non-interactive shells).
-
-`tale init [directory]` — create a project. Asks one question — local trial or production domain — and generates TLS settings, all secrets, and AI-editor files. `directory` is optional (default: the current directory).
+`tale init [directory]` — create a project: it scaffolds the example configs, `AGENTS.md` + `CLAUDE.md`, and a local-default `.env` (localhost, self-signed certificate, generated secrets). No prompts and no Docker — the production domain and TLS are chosen later, at `tale deploy`. `directory` is optional (default: the current directory).
 
 - `-f, --force` — overwrite an existing `tale.json` instead of aborting.
 - `--no-env` — scaffold the project but skip `.env` generation.
@@ -97,7 +93,7 @@ Run `tale <command> --help` for the authoritative list at your installed version
 - `-y, --yes` — auto-accept the legacy config-layout migration if one is detected.
 - `--skip-backup` — skip the volume snapshot taken before that migration.
 
-`tale deploy` — blue-green, zero-downtime deploy of the current CLI version.
+`tale deploy` — blue-green, zero-downtime deploy of the current CLI version. On the first deploy it prompts for your production domain and Let's Encrypt email (or pass `--host`).
 
 - `-a, --all` — also update the stateful infrastructure services, not just the rotatable ones.
 - `-s, --services <list>` — update only these comma-separated services (default: all rotatable services).
@@ -144,8 +140,6 @@ Run `tale <command> --help` for the authoritative list at your installed version
 - `-f, --force` — skip the confirmation prompt.
 - `-a, --all` — also remove the stateful infrastructure containers.
 - `--dry-run` — preview the reset without making changes.
-
-`tale doctor` — run host preflight checks (Docker, daemon, gVisor, userns-remap, sandbox token). No arguments.
 
 `tale config` — manage CLI configuration. Use the `show` subcommand to print the resolved config.
 

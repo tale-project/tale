@@ -87,8 +87,7 @@ Tous les fichiers dans `agents/`, `workflows/` et `integrations/` sont rechargé
 ### Développement
 
 ```bash
-tale setup                         # Premier lancement guidé : installe Docker (si besoin), échafaude un projet
-tale init [directory]              # Créer un nouveau projet avec des configs d'exemple
+tale init [directory]              # Créer un nouveau projet avec des configs d'exemple (sans Docker)
 tale start                         # Démarrer tous les services localement
 tale start --detach                # Démarrer en arrière-plan
 tale start --port 8443             # Utiliser un port HTTPS personnalisé

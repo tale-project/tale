@@ -9,7 +9,7 @@ import {
   STATEFUL_SERVICES,
   isValidService,
 } from '../../lib/compose/types';
-import { ensureEnv } from '../../lib/config/ensure-env';
+import { ensureEnv, ensureProductionDomain } from '../../lib/config/ensure-env';
 import { ensureDocker } from '../../lib/docker/ensure-docker';
 import { requireProject } from '../../lib/project/find-project';
 import { resolveOrAssignProjectContext } from '../../lib/project/project-context';
@@ -99,6 +99,12 @@ export function createDeployCommand(): Command {
           (regeneratedAutoSecrets !== undefined &&
             regeneratedAutoSecrets.length > 0) ||
           (options.overrideAll ?? false);
+
+        // `tale init` leaves a local default (localhost + self-signed). Choose
+        // the production domain + TLS here: prompts interactively, honors
+        // --host, and is a no-op in CI when HOST is already a public domain.
+        await ensureProductionDomain(projectDir, { host: options.host });
+
         const env = loadEnv(projectDir);
 
         // Catch fixable problems (daemon down, letsencrypt misconfig) before
