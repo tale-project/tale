@@ -21,9 +21,9 @@ Each snapshot is a directory named like `20260611-142530-deploy` inside the proj
 
 ## When snapshots are taken
 
-`tale deploy` snapshots before its first mutating step whenever the deploy can change data: the target version differs from the running one, a host-config push (`--override` / `--override-all`) is requested, or a legacy-layout migration is pending. `tale start` and `tale update` snapshot right before running the config-layout migration. While each volume is tarred, the containers using it are paused for a few seconds so the archive is crash-consistent — a live copy of a running Postgres directory is not restorable.
+`tale deploy` snapshots before its first mutating step whenever the deploy can change data: the target version differs from the running one, or a host-config push (`--override` / `--override-all`) is requested. While each volume is tarred, the containers using it are paused for a few seconds so the archive is crash-consistent — a live copy of a running Postgres directory is not restorable.
 
-A failed snapshot aborts the deploy. `--skip-backup` overrides that on `tale deploy` and `tale start`, which leaves your own external backups as the only recovery path — the flag logs a loud warning for exactly that reason.
+A failed snapshot aborts the deploy. `--skip-backup` overrides that on `tale deploy`, which leaves your own external backups as the only recovery path — the flag logs a loud warning for exactly that reason.
 
 ```bash
 # Take a snapshot right now

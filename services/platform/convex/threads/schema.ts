@@ -148,10 +148,6 @@ export const threadMetadataTable = defineTable({
       createdAt: v.number(),
     }),
   ),
-  /** @deprecated Use agentSlug. Retained for backward compatibility with existing documents. */
-  agentId: v.optional(v.id('agentBindings')),
-  /** @deprecated Retained for backward compatibility with existing documents. */
-  customAgentId: v.optional(v.id('customAgents')),
   organizationId: v.optional(v.string()),
   // Sharing fields
   shareToken: v.optional(v.string()),

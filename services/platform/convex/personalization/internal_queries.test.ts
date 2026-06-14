@@ -59,7 +59,7 @@ function createCtx(opts: {
   return {
     db: {
       query: vi.fn((table: string) => {
-        if (table === 'governancePolicies') {
+        if (table === 'configCache') {
           return {
             withIndex: (_name: string, cb: (q: unknown) => unknown) => {
               const captured: Record<string, unknown> = {};
@@ -72,11 +72,13 @@ function createCtx(opts: {
               cb(builder);
               return {
                 first: async () =>
-                  policies.find(
-                    (p) =>
-                      p.organizationId === captured.organizationId &&
-                      p.policyType === captured.policyType,
-                  ) ?? null,
+                  captured.domain === 'governance'
+                    ? (policies.find(
+                        (p) =>
+                          p.organizationId === captured.organizationId &&
+                          p.policyType === captured.key,
+                      ) ?? null)
+                    : null,
               };
             },
           };

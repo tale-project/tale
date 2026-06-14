@@ -90,8 +90,7 @@ Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten V
 - `-d, --detach` — im Hintergrund laufen statt Logs zu streamen.
 - `-p, --port <port>` — auszugebender HTTPS-Port (Standard `443`).
 - `--host <hostname>` — Host-Alias für den Proxy (Standard `tale.local`).
-- `-y, --yes` — die Legacy-Config-Layout-Migration automatisch akzeptieren, falls erkannt.
-- `--skip-backup` — den vor dieser Migration erstellten Volume-Snapshot überspringen.
+- `-y, --yes` — nicht-interaktiv: Abfragen automatisch akzeptieren (z. B. Docker installieren oder starten).
 
 `tale deploy` — Blue-Green-Deployment ohne Ausfallzeit der aktuellen CLI-Version. Beim ersten Deploy fragt es nach deiner Produktiv-Domain und der Let's-Encrypt-E-Mail (oder übergib `--host`).
 

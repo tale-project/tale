@@ -725,6 +725,17 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                   internal.organizations.scaffold.scaffoldNewOrganization,
                   { orgSlug: slug },
                 );
+                // Mirror the scaffolded governance files into `configCache` so
+                // V8 readers (password/2FA/feature enforcement) see this org's
+                // policies instead of falling back to schema defaults. Same
+                // head-start delay as the provisioners below; the sync is
+                // idempotent and re-derivable, so a missed beat self-heals on
+                // the next write or the periodic reconcile cron.
+                await runCtx.scheduler.runAfter(
+                  10_000,
+                  internal.lib.config_cache.sync_org.syncOrgConfigCaches,
+                  { organizationId: data.organization.id },
+                );
                 // Auto-install the default workflow pack (task-ops) once the
                 // scaffold has copied the catalog. The provisioner self-retries
                 // while the workflows dir is still being written, so the small

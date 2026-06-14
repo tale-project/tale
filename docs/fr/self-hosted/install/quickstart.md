@@ -5,10 +5,10 @@ description: Fais tourner une instance Tale sur ta machine en trois commandes av
 
 C'est le chemin le plus rapide vers un Tale qui tourne : installe la CLI `tale`, puis deux commandes. Le résultat est ta propre organisation qui tourne sur ta propre machine, joignable dans le navigateur. C'est pensé pour un laptop ou un hôte unique sur lequel tu veux essayer Tale ; quand tu es prêt à le faire tourner pour de vrai, le parcours [Linux serveur](/fr/self-hosted/install/linux-server) couvre une installation de production durcie.
 
-Il te faut deux choses :
+Il te faut une chose pour démarrer, et une chose avant qu'un agent puisse répondre :
 
-- **[Docker Desktop](https://www.docker.com/products/docker-desktop)** (v24+) en marche, ou Docker Engine plus le plugin Compose sous Linux.
-- Une **[clé API OpenRouter](https://openrouter.ai)** pour que les agents aient un modèle à qui parler. Tu pourras brancher n'importe quel fournisseur plus tard.
+- **[Docker Desktop](https://www.docker.com/products/docker-desktop)** (v24+) en marche, ou Docker Engine plus le plugin Compose sous Linux. C'est le seul prérequis pour faire monter la stack.
+- Une **[clé API OpenRouter](https://openrouter.ai)** (ou n'importe quel fournisseur compatible OpenAI) pour que les agents aient un modèle à qui parler. Tu n'en as pas besoin pour `tale init` — tu l'ajoutes dans l'app après l'inscription, dans l'assistant de configuration ou sous **Paramètres > Providers**, et tu pourras brancher n'importe quel fournisseur plus tard.
 
 ## Étape 1 — Installer la CLI
 
@@ -37,7 +37,7 @@ tale init my-project
 cd my-project
 ```
 
-`tale init` échafaude un répertoire de projet et te guide à travers l'essentiel : il demande ta clé API OpenRouter, génère chaque secret de sécurité pour toi et écrit le `.env`, de sorte qu'il n'y a rien à éditer à la main. Il dépose aussi des agents, workflows et intégrations d'exemple sous `default/`, et génère la configuration d'éditeur pour Claude Code, Cursor, Copilot et Windsurf afin qu'un éditeur IA puisse construire des configurations en pleine connaissance du schéma.
+`tale init` échafaude un répertoire de projet et pose une seule question — essai local ou domaine de production — puis génère chaque secret de sécurité pour toi et écrit le `.env`, de sorte qu'il n'y a rien à éditer à la main. Il ne demande pas de clé API ; celle-ci est collectée dans l'app une fois que tu es connecté. Il dépose aussi des agents, workflows et intégrations d'exemple sous `default/`, et génère la configuration d'éditeur pour Claude Code, Cursor, Copilot et Windsurf afin qu'un éditeur IA puisse construire des configurations en pleine connaissance du schéma.
 
 ## Étape 3 — Démarrer Tale
 
@@ -61,7 +61,7 @@ Sur l'écran de connexion, clique **Sign up** et remplis tes nom, e-mail et mot 
 
 Tu as maintenant une organisation vide. Deux gestes t'amènent à quelque chose d'utile :
 
-1. Ouvre **Paramètres > Providers** et confirme que ta clé OpenRouter est connectée (la CLI l'a ajoutée pendant `tale init`).
+1. Ajoute ta clé OpenRouter. L'assistant de configuration la demande juste après la création du compte owner ; si tu l'as sautée, ouvre **Paramètres > Providers** et colle-la là. Une coche sur la ligne du fournisseur signifie que la clé marche.
 2. Publie ton premier agent — [Créer un agent](/fr/platform/agents/create) le mène d'un rôle et de quelques instructions à un spécialiste fonctionnel.
 
 À partir de là, la doc [Platform](/fr/platform) est la référence canonique pour chaque fonctionnalité, et elle est identique à Cloud.

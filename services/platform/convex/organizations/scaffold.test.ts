@@ -353,19 +353,21 @@ describe('scaffoldNewOrganization (org-first)', () => {
     ).toBe(true);
   });
 
-  it('seeds retention as a single file at <org>/retention.json', async () => {
+  it('seeds retention.json inside the governance flat domain', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(
-      catSrc('retention.json'),
+      catSrc('governance', 'retention.json'),
       '{"version":"v1","categories":{}}',
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    expect(existsSync(orgDst('acme', 'retention.json'))).toBe(true);
-    expect(await readFile(orgDst('acme', 'retention.json'), 'utf-8')).toBe(
-      '{"version":"v1","categories":{}}',
+    expect(existsSync(orgDst('acme', 'governance', 'retention.json'))).toBe(
+      true,
     );
+    expect(
+      await readFile(orgDst('acme', 'governance', 'retention.json'), 'utf-8'),
+    ).toBe('{"version":"v1","categories":{}}');
   });
 
   it('copy-onto-self guard fires for default-org reseed in dev fallback (catalog env unset)', async () => {
@@ -409,12 +411,17 @@ describe('scaffoldNewOrganization (org-first)', () => {
     expect(existsSync(orgDst('../escape'))).toBe(false);
   });
 
-  it('seedRetention override:true overwrites; override:false skips existing', async () => {
+  it('governance retention.json: override:true overwrites; override:false skips existing', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('retention.json'), '{"defaults":"new"}');
-    // Pre-existing per-org retention.json simulates an operator edit.
     await writeText(
-      orgDst('acme', 'retention.json'),
+      catSrc('governance', 'retention.json'),
+      '{"defaults":"new"}',
+    );
+    // Pre-existing per-org governance file simulates an operator edit. Its
+    // presence makes the whole governance domain "already scaffolded" for
+    // override:false (flat-domain skip is per-directory).
+    await writeText(
+      orgDst('acme', 'governance', 'retention.json'),
       '{"defaults":"existing"}',
     );
 
@@ -423,18 +430,18 @@ describe('scaffoldNewOrganization (org-first)', () => {
       orgSlug: 'acme',
       override: false,
     });
-    expect(await readFile(orgDst('acme', 'retention.json'), 'utf-8')).toBe(
-      '{"defaults":"existing"}',
-    );
+    expect(
+      await readFile(orgDst('acme', 'governance', 'retention.json'), 'utf-8'),
+    ).toBe('{"defaults":"existing"}');
 
     // override:true → catalog file wins.
     await scaffoldHandler({} as never, {
       orgSlug: 'acme',
       override: true,
     });
-    expect(await readFile(orgDst('acme', 'retention.json'), 'utf-8')).toBe(
-      '{"defaults":"new"}',
-    );
+    expect(
+      await readFile(orgDst('acme', 'governance', 'retention.json'), 'utf-8'),
+    ).toBe('{"defaults":"new"}');
   });
 
   it('strict:true throws with aggregated per-domain failure detail', async () => {

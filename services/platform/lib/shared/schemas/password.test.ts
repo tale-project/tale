@@ -10,7 +10,9 @@ import {
   validatePassword,
 } from './password';
 
-const VALID_PASSWORD = 'Test1234!';
+// 13 chars with every character class — valid under the production-secure
+// 12-char default floor (see passwordPolicyConfigSchema).
+const VALID_PASSWORD = 'Test1234!abcd';
 const MESSAGES = {
   minLength: 'min length',
   lowercase: 'lowercase',
@@ -21,6 +23,9 @@ const MESSAGES = {
 
 const relaxed = {
   ...DEFAULT_PASSWORD_POLICY,
+  // Low floor so these cases exercise the disabled character-class rules with
+  // a short password, independent of the production-secure default length.
+  minLength: 6,
   requireUpper: false,
   requireLower: false,
   requireDigit: false,
@@ -146,7 +151,8 @@ describe('createPasswordSchema', () => {
   });
 
   it('rejects password missing lowercase', () => {
-    const result = schema.safeParse('ABCDEFG1!');
+    // 12+ chars so the length rule passes and lowercase is the first failure.
+    const result = schema.safeParse('ABCDEFGH123!');
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues[0].message).toBe('lowercase');

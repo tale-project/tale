@@ -1,9 +1,9 @@
 /**
  * `tale deploy --override-all` orchestration: invoke the convex-side
  * `reseedAllOrgsFromBuiltin` action via `docker exec` into the running
- * platform container. Mirrors the proven incantation pattern from
- * scripts/2026-03-28-migrate-convex-data.sh:120-131 (source env.sh,
- * ensure_instance_secret, compute admin key inline, run convex CLI).
+ * platform container. Uses the same in-container incantation as the deploy
+ * entrypoint: source env.sh, ensure_instance_secret, compute the admin key
+ * inline, then run the convex CLI.
  *
  * Destructive: factory-reseeds every registered org's non-secret config
  * from the builtin catalog. `*.secrets.json` files and `.history/` trails
@@ -32,8 +32,8 @@ interface ReseedAllOrgsOptions {
 }
 
 /**
- * The bash script piped into the platform container. Adopts the proven
- * env-sourcing pattern from scripts/2026-03-28-migrate-convex-data.sh so
+ * The bash script piped into the platform container. Uses the deploy
+ * entrypoint's env-sourcing pattern so
  * `INSTANCE_SECRET` is guaranteed populated and the admin key derivation
  * matches the entrypoint's own runtime computation.
  *
@@ -64,8 +64,7 @@ const RESEED_TIMEOUT_EXIT = 124;
 // which mis-matched the lower-case 'k' AND the 3-space indent). Re-
 // derive ADMIN_KEY inline from env.sh's helpers (`ensure_instance_secret`
 // is exported by env.sh; `generate_key` is the binary on $PATH that the
-// official Convex Docker image uses) — see scripts/2026-03-28-migrate-
-// convex-data.sh:120-131 for the exact same pattern.
+// official Convex Docker image uses).
 const RESEED_SCRIPT = `set -eo pipefail
 source /app/env.sh
 env_normalize_common
@@ -115,7 +114,7 @@ export function redactAdminKey(text: string): string {
 const CONFIRM_MESSAGE =
   '--override-all will factory-reset every registered org from the builtin catalog. ' +
   '*.secrets.json files, .history/ trails, and uploaded branding/images/ are preserved; ' +
-  'all other config (model lists, agents, workflows, skills, integrations, branding.json, retention.json) ' +
+  'all other config (model lists, agents, workflows, skills, integrations, branding.json, governance policies + retention.json) ' +
   'is overwritten. Proceed?';
 
 type ReseedResult = {

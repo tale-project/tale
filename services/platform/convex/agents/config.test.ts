@@ -131,10 +131,9 @@ describe('toSerializableConfig systemInstructions resolution', () => {
 
 describe('toSerializableConfig <-> serializableAgentConfigValidator shape', () => {
   // These guard the contract between the mapper and the strict Convex
-  // arg validator on `runAgentGeneration`. A historical agent JSON
-  // carrying `skillBindingsResolved` used to round-trip into the args
-  // and crash the action with `ArgumentValidationError: extra field`;
-  // image-generation agents had the same problem via `primaryBehavior`.
+  // arg validator on `runAgentGeneration`. An image-generation agent could
+  // round-trip an extra field into the args and crash the action with
+  // `ArgumentValidationError: extra field` via `primaryBehavior`.
 
   it('passes primaryBehavior through to the serialized config', () => {
     const config: AgentJsonConfig = {
@@ -143,23 +142,6 @@ describe('toSerializableConfig <-> serializableAgentConfigValidator shape', () =
     };
     const result = toSerializableConfig('test', config);
     expect(result.primaryBehavior).toBe('image-generation');
-  });
-
-  it('drops the legacy skillBindingsResolved snapshot on serialize', () => {
-    const config: AgentJsonConfig = {
-      ...baseConfig,
-      skillBindingsResolved: [
-        {
-          slug: 'pptx',
-          versionHash: 'a'.repeat(64),
-          toolNames: ['file_write'],
-          integrationBindings: [],
-          workflowBindings: [],
-        },
-      ],
-    };
-    const result = toSerializableConfig('test', config);
-    expect(result).not.toHaveProperty('skillBindingsResolved');
   });
 
   it('preserves skillBindings as the hard allowlist', () => {

@@ -16,8 +16,10 @@ import {
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { PageDropOverlay } from '@/app/components/ui/page-drop-overlay';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { usePageFileDrop } from '@/app/hooks/use-page-file-drop';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
@@ -451,6 +453,24 @@ export function ChatInterface({
 
   // Block input when any pending or executing approval exists
   const hasActiveApproval = activeApproval !== null;
+
+  // Whole-page drag & drop: a file dropped ANYWHERE in the chat (not just the
+  // composer's drop zone) attaches to the message being composed. Gate it
+  // EXACTLY like the composer's own drop zone so the conversation area only
+  // accepts a file when the composer would too — an agent is present, the
+  // thread isn't read-only/archived, no approval is blocking input, and file
+  // upload is enabled for this agent. Drops that land on the composer are
+  // handled by its own FileUpload DropZone (which stops propagation), so the
+  // two paths never double-handle the same drop.
+  const { isDragOver: isPageDragOver } = usePageFileDrop({
+    onFilesDropped: uploadFiles,
+    disabled:
+      readOnly ||
+      isArchived ||
+      hasNoAgents ||
+      hasActiveApproval ||
+      fileUploadDisabled,
+  });
 
   // Fork info — for showing divider in forked threads. `threadMeta` (a single
   // getThreadMeta subscription shared with useMessageProcessing) is pulled up
@@ -1092,6 +1112,7 @@ export function ChatInterface({
       <h2 id={chatRegionLabelId} className="sr-only">
         {t('aria.chatRegion')}
       </h2>
+      <PageDropOverlay show={isPageDragOver} />
       {showArena ? (
         <ArenaSplitView organizationId={organizationId} />
       ) : (

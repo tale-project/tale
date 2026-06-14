@@ -47,22 +47,6 @@ export const ORG_DOMAIN_DIRS = [
   'skills',
 ] as const;
 
-/**
- * Top-level names that are legitimate per-domain dirs from the OLD flat
- * layout. Under org-first they don't belong at the root; their presence means
- * a project predating the org-first refactor. Kept in lockstep with
- * services/platform/lib/shared/constants/reserved-org-slugs.ts.
- */
-export const LEGACY_DOMAIN_DIR_NAMES = new Set([
-  'agents',
-  'workflows',
-  'integrations',
-  'branding',
-  'providers',
-  'skills',
-  'retention',
-]);
-
 /** A slug is deployable when it's well-formed and not the `default` template. */
 export function isDeployableOrgSlug(name: string): boolean {
   return name !== TEMPLATE_DIR && ORG_SLUG_REGEX.test(name);
@@ -77,8 +61,6 @@ interface OrgDir {
 interface OrgDiscovery {
   /** Deployable real orgs found under `.tale/orgs/<slug>/`. */
   orgs: OrgDir[];
-  /** Legacy flat per-domain dirs at the project root → hard error on deploy. */
-  legacyRootDirs: string[];
   /**
    * Valid org-shaped dirs at the project root (the pre-`.tale/orgs/` per-org
    * layout). Not pushed; the operator is warned to move them under
@@ -109,19 +91,14 @@ function isDirectory(path: string): boolean {
  */
 export function discoverOrgs(projectDir: string): OrgDiscovery {
   const orgs: OrgDir[] = [];
-  const legacyRootDirs: string[] = [];
   const staleRootOrgDirs: string[] = [];
 
-  // Project root: flag the legacy flat layout and any stale per-org-at-root
-  // dirs. `default/` (the template) and dotfiles are intentionally ignored.
+  // Project root: flag any stale per-org-at-root dirs (the pre-`.tale/orgs/`
+  // layout). `default/` (the template) and dotfiles are intentionally ignored.
   for (const name of listDirs(projectDir)) {
     if (name.startsWith('.')) continue;
     if (name === TEMPLATE_DIR) continue;
     if (!isDirectory(join(projectDir, name))) continue;
-    if (LEGACY_DOMAIN_DIR_NAMES.has(name)) {
-      legacyRootDirs.push(name);
-      continue;
-    }
     if (ORG_SLUG_REGEX.test(name)) staleRootOrgDirs.push(name);
   }
 
@@ -133,5 +110,5 @@ export function discoverOrgs(projectDir: string): OrgDiscovery {
     orgs.push({ slug: name, srcDir: join(orgsRoot, name) });
   }
 
-  return { orgs, legacyRootDirs, staleRootOrgDirs };
+  return { orgs, staleRootOrgDirs };
 }

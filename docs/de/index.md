@@ -10,6 +10,8 @@ Das Produkt erscheint in zwei Editionen; jedes Feature, jede API und jede Rolle 
 
 Neu hier? Der schnellste Weg zu einer laufenden Instanz ist der [Self-hosted Quickstart](/de/self-hosted/install/quickstart) — installier die CLI, dann `tale init` und `tale start`, und du bist in Minuten in deiner eigenen Org angemeldet.
 
+Wähl den Einstieg, der zu dem passt, weshalb du hier bist. Ein **Cloud-Nutzer**, der will, dass Tale den Stack betreibt, beginnt bei [Cloud](/de/cloud). Ein **Selbst-Hoster**, der eine Instanz auf eigener Infrastruktur aufsetzt, beginnt bei [Selbst gehostet](/de/self-hosted). Ein **Plattform-Bauer** — Agents, Automatisierungen, Integrationen — lebt in [Plattform](/de/platform), der kanonischen Feature-Referenz. Ein **Operator**, der eine selbst gehostete Instanz gepatcht und beobachtet hält, geht zu [Betreiben](/de/self-hosted/operate/container-architecture). Ein **Contributor**, der den Quellcode ändert, beginnt mit [Contributor-Setup](/de/develop/contributor-setup).
+
 ## Seiten in diesem Abschnitt
 
 **[Cloud](/de/cloud)** — Tale betreibt den Stack; wähl diese Variante, wenn das Betreiben von Infrastruktur nicht der richtige Ort für die Stunden deines Teams ist.

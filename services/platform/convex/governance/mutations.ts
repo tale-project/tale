@@ -1,55 +1,11 @@
 import { ConvexError, v } from 'convex/values';
 
-import {
-  agentWorkforceConfigSchema,
-  budgetConfigSchema,
-  chatFilterConfigSchema,
-  customInstructionsConfigSchema,
-  dataNoticeConfigSchema,
-  defaultModelsConfigSchema,
-  featureFlagsConfigSchema,
-  loginPolicyConfigSchema,
-  modelAccessConfigSchema,
-  moderationProviderConfigSchema,
-  passwordPolicyConfigSchema,
-  piiConfigSchema,
-  retentionPolicyConfigSchema,
-  sessionIdleTimeoutConfigSchema,
-  systemPromptConfigSchema,
-  taskAutomationConfigSchema,
-  twoFactorPolicyConfigSchema,
-  uploadPolicyConfigSchema,
-  userMemoriesConfigSchema,
-  voiceOutputConfigSchema,
-} from '../../lib/shared/schemas/governance';
+import { retentionPolicyConfigSchema } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import { internalMutation, mutation } from '../_generated/server';
+import { action, internalMutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
-import { isAdmin } from '../lib/rls/helpers/role_helpers';
-import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { GOVERNANCE_POLICY_TYPES } from './schema';
-
-const policyTypeValidator = v.union(
-  ...GOVERNANCE_POLICY_TYPES.map((t) => v.literal(t)),
-);
-
-// Decides whether to set/update `effectiveAt` on a policy row. Returns:
-// - a number to patch (rotation just activated — first enablement wins)
-// - `undefined` to leave the existing value untouched
-//
-// Rotation semantics: every time `rotationDays` transitions from 0 to a
-// positive value, stamp `effectiveAt = now` so affected users get a full
-// grace window. Unrelated edits (e.g. tweaking minLength while rotation
-// stays enabled) preserve the original timestamp so the grace window
-// doesn't reset.
-function readRotationDays(config: unknown): number {
-  if (!isRecord(config)) return 0;
-  const value = config.rotationDays;
-  return typeof value === 'number' ? value : 0;
-}
 
 /**
  * Detect retention-policy shortening between two config snapshots.
@@ -96,362 +52,21 @@ function detectRetentionShortening(
   return reduced.length === 0 ? null : `Reduced: ${reduced.join('; ')}`;
 }
 
-function computeNextEffectiveAt(
-  policyType: string,
-  nextConfig: unknown,
-  prevConfig: unknown,
-): number | undefined {
-  if (policyType !== 'password_policy') return undefined;
-  const next = readRotationDays(nextConfig);
-  const prev = readRotationDays(prevConfig);
-  if (next > 0 && prev === 0) {
-    return Date.now();
-  }
-  return undefined;
-}
-
-export const upsertPolicy = mutation({
-  args: {
-    organizationId: v.string(),
-    policyType: policyTypeValidator,
-    config: v.any(),
-  },
-  returns: v.id('governancePolicies'),
-  handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const member = await getOrganizationMember(
-      ctx,
-      args.organizationId,
-      authUser,
-    );
-    if (!isAdmin(member.role)) {
-      throw new Error('Only admins can modify governance policies');
-    }
-
-    if (args.policyType === 'budgets') {
-      const parsed = budgetConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid budget configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    // Round-2 review CRITICAL #24 / E.1.3: every other policyType
-    // branched into a Zod safeParse; system_prompt was missing,
-    // letting arbitrary JSON persist under this policy type and be
-    // read back without validation.
-    if (args.policyType === 'system_prompt') {
-      const parsed = systemPromptConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid system_prompt configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'default_models') {
-      const parsed = defaultModelsConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid default models configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'upload_policy') {
-      const parsed = uploadPolicyConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid upload policy configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'pii_config') {
-      const parsed = piiConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(`Invalid PII configuration: ${parsed.error.message}`);
-      }
-    }
-
-    if (args.policyType === 'feature_flags') {
-      const parsed = featureFlagsConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid feature flags configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'retention_policy') {
-      // For retention, the public path is `governance/retention_actions.
-      // upsertRetentionPolicyAction` (V8 action). It loads the per-org
-      // bounds file via Node action, validates against effective bounds,
-      // and then calls `upsertRetentionPolicyInternal` below.
-      //
-      // Routing retention through this generic mutation would require fs
-      // access here (V8 mutation, no Node), so we refuse and direct the
-      // caller to the action.
-      throw new ConvexError({
-        code: 'use_action',
-        message:
-          'Use governance/retention_actions.upsertRetentionPolicyAction for retention_policy. The per-org bounds file at $TALE_CONFIG_DIR/<orgSlug>/retention.json must be read before validation.',
-      });
-    }
-
-    if (args.policyType === 'model_access') {
-      const parsed = modelAccessConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid model access configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'login_policy') {
-      const parsed = loginPolicyConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid login policy configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'password_policy') {
-      const parsed = passwordPolicyConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid password policy configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'two_factor_policy') {
-      const parsed = twoFactorPolicyConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid two-factor policy configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'session_idle_timeout') {
-      const parsed = sessionIdleTimeoutConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid session idle timeout configuration: ${parsed.error.message}`,
-        );
-      }
-      // Persist the normalized output (schema defaults applied) rather than the
-      // raw input, so a partial config is stored with `enabled` /
-      // `idleTimeoutMinutes` resolved — and the `config.enabled` mirror below
-      // sees a concrete boolean.
-      args.config = parsed.data;
-    }
-
-    if (args.policyType === 'chat_filter') {
-      const parsed = chatFilterConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid chat filter configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'moderation_provider') {
-      const parsed = moderationProviderConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid moderation provider configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'custom_instructions') {
-      const parsed = customInstructionsConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid custom_instructions configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'user_memories') {
-      const parsed = userMemoriesConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid user_memories configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'voice_output') {
-      const parsed = voiceOutputConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid voice_output configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'data_classification_notice') {
-      const parsed = dataNoticeConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid data classification notice configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'agent_workforce') {
-      const parsed = agentWorkforceConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid agent workforce configuration: ${parsed.error.message}`,
-        );
-      }
-      // Persist the normalized output so schema defaults (org cap, breaker
-      // runs/hour, pause action) are stored concretely.
-      args.config = parsed.data;
-    }
-
-    if (args.policyType === 'task_automation') {
-      const parsed = taskAutomationConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid task automation configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'dsar_governance') {
-      // Routed through `governance/dsar_policy.proposeDsarPolicy`
-      // instead. That mutation enforces:
-      //   1. owner-only writes (admins can only read), and
-      //   2. 24h loosen-grace window for weakening changes
-      //      (shorter cooling-off / disabling dual approval / higher
-      //      daily limit), with cross-admin notification, so a single
-      //      compromised owner cannot both weaken the safeguard and
-      //      use it inside the same window.
-      // Refusing the generic path keeps that logic single-source.
-      throw new ConvexError({
-        code: 'use_dsar_policy_mutation',
-        message:
-          'Use governance/dsar_policy.proposeDsarPolicy for dsar_governance — that path enforces owner-only writes and a 24h loosen-grace window for weakening changes.',
-      });
-    }
-
-    const existing = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('policyType', args.policyType),
-      )
-      .first();
-
-    // For password_policy, track when rotation first became active so we
-    // can grant a grace window (credential expiry is computed off the
-    // later of account.passwordChangedAt and policy.effectiveAt).
-    const nextEffectiveAt = computeNextEffectiveAt(
-      args.policyType,
-      args.config,
-      existing?.config,
-    );
-
-    // Mirror `config.enabled` (when present) to the top-level `enabled`
-    // column so reads from either side agree. The bespoke mutations this
-    // replaced (e.g. `upsertPiiConfig`) took `enabled` as a separate arg
-    // and wrote it at the top level; the UI still reads
-    // `policy.enabled ?? config.enabled`, so without this mirror the
-    // admin toggle silently fails to persist across reloads.
-    const configEnabled =
-      isRecord(args.config) && typeof args.config.enabled === 'boolean'
-        ? args.config.enabled
-        : undefined;
-
-    let policyId;
-
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        config: args.config,
-        updatedAt: Date.now(),
-        updatedBy: authUser.userId,
-        ...(configEnabled !== undefined ? { enabled: configEnabled } : {}),
-        ...(nextEffectiveAt !== undefined
-          ? { effectiveAt: nextEffectiveAt }
-          : {}),
-      });
-      policyId = existing._id;
-    } else {
-      policyId = await ctx.db.insert('governancePolicies', {
-        organizationId: args.organizationId,
-        policyType: args.policyType,
-        enabled: configEnabled ?? true,
-        config: args.config,
-        updatedAt: Date.now(),
-        updatedBy: authUser.userId,
-        ...(nextEffectiveAt !== undefined
-          ? { effectiveAt: nextEffectiveAt }
-          : {}),
-      });
-    }
-
-    await createAuditLog(ctx, {
-      organizationId: args.organizationId,
-      actorId: authUser.userId,
-      actorEmail: authUser.email,
-      actorType: 'user',
-      action: existing ? 'policy.updated' : 'policy.created',
-      category: 'security',
-      resourceType: 'governance_policy',
-      resourceId: String(policyId),
-      resourceName: `Policy: ${args.policyType}`,
-      newState: { policyType: args.policyType, config: args.config },
-      previousState: existing
-        ? { policyType: existing.policyType, config: existing.config }
-        : undefined,
-      status: 'success',
-    });
-
-    return policyId;
-  },
-});
-
 /**
- * Cancel a pending retention-shortening before it takes effect.
- * Admin-only. After this the new (shortened) values that were saved
- * onto the policy row are reverted to the snapshot's `oldConfig`.
+ * DB-side finalize for `cancelPendingRetentionChange`. The V8 action reverts
+ * the on-disk `retention-policy.json` to the snapshot's `oldConfig` (and
+ * re-syncs the cache) first, then calls this to delete the pending row and
+ * emit the audit entry. Auth is enforced by the action.
  */
-export const cancelPendingRetentionChange = mutation({
+export const finalizeCancelPendingRetention = internalMutation({
   args: {
     organizationId: v.string(),
     pendingId: v.id('retentionPolicyPendingChanges'),
+    actorId: v.string(),
+    actorEmail: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      throw new ConvexError({
-        code: 'unauthenticated',
-        message: 'Sign in required.',
-      });
-    }
-    const callerId = authUser.userId;
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: callerId,
-      email: authUser.email ?? '',
-    });
-    if (!isAdmin(member.role)) {
-      throw new ConvexError({
-        code: 'forbidden',
-        message: 'Only admins can cancel pending retention changes.',
-      });
-    }
-
     const pending = await ctx.db.get(args.pendingId);
     if (!pending || pending.organizationId !== args.organizationId) {
       throw new ConvexError({
@@ -460,28 +75,12 @@ export const cancelPendingRetentionChange = mutation({
       });
     }
 
-    // Revert the policy row to the snapshot's oldConfig.
-    const policyRow = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('policyType', 'retention_policy'),
-      )
-      .first();
-    if (policyRow) {
-      await ctx.db.patch(policyRow._id, {
-        config: pending.oldConfig,
-        updatedAt: Date.now(),
-        updatedBy: callerId,
-      });
-    }
     await ctx.db.delete(args.pendingId);
 
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
-      actorId: callerId,
-      actorEmail: authUser.email ?? '',
+      actorId: args.actorId,
+      actorEmail: args.actorEmail,
       actorType: 'user',
       action: 'policy.retention_shortening_cancelled',
       category: 'security',
@@ -509,16 +108,19 @@ export const cancelPendingRetentionChange = mutation({
  * audit emission attributes the change to the human caller (we lose
  * `authComponent` access in this internal layer).
  */
-export const upsertRetentionPolicyInternal = internalMutation({
+export const recordRetentionPolicyChange = internalMutation({
   args: {
     organizationId: v.string(),
+    /** Previous effective config, captured from `governanceCache` by the
+     *  action BEFORE it overwrote the file. Drives shortening detection. */
+    oldConfig: v.optional(v.any()),
     config: v.any(),
     actorId: v.string(),
     actorEmail: v.optional(v.string()),
     actorName: v.optional(v.string()),
   },
-  returns: v.id('governancePolicies'),
-  handler: async (ctx, args): Promise<Id<'governancePolicies'>> => {
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
     const parsed = retentionPolicyConfigSchema.safeParse(args.config);
     if (!parsed.success) {
       throw new Error(
@@ -526,24 +128,19 @@ export const upsertRetentionPolicyInternal = internalMutation({
       );
     }
 
-    const existing = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('policyType', 'retention_policy'),
-      )
-      .first();
+    const hadPrevious = args.oldConfig !== undefined && args.oldConfig !== null;
 
-    // 7-day cooldown on retention shortening (Phase 3).
-    if (existing && isRecord(existing.config)) {
-      const summary = detectRetentionShortening(existing.config, args.config);
+    // 7-day cooldown on retention shortening (Phase 3). The file already holds
+    // the NEW config; the cooldown row makes the cleanup runner keep using
+    // `oldConfig` (via `getPendingRetentionChange`) until `appliesAt`.
+    if (hadPrevious && isRecord(args.oldConfig)) {
+      const summary = detectRetentionShortening(args.oldConfig, args.config);
       if (summary) {
         const cooldownMs = 7 * 24 * 60 * 60 * 1000;
         await ctx.db.insert('retentionPolicyPendingChanges', {
           organizationId: args.organizationId,
           appliesAt: Date.now() + cooldownMs,
-          oldConfig: existing.config,
+          oldConfig: args.oldConfig,
           newConfig: args.config,
           requestedBy: args.actorId,
           requestedAt: Date.now(),
@@ -557,7 +154,7 @@ export const upsertRetentionPolicyInternal = internalMutation({
           action: 'policy.retention_shortening_pending',
           category: 'security',
           resourceType: 'governance_policy',
-          resourceId: String(existing._id),
+          resourceId: 'retention_policy',
           resourceName: 'retention_policy',
           newState: { summary, appliesAt: Date.now() + cooldownMs },
           status: 'success',
@@ -565,44 +162,19 @@ export const upsertRetentionPolicyInternal = internalMutation({
       }
     }
 
-    const configEnabled =
-      isRecord(args.config) && typeof args.config.enabled === 'boolean'
-        ? args.config.enabled
-        : undefined;
-
-    let policyId: Id<'governancePolicies'>;
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        config: args.config,
-        updatedAt: Date.now(),
-        updatedBy: args.actorId,
-        ...(configEnabled !== undefined ? { enabled: configEnabled } : {}),
-      });
-      policyId = existing._id;
-    } else {
-      policyId = await ctx.db.insert('governancePolicies', {
-        organizationId: args.organizationId,
-        policyType: 'retention_policy',
-        enabled: configEnabled ?? true,
-        config: args.config,
-        updatedAt: Date.now(),
-        updatedBy: args.actorId,
-      });
-    }
-
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
       actorId: args.actorId,
       actorEmail: args.actorEmail,
       actorType: 'user',
-      action: existing ? 'policy.updated' : 'policy.created',
+      action: hadPrevious ? 'policy.updated' : 'policy.created',
       category: 'security',
       resourceType: 'governance_policy',
-      resourceId: String(policyId),
+      resourceId: 'retention_policy',
       resourceName: 'Policy: retention_policy',
       newState: { policyType: 'retention_policy', config: args.config },
-      previousState: existing
-        ? { policyType: existing.policyType, config: existing.config }
+      previousState: hadPrevious
+        ? { policyType: 'retention_policy', config: args.oldConfig }
         : undefined,
       status: 'success',
     });
@@ -611,8 +183,7 @@ export const upsertRetentionPolicyInternal = internalMutation({
     // this org yet, the admin's first save IS their consent to the
     // current operator bounds. Schedule the seed action (idempotent —
     // a no-op when a row already exists) so cleanup has something to
-    // read from on its next run. Cannot run inline because file IO
-    // requires the Node action runtime.
+    // read from on its next run.
     const existingApplied = await ctx.db
       .query('retentionAppliedBounds')
       .withIndex('by_organizationId', (q) =>
@@ -632,7 +203,7 @@ export const upsertRetentionPolicyInternal = internalMutation({
       );
     }
 
-    return policyId;
+    return null;
   },
 });
 
@@ -643,7 +214,7 @@ export const upsertRetentionPolicyInternal = internalMutation({
  * the scheduler/event fan-out stop at the source. The kill-switch ops
  * commands (`workflows/ops/disable_task_ops_pack`) are the internal twins.
  */
-export const setTaskAutomationEnabled = mutation({
+export const setTaskAutomationEnabled = action({
   args: {
     organizationId: v.string(),
     enabled: v.boolean(),
@@ -653,42 +224,41 @@ export const setTaskAutomationEnabled = mutation({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    const member = await getOrganizationMember(
-      ctx,
-      args.organizationId,
-      authUser,
+    const member = await ctx.runQuery(
+      internal.governance.internal_queries.verifyOrgAdmin,
+      {
+        organizationId: args.organizationId,
+        userId: authUser.userId,
+        email: authUser.email ?? '',
+        name: authUser.name,
+      },
     );
-    if (!isAdmin(member.role)) {
+    if (!member) {
       throw new Error('Only admins can toggle task automation');
     }
 
+    // The twins write the `task_automation` policy file, flip the pack's
+    // trigger rows, and emit the audit entry (attributed to the caller).
     if (args.enabled) {
-      await ctx.runMutation(
+      await ctx.runAction(
         internal.workflows.ops.disable_task_ops_pack.enableTaskOpsPack,
-        { organizationId: args.organizationId },
+        {
+          organizationId: args.organizationId,
+          actorId: authUser.userId,
+          actorEmail: authUser.email ?? undefined,
+        },
       );
     } else {
-      await ctx.runMutation(
+      await ctx.runAction(
         internal.workflows.ops.disable_task_ops_pack.disableTaskOpsPack,
         {
           organizationId: args.organizationId,
-          reason: args.reason ?? `disabled by ${member.userId}`,
+          reason: args.reason ?? `disabled by ${authUser.userId}`,
+          actorId: authUser.userId,
+          actorEmail: authUser.email ?? undefined,
         },
       );
     }
-
-    await createAuditLog(ctx, {
-      organizationId: args.organizationId,
-      actorId: member.userId,
-      actorEmail: authUser.email,
-      actorType: 'user',
-      action: 'governance.task_automation_toggled',
-      category: 'admin',
-      resourceType: 'governance_policy',
-      resourceId: 'task_automation',
-      newState: { enabled: args.enabled },
-      status: 'success',
-    });
     return null;
   },
 });

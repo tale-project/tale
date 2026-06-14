@@ -248,6 +248,13 @@ export async function ensureEnv(
       // Shared HMAC secret for Convex → sandbox spawner. Generated as
       // 32 random bytes (hex); see services/sandbox/src/auth.ts.
       'SANDBOX_TOKEN',
+      // HMAC key that signs audit-log retention/scrub checkpoints, making the
+      // hash chain tamper-evident (SOC 2 / ISO 27001). Auto-generated so the
+      // control is ON by default and STABLE across deploys — a missing or
+      // changing key is what makes the daily integrity cron raise a scary
+      // "Audit log integrity check failed" alert on an otherwise-clean stack.
+      // See convex/audit_logs/{internal_mutations,verify_integrity}.ts.
+      'TALE_AUDIT_SIGNING_KEY',
     ];
     const missingUser = requiredUserVars.filter((v) => !existing[v]);
     const missingAuto = requiredAutoVars.filter((v) => !existing[v]);
@@ -309,6 +316,7 @@ async function runHeadlessAutoSecretFill(
     INSTANCE_SECRET: generateHexSecret,
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
+    TALE_AUDIT_SIGNING_KEY: generateHexSecret,
   };
 
   const updates: Record<string, string> = {};
@@ -432,6 +440,7 @@ async function runPartialEnvSetup(
     INSTANCE_SECRET: generateHexSecret,
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
+    TALE_AUDIT_SIGNING_KEY: generateHexSecret,
   };
 
   let generatedCount = 0;
@@ -500,6 +509,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     dbPassword: generatePassword(),
     sopsAgeKey: ageKeypair.secretKey,
     sandboxToken: generateHexSecret(),
+    auditSigningKey: generateHexSecret(),
   });
 
   await writeFile(envPath, envContent, 'utf-8');
@@ -521,6 +531,7 @@ interface EnvConfig {
   dbPassword: string;
   sopsAgeKey: string;
   sandboxToken: string;
+  auditSigningKey: string;
 }
 
 function generateEnvContent(config: EnvConfig): string {
@@ -595,6 +606,23 @@ function generateEnvContent(config: EnvConfig): string {
     '# with this; the spawner rejects unsigned/wrong-signed requests. Rotate',
     '# by setting a new value and restarting both `platform` and `sandbox`.',
     `SANDBOX_TOKEN=${config.sandboxToken}`,
+    '',
+    '# ============================================================================',
+    '# Audit Log Signing (security / compliance)',
+    '# ============================================================================',
+    '# HMAC-SHA256 key that signs audit-log retention & PII-scrub checkpoints so',
+    '# the audit hash chain is tamper-evident (SOC 2 CC7.2, ISO 27001). The daily',
+    '# integrity cron verifies these signatures; a MISSING or CHANGED key is what',
+    '# surfaces the "Audit log integrity check failed" alert — so this is',
+    '# auto-generated and must stay STABLE across deploys.',
+    '#   - Back it up with your other secrets (secret manager / Vault). Losing it',
+    '#     means checkpoints signed with it can no longer be verified.',
+    '#   - To ROTATE: move the current value to TALE_AUDIT_SIGNING_KEY_PREVIOUS,',
+    '#     set a fresh TALE_AUDIT_SIGNING_KEY (openssl rand -hex 32), redeploy.',
+    '#     The verifier accepts both during the rotation window; drop the',
+    '#     previous key on the next rotation.',
+    `TALE_AUDIT_SIGNING_KEY=${config.auditSigningKey}`,
+    '# TALE_AUDIT_SIGNING_KEY_PREVIOUS=',
     '# Container runtime for spawned sandbox containers. `runc` (default) is',
     '# plain Docker; `runsc` is gVisor (requires `runsc` installed on the',
     '# host and registered with dockerd). gVisor provides',

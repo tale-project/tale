@@ -170,10 +170,31 @@ function makeCtx(args: {
   const ctx = {
     db: {
       query: (table: string) => {
-        expect(table).toBe('governancePolicies');
+        expect(table).toBe('configCache');
+        const captured: Record<string, unknown> = {};
         return {
-          async *[Symbol.asyncIterator]() {
-            yield* args.policies;
+          withIndex: (_name: string, cb: (q: unknown) => unknown) => {
+            const builder = {
+              eq: (k: string, v: unknown) => {
+                captured[k] = v;
+                return builder;
+              },
+            };
+            cb(builder);
+            // Mirrors the `by_domain_key` range: only governance rows for the
+            // queried key (the production code ranges on session_idle_timeout).
+            return {
+              async *[Symbol.asyncIterator]() {
+                for (const p of args.policies) {
+                  if (
+                    captured.domain === 'governance' &&
+                    p.policyType === captured.key
+                  ) {
+                    yield p;
+                  }
+                }
+              },
+            };
           },
         };
       },

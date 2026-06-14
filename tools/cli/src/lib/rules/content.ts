@@ -15,7 +15,9 @@ default/                    — Canonical/template org (created by 'tale init')
   branding/                 — Branding config (branding.json + images/)
   providers/                — LLM provider configs (and *.secrets.json sidecars)
   skills/                   — Skill bundles (per-skill subdirs)
-  retention.json            — Per-org data-retention overrides
+  governance/               — Org governance policies (one <policyType>.json per
+                              policy), the retention.json bounds catalog, and
+                              *.secrets.json sidecars + sso/ provider configs
 <other-org>/                — Same shape; one tree per registered org
 .tale/reference/            — Read-only implementation source code (read before
                               creating or editing configs)

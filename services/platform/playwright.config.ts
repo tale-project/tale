@@ -4,10 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Full-app E2E suite (issue #179). Runs the four v1 smoke flows (login, chat
- * send + stream, governance settings save, automation run) against the real
- * local stack: anonymous Convex backend + Vite, both booted by the webServer
- * entries below via `scripts/dev.ts`.
+ * Full-app E2E suite (issue #179). Runs the platform smoke flows — auth
+ * (login/logout/password/2FA), onboarding, chat (+ threads/search/prompts),
+ * conversations, agents, projects & tasks, knowledge, settings, governance, and
+ * automation — against the real local stack: anonymous Convex backend + Vite,
+ * both booted by the webServer entries below via `scripts/dev.ts`. See
+ * `e2e/README.md` for the per-spec breakdown.
  *
  * Determinism: the stack is pointed at `e2e/fixtures/config` (one agent, one
  * provider whose `baseUrl` is the mock OpenAI-compatible SSE server in

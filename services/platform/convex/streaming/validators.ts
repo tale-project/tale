@@ -32,9 +32,6 @@ export const toolUsageItemValidator = v.object({
   costEstimateCents: v.optional(v.number()),
 });
 
-/** @deprecated Use toolUsageItemValidator */
-export const subAgentUsageItemValidator = toolUsageItemValidator;
-
 export const contextStatsValidator = v.object({
   totalTokens: v.number(),
   messageCount: v.number(),

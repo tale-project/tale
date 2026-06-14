@@ -69,15 +69,6 @@ export const ttsAudioChunksTable = defineTable({
   index: v.number(),
   text: v.string(),
   storageId: v.optional(v.id('_storage')),
-  /**
-   * @deprecated Retained for back-compat on existing rows; not written by
-   * current code. Subscribers fetch audio via the `/api/tts-audio` HTTP
-   * route keyed by `chunkId`, which is authenticated per-request rather
-   * than handing out a bearer-replayable storage URL. Kept on the schema
-   * (optional) so rows written before the field was retired still pass
-   * the read validator.
-   */
-  audioUrl: v.optional(v.string()),
   status: v.union(
     v.literal('pending'),
     v.literal('ready'),

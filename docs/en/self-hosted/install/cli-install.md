@@ -90,8 +90,7 @@ Run `tale <command> --help` for the authoritative list at your installed version
 - `-d, --detach` — run in the background instead of streaming logs.
 - `-p, --port <port>` — HTTPS port to expose (default `443`).
 - `--host <hostname>` — host alias for the proxy (default `tale.local`).
-- `-y, --yes` — auto-accept the legacy config-layout migration if one is detected.
-- `--skip-backup` — skip the volume snapshot taken before that migration.
+- `-y, --yes` — non-interactive: auto-accept prompts (e.g. installing or starting Docker).
 
 `tale deploy` — blue-green, zero-downtime deploy of the current CLI version. On the first deploy it prompts for your production domain and Let's Encrypt email (or pass `--host`).
 

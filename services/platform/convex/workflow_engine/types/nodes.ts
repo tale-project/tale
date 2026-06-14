@@ -187,20 +187,6 @@ export const llmNodeConfigValidator = v.object({
       v.union(v.string(), v.number(), v.boolean(), v.null()),
     ),
   ),
-
-  // ==========================================================================
-  // DEPRECATED FIELDS (kept for backward compatibility during migration)
-  // These fields are ignored at runtime. Run the migration to remove them:
-  //   bunx convex run migrations/remove_deprecated_llm_fields:removeDeprecatedLLMFields
-  // After migration completes, these fields can be removed from the validator.
-  // ==========================================================================
-  temperature: v.optional(v.number()),
-  maxTokens: v.optional(v.number()),
-  maxSteps: v.optional(v.number()),
-  // `noFallback` was a per-step opt-out for resolve-time fallback. Removed in
-  // favor of explicit `models[]` chain semantics — write a single-element
-  // chain or just `model: "..."` if you want strict pinning.
-  noFallback: v.optional(v.boolean()),
 });
 
 export const conditionNodeConfigValidator = v.object({

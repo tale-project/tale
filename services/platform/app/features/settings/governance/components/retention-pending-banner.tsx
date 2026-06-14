@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Text } from '@tale/ui/text';
-import { useMutation } from 'convex/react';
+import { useAction } from 'convex/react';
 import { Clock } from 'lucide-react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
@@ -29,8 +29,8 @@ export function RetentionPendingBanner({ organizationId }: Props) {
     api.governance.queries.getPendingRetentionChange,
     { organizationId },
   );
-  const cancel = useMutation(
-    api.governance.mutations.cancelPendingRetentionChange,
+  const cancel = useAction(
+    api.governance.retention_actions.cancelPendingRetentionChange,
   );
 
   if (!pending.data) return null;

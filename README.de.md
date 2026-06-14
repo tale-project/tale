@@ -24,11 +24,17 @@ Bündle ihr Wissen, delegiere Aufgaben und bau deinen Schwarm aus Agents.
 
 Tale ist eine **selbstgehostete KI-Plattform**, die die Agents und CLIs, die dein Team bereits nutzt, zu einer koordinierten Belegschaft verbindet. Gib ihnen eine gemeinsame Wissensdatenbank, binde deine Tools und Integrationen an und delegiere Arbeit über sie hinweg — Agents, Automatisierungen und ein gemeinsamer Posteingang, alles auf deiner eigenen Infrastruktur. Installiere die CLI und starte mit einem einzigen Befehl.
 
+**Wähl deinen Weg:**
+
+- **Tale lokal ausprobieren** — installier die CLI und lauf zwei Befehle auf deiner eigenen Maschine. Beginn mit [Schnellstart](#schnellstart) unten.
+- **Tale Cloud nutzen** — lass Tale den Stack betreiben, melde dich an und bring dein Team an Bord. Beginn mit [Cloud-Onboarding](docs/de/cloud/onboarding.md).
+- **Mitwirken** — lass Tale aus dem Quellcode laufen und gib eine Änderung zurück. Beginn mit [Contributor-Setup](docs/de/develop/contributor-setup.md).
+
 ## Schnellstart
 
 Bring Tale in drei Befehlen auf deine Maschine — CLI installieren, Projekt anlegen, starten. Die CLI installiert Docker, falls es fehlt, und generiert jedes Secret für dich, sodass nichts vorab einzurichten und nichts von Hand zu editieren ist.
 
-**Voraussetzungen:** keine. Der Installer richtet Docker für dich ein. Bring einen [OpenRouter-API-Key](https://openrouter.ai) (oder einen beliebigen OpenAI-kompatiblen Anbieter) mit, wenn du ein Modell verbinden möchtest — der In-App-Einrichtungsassistent führt dich hindurch, und du kannst ihn auch später hinzufügen.
+**Voraussetzungen für einen lokalen Test: keine.** Der Installer richtet Docker für dich ein, und `tale init` generiert jedes Secret — du musst nichts mitbringen, um den Stack hochzubekommen. Ein [OpenRouter-API-Key](https://openrouter.ai) (oder ein beliebiger OpenAI-kompatibler Anbieter) ist optional und erst nötig, bevor ein Agent antworten kann: du fügst ihn in der App nach der Anmeldung hinzu, im Einrichtungsassistenten oder unter **Einstellungen → KI-Anbieter**. `tale init` fragt nicht danach.
 
 > **Windows mit Hyper-V-Backend:** Stelle sicher, dass dein Projekt-Laufwerk in den Docker-Desktop-Einstellungen unter Resources > File Sharing freigegeben ist. Das WSL2-Backend (Standard) braucht keine zusätzliche Konfiguration.
 
@@ -242,7 +248,7 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 
 ## Mitwirken
 
-Lies [`AGENTS.md`](AGENTS.md) vor deinem ersten PR — das ist der einzige Vertrag für Code-Stil, Security, Tests, i18n und Dokumentation über alle Workspaces hinweg. Der [`docs`](.agents/docs/AGENTS.md)-Skill deckt die Doku-Seite ab; der [`translation`](.agents/translation/AGENTS.md)-Skill die sprachübergreifenden Übersetzungsregeln. Lass `bun run check` (Format, Lint, Typecheck, Tests) durchlaufen, bevor du einen PR öffnest; das [Pull-Request-Template](.github/pull_request_template.md) listet den Rest der Pre-Merge-Checkliste.
+Neu im Repo? [Contributor-Setup](docs/de/develop/contributor-setup.md) ist die zentrale Quelle der Wahrheit, um den Quellcode lokal zum Laufen zu bringen — Voraussetzungen, `bun install`, der `bun run setup:check`-Pre-flight, `bun run dev` und die Python-Dienste. Lies [`AGENTS.md`](AGENTS.md) vor deinem ersten PR — das ist der einzige Vertrag für Code-Stil, Security, Tests, i18n und Dokumentation über alle Workspaces hinweg. Der [`docs`](.agents/docs/AGENTS.md)-Skill deckt die Doku-Seite ab; der [`translation`](.agents/translation/AGENTS.md)-Skill die sprachübergreifenden Übersetzungsregeln. Lass `bun run check` (Format, Lint, Typecheck, Tests) durchlaufen, bevor du einen PR öffnest; das [Pull-Request-Template](.github/pull_request_template.md) listet den Rest der Pre-Merge-Checkliste.
 
 ---
 

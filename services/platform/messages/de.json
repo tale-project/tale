@@ -2201,7 +2201,10 @@
       "hasKeyQuestion": "Noch keinen Schlüssel?",
       "getKeyLink": "Bei OpenRouter erstellen",
       "saveError": "Mit diesem Schlüssel konnten wir keine Verbindung zu OpenRouter herstellen. Prüfe ihn und versuche es erneut.",
-      "noModelsError": "Für diesen Schlüssel waren keine Modelle verfügbar."
+      "noModelsError": "Für diesen Schlüssel waren keine Modelle verfügbar.",
+      "invalidKeyError": "Das sieht nicht nach einem OpenRouter-Schlüssel aus — er sollte mit „sk-or-\" beginnen. Kopiere ihn von openrouter.ai/keys.",
+      "authError": "OpenRouter hat diesen Schlüssel abgelehnt. Prüfe, ob er vollständig kopiert wurde und noch aktiv ist.",
+      "networkError": "OpenRouter war nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."
     },
     "finish": {
       "heading": "Alles bereit",
@@ -2209,6 +2212,9 @@
       "providerItem": "Verbinde einen KI-Anbieter für Agenten und Chat.",
       "agentItem": "Erstelle deinen ersten Agenten.",
       "inviteItem": "Lade Teammitglieder zur Zusammenarbeit ein.",
+      "providerCta": "Anbieter verbinden",
+      "agentCta": "Agent erstellen",
+      "inviteCta": "Teammitglieder einladen",
       "goToDashboard": "Zum Dashboard"
     }
   },
@@ -3931,6 +3937,8 @@
     "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.",
     "auditIntegrityFailed": "Integritätsprüfung des Audit-Logs fehlgeschlagen",
     "auditIntegrityFailedDetails": "Wir konnten die Integrität des Audit-Logs dieser Organisation nicht bestätigen: {reason}. Das kann auf Manipulation hindeuten — untersuche das so schnell wie möglich.",
+    "auditIntegrityUnverifiable": "Audit-Log-Signaturen können nicht überprüft werden",
+    "auditIntegrityUnverifiableDetails": "Die Audit-Log-Checkpoints dieser Organisation sind signiert, aber es ist kein Signaturschlüssel zur Überprüfung konfiguriert: {reason}. Setze TALE_AUDIT_SIGNING_KEY, um die Manipulationssicherheit wiederherzustellen — das ist eine Konfigurationslücke, keine festgestellte Manipulation.",
     "dsarScheduled": "Löschungsanfrage geplant",
     "dsarScheduledBody": "Eine Löschungsanfrage wurde für ein Mitglied dieser Organisation eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt — öffne den Beleg, um sie zu prüfen oder abzubrechen.",
     "dsarApprovalNeeded": "Löschungsanfrage wartet auf deine Freigabe",

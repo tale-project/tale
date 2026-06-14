@@ -348,10 +348,6 @@ export const saveAgent = action({
       ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
       : memberAuth;
 
-    // `skillBindingsResolved` is a legacy snapshot from the old transitive
-    // tool-grant model — never write it again. `skillBindings` itself is now
-    // a hard allowlist and is persisted as-is.
-    //
     // `delegates` / `reportsTo` (the organigram delegation edges) have exactly
     // ONE write path: the organigram actions (`setAgentDelegates` /
     // `setAgentParents`). The settings form must never carry them — a stale
@@ -359,7 +355,6 @@ export const saveAgent = action({
     // and the on-disk values re-applied here.
     config = {
       ...config,
-      skillBindingsResolved: undefined,
       delegates: prevAgent.ok ? prevAgent.config.delegates : undefined,
       reportsTo: prevAgent.ok ? prevAgent.config.reportsTo : undefined,
     };
@@ -562,11 +557,9 @@ export const duplicateAgent = action({
   handler: async (ctx, args): Promise<{ newAgentName: string }> => {
     // Duplicating an agent that has any capability-bearing field (skill
     // bindings, tools, integrations, workflows) creates a NEW agent with
-    // the same grants. The legacy `skillBindingsResolved` snapshot is
-    // stripped on write (see `skillBindingsResolved: undefined` below);
-    // `skillBindings` itself carries forward as-is. The duplicate-vs-save
-    // trust boundary must match saveAgent — both create reachable grants,
-    // both gate on developerSettings.
+    // the same grants — `skillBindings` carries forward as-is. The
+    // duplicate-vs-save trust boundary must match saveAgent — both create
+    // reachable grants, both gate on developerSettings.
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     const { orgSlug } = auth;
     const source = await readAgentFile(orgSlug, args.agentName);
@@ -626,8 +619,7 @@ export const duplicateAgent = action({
       : undefined;
 
     // `skillBindings` carries over to the copy (the copy should have the
-    // same skill surface as the source). `skillBindingsResolved` is the
-    // legacy transitive-grant snapshot and is dropped.
+    // same skill surface as the source).
     const draft: AgentJsonConfig = {
       ...source.config,
       ...(suffixedTopLevel !== undefined
@@ -635,7 +627,6 @@ export const duplicateAgent = action({
         : {}),
       ...(nextI18n ? { i18n: nextI18n } : {}),
       visibleInChat: false,
-      skillBindingsResolved: undefined,
     };
 
     // If neither the legacy top-level nor any i18n locale had a displayName,

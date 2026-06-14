@@ -30,11 +30,6 @@ export const GOVERNANCE_POLICY_TYPES = [
   // `propose_memory` tool). Per-user `userPreferences.memoriesEnabled`
   // may override.
   'user_memories',
-  // Legacy combined toggle retained so the schema validates pre-split
-  // rows during the deploy window in which
-  // `migrations/split_personalization_toggle` drains it into the
-  // `custom_instructions` and `user_memories` policies.
-  'personalization',
   // Org-level kill switch for the voice-output (TTS) feature. Missing row
   // → effective default ON (existing deployments keep their current
   // behaviour). `config.enabled === false` overrides every user's
@@ -95,6 +90,49 @@ export const governancePoliciesTable = defineTable({
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_org_policyType', ['organizationId', 'policyType']);
+
+/**
+ * @deprecated The governance-only file-derived cache was generalized into the
+ * domain-agnostic `configCache` (`lib/config_cache/schema.ts`); governance now
+ * stores its mirror there under domain `'governance'`, and no code reads or
+ * writes this table anymore. Retained as a table def only for schema-validation
+ * compatibility on deployments that still hold prior `governanceCache` rows
+ * (Convex refuses a push that removes a table with documents — same reason
+ * `llmResponseCache` is retained). Drop the def in a follow-up after a one-shot
+ * row-cleanup migration; the data is a re-derivable cache, so nothing is lost.
+ */
+export const governanceCacheTable = defineTable({
+  organizationId: v.string(),
+  policyType: policyTypeValidator,
+  config: jsonRecordValidator,
+  enabled: v.optional(v.boolean()),
+  effectiveAt: v.optional(v.number()),
+  syncedAt: v.number(),
+})
+  .index('by_organizationId', ['organizationId'])
+  .index('by_org_policyType', ['organizationId', 'policyType']);
+
+/**
+ * Loosen-grace staging for `dsar_governance` (files are the source of truth, so
+ * the staged config can't live on a DB policy row anymore). Mirrors
+ * `retentionPolicyPendingChanges`: when an owner proposes a *weakening* change,
+ * the new config is staged here with a 24h `effectiveAt`; `getDsarPolicy`
+ * continues returning the live (file/cache) config until a scheduled action
+ * flips the file at `effectiveAt`, unless an admin cancels first. At most one
+ * pending row per org.
+ */
+export const dsarPolicyPendingChangesTable = defineTable({
+  organizationId: v.string(),
+  pendingConfig: jsonRecordValidator,
+  /** ms since epoch when the staged change becomes effective. */
+  effectiveAt: v.number(),
+  proposedBy: v.string(),
+  proposedByEmail: v.optional(v.string()),
+  proposedAt: v.number(),
+  /** Scheduler job that applies the change at `effectiveAt`; cancelled on
+   *  `cancelPendingDsarPolicyChange`. */
+  scheduledJobId: v.optional(v.id('_scheduled_functions')),
+}).index('by_organizationId', ['organizationId']);
 
 /**
  * Per-org encrypted secrets used by the guardrails pipeline. Deliberately a

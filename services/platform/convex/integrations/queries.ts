@@ -5,7 +5,6 @@ import { query, QueryCtx } from '../_generated/server';
 import { toPublicUrl } from '../lib/helpers/public_storage_url';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { UnauthorizedError } from '../lib/rls/errors';
-import { findRelatedAutomations } from './find_related_automations';
 import { getIntegration } from './get_integration';
 import { getIntegrationByName } from './get_integration_by_name';
 import { listIntegrations } from './list_integrations';
@@ -140,6 +139,8 @@ export const listRelatedAutomations = query({
       throw error;
     }
 
-    return await findRelatedAutomations(ctx, args);
+    // Automation linkage was removed; the query degrades to an empty list so
+    // existing callers keep working without surfacing related automations.
+    return [];
   },
 });

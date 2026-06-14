@@ -24,11 +24,17 @@ Pool their knowledge, delegate tasks, and build your swarm of agents.
 
 Tale is a **self-hosted AI platform** that turns the agents and CLIs your team already uses into one coordinated workforce. Give them a shared knowledge base, wire up your tools and integrations, and delegate work across them — agents, automations, and a unified inbox, all running on your own infrastructure. Install the CLI and run a single command to get started.
 
+**Pick your path:**
+
+- **Try Tale locally** — install the CLI and run two commands on your own machine. Start with [Quick start](#quick-start) below.
+- **Use Tale Cloud** — let Tale operate the stack, sign up, and onboard your team. Start with [Cloud onboarding](docs/en/cloud/onboarding.md).
+- **Contribute** — run Tale from source and ship a change back. Start with [Contributor setup](docs/en/develop/contributor-setup.md).
+
 ## Quick start
 
 Get Tale running on your machine in three commands — install the CLI, scaffold a project, start it. The CLI installs Docker if it's missing and generates every secret for you, so there is nothing to set up first and nothing to hand-edit.
 
-**Prerequisites:** none. The installer provisions Docker for you. Bring an [OpenRouter API key](https://openrouter.ai) (or any OpenAI-compatible provider) when you want to connect a model — the in-app setup wizard walks you through it, and you can add it later.
+**Prerequisites for a local trial: none.** The installer provisions Docker for you, and `tale init` generates every secret — you do not need to bring anything to get the stack running. An [OpenRouter API key](https://openrouter.ai) (or any OpenAI-compatible provider) is optional and only needed before an agent can answer: you add it in the app after sign-up, in the setup wizard or under **Settings → AI providers**. `tale init` does not ask for it.
 
 > **Windows with Hyper-V backend:** Ensure your project drive is shared in Docker Desktop Settings > Resources > File Sharing. WSL2 backend (default) requires no extra configuration.
 
@@ -242,7 +248,7 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 
 ## Contributing
 
-Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. The [`docs`](.agents/docs/AGENTS.md) skill covers the documentation site; the [`translation`](.agents/translation/AGENTS.md) skill covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
+New to the repo? [Contributor setup](docs/en/develop/contributor-setup.md) is the single source of truth for getting the source running locally — prerequisites, `bun install`, the `bun run setup:check` pre-flight, `bun run dev`, and the Python services. Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. The [`docs`](.agents/docs/AGENTS.md) skill covers the documentation site; the [`translation`](.agents/translation/AGENTS.md) skill covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
 
 ---
 

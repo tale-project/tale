@@ -28,7 +28,7 @@ If unsure, default to **yes**. Reviewer time is cheaper than stale docs.
 
 Paste this into the PR description. Empty boxes get rejected.
 
-- [ ] Ran `bun run check` (format, lint, typecheck, all tests).
+- [ ] Ran `bun run check` (format, lint, typecheck, all tests — TypeScript and the Python services).
 - [ ] No hand-rolled skeletons or magic `h-[…]` on skeletons — loading uses `<Skeletonize>` + skeleton-aware leaves (see React section) — or N/A.
 - [ ] Updated `services/platform/messages/{en,de,fr}.json` — or N/A.
 - [ ] Updated `/docs/{en,de,fr}/` for every user-visible change — or N/A.
@@ -73,6 +73,7 @@ Security is a first pass, not a clean-up step. During every change, check the OW
 - **Lock in behaviour before you change it.** If a change touches untested code, write the test first to capture current behaviour, then make the change.
 - **Every new feature and bug fix carries its test.** Happy path, one edge case, one error condition at minimum.
 - **Run the suite after every non-trivial change.** A green suite is the only merge signal.
+- **`bun run check` / `bun run test` cover the Python services too.** Turbo fans the `test` task across every workspace, including `services/rag` and `services/crawler`, so the Python suites run alongside the TypeScript ones. When you touch a Python service, run its suite directly while iterating — `uv run pytest` from `services/rag/` or `services/crawler/` — and let the full gate confirm before the PR. Python tests are required whenever you change `services/rag` or `services/crawler`; a TypeScript-only change needs only the TypeScript suites green. New-contributor setup, the pre-flight check, and the per-service commands live in [`docs/en/develop/contributor-setup.md`](docs/en/develop/contributor-setup.md).
 
 ## TypeScript
 

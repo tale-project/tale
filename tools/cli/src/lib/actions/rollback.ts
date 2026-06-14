@@ -1,6 +1,7 @@
 import { sameMinor } from '../../utils/compare-versions';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { runStepsInParallel } from '../../utils/progress';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { ROTATABLE_SERVICES } from '../compose/types';
@@ -130,14 +131,26 @@ export async function rollback(
       registry: env.GHCR_REGISTRY,
     };
 
-    // Pull previous version images sequentially for clearer progress and failure attribution
-    logger.step('Pulling previous version images...');
-    for (const service of ROTATABLE_SERVICES) {
-      const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
-      const success = await pull(image);
-      if (!success) {
-        throw new Error(`Failed to pull image: ${image}`);
-      }
+    // Pull previous-version images CONCURRENTLY, reporting each as a step so
+    // progress + failure attribution stay clear. A single failure doesn't
+    // cancel the others; collect them and report together.
+    const pullResults = await runStepsInParallel(
+      ROTATABLE_SERVICES.map((service) => {
+        const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
+        return {
+          label: image,
+          run: async () => {
+            if (!(await pull(image))) throw new Error(`pull failed: ${image}`);
+          },
+        };
+      }),
+      { title: 'Pulling previous version images' },
+    );
+    const failedPulls = pullResults.filter((r) => !r.ok).map((r) => r.label);
+    if (failedPulls.length > 0) {
+      throw new Error(
+        `Failed to pull ${failedPulls.length} image(s): ${failedPulls.join(', ')}`,
+      );
     }
 
     // Clean up any stale containers from a previous failed rollback on this

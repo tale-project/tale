@@ -42,7 +42,6 @@ describe('discoverOrgs', () => {
     );
     const result = discoverOrgs(root);
     expect(result.orgs.map((o) => o.slug).sort()).toEqual(['acme', 'beta']);
-    expect(result.legacyRootDirs).toEqual([]);
     expect(result.staleRootOrgDirs).toEqual([]);
     const acme = result.orgs.find((o) => o.slug === 'acme');
     expect(acme?.srcDir).toContain(join(ORGS_SUBDIR, 'acme'));
@@ -54,10 +53,10 @@ describe('discoverOrgs', () => {
     expect(result.orgs.map((o) => o.slug)).not.toContain('default');
   });
 
-  test('flags legacy flat layout at the project root', () => {
+  test('treats org-shaped root dirs as stale, not deployable', () => {
     makeDirs('agents', 'workflows', join(ORGS_SUBDIR, 'acme', 'agents'));
     const result = discoverOrgs(root);
-    expect(result.legacyRootDirs.sort()).toEqual(['agents', 'workflows']);
+    expect(result.staleRootOrgDirs.sort()).toEqual(['agents', 'workflows']);
     expect(result.orgs.map((o) => o.slug)).toEqual(['acme']);
   });
 
@@ -72,7 +71,6 @@ describe('discoverOrgs', () => {
     makeDirs('default/agents');
     const result = discoverOrgs(root);
     expect(result.orgs).toEqual([]);
-    expect(result.legacyRootDirs).toEqual([]);
     expect(result.staleRootOrgDirs).toEqual([]);
   });
 });

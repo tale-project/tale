@@ -70,6 +70,37 @@ export const verifyAuditChainForOrg = internalQuery({
   handler: async (ctx, args) => verifyAuditChain(ctx, args),
 });
 
+type IntegrityFindingKind = 'tampering' | 'config';
+
+/**
+ * Classify a failed verification so the alert is PROPORTIONATE. A checkpoint
+ * that is *signed* but the deployment has *no signing key configured* (the
+ * verifier's "no-key" verdict) is an operator/config gap — tamper-evidence
+ * can't be verified, but it is NOT a detected forgery. A hash-chain break
+ * (`firstBrokenAt`) or an outright signature mismatch IS a tamper signal.
+ * Treating the benign config gap as "tampering detected" is exactly what made
+ * a clean stack raise a scary `critical` alert; now it only ever fires for a
+ * genuine break, and the config gap gets a calm, actionable `warning`.
+ */
+export function classifyIntegrityFinding(result: {
+  firstBrokenAt?: { logId: string };
+  checkpointMismatch?: { reason: string };
+}): { kind: IntegrityFindingKind; reason: string } {
+  if (result.checkpointMismatch && !result.firstBrokenAt) {
+    const reason = result.checkpointMismatch.reason;
+    // The verifier emits this exact phrasing for the no-key path — a signed
+    // checkpoint with TALE_AUDIT_SIGNING_KEY absent. Config, not tampering.
+    if (reason.includes('not configured')) {
+      return { kind: 'config', reason };
+    }
+    return { kind: 'tampering', reason };
+  }
+  const reason = result.firstBrokenAt
+    ? `hash chain broken at log ${result.firstBrokenAt.logId}`
+    : 'audit log chain failed verification';
+  return { kind: 'tampering', reason };
+}
+
 /**
  * Out-of-band alert for a failed integrity check: an in-app notification to
  * the org's admins (`security` category also fans out to Slack via
@@ -77,19 +108,32 @@ export const verifyAuditChainForOrg = internalQuery({
  * action can raise it right after writing the in-band audit row; a single
  * org's notification failing must not abort the sweep, so the action wraps
  * the call in its own try/catch.
+ *
+ * `kind` controls severity + copy: a genuine `tampering` finding is `critical`
+ * ("investigate now"); a `config` gap is a calm `warning` ("set the signing
+ * key") so a benign unverifiable-checkpoint state never reads as a breach.
  */
 export const notifyIntegrityFailure = internalMutation({
-  args: { organizationId: v.string(), reason: v.string() },
+  args: {
+    organizationId: v.string(),
+    reason: v.string(),
+    kind: v.union(v.literal('tampering'), v.literal('config')),
+  },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    const isConfig = args.kind === 'config';
     await writeNotificationForOrgs(ctx, {
       organizationIds: [args.organizationId],
       category: 'security',
-      severity: 'critical',
+      severity: isConfig ? 'warning' : 'critical',
       // Resolved client-side against the `notifications` i18n namespace; the
       // Slack sink renders the mirrored strings in notification_messages.ts.
-      titleKey: 'auditIntegrityFailed',
-      bodyKey: 'auditIntegrityFailedDetails',
+      titleKey: isConfig
+        ? 'auditIntegrityUnverifiable'
+        : 'auditIntegrityFailed',
+      bodyKey: isConfig
+        ? 'auditIntegrityUnverifiableDetails'
+        : 'auditIntegrityFailedDetails',
       params: { reason: args.reason },
     });
     return null;
@@ -111,6 +155,7 @@ export const runAuditIntegrityCheck = internalAction({
     }
 
     let failures = 0;
+    let configIssues = 0;
     let errored = 0;
     for (const organizationId of organizationIds) {
       // One org's verification failing to run must not abort the sweep for
@@ -141,22 +186,32 @@ export const runAuditIntegrityCheck = internalAction({
         );
       }
 
-      // The only genuine alert condition: the chain (or a checkpoint) failed
-      // to verify. `verifyAuditChain` returns `valid: false` for both a hash
-      // break (`firstBrokenAt`) and a checkpoint mismatch.
+      // The chain (or a checkpoint) failed to verify. `verifyAuditChain`
+      // returns `valid: false` for both a hash break (`firstBrokenAt`) and a
+      // checkpoint mismatch — but only a genuine break is "tampering". A signed
+      // checkpoint with no key configured is a config gap (`config`), alerted
+      // calmly so a clean stack never reads as a breach.
       if (result.valid) continue;
 
-      failures++;
-      const reason =
-        result.checkpointMismatch?.reason ??
-        (result.firstBrokenAt
-          ? `hash chain broken at log ${result.firstBrokenAt.logId}`
-          : 'audit log chain failed verification');
-      // Operator-facing log line — surfaces in log-based alerting.
-      console.error(
-        `[AuditIntegrity] FAILED for org ${organizationId}: ${reason}`,
-        result.firstBrokenAt ?? result.checkpointMismatch ?? {},
-      );
+      const finding = classifyIntegrityFinding(result);
+      const isTampering = finding.kind === 'tampering';
+      if (isTampering) {
+        failures++;
+      } else {
+        configIssues++;
+      }
+
+      // Operator-facing log line — surfaces in log-based alerting. A config
+      // gap is a warning, not an error, so it doesn't trip error-rate alarms.
+      const logLine = `[AuditIntegrity] ${
+        isTampering ? 'FAILED' : 'UNVERIFIABLE'
+      } for org ${organizationId}: ${finding.reason}`;
+      const logDetail = result.firstBrokenAt ?? result.checkpointMismatch ?? {};
+      if (isTampering) {
+        console.error(logLine, logDetail);
+      } else {
+        console.warn(logLine, logDetail);
+      }
 
       // In-band signal: a security-category audit row. It is itself a fresh,
       // correctly-chained entry, so it does not interfere with detection of
@@ -164,6 +219,7 @@ export const runAuditIntegrityCheck = internalAction({
       const metadata: Record<string, unknown> = {
         verifiedCount: result.verifiedCount,
         checkpointsVerified: result.checkpointsVerified,
+        findingKind: finding.kind,
       };
       if (result.firstBrokenAt) metadata.firstBrokenAt = result.firstBrokenAt;
       if (result.checkpointMismatch) {
@@ -175,11 +231,13 @@ export const runAuditIntegrityCheck = internalAction({
           organizationId,
           actorId: 'system',
           actorType: 'system',
-          action: 'audit_log.integrity_check_failed',
+          action: isTampering
+            ? 'audit_log.integrity_check_failed'
+            : 'audit_log.integrity_unverifiable',
           category: 'security',
           resourceType: 'audit_log',
           status: 'failure',
-          errorMessage: reason,
+          errorMessage: finding.reason,
           metadata,
         },
       );
@@ -190,7 +248,7 @@ export const runAuditIntegrityCheck = internalAction({
       try {
         await ctx.runMutation(
           internal.audit_logs.integrity_check.notifyIntegrityFailure,
-          { organizationId, reason },
+          { organizationId, reason: finding.reason, kind: finding.kind },
         );
       } catch (err) {
         console.error(
@@ -201,7 +259,7 @@ export const runAuditIntegrityCheck = internalAction({
     }
 
     console.log(
-      `[AuditIntegrity] checked ${organizationIds.length} org(s): ${failures} failing, ${errored} errored`,
+      `[AuditIntegrity] checked ${organizationIds.length} org(s): ${failures} failing, ${configIssues} unverifiable (config), ${errored} errored`,
     );
     return null;
   },

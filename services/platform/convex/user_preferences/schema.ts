@@ -30,11 +30,6 @@ export const userPreferencesTable = defineTable({
   customInstructions: v.string(),
   customInstructionsEnabled: v.optional(v.boolean()),
   memoriesEnabled: v.optional(v.boolean()),
-  // Legacy slot retained so the schema validates pre-split rows during
-  // the deploy window in which
-  // `migrations/split_personalization_toggle` drains it into both
-  // `*Enabled` fields.
-  enabled: v.optional(v.boolean()),
   /**
    * Global default for voice-mode TTS output on new conversations.
    * `undefined` (or row missing) → off. Per-thread override lives on

@@ -64,7 +64,7 @@ async function clampStoredConfig(
   );
   if (!applied) {
     console.warn(
-      `[RetentionCleanup] org ${organizationId} has no applied retention bounds — skipping cleanup. Admin must Apply current bounds in governance editor (or run migrations/seed_applied_bounds:apply).`,
+      `[RetentionCleanup] org ${organizationId} has no applied retention bounds — skipping cleanup. Admin must Apply current bounds in the governance editor.`,
     );
     return null;
   }

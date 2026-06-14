@@ -30,6 +30,22 @@ END; $$;
 CREATE INDEX IF NOT EXISTS idx_pw_websites_status ON public_web.websites(status);
 CREATE INDEX IF NOT EXISTS idx_pw_websites_due ON public_web.websites(status, last_scanned_at);
 
+-- Per-org website membership layer.
+--
+-- websites / website_urls / chunks / page_paragraph_hashes remain
+-- deployment-shared content storage (one canonical fetch + embed per
+-- domain, independent of which org requested it). This junction table
+-- tracks WHICH orgs have asked the crawler to track a given domain.
+CREATE TABLE IF NOT EXISTS public_web.website_org_memberships (
+    domain   TEXT        NOT NULL REFERENCES public_web.websites(domain) ON DELETE CASCADE,
+    org_slug TEXT        NOT NULL,
+    added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (domain, org_slug)
+);
+
+CREATE INDEX IF NOT EXISTS idx_website_org_memberships_by_org
+    ON public_web.website_org_memberships (org_slug);
+
 -- Website URLs
 CREATE TABLE IF NOT EXISTS public_web.website_urls (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -68,6 +84,8 @@ CREATE INDEX IF NOT EXISTS idx_pw_pph_domain_hash
     ON public_web.page_paragraph_hashes(domain, paragraph_hash);
 
 -- Chunks (search index)
+-- Readers fall back to chunk_content when core_content = '' until every row
+-- has been reindexed — keep the DEFAULT '' on the overlap columns.
 CREATE TABLE IF NOT EXISTS public_web.chunks (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     domain          TEXT NOT NULL,
@@ -78,6 +96,9 @@ CREATE TABLE IF NOT EXISTS public_web.chunks (
     chunk_content   TEXT NOT NULL,
     embedding       vector,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    core_content    TEXT NOT NULL DEFAULT '',
+    prefix_overlap  TEXT NOT NULL DEFAULT '',
+    suffix_overlap  TEXT NOT NULL DEFAULT '',
     UNIQUE(url, chunk_index),
     FOREIGN KEY (domain, url) REFERENCES public_web.website_urls(domain, url) ON DELETE CASCADE
 );

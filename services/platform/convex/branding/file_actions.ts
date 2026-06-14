@@ -25,7 +25,6 @@ import { ConvexError, v } from 'convex/values';
 
 import { defineAbilityFor } from '../../lib/permissions/ability';
 import { brandingJsonSchema } from '../../lib/shared/schemas/branding';
-import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
@@ -161,28 +160,6 @@ export const readBranding = action({
         `[Branding] Failed to read branding file for "${orgSlug}":`,
         fileResult.message,
       );
-    }
-
-    // The legacy DB-backed branding table predates per-org files and held a
-    // single platform-wide record, so only fall back to it for the default
-    // bucket. A real org with no branding file simply has no custom branding.
-    if (!args.organizationId) {
-      const legacy = await ctx.runQuery(
-        internal.branding.internal_queries.getLegacyBranding,
-        {},
-      );
-      if (legacy) {
-        return {
-          appName: legacy.appName ?? undefined,
-          textLogo: legacy.textLogo ?? undefined,
-          brandColor: legacy.brandColor ?? undefined,
-          accentColor: legacy.accentColor ?? undefined,
-          logoUrl: legacy.logoUrl,
-          faviconLightUrl: legacy.faviconLightUrl,
-          faviconDarkUrl: legacy.faviconDarkUrl,
-          hash: '',
-        };
-      }
     }
 
     return {

@@ -17,7 +17,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { AccountStep } from './steps/account-step';
-import { FinishStep } from './steps/finish-step';
+import { FinishStep, type FinishTarget } from './steps/finish-step';
 import { OpenRouterStep } from './steps/openrouter-step';
 import { PreferencesStep } from './steps/preferences-step';
 import { WorkspaceStep } from './steps/workspace-step';
@@ -63,20 +63,52 @@ export function OnboardingWizard({
     { id: 'finish', label: t('steps.finish') },
   ];
 
+  const completeOnboarding = async () => {
+    if (!createdOrgId) return;
+    try {
+      await setOnboardingCompleted({
+        organizationId: createdOrgId,
+        completed: true,
+      });
+    } catch (err) {
+      console.warn('Failed to mark onboarding complete:', err);
+    }
+  };
+
   const finishOnboarding = async () => {
+    await completeOnboarding();
     if (createdOrgId) {
-      try {
-        await setOnboardingCompleted({
-          organizationId: createdOrgId,
-          completed: true,
-        });
-      } catch (err) {
-        console.warn('Failed to mark onboarding complete:', err);
-      }
       void navigate({ to: '/dashboard/$id', params: { id: createdOrgId } });
     } else {
       void navigate({ to: '/dashboard' });
     }
+  };
+
+  // Finish-step CTAs: mark onboarding complete, then land the user where the
+  // task actually gets done instead of dumping them on an empty dashboard.
+  const finishTo = (target: FinishTarget) => {
+    void (async () => {
+      await completeOnboarding();
+      if (!createdOrgId) {
+        void navigate({ to: '/dashboard' });
+        return;
+      }
+      const params = { id: createdOrgId };
+      switch (target) {
+        case 'providers':
+          void navigate({
+            to: '/dashboard/$id/settings/providers',
+            params,
+          });
+          return;
+        case 'agents':
+          void navigate({ to: '/dashboard/$id/agents', params });
+          return;
+        case 'members':
+          void navigate({ to: '/dashboard/$id/settings/people', params });
+          return;
+      }
+    })();
   };
 
   return (
@@ -111,7 +143,7 @@ export function OnboardingWizard({
             onCreated={setCreatedOrgId}
           />
           <OpenRouterStep organizationId={createdOrgId} />
-          <FinishStep />
+          <FinishStep onFinishTo={finishTo} />
 
           <WizardFooter
             backLabel={tCommon('actions.back')}

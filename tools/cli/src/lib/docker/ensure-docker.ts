@@ -364,6 +364,29 @@ async function launchDockerDesktopMac(): Promise<void> {
   await exec('open', ['-a', 'Docker']);
 }
 
+/**
+ * Start Docker Desktop on Windows without blocking on the GUI process. The
+ * daemon comes up asynchronously and `waitForDockerReady` polls for it. Fail
+ * soft: a missing install path just means the readiness poll times out and the
+ * orchestrator falls through — the parallel of macOS's `open -a Docker`, but
+ * Windows had no launch step at all, so a fresh `winget`/exe install installed
+ * Docker yet never started the engine and dead-ended at the daemon timeout.
+ */
+async function launchDockerDesktopWindows(): Promise<void> {
+  try {
+    await exec('powershell', [
+      '-NoProfile',
+      '-Command',
+      'Start-Process -FilePath "$env:ProgramFiles\\Docker\\Docker\\Docker Desktop.exe"',
+    ]);
+  } catch (err) {
+    logger.warn(
+      `Could not auto-start Docker Desktop: ${err instanceof Error ? err.message : String(err)}. ` +
+        'Start it from the Start menu, then re-run.',
+    );
+  }
+}
+
 async function runWingetInstall(): Promise<void> {
   await exec('winget', [
     'install',
@@ -373,6 +396,7 @@ async function runWingetInstall(): Promise<void> {
     '--accept-source-agreements',
     '--accept-package-agreements',
   ]);
+  await launchDockerDesktopWindows();
 }
 
 async function runDesktopExeInstall(): Promise<void> {
@@ -386,6 +410,7 @@ async function runDesktopExeInstall(): Promise<void> {
       'Start-Process -FilePath $exe -ArgumentList "install","--quiet" -Wait',
     ].join('; '),
   ]);
+  await launchDockerDesktopWindows();
 }
 
 async function runGetDockerScript(): Promise<void> {
@@ -432,6 +457,7 @@ export async function ensureDocker(
       'Docker is installed but its engine is not responding — starting it...',
     );
     if (platform === 'macos') await launchDockerDesktopMac();
+    else if (platform === 'windows') await launchDockerDesktopWindows();
     else if (platform === 'linux' && (await commandExists('systemctl'))) {
       await exec('sudo', ['systemctl', 'start', 'docker']);
     }

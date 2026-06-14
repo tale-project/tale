@@ -116,11 +116,12 @@ export const getPolicy = query({
     }
 
     const policy = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
+      .query('configCache')
+      .withIndex('by_org_domain_key', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('policyType', args.policyType),
+          .eq('domain', 'governance')
+          .eq('key', args.policyType),
       )
       .first();
 
@@ -175,22 +176,24 @@ export const listPolicies = query({
     }> = [];
 
     for await (const policy of ctx.db
-      .query('governancePolicies')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
+      .query('configCache')
+      .withIndex('by_org_domain', (q) =>
+        q.eq('organizationId', args.organizationId).eq('domain', 'governance'),
       )) {
       if (
         restrictToMemberReadable &&
-        !POLICY_TYPES_READABLE_BY_MEMBER.has(policy.policyType)
+        !POLICY_TYPES_READABLE_BY_MEMBER.has(policy.key)
       ) {
         continue;
       }
       policies.push({
         _id: String(policy._id),
-        policyType: policy.policyType,
+        policyType: policy.key,
         config: policy.config,
-        updatedAt: policy.updatedAt,
-        updatedBy: policy.updatedBy,
+        // The cache is file-derived; `syncedAt` is the closest "last changed"
+        // signal. `updatedBy` has no file-layer equivalent (the audit log is
+        // the authoritative who/when record).
+        updatedAt: policy.syncedAt,
       });
     }
 

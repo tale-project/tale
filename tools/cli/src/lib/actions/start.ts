@@ -17,7 +17,6 @@ import { findChildProject, findProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
 import { withLock } from '../state/with-lock';
 import { init } from './init';
-import { legacyLayoutPreflight } from './legacy-layout-preflight';
 
 async function assertDockerAvailable(): Promise<void> {
   try {
@@ -122,17 +121,10 @@ interface StartOptions {
   port?: number;
   host?: string;
   /**
-   * Non-interactive: auto-accept the legacy-layout migration prompt
-   * when a pre-org-first project root is detected. Parallels the
-   * `--yes` flag on `tale deploy`.
+   * Non-interactive: auto-accept prompts (e.g. installing/starting the
+   * Docker engine). Parallels the `--yes` flag on `tale deploy`.
    */
   assumeYes?: boolean;
-  /**
-   * Skip the pre-migration volume snapshot the legacy-layout preflight
-   * takes before `migrateConfigLayout`. Parallels `tale deploy
-   * --skip-backup`; logged loudly because it removes the recovery point.
-   */
-  skipBackup?: boolean;
 }
 
 export async function start(options: StartOptions): Promise<void> {
@@ -171,41 +163,11 @@ export async function start(options: StartOptions): Promise<void> {
     );
   }
 
-  // Resolve project ID from tale.json before any Docker-resource naming —
-  // and before the legacy-layout preflight, whose `migrateConfigLayout`
-  // derives the convex container name from `getProjectId()`. Resolving after
-  // the preflight would crash with "Project context not initialized" once the
-  // preflight reached its container-side phase, leaving the host dirs already
-  // moved. This only reads/writes tale.json (no Docker), so it is safe here.
+  // Resolve project ID from tale.json before any Docker-resource naming.
+  // This only reads/writes tale.json (no Docker), so it is safe here.
   await resolveOrAssignProjectContext(projectDir);
 
-  // Load env before the preflight so BACKUP_KEEP_COUNT/BACKUP_KEEP_DAYS
-  // from the project .env reach the snapshot-rotation defaults.
   const env = loadEnv(projectDir);
-
-  if (options.skipBackup) {
-    logger.warn(
-      '--skip-backup: pre-migration volume snapshots are disabled for this run.',
-    );
-  }
-
-  // Detect legacy flat-layout dirs at the project root (`agents/`,
-  // `workflows/`, …, `retention/`). Under the org-first layout these
-  // belong under `default/<domain>/` — the platform's resolvers won't
-  // read anything at the old paths. The preflight prompts the operator
-  // (default-No) and runs `migrateConfigLayout` in place on accept; CI
-  // runs must pass `--yes`. Replaces the prior hard-fail-with-runbook
-  // shape so an upgrade flows in one command. Before migrating it
-  // snapshots the dev data volumes (the migration rewrites the convex
-  // data volume) unless --skip-backup opted out.
-  await legacyLayoutPreflight({
-    projectDir,
-    assumeYes: options.assumeYes ?? false,
-    context: 'start',
-    backup: options.skipBackup
-      ? 'skip'
-      : { volumePrefix: `${getProjectId()}-dev_` },
-  });
 
   // Zero-prerequisite: install/start Docker if needed. ensureDocker already
   // tried to start/install the engine and returns actionable guidance when it

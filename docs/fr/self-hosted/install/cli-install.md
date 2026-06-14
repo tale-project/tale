@@ -90,8 +90,7 @@ Lance `tale <commande> --help` pour la liste de référence de ta version instal
 - `-d, --detach` — s'exécuter en arrière-plan au lieu de diffuser les logs.
 - `-p, --port <port>` — port HTTPS à exposer (par défaut `443`).
 - `--host <hostname>` — alias d'hôte pour le proxy (par défaut `tale.local`).
-- `-y, --yes` — accepter automatiquement la migration de l'ancien agencement de config si elle est détectée.
-- `--skip-backup` — ignorer le snapshot de volume pris avant cette migration.
+- `-y, --yes` — non-interactif : accepter automatiquement les invites (p. ex. installer ou démarrer Docker).
 
 `tale deploy` — déploiement blue-green sans interruption de la version actuelle du CLI. Au premier déploiement, il demande votre domaine de production et l'e-mail Let's Encrypt (ou passez `--host`).
 

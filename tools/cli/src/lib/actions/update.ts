@@ -21,17 +21,11 @@ import { readProject } from '../project/read-project';
 import type { Checksums } from '../project/types';
 import { writeProject } from '../project/write-project';
 import { writeAgentInstructions } from '../rules/generators';
-import { legacyLayoutPreflight } from './legacy-layout-preflight';
 
 interface UpdateOptions {
   force?: boolean;
   dryRun?: boolean;
   skipHeader?: boolean;
-  /**
-   * Non-interactive: auto-accept the legacy-layout migration prompt
-   * when a pre-org-first project root is detected.
-   */
-  assumeYes?: boolean;
 }
 
 interface UpdateSummary {
@@ -57,14 +51,9 @@ export async function update(options: UpdateOptions): Promise<void> {
   logger.info(`Current version: ${project.cliVersion}`);
   logger.info(`Target version:  ${pkg.version}`);
 
-  // Resolve (or assign) the project ID and prime the module-level singleton
-  // BEFORE the legacy-layout preflight. The preflight may run
-  // `migrateConfigLayout`, whose container-side phase derives the convex
-  // container name from `getProjectId()`; without a primed singleton it throws
-  // "Project context not initialized" — and by then Phase 1 has already
-  // irreversibly moved the host dirs. Legacy projects (pre-ID) get an ID
-  // auto-assigned + persisted here; projects that already have one still need
-  // the singleton primed (the old `!project.id` branch skipped them).
+  // Resolve (or assign) the project ID and prime the module-level singleton.
+  // Projects without an ID get one auto-assigned + persisted here; projects
+  // that already have one still need the singleton primed.
   let assignedId: string | undefined;
   if (!project.id) {
     assignedId = generateProjectId(basename(projectDir));
@@ -77,24 +66,6 @@ export async function update(options: UpdateOptions): Promise<void> {
   }
   if (!options.dryRun && project.id) {
     setProjectId(project.id);
-  }
-
-  // If the project is on the pre-org-first layout, migrate now (before
-  // we write any new `default/<domain>/...` files). Without this gate
-  // `tale update` happily lays the new tree down next to the legacy
-  // dirs, and the subsequent `tale start` then refuses to boot — a
-  // user-visible deadlock. The preflight prompts in interactive runs
-  // and requires `--yes` in non-TTY contexts.
-  if (!options.dryRun) {
-    // Snapshot policy {}: auto-resolve the volume prefix (prod volumes win
-    // over dev) and snapshot before the migration touches the convex data
-    // volume; warns and proceeds when no data volumes exist yet.
-    await legacyLayoutPreflight({
-      projectDir,
-      assumeYes: options.assumeYes ?? false,
-      context: 'update',
-      backup: {},
-    });
   }
 
   // Update reference code
@@ -245,7 +216,4 @@ export async function update(options: UpdateOptions): Promise<void> {
       'Skipped files can be compared against .tale/reference/examples/ to merge changes.',
     );
   }
-
-  // (Auto-migration planning removed — `tale migrate config-layout` is the
-  // only opt-in, manually-run migration now; operators invoke it directly.)
 }

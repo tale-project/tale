@@ -17,20 +17,16 @@
  * `workflows/provision_defaults.ts`.
  */
 
-import { readdir } from 'node:fs/promises';
-import path from 'node:path';
-
 import { v } from 'convex/values';
 
 import { resolvePromptDisplay } from '../../lib/shared/schemas/prompts';
 import { clampToSupportedLocale } from '../../lib/shared/utils/get-organization-default-locale';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
-import { readFileSafe } from '../lib/file_io';
+import { listCatalogArea } from '../lib/config_store/catalog';
 import {
   parsePromptJson,
   promptSlugFromFileName,
-  resolvePromptsDir,
   sha256,
   validatePromptSlug,
 } from './file_utils';
@@ -61,7 +57,6 @@ export const syncDefaultPromptInstallations = internalAction({
     args,
   ): Promise<{ provisioned: number; skipped: number; failed: number }> => {
     const attempt = args.attempt ?? 1;
-    const dir = resolvePromptsDir(args.orgSlug);
 
     // Resolve the org's language: explicit arg wins (org-creation hook passes
     // the wizard choice), else read the org's `defaultLocale` metadata.
@@ -72,9 +67,9 @@ export const syncDefaultPromptInstallations = internalAction({
           { organizationId: args.organizationId },
         );
 
-    let entries;
+    let files;
     try {
-      entries = await readdir(dir, { withFileTypes: true });
+      files = await listCatalogArea('prompts', args.orgSlug);
     } catch {
       // Scaffold may still be copying the catalog — retry a bounded number
       // of times, then give up quietly (the ops migration can re-run).
@@ -97,14 +92,11 @@ export const syncDefaultPromptInstallations = internalAction({
     let skipped = 0;
     let failed = 0;
 
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
-      const promptSlug = promptSlugFromFileName(entry.name);
+    for (const { relativePath, content } of files) {
+      const promptSlug = promptSlugFromFileName(relativePath);
       if (!validatePromptSlug(promptSlug)) continue;
 
       try {
-        const content = await readFileSafe(path.join(dir, entry.name));
-        if (!content) continue;
         const prompt = parsePromptJson(content);
         if (prompt.metadata?.autoInstall !== true) continue;
 

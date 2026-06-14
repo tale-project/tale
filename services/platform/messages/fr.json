@@ -2202,7 +2202,10 @@
       "hasKeyQuestion": "Tu n'as pas encore de clé ?",
       "getKeyLink": "En créer une sur OpenRouter",
       "saveError": "Impossible de se connecter à OpenRouter avec cette clé. Vérifie-la et réessaie.",
-      "noModelsError": "Aucun modèle n'était disponible pour cette clé."
+      "noModelsError": "Aucun modèle n'était disponible pour cette clé.",
+      "invalidKeyError": "Cela ne ressemble pas à une clé OpenRouter — elle devrait commencer par « sk-or- ». Copie-la depuis openrouter.ai/keys.",
+      "authError": "OpenRouter a refusé cette clé. Vérifie qu'elle a été copiée en entier et qu'elle est toujours active.",
+      "networkError": "Impossible de joindre OpenRouter. Vérifie ta connexion et réessaie."
     },
     "finish": {
       "heading": "Tout est prêt",
@@ -2210,6 +2213,9 @@
       "providerItem": "Connecte un fournisseur d'IA pour alimenter les agents et le chat.",
       "agentItem": "Crée ton premier agent.",
       "inviteItem": "Invite des coéquipiers à collaborer.",
+      "providerCta": "Connecter un fournisseur",
+      "agentCta": "Créer un agent",
+      "inviteCta": "Inviter des coéquipiers",
       "goToDashboard": "Aller au tableau de bord"
     }
   },
@@ -3932,6 +3938,8 @@
     "lockoutDetails": "{consecutiveFailures} tentatives de connexion échouées depuis {ip}.",
     "auditIntegrityFailed": "Échec du contrôle d'intégrité du journal d'audit",
     "auditIntegrityFailedDetails": "Nous n'avons pas pu vérifier l'intégrité du journal d'audit de cette organisation : {reason}. Cela peut indiquer une altération — examine la situation dès que possible.",
+    "auditIntegrityUnverifiable": "Les signatures du journal d'audit ne peuvent pas être vérifiées",
+    "auditIntegrityUnverifiableDetails": "Les points de contrôle du journal d'audit de cette organisation sont signés, mais aucune clé de signature n'est configurée pour les vérifier : {reason}. Définis TALE_AUDIT_SIGNING_KEY pour rétablir la protection contre l'altération — il s'agit d'une lacune de configuration, pas d'une altération détectée.",
     "dsarScheduled": "Demande d'effacement planifiée",
     "dsarScheduledBody": "Une demande d'effacement a été déposée concernant un membre de cette organisation. Elle s'exécute dans {coolingOffHours} heures — ouvre le reçu pour la consulter ou l'annuler.",
     "dsarApprovalNeeded": "Demande d'effacement en attente de ton approbation",

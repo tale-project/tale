@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "maxConcurrentRunsOrg": 25,
+  "maxRunsPerTaskPerHour": 10,
+  "budgetPauseAction": "reassign_to_manager"
+}

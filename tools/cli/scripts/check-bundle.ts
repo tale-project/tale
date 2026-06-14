@@ -4,10 +4,10 @@
  * class where a `fs.readFile(...)`-from-`import.meta.url` pattern slips
  * past local-source testing but ENOENTs from the shipped binary.
  *
- * History: `tale migrate config-layout` shipped broken in the binary
- * because the migrate script was loaded at runtime via `readFile` instead
- * of inlined as a TS template literal. `bun --compile` does not bundle
- * runtime fs reads. This check makes a recurrence loud.
+ * History: a CLI command shipped broken in the binary because its bash
+ * script was loaded at runtime via `readFile` instead of inlined as a TS
+ * template literal. `bun --compile` does not bundle runtime fs reads. This
+ * check makes a recurrence loud.
  *
  * Run: bun run scripts/check-bundle.ts dist/tale[.exe]
  */
@@ -19,8 +19,9 @@ import { resolve } from 'node:path';
 // Pair each substring with the action whose script contains it so
 // the failure message points the operator at the right place.
 const REQUIRED_MARKERS: ReadonlyArray<readonly [string, string]> = [
-  ['MIGRATE_PLAN', 'migrate-config-layout.ts (MIGRATE_SCRIPT)'],
-  ['MIGRATE_SUMMARY', 'migrate-config-layout.ts (MIGRATE_SCRIPT)'],
+  // run-migrations.ts inlines its bash via MIGRATE_SCRIPT; pin the convex
+  // function reference so a refactor that splits it back out fails here.
+  ['migrations:runAll', 'run-migrations.ts (MIGRATE_SCRIPT)'],
   // reseed-all-orgs.ts already inlines its bash via RESEED_SCRIPT; pin it
   // so a future refactor that splits it back out also fails this check.
   [
@@ -70,7 +71,7 @@ function main(): void {
     '\nThe likely cause is a runtime `fs.readFile(import.meta.url + ...)` ' +
       'or similar — Bun --compile does not bundle runtime asset reads. ' +
       'Inline the asset as a TS template literal (see reseed-all-orgs.ts ' +
-      'RESEED_SCRIPT and migrate-config-layout.ts MIGRATE_SCRIPT).',
+      'RESEED_SCRIPT and run-migrations.ts MIGRATE_SCRIPT).',
   );
   process.exit(1);
 }

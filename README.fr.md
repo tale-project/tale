@@ -24,11 +24,17 @@ Mets en commun leurs connaissances, délègue des tâches et construis ton essai
 
 Tale est une **plateforme IA auto-hébergée** qui transforme les agents et CLI que ton équipe utilise déjà en une force de travail coordonnée. Donne-leur une base de connaissances partagée, branche tes outils et tes intégrations, et délègue le travail entre eux — agents, automatisations et un inbox unifié, le tout sur ta propre infrastructure. Installe le CLI et lance une seule commande pour démarrer.
 
+**Choisis ta voie :**
+
+- **Essayer Tale en local** — installe la CLI et lance deux commandes sur ta propre machine. Commence par [Démarrage rapide](#démarrage-rapide) ci-dessous.
+- **Utiliser Tale Cloud** — laisse Tale exploiter la stack, inscris-toi et embarque ton équipe. Commence par [Onboarding Cloud](docs/fr/cloud/onboarding.md).
+- **Contribuer** — fais tourner Tale depuis le code source et renvoie une modification. Commence par [Configuration contributeur](docs/fr/develop/contributor-setup.md).
+
 ## Démarrage rapide
 
 Fais tourner Tale sur ta machine en trois commandes — installe la CLI, échafaude un projet, démarre-le. La CLI installe Docker s'il est absent et génère chaque secret pour toi, donc il n'y a rien à installer au préalable ni à éditer à la main.
 
-**Prérequis :** aucun. L'installeur met en place Docker pour toi. Apporte une [clé API OpenRouter](https://openrouter.ai) (ou tout fournisseur compatible OpenAI) quand tu veux connecter un modèle — l'assistant de configuration intégré te guide, et tu peux l'ajouter plus tard.
+**Prérequis pour un essai local : aucun.** L'installeur met en place Docker pour toi, et `tale init` génère chaque secret — tu n'as rien à apporter pour faire tourner la stack. Une [clé API OpenRouter](https://openrouter.ai) (ou tout fournisseur compatible OpenAI) est optionnelle et n'est nécessaire qu'avant qu'un agent puisse répondre : tu l'ajoutes dans l'app après l'inscription, dans l'assistant de configuration ou sous **Paramètres → Fournisseurs IA**. `tale init` ne la demande pas.
 
 > **Windows avec backend Hyper-V :** vérifie que ton lecteur de projet est partagé dans Docker Desktop Settings > Resources > File Sharing. Le backend WSL2 (par défaut) ne demande aucune configuration supplémentaire.
 
@@ -242,7 +248,7 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 
 ## Contribuer
 
-Lis [`AGENTS.md`](AGENTS.md) avant ton premier PR — c'est le contrat unique pour le style de code, la sécurité, les tests, l'i18n et la documentation à travers tous les workspaces. Le skill [`docs`](.agents/docs/AGENTS.md) couvre le site de doc ; le skill [`translation`](.agents/translation/AGENTS.md) les règles de traduction inter-langues. Lance `bun run check` (format, lint, typecheck, tests) avant d'ouvrir un PR ; le [pull request template](.github/pull_request_template.md) liste le reste de la checklist pre-merge.
+Nouveau dans le dépôt ? [Configuration contributeur](docs/fr/develop/contributor-setup.md) est la source unique de vérité pour faire tourner le code source en local — prérequis, `bun install`, le pré-vol `bun run setup:check`, `bun run dev` et les services Python. Lis [`AGENTS.md`](AGENTS.md) avant ton premier PR — c'est le contrat unique pour le style de code, la sécurité, les tests, l'i18n et la documentation à travers tous les workspaces. Le skill [`docs`](.agents/docs/AGENTS.md) couvre le site de doc ; le skill [`translation`](.agents/translation/AGENTS.md) les règles de traduction inter-langues. Lance `bun run check` (format, lint, typecheck, tests) avant d'ouvrir un PR ; le [pull request template](.github/pull_request_template.md) liste le reste de la checklist pre-merge.
 
 ---
 

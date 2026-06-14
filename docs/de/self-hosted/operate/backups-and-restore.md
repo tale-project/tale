@@ -21,9 +21,9 @@ Jeder Snapshot ist ein Verzeichnis mit einem Namen wie `20260611-142530-deploy` 
 
 ## Wann Snapshots genommen werden
 
-`tale deploy` snapshotet vor seinem ersten mutierenden Schritt, wann immer der Deploy Daten ändern kann: Die Zielversion weicht von der laufenden ab, ein Host-Config-Push (`--override` / `--override-all`) ist angefordert oder eine Legacy-Layout-Migration steht aus. `tale start` und `tale update` snapshoten direkt vor der Config-Layout-Migration. Während jedes Volume getart wird, sind die Container, die es nutzen, für ein paar Sekunden pausiert, damit das Archiv crash-konsistent ist — eine Live-Kopie eines laufenden Postgres-Verzeichnisses ist nicht wiederherstellbar.
+`tale deploy` snapshotet vor seinem ersten mutierenden Schritt, wann immer der Deploy Daten ändern kann: Die Zielversion weicht von der laufenden ab oder ein Host-Config-Push (`--override` / `--override-all`) ist angefordert. Während jedes Volume getart wird, sind die Container, die es nutzen, für ein paar Sekunden pausiert, damit das Archiv crash-konsistent ist — eine Live-Kopie eines laufenden Postgres-Verzeichnisses ist nicht wiederherstellbar.
 
-Ein gescheiterter Snapshot bricht den Deploy ab. `--skip-backup` übersteuert das auf `tale deploy` und `tale start` — dann sind deine eigenen externen Backups der einzige Recovery-Pfad, und genau deshalb loggt das Flag eine laute Warnung.
+Ein gescheiterter Snapshot bricht den Deploy ab. `--skip-backup` übersteuert das auf `tale deploy` — dann sind deine eigenen externen Backups der einzige Recovery-Pfad, und genau deshalb loggt das Flag eine laute Warnung.
 
 ```bash
 # Jetzt sofort einen Snapshot nehmen

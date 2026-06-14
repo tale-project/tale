@@ -2201,7 +2201,10 @@
       "hasKeyQuestion": "Don't have a key yet?",
       "getKeyLink": "Create one at OpenRouter",
       "saveError": "We couldn't connect to OpenRouter with that key. Check it and try again.",
-      "noModelsError": "No models were available for that key."
+      "noModelsError": "No models were available for that key.",
+      "invalidKeyError": "That doesn't look like an OpenRouter key — it should start with \"sk-or-\". Copy it from openrouter.ai/keys.",
+      "authError": "OpenRouter rejected that key. Check it was copied in full and is still active.",
+      "networkError": "Couldn't reach OpenRouter. Check your connection and try again."
     },
     "finish": {
       "heading": "You're all set",
@@ -2209,6 +2212,9 @@
       "providerItem": "Connect an AI provider to power agents and chat.",
       "agentItem": "Create your first agent.",
       "inviteItem": "Invite teammates to collaborate.",
+      "providerCta": "Connect a provider",
+      "agentCta": "Create an agent",
+      "inviteCta": "Invite teammates",
       "goToDashboard": "Go to dashboard"
     }
   },
@@ -3931,6 +3937,8 @@
     "lockoutDetails": "{consecutiveFailures} failed sign-in attempts from {ip}.",
     "auditIntegrityFailed": "Audit log integrity check failed",
     "auditIntegrityFailedDetails": "We couldn't verify the integrity of this organization's audit log: {reason}. This can indicate tampering — please investigate as soon as possible.",
+    "auditIntegrityUnverifiable": "Audit log signatures can't be verified",
+    "auditIntegrityUnverifiableDetails": "This organization's audit log checkpoints are signed, but no signing key is configured to verify them: {reason}. Set TALE_AUDIT_SIGNING_KEY to restore tamper-evidence — this is a configuration gap, not detected tampering.",
     "dsarScheduled": "Erasure request scheduled",
     "dsarScheduledBody": "An erasure request was filed for a member of this organization. It runs in {coolingOffHours} hours — open the receipt to review or cancel it.",
     "dsarApprovalNeeded": "Erasure request awaiting your approval",

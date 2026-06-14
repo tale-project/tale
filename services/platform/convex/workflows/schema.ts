@@ -103,9 +103,6 @@ export const wfStepDefsTable = defineTable({
   order: v.number(),
   nextSteps: v.record(v.string(), v.string()),
   config: stepConfigValidator,
-  // @deprecated — unused legacy fields, kept for schema compatibility
-  inputMapping: v.optional(v.record(v.string(), jsonValueValidator)),
-  outputMapping: v.optional(v.record(v.string(), jsonValueValidator)),
   metadata: v.optional(jsonRecordValidator),
 })
   .index('by_definition', ['wfDefinitionId'])

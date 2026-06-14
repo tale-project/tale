@@ -22,10 +22,9 @@ export const documentsTable = defineTable({
   contentHash: v.optional(v.string()),
   historyFiles: v.optional(v.array(v.id('_storage'))),
   teamId: v.optional(v.string()),
-  /** @deprecated Use teamId instead. Kept for backward compatibility during migration. */
+  // Full list of team IDs the document belongs to (multi-team). `teamId`
+  // mirrors the first entry for single-team consumers.
   teamTags: v.optional(v.array(v.string())),
-  /** @deprecated Removed in single-team model. Kept for backward compatibility during migration. */
-  sharedWithTeamIds: v.optional(v.array(v.string())),
   /**
    * Project this document belongs to. Mutually exclusive with `teamId`:
    * a doc is either a project doc, a team library doc, or an org library
@@ -34,33 +33,6 @@ export const documentsTable = defineTable({
    * RAG retrieval unions project docs via `getAgentScopedFileIds`.
    */
   projectId: v.optional(v.id('projects')),
-  /**
-   * @deprecated RAG indexing status is now canonical on
-   * `fileMetadata.ragStatus` (join: `documents.fileId == fileMetadata.storageId`).
-   * No longer written; read via `getDocumentRagProjection`. Kept optional for
-   * backward compatibility with existing rows.
-   */
-  ragInfo: v.optional(
-    v.object({
-      status: v.union(
-        v.literal('queued'),
-        v.literal('running'),
-        v.literal('completed'),
-        v.literal('failed'),
-      ),
-      indexedAt: v.optional(v.number()),
-      /** @deprecated No longer written; use document.fileId directly. Kept for backward compatibility. */
-      indexedFileId: v.optional(v.id('_storage')),
-      error: v.optional(v.string()),
-      /** @deprecated No longer written, kept for backward compatibility with existing data. */
-      jobId: v.optional(v.string()),
-    }),
-  ),
-  /**
-   * @deprecated Use `fileMetadata.ragStatus === 'completed'` (projected via
-   * `getDocumentRagProjection`). No longer written.
-   */
-  indexed: v.optional(v.boolean()),
   scannedPagesDetected: v.optional(v.number()),
   ocrApplied: v.optional(v.boolean()),
   sourceCreatedAt: v.optional(v.number()),
@@ -102,10 +74,6 @@ export const documentsTable = defineTable({
   // .DS_Store, index.html) makes the (org,title) collect O(all-same-name).
   .index('by_org_title_folder', ['organizationId', 'title', 'folderId'])
   .index('by_organizationId_and_fileId', ['organizationId', 'fileId'])
-  // @deprecated unused — RAG completion is now queried via fileMetadata
-  // `by_organizationId_and_ragStatus`. Kept (deprecate-don't-delete) so
-  // existing data + any in-flight code referencing it stays valid.
-  .index('by_organizationId_and_indexed', ['organizationId', 'indexed'])
   .index('by_organizationId_and_folderPath', ['organizationId', 'folderPath'])
   // Projects feature: list documents attached to a project.
   .index('by_organizationId_and_projectId', ['organizationId', 'projectId']);

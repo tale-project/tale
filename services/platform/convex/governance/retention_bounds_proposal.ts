@@ -1,6 +1,6 @@
 /**
  * Public V8 actions for the operator-side retention bounds proposal
- * gate. The JSON file under `$TALE_CONFIG_DIR/<orgSlug>/retention.json`
+ * gate. The JSON file under `$TALE_CONFIG_DIR/<orgSlug>/governance/retention.json`
  * (org-first layout) and `TALE_RETENTION_*` env tightening are no
  * longer directives — they're proposals. Cleanup uses
  * `retentionAppliedBounds.appliedBounds`,
@@ -53,15 +53,21 @@ async function loadOrgRetentionConfig(
   ctx: ActionCtx,
   orgSlug: string,
 ): Promise<RetentionDefaultsConfig | null> {
+  // readConfigArea validates retention.json via parseRetentionJson before
+  // returning; the generic `unknown` result is therefore a RetentionDefaultsConfig.
   const own = await ctx.runAction(
-    internal.lib.config_store.actions.readRetentionConfig,
-    { orgSlug },
+    internal.lib.config_store.actions.readConfigArea,
+    { area: 'retention', orgSlug },
   );
-  if (own) return own;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by readConfigArea
+  if (own) return own as RetentionDefaultsConfig;
   if (orgSlug === 'default') return null;
-  return ctx.runAction(internal.lib.config_store.actions.readRetentionConfig, {
-    orgSlug: 'default',
-  });
+  const fallback = await ctx.runAction(
+    internal.lib.config_store.actions.readConfigArea,
+    { area: 'retention', orgSlug: 'default' },
+  );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by readConfigArea
+  return fallback as RetentionDefaultsConfig | null;
 }
 
 /**
@@ -85,7 +91,7 @@ async function computeEffectiveAppliedBounds(
     throw new ConvexError({
       code: 'RETENTION_CONFIG_MISSING',
       message:
-        'Retention config not yet installed. Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json then reload.',
+        'Retention config not yet installed. Copy examples/default/governance/retention.json to $TALE_CONFIG_DIR/default/governance/retention.json then reload.',
     });
   }
   let all;

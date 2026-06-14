@@ -1,4 +1,4 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
@@ -117,5 +117,5 @@ export function useNeedsAttention(organizationId: string) {
 }
 
 export function useSetTaskAutomation() {
-  return useConvexMutation(api.governance.mutations.setTaskAutomationEnabled);
+  return useConvexAction(api.governance.mutations.setTaskAutomationEnabled);
 }

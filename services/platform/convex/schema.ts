@@ -5,10 +5,6 @@ import {
   agentGuardrailNoticesTable,
   agentRunCountersTable,
 } from './agents/guardrails/schema';
-import {
-  customAgentsTable,
-  customAgentWebhooksTable,
-} from './agents/legacy_schema';
 import { agentBindingsTable, autoRouteCacheTable } from './agents/schema';
 import {
   agentWebhooksTable,
@@ -16,10 +12,6 @@ import {
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
-import {
-  brandingBindingsTable,
-  brandingSettingsLegacyTable,
-} from './branding/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
   notificationPreferencesTable,
@@ -40,7 +32,9 @@ import {
   activeErasureClaimsTable,
   activeLegalHoldClaimsTable,
   auditLogCheckpointsTable,
+  dsarPolicyPendingChangesTable,
   gdprErasureRequestsTable,
+  governanceCacheTable,
   governancePoliciesTable,
   governanceSecretsTable,
   legalHoldReleaseRequestsTable,
@@ -62,7 +56,7 @@ import {
 } from './integrations/slack/schema';
 import { slackInstallationsTable } from './integrations/slack_installations_schema';
 import { knowledgeEntriesTable } from './knowledge_entries/schema';
-import { llmResponseCacheTable } from './lib/response_cache/schema';
+import { configCacheTable } from './lib/config_cache/schema';
 import {
   loginAttemptsTable,
   loginBlockCountersTable,
@@ -148,7 +142,27 @@ export default defineSchema({
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
+  /**
+   * @deprecated Governance policies are now file-based (source of truth in
+   * `$TALE_CONFIG_DIR/<org>/governance/`, mirrored to `configCache`). No code
+   * reads or writes this table anymore (the legacy `upsertPolicy` mutation was
+   * removed). Retained as a table def for schema-validation compatibility on
+   * deployments that still hold rows — same pattern as `llmResponseCache` /
+   * `brandingSettings`. Drop the def in a follow-up after a one-shot row-cleanup
+   * migration runs on existing deployments.
+   */
   governancePolicies: governancePoliciesTable,
+  // Generic file→cache mirror for all `v8-sync` config domains (governance
+  // today). Source of truth is the per-org JSON files; this is re-derivable.
+  // Replaces the former governance-only `governanceCache`. See
+  // `lib/config_cache/schema.ts`.
+  configCache: configCacheTable,
+  /**
+   * @deprecated Superseded by `configCache` (domain `'governance'`). No code
+   * reads/writes it; retained only for schema-validation compatibility on
+   * deployments with prior rows (a re-derivable cache). Drop in a follow-up.
+   */
+  governanceCache: governanceCacheTable,
   governanceSecrets: governanceSecretsTable,
   legalHolds: legalHoldsTable,
   activeLegalHoldClaims: activeLegalHoldClaimsTable,
@@ -157,6 +171,7 @@ export default defineSchema({
   auditLogCheckpoints: auditLogCheckpointsTable,
   retentionRuns: retentionRunsTable,
   retentionPolicyPendingChanges: retentionPolicyPendingChangesTable,
+  dsarPolicyPendingChanges: dsarPolicyPendingChangesTable,
   retentionAppliedBounds: retentionAppliedBoundsTable,
   gdprErasureRequests: gdprErasureRequestsTable,
   activeErasureClaims: activeErasureClaimsTable,
@@ -168,19 +183,12 @@ export default defineSchema({
   promptDefaultProvisions: promptDefaultProvisionsTable,
   messageFeedback: messageFeedbackTable,
   mcpServers: mcpServersTable,
-  brandingBindings: brandingBindingsTable,
-  /** @deprecated Retained for backward compatibility with existing data. */
-  brandingSettings: brandingSettingsLegacyTable,
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
   agentBindings: agentBindingsTable,
   autoRouteCache: autoRouteCacheTable,
   agentWebhooks: agentWebhooksTable,
   agentWebhookUserThreads: agentWebhookUserThreadsTable,
-  /** @deprecated Retained for backward compatibility with existing data. */
-  customAgents: customAgentsTable,
-  /** @deprecated Retained for backward compatibility with existing data. */
-  customAgentWebhooks: customAgentWebhooksTable,
   customers: customersTable,
   documents: documentsTable,
   fileMetadata: fileMetadataTable,
@@ -193,8 +201,6 @@ export default defineSchema({
   slackThreads: slackThreadsTable,
   slackEventDedup: slackEventDedupTable,
   externalIdentities: externalIdentitiesTable,
-  /** @deprecated Retained only for schema-validation compatibility on deployments with prior cache rows. Read/write code removed in 83a3c28da. */
-  llmResponseCache: llmResponseCacheTable,
   loginAttempts: loginAttemptsTable,
   loginBlockCounters: loginBlockCountersTable,
   messageMetadata: messageMetadataTable,

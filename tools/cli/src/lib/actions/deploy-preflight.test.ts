@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import { validateTlsPrereqs } from './deploy-preflight';
+import {
+  checkProductionReadiness,
+  validateTlsPrereqs,
+} from './deploy-preflight';
 
 describe('validateTlsPrereqs', () => {
   test('selfsigned is always fine', () => {
@@ -60,5 +63,58 @@ describe('validateTlsPrereqs', () => {
       tlsEmail: '',
     });
     expect(issues.length).toBe(2);
+  });
+});
+
+describe('checkProductionReadiness (advisory, non-blocking)', () => {
+  test('local trial host → no advisories (N/A)', () => {
+    expect(
+      checkProductionReadiness({
+        HOST: 'localhost',
+        DB_PASSWORD: 'tale_password_change_me',
+      }),
+    ).toEqual([]);
+  });
+
+  test('unset host → no advisories (N/A)', () => {
+    expect(checkProductionReadiness({})).toEqual([]);
+  });
+
+  test('production host with placeholder DB password → advises', () => {
+    const issues = checkProductionReadiness({
+      HOST: 'demo.tale.dev',
+      DB_PASSWORD: 'tale_password_change_me',
+      TALE_AUDIT_SIGNING_KEY: 'set',
+    });
+    expect(issues.length).toBe(1);
+    expect(issues[0].message).toContain('DB_PASSWORD');
+  });
+
+  test('production host with missing audit signing key → advises', () => {
+    const issues = checkProductionReadiness({
+      HOST: 'demo.tale.dev',
+      DB_PASSWORD: 'a-strong-password',
+    });
+    expect(issues.length).toBe(1);
+    expect(issues[0].message).toContain('TALE_AUDIT_SIGNING_KEY');
+  });
+
+  test('production host, both footguns → two advisories', () => {
+    expect(
+      checkProductionReadiness({
+        HOST: 'demo.tale.dev',
+        DB_PASSWORD: 'tale_password_change_me',
+      }),
+    ).toHaveLength(2);
+  });
+
+  test('production host, fully configured → no advisories', () => {
+    expect(
+      checkProductionReadiness({
+        HOST: 'demo.tale.dev',
+        DB_PASSWORD: 'a-strong-password',
+        TALE_AUDIT_SIGNING_KEY: 'deadbeef',
+      }),
+    ).toEqual([]);
   });
 });

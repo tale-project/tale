@@ -52,6 +52,49 @@ export function validateTlsPrereqs(config: TlsConfig): PreflightIssue[] {
   return issues;
 }
 
+/** The example placeholder shipped in `.env.example` — never safe for prod. */
+const PLACEHOLDER_DB_PASSWORD = 'tale_password_change_me';
+
+interface AdvisoryIssue {
+  message: string;
+  fix?: string;
+}
+
+/**
+ * Non-blocking production-readiness advisories. These NEVER fail a deploy (a
+ * real domain may legitimately differ), but surfacing them inline catches the
+ * common "deployed straight from a hand-edited .env.example" footguns:
+ *
+ *  - a placeholder DB password still in place, and
+ *  - a missing audit signing key (which leaves the audit chain unsigned and
+ *    the daily integrity cron unable to verify it).
+ *
+ * Only relevant for a real (non-local) HOST — a localhost trial doesn't need
+ * any of this. Pure so it's unit-testable; the caller renders the warnings.
+ */
+export function checkProductionReadiness(
+  env: NodeJS.ProcessEnv,
+): AdvisoryIssue[] {
+  const host = (env.HOST ?? '').trim();
+  if (host === '' || isLocalHostname(host)) return []; // local trial — N/A
+
+  const issues: AdvisoryIssue[] = [];
+  if ((env.DB_PASSWORD ?? '').trim() === PLACEHOLDER_DB_PASSWORD) {
+    issues.push({
+      message: 'DB_PASSWORD is still the example placeholder.',
+      fix: 'Set a strong unique DB_PASSWORD in .env (Postgres reads it only on first init).',
+    });
+  }
+  if (!(env.TALE_AUDIT_SIGNING_KEY ?? '').trim()) {
+    issues.push({
+      message:
+        'TALE_AUDIT_SIGNING_KEY is not set — audit checkpoints will be unsigned (tamper-evidence off).',
+      fix: 'Re-run the CLI to auto-generate it, or set TALE_AUDIT_SIGNING_KEY=$(openssl rand -hex 32).',
+    });
+  }
+  return issues;
+}
+
 interface DeployPreflightOptions {
   /** Read TLS settings from here (defaults to process.env after loadEnv). */
   env?: NodeJS.ProcessEnv;
@@ -100,6 +143,14 @@ export async function runDeployPreflight(
   if (sandbox.status !== 'ok') {
     logger.warn(`${sandbox.name}: ${sandbox.detail}`);
     if (sandbox.fix) logger.info(`  fix: ${sandbox.fix}`);
+  }
+
+  // 4. Advisory, non-blocking: production-readiness footguns (placeholder DB
+  //    password, missing audit signing key). Warn so the operator sees them
+  //    inline, but never block — works the same in TTY and headless CI.
+  for (const issue of checkProductionReadiness(env)) {
+    logger.warn(issue.message);
+    if (issue.fix) logger.info(`  fix: ${issue.fix}`);
   }
 
   if (blocking.length === 0) {

@@ -40,6 +40,8 @@
     "knip": "bunx knip --fix && bunx turbo run format",
     "knip:check": "bunx knip",
     "setup": "bunx turbo run setup",
+    "setup:check": "bun services/platform/scripts/setup-check.ts",
+    "setup:clean": "bun services/platform/scripts/setup-clean.ts",
     "docker:build": "bunx turbo run docker:build",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",

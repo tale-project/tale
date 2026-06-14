@@ -10,6 +10,8 @@ Le produit ship en deux éditions ; chaque fonctionnalité, chaque API et chaque
 
 Nouveau ici ? Le chemin le plus rapide vers une instance qui tourne est le [démarrage rapide auto-hébergé](/fr/self-hosted/install/quickstart) — installe la CLI, puis `tale init` et `tale start`, et tu es connecté à ta propre organisation en quelques minutes.
 
+Choisis l'entrée qui correspond à ce pour quoi tu es là. Un **utilisateur cloud** qui veut que Tale exploite la stack commence à [Cloud](/fr/cloud). Un **auto-hébergeur** qui monte une instance sur sa propre infrastructure commence à [Auto-hébergé](/fr/self-hosted). Un **bâtisseur de plateforme** — agents, automatisations, intégrations — vit dans [Plateforme](/fr/platform), la référence canonique des fonctionnalités. Un **opérateur** qui garde une instance auto-hébergée à jour et observée va à [Exploiter](/fr/self-hosted/operate/container-architecture). Un **contributeur** qui modifie le code source commence par [Configuration contributeur](/fr/develop/contributor-setup).
+
 ## Pages de cette section
 
 **[Cloud](/fr/cloud)** — Tale exploite la stack ; choisis cette voie quand exploiter de l'infrastructure n'est pas l'endroit où ton équipe doit passer ses heures.

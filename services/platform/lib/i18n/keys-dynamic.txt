@@ -24,6 +24,8 @@ notifications.accountLocked
 notifications.lockoutDetails
 notifications.auditIntegrityFailed
 notifications.auditIntegrityFailedDetails
+notifications.auditIntegrityUnverifiable
+notifications.auditIntegrityUnverifiableDetails
 notifications.dsarScheduled
 notifications.dsarScheduledBody
 notifications.dsarScheduledByBody

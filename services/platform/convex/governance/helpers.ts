@@ -1,4 +1,4 @@
-import type { GenericQueryCtx } from 'convex/server';
+import type { GenericDatabaseReader, GenericQueryCtx } from 'convex/server';
 
 import {
   DEFAULT_PASSWORD_POLICY,
@@ -12,6 +12,39 @@ import {
 } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-guards';
 import type { DataModel } from '../_generated/dataModel';
+import { readConfigCacheRow } from '../lib/config_cache/read';
+
+/** The readable subset of a governance policy stored in `configCache`
+ *  (the file-derived mirror that V8 readers consult). */
+export interface PolicyRow {
+  config: unknown;
+  enabled?: boolean;
+  effectiveAt?: number;
+}
+
+/**
+ * Read the effective governance policy for `(organizationId, policyType)`.
+ *
+ * Thin governance-facing facade over the generic config cache: the source of
+ * truth is the per-org JSON files under `$TALE_CONFIG_DIR/<orgSlug>/governance/`,
+ * mirrored into the `configCache` table (domain `'governance'`) by
+ * `lib/config_cache/actions.ts::syncConfigDomainFromFiles` (on every write + on
+ * scaffold/reseed + periodic reconcile) so V8 code — which cannot read the
+ * filesystem — has a synchronous read path. Returns `null` on a cache miss;
+ * callers fall back to the policy's schema default, exactly as they did for a
+ * missing DB row before the migration.
+ *
+ * Takes `db` (a `GenericDatabaseReader`) rather than a query ctx so both query
+ * and mutation/better-auth-hook call sites can share it (a mutation's
+ * `DatabaseWriter` is assignable to `DatabaseReader`).
+ */
+export async function readPolicyRow(
+  db: GenericDatabaseReader<DataModel>,
+  organizationId: string,
+  policyType: PolicyType,
+): Promise<PolicyRow | null> {
+  return readConfigCacheRow(db, organizationId, 'governance', policyType);
+}
 
 /**
  * Read a governance policy config for a given organization and type.
@@ -22,12 +55,7 @@ export async function readPolicyConfig<T>(
   organizationId: string,
   policyType: PolicyType,
 ): Promise<T | null> {
-  const policy = await ctx.db
-    .query('governancePolicies')
-    .withIndex('by_org_policyType', (q) =>
-      q.eq('organizationId', organizationId).eq('policyType', policyType),
-    )
-    .first();
+  const policy = await readPolicyRow(ctx.db, organizationId, policyType);
 
   if (!policy) {
     return null;
@@ -52,14 +80,7 @@ export async function getPasswordPolicyRow(
   ctx: GenericQueryCtx<DataModel>,
   organizationId: string,
 ): Promise<{ policy: PasswordPolicyConfig; effectiveAt: number | null }> {
-  const row = await ctx.db
-    .query('governancePolicies')
-    .withIndex('by_org_policyType', (q) =>
-      q
-        .eq('organizationId', organizationId)
-        .eq('policyType', 'password_policy'),
-    )
-    .first();
+  const row = await readPolicyRow(ctx.db, organizationId, 'password_policy');
 
   if (!row) {
     return { policy: DEFAULT_PASSWORD_POLICY, effectiveAt: null };
@@ -95,14 +116,7 @@ export async function getTwoFactorPolicy(
   ctx: GenericQueryCtx<DataModel>,
   organizationId: string,
 ): Promise<TwoFactorPolicyConfig> {
-  const row = await ctx.db
-    .query('governancePolicies')
-    .withIndex('by_org_policyType', (q) =>
-      q
-        .eq('organizationId', organizationId)
-        .eq('policyType', 'two_factor_policy'),
-    )
-    .first();
+  const row = await readPolicyRow(ctx.db, organizationId, 'two_factor_policy');
 
   if (!row) return { ...DEFAULT_TWO_FACTOR_POLICY };
 

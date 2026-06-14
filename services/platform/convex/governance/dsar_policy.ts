@@ -8,9 +8,18 @@ import {
 } from '../../lib/shared/schemas/governance';
 import { internal } from '../_generated/api';
 import type { DataModel } from '../_generated/dataModel';
-import { internalMutation, mutation, query } from '../_generated/server';
+import {
+  action,
+  internalAction,
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { readConfigCacheRow } from '../lib/config_cache/read';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { writeNotificationForOrgs } from '../notifications/helpers';
 
@@ -20,16 +29,17 @@ const HOUR_MS = 60 * 60 * 1000;
  * Loosen-grace window for weakening dsar_governance policy changes.
  * 24h matches the request-cooling-off default — every "weakening of a
  * safeguard" gets the same window every "destructive action" gets, so
- * a compromised owner can't both weaken the policy and use it the
- * weakened policy in less than a day.
+ * a compromised owner can't both weaken the policy and use the weakened
+ * policy in less than a day.
  */
 const POLICY_LOOSEN_GRACE_MS = 24 * HOUR_MS;
 
 /**
- * Read the per-org `dsar_governance` policy's CURRENT effective config.
- * `pendingConfig` (a staged loosening change) does NOT take effect
- * until `applyPendingDsarPolicyChange` flips it; consumers that gate
- * on policy (e.g. `requestErasure`) only see the active config.
+ * Read the per-org `dsar_governance` policy's CURRENT effective config from
+ * the file-derived `governanceCache`. A staged loosening change lives in
+ * `dsarPolicyPendingChanges` and does NOT take effect until
+ * `applyPendingDsarPolicyChange` flips the file; consumers that gate on policy
+ * (e.g. `requestErasure`) only see the active config.
  *
  * Defaults: 24h cooling-off, no dual approval, 5 requests/admin/day.
  */
@@ -37,14 +47,12 @@ export async function getDsarPolicy(
   ctx: GenericQueryCtx<DataModel>,
   organizationId: string,
 ): Promise<DsarGovernanceConfig> {
-  const row = await ctx.db
-    .query('governancePolicies')
-    .withIndex('by_org_policyType', (q) =>
-      q
-        .eq('organizationId', organizationId)
-        .eq('policyType', 'dsar_governance'),
-    )
-    .first();
+  const row = await readConfigCacheRow(
+    ctx.db,
+    organizationId,
+    'governance',
+    'dsar_governance',
+  );
 
   if (!row) return DEFAULT_DSAR_GOVERNANCE;
 
@@ -81,6 +89,53 @@ export function isLoosening(
 }
 
 /**
+ * Internal: the active config + any staged pending loosening change. Lets the
+ * V8 actions (which can't read the filesystem and shouldn't duplicate the
+ * cache/pending lookups) make their tighten-vs-loosen / apply decisions.
+ */
+export const readDsarStateInternal = internalQuery({
+  args: { organizationId: v.string() },
+  returns: v.object({
+    config: v.object({
+      coolingOffHours: v.number(),
+      requireDualApproval: v.boolean(),
+      dailyLimitPerAdmin: v.number(),
+    }),
+    pending: v.union(
+      v.object({
+        config: v.object({
+          coolingOffHours: v.number(),
+          requireDualApproval: v.boolean(),
+          dailyLimitPerAdmin: v.number(),
+        }),
+        effectiveAt: v.number(),
+      }),
+      v.null(),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const config = await getDsarPolicy(ctx, args.organizationId);
+    const pendingRow = await ctx.db
+      .query('dsarPolicyPendingChanges')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    let pending: { config: DsarGovernanceConfig; effectiveAt: number } | null =
+      null;
+    if (pendingRow) {
+      const parsed = dsarGovernanceConfigSchema.safeParse(
+        pendingRow.pendingConfig,
+      );
+      if (parsed.success) {
+        pending = { config: parsed.data, effectiveAt: pendingRow.effectiveAt };
+      }
+    }
+    return { config, pending };
+  },
+});
+
+/**
  * UI-facing read: returns the active config plus any staged pending
  * change (so the editor can render "Pending: cooling-off → 4h in 23h
  * 30m, [Cancel]"). Admin-gated; the editor itself is owner-only on the
@@ -104,7 +159,6 @@ export const getDsarPolicyForUi = query({
         effectiveAt: v.number(),
         proposedBy: v.string(),
         proposedByEmail: v.optional(v.string()),
-        proposedByName: v.optional(v.string()),
         proposedAt: v.number(),
       }),
       v.null(),
@@ -119,19 +173,15 @@ export const getDsarPolicyForUi = query({
       args.organizationId,
       authUser,
     );
-    // Allow any org member with admin/owner role to read; only
-    // owner can write (enforced separately in the write paths).
     if (member.role !== 'owner' && member.role !== 'admin') {
       throw new Error('Reading dsar_governance requires admin or owner role.');
     }
 
     const config = await getDsarPolicy(ctx, args.organizationId);
-    const row = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('policyType', 'dsar_governance'),
+    const pendingRow = await ctx.db
+      .query('dsarPolicyPendingChanges')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
       )
       .first();
 
@@ -140,45 +190,34 @@ export const getDsarPolicyForUi = query({
       effectiveAt: number;
       proposedBy: string;
       proposedByEmail?: string;
-      proposedByName?: string;
       proposedAt: number;
     };
-    if (
-      row?.pendingConfig !== undefined &&
-      row.pendingEffectiveAt !== undefined &&
-      row.pendingProposedBy !== undefined &&
-      row.pendingProposedAt !== undefined
-    ) {
-      const parsed = dsarGovernanceConfigSchema.safeParse(row.pendingConfig);
+    if (pendingRow) {
+      const parsed = dsarGovernanceConfigSchema.safeParse(
+        pendingRow.pendingConfig,
+      );
       if (parsed.success) {
         pending = {
           config: parsed.data,
-          effectiveAt: row.pendingEffectiveAt,
-          proposedBy: row.pendingProposedBy,
-          proposedByEmail: row.pendingProposedByEmail,
-          proposedAt: row.pendingProposedAt,
+          effectiveAt: pendingRow.effectiveAt,
+          proposedBy: pendingRow.proposedBy,
+          proposedByEmail: pendingRow.proposedByEmail,
+          proposedAt: pendingRow.proposedAt,
         };
       }
     }
 
-    return {
-      config,
-      pending,
-      callerIsOwner: member.role === 'owner',
-    };
+    return { config, pending, callerIsOwner: member.role === 'owner' };
   },
 });
 
 /**
- * Owner-only write path for `dsar_governance`. Routes loosening
- * changes through the 24h grace window; tightening applies
- * immediately. Always notifies all admins of the org.
- *
- * The generic `governance.mutations.upsertPolicy` refuses
- * `dsar_governance` and tells callers to use this mutation
- * instead — keeps the looseness-detection + grace logic in one place.
+ * Owner-only write path for `dsar_governance`. Files are the source of truth,
+ * so this is a Convex action: tightening writes the policy file immediately;
+ * loosening stages the change in `dsarPolicyPendingChanges` and schedules a
+ * deferred file write 24h out. Always notifies all admins of the org.
  */
-export const proposeDsarPolicy = mutation({
+export const proposeDsarPolicy = action({
   args: {
     organizationId: v.string(),
     config: v.object({
@@ -201,14 +240,16 @@ export const proposeDsarPolicy = mutation({
     }
     const callerId = authUser.userId;
 
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: callerId,
-      email: authUser.email ?? '',
-      name: authUser.name,
-    });
-    // B: owner-only. Admin can READ but not WRITE the DSAR governance
-    // policy. Limits the surface from "any compromised admin" to
-    // "the single owner account".
+    // B: owner-only. Admin can READ but not WRITE the DSAR governance policy.
+    const member = await ctx.runQuery(
+      internal.governance.internal_queries.verifyOrgMember,
+      {
+        organizationId: args.organizationId,
+        userId: callerId,
+        email: authUser.email ?? '',
+        name: authUser.name,
+      },
+    );
     if (member.role !== 'owner') {
       throw new ConvexError({
         code: 'forbidden',
@@ -225,24 +266,12 @@ export const proposeDsarPolicy = mutation({
       });
     }
     const next = parsed.data;
-    const current = await getDsarPolicy(ctx, args.organizationId);
 
-    // Find existing row (or null) so we can patch in place.
-    const row = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('policyType', 'dsar_governance'),
-      )
-      .first();
-
-    const now = Date.now();
-
-    // If a pending change is already staged, refuse — the operator
-    // must cancel the existing pending change first. Avoids stacking
-    // races and keeps the audit trail linear.
-    if (row?.pendingConfig !== undefined) {
+    const state = await ctx.runQuery(
+      internal.governance.dsar_policy.readDsarStateInternal,
+      { organizationId: args.organizationId },
+    );
+    if (state.pending) {
       throw new ConvexError({
         code: 'pendingChangeExists',
         message:
@@ -250,87 +279,118 @@ export const proposeDsarPolicy = mutation({
       });
     }
 
-    const loosening = isLoosening(current, next);
-
-    if (!loosening) {
-      // Tightening (or no change along loosening axes) — apply now.
-      const patch = {
-        config: next,
-        updatedBy: callerId,
-        updatedAt: now,
-      } as const;
-      if (row) {
-        await ctx.db.patch(row._id, patch);
-      } else {
-        await ctx.db.insert('governancePolicies', {
+    if (!isLoosening(state.config, next)) {
+      // Tightening (or no change along loosening axes) — write the file now.
+      await ctx.runAction(
+        internal.governance.file_actions.persistGovernancePolicyFile,
+        {
           organizationId: args.organizationId,
           policyType: 'dsar_governance',
-          ...patch,
-        });
-      }
-      await createAuditLog(ctx, {
+          config: next,
+        },
+      );
+      await ctx.runMutation(internal.governance.dsar_policy.recordDsarTighten, {
         organizationId: args.organizationId,
+        previousConfig: state.config,
+        nextConfig: next,
         actorId: callerId,
-        actorEmail: authUser.email ?? '',
-        actorType: 'user',
-        action: 'dsar_governance_policy_tightened',
-        category: 'admin',
-        resourceType: 'organization',
-        resourceId: args.organizationId,
-        status: 'success',
-        previousState: { config: current },
-        newState: { config: next },
-      });
-      await writeNotificationForOrgs(ctx, {
-        organizationIds: [args.organizationId],
-        category: 'security',
-        severity: 'info',
-        titleKey: 'dsarPolicyTightened',
-        bodyKey: 'dsarPolicyTightenedBody',
-        params: { proposedBy: callerId },
+        actorEmail: authUser.email ?? undefined,
       });
       return { applied: true };
     }
 
-    // Loosening — stage as pending; schedule deferred apply.
-    const effectiveAt = now + POLICY_LOOSEN_GRACE_MS;
+    // Loosening — stage as pending; schedule the deferred file write.
+    const effectiveAt = Date.now() + POLICY_LOOSEN_GRACE_MS;
     const scheduledJobId = await ctx.scheduler.runAfter(
       POLICY_LOOSEN_GRACE_MS,
       internal.governance.dsar_policy.applyPendingDsarPolicyChange,
       { organizationId: args.organizationId },
     );
-    const patch = {
+    await ctx.runMutation(internal.governance.dsar_policy.stageDsarLoosen, {
+      organizationId: args.organizationId,
       pendingConfig: next,
-      pendingEffectiveAt: effectiveAt,
-      pendingProposedBy: callerId,
-      pendingProposedByEmail: authUser.email ?? undefined,
-      pendingProposedAt: now,
-      pendingScheduledJobId: scheduledJobId,
-    } as const;
-    if (row) {
-      await ctx.db.patch(row._id, patch);
-    } else {
-      // First-time setup: row didn't exist. Insert with current
-      // (default) config + pending fields.
-      await ctx.db.insert('governancePolicies', {
-        organizationId: args.organizationId,
-        policyType: 'dsar_governance',
-        config: current,
-        ...patch,
-      });
-    }
+      effectiveAt,
+      proposedBy: callerId,
+      proposedByEmail: authUser.email ?? undefined,
+      proposedAt: Date.now(),
+      scheduledJobId,
+      previousConfig: state.config,
+    });
+    return { applied: false, effectiveAt };
+  },
+});
+
+/** Audit + notify for an immediate (tightening) DSAR policy change. */
+export const recordDsarTighten = internalMutation({
+  args: {
+    organizationId: v.string(),
+    previousConfig: v.any(),
+    nextConfig: v.any(),
+    actorId: v.string(),
+    actorEmail: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
-      actorId: callerId,
-      actorEmail: authUser.email ?? '',
+      actorId: args.actorId,
+      actorEmail: args.actorEmail,
+      actorType: 'user',
+      action: 'dsar_governance_policy_tightened',
+      category: 'admin',
+      resourceType: 'organization',
+      resourceId: args.organizationId,
+      status: 'success',
+      previousState: { config: args.previousConfig },
+      newState: { config: args.nextConfig },
+    });
+    await writeNotificationForOrgs(ctx, {
+      organizationIds: [args.organizationId],
+      category: 'security',
+      severity: 'info',
+      titleKey: 'dsarPolicyTightened',
+      bodyKey: 'dsarPolicyTightenedBody',
+      params: { proposedBy: args.actorId },
+    });
+    return null;
+  },
+});
+
+/** Stage a loosening change + audit + notify. */
+export const stageDsarLoosen = internalMutation({
+  args: {
+    organizationId: v.string(),
+    pendingConfig: v.any(),
+    effectiveAt: v.number(),
+    proposedBy: v.string(),
+    proposedByEmail: v.optional(v.string()),
+    proposedAt: v.number(),
+    scheduledJobId: v.optional(v.id('_scheduled_functions')),
+    previousConfig: v.any(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert('dsarPolicyPendingChanges', {
+      organizationId: args.organizationId,
+      pendingConfig: args.pendingConfig,
+      effectiveAt: args.effectiveAt,
+      proposedBy: args.proposedBy,
+      proposedByEmail: args.proposedByEmail,
+      proposedAt: args.proposedAt,
+      scheduledJobId: args.scheduledJobId,
+    });
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: args.proposedBy,
+      actorEmail: args.proposedByEmail,
       actorType: 'user',
       action: 'dsar_governance_policy_loosen_proposed',
       category: 'admin',
       resourceType: 'organization',
       resourceId: args.organizationId,
       status: 'success',
-      previousState: { config: current },
-      newState: { config: next, effectiveAt },
+      previousState: { config: args.previousConfig },
+      newState: { config: args.pendingConfig, effectiveAt: args.effectiveAt },
     });
     await writeNotificationForOrgs(ctx, {
       organizationIds: [args.organizationId],
@@ -338,17 +398,17 @@ export const proposeDsarPolicy = mutation({
       severity: 'warning',
       titleKey: 'dsarPolicyLoosenProposed',
       bodyKey: 'dsarPolicyLoosenProposedBody',
-      params: { proposedBy: callerId, effectiveAt },
+      params: { proposedBy: args.proposedBy, effectiveAt: args.effectiveAt },
     });
-    return { applied: false, effectiveAt };
+    return null;
   },
 });
 
 /**
- * Any org admin (not only owner) can cancel a pending loosening
- * change. The threat model is "someone weakening the safeguard" — the
- * intervention should NOT itself require owner privileges, otherwise a
- * compromised owner could quietly lower the bar with no admin recourse.
+ * Any org admin (not only owner) can cancel a pending loosening change. The
+ * threat model is "someone weakening the safeguard" — the intervention should
+ * NOT itself require owner privileges. No file write (the live config never
+ * changed), so this stays a mutation.
  */
 export const cancelPendingDsarPolicyChange = mutation({
   args: { organizationId: v.string() },
@@ -362,52 +422,35 @@ export const cancelPendingDsarPolicyChange = mutation({
       });
     }
     const callerId = authUser.userId;
-
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: callerId,
       email: authUser.email ?? '',
       name: authUser.name,
     });
-    if (member.role !== 'owner' && member.role !== 'admin') {
+    if (member.role !== 'owner' && !isAdmin(member.role)) {
       throw new ConvexError({
         code: 'forbidden',
         message: 'Only org admins or the owner can cancel a pending change.',
       });
     }
 
-    const row = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('policyType', 'dsar_governance'),
+    const pending = await ctx.db
+      .query('dsarPolicyPendingChanges')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
       )
       .first();
-
-    if (!row || row.pendingConfig === undefined) {
+    if (!pending) {
       throw new ConvexError({
         code: 'not_found',
         message: 'No pending DSAR policy change to cancel.',
       });
     }
 
-    const previousPending = {
-      config: row.pendingConfig,
-      effectiveAt: row.pendingEffectiveAt,
-      proposedBy: row.pendingProposedBy,
-    };
-
-    if (row.pendingScheduledJobId) {
-      await ctx.scheduler.cancel(row.pendingScheduledJobId);
+    if (pending.scheduledJobId) {
+      await ctx.scheduler.cancel(pending.scheduledJobId);
     }
-    await ctx.db.patch(row._id, {
-      pendingConfig: undefined,
-      pendingEffectiveAt: undefined,
-      pendingProposedBy: undefined,
-      pendingProposedByEmail: undefined,
-      pendingProposedAt: undefined,
-      pendingScheduledJobId: undefined,
-    });
+    await ctx.db.delete(pending._id);
 
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
@@ -419,7 +462,11 @@ export const cancelPendingDsarPolicyChange = mutation({
       resourceType: 'organization',
       resourceId: args.organizationId,
       status: 'success',
-      previousState: previousPending,
+      previousState: {
+        config: pending.pendingConfig,
+        effectiveAt: pending.effectiveAt,
+        proposedBy: pending.proposedBy,
+      },
       newState: { cancelledBy: callerId },
     });
     await writeNotificationForOrgs(ctx, {
@@ -435,58 +482,68 @@ export const cancelPendingDsarPolicyChange = mutation({
 });
 
 /**
- * Internal mutation invoked by the scheduler when the loosen-grace
- * window elapses. Idempotent: if `pendingConfig` is no longer set
- * (cancelled, or already applied), return null without writing.
+ * Scheduler-invoked when the loosen-grace window elapses. Writes the staged
+ * config to the policy file (source of truth) + re-syncs the cache, then
+ * deletes the pending row + audits. Idempotent: a missing or not-yet-due
+ * pending row is a no-op (cancelled, already applied, or clock skew).
  */
-export const applyPendingDsarPolicyChange = internalMutation({
+export const applyPendingDsarPolicyChange = internalAction({
   args: { organizationId: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const row = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('policyType', 'dsar_governance'),
+    const state = await ctx.runQuery(
+      internal.governance.dsar_policy.readDsarStateInternal,
+      { organizationId: args.organizationId },
+    );
+    if (!state.pending) return null;
+    if (state.pending.effectiveAt > Date.now()) return null;
+
+    await ctx.runAction(
+      internal.governance.file_actions.persistGovernancePolicyFile,
+      {
+        organizationId: args.organizationId,
+        policyType: 'dsar_governance',
+        config: state.pending.config,
+      },
+    );
+    await ctx.runMutation(internal.governance.dsar_policy.finalizeDsarApply, {
+      organizationId: args.organizationId,
+      previousConfig: state.config,
+      appliedConfig: state.pending.config,
+    });
+    return null;
+  },
+});
+
+/** Delete the applied pending row + audit + notify. */
+export const finalizeDsarApply = internalMutation({
+  args: {
+    organizationId: v.string(),
+    previousConfig: v.any(),
+    appliedConfig: v.any(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const pending = await ctx.db
+      .query('dsarPolicyPendingChanges')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
       )
       .first();
-    if (!row || row.pendingConfig === undefined) return null;
-    // Defense in depth: refuse to apply if `pendingEffectiveAt` is
-    // somehow still in the future (e.g. clock skew at the scheduler
-    // layer; should not happen but free safety check).
-    if (
-      row.pendingEffectiveAt !== undefined &&
-      row.pendingEffectiveAt > Date.now()
-    ) {
-      return null;
-    }
-
-    const previous = row.config;
-    const next = row.pendingConfig;
-    await ctx.db.patch(row._id, {
-      config: next,
-      updatedBy: row.pendingProposedBy,
-      updatedAt: Date.now(),
-      pendingConfig: undefined,
-      pendingEffectiveAt: undefined,
-      pendingProposedBy: undefined,
-      pendingProposedByEmail: undefined,
-      pendingProposedAt: undefined,
-      pendingScheduledJobId: undefined,
-    });
+    const proposedBy = pending?.proposedBy ?? 'system';
+    if (pending) await ctx.db.delete(pending._id);
 
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
-      actorId: row.pendingProposedBy ?? 'system',
+      actorId: proposedBy,
       actorType: 'system',
       action: 'dsar_governance_policy_loosen_applied',
       category: 'admin',
       resourceType: 'organization',
       resourceId: args.organizationId,
       status: 'success',
-      previousState: { config: previous },
-      newState: { config: next },
+      previousState: { config: args.previousConfig },
+      newState: { config: args.appliedConfig },
     });
     await writeNotificationForOrgs(ctx, {
       organizationIds: [args.organizationId],
@@ -494,7 +551,7 @@ export const applyPendingDsarPolicyChange = internalMutation({
       severity: 'warning',
       titleKey: 'dsarPolicyLoosenApplied',
       bodyKey: 'dsarPolicyLoosenAppliedBody',
-      params: { proposedBy: row.pendingProposedBy ?? 'system' },
+      params: { proposedBy },
     });
     return null;
   },

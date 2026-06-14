@@ -135,13 +135,16 @@ export const revokeIdleSessions = internalMutation({
     const now = Date.now();
     const envMinutes = parseSessionIdleTimeoutMinutes();
 
-    // Enumerate orgs with the policy configured. The full-table walk is
-    // intrinsic to "find all orgs with X policy" — same trade-off and bounds
-    // as `listRetentionPolicies` (orgs × policyTypes, well under the
-    // per-transaction read limit at realistic deployment sizes).
+    // Enumerate orgs with the policy configured. Ranges the `configCache`
+    // `by_domain_key` index on `(domain='governance', key='session_idle_timeout')`
+    // so it reads exactly the session-idle rows (one per org) — same bounds as
+    // `listRetentionPolicies`, no whole-cache scan.
     const policyRows: Array<{ organizationId: string; config: unknown }> = [];
-    for await (const policy of ctx.db.query('governancePolicies')) {
-      if (policy.policyType !== 'session_idle_timeout') continue;
+    for await (const policy of ctx.db
+      .query('configCache')
+      .withIndex('by_domain_key', (q) =>
+        q.eq('domain', 'governance').eq('key', 'session_idle_timeout'),
+      )) {
       policyRows.push({
         organizationId: policy.organizationId,
         config: policy.config,

@@ -1,5 +1,6 @@
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { formatHeartbeat } from '../../utils/progress';
 import { pipeLines } from './docker-compose';
 import { getContainerHealth } from './get-container-health';
 import { isContainerRunning } from './is-container-running';
@@ -68,6 +69,13 @@ export async function waitForHealthy(
   const { timeout, interval = 2000, streamLogs = false } = options;
   const startTime = Date.now();
   const timeoutMs = timeout * 1000;
+  // Non-TTY heartbeat: when we're not streaming container logs and there's no
+  // live status header (CI / piped output), a multi-minute health wait emits
+  // nothing — operators can't tell "slow" from "hung". Print a periodic
+  // "still waiting" line in that case only.
+  const HEARTBEAT_MS = 15_000;
+  const emitHeartbeat = !streamLogs && !process.stdout.isTTY;
+  let lastHeartbeat = startTime;
 
   logger.info(
     `Waiting for ${containerName} to become healthy (timeout: ${timeout}s)`,
@@ -96,6 +104,17 @@ export async function waitForHealthy(
       }
 
       logger.debug(`${containerName} health status: ${health}`);
+
+      if (emitHeartbeat && Date.now() - lastHeartbeat >= HEARTBEAT_MS) {
+        logger.info(
+          formatHeartbeat(
+            `${containerName} health`,
+            Math.round((Date.now() - startTime) / 1000),
+          ),
+        );
+        lastHeartbeat = Date.now();
+      }
+
       await Bun.sleep(interval);
     }
 

@@ -24,6 +24,42 @@ import {
 /** Fallback cap when none of the curated IDs are in the live model list. */
 const FALLBACK_MODEL_CAP = 20;
 
+/** OpenRouter API keys are prefixed `sk-or-` (e.g. `sk-or-v1-…`). */
+const OPENROUTER_KEY_PREFIX = 'sk-or-';
+
+/**
+ * Map a failed connection to a specific, actionable cause so the user knows
+ * whether to re-paste the key, check their account, or retry the network —
+ * rather than the old one-size-fits-all "check it and try again".
+ */
+export function classifyConnectError(
+  err: unknown,
+): 'auth' | 'network' | 'generic' {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  if (
+    msg.includes('401') ||
+    msg.includes('403') ||
+    msg.includes('unauthorized') ||
+    msg.includes('forbidden') ||
+    msg.includes('invalid api key') ||
+    msg.includes('invalid key')
+  ) {
+    return 'auth';
+  }
+  if (
+    msg.includes('network') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('fetch failed') ||
+    msg.includes('timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('econnrefused') ||
+    msg.includes('enotfound')
+  ) {
+    return 'network';
+  }
+  return 'generic';
+}
+
 interface OpenRouterStepProps {
   /** The org the provider is saved under. Always set by the time this
    *  (post-workspace) step is reached. */
@@ -56,6 +92,11 @@ export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
     }
 
     setError(null);
+    // Catch an obviously-malformed paste before a confusing API round-trip.
+    if (!key.startsWith(OPENROUTER_KEY_PREFIX)) {
+      setError(t('provider.invalidKeyError'));
+      return false;
+    }
     try {
       const fetched = await fetchModels({
         organizationId,
@@ -101,7 +142,16 @@ export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
       return true;
     } catch (err) {
       console.error('Failed to connect OpenRouter:', err);
-      setError(t('provider.saveError'));
+      const kind = classifyConnectError(err);
+      setError(
+        t(
+          kind === 'auth'
+            ? 'provider.authError'
+            : kind === 'network'
+              ? 'provider.networkError'
+              : 'provider.saveError',
+        ),
+      );
       return false;
     }
   };

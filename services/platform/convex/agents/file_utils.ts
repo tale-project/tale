@@ -13,7 +13,6 @@ import {
   agentJsonSchema,
   type AgentRoutingConfig,
   type ResponseTuningConfig,
-  type SkillBindingResolvedEntry,
 } from '../../lib/shared/schemas/agents';
 import { canonicalizeAgentConfig } from '../../lib/shared/utils/canonicalize-config';
 import {
@@ -69,11 +68,6 @@ export interface AgentJsonConfig {
    * pointing at non-existent skills are silently dropped.
    */
   skillBindings?: string[];
-  /**
-   * Legacy snapshot from the old transitive tool-grant model. No longer read
-   * at runtime — kept optional so historical agent JSON still validates.
-   */
-  skillBindingsResolved?: SkillBindingResolvedEntry[];
   supportedModels: string[];
   provider?: string;
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';

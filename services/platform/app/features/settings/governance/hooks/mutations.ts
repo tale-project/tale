@@ -1,38 +1,27 @@
 import { useQueryClient } from '@tanstack/react-query';
 
-import { updateDocumentQuery } from '@/app/hooks/optimistic-updates';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 /**
- * Upsert a governance policy. The optimistic patch flips the matching
- * `getPolicy` read the instant the toggle/save fires (Convex rolls it back on
- * failure), so every policy editor that reads through `useGovernancePolicy`
- * updates without a server round-trip. No-ops on the very first save for a
- * policy type (no row to patch yet), which then resolves from the server.
+ * Save a governance policy to its per-org JSON file (the source of truth),
+ * which re-syncs the `governanceCache` mirror that `getPolicy` reads. This is
+ * a Convex action (filesystem write), so there is no optimistic patch — the
+ * reactive `getPolicy` query updates once the write + cache sync complete.
+ * Every editor toasts its own failure, so no generic error toast here.
+ *
+ * Refuses `retention_policy` and `dsar_governance` — those route through
+ * `useUpsertRetentionPolicy` / `useProposeDsarPolicy` (bounds / loosen-grace).
  */
 export function useUpsertGovernancePolicy() {
-  return useConvexMutation(api.governance.mutations.upsertPolicy, {
-    // Every policy editor surfaces its own specific failure toast in its save
-    // handler, so opt out of the hook's default generic toast to avoid a
-    // double toast. (`voice-output-policy-editor` likewise toasts on error.)
-    errorToast: false,
-    optimisticUpdate: (store, args) =>
-      updateDocumentQuery(
-        store,
-        api.governance.queries.getPolicy,
-        { organizationId: args.organizationId, policyType: args.policyType },
-        (current) => ({ ...current, config: args.config }),
-      ),
-  });
+  return useConvexAction(api.governance.file_actions.saveGovernancePolicy);
 }
 
 export function useProposeDsarPolicy() {
-  // The DSAR editor toasts its own failure message — opt out of the default.
-  return useConvexMutation(api.governance.dsar_policy.proposeDsarPolicy, {
-    errorToast: false,
-  });
+  // Files are the source of truth, so this is an action (filesystem write).
+  // The DSAR editor toasts its own failure message.
+  return useConvexAction(api.governance.dsar_policy.proposeDsarPolicy);
 }
 
 export function useCancelPendingDsarPolicyChange() {

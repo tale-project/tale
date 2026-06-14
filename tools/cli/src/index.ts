@@ -55,18 +55,13 @@ program.addCommand(createRestoreCommand().helpGroup(OPERATE));
 program.addCommand(createRollbackCommand().helpGroup(OPERATE));
 
 program.addCommand(createUpgradeCommand().helpGroup(MAINTAIN));
+program.addCommand(createMigrateCommand().helpGroup(MAINTAIN));
 program.addCommand(createCleanupCommand().helpGroup(MAINTAIN));
 program.addCommand(createResetCommand().helpGroup(MAINTAIN));
 program.addCommand(createConfigCommand().helpGroup(MAINTAIN));
 
 program.addCommand(createAuthCommand().helpGroup(ADVANCED));
 program.addCommand(createConvexCommand().helpGroup(ADVANCED));
-// Deprecated (forward migration now runs automatically on start/deploy/update);
-// keep it working for the `config-layout --cleanup-old` step but hide it from
-// `tale --help` so the top-level listing stays clean.
-program.addCommand(createMigrateCommand().helpGroup(ADVANCED), {
-  hidden: true,
-});
 
 // Docs link honors TALE_DOCS_URL (mirrors @tale/ui/seo/globals) so a
 // self-hosted or staging deployment can point users at its own docs; the

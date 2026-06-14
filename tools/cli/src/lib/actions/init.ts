@@ -327,7 +327,20 @@ export async function init(options: InitOptions): Promise<InitResult> {
     logger.info(`  ${step++}. cd ${relTarget}`);
   }
   logger.info(`  ${step++}. tale start    (launch locally)`);
+  logger.info(
+    `  ${step++}. Open the app, create the owner account, then add your`,
+  );
+  logger.info('       OpenRouter key when the setup wizard asks — or later in');
+  logger.info(
+    '       Settings → AI providers. Get a key: https://openrouter.ai/keys',
+  );
   logger.info(`  ${step++}. tale deploy   (when ready, deploy to your domain)`);
+  logger.blank();
+  logger.notice(
+    'Production-ready by default: every secret — including the audit-log ' +
+      'signing key — is auto-generated in .env. Nothing to hand-edit; just ' +
+      'back up .env so you can restore or redeploy.',
+  );
 
   return { status: 'initialized', directory: target };
 }
@@ -335,22 +348,8 @@ export async function init(options: InitOptions): Promise<InitResult> {
 // Top-level markers indicating a Tale project. Under the uniform org-first
 // layout, `default/` is the canonical org dir (and any other org dir is
 // also a marker, but we don't try to enumerate slugs — `default/` is enough
-// to detect a project). Legacy per-domain dirs (`agents/`, `workflows/`,
-// etc.) at the root are kept as markers so `tale init` re-detects old
-// projects from a prior CLI version.
-const TALE_PROJECT_MARKERS = new Set([
-  '.env',
-  'tale.json',
-  '.tale',
-  'default',
-  // Legacy / pre-org-first markers (detected during reinit only):
-  'providers',
-  'agents',
-  'workflows',
-  'integrations',
-  'skills',
-  'branding',
-]);
+// to detect a project).
+const TALE_PROJECT_MARKERS = new Set(['.env', 'tale.json', '.tale', 'default']);
 
 async function detectTaleProjectFiles(dir: string): Promise<string[]> {
   try {

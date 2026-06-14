@@ -111,8 +111,6 @@ export interface StartAgentChatArgs {
   /** Auto-route reason; forwarded to message metadata. Set only by the Auto
    *  branch in `chatWithAgent`. Absent for a pinned agent. */
   autoRouteReason?: AutoRouteReason;
-  /** @deprecated Use agentSlug instead */
-  agentId?: Id<'agentBindings'>;
   /**
    * Org member role already resolved upstream (the consolidated governance
    * query, or `startChat`'s `getOrganizationMember`). Threaded into
@@ -281,7 +279,6 @@ export async function startAgentChat(
         cancelledAt: undefined,
         cancelledMessageId: undefined,
         ...(args.agentSlug ? { agentSlug: args.agentSlug } : {}),
-        ...(args.agentId ? { agentId: args.agentId } : {}),
       });
     }
   }

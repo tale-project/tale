@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { runStepsInParallel } from '../../utils/progress';
 import { createSnapshot } from '../backup/create-snapshot';
 import { rotateSnapshots } from '../backup/rotate-snapshots';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
@@ -37,10 +38,6 @@ import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
-import {
-  detectLegacyDirs,
-  legacyLayoutPreflight,
-} from './legacy-layout-preflight';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
 async function ensureInfrastructure(
@@ -163,12 +160,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const isFirstDeploy = currentColor === null;
 
       // Pre-mutation volume snapshot — the recovery point for forward-only
-      // migrations. Taken before `legacyLayoutPreflight` (the first step
-      // that can mutate state) whenever this deploy can change data: a
-      // version change (new images run implicit migrations on first boot),
-      // a host-config push, or a pending legacy-layout migration. First
-      // deploys have nothing to snapshot yet; snapshot failure aborts the
-      // deploy unless the operator opted out via --skip-backup.
+      // migrations. Taken whenever this deploy can change data: a version
+      // change (new images run implicit migrations on first boot) or a
+      // host-config push. First deploys have nothing to snapshot yet;
+      // snapshot failure aborts the deploy unless the operator opted out
+      // via --skip-backup.
       if (!isFirstDeploy) {
         const snapshotPrefix = `${getProjectId()}_`;
         const runningVersion = await getContainerVersion(
@@ -177,8 +173,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
         const wouldMutate =
           runningVersion !== version ||
           Boolean(options.override) ||
-          Boolean(options.overrideAll) ||
-          detectLegacyDirs(env.DEPLOY_DIR).length > 0;
+          Boolean(options.overrideAll);
         if (wouldMutate) {
           if (dryRun) {
             logger.info(
@@ -197,27 +192,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
             await rotateSnapshots({ prefix: snapshotPrefix });
           }
         }
-      }
-
-      // Detect-and-migrate on legacy flat layout. Only gates host
-      // pushes (`--override` / `--override-all`) — a plain container-
-      // rotation deploy has no host-config dependency. The preflight
-      // prompts (default-No) and runs `migrateConfigLayout` in place
-      // on accept; CI / `--yes` migrates without prompting. Replaces
-      // the prior hard-fail-with-runbook flow so legacy projects can
-      // be upgraded in one command. Snapshot policy: on non-first deploys
-      // the pre-deploy snapshot above already covers this path (a pending
-      // legacy layout is one of its triggers) — pass 'skip'. On a first
-      // deploy a dev stack may still own the convex container the
-      // migration rewrites, so let the preflight auto-resolve a prefix
-      // and snapshot if any data volumes exist.
-      if (options.override || options.overrideAll) {
-        await legacyLayoutPreflight({
-          projectDir: env.DEPLOY_DIR,
-          assumeYes: options.assumeYes ?? false,
-          context: 'deploy',
-          backup: !isFirstDeploy || options.skipBackup ? 'skip' : {},
-        });
       }
 
       // Determine which services to deploy
@@ -339,13 +313,24 @@ export async function deploy(options: DeployOptions): Promise<void> {
           );
         }
       } else {
-        const failedImages: string[] = [];
-        for (const image of imagesToPull) {
-          const success = await pullImage(image);
-          if (!success) {
-            failedImages.push(image);
-          }
-        }
+        // Pull all images CONCURRENTLY (docker dedups shared layers), but log
+        // each one's completion as a step so the terminal still reads like a
+        // sequential checklist. One failed pull doesn't cancel the others —
+        // we collect every failure and report them together.
+        const pullResults = await runStepsInParallel(
+          imagesToPull.map((image) => ({
+            label: image,
+            run: async () => {
+              if (!(await pullImage(image))) {
+                throw new Error(`pull failed: ${image}`);
+              }
+            },
+          })),
+          { title: `${prefix}Pulling images` },
+        );
+        const failedImages = pullResults
+          .filter((r) => !r.ok)
+          .map((r) => r.label);
         if (failedImages.length > 0) {
           throw new Error(
             `Failed to pull ${failedImages.length} image(s): ${failedImages.join(', ')}\n` +
@@ -721,18 +706,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
   }
 }
 
-// Org slug shape — must match ORG_SLUG_REGEX at
-// services/platform/lib/shared/constants/org-slug.ts and ORG_SLUG_RE at
-// packages/tale_shared/src/tale_shared/config/org_slug.py. The 64-char
-// cap (round-3 P1) aligns this file with the canonical validator;
-// without it, the deploy-side enumerator would accept slugs the platform
-// itself refuses to mint. Duplicated here because the CLI ships in a
-// single compiled binary that does not import convex sources at runtime.
-// Re-exported so `migrate-config-layout.ts` and `legacy-layout-preflight.ts`
-// keep importing it from `./deploy`. Canonical definition + the rest of the
-// org-discovery logic now lives in `../project/org-dirs.ts`.
-export { LEGACY_DOMAIN_DIR_NAMES } from '../project/org-dirs';
-
 async function syncProjectFiles(
   containerName: string,
   projectDir: string,
@@ -755,15 +728,7 @@ async function syncProjectFiles(
     return;
   }
 
-  const { orgs, legacyRootDirs, staleRootOrgDirs } = discoverOrgs(projectDir);
-
-  if (legacyRootDirs.length > 0) {
-    throw new Error(
-      `Legacy flat layout detected at project root (${legacyRootDirs.join(', ')}/). ` +
-        `Run 'tale migrate config-layout' then 'tale deploy --override-all -y' ` +
-        `(see docs/self-hosted/operate/upgrades.md).`,
-    );
-  }
+  const { orgs, staleRootOrgDirs } = discoverOrgs(projectDir);
 
   if (staleRootOrgDirs.length > 0) {
     // Pre-`.tale/orgs/` layout: orgs used to sit at the project root. They are
@@ -829,7 +794,7 @@ async function syncProjectFiles(
 
     if (dryRun) {
       logger.info(
-        `${prefix}Skipped: the default/ template, tale.json, .env, .git/, dotfiles, ${legacyRootDirs.length ? `legacy ${legacyRootDirs.join(', ')}/, ` : ''}any non-org entries`,
+        `${prefix}Skipped: the default/ template, tale.json, .env, .git/, dotfiles, any non-org entries`,
       );
       return;
     }

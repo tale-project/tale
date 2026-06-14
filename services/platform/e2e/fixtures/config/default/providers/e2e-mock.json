@@ -18,6 +18,18 @@
         "inputCentsPerMillion": 0,
         "outputCentsPerMillion": 0
       }
+    },
+    {
+      "id": "e2e-chat-model-b",
+      "displayName": "E2E Chat Model B",
+      "description": "Second deterministic model so the E2E suite can exercise arena (two-model) mode",
+      "tags": ["chat"],
+      "contextWindow": 32768,
+      "qualityScore": 0.5,
+      "cost": {
+        "inputCentsPerMillion": 0,
+        "outputCentsPerMillion": 0
+      }
     }
   ]
 }
