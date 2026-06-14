@@ -7,6 +7,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -1641,6 +1642,9 @@ function MappingList({ mappings, disabled, onAdd, onEdit }: MappingListProps) {
         </div>
       ) : (
         <Table>
+          <TableCaption className="sr-only">
+            {t('moderationProvider.categoryMappings')}
+          </TableCaption>
           <TableHeader>
             <TableRow>
               <TableHead>
