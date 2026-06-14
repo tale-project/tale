@@ -34,7 +34,6 @@ export const contextStatsValidator = v.object({
   totalTokens: v.number(),
   messageCount: v.number(),
   approvalCount: v.number(),
-  hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
   hasRag: v.boolean(),
   hasWebContext: v.optional(v.boolean()),
   hasIntegrations: v.optional(v.boolean()),

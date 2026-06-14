@@ -124,7 +124,25 @@ export const listRelatedAutomations = query({
     organizationId: v.string(),
     integrationName: v.string(),
   },
-  handler: async (ctx, args) => {
+  returns: v.array(
+    v.object({
+      _id: v.string(),
+      activeVersionId: v.optional(v.string()),
+      name: v.string(),
+      status: v.string(),
+    }),
+  ),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    Array<{
+      _id: string;
+      activeVersionId?: string;
+      name: string;
+      status: string;
+    }>
+  > => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
@@ -139,8 +157,9 @@ export const listRelatedAutomations = query({
       throw error;
     }
 
-    // Automation linkage was removed; the query degrades to an empty list so
-    // existing callers keep working without surfacing related automations.
+    // DB-backed automation linkage was removed in the file-based workflow
+    // migration; the query returns an empty list so the UI renders its empty
+    // state until file-based linkage is reintroduced.
     return [];
   },
 });

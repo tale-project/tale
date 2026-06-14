@@ -124,12 +124,9 @@ export async function evaluatePersonalizationGates(
   return {
     customInstructions: applyUserOverride(
       orgCustom,
-      prefs?.customInstructionsEnabled ?? prefs?.enabled,
+      prefs?.customInstructionsEnabled,
     ),
-    memories: applyUserOverride(
-      orgMemories,
-      prefs?.memoriesEnabled ?? prefs?.enabled,
-    ),
+    memories: applyUserOverride(orgMemories, prefs?.memoriesEnabled),
   };
 }
 

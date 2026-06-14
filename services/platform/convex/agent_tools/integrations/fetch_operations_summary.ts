@@ -19,22 +19,6 @@ export interface OperationInfo {
   parametersSchema?: Record<string, unknown>;
 }
 
-/**
- * Fetch a concise operations summary string only (legacy wrapper).
- */
-export async function fetchOperationsSummary(
-  ctx: ActionCtx,
-  organizationId: string,
-  integrationName: string,
-): Promise<string | undefined> {
-  const result = await fetchOperationsWithSchema(
-    ctx,
-    organizationId,
-    integrationName,
-  );
-  return result?.summary;
-}
-
 export interface FetchedOperations {
   summary: string;
   operations: OperationInfo[];

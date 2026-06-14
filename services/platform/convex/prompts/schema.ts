@@ -39,10 +39,6 @@ export const promptTemplatesTable = defineTable({
   /** Timestamp of the last `lifecycleStatus` transition; used by the
    * grace-period check in the retention cleanup pass. */
   statusChangedAt: v.optional(v.number()),
-  /** @deprecated draft/publish was removed when versioning landed (every
-   * save is an instant publish). Kept as optional for legacy-row read
-   * tolerance — do not write to it. */
-  isPublished: v.optional(v.boolean()),
 
   // --- Versioning ---
   /** Denormalized pointer to the current version number. Always equal to

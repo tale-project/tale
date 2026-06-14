@@ -713,9 +713,6 @@ export interface ToolUsage {
   costEstimateCents?: number;
 }
 
-/** @deprecated Use ToolUsage */
-export type SubAgentUsage = ToolUsage;
-
 export interface ContextStats {
   totalTokens: number;
   messageCount: number;

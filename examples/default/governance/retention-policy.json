@@ -1,1 +1,10 @@
-{}
+{
+  "userTempEnabled": true,
+  "userTempRetentionHours": 24,
+  "agentTempEnabled": true,
+  "agentTempRetentionHours": 24,
+  "notificationsEnabled": true,
+  "notificationsRetentionDays": 30,
+  "loginAttemptEnabled": true,
+  "loginAttemptRetentionDays": 90
+}

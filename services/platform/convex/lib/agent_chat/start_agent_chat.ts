@@ -17,7 +17,6 @@ import type { FunctionArgs } from 'convex/server';
 import { isAudioOrVideo, isSpreadsheet } from '../../../lib/shared/file-types';
 import { formatVideoLinkAttachmentMarkdown } from '../../../lib/shared/video-link-markdown';
 import { components, internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { checkAgentRunAllowedHelper } from '../../agents/guardrails/budget_guard';
 import { createAuditLog } from '../../audit_logs/helpers';

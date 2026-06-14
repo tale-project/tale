@@ -75,16 +75,6 @@ export const sandboxExecutionsTable = defineTable({
   codePreview: v.string(),
   codeStorageId: v.optional(v.id('_storage')),
   packages: v.array(v.string()),
-  // @deprecated — install-time guards (--only-binary, --ignore-scripts) were
-  // dropped; the ephemeral container is the security boundary and install-time
-  // flags added nothing on top. Field retained as optional for read-validation
-  // on legacy rows; new writes never set it.
-  installOptions: v.optional(
-    v.object({
-      allowSdist: v.optional(v.boolean()),
-      allowInstallScripts: v.optional(v.boolean()),
-    }),
-  ),
 
   status: sandboxRunStatusValidator,
   // Every status patch must update this. Watchdog reads

@@ -78,12 +78,6 @@ export const SHOPIFY_API_VERSION = '2024-01';
 // TYPED INTEGRATION INTERFACES
 // =============================================================================
 
-/**
- * @deprecated Use LoadedIntegration from load_integration.ts instead.
- * Retained for backward compatibility during migration.
- */
-export type Integration = Doc<'integrations'>;
-
 /** Credential record from the integrationCredentials table. */
 export type IntegrationCredentials = Doc<'integrationCredentials'>;
 

@@ -101,21 +101,6 @@ export function formatAssistantMessage(
 }
 
 /**
- * Format a tool call with its input and output (legacy)
- * Uses log-style format to prevent AI from mimicking this as an action instruction
- */
-export function formatToolCall(
-  toolName: string,
-  _input: unknown,
-  output: unknown,
-  _timestamp: number,
-  status: 'success' | 'error' = 'success',
-): string {
-  const s = status === 'success' ? '✓' : '✗';
-  return `[Tool Result] ${toolName} (${s}): ${summarize(output)}`;
-}
-
-/**
  * Format a tool call summary
  * Uses log-style format to prevent AI from mimicking this as an action instruction.
  * When `age` is provided, applies tiered truncation (errors always get full output).

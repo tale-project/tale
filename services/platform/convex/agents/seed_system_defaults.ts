@@ -19,12 +19,3 @@ export const seedSystemDefaultAgents = internalMutation({
     // No-op: system default agents are JSON files seeded by Docker entrypoint.
   },
 });
-
-export const ensureSystemDefaults = internalMutation({
-  args: {
-    organizationId: v.string(),
-  },
-  handler: async () => {
-    // No-op: system default agents are JSON files seeded by Docker entrypoint.
-  },
-});
