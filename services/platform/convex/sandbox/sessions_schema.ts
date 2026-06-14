@@ -214,6 +214,29 @@ export const sandboxCredentialAccessTable = defineTable({
   .index('by_sessionId', ['sessionId'])
   .index('by_organizationId', ['organizationId']);
 
+/**
+ * Audit row for every agent-initiated integration DISPATCH call (the in-sandbox
+ * MCP bridge → /api/integrations/execute). Forensic trail for the otherwise
+ * unmetered read surface: who/what/when/outcome and a sorted param-KEY
+ * fingerprint, never param values or secrets. Distinct from
+ * sandboxCredentialAccessTable (Tier-2 git/bootstrap credential fetches).
+ */
+export const sandboxIntegrationCallsTable = defineTable({
+  organizationId: v.string(),
+  sessionId: v.string(),
+  slug: v.string(),
+  operation: v.string(),
+  operationType: v.optional(v.string()), // 'read' | 'write' (best-effort)
+  userId: v.optional(v.string()),
+  // 'ok' | 'unavailable' | 'requires_approval' | 'error' | 'rate_limited'
+  outcome: v.string(),
+  /** Sorted param KEYS (never values) for debugging a misfire. */
+  paramsFingerprint: v.optional(v.string()),
+  calledAt: v.number(),
+})
+  .index('by_sessionId', ['sessionId'])
+  .index('by_organizationId', ['organizationId']);
+
 /** Per-owner concurrent-session cap (org cap lives spawner-side too). */
 export const SANDBOX_MAX_SESSIONS_PER_OWNER = 1;
 export const SANDBOX_SESSION_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;

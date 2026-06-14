@@ -30,6 +30,10 @@ export interface AgentRunSpec {
   /** Extra system-prompt text appended to the agent's defaults. */
   systemPromptAppend?: string;
   gateway: GatewayTarget;
+  /** Platform base URL for the integration-dispatch bridge (/api/integrations).
+   * When set, buildExec adds an `integrations` MCP server the agent uses to
+   * call the org's connected integrations (credentials resolved server-side). */
+  integrationsBaseUrl?: string;
   /** Working directory inside the session (e.g. /workspace/repo). */
   workdir: string;
   /** Enable the in-container Playwright MCP server. Default true for the

@@ -89,6 +89,7 @@ import {
   sandboxSessionOpsTable,
   sandboxSessionsTable,
   sandboxSessionTokensTable,
+  sandboxIntegrationCallsTable,
 } from './sandbox/sessions_schema';
 import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
@@ -238,6 +239,7 @@ export default defineSchema({
   sandboxSessionTokens: sandboxSessionTokensTable,
   sandboxSessionOps: sandboxSessionOpsTable,
   sandboxCredentialAccess: sandboxCredentialAccessTable,
+  sandboxIntegrationCalls: sandboxIntegrationCallsTable,
   skillUploadClaims: skillUploadClaimTable,
   skillUploadIntents: skillUploadIntentTable,
   videoLinkJobs: videoLinkJobsTable,

@@ -5,6 +5,25 @@ import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { isLiveSessionStatus } from './sessions_schema';
 
+/**
+ * Resolve a minted session token by its sha256 hash (see `hashVirtualKey`).
+ *
+ * The integration-dispatch httpAction authenticates the in-container MCP bridge
+ * by hashing the presented per-session key and looking it up here, then reads
+ * `organizationId` + `scope.integrationGrants` FROM THIS ROW — never from the
+ * request body — so a container cannot spoof another org or widen its own
+ * grants. Returns null when no row matches; callers MUST still check
+ * `revokedAt` and `expiresAt` before trusting the row.
+ */
+export const getSessionTokenByHash = internalQuery({
+  args: { tokenHash: v.string() },
+  handler: async (ctx, args) =>
+    ctx.db
+      .query('sandboxSessionTokens')
+      .withIndex('by_tokenHash', (q) => q.eq('tokenHash', args.tokenHash))
+      .first(),
+});
+
 /** The live (creating|active|stopped) session owned by an entity, or null.
  * Used by the external-agent turn to reuse a thread's session across turns.
  * Includes `stopped` (hibernated, workspace preserved) so the turn RESUMES it

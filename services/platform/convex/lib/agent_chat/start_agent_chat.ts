@@ -662,6 +662,9 @@ export async function startAgentChat(
         // plan/act posture fresh.
         permissionMode:
           threadMeta?.externalAgentMode === 'plan' ? 'plan' : 'execute',
+        // The agent's integration allowlist becomes the session's dispatch grant
+        // set (scope.integrationGrants), enforced by /api/integrations/execute.
+        integrationBindings: enforcedConfig.integrationBindings ?? [],
         streamId: streamId || undefined,
         agentSlug: args.agentSlug,
         organizationId,

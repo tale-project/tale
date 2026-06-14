@@ -37,6 +37,10 @@ import {
   documentSubActions,
 } from './documents/rest_api';
 import { imageProxyHandler } from './images/http_actions';
+import {
+  executeIntegrationHandler,
+  integrationStatusHandler,
+} from './integrations/dispatch_http';
 import { integrationOAuth2CallbackHandler } from './integrations/oauth2_callback';
 import { slackEventsHandler } from './integrations/slack/http_actions';
 import {
@@ -509,6 +513,20 @@ http.route({
   path: '/api/integrations/slack/events',
   method: 'POST',
   handler: slackEventsHandler,
+});
+
+// Agent integration dispatch — the in-sandbox MCP bridge calls these so the
+// agent can use the org's connected integrations (credentials stay
+// server-side). Auth: Authorization: Bearer <per-session VK> (dispatch_http.ts).
+http.route({
+  path: '/api/integrations/execute',
+  method: 'POST',
+  handler: executeIntegrationHandler,
+});
+http.route({
+  path: '/api/integrations/status',
+  method: 'POST',
+  handler: integrationStatusHandler,
 });
 
 http.route({

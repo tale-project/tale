@@ -433,6 +433,7 @@ import type * as identities_external_identities_helpers from "../identities/exte
 import type * as identities_external_identities_schema from "../identities/external_identities_schema.js";
 import type * as images_http_actions from "../images/http_actions.js";
 import type * as integrations_actions from "../integrations/actions.js";
+import type * as integrations_availability from "../integrations/availability.js";
 import type * as integrations_build_test_secrets from "../integrations/build_test_secrets.js";
 import type * as integrations_create_integration from "../integrations/create_integration.js";
 import type * as integrations_create_integration_internal from "../integrations/create_integration_internal.js";
@@ -441,6 +442,8 @@ import type * as integrations_credential_queries from "../integrations/credentia
 import type * as integrations_credentials_schema from "../integrations/credentials_schema.js";
 import type * as integrations_decrypt_and_refresh_oauth2 from "../integrations/decrypt_and_refresh_oauth2.js";
 import type * as integrations_delete_integration from "../integrations/delete_integration.js";
+import type * as integrations_dispatch_http from "../integrations/dispatch_http.js";
+import type * as integrations_dispatch_internal from "../integrations/dispatch_internal.js";
 import type * as integrations_encrypt_credentials from "../integrations/encrypt_credentials.js";
 import type * as integrations_file_actions from "../integrations/file_actions.js";
 import type * as integrations_file_utils from "../integrations/file_utils.js";
@@ -814,6 +817,7 @@ import type * as node_only_sandbox_agent_message_parts from "../node_only/sandbo
 import type * as node_only_sandbox_bifrost_admin from "../node_only/sandbox/bifrost_admin.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_helpers_spawner_client from "../node_only/sandbox/helpers/spawner_client.js";
+import type * as node_only_sandbox_integration_skills from "../node_only/sandbox/integration_skills.js";
 import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sandbox_quiet_idle from "../node_only/sandbox/quiet_idle.js";
 import type * as node_only_sandbox_run_agent from "../node_only/sandbox/run_agent.js";
@@ -1848,6 +1852,7 @@ declare const fullApi: ApiFromModules<{
   "identities/external_identities_schema": typeof identities_external_identities_schema;
   "images/http_actions": typeof images_http_actions;
   "integrations/actions": typeof integrations_actions;
+  "integrations/availability": typeof integrations_availability;
   "integrations/build_test_secrets": typeof integrations_build_test_secrets;
   "integrations/create_integration": typeof integrations_create_integration;
   "integrations/create_integration_internal": typeof integrations_create_integration_internal;
@@ -1856,6 +1861,8 @@ declare const fullApi: ApiFromModules<{
   "integrations/credentials_schema": typeof integrations_credentials_schema;
   "integrations/decrypt_and_refresh_oauth2": typeof integrations_decrypt_and_refresh_oauth2;
   "integrations/delete_integration": typeof integrations_delete_integration;
+  "integrations/dispatch_http": typeof integrations_dispatch_http;
+  "integrations/dispatch_internal": typeof integrations_dispatch_internal;
   "integrations/encrypt_credentials": typeof integrations_encrypt_credentials;
   "integrations/file_actions": typeof integrations_file_actions;
   "integrations/file_utils": typeof integrations_file_utils;
@@ -2229,6 +2236,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/bifrost_admin": typeof node_only_sandbox_bifrost_admin;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/helpers/spawner_client": typeof node_only_sandbox_helpers_spawner_client;
+  "node_only/sandbox/integration_skills": typeof node_only_sandbox_integration_skills;
   "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sandbox/quiet_idle": typeof node_only_sandbox_quiet_idle;
   "node_only/sandbox/run_agent": typeof node_only_sandbox_run_agent;

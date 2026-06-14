@@ -193,6 +193,87 @@ export const listIntegrations = action({
   },
 });
 
+/** Minimal catalog shape for the dispatch readers + skill materialization. */
+export interface IntegrationCatalogEntry {
+  slug: string;
+  title?: string;
+  description?: string;
+  operations?: Array<{
+    name: string;
+    description?: string;
+    operationType?: string;
+  }>;
+}
+
+/**
+ * Non-auth internal catalog enumerator — every integration directory for an
+ * org with its title, description, and operations. Mirrors `listIntegrations`
+ * minus the membership gate; callers (the dispatch httpAction + skill
+ * materialization, already authenticated by the session token) pass an orgSlug
+ * resolved from a trusted organizationId.
+ */
+export const listIntegrationsInternal = internalAction({
+  args: { orgSlug: v.string() },
+  returns: v.array(
+    v.object({
+      slug: v.string(),
+      title: v.optional(v.string()),
+      description: v.optional(v.string()),
+      operations: v.optional(
+        v.array(
+          v.object({
+            name: v.string(),
+            description: v.optional(v.string()),
+            operationType: v.optional(v.string()),
+          }),
+        ),
+      ),
+    }),
+  ),
+  handler: async (_ctx, args): Promise<IntegrationCatalogEntry[]> => {
+    const dir = resolveIntegrationsDir(args.orgSlug);
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch (err) {
+      if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+        return [];
+      }
+      throw err;
+    }
+    const dirs = entries.filter(
+      (e) => !e.startsWith('.') && validateIntegrationSlug(e),
+    );
+    const results = await Promise.all(
+      dirs.map(async (slug): Promise<IntegrationCatalogEntry | null> => {
+        const result = await readIntegrationConfigFile(args.orgSlug, slug);
+        if (!result.ok) return null;
+        const operations = (result.config.operations ?? []).map((op) => {
+          const o: {
+            name: string;
+            description?: string;
+            operationType?: string;
+          } = { name: op.name };
+          if (op.description !== undefined) o.description = op.description;
+          if (op.operationType !== undefined)
+            o.operationType = op.operationType;
+          return o;
+        });
+        const entry: IntegrationCatalogEntry = {
+          slug,
+          title: result.config.title,
+          operations,
+        };
+        if (result.config.description !== undefined) {
+          entry.description = result.config.description;
+        }
+        return entry;
+      }),
+    );
+    return results.filter((r): r is IntegrationCatalogEntry => r !== null);
+  },
+});
+
 /**
  * Save an integration config with an atomic write.
  * Optionally performs compare-and-swap via expectedHash.
