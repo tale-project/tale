@@ -48,10 +48,10 @@ export function validateSecretName(name: string): boolean {
   return SECRET_NAME_REGEX.test(name);
 }
 
-// `policyTypeToFileBase` / `fileBaseToPolicyType` moved to the V8-safe
-// `lib/shared/schemas/governance.ts` (so the config-domain registry can use
-// them without importing this `'use node'` module). Re-exported here for the
-// existing callers that import them from this path.
+// The snake_case↔kebab policy-type mapping lives in the V8-safe
+// `lib/shared/schemas/governance.ts` so the config-domain registry can use it
+// without importing this `'use node'` module; re-exported here for callers that
+// resolve governance file paths.
 export { fileBaseToPolicyType, policyTypeToFileBase };
 
 /** Absolute path to an org's governance directory. */

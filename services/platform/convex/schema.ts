@@ -34,8 +34,6 @@ import {
   auditLogCheckpointsTable,
   dsarPolicyPendingChangesTable,
   gdprErasureRequestsTable,
-  governanceCacheTable,
-  governancePoliciesTable,
   governanceSecretsTable,
   legalHoldReleaseRequestsTable,
   legalHoldsTable,
@@ -142,27 +140,11 @@ export default defineSchema({
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
-  /**
-   * @deprecated Governance policies are now file-based (source of truth in
-   * `$TALE_CONFIG_DIR/<org>/governance/`, mirrored to `configCache`). No code
-   * reads or writes this table anymore (the legacy `upsertPolicy` mutation was
-   * removed). Retained as a table def for schema-validation compatibility on
-   * deployments that still hold rows — same pattern as `llmResponseCache` /
-   * `brandingSettings`. Drop the def in a follow-up after a one-shot row-cleanup
-   * migration runs on existing deployments.
-   */
-  governancePolicies: governancePoliciesTable,
   // Generic file→cache mirror for all `v8-sync` config domains (governance
-  // today). Source of truth is the per-org JSON files; this is re-derivable.
-  // Replaces the former governance-only `governanceCache`. See
+  // today). Source of truth is the per-org JSON files under
+  // `$TALE_CONFIG_DIR/<org>/governance/`; this table is re-derivable. See
   // `lib/config_cache/schema.ts`.
   configCache: configCacheTable,
-  /**
-   * @deprecated Superseded by `configCache` (domain `'governance'`). No code
-   * reads/writes it; retained only for schema-validation compatibility on
-   * deployments with prior rows (a re-derivable cache). Drop in a follow-up.
-   */
-  governanceCache: governanceCacheTable,
   governanceSecrets: governanceSecretsTable,
   legalHolds: legalHoldsTable,
   activeLegalHoldClaims: activeLegalHoldClaimsTable,

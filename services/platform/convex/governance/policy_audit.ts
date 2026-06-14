@@ -7,11 +7,8 @@ import { jsonRecordValidator } from '../lib/validators/json';
 /**
  * Emit the governance-policy audit-log entry for a file write. The write itself
  * happens in the `'use node'` action (filesystem); audit emission must run in a
- * mutation (hash-chain genesis OCC), so the action delegates here.
- *
- * Moved out of the former `governance/cache.ts` when the governance cache
- * mutations were folded into the generic `lib/config_cache` module — the audit
- * emission is governance-specific and has no place in the domain-agnostic cache.
+ * mutation (hash-chain genesis OCC), so the action delegates here. Governance-
+ * specific — kept out of the domain-agnostic `lib/config_cache` module.
  */
 export const recordGovernancePolicyAudit = internalMutation({
   args: {

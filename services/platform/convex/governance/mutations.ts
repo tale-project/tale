@@ -111,8 +111,8 @@ export const finalizeCancelPendingRetention = internalMutation({
 export const recordRetentionPolicyChange = internalMutation({
   args: {
     organizationId: v.string(),
-    /** Previous effective config, captured from `governanceCache` by the
-     *  action BEFORE it overwrote the file. Drives shortening detection. */
+    /** Previous effective config, read from the retention file by the action
+     *  BEFORE it overwrote it. Drives shortening detection. */
     oldConfig: v.optional(v.any()),
     config: v.any(),
     actorId: v.string(),

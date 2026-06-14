@@ -7,11 +7,8 @@
  * `$TALE_CONFIG_DIR/<orgSlug>/<domain>/`. V8 code can't read the filesystem, so
  * this `'use node'` action reads the effective config for every key of a domain
  * (org file → `default` org fallback) and mirrors it into the non-authoritative
- * `configCache` table that queries/mutations read.
- *
- * Generalizes the former governance-only `governance/file_actions.ts::
- * syncGovernanceFromFiles` + `readEffectivePolicyConfig`, driven by the
- * registry `V8SyncSpec` (Layer A) + the domain dir resolvers (Layer B).
+ * `configCache` table that queries/mutations read. Driven by the registry
+ * `V8SyncSpec` (Layer A) + the domain dir resolvers (Layer B).
  */
 
 import { v } from 'convex/values';

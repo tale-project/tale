@@ -14,8 +14,6 @@ import { jsonRecordValidator } from '../validators/json';
  * clears its cached effective config. Last-writer-wins; the cache is
  * non-authoritative and re-derivable, so a lost race self-heals on the next
  * sync.
- *
- * Generalizes the former `governance/cache.ts::replaceGovernanceCacheForOrg`.
  */
 export const replaceConfigCacheForOrg = internalMutation({
   args: {
@@ -85,8 +83,6 @@ export const replaceConfigCacheForOrg = internalMutation({
  * time a setting transitions to an active value (e.g. password rotation 0 →
  * positive) without rewriting `config`. No-op if the row is absent (the next
  * sync will materialize it).
- *
- * Generalizes `governance/cache.ts::setGovernanceCacheEffectiveAt`.
  */
 export const setConfigCacheEffectiveAt = internalMutation({
   args: {

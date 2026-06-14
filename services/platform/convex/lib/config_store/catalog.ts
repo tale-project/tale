@@ -2,10 +2,9 @@
 
 /**
  * The single way to enumerate + read a config domain's catalog JSON files for an
- * org, via the registry's Layer-B dir resolver. Replaces the bespoke
- * `readdir`/`readFileSafe` loops in the prompt + workflow default-provisioners
- * so catalog reads go through one code path (centralized skip rules for
- * `.history/`, dotfiles, and `*.secrets.json`).
+ * org, via the registry's Layer-B dir resolver. The default-provisioners
+ * (prompts, workflows) read their catalogs through this one code path, with
+ * centralized skip rules for `.history/`, dotfiles, and `*.secrets.json`.
  *
  * Lets a missing-directory error propagate so callers that self-retry while the
  * scaffold is still copying the catalog keep working (an empty dir returns `[]`,

@@ -691,10 +691,8 @@ export function isFilePolicyType(value: string): value is FilePolicyType {
  * (`agents/`, `prompts/`, `workflows/`). Policy types never contain `-`, so
  * the `_`↔`-` mapping is unambiguous and round-trips losslessly.
  *
- * Lives here (V8-safe, no `node:*`) rather than in the `'use node'`
- * `convex/governance/file_utils.ts` so the config-domain registry
- * (`lib/shared/config/registry.ts`) can reference it without tainting its
- * bundle. `file_utils.ts` re-exports both for its existing callers.
+ * V8-safe (no `node:*`) so the config-domain registry
+ * (`lib/shared/config/registry.ts`) can reference it directly.
  */
 export function policyTypeToFileBase(policyType: FilePolicyType): string {
   return policyType.replaceAll('_', '-');

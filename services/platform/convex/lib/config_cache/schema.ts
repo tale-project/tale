@@ -13,7 +13,7 @@ import { jsonRecordValidator } from '../validators/json';
  * on scaffold/reseed (plus a periodic reconcile), and can be re-derived at any
  * time by re-reading the files.
  *
- * Generalizes the former governance-only `governanceCache` table:
+ * Domain-agnostic by design:
  *  - `domain` identifies the config domain (`'governance'`, …),
  *  - `key` the item within it (a governance `policyType`, …),
  *  - `config` holds the EFFECTIVE, schema-normalized config (defaults applied),

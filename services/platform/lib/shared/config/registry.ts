@@ -1,24 +1,16 @@
 /**
- * Canonical config-domain registry — the single source of truth for the set
- * of file-based config domains the platform loads from
- * `$TALE_CONFIG_DIR/<orgSlug>/<domain>/`.
- *
- * # Why this exists
- *
- * Every config domain is loaded from JSON files on disk (files are ALWAYS the
- * source of truth). The list of domains was previously duplicated across
- * `convex/organizations/scaffold.ts` (the scaffold `DOMAINS` array),
- * `lib/config-watcher.ts` (the watcher `typeMap`), and the governance schema —
- * each with its own copy that had to "stay in lockstep" by comment. This module
- * collapses them into one declarative list every consumer reads from.
+ * Canonical config-domain registry — the single declarative list of file-based
+ * config domains the platform loads from `$TALE_CONFIG_DIR/<orgSlug>/<domain>/`.
+ * Files are the source of truth; every consumer (the scaffolder, the file
+ * watcher, the file→cache sync, the read strategies) keys off this one list.
  *
  * # The two-layer split (Convex V8↔Node bundling boundary)
  *
- * A Convex query/mutation runs in a V8 sandbox that cannot import `node:*`; a
+ * A Convex query/mutation runs in a V8 sandbox that cannot import `node:*`, so a
  * `'use node'` module that touches the filesystem (every `<domain>/file_utils.ts`,
- * `lib/file_io.ts`, `scaffold.ts`) therefore cannot be value-imported by V8
- * code. The standalone platform `server.ts` (which bundles `config-watcher.ts`)
- * has the same constraint for the Convex client side.
+ * `lib/file_io.ts`, `scaffold.ts`) cannot be value-imported by V8 code. The
+ * standalone platform `server.ts` (which bundles `config-watcher.ts`) has the
+ * same constraint on the Convex client side.
  *
  * So the registry is **Layer A**: pure data + Zod + pure string helpers, with
  * NO `node:*`, NO `convex/_generated`, NO `'use node'`. It is import-safe from
@@ -41,8 +33,8 @@ import {
  *  - `flat`        — one file per item, no subdirs (agents, providers, prompts, governance).
  *  - `bundle`      — one dir per item (skills, integrations).
  *  - `tree`        — arbitrary nested files (workflows, branding + images/).
- *  - `single-file` — exactly one file for the whole area (retention). Not a
- *                    top-level scaffold domain — folded into its parent domain.
+ *  - `single-file` — exactly one file for the whole area (retention). Nested in
+ *                    a parent domain dir rather than scaffolded on its own.
  */
 export type ConfigLayout = 'flat' | 'bundle' | 'tree' | 'single-file';
 

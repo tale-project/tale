@@ -45,10 +45,8 @@ const AREAS: Record<string, AreaSpec> = {
 /**
  * Read a single-file config area for an org. Returns the parsed config, or
  * `null` when the file is absent (the caller falls back to defaults). Throws on
- * an unknown area or a corrupt/oversized/symlinked file.
- *
- * Generalizes the former `readRetentionConfig` — new single-file areas register
- * in `AREAS` instead of adding another `'use node'` shim.
+ * an unknown area or a corrupt/oversized/symlinked file. New single-file areas
+ * register in `AREAS` rather than adding another `'use node'` shim.
  */
 export const readConfigArea = internalAction({
   args: { area: v.string(), orgSlug: v.string() },

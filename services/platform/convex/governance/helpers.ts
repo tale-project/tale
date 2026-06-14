@@ -31,8 +31,7 @@ export interface PolicyRow {
  * `lib/config_cache/actions.ts::syncConfigDomainFromFiles` (on every write + on
  * scaffold/reseed + periodic reconcile) so V8 code — which cannot read the
  * filesystem — has a synchronous read path. Returns `null` on a cache miss;
- * callers fall back to the policy's schema default, exactly as they did for a
- * missing DB row before the migration.
+ * callers fall back to the policy's schema default.
  *
  * Takes `db` (a `GenericDatabaseReader`) rather than a query ctx so both query
  * and mutation/better-auth-hook call sites can share it (a mutation's

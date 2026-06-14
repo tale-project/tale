@@ -36,7 +36,7 @@ const POLICY_LOOSEN_GRACE_MS = 24 * HOUR_MS;
 
 /**
  * Read the per-org `dsar_governance` policy's CURRENT effective config from
- * the file-derived `governanceCache`. A staged loosening change lives in
+ * the file-derived `configCache`. A staged loosening change lives in
  * `dsarPolicyPendingChanges` and does NOT take effect until
  * `applyPendingDsarPolicyChange` flips the file; consumers that gate on policy
  * (e.g. `requestErasure`) only see the active config.

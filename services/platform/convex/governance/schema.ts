@@ -60,57 +60,12 @@ const policyTypeValidator = v.union(
   ...GOVERNANCE_POLICY_TYPES.map((t) => v.literal(t)),
 );
 
-export const governancePoliciesTable = defineTable({
-  organizationId: v.string(),
-  policyType: policyTypeValidator,
-  config: jsonRecordValidator,
-  enabled: v.optional(v.boolean()),
-  updatedBy: v.optional(v.string()),
-  updatedAt: v.optional(v.number()),
-  // Timestamp at which the policy's active enforcement window began.
-  // Used by password_policy rotation to grant a grace window: credential
-  // expiry = max(passwordChangedAt, effectiveAt) + rotationDays. Set the
-  // first time an enforcement-bearing field transitions to an active
-  // value; preserved across unrelated edits.
-  effectiveAt: v.optional(v.number()),
-  // Loosen-grace fields. When an admin proposes a change that *weakens*
-  // the policy (e.g. shortening the DSAR cooling-off window, disabling
-  // dual approval, raising the daily limit), the change is staged here
-  // instead of writing through to `config`. A scheduled internal
-  // mutation flips `config = pendingConfig` at `pendingEffectiveAt`,
-  // unless any admin calls `cancelPendingPolicyChange` first.
-  // Tightening (stricter values) bypasses this and applies immediately.
-  // Today only `dsar_governance` uses this mechanism.
-  pendingConfig: v.optional(jsonRecordValidator),
-  pendingEffectiveAt: v.optional(v.number()),
-  pendingProposedBy: v.optional(v.string()),
-  pendingProposedByEmail: v.optional(v.string()),
-  pendingProposedAt: v.optional(v.number()),
-  pendingScheduledJobId: v.optional(v.id('_scheduled_functions')),
-})
-  .index('by_organizationId', ['organizationId'])
-  .index('by_org_policyType', ['organizationId', 'policyType']);
-
-/**
- * @deprecated The governance-only file-derived cache was generalized into the
- * domain-agnostic `configCache` (`lib/config_cache/schema.ts`); governance now
- * stores its mirror there under domain `'governance'`, and no code reads or
- * writes this table anymore. Retained as a table def only for schema-validation
- * compatibility on deployments that still hold prior `governanceCache` rows
- * (Convex refuses a push that removes a table with documents — same reason
- * `llmResponseCache` is retained). Drop the def in a follow-up after a one-shot
- * row-cleanup migration; the data is a re-derivable cache, so nothing is lost.
- */
-export const governanceCacheTable = defineTable({
-  organizationId: v.string(),
-  policyType: policyTypeValidator,
-  config: jsonRecordValidator,
-  enabled: v.optional(v.boolean()),
-  effectiveAt: v.optional(v.number()),
-  syncedAt: v.number(),
-})
-  .index('by_organizationId', ['organizationId'])
-  .index('by_org_policyType', ['organizationId', 'policyType']);
+// Governance policies are file-based: the per-org JSON tree under
+// `$TALE_CONFIG_DIR/<org>/governance/` is the source of truth, mirrored into the
+// generic `configCache` (domain `'governance'`, see `lib/config_cache/schema.ts`)
+// for V8 reads. Loosen-grace staging lives in the dedicated
+// `dsarPolicyPendingChanges` / `retentionPolicyPendingChanges` tables.
+// `policyTypeValidator` below is shared with `policyAcknowledgements`.
 
 /**
  * Loosen-grace staging for `dsar_governance` (files are the source of truth, so
