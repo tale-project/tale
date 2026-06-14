@@ -409,16 +409,19 @@ export const agentJsonSchema = z
     // for back-compat reading of historical agent JSON.
 
     // image-generation and external-agent both bypass the platform tool loop,
-    // so the loop-only fields are meaningless for them.
+    // so the loop-only fields are meaningless for them — with one exception:
+    // an external-agent reuses `integrationBindings` as the grant set for the
+    // sandbox MCP integration bridge (the coding agent dispatches any bound
+    // integration from inside its container), so it stays allowed there.
+    // `toolNames`/`workflows` remain loop-only and disallowed for both.
     if (
       data.primaryBehavior === 'image-generation' ||
       data.primaryBehavior === 'external-agent'
     ) {
-      const disallowed: Array<keyof typeof data> = [
-        'toolNames',
-        'integrationBindings',
-        'workflows',
-      ];
+      const disallowed: Array<keyof typeof data> =
+        data.primaryBehavior === 'external-agent'
+          ? ['toolNames', 'workflows']
+          : ['toolNames', 'integrationBindings', 'workflows'];
       for (const key of disallowed) {
         const value = data[key];
         if (Array.isArray(value) && value.length > 0) {

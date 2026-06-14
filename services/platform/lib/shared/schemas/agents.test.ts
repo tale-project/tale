@@ -112,7 +112,7 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
     expect(agentJsonSchema.safeParse(externalBase).success).toBe(true);
   });
 
-  it('rejects tool-loop fields on an external-agent', () => {
+  it('rejects loop-only fields (toolNames/workflows) on an external-agent', () => {
     expect(
       agentJsonSchema.safeParse({ ...externalBase, toolNames: ['run_code'] })
         .success,
@@ -120,7 +120,33 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
     expect(
       agentJsonSchema.safeParse({
         ...externalBase,
-        integrationBindings: ['github'],
+        workflows: ['some-workflow'],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts integrationBindings on an external-agent (sandbox dispatch grant set)', () => {
+    // Unlike toolNames/workflows, integrationBindings is the grant set for the
+    // in-container MCP integration bridge, so it is meaningful for external
+    // agents even though they bypass the platform tool loop.
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'claude-code',
+        integrationBindings: ['tavily', 'github'],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('still rejects integrationBindings on an image-generation agent', () => {
+    // The exception is scoped to external-agent only; image-generation has no
+    // integration bridge, so integrationBindings stays disallowed there.
+    expect(
+      agentJsonSchema.safeParse({
+        displayName: 'Image Agent',
+        supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
+        primaryBehavior: 'image-generation' as const,
+        integrationBindings: ['tavily'],
       }).success,
     ).toBe(false);
   });

@@ -88,10 +88,14 @@ const EXTERNAL_AGENT_GATEWAY_URL =
 const INTEGRATIONS_BASE_URL = (
   process.env.EXTERNAL_AGENT_INTEGRATIONS_URL || 'http://convex:3211'
 ).replace(/\/$/, '');
-// v1 static grant set: external agents get the org's GitHub credential (when
-// one is active) so they can clone/push/open PRs. The broker audits every
-// fetch; a missing credential degrades to an anonymous session.
-const SESSION_GRANTS = ['github'];
+// Tier-2 broker credentials that CAN be injected into the container env (for
+// CLIs like `git` that need a raw token in-process to clone/push/open PRs).
+// Which of these are actually injected for a run is gated by the agent's
+// integrationBindings (see the call site) — so binding an integration is the
+// single switch for BOTH in-container env use and the dispatch bridge; an
+// agent without `github` bound gets no GitHub token. The broker audits every
+// fetch and skips grants without an active credential (degrades to anonymous).
+const BROKERABLE_GRANTS = ['github'];
 // Per-turn LLM budget CEILING for an external-agent run (cents), used only when
 // the org has NO rolling cost cap (uncapped). When a cost cap IS configured the
 // VK is sized to the rolling-remaining instead (see the mint below), so a long
@@ -353,6 +357,12 @@ export const runExternalAgentTurn = internalAction({
       // 2. Inject Tier-2 integration credentials. Per-turn (not just at
       // create) so reused sessions pick up rotations; the broker audits
       // every fetch and skips grants without an active credential.
+      // Gate on the agent's integrationBindings so the in-container env token
+      // is injected only for explicitly-bound integrations — the same grant
+      // set written to scope.integrationGrants for the dispatch bridge below.
+      const brokerGrants = BROKERABLE_GRANTS.filter((g) =>
+        (args.integrationBindings ?? []).includes(g),
+      );
       try {
         const creds = await ctx.runAction(
           internal.node_only.sandbox.session_credentials
@@ -360,7 +370,7 @@ export const runExternalAgentTurn = internalAction({
           {
             organizationId: args.organizationId,
             sessionId,
-            grants: SESSION_GRANTS,
+            grants: brokerGrants,
             kind: 'bootstrap',
           },
         );

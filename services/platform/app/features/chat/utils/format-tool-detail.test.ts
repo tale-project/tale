@@ -124,4 +124,34 @@ describe('formatToolDetail', () => {
       expect(formatToolDetail(t, 'Bash', {}).displayText).toBe('Bash');
     });
   });
+
+  describe('MCP tools (mcp__server__tool)', () => {
+    it('surfaces the integration slug for the dispatch tool', () => {
+      expect(
+        formatToolDetail(t, 'mcp__integrations__integration', {
+          slug: 'tavily',
+          operation: 'search',
+        }).displayText,
+      ).toBe('Integration · Tavily');
+    });
+
+    it('labels the dispatch tool plainly when no slug is given', () => {
+      expect(
+        formatToolDetail(t, 'mcp__integrations__integration', {}).displayText,
+      ).toBe('Integration');
+    });
+
+    it('labels the status tool even with no arguments', () => {
+      expect(
+        formatToolDetail(t, 'mcp__integrations__integration_status')
+          .displayText,
+      ).toBe('Integration status');
+    });
+
+    it('cleanly humanizes other MCP tools without the mcp/server prefix', () => {
+      expect(
+        formatToolDetail(t, 'mcp__playwright__browser_navigate').displayText,
+      ).toBe('Browser Navigate');
+    });
+  });
 });

@@ -25,8 +25,32 @@ function externalAgentToolSummary(
   toolName: string,
   input?: Record<string, unknown>,
 ): string | null {
-  if (!input) return null;
   const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+
+  // MCP tool calls arrive as `mcp__<server>__<tool>`. Render a clean label
+  // without leaking the `mcp__` protocol prefix or repeating the server
+  // segment, and surface the integration slug for the generic integration
+  // dispatcher so the row reads "Integration · Tavily" instead of the doubled
+  // "Mcp Integrations Integration". Handled before the `!input` guard so
+  // argument-less calls (e.g. integration_status) still get a clean label.
+  if (toolName.startsWith('mcp__')) {
+    const humanizeSeg = (s: string) =>
+      s
+        .split(/[-_]+/)
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+    const segments = toolName.slice('mcp__'.length).split('__').filter(Boolean);
+    const toolSeg = segments[segments.length - 1] ?? toolName;
+    if (toolSeg === 'integration') {
+      const slug = str(input?.slug);
+      return slug ? `Integration · ${humanizeSeg(slug)}` : 'Integration';
+    }
+    if (toolSeg === 'integration_status') return 'Integration status';
+    return humanizeSeg(toolSeg) || toolName;
+  }
+
+  if (!input) return null;
   switch (toolName) {
     case 'Bash': {
       const cmd = str(input.command);
