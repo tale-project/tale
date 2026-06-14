@@ -62,6 +62,8 @@ const DEFAULT_PROFILE: SessionAgentProfileConfig = {
   tmpfsSize: '128m',
   shmSize: '64m',
   user: '65534:65534',
+  uid: 65534,
+  gid: 65534,
 };
 
 export function buildDockerSessionRunArgs(

@@ -400,6 +400,31 @@ describe('ExecManager output caps', () => {
     expect(warns.filter((w) => w.includes('stdout hit cap')).length).toBe(1);
   });
 
+  test('a cap-crossing chunk is clipped to exactly the cap (no overshoot)', async () => {
+    // Regression: the old check tested `bytes >= cap` BEFORE adding the chunk,
+    // so the first chunk (a 64KB pipe buffer) was emitted in full — overshooting
+    // a 100B cap by ~640x. The fix clips the crossing chunk to the remaining
+    // budget, so total emitted output is EXACTLY the cap, never more.
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    await withWarnCapture(() =>
+      mgr.run(
+        {
+          ...base,
+          execId: 'cap-exact',
+          command: ['cat'],
+          cwd: ROOT,
+          stdoutMaxBytes: 100,
+          stdinBase64: Buffer.from(payload).toString('base64'),
+        },
+        emit,
+      ),
+    );
+    expect(decode(events, 'stdout').length).toBe(100);
+    const exit = events[events.length - 1];
+    if (exit?.t === 'exit') expect(exit.truncated.stdout).toBe(true);
+  });
+
   test('stderr honors the same unlimited sentinel and one-time truncation warn', async () => {
     const unlMgr = new ExecManager(new EnvStore(), () => {});
     const unl = collect();

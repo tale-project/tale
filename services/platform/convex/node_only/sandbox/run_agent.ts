@@ -18,7 +18,6 @@ import {
   buildSteerStdinPayload,
   getAgentAdapter,
   type AgentEvent,
-  type AgentSlug,
 } from '@tale/agent-adapters';
 import { v } from 'convex/values';
 
@@ -157,7 +156,7 @@ export interface RunAgentInSessionArgs {
 export interface RunAgentInSessionResult {
   /** 'completed' | 'failed' | 'cancelled' (terminal) or 'continued' (the action
    * budget elapsed mid-turn → hand off to a continuation action). */
-  status: string;
+  status: 'completed' | 'failed' | 'cancelled' | 'continued';
   exitCode: number | null;
   agentSessionId?: string;
   finalText?: string;
@@ -219,7 +218,7 @@ export async function runAgentInSessionImpl(
   args: RunAgentInSessionArgs,
 ): Promise<RunAgentInSessionResult> {
   const resuming = args.resumeFrom !== undefined;
-  const adapter = getAgentAdapter(args.agentSlug as AgentSlug);
+  const adapter = getAgentAdapter(args.agentSlug);
   // On resume we re-attach to the still-running exec → no new exec is built.
   const exec = resuming
     ? null
@@ -1187,7 +1186,12 @@ export const runAgentInSession = internalAction({
     timeoutMs: v.optional(v.number()),
   },
   returns: v.object({
-    status: v.string(),
+    status: v.union(
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('cancelled'),
+      v.literal('continued'),
+    ),
     exitCode: v.union(v.number(), v.null()),
     agentSessionId: v.optional(v.string()),
     finalText: v.optional(v.string()),

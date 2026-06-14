@@ -87,11 +87,42 @@ export async function stageFiles(items: StageItem[]): Promise<StageResult> {
           skipped.push({ path: item.path, reason: `http_${res.status}` });
           continue;
         }
-        buf = Buffer.from(await res.arrayBuffer());
-        if (buf.byteLength > FETCH_MAX_BYTES) {
+        // Reject up front on a declared length over the cap (cheap, no body
+        // read). A truthful Content-Length avoids streaming a huge body at all.
+        const declared = Number(res.headers.get('content-length') ?? '');
+        if (Number.isFinite(declared) && declared > FETCH_MAX_BYTES) {
           skipped.push({ path: item.path, reason: 'too_large' });
           continue;
         }
+        if (res.body === null) {
+          skipped.push({ path: item.path, reason: 'no_body' });
+          continue;
+        }
+        // Stream-accumulate so a missing/lying Content-Length can't OOM the
+        // daemon: cancel the reader the instant the running total crosses the
+        // cap (don't buffer the whole body first).
+        const reader = res.body.getReader();
+        const parts: Buffer[] = [];
+        let total = 0;
+        let overLimit = false;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value === undefined) continue;
+          const part = Buffer.from(value);
+          total += part.byteLength;
+          if (total > FETCH_MAX_BYTES) {
+            overLimit = true;
+            await reader.cancel();
+            break;
+          }
+          parts.push(part);
+        }
+        if (overLimit) {
+          skipped.push({ path: item.path, reason: 'too_large' });
+          continue;
+        }
+        buf = Buffer.concat(parts);
       } else {
         skipped.push({ path: item.path, reason: 'no_source' });
         continue;

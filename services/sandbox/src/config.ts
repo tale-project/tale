@@ -28,6 +28,36 @@ function numEnv(
   return n;
 }
 
+/**
+ * Parse + validate a `uid:gid` env (SANDBOX_AGENT_USER). Both must be integers
+ * >= 1 — a malformed value (`"invalid"` ⇒ NaN, `":"` ⇒ 0:0 = root) would
+ * otherwise silently land the agent container on root, defeating the non-root
+ * hardening that Claude Code's bypassPermissions depends on. Returns the
+ * canonical `uid:gid` string plus the parsed numerics for backends that need
+ * either form.
+ */
+function userEnv(
+  name: string,
+  fallback: string,
+): { user: string; uid: number; gid: number } {
+  const raw = process.env[name];
+  const value = raw === undefined || raw.trim() === '' ? fallback : raw.trim();
+  if (!/^\d+:\d+$/.test(value)) {
+    throw new Error(
+      `Env var ${name} must be 'uid:gid' (digits only); got: ${JSON.stringify(value)}`,
+    );
+  }
+  const [uidStr, gidStr] = value.split(':');
+  const uid = Number(uidStr);
+  const gid = Number(gidStr);
+  if (uid < 1 || gid < 1) {
+    throw new Error(
+      `Env var ${name} must have uid >= 1 and gid >= 1 (no root); got: ${value}`,
+    );
+  }
+  return { user: `${uid}:${gid}`, uid, gid };
+}
+
 export function loadConfig(): SpawnerConfig {
   const rawRuntime = process.env.SANDBOX_RUNTIME ?? 'runc';
   if (rawRuntime !== 'runc' && rawRuntime !== 'runsc') {
@@ -196,8 +226,9 @@ export function loadConfig(): SpawnerConfig {
         shmSize: process.env.SANDBOX_AGENT_SHM_SIZE ?? '512m',
         // The image's `agent` user (uid 10001). Overridable only for
         // emergency rollback to nobody — Claude Code's bypassPermissions
-        // requires non-root either way.
-        user: process.env.SANDBOX_AGENT_USER ?? '10001:10001',
+        // requires non-root either way. Validated to a real uid:gid >= 1 so a
+        // malformed override can't silently drop the container onto root.
+        ...userEnv('SANDBOX_AGENT_USER', '10001:10001'),
       },
     },
   };

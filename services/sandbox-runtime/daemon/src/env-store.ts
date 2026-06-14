@@ -16,8 +16,11 @@ export class EnvStore {
 
   constructor(seed?: Record<string, string>) {
     if (seed) {
+      // Apply the SAME deny-list + entry/size caps as patch() so an oversized
+      // or too-numerous TALE_SESSION_ENV seed can't slip past at startup.
       for (const [k, v] of Object.entries(seed)) {
-        if (!isDeniedEnvName(k)) this.store.set(k, v);
+        if (isDeniedEnvName(k) || !this.acceptable(k, v)) continue;
+        this.store.set(k, v);
       }
     }
   }

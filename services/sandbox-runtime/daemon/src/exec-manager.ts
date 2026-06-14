@@ -275,8 +275,13 @@ export class ExecManager {
         try {
           // Negative pid → signal the whole process group.
           if (child.pid !== undefined) process.kill(-child.pid, signal);
-        } catch {
-          // Already gone — nothing to kill.
+        } catch (err) {
+          // Already gone (ESRCH) — nothing to kill. Log for visibility; other
+          // errno (e.g. EPERM) is a real config problem worth surfacing.
+          console.warn(
+            `[runnerd] kill(${signal}) of pgroup ${child.pid} failed:`,
+            err instanceof Error ? err.message : err,
+          );
         }
       },
     };
@@ -335,8 +340,9 @@ export class ExecManager {
     } else if (req.stdinBase64) {
       try {
         child.stdin.end(Buffer.from(req.stdinBase64, 'base64'));
-      } catch {
+      } catch (err) {
         // stdin may already be closed if the child exited instantly.
+        console.warn('[runnerd] initial stdin end failed:', err);
       }
     } else {
       child.stdin.end();
@@ -351,30 +357,56 @@ export class ExecManager {
       // stdoutMaxBytes <= 0 ⇒ UNLIMITED: never truncate (the ring + per-consumer
       // buffer ceiling bound memory). Long-lived streaming execs pass 0 so their
       // live output is never silently cut off mid-run.
-      if (req.stdoutMaxBytes > 0 && stdoutBytes >= req.stdoutMaxBytes) {
-        if (!stdoutTruncLogged) {
-          stdoutTruncLogged = true;
-          console.warn(
-            `[runnerd] exec ${req.execId} stdout hit cap ${req.stdoutMaxBytes}B — further stdout dropped (truncated)`,
-          );
+      if (req.stdoutMaxBytes > 0) {
+        const remaining = req.stdoutMaxBytes - stdoutBytes;
+        if (remaining <= 0) {
+          if (!stdoutTruncLogged) {
+            stdoutTruncLogged = true;
+            console.warn(
+              `[runnerd] exec ${req.execId} stdout hit cap ${req.stdoutMaxBytes}B — further stdout dropped (truncated)`,
+            );
+          }
+          stdoutTrunc = true;
+          return;
         }
-        stdoutTrunc = true;
-        return;
+        if (chunk.byteLength > remaining) {
+          // Crossing chunk: emit only the bytes that fit under the cap, then
+          // mark truncated so the rest is dropped at the next 'data'.
+          stdoutBytes += remaining;
+          stdoutTrunc = true;
+          ringEmit({
+            t: 'stdout',
+            b64: chunk.subarray(0, remaining).toString('base64'),
+          });
+          return;
+        }
       }
       stdoutBytes += chunk.byteLength;
       ringEmit({ t: 'stdout', b64: chunk.toString('base64') });
     });
     child.stderr.on('data', (chunk: Buffer) => {
       if (settled) return;
-      if (req.stderrMaxBytes > 0 && stderrBytes >= req.stderrMaxBytes) {
-        if (!stderrTruncLogged) {
-          stderrTruncLogged = true;
-          console.warn(
-            `[runnerd] exec ${req.execId} stderr hit cap ${req.stderrMaxBytes}B — further stderr dropped (truncated)`,
-          );
+      if (req.stderrMaxBytes > 0) {
+        const remaining = req.stderrMaxBytes - stderrBytes;
+        if (remaining <= 0) {
+          if (!stderrTruncLogged) {
+            stderrTruncLogged = true;
+            console.warn(
+              `[runnerd] exec ${req.execId} stderr hit cap ${req.stderrMaxBytes}B — further stderr dropped (truncated)`,
+            );
+          }
+          stderrTrunc = true;
+          return;
         }
-        stderrTrunc = true;
-        return;
+        if (chunk.byteLength > remaining) {
+          stderrBytes += remaining;
+          stderrTrunc = true;
+          ringEmit({
+            t: 'stderr',
+            b64: chunk.subarray(0, remaining).toString('base64'),
+          });
+          return;
+        }
       }
       stderrBytes += chunk.byteLength;
       ringEmit({ t: 'stderr', b64: chunk.toString('base64') });
@@ -558,18 +590,51 @@ function isSingleNdjsonLine(buf: Buffer): boolean {
   return true;
 }
 
+function isObject(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+/** Narrow a parsed ring line to a RunnerdExecEvent. Lines are produced by
+ * ringEmit (JSON.stringify of our own union), so this is defence-in-depth, but
+ * it keeps the replay path cast-free: validate the `t` discriminator + the
+ * required per-variant fields before emitting. */
+function isRunnerdExecEvent(v: unknown): v is RunnerdExecEvent {
+  if (!isObject(v)) return false;
+  if (v.seq !== undefined && typeof v.seq !== 'number') return false;
+  switch (v.t) {
+    case 'start':
+      return typeof v.execId === 'string' && typeof v.startedAtMs === 'number';
+    case 'stdout':
+    case 'stderr':
+      return typeof v.b64 === 'string';
+    case 'exit':
+      return (
+        typeof v.exitCode === 'number' &&
+        typeof v.durationMs === 'number' &&
+        typeof v.timedOut === 'boolean' &&
+        typeof v.cancelled === 'boolean' &&
+        isObject(v.truncated)
+      );
+    case 'fail':
+      return typeof v.code === 'string' && typeof v.message === 'string';
+    default:
+      return false;
+  }
+}
+
 /** Parse a retained ring line (NDJSON) back to an event for attach replay,
  * skipping anything the reconnecting consumer already saw (seq <= sinceSeq). */
 function emitRingLine(line: string, emit: ExecSubscriber, sinceSeq = 0): void {
   const trimmed = line.trim();
   if (!trimmed) return;
   try {
-    // Lines were produced by ringEmit (JSON.stringify of a RunnerdExecEvent),
-    // so the shape is ours, not external input.
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const event = JSON.parse(trimmed) as RunnerdExecEvent;
-    if ((event.seq ?? 0) <= sinceSeq) return;
-    emit(event);
+    const parsed: unknown = JSON.parse(trimmed);
+    if (!isRunnerdExecEvent(parsed)) {
+      console.warn('[runnerd] ring line is not a RunnerdExecEvent:', trimmed);
+      return;
+    }
+    if ((parsed.seq ?? 0) <= sinceSeq) return;
+    emit(parsed);
   } catch (err) {
     console.warn('[runnerd] bad ring line during attach replay:', err);
   }

@@ -103,14 +103,16 @@ export class KubernetesSessionBackend implements SessionBackend {
     }
 
     // Poll runnerd readiness via the Pod IP (which appears once scheduled).
+    // waitForEndpoint and waitForRunnerd share ONE budget: the time spent
+    // waiting for the Pod IP is deducted from what runnerd readiness gets, so
+    // a slow scheduler can't double-spend createHealthTimeoutMs.
+    const deadline = Date.now() + this.cfg.session.createHealthTimeoutMs;
     try {
-      const endpoint = await this.waitForEndpoint(
-        spec.sessionId,
-        spec.createdAtMs + this.cfg.session.createHealthTimeoutMs,
-      );
+      const endpoint = await this.waitForEndpoint(spec.sessionId, deadline);
+      const remainingMs = Math.max(0, deadline - Date.now());
       await waitForRunnerd(
         { baseUrl: endpoint, token: this.tokenFor(spec.sessionId) },
-        this.cfg.session.createHealthTimeoutMs,
+        remainingMs,
       );
     } catch (err) {
       await this.cleanupFailedCreate(spec.sessionId, preexisting);

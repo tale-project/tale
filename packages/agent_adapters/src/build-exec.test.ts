@@ -8,12 +8,12 @@ import { ClaudeCodeAdapter } from './claude_code/adapter';
 import { OpenCodeAdapter } from './opencode/adapter';
 import type { AgentRunSpec } from './types';
 
-const base: AgentRunSpec = {
+const base = {
   prompt: 'Fix issue #1 and open a PR',
   model: 'claude-sonnet-4-6',
   gateway: { baseUrl: 'http://bifrost:8080', token: 'sk-bf-test' },
   workdir: '/workspace/repo',
-};
+} satisfies AgentRunSpec;
 
 describe('ClaudeCodeAdapter.buildExec', () => {
   it('builds the headless stream-json invocation with gateway env', () => {

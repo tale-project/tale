@@ -694,7 +694,9 @@ services:
   # ============================================================================
   bifrost:
     image: maximhq/bifrost:${BIFROST_VERSION:-v1.5.13}
-    pull_policy: ${PULL_POLICY:-build}
+    # External image (no build: block here), so the repo-wide `build` default is
+    # invalid for this service — pull the pinned tag when absent instead.
+    pull_policy: ${PULL_POLICY:-missing}
     container_name: tale-bifrost
     env_file:
       - .env

@@ -74,7 +74,11 @@ export class OpenCodeAdapter implements AgentAdapter {
     const argv = ['opencode', 'run', '--format', 'json', '--dir', spec.workdir];
     if (spec.agentSessionId) argv.push('-s', spec.agentSessionId);
     argv.push('-m', taleModel);
-    // Prompt as the trailing positional (argv element — no shell).
+    // Prompt as the trailing positional (argv element — no shell). Unlike the
+    // SessionExecSpec stdin contract (Claude Code rides stdin), `opencode run`
+    // only accepts the prompt as a positional `[message..]` argument — it has
+    // no stdin/`-` prompt source — so it cannot honor the argv-leak guard. This
+    // is the agent's documented CLI surface, not a leak we can avoid here.
     argv.push(spec.prompt);
 
     const env: Record<string, string> = {

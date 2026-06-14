@@ -167,9 +167,10 @@ export class ClaudeCodeParser implements AgentEventParser {
       const usage = obj(message?.usage);
       if (usage && (!msgId || !this.seenUsageMsgIds.has(msgId))) {
         if (msgId) this.seenUsageMsgIds.add(msgId);
+        const model = str(message?.model);
         events.push({
           type: 'usage',
-          ...(str(message?.model) ? { model: str(message?.model) } : {}),
+          ...(model ? { model } : {}),
           inputTokens: num(usage.input_tokens),
           outputTokens: num(usage.output_tokens),
           cacheReadTokens: num(usage.cache_read_input_tokens),

@@ -81,9 +81,20 @@ export const resolveSessionCredentials = internalAction({
         );
         continue;
       }
-      const decrypted = await getDecryptedCredentials(ctx, {
-        credentialId: credential._id,
-      });
+      let decrypted: Awaited<ReturnType<typeof getDecryptedCredentials>>;
+      try {
+        decrypted = await getDecryptedCredentials(ctx, {
+          credentialId: credential._id,
+        });
+      } catch (err) {
+        // A corrupt secret / missing decryption key must not abort the whole
+        // session create — skip this grant like a missing credential does.
+        console.warn(
+          `[sandbox.broker] grant '${slug}' failed to decrypt:`,
+          err instanceof Error ? err.message : String(err),
+        );
+        continue;
+      }
       const secret = pickSecret(decrypted);
       if (secret === null) {
         console.warn(`[sandbox.broker] grant '${slug}' has no usable secret`);

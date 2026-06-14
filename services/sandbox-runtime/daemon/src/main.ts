@@ -100,6 +100,40 @@ async function readBody(
   return Buffer.concat(chunks).toString('utf8');
 }
 
+function isObject(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+/** Validate a POST /env body without a cast. `set` (if present) must be a
+ * Record<string,string>; `unset` (if present) must be string[]. Returns null on
+ * any malformed shape so the handler answers 400 before reaching envStore.patch
+ * (which re-enforces the deny-list + caps but assumes well-typed entries). */
+function parseEnvPatch(
+  v: unknown,
+): { set?: Record<string, string>; unset?: string[] } | null {
+  if (!isObject(v)) return null;
+  let set: Record<string, string> | undefined;
+  if (v.set !== undefined) {
+    if (!isObject(v.set)) return null;
+    const out: Record<string, string> = {};
+    for (const [k, val] of Object.entries(v.set)) {
+      if (typeof val !== 'string') return null;
+      out[k] = val;
+    }
+    set = out;
+  }
+  let unset: string[] | undefined;
+  if (v.unset !== undefined) {
+    if (!Array.isArray(v.unset)) return null;
+    // Type-predicate filter mirrors validate-session's command parsing — a
+    // clean string[] with no assertion. Reject if any entry was non-string.
+    const strings = v.unset.filter((e): e is string => typeof e === 'string');
+    if (strings.length !== v.unset.length) return null;
+    unset = strings;
+  }
+  return { set, unset };
+}
+
 async function handleExec(
   req: IncomingMessage,
   res: ServerResponse,
@@ -298,15 +332,20 @@ async function router(
     return;
   }
   if (req.method === 'POST' && path === '/env') {
-    let body: { set?: Record<string, string>; unset?: string[] };
+    let parsed: unknown;
     try {
-      body = JSON.parse(await readBody(req));
+      parsed = JSON.parse(await readBody(req));
     } catch {
       sendJson(res, 400, { error: 'bad_request' });
       return;
     }
+    const patch = parseEnvPatch(parsed);
+    if (patch === null) {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
     touch();
-    const denied = envStore.patch(body.set, body.unset);
+    const denied = envStore.patch(patch.set, patch.unset);
     sendJson(res, 200, { ok: true, denied });
     return;
   }

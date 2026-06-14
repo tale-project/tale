@@ -46,12 +46,14 @@ export class DockerSessionBackend implements SessionBackend {
   async createSession(spec: SessionSpec): Promise<void> {
     const containerName = sessionContainerName(spec.sessionId);
     const workspaceHostDir = this.workspaceDir(spec.sessionId);
-    const profile =
+    // uid/gid for the workspace chown. The agent profile carries validated
+    // numerics (config.ts userEnv); the default profile is the fixed nobody
+    // (65534). Both are real integers >= 1, so the chown can never silently
+    // land on root.
+    const { uid, gid } =
       spec.profile === 'agent'
         ? this.cfg.session.agentProfile
-        : { user: '65534:65534' };
-    const uid = Number(profile.user.split(':')[0] ?? '65534');
-    const gid = Number(profile.user.split(':')[1] ?? '65534');
+        : { uid: 65534, gid: 65534 };
 
     // A pre-existing workspace dir means this is a RESUME of a stopped session
     // (idle reaper removed the container but kept the data). A failed create
@@ -61,8 +63,16 @@ export class DockerSessionBackend implements SessionBackend {
     const preexisting = await this.workspaceDirExists(workspaceHostDir);
 
     // Workspace dir survives the container; chown to the container's uid so
-    // the unprivileged session process can write it.
+    // the unprivileged session process can write it. Defensive backstop: never
+    // chown to root/non-integer even if the validated config were bypassed.
     await mkdir(workspaceHostDir, { recursive: true });
+    if (
+      !(Number.isInteger(uid) && Number.isInteger(gid) && uid >= 1 && gid >= 1)
+    ) {
+      throw new Error(
+        `[sandbox.session] refusing to chown workspace to invalid uid:gid ${uid}:${gid}`,
+      );
+    }
     try {
       await chown(workspaceHostDir, uid, gid);
     } catch (err) {

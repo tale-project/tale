@@ -110,11 +110,15 @@ export class SessionRoutes {
           });
           if (health.liveExecs > 0) continue; // busy (cold-cache backstop)
           expired = nowMs - health.lastActivityAtMs > s.idleTimeoutMs;
-        } catch {
+        } catch (err) {
           // runnerd unreachable. Distinguish a transient blip (leave for a
           // later sweep; the TTL is the hard backstop) from a ZOMBIE — the
           // backend object is gone but the cache entry survived. Without
           // this, a dead session lingers routable-but-unreachable until TTL.
+          console.warn(
+            `[sandbox.session] sweep health probe failed for ${s.sessionId} (${s.endpoint}):`,
+            err,
+          );
           if (await this.evictIfBackendGone(s.sessionId)) reaped += 1;
         }
       }

@@ -696,6 +696,10 @@ function parseData<T>(data: string): T | null {
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
     return JSON.parse(data) as T;
   } catch {
+    // Intentional silence: SSE legitimately delivers partial/malformed payloads
+    // (a chunk split mid-JSON, a stray keepalive). Callers handle null and the
+    // remainder is reassembled on the next read — logging here would fire on
+    // every benign partial chunk.
     return null;
   }
 }

@@ -13,6 +13,7 @@ import type {
   sandboxErrorCodeLiterals as SpawnerErrorCodes,
   sandboxLanguageLiterals as SpawnerLanguages,
   sandboxPhaseEventLiterals as SpawnerPhases,
+  sandboxSessionProfileLiterals as SpawnerSessionProfiles,
   sandboxSseEventLiterals as SpawnerSseEvents,
   sandboxStepStatusLiterals as SpawnerStepStatuses,
 } from '../../../sandbox/src/wire';
@@ -383,6 +384,12 @@ const _stepStatusParity: Equal<
 const _sseEventParity: Equal<
   (typeof sandboxSseEventLiterals)[number],
   (typeof SpawnerSseEvents)[number]
+> = true;
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _sessionProfileParity: Equal<
+  SandboxSessionProfile,
+  (typeof SpawnerSessionProfiles)[number]
 > = true;
 
 // Harvest output-file shape parity. Both sides declare:

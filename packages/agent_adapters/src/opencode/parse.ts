@@ -76,7 +76,14 @@ export class OpenCodeParser implements AgentEventParser {
       const events = this.maybeStart(ev);
       const state = obj(part?.state);
       const status = str(state?.status);
-      const toolUseId = str(part?.id) ?? str(part?.callID) ?? '';
+      const toolUseId = str(part?.id) ?? str(part?.callID);
+      if (!toolUseId) {
+        // No correlation id — emitting a normalized tool-use/tool-result with
+        // an empty id would corrupt downstream pairing. Forward verbatim
+        // instead so nothing is silently dropped.
+        events.push({ type: 'raw', agent: 'opencode', payload: ev });
+        return events;
+      }
       if (status === 'completed' || status === 'error') {
         const out: AgentEvent = { type: 'tool-result', toolUseId };
         if (state?.output !== undefined) out.output = state.output;

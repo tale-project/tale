@@ -352,6 +352,10 @@ export interface SessionAgentProfileConfig {
   shmSize: string;
   /** uid:gid the agent-profile container runs as (the image's `agent` user;
    * non-root is load-bearing — Claude Code refuses bypassPermissions as
-   * root). */
+   * root). Validated at config load (uid/gid integers >= 1). */
   user: string;
+  /** Parsed `user` uid, validated >= 1 at config load. */
+  uid: number;
+  /** Parsed `user` gid, validated >= 1 at config load. */
+  gid: number;
 }

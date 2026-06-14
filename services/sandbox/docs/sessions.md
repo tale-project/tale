@@ -61,7 +61,12 @@ Secrets entering a sandbox is a graded decision, documented and enforced:
   enter the sandbox, but only through one managed pipeline — explicit
   per-session grant (default empty) → broker fetch (never baked into
   env/image/PodSpec) → audited (`sandboxCredentialAccess`) → revoked on
-  destroy (git creds fetched per-operation, so revocation is immediate).
+  destroy. In v1 the broker injects git creds into the in-session env store
+  (the `tale-git-credential` helper reads `GITHUB_TOKEN` per git operation),
+  so revocation follows that env-backed lifecycle — it takes effect on
+  destroy / re-resolve (rotation), not at the granularity of an individual
+  git operation. True per-operation broker fetch (with immediate per-op
+  revocation) is a planned follow-up.
 
 ## Resource profiles
 

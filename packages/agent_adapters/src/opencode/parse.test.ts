@@ -76,6 +76,27 @@ describe('OpenCodeParser', () => {
     }
   });
 
+  it('forwards a tool_use with no correlation id as raw, never a normalized empty-id event', () => {
+    const parser = new OpenCodeParser();
+    const ev = {
+      type: 'tool_use',
+      part: {
+        tool: 'bash',
+        state: { status: 'running', input: { cmd: 'ls' } },
+      },
+    };
+    const events = parser.feed(`${JSON.stringify(ev)}\n`);
+    // No id/callID → must not pair under an empty toolUseId.
+    expect(
+      events.every((e) => e.type !== 'tool-use' && e.type !== 'tool-result'),
+    ).toBe(true);
+    expect(events).toContainEqual({
+      type: 'raw',
+      agent: 'opencode',
+      payload: ev,
+    });
+  });
+
   it('maps an error event', () => {
     const parser = new OpenCodeParser();
     const events = parser.feed(

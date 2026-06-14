@@ -23,5 +23,7 @@ export const TEST_SESSION_CONFIG: SessionConfig = {
     tmpfsSize: '512m',
     shmSize: '512m',
     user: '10001:10001',
+    uid: 10001,
+    gid: 10001,
   },
 };

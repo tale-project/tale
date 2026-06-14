@@ -26,7 +26,7 @@ export const RUNNERD_ENV_DENY_PREFIXES = ['TALE_RUNNERD_'] as const;
 export const RUNNERD_ENV_DENY_PROXY_RE = /^(https?|no)_proxy$/i;
 
 export function isDeniedEnvName(name: string): boolean {
-  if ((RUNNERD_ENV_DENYLIST as readonly string[]).includes(name)) return true;
+  if (RUNNERD_ENV_DENYLIST.some((v) => v === name)) return true;
   if (RUNNERD_ENV_DENY_PROXY_RE.test(name)) return true;
   return RUNNERD_ENV_DENY_PREFIXES.some((p) => name.startsWith(p));
 }
