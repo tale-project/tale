@@ -54,11 +54,13 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     ]);
     // No integration bridge unless integrationsBaseUrl is set.
     expect(mcpConfig.mcpServers.integrations).toBeUndefined();
-    // Built-in (server-side) WebSearch is denied — search goes only through a
-    // connected integration via the dispatch bridge. WebFetch stays ENABLED:
-    // it's a client-side, egress-governed fetch of a specific URL.
+    // Built-in WebSearch AND WebFetch are denied — both are model-coupled and
+    // ungoverned, so ALL web access routes through a connected integration via
+    // the dispatch bridge (search op + extract/fetch op), audited and wrapped.
     expect(argv).toContain('--disallowedTools');
-    expect(argv[argv.indexOf('--disallowedTools') + 1]).toBe('WebSearch');
+    expect(argv[argv.indexOf('--disallowedTools') + 1]).toBe(
+      'WebSearch,WebFetch',
+    );
     // prompt rides stdin as ONE stream-json user-message NDJSON line (a
     // malformed line kills the CLI's stream-json reader), never argv.
     expect(stdin).toBe(`${stdin?.trimEnd()}\n`);

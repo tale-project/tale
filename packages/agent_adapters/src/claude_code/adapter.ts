@@ -84,13 +84,15 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         '--strict-mcp-config',
       );
     }
-    // Deny the built-in SERVER-SIDE WebSearch — provider-run, ungoverned, and
-    // model-inconsistent — so search goes only through a connected search
-    // integration (e.g. Tavily) via the dispatch bridge (metered + audited).
-    // WebFetch is deliberately LEFT ENABLED: it's a CLIENT-SIDE fetch (the
-    // container GETs the URL itself, bounded by the sandbox egress allowlist),
-    // not a search service — legitimate for fetching a specific page.
-    argv.push('--disallowedTools', 'WebSearch');
+    // Deny the built-in WebSearch AND WebFetch. Both are model-coupled and
+    // ungoverned: WebSearch is a provider-run search, and WebFetch pipes the
+    // fetched page through a model to extract the answer — neither flows
+    // through our integration audit / untrusted-source wrapping / metering, and
+    // on a non-Anthropic gateway model they behave inconsistently. ALL web
+    // access goes through a connected integration via the dispatch bridge:
+    // search via a search integration's `search` op (e.g. Tavily) and reading a
+    // specific page via its `extract`/fetch op — both audited and wrapped.
+    argv.push('--disallowedTools', 'WebSearch,WebFetch');
 
     const env: Record<string, string> = {
       // Anthropic Messages route on the gateway; the session key is a bearer

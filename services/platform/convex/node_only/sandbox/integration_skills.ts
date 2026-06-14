@@ -71,9 +71,12 @@ in a single message rather than one at a time:
   user to connect it at the integrations settings page (the result carries a
   \`connectUrl\`).
 
-Call \`integration_status\` anytime to see which integrations are usable now. Do
-NOT scrape a search engine via the browser as a substitute for a search
-integration — use the connected search integration, or guide the user to add one.
+Call \`integration_status\` anytime to see which integrations are usable now.
+The built-in WebSearch and WebFetch tools are DISABLED — route ALL web access
+through a connected integration: search the web via a search integration's
+\`search\` operation, and read a specific page via its \`extract\`/fetch
+operation. Never use the browser to scrape a search engine or fetch pages as a
+substitute; if no suitable integration is connected, guide the user to add one.
 `;
 }
 
