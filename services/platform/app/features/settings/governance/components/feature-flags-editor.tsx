@@ -5,6 +5,15 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 import { Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -472,167 +481,133 @@ export function FeatureFlagsEditor({
         }
       >
         <div className="border-border overflow-hidden rounded-lg border">
-          <div className="overflow-x-auto">
-            <table
-              className="w-full text-sm"
-              aria-label={t('featureFlags.title')}
-            >
-              <caption className="sr-only">{t('featureFlags.title')}</caption>
-              <thead className="bg-muted/50">
-                <tr className="border-border border-b">
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-left font-medium"
-                  >
-                    {t('featureFlags.scope')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-left font-medium"
-                  >
-                    {t('featureFlags.target')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-center font-medium"
-                  >
-                    {t('featureFlags.webSearch')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-center font-medium"
-                  >
-                    {t('featureFlags.codeExecution')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-center font-medium"
-                  >
-                    {t('featureFlags.fileUpload')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-right font-medium"
-                  >
-                    {t('featureFlags.maxContextTokens')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-right font-medium"
-                  >
-                    {t('featureFlags.actions')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => (
-                    <tr
-                      key={`placeholder-${i}`}
-                      className="border-border border-b last:border-b-0"
-                    >
-                      <td className="px-3 py-2">
+          <Table aria-label={t('featureFlags.title')}>
+            <TableCaption className="sr-only">
+              {t('featureFlags.title')}
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('featureFlags.scope')}</TableHead>
+                <TableHead>{t('featureFlags.target')}</TableHead>
+                <TableHead className="text-center">
+                  {t('featureFlags.webSearch')}
+                </TableHead>
+                <TableHead className="text-center">
+                  {t('featureFlags.codeExecution')}
+                </TableHead>
+                <TableHead className="text-center">
+                  {t('featureFlags.fileUpload')}
+                </TableHead>
+                <TableHead className="text-right">
+                  {t('featureFlags.maxContextTokens')}
+                </TableHead>
+                <TableHead className="text-right">
+                  {t('featureFlags.actions')}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => (
+                  <TableRow key={`placeholder-${i}`}>
+                    <TableCell>
+                      <SkeletonBox>
+                        <div className="h-3.5 w-16" />
+                      </SkeletonBox>
+                    </TableCell>
+                    <TableCell>
+                      <SkeletonBox>
+                        <div className="h-3.5 w-24" />
+                      </SkeletonBox>
+                    </TableCell>
+                    <TableCell>
+                      <SkeletonBox fullWidth>
+                        <div className="mx-auto size-4 rounded-sm" />
+                      </SkeletonBox>
+                    </TableCell>
+                    <TableCell>
+                      <SkeletonBox fullWidth>
+                        <div className="mx-auto size-4 rounded-sm" />
+                      </SkeletonBox>
+                    </TableCell>
+                    <TableCell>
+                      <SkeletonBox fullWidth>
+                        <div className="mx-auto size-4 rounded-sm" />
+                      </SkeletonBox>
+                    </TableCell>
+                    <TableCell>
+                      <SkeletonBox fullWidth>
+                        <div className="ml-auto h-3.5 w-14" />
+                      </SkeletonBox>
+                    </TableCell>
+                    <TableCell>
+                      <HStack gap={1} justify="end">
                         <SkeletonBox>
-                          <div className="h-3.5 w-16" />
+                          <div className="size-8 rounded-md" />
                         </SkeletonBox>
-                      </td>
-                      <td className="px-3 py-2">
                         <SkeletonBox>
-                          <div className="h-3.5 w-24" />
+                          <div className="size-8 rounded-md" />
                         </SkeletonBox>
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonBox fullWidth>
-                          <div className="mx-auto size-4 rounded-sm" />
-                        </SkeletonBox>
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonBox fullWidth>
-                          <div className="mx-auto size-4 rounded-sm" />
-                        </SkeletonBox>
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonBox fullWidth>
-                          <div className="mx-auto size-4 rounded-sm" />
-                        </SkeletonBox>
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonBox fullWidth>
-                          <div className="ml-auto h-3.5 w-14" />
-                        </SkeletonBox>
-                      </td>
-                      <td className="px-3 py-2">
-                        <HStack gap={1} justify="end">
-                          <SkeletonBox>
-                            <div className="size-8 rounded-md" />
-                          </SkeletonBox>
-                          <SkeletonBox>
-                            <div className="size-8 rounded-md" />
-                          </SkeletonBox>
-                        </HStack>
-                      </td>
-                    </tr>
-                  ))
-                ) : rules.length > 0 ? (
-                  rules.map((rule, index) => (
-                    <tr
-                      key={index}
-                      className="border-border border-b last:border-b-0"
-                    >
-                      <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                      <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                      <td className="px-3 py-2 text-center">
-                        {rule.webSearch === false ? '✘' : '✔'}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {rule.codeExecution === false ? '✘' : '✔'}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {rule.fileUpload === false ? '✘' : '✔'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {rule.maxContextTokens != null
-                          ? formatNumber(rule.maxContextTokens)
-                          : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <HStack gap={1} justify="end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onEditRule(index)}
-                            disabled={cannotManage}
-                            aria-label={`${t('featureFlags.editRule')} ${index + 1}`}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onRemoveRule(index)}
-                            disabled={cannotManage}
-                            aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </HStack>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={COLUMN_COUNT} className="p-0">
-                      <RulesTableEmptyState
-                        icon={SlidersHorizontal}
-                        title={t('featureFlags.noRulesTitle')}
-                        description={t('featureFlags.noRulesDescription')}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                      </HStack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : rules.length > 0 ? (
+                rules.map((rule, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="capitalize">{rule.scope}</TableCell>
+                    <TableCell>{resolveTarget(rule)}</TableCell>
+                    <TableCell className="text-center">
+                      {rule.webSearch === false ? '✘' : '✔'}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {rule.codeExecution === false ? '✘' : '✔'}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {rule.fileUpload === false ? '✘' : '✔'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {rule.maxContextTokens != null
+                        ? formatNumber(rule.maxContextTokens)
+                        : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <HStack gap={1} justify="end">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onEditRule(index)}
+                          disabled={cannotManage}
+                          aria-label={`${t('featureFlags.editRule')} ${index + 1}`}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onRemoveRule(index)}
+                          disabled={cannotManage}
+                          aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </HStack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={COLUMN_COUNT} className="p-0">
+                    <RulesTableEmptyState
+                      icon={SlidersHorizontal}
+                      title={t('featureFlags.noRulesTitle')}
+                      description={t('featureFlags.noRulesDescription')}
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
 
         <RuleDialog

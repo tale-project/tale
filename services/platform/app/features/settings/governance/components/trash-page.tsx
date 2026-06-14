@@ -4,6 +4,14 @@ import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 import { Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -228,136 +236,132 @@ export function TrashPage({ organizationId }: Props) {
             </div>
           ) : (
             <div className="border-border overflow-hidden rounded-md border">
-              {/* Horizontal scroller so the six-column table can scroll on
-                  narrow viewports instead of squashing or clipping. */}
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[44rem] text-sm">
-                  <thead className="bg-muted/40 border-border border-b">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-medium">
-                        {t('trash.column.type', 'Type')}
-                      </th>
-                      <th className="px-3 py-2 text-left font-medium">
-                        {t('trash.column.name', 'Name')}
-                      </th>
-                      <th className="px-3 py-2 text-left font-medium">
-                        {t('trash.column.owner', 'Owner')}
-                      </th>
-                      <th className="px-3 py-2 text-left font-medium">
-                        {t('trash.column.status', 'Status')}
-                      </th>
-                      <th className="px-3 py-2 text-left font-medium">
-                        {t('trash.column.statusChangedAt', 'Trashed')}
-                      </th>
-                      <th className="px-3 py-2 text-right font-medium">
-                        {t('trash.column.actions', 'Actions')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-border divide-y">
-                    {loading
-                      ? Array.from({ length: PLACEHOLDER_ROW_COUNT }).map(
-                          (_, i) => (
-                            <tr key={`placeholder-${i}`}>
-                              <td className="px-3 py-2">
-                                <SkeletonBox>
-                                  <div className="h-3.5 w-16" />
-                                </SkeletonBox>
-                              </td>
-                              <td className="px-3 py-2">
-                                <SkeletonBox>
-                                  <div className="h-3.5 w-32" />
-                                </SkeletonBox>
-                              </td>
-                              <td className="px-3 py-2">
-                                <SkeletonBox>
-                                  <div className="h-3.5 w-24" />
-                                </SkeletonBox>
-                              </td>
-                              <td className="px-3 py-2">
-                                <SkeletonBox>
-                                  <div className="h-5 w-16 rounded" />
-                                </SkeletonBox>
-                              </td>
-                              <td className="px-3 py-2">
-                                <SkeletonBox>
-                                  <div className="h-3.5 w-20" />
-                                </SkeletonBox>
-                              </td>
-                              <td className="px-3 py-2">
-                                <SkeletonBox fullWidth>
-                                  <div className="ml-auto h-8 w-20 rounded-md" />
-                                </SkeletonBox>
-                              </td>
-                            </tr>
-                          ),
-                        )
-                      : rows.map((row) => (
-                          <tr
-                            key={`${row.resourceType}:${row.id}`}
-                            className="hover:bg-muted/20"
+              <Table className="min-w-[44rem]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="whitespace-nowrap">
+                      {t('trash.column.type', 'Type')}
+                    </TableHead>
+                    <TableHead className="whitespace-nowrap">
+                      {t('trash.column.name', 'Name')}
+                    </TableHead>
+                    <TableHead className="whitespace-nowrap">
+                      {t('trash.column.owner', 'Owner')}
+                    </TableHead>
+                    <TableHead className="whitespace-nowrap">
+                      {t('trash.column.status', 'Status')}
+                    </TableHead>
+                    <TableHead className="whitespace-nowrap">
+                      {t('trash.column.statusChangedAt', 'Trashed')}
+                    </TableHead>
+                    <TableHead className="text-right whitespace-nowrap">
+                      {t('trash.column.actions', 'Actions')}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading
+                    ? Array.from({ length: PLACEHOLDER_ROW_COUNT }).map(
+                        (_, i) => (
+                          <TableRow key={`placeholder-${i}`}>
+                            <TableCell>
+                              <SkeletonBox>
+                                <div className="h-3.5 w-16" />
+                              </SkeletonBox>
+                            </TableCell>
+                            <TableCell>
+                              <SkeletonBox>
+                                <div className="h-3.5 w-32" />
+                              </SkeletonBox>
+                            </TableCell>
+                            <TableCell>
+                              <SkeletonBox>
+                                <div className="h-3.5 w-24" />
+                              </SkeletonBox>
+                            </TableCell>
+                            <TableCell>
+                              <SkeletonBox>
+                                <div className="h-5 w-16 rounded" />
+                              </SkeletonBox>
+                            </TableCell>
+                            <TableCell>
+                              <SkeletonBox>
+                                <div className="h-3.5 w-20" />
+                              </SkeletonBox>
+                            </TableCell>
+                            <TableCell>
+                              <SkeletonBox fullWidth>
+                                <div className="ml-auto h-8 w-20 rounded-md" />
+                              </SkeletonBox>
+                            </TableCell>
+                          </TableRow>
+                        ),
+                      )
+                    : rows.map((row) => (
+                        <TableRow
+                          key={`${row.resourceType}:${row.id}`}
+                          className="hover:bg-muted/20"
+                        >
+                          <TableCell className="text-muted-foreground text-xs">
+                            {t(
+                              `trash.tab.${row.resourceType}`,
+                              row.resourceType,
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {row.displayName ?? row.id}
+                          </TableCell>
+                          <TableCell
+                            className={
+                              row.ownerName
+                                ? 'text-muted-foreground text-xs'
+                                : 'text-muted-foreground font-mono text-xs'
+                            }
                           >
-                            <td className="text-muted-foreground px-3 py-2 text-xs">
-                              {t(
-                                `trash.tab.${row.resourceType}`,
-                                row.resourceType,
-                              )}
-                            </td>
-                            <td className="px-3 py-2 font-mono text-xs">
-                              {row.displayName ?? row.id}
-                            </td>
-                            <td
+                            {row.ownerName ?? row.ownerId ?? '—'}
+                          </TableCell>
+                          <TableCell>
+                            <span
                               className={
-                                row.ownerName
-                                  ? 'text-muted-foreground px-3 py-2 text-xs'
-                                  : 'text-muted-foreground px-3 py-2 font-mono text-xs'
+                                row.status === 'expired'
+                                  ? 'rounded bg-orange-500/15 px-2 py-0.5 text-xs text-orange-600'
+                                  : 'rounded bg-yellow-500/15 px-2 py-0.5 text-xs text-yellow-700'
                               }
                             >
-                              {row.ownerName ?? row.ownerId ?? '—'}
-                            </td>
-                            <td className="px-3 py-2">
-                              <span
-                                className={
-                                  row.status === 'expired'
-                                    ? 'rounded bg-orange-500/15 px-2 py-0.5 text-xs text-orange-600'
-                                    : 'rounded bg-yellow-500/15 px-2 py-0.5 text-xs text-yellow-700'
-                                }
-                              >
-                                {t(`trash.status.${row.status}`, row.status)}
+                              {t(`trash.status.${row.status}`, row.status)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-xs">
+                            {formatRelative(
+                              row.statusChangedAt ?? row.createdAt,
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={Undo2}
+                              onClick={() =>
+                                onRequestRestore({
+                                  resourceType: row.resourceType,
+                                  rowId: row.id,
+                                  displayName: row.displayName ?? row.id,
+                                  status: row.status,
+                                })
+                              }
+                            >
+                              {/* Icon-only on mobile; the label stays in the
+                                a11y tree via `sr-only` so the button keeps
+                                its accessible name. */}
+                              <span className="max-sm:sr-only">
+                                {t('trash.restore.label', 'Restore')}
                               </span>
-                            </td>
-                            <td className="text-muted-foreground px-3 py-2 text-xs">
-                              {formatRelative(
-                                row.statusChangedAt ?? row.createdAt,
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                icon={Undo2}
-                                onClick={() =>
-                                  onRequestRestore({
-                                    resourceType: row.resourceType,
-                                    rowId: row.id,
-                                    displayName: row.displayName ?? row.id,
-                                    status: row.status,
-                                  })
-                                }
-                              >
-                                {/* Icon-only on mobile; the label stays in the
-                                  a11y tree via `sr-only` so the button keeps
-                                  its accessible name. */}
-                                <span className="max-sm:sr-only">
-                                  {t('trash.restore.label', 'Restore')}
-                                </span>
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                  </tbody>
-                </table>
-              </div>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                </TableBody>
+              </Table>
               {/* The load-more row reserves its height in both states (masked
               while the first page loads), so revealing it never pushes the
               page. It only shows the real button once more pages exist. */}

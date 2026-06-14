@@ -4,6 +4,14 @@ import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -655,33 +663,23 @@ function CategoryList({
           {t('contentSafety.categoriesEmpty')}
         </div>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-muted-foreground text-left text-xs">
-              <th className="py-1 font-medium">
-                {t('contentSafety.columnLabel')}
-              </th>
-              <th className="py-1 font-medium">
-                {t('contentSafety.columnMode')}
-              </th>
-              <th className="py-1 font-medium">
-                {t('contentSafety.columnEnabled')}
-              </th>
-              <th className="py-1 font-medium">
-                {t('contentSafety.columnWords')}
-              </th>
-              <th className="py-1 font-medium">
-                {t('contentSafety.columnPatterns')}
-              </th>
-              <th className="py-1 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('contentSafety.columnLabel')}</TableHead>
+              <TableHead>{t('contentSafety.columnMode')}</TableHead>
+              <TableHead>{t('contentSafety.columnEnabled')}</TableHead>
+              <TableHead>{t('contentSafety.columnWords')}</TableHead>
+              <TableHead>{t('contentSafety.columnPatterns')}</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {categories.map((category, index) => (
-              <tr key={category.id} className="border-border border-t">
-                <td className="py-2">{category.label}</td>
-                <td className="py-2 capitalize">{category.mode}</td>
-                <td className="py-2">
+              <TableRow key={category.id}>
+                <TableCell>{category.label}</TableCell>
+                <TableCell className="capitalize">{category.mode}</TableCell>
+                <TableCell>
                   <Switch
                     checked={category.enabled}
                     disabled={disabled}
@@ -690,10 +688,10 @@ function CategoryList({
                     })}
                     onCheckedChange={(next) => onToggleEnabled(index, next)}
                   />
-                </td>
-                <td className="py-2">{category.words.length}</td>
-                <td className="py-2">{category.patterns.length}</td>
-                <td className="py-2">
+                </TableCell>
+                <TableCell>{category.words.length}</TableCell>
+                <TableCell>{category.patterns.length}</TableCell>
+                <TableCell>
                   <div className="flex justify-end gap-1">
                     <Button
                       variant="ghost"
@@ -718,11 +716,11 @@ function CategoryList({
                       onClick={() => onDelete(index)}
                     />
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
       <div>
         <Button

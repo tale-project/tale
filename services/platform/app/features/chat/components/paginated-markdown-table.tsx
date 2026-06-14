@@ -1,6 +1,6 @@
 'use client';
 
-import { TableBody, TableCell } from '@tale/ui/table';
+import { Table, TableBody, TableCell } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
@@ -143,17 +143,12 @@ export function PaginatedMarkdownTable({
 
   return (
     <div className="border-border my-4 max-w-(--chat-max-width) overflow-hidden rounded-lg border">
-      <div className="overflow-x-auto">
-        <table
-          className={cn(
-            'caption-bottom text-sm',
-            headerColumnCount > 6 ? 'min-w-full' : 'w-full table-fixed',
-          )}
-        >
-          {thead}
-          {paginatedTbody}
-        </table>
-      </div>
+      <Table
+        className={cn(headerColumnCount > 6 ? undefined : 'w-full table-fixed')}
+      >
+        {thead}
+        {paginatedTbody}
+      </Table>
 
       {showPagination && (
         <div className="border-border bg-background flex items-center gap-5 border-t p-2">

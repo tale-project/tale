@@ -5,6 +5,15 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -581,129 +590,104 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
             </HStack>
 
             <div className="border-border overflow-hidden rounded-lg border">
-              <div className="overflow-x-auto">
-                <table
-                  className="w-full text-sm"
-                  aria-label={t('modelAccess.title')}
-                >
-                  <caption className="sr-only">
-                    {t('modelAccess.title')}
-                  </caption>
-                  <thead className="bg-muted/50">
-                    <tr className="border-border border-b">
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('modelAccess.scope')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('modelAccess.target')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {mode === 'allowlist'
-                          ? t('modelAccess.allowedModels')
-                          : t('modelAccess.blockedModels')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-right font-medium"
-                      >
-                        {t('modelAccess.actions')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      displayRows.map((_, index) => (
-                        <tr
-                          key={`skeleton-${index}`}
-                          className="border-border border-b last:border-b-0"
-                        >
-                          <td className="px-3 py-2">
+              <Table aria-label={t('modelAccess.title')}>
+                <TableCaption className="sr-only">
+                  {t('modelAccess.title')}
+                </TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('modelAccess.scope')}</TableHead>
+                    <TableHead>{t('modelAccess.target')}</TableHead>
+                    <TableHead>
+                      {mode === 'allowlist'
+                        ? t('modelAccess.allowedModels')
+                        : t('modelAccess.blockedModels')}
+                    </TableHead>
+                    <TableHead className="text-right">
+                      {t('modelAccess.actions')}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    displayRows.map((_, index) => (
+                      <TableRow key={`skeleton-${index}`}>
+                        <TableCell>
+                          <SkeletonBox>
+                            <div className="h-3.5 w-16" />
+                          </SkeletonBox>
+                        </TableCell>
+                        <TableCell>
+                          <SkeletonBox>
+                            <div className="h-3.5 w-24" />
+                          </SkeletonBox>
+                        </TableCell>
+                        <TableCell>
+                          <SkeletonBox>
+                            <div className="h-3.5 w-32" />
+                          </SkeletonBox>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <HStack gap={1} justify="end">
                             <SkeletonBox>
-                              <div className="h-3.5 w-16" />
+                              <div className="size-8 rounded-md" />
                             </SkeletonBox>
-                          </td>
-                          <td className="px-3 py-2">
                             <SkeletonBox>
-                              <div className="h-3.5 w-24" />
+                              <div className="size-8 rounded-md" />
                             </SkeletonBox>
-                          </td>
-                          <td className="px-3 py-2">
-                            <SkeletonBox>
-                              <div className="h-3.5 w-32" />
-                            </SkeletonBox>
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <HStack gap={1} justify="end">
-                              <SkeletonBox>
-                                <div className="size-8 rounded-md" />
-                              </SkeletonBox>
-                              <SkeletonBox>
-                                <div className="size-8 rounded-md" />
-                              </SkeletonBox>
-                            </HStack>
-                          </td>
-                        </tr>
-                      ))
-                    ) : rules.length > 0 ? (
-                      rules.map((rule, index) => (
-                        <tr
-                          key={index}
-                          className="border-border border-b last:border-b-0"
-                        >
-                          <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                          <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                          <td className="px-3 py-2">
-                            {mode === 'allowlist'
-                              ? resolveModelNames(rule.allowedModels)
-                              : resolveModelNames(rule.blockedModels ?? [])}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <HStack gap={1} justify="end">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => openEditDialog(index)}
-                                disabled={cannotManage}
-                                aria-label={t('modelAccess.editRule')}
-                              >
-                                <Pencil className="size-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setDeletingIndex(index)}
-                                disabled={cannotManage}
-                                aria-label={t('modelAccess.deleteRule')}
-                              >
-                                <Trash2 className="size-4" />
-                              </Button>
-                            </HStack>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={4} className="p-0">
-                          <RulesTableEmptyState
-                            icon={ShieldCheck}
-                            title={t('modelAccess.noRulesTitle')}
-                            description={t('modelAccess.noRulesDescription')}
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                          </HStack>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : rules.length > 0 ? (
+                    rules.map((rule, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="capitalize">
+                          {rule.scope}
+                        </TableCell>
+                        <TableCell>{resolveTarget(rule)}</TableCell>
+                        <TableCell>
+                          {mode === 'allowlist'
+                            ? resolveModelNames(rule.allowedModels)
+                            : resolveModelNames(rule.blockedModels ?? [])}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <HStack gap={1} justify="end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditDialog(index)}
+                              disabled={cannotManage}
+                              aria-label={t('modelAccess.editRule')}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeletingIndex(index)}
+                              disabled={cannotManage}
+                              aria-label={t('modelAccess.deleteRule')}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </HStack>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={4} className="p-0">
+                        <RulesTableEmptyState
+                          icon={ShieldCheck}
+                          title={t('modelAccess.noRulesTitle')}
+                          description={t('modelAccess.noRulesDescription')}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
           </Stack>
         )}
