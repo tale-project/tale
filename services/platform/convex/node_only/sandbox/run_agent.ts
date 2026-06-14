@@ -49,6 +49,10 @@ import {
 
 const PROGRESS_FLUSH_MS = 500;
 const RECENT_EVENTS_CAP = 20;
+// Upper bound on the cross-seam toolUseId→name / child→parent maps, so an
+// unbounded run can't grow them (or the checkpoint blob that carries them)
+// without limit. Generous — only ancient straddling results lose their name.
+const TOOL_MAP_CAP = 2_000;
 // Consumption-poll cadence while steer message(s) are delivered-but-unconsumed
 // (PostToolUse injections leave no stream signal — only consumed.* markers).
 // A tool-result in the stream bypasses this throttle: the hook fires at that
@@ -712,6 +716,13 @@ export async function runAgentInSessionImpl(
         if (e.toolUseId && e.parentToolUseId) {
           toolUseParents.set(e.toolUseId, e.parentToolUseId);
         }
+        // Bound these cross-seam maps so an UNBOUNDED run (a month of tool
+        // calls, carried in every checkpoint) can't grow them without limit.
+        // Map preserves insertion order → evict the oldest. A dropped entry
+        // only costs a straddling tool-result its name ("Tool" fallback) —
+        // acceptable lossy persistence for very old calls (decision 4).
+        capMap(toolNames, TOOL_MAP_CAP);
+        capMap(toolUseParents, TOOL_MAP_CAP);
         if (e.toolName === 'ExitPlanMode') {
           // The proposed plan rides the tool input (input.plan — verified on
           // CLI 2.1.173; the call itself is denied by plan mode / the
@@ -1123,6 +1134,15 @@ export async function runAgentInSessionImpl(
     ...(usage !== undefined && { usage }),
     assistantContent,
   };
+}
+
+/** Evict oldest entries (insertion order) so a Map stays within `cap`. */
+function capMap(map: Map<string, string>, cap: number): void {
+  while (map.size > cap) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
 }
 
 /** Narrow an ExitPlanMode tool input to its plan markdown, if present. */

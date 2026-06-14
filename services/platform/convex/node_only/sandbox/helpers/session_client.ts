@@ -45,6 +45,19 @@ export class SessionDuplicateError extends Error {
   }
 }
 
+/** The exec SSE went silent past the idle-read deadline (no events AND no
+ * keepalive — a half-open/wedged connection). The resilient drain re-attaches
+ * via sinceSeq WITHOUT consuming its consecutive-failure budget: a genuinely
+ * dead sandbox surfaces as a real fetch error on the re-attach (which DOES
+ * count), while a merely-quiet-but-live exec resumes losslessly. Never a turn
+ * failure on its own — the only bound on a quiet phase is the action window. */
+export class ExecStreamIdleError extends Error {
+  constructor(execId: string) {
+    super(`exec ${execId} stream idle past the read deadline`);
+    this.name = 'ExecStreamIdleError';
+  }
+}
+
 function getSpawnerUrl(): string {
   return process.env.SANDBOX_URL ?? 'http://localhost:8003';
 }
@@ -118,6 +131,13 @@ const EXEC_FALLBACK_TIMEOUT_MS = Number(
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 5_000;
+// Per-read idle deadline on the exec SSE. The spawner sends a `: keepalive`
+// comment every 20s, so a healthy connection (even during a long, silent agent
+// phase) never trips this; only a wedged/half-open socket does → re-attach.
+// 3× the keepalive cadence tolerates a couple of dropped keepalives.
+const IDLE_READ_TIMEOUT_MS = Number(
+  process.env.EXTERNAL_AGENT_IDLE_READ_MS ?? 60_000,
+);
 
 /** POST /v1/sessions — create + wait for runnerd ready. Throws on 4xx/5xx. */
 export async function sessionCreate(
@@ -243,6 +263,53 @@ export async function sessionCancelExec(
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { killed?: boolean };
   return parsed.killed === true;
+}
+
+/** Per-exec liveness, decoupled from `sessionIsAlive` (which is session-level). */
+export type ExecLiveness =
+  | { state: 'running'; startedAtMs?: number }
+  | { state: 'exited'; exitCode: number | null }
+  | { state: 'gone' };
+
+/** GET /v1/sessions/:id/exec/:execId — probe an exec's liveness WITHOUT
+ * consuming its stream. The restorative recovery watchdog keys off this:
+ * `running` ⇒ re-attach/resume (the agent is the source of truth, still
+ * working); `exited`/`gone` ⇒ finalize using the agent's real outcome. A 404 ⇒
+ * `gone` (session lost OR exec evicted past runnerd's recent window); any other
+ * non-2xx THROWS so a spawner blip is treated as "unknown" and the turn is left
+ * for the next sweep — NEVER finalized on a transient error. */
+export async function sessionExecStatus(
+  sessionId: string,
+  execId: string,
+): Promise<ExecLiveness> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}`;
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'GET',
+    headers: signedHeaders('GET', path, ''),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (res.status === 404) return { state: 'gone' };
+  if (!res.ok) {
+    throw new Error(`sandbox exec status failed (${res.status})`);
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = (await res.json()) as {
+    state?: string;
+    startedAtMs?: number;
+    exitCode?: number | null;
+  };
+  if (parsed.state === 'running') {
+    return {
+      state: 'running',
+      ...(typeof parsed.startedAtMs === 'number'
+        ? { startedAtMs: parsed.startedAtMs }
+        : {}),
+    };
+  }
+  if (parsed.state === 'exited') {
+    return { state: 'exited', exitCode: parsed.exitCode ?? null };
+  }
+  return { state: 'gone' };
 }
 
 export interface SessionStageFile {
@@ -409,7 +476,7 @@ export async function sessionExec(
   if (!res.ok || !res.body) {
     throw new Error(`sandbox session exec failed (${res.status})`);
   }
-  return consumeExecSse(res.body, callbacks, cursor);
+  return consumeExecSse(res.body, body.execId, callbacks, cursor);
 }
 
 /**
@@ -449,7 +516,7 @@ export async function sessionAttachExec(
   if (!res.ok || !res.body) {
     throw new Error(`sandbox session attach failed (${res.status})`);
   }
-  return consumeExecSse(res.body, callbacks, cursor);
+  return consumeExecSse(res.body, execId, callbacks, cursor);
 }
 
 /**
@@ -498,6 +565,16 @@ export async function drainSessionExecResilient(
       // A 404 means the session is gone, not a transient drop — retrying can't
       // help. Surface it so the caller self-heals the stale platform row.
       if (err instanceof SessionNotFoundError) throw err;
+      // An idle SSE (no keepalive) is a wedged socket, NOT an exec failure: a
+      // live-but-quiet exec resumes losslessly via sinceSeq, and a genuinely
+      // dead sandbox surfaces as a real fetch error on the next re-attach
+      // (counted below). Re-attach immediately without consuming the budget so
+      // an arbitrarily long quiet phase can never exhaust MAX_RECONNECT_ATTEMPTS
+      // — the only bound on a quiet phase is the action window (signal abort).
+      if (err instanceof ExecStreamIdleError) {
+        seqAtAttemptStart = cursor.lastSeq;
+        continue;
+      }
       // Progress since the last failure resets the consecutive-failure budget.
       if (cursor.lastSeq > seqAtAttemptStart) attempt = 0;
       seqAtAttemptStart = cursor.lastSeq;
@@ -522,6 +599,7 @@ export interface ExecCursor {
 
 async function consumeExecSse(
   body: ReadableStream<Uint8Array>,
+  execId: string,
   callbacks: SessionExecCallbacks,
   cursor?: ExecCursor,
 ): Promise<SessionExecResult> {
@@ -553,7 +631,31 @@ async function consumeExecSse(
     }
   };
   for (;;) {
-    const { value, done } = await reader.read();
+    // Race each read against an idle deadline. The spawner's 20s `: keepalive`
+    // comment feeds a healthy connection (even through a long silent agent
+    // phase), so this only fires on a wedged/half-open socket → cancel + throw
+    // a benign idle error the resilient drain re-attaches on (no failure-budget
+    // cost). Without it a half-open read blocks until the hours-long fetch
+    // deadline.
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    let chunk: Awaited<ReturnType<typeof reader.read>>;
+    try {
+      chunk = await Promise.race([
+        reader.read(),
+        new Promise<never>((_, reject) => {
+          idleTimer = setTimeout(
+            () => reject(new ExecStreamIdleError(execId)),
+            IDLE_READ_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } catch (err) {
+      await reader.cancel().catch(() => {});
+      throw err;
+    } finally {
+      if (idleTimer) clearTimeout(idleTimer);
+    }
+    const { value, done } = chunk;
     if (done) break;
     buf += decoder.decode(value, { stream: true });
     let idx = buf.indexOf('\n\n');

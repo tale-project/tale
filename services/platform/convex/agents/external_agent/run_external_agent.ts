@@ -88,13 +88,15 @@ const SESSION_GRANTS = ['github'];
 const TURN_BUDGET_CENTS = Number(
   process.env.EXTERNAL_AGENT_TURN_BUDGET_CENTS ?? '10000',
 );
-// Total wall-clock a turn may run, threaded down as the exec `timeoutMs` so
-// runnerd keeps the child alive this long. Decoupled from the Convex action
-// ceiling via the cross-action continuation, so it can be the full sandbox
-// `execMaxTimeoutMs` (24h) — a long task runs to completion / budget / manual
-// stop, not a wall clock.
-const TURN_TIMEOUT_MS = Number(
-  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(24 * 60 * 60 * 1000),
+// The exec's SLIDING deadline window, threaded down as the exec `timeoutMs`.
+// runnerd re-arms it on EVERY re-attach (ExecManager.armDeadline), so this is
+// NOT a max turn duration — an actively-drained exec runs UNBOUNDED (the
+// platform re-attaches every handoff, far inside this window). It only bounds a
+// GENUINELY ORPHANED exec: nothing re-attaches for this long (platform fully
+// gone) → runnerd reaps it (the orphan backstop; the watchdog normally
+// reconnects within ~minutes, far inside this). Env-tunable.
+const EXEC_DEADLINE_MS = Number(
+  process.env.EXTERNAL_AGENT_EXEC_DEADLINE_MS ?? String(60 * 60 * 1000),
 );
 // Appended to the system prompt of a PLAN turn (composed with the agent's own
 // instructions, never replacing them). The in-image tale-plan-gate hook is the
@@ -106,11 +108,15 @@ const PLAN_MODE_ADDENDUM =
   'your final message and end your turn. The user reviews and approves the ' +
   'plan in the chat UI before any execution happens. Do not retry ' +
   'ExitPlanMode and do not start executing.';
-// Per-ACTION window: how long one action drains before handing off to a
-// continuation action (kept under the 30min ACTIONS_USER_TIMEOUT_SECS ceiling
-// with margin for the handoff + the next action's cold start).
+// Per-ACTION window: how long one action drains before handing off to a fresh
+// continuation action. MUST sit safely below the runtime's hard action ceiling
+// (measured: the local convex-local-backend hard-kills Node actions at 600s,
+// ignoring ACTIONS_USER_TIMEOUT_SECS) — at 480s there's ~120s of margin for the
+// handoff (VK poll + checkpoint store + schedule) + the next action's cold
+// start. A hard kill skips the graceful handoff entirely, so the window must
+// win the race. Env-raisable on deployments with a higher, honored ceiling.
 const ACTION_WINDOW_MS = Number(
-  process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(25 * 60 * 1000),
+  process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(480 * 1000),
 );
 
 /**
@@ -468,7 +474,7 @@ export const runExternalAgentTurn = internalAction({
           kind: 'agent-run',
           status: 'running',
           heartbeatAt: Date.now(),
-          deadlineMs: Date.now() + TURN_TIMEOUT_MS,
+          deadlineMs: Date.now() + EXEC_DEADLINE_MS,
           assistantMessageId: created.messageId,
           userId: args.userId ?? 'system',
           modelRef: args.modelRef,
@@ -514,7 +520,7 @@ export const runExternalAgentTurn = internalAction({
           }),
           gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
           gatewayToken: vk.key,
-          timeoutMs: TURN_TIMEOUT_MS,
+          timeoutMs: EXEC_DEADLINE_MS,
           budgetDeadlineMs: actionDeadlineMs,
           // Durable per-flush mirror: patch the streaming message with the
           // timeline-so-far. This is the record that survives cancel/timeout.

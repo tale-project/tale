@@ -185,6 +185,24 @@ export const recoverStuckSessions = internalMutation({
         .query('sandboxSessions')
         .withIndex('by_status', (q) => q.eq('status', status))) {
         if (now > row.expiresAt) {
+          // Never expire a session with a RUNNING agent-run op: an unbounded
+          // turn legitimately outlives the 24h lifetime, and expiring the row
+          // would orphan the live exec + break per-user workspace continuity.
+          // (The spawner already exempts liveExecs>0 container-side; this is the
+          // platform-row mirror. A genuinely dead exec is bounded by its sliding
+          // deadline, after which no running op remains and the row ages out.)
+          let hasRunningAgentRun = false;
+          for await (const op of ctx.db
+            .query('sandboxSessionOps')
+            .withIndex('by_sessionId', (q) =>
+              q.eq('sessionId', row.sessionId),
+            )) {
+            if (op.kind === 'agent-run' && op.status === 'running') {
+              hasRunningAgentRun = true;
+              break;
+            }
+          }
+          if (hasRunningAgentRun) continue;
           await ctx.db.patch(row._id, {
             status: 'expired',
             destroyedAt: now,
@@ -526,6 +544,43 @@ export const claimSessionOpFinalize = internalMutation({
       return true;
     }
     return false; // op row gone → nothing to finalize
+  },
+});
+
+/**
+ * Atomic single-claimant gate for a watchdog-driven RESUME (re-attach of an
+ * abandoned-but-alive exec). Succeeds only if the op is still `running`, not
+ * finalized, and its heartbeat is STILL stale (`heartbeatAt < staleBeforeMs`) —
+ * re-checked here so a live action that bumped its heartbeat between the
+ * abandoned-ops query and this claim is seen and the resume is rejected (the
+ * fix for the watchdog double-mirroring a live drainer). On success it bumps
+ * `heartbeatAt` (so a concurrent sweep + the resuming continuation's startup
+ * window don't re-grab it) and stamps `resumedBy`. Serializable OCC makes the
+ * read-then-set race-free, exactly like claimSessionOpFinalize.
+ */
+export const claimRecoveryResume = internalMutation({
+  args: {
+    sessionId: v.string(),
+    execId: v.string(),
+    staleBeforeMs: v.number(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.execId !== args.execId) continue;
+      if (row.finalizedAt !== undefined) return false; // already terminal
+      if (row.status !== 'running') return false; // not a live turn
+      // A live drainer bumped the heartbeat after the query → NOT abandoned.
+      if ((row.heartbeatAt ?? 0) >= args.staleBeforeMs) return false;
+      await ctx.db.patch(row._id, {
+        heartbeatAt: Date.now(),
+        resumedBy: 'watchdog',
+      });
+      return true;
+    }
+    return false; // op row gone
   },
 });
 

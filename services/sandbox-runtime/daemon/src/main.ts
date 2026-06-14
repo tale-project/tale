@@ -25,7 +25,6 @@ import {
   type StageItem,
 } from './file-ops.ts';
 import {
-  RUNNERD_DETACH_GRACE_MS,
   RUNNERD_MAX_LIVE_EXECS,
   RUNNERD_PORT,
   RUNNERD_TOKEN_HEADER,
@@ -140,14 +139,13 @@ async function handleExec(
       console.warn('[runnerd] NDJSON write after close:', err);
     }
   };
-  // Consumer disconnect: do NOT kill immediately. Arm the detach-grace so a
-  // platform action that lost its SSE can reconnect via /attach?sinceSeq= and
-  // keep the turn alive; the exec is killed only if no one reattaches within
-  // the grace (or on an explicit /cancel). The child runs detached regardless —
-  // we just stop writing to the closed socket.
+  // Consumer disconnect: do NOT touch the exec. The child runs detached and is
+  // kept alive by its SLIDING deadline (re-armed on every /attach), so a
+  // platform action that lost its SSE can reconnect via /attach?sinceSeq= for
+  // as long as the window allows — an orphaned exec (no reconnect for the whole
+  // window) is the only thing the deadline reaps. We just stop writing here.
   req.on('close', () => {
     primaryClosed = true;
-    execManager.scheduleDetachGrace(parsed.execId, RUNNERD_DETACH_GRACE_MS);
   });
   try {
     await execManager.run(parsed, emit);
@@ -191,11 +189,10 @@ async function handleAttach(
       console.warn('[runnerd] attach write after close:', err);
     }
   };
-  // This attach consumer dropping may leave the exec unwatched — arm the
-  // detach-grace (a further reattach clears it).
+  // This attach consumer dropping leaves the exec to its sliding deadline; a
+  // further reattach re-arms it. No grace kill here (see handleExec).
   req.on('close', () => {
     attachClosed = true;
-    execManager.scheduleDetachGrace(execId, RUNNERD_DETACH_GRACE_MS);
   });
   const stream = execManager.attach(execId, emit, sinceSeq);
   if (stream) await stream;
@@ -264,12 +261,19 @@ async function router(
   const statusMatch = path.match(EXEC_STATUS_RE);
   if (req.method === 'GET' && statusMatch) {
     const id = statusMatch[1] ?? '';
-    const live = execManager.status(id);
+    const st = execManager.status(id);
+    if (st === null) {
+      // Neither live nor recently-retained → gone (evicted past the recent
+      // window, or never existed). 404 so the platform reads it as 'gone'.
+      sendJson(res, 404, { execId: id, state: 'gone' });
+      return;
+    }
     sendJson(res, 200, {
       execId: id,
-      state: live ? 'running' : 'exited',
-      startedAtMs: live?.startedAtMs ?? 0,
-      exitCode: null,
+      state: st.state,
+      ...(st.state === 'running'
+        ? { startedAtMs: st.startedAtMs }
+        : { exitCode: st.exitCode }),
     });
     return;
   }

@@ -278,6 +278,9 @@ const SESSION_EXEC_ATTACH_RE = new RegExp(
 const SESSION_EXEC_STDIN_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/exec/${EXEC_ID}/stdin$`,
 );
+const SESSION_EXEC_STATUS_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/exec/${EXEC_ID}$`,
+);
 const SESSION_ENV_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/env$`);
 const SESSION_PIN_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/pin$`);
 const SESSION_FILES_STAGE_RE = new RegExp(
@@ -373,6 +376,19 @@ async function handleSessionRoutes(
       stdinMatch[1] ?? '',
       stdinMatch[2] ?? '',
       r.body,
+    );
+  }
+  // GET /v1/sessions/:id/exec/:execId — per-exec status (no stream); the
+  // restorative recovery watchdog's liveness probe. Must follow the cancel/
+  // attach/stdin matchers (they carry a trailing segment) and the bare-:id
+  // create matcher (no execId).
+  const execStatusMatch = path.match(SESSION_EXEC_STATUS_RE);
+  if (req.method === 'GET' && execStatusMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleExecStatus(
+      execStatusMatch[1] ?? '',
+      execStatusMatch[2] ?? '',
     );
   }
   // PATCH /v1/sessions/:id/env

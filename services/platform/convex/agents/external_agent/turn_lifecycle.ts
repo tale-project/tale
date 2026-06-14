@@ -22,21 +22,19 @@ import {
   getVirtualKeySpendCents,
   revokeVirtualKey,
 } from '../../node_only/sandbox/bifrost_admin';
-import {
-  sessionCancelExec,
-  sessionListFiles,
-} from '../../node_only/sandbox/helpers/session_client';
+import { sessionListFiles } from '../../node_only/sandbox/helpers/session_client';
 import type { RunAgentInSessionResult } from '../../node_only/sandbox/run_agent';
 import {
   matchConsumedSteerFiles,
   steerDirFor,
 } from '../../node_only/sandbox/steer_files';
 
-/** Pure runaway backstop on cross-action handoffs. The real bound on a long
- * task is the exec timeout (24h) + the rolling budget gate, not a count — at a
- * ~25min action window a 24h task is ~58 handoffs, so this is set well above
- * any legitimate run. */
-const MAX_CONTINUATIONS = 1000;
+/** Observability-only: log a heartbeat every this-many handoffs on a long run.
+ * There is NO continuation CAP — an unbounded (week/month) task is a legitimate
+ * sequence of handoffs (~480s each), and a fixed ceiling would be a proactive
+ * kill (violates the I/O-conduit invariant). The real bounds are the agent
+ * finishing, a user Stop, and the exec's sliding orphan deadline. */
+const CONTINUATION_LOG_EVERY = 100;
 
 /** Everything the lifecycle needs to finalize or continue a turn — carried in
  * action args and mirrored onto the op row so the recovery path has it too. */
@@ -78,15 +76,24 @@ export async function patchStreamingMessage(
 
 /** Mark a streaming message terminal WITHOUT touching its content — preserves
  * the already-patched tool timeline (used when a continuation/recovery fails and
- * we only want to flip the status). */
+ * we only want to flip the status). An optional `errorText` is written to the
+ * message's `error` field so a genuinely-failed turn surfaces a real reason in
+ * the UI (threadMeta.failedErrors) instead of a content-free "Something went
+ * wrong" — the diagnosability fix (C5). */
 export async function markMessageStatus(
   ctx: ActionCtx,
   messageId: string,
   status: 'success' | 'failed',
+  errorText?: string,
 ): Promise<void> {
   await ctx.runMutation(components.agent.messages.updateMessage, {
     messageId,
-    patch: { status },
+    patch: {
+      status,
+      ...(status === 'failed' && errorText !== undefined
+        ? { error: errorText }
+        : {}),
+    },
   });
 }
 
@@ -247,78 +254,51 @@ export async function handleTurnOutcome(
   result: RunAgentInSessionResult,
 ): Promise<void> {
   if (result.status === 'continued') {
-    if (turn.continuationCount >= MAX_CONTINUATIONS) {
-      // Runaway guard: stop handing off, finalize as failed.
-      await patchStreamingMessage(
-        ctx,
-        turn.assistantMessageId,
-        result.assistantContent ?? 'Agent run exceeded the continuation limit.',
-        'failed',
+    // No continuation cap — a long run is an unbounded sequence of handoffs.
+    // Just log a heartbeat occasionally so a genuine runaway bug is still
+    // visible in the logs (the VK budget + the exec's sliding deadline bound
+    // cost regardless).
+    if (
+      turn.continuationCount > 0 &&
+      turn.continuationCount % CONTINUATION_LOG_EVERY === 0
+    ) {
+      console.warn(
+        `[handleTurnOutcome] long run: ${turn.continuationCount} handoffs (exec ${turn.execId}, thread ${turn.threadId})`,
       );
-      await finalizeTurnSideEffects(ctx, turn, turnTokensOf(result));
-      return;
     }
 
-    // Rolling-budget gate at the seam (never mid-exec). Poll the turn's VK for
-    // cumulative in-task spend and re-check the org's rolling cap WITH that
-    // spend folded in (prospectiveCostCents), so a long task's own burn counts
-    // toward the cap continuously — not just via the retrospective ledger row
-    // written at finalize. Over budget → seal the current segment cleanly and
-    // STOP (the in-sandbox step already finished at this seam; we just don't
-    // hand off). The clean alternative to a mid-exec SIGKILL. Userless/system
-    // turns skip the gate (no per-user budget — matches the turn-start gate).
-    let spentCents: number | undefined;
-    if (turn.userId) {
-      if (turn.mintedKeyId) {
-        try {
-          const polled = await getVirtualKeySpendCents(turn.mintedKeyId);
-          if (polled !== null) spentCents = polled;
-        } catch (spendErr) {
-          console.warn('[handleTurnOutcome] VK spend poll failed:', spendErr);
-        }
-      }
-      const verdict = await ctx.runQuery(
-        internal.governance.internal_queries.evaluateExternalAgentBudget,
-        {
-          organizationId: turn.organizationId,
-          userId: turn.userId,
-          ...(spentCents !== undefined && { prospectiveCostCents: spentCents }),
-        },
+    // Refresh the session lifetime each seam (idempotent activity bump) so a
+    // multi-day turn's session is never expired by the platform reaper while —
+    // or right after — it runs. resumeStoppedSession is safe on an already-
+    // active row (a harmless lastActivityAt + expiresAt refresh).
+    await ctx
+      .runMutation(internal.sandbox.session_mutations.resumeStoppedSession, {
+        organizationId: turn.organizationId,
+        sessionId: turn.sessionId,
+      })
+      .catch((err) =>
+        console.warn(
+          '[handleTurnOutcome] session lifetime refresh failed:',
+          err,
+        ),
       );
-      if (!verdict.allowed) {
-        // Stop the in-sandbox agent FIRST: at a seam its exec is still running
-        // under the detach-grace (the action just stopped draining). Without an
-        // explicit cancel the agent keeps making LLM calls on the VK past the
-        // cap until the grace reaps it. Best-effort; the VK revoke below + the
-        // detach-grace are the backstops.
-        await sessionCancelExec(turn.sessionId, turn.execId).catch((e) =>
-          console.warn('[handleTurnOutcome] pause cancel exec failed:', e),
-        );
-        // Seal the current bubble (preserve its tool timeline) with a pause note
-        // so the user sees why it stopped; the op carries pausedReason for the
-        // management page. Then finalize (usage ledger + VK revoke + clear gen).
-        await patchStreamingMessage(
-          ctx,
-          turn.assistantMessageId,
-          appendPauseNote(result.assistantContent, verdict.reason),
-          'success',
-        );
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.upsertSessionOp,
-          {
-            organizationId: turn.organizationId,
-            sessionId: turn.sessionId,
-            threadId: turn.threadId,
-            execId: turn.execId,
-            kind: 'agent-run',
-            status: 'cancelled',
-            heartbeatAt: Date.now(),
-            pausedReason: 'budget',
-            ...(spentCents !== undefined && { spentCents }),
-          },
-        );
-        await finalizeTurnSideEffects(ctx, turn, turnTokensOf(result));
-        return;
+
+    // Poll the turn's VK for cumulative in-task spend, for the management page's
+    // live Spend column (stamped on the op below). Per the I/O-conduit principle
+    // (decision 1) the platform NEVER kills on budget: the VK's own max_limit
+    // (sized to the org rolling-remaining at mint) enforces the cap AT THE
+    // GATEWAY — when the agent exhausts it, its model calls 402 and it handles
+    // that itself; we do not cancel the exec or pause the turn. So we just poll
+    // + continue handing off. (Per-seam budget REFRESH — raising the live VK's
+    // limit as the rolling window refills — is a separate enhancement; the exec
+    // holds one key for its life, so it can't be re-minted mid-run.)
+    let spentCents: number | undefined;
+    if (turn.userId && turn.mintedKeyId) {
+      try {
+        const polled = await getVirtualKeySpendCents(turn.mintedKeyId);
+        if (polled !== null) spentCents = polled;
+      } catch (spendErr) {
+        console.warn('[handleTurnOutcome] VK spend poll failed:', spendErr);
       }
     }
 
@@ -614,21 +594,6 @@ function isContentEmpty(content: AgentAssistantContent | undefined): boolean {
   return typeof content === 'string'
     ? content.trim().length === 0
     : content.length === 0;
-}
-
-/** Append a non-error pause note to the segment-so-far WITHOUT discarding its
- * tool timeline (mirror of run_external_agent's withErrorNote, for a clean
- * budget stop). The user resumes by sending a new message once budget frees. */
-function appendPauseNote(
-  content: AgentAssistantContent | undefined,
-  reason?: string,
-): AgentAssistantContent {
-  const note = `\n\n⏸️ Paused — ${
-    reason ?? 'usage limit reached for this period'
-  }. Send a new message once budget is available to continue.`;
-  if (content === undefined || isContentEmpty(content)) return note.trimStart();
-  if (typeof content === 'string') return content + note;
-  return [...content, { type: 'text', text: note.trimStart() }];
 }
 
 /** Load + parse a turn checkpoint blob ({lastSeq, agentSessionId, planText,

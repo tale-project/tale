@@ -48,19 +48,33 @@ interface LiveExec {
   /** Monotonic per-exec event counter (assigned in ringEmit). Lets a
    * reconnecting consumer request `/attach?sinceSeq=` and skip replayed lines. */
   seq: number;
-  /** Detach-grace timer: armed when the consumer connection drops, cleared by a
-   * reconnecting attach(); fires SIGTERM if no one reattaches in time. */
-  graceTimer: ReturnType<typeof setTimeout> | null;
+  /** SLIDING deadline: the kill timer is re-armed (extendDeadline) on every
+   * attach, so an actively-attached exec runs UNBOUNDED. A genuinely orphaned
+   * exec — no attach for `timeoutMs` — is the only thing this reaps (the orphan
+   * backstop; it subsumes the old detach-grace). `timeoutMs` is the window. */
+  timeoutMs: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  /** Set by the deadline timer so the terminal exit event reports timedOut. */
+  timedOut: boolean;
   /** Held-open stdin pipe (stdinMode:'hold'), written via writeStdin(). Null
    * for 'close'-mode execs and after EOF — writes then report STDIN_CLOSED. */
   stdin: NodeJS.WritableStream | null;
 }
 
+/** A retained (exited) exec: its final ring for /attach replay plus the exit
+ * code, kept so GET /execs/:id can report `exited(code)` after the live record
+ * is gone — distinct from an evicted/never-existed exec (404 → 'gone'). */
+interface RetainedExec {
+  ring: string[];
+  exitCode: number | null;
+}
+
 export class ExecManager {
   private readonly live = new Map<string, LiveExec>();
   // Exited execs retained briefly so a reconnecting /attach can replay the
-  // final ring + terminal event (insertion-ordered; oldest evicted past cap).
-  private readonly recent = new Map<string, string[]>();
+  // final ring + terminal event, and so GET /execs/:id can still report the
+  // real exit code (insertion-ordered; oldest evicted past cap).
+  private readonly recent = new Map<string, RetainedExec>();
 
   constructor(
     private readonly envStore: EnvStore,
@@ -93,11 +107,12 @@ export class ExecManager {
   ): Promise<void> | null {
     const liveRec = this.live.get(execId);
     if (liveRec) {
-      // A consumer reconnected → cancel any pending detach-grace kill.
-      if (liveRec.graceTimer) {
-        clearTimeout(liveRec.graceTimer);
-        liveRec.graceTimer = null;
-      }
+      // A consumer (re)attached → slide the deadline forward by another full
+      // window. This is what makes an actively-drained exec run UNBOUNDED: the
+      // platform re-attaches every handoff (well within the window), so the
+      // kill timer is perpetually pushed out and only ever fires for a
+      // genuinely orphaned exec (no attach for the whole window).
+      this.armDeadline(liveRec);
       // Replay only what this consumer hasn't seen (seq > sinceSeq), then
       // follow live. The replay loop + subscribers.add are synchronous, so no
       // live event can slip in between (single-threaded) → no gap, no dup.
@@ -105,33 +120,41 @@ export class ExecManager {
       liveRec.subscribers.add(emit);
       return liveRec.done.finally(() => liveRec.subscribers.delete(emit));
     }
-    const recentRing = this.recent.get(execId);
-    if (recentRing) {
-      for (const line of recentRing) emitRingLine(line, emit, sinceSeq);
+    const recentRec = this.recent.get(execId);
+    if (recentRec) {
+      for (const line of recentRec.ring) emitRingLine(line, emit, sinceSeq);
       return Promise.resolve();
     }
     return null;
   }
 
-  /** Arm the detach-grace: if no consumer reattaches within graceMs, kill the
-   * exec's process group. Called when a consumer connection drops (vs an
-   * explicit /cancel, which kills immediately). A reconnecting attach() clears
-   * it. Idempotent — resets a pending timer. No-op if the exec already exited. */
-  scheduleDetachGrace(execId: string, graceMs: number): void {
-    const rec = this.live.get(execId);
-    if (!rec) return;
-    if (rec.graceTimer) clearTimeout(rec.graceTimer);
-    rec.graceTimer = setTimeout(() => {
-      const r = this.live.get(execId);
-      if (!r) return;
-      r.cancelRequested = true;
-      r.kill('SIGTERM');
-      setTimeout(() => r.kill('SIGKILL'), SIGKILL_GRACE_MS);
-    }, graceMs);
+  /** (Re)arm the sliding deadline. Called at exec start and on every attach.
+   * An actively-attached exec is perpetually extended; an orphaned one (no
+   * attach for `timeoutMs`) is SIGTERM→SIGKILLed — the sole orphan reaper. */
+  private armDeadline(rec: LiveExec): void {
+    if (rec.timer) clearTimeout(rec.timer);
+    rec.timer = setTimeout(() => {
+      rec.timedOut = true;
+      rec.kill('SIGTERM');
+      setTimeout(() => rec.kill('SIGKILL'), SIGKILL_GRACE_MS);
+    }, rec.timeoutMs);
   }
 
-  private retainRecent(execId: string, ring: string[]): void {
-    this.recent.set(execId, ring);
+  /** Public deadline refresh (e.g. a platform keepalive on an exec it's drains
+   * but isn't currently re-attaching). No-op once the exec has exited. */
+  extendDeadline(execId: string): boolean {
+    const rec = this.live.get(execId);
+    if (!rec) return false;
+    this.armDeadline(rec);
+    return true;
+  }
+
+  private retainRecent(
+    execId: string,
+    ring: string[],
+    exitCode: number | null,
+  ): void {
+    this.recent.set(execId, { ring, exitCode });
     while (this.recent.size > RECENT_EXEC_LIMIT) {
       const oldest = this.recent.keys().next().value;
       if (oldest === undefined) break;
@@ -222,7 +245,6 @@ export class ExecManager {
     let stderrBytes = 0;
     let stdoutTrunc = false;
     let stderrTrunc = false;
-    let timedOut = false;
     let settled = false;
     let resolveDone: () => void = () => {};
     const done = new Promise<void>((r) => {
@@ -238,7 +260,9 @@ export class ExecManager {
       subscribers: new Set(),
       done,
       seq: 0,
-      graceTimer: null,
+      timeoutMs: req.timeoutMs,
+      timer: null,
+      timedOut: false,
       stdin: null,
       kill: (signal) => {
         try {
@@ -329,11 +353,9 @@ export class ExecManager {
       ringEmit({ t: 'stderr', b64: chunk.toString('base64') });
     });
 
-    const timer = setTimeout(() => {
-      timedOut = true;
-      record.kill('SIGTERM');
-      setTimeout(() => record.kill('SIGKILL'), SIGKILL_GRACE_MS);
-    }, req.timeoutMs);
+    // Arm the SLIDING deadline (the sole orphan reaper). attach() re-arms it on
+    // every reconnect, so an actively-drained exec is never killed by it.
+    this.armDeadline(record);
 
     await new Promise<void>((resolve) => {
       // Finalize on 'close' (every stdio stream drained → the terminal 'exit'
@@ -348,9 +370,8 @@ export class ExecManager {
       const finish = (code: number) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
-        if (record.graceTimer) clearTimeout(record.graceTimer);
         record.exitCode = code;
         this.onActivity();
         ringEmit({
@@ -358,18 +379,18 @@ export class ExecManager {
           exitCode: code,
           durationMs: Date.now() - startedAtMs,
           truncated: { stdout: stdoutTrunc, stderr: stderrTrunc },
-          timedOut,
+          timedOut: record.timedOut,
           cancelled: record.cancelRequested,
         });
         this.live.delete(req.execId);
-        this.retainRecent(req.execId, record.ring);
+        this.retainRecent(req.execId, record.ring, code);
         resolveDone();
         resolve();
       };
       child.on('error', (err) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
         ringEmit({
           t: 'fail',
@@ -377,7 +398,7 @@ export class ExecManager {
           message: `spawn failed: ${err.message}`,
         });
         this.live.delete(req.execId);
-        this.retainRecent(req.execId, record.ring);
+        this.retainRecent(req.execId, record.ring, null);
         resolveDone();
         resolve();
       });
@@ -400,21 +421,34 @@ export class ExecManager {
     });
   }
 
-  /** SIGTERM→SIGKILL the exec's process group. Returns true if it was live. */
+  /** SIGTERM→SIGKILL the exec's process group. Returns true if it was live.
+   * The ONLY platform-initiated kill (a user Stop) — distinct from the sliding
+   * orphan deadline. */
   cancel(execId: string): boolean {
     const rec = this.live.get(execId);
     if (!rec) return false;
-    if (rec.graceTimer) clearTimeout(rec.graceTimer);
+    if (rec.timer) clearTimeout(rec.timer);
     rec.cancelRequested = true;
     rec.kill('SIGTERM');
     setTimeout(() => rec.kill('SIGKILL'), SIGKILL_GRACE_MS);
     return true;
   }
 
-  status(execId: string): { state: 'running'; startedAtMs: number } | null {
+  /** Per-exec status WITHOUT consuming the stream: `running` (live), `exited`
+   * (recently retained — carries the real exitCode), or null (`gone`: evicted
+   * past the recent window or never existed). The platform's restorative
+   * recovery path keys off this to decide resume vs finalize. */
+  status(
+    execId: string,
+  ):
+    | { state: 'running'; startedAtMs: number }
+    | { state: 'exited'; exitCode: number | null }
+    | null {
     const rec = this.live.get(execId);
-    if (!rec) return null;
-    return { state: 'running', startedAtMs: rec.startedAtMs };
+    if (rec) return { state: 'running', startedAtMs: rec.startedAtMs };
+    const retained = this.recent.get(execId);
+    if (retained) return { state: 'exited', exitCode: retained.exitCode };
+    return null;
   }
 
   /** Append a line to a held-open stdin (stdinMode:'hold') and/or close it.

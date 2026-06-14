@@ -9,6 +9,7 @@ import {
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
+  type RunnerdExecStatus,
   type RunnerdHealth,
 } from './runnerd-protocol.ts';
 
@@ -168,6 +169,28 @@ export async function runnerdCancelExec(
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const body = (await res.json()) as { killed?: boolean };
   return body.killed === true;
+}
+
+/** GET /execs/:id — per-exec status WITHOUT consuming the stream. Returns the
+ * `running`/`exited` status, or `{state:'gone'}` on a 404 (evicted past the
+ * recent window / never existed). Throws on any other transport failure so the
+ * caller never misreads a daemon blip as "gone" (mirrors sessionExists). The
+ * platform's restorative recovery keys off this: running ⇒ resume, else finalize. */
+export async function runnerdExecStatus(
+  opts: RunnerdClientOptions,
+  execId: string,
+): Promise<RunnerdExecStatus> {
+  const res = await fetch(
+    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}`,
+    {
+      headers: authHeaders(opts.token),
+      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+    },
+  );
+  if (res.status === 404) return { execId, state: 'gone' };
+  if (!res.ok) throw new Error(`runnerd GET /execs/${execId} ${res.status}`);
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as RunnerdExecStatus;
 }
 
 /** POST /execs/:id/stdin — append an NDJSON line to a held-open stdin and/or

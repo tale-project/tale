@@ -150,11 +150,15 @@ export const getRunningAgentRunByThread = internalQuery({
   },
 });
 
-/** Abandoned agent-run ops: `running`, not yet finalized, with a heartbeat
- * gone stale (the draining action died — crash / redeploy / 30min ceiling). The
- * recovery watchdog finalizes these exactly-once. The heartbeat (not the
- * deadline) is the liveness signal — a live action heartbeats on a fixed
- * interval independent of output. */
+/** Abandoned agent-run ops: `running`, not yet finalized, with a heartbeat gone
+ * stale (the draining action died — crash / hard action-ceiling kill). The
+ * RESTORATIVE recovery watchdog probes each exec's liveness and either resumes
+ * it (re-attach) or finalizes it with the agent's real outcome — never kills a
+ * live exec. The heartbeat (not a deadline) is the staleness pre-filter; the
+ * exec status probe + claimRecoveryResume are the authoritative gates. Carries
+ * the resume cursor (checkpointStorageId/lastSeq/continuationCount), the agent's
+ * self-reported outcome (agentResultStatus/exitCode), and the session's
+ * agentKind so the watchdog can schedule a continuation without re-deriving them. */
 export const listAbandonedAgentOps = internalQuery({
   args: { staleBeforeMs: v.number(), limit: v.number() },
   returns: v.array(
@@ -169,6 +173,14 @@ export const listAbandonedAgentOps = internalQuery({
       modelRef: v.optional(v.string()),
       agentSlug: v.optional(v.string()),
       streamId: v.optional(v.string()),
+      agentKind: v.optional(v.string()),
+      checkpointStorageId: v.optional(v.string()),
+      lastSeq: v.optional(v.number()),
+      continuationCount: v.optional(v.number()),
+      agentSessionId: v.optional(v.string()),
+      agentResultStatus: v.optional(v.string()),
+      exitCode: v.optional(v.number()),
+      heartbeatAt: v.optional(v.number()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -180,6 +192,15 @@ export const listAbandonedAgentOps = internalQuery({
       )) {
       if (row.kind !== 'agent-run') continue;
       if (row.finalizedAt !== undefined) continue;
+      // Join the session's agentKind (the op doesn't store it) so a resumed
+      // continuation runs the right adapter. Default 'claude-code' if unknown.
+      let agentKind: string | undefined;
+      for await (const session of ctx.db
+        .query('sandboxSessions')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', row.sessionId))) {
+        agentKind = session.agentKind;
+        break;
+      }
       out.push({
         organizationId: row.organizationId,
         sessionId: row.sessionId,
@@ -193,6 +214,22 @@ export const listAbandonedAgentOps = internalQuery({
         ...(row.modelRef !== undefined && { modelRef: row.modelRef }),
         ...(row.agentSlug !== undefined && { agentSlug: row.agentSlug }),
         ...(row.streamId !== undefined && { streamId: row.streamId }),
+        ...(agentKind !== undefined && { agentKind }),
+        ...(row.checkpointStorageId !== undefined && {
+          checkpointStorageId: row.checkpointStorageId,
+        }),
+        ...(row.lastSeq !== undefined && { lastSeq: row.lastSeq }),
+        ...(row.continuationCount !== undefined && {
+          continuationCount: row.continuationCount,
+        }),
+        ...(row.agentSessionId !== undefined && {
+          agentSessionId: row.agentSessionId,
+        }),
+        ...(row.agentResultStatus !== undefined && {
+          agentResultStatus: row.agentResultStatus,
+        }),
+        ...(row.exitCode !== undefined && { exitCode: row.exitCode }),
+        ...(row.heartbeatAt !== undefined && { heartbeatAt: row.heartbeatAt }),
       });
       if (out.length >= args.limit) break;
     }

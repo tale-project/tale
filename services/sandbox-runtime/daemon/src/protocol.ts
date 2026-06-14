@@ -90,10 +90,10 @@ export type RunnerdExecEvent = (
     }
 ) & { seq?: number };
 
-/** Detach-grace: how long the daemon keeps a child alive after its consumer
- * connection drops, before SIGTERM. Lets a platform action that lost its SSE
- * reconnect via /attach?sinceSeq= and keep streaming. Explicit /cancel still
- * kills immediately. Env-tunable. */
+/** @deprecated Superseded by the exec's SLIDING deadline (re-armed on every
+ * /attach, see ExecManager.armDeadline): a dropped consumer no longer arms a
+ * short grace-kill — the exec lives until the sliding deadline lapses with no
+ * reconnect, which is the sole orphan reaper. Kept exported for one cycle. */
 export const RUNNERD_DETACH_GRACE_MS = Number(
   process.env.RUNNERD_DETACH_GRACE_MS ?? 60_000,
 );
@@ -102,11 +102,15 @@ export interface RunnerdCancelResponse {
   killed: boolean;
 }
 
+/** GET /execs/:id — per-exec status without consuming the stream.
+ * `running` (live) carries startedAtMs; `exited` (recently retained) carries
+ * the real exitCode; `gone` (evicted past the recent window / never existed)
+ * is surfaced as HTTP 404. */
 export interface RunnerdExecStatus {
   execId: string;
-  state: 'running' | 'exited';
-  startedAtMs: number;
-  exitCode: number | null;
+  state: 'running' | 'exited' | 'gone';
+  startedAtMs?: number;
+  exitCode?: number | null;
 }
 
 export interface RunnerdEnvPatch {

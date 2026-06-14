@@ -11,7 +11,10 @@ import { v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
 import { internalAction } from '../../_generated/server';
-import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
+import {
+  runAgentInSessionImpl,
+  type RunAgentInSessionArgs,
+} from '../../node_only/sandbox/run_agent';
 import {
   finalizeTurnSideEffects,
   handleTurnOutcome,
@@ -21,11 +24,13 @@ import {
   type TurnContext,
 } from './turn_lifecycle';
 
+// Must match run_external_agent: window safely under the 600s action ceiling;
+// EXEC_DEADLINE is the sliding window runnerd re-arms on this re-attach.
 const ACTION_WINDOW_MS = Number(
-  process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(25 * 60 * 1000),
+  process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(480 * 1000),
 );
-const TURN_TIMEOUT_MS = Number(
-  process.env.EXTERNAL_AGENT_TURN_TIMEOUT_MS ?? String(24 * 60 * 60 * 1000),
+const EXEC_DEADLINE_MS = Number(
+  process.env.EXTERNAL_AGENT_EXEC_DEADLINE_MS ?? String(60 * 60 * 1000),
 );
 
 export const continueExternalAgentTurn = internalAction({
@@ -42,7 +47,14 @@ export const continueExternalAgentTurn = internalAction({
     assistantMessageId: v.string(),
     mintedKeyId: v.union(v.string(), v.null()),
     continuationCount: v.number(),
-    checkpointStorageId: v.string(),
+    /** The normal handoff path passes a checkpoint blob. The recovery watchdog
+     * may resume a turn that died before its first handoff (no blob) — then it
+     * passes `resumeSinceSeq` (+ optional agentSessionId) instead, and we
+     * re-attach from that cursor. Optional so both callers + in-flight pre-deploy
+     * schedules validate. */
+    checkpointStorageId: v.optional(v.string()),
+    resumeSinceSeq: v.optional(v.number()),
+    agentSessionId: v.optional(v.string()),
     /** Turn posture, frozen at exec start — carried so the terminal plan
      * detection knows how the turn ran. */
     permissionMode: v.optional(
@@ -69,10 +81,50 @@ export const continueExternalAgentTurn = internalAction({
       ...(args.streamId !== undefined && { streamId: args.streamId }),
     };
 
-    const checkpoint = await loadCheckpoint(ctx, args.checkpointStorageId);
-    if (!checkpoint) {
-      // Checkpoint blob gone (evicted / never written) — can't resume. Mark the
-      // message failed (preserving the timeline it already has) + finalize.
+    // Prefer the full checkpoint (normal handoff); fall back to the bare cursor
+    // (watchdog resume of a turn that died before its first handoff → no blob).
+    // The watchdog already confirmed the exec is ALIVE before scheduling, so a
+    // missing checkpoint here is the pre-first-handoff case, not "can't resume":
+    // re-attach from lastSeq with degraded tool-name rendering rather than fail
+    // a healthy agent. Only finalize-failed when there's nothing to resume from.
+    const checkpoint = args.checkpointStorageId
+      ? await loadCheckpoint(ctx, args.checkpointStorageId)
+      : null;
+    const resumeFrom: NonNullable<RunAgentInSessionArgs['resumeFrom']> | null =
+      checkpoint
+        ? {
+            lastSeq: checkpoint.lastSeq,
+            ...(checkpoint.agentSessionId !== undefined && {
+              agentSessionId: checkpoint.agentSessionId,
+            }),
+            ...(checkpoint.planText !== undefined && {
+              planText: checkpoint.planText,
+            }),
+            ...(checkpoint.toolNames !== undefined && {
+              toolNames: checkpoint.toolNames,
+            }),
+            ...(checkpoint.toolUseParents !== undefined && {
+              toolUseParents: checkpoint.toolUseParents,
+            }),
+            ...(checkpoint.agentResultSeen === true && {
+              agentResultSeen: true,
+            }),
+            ...(checkpoint.agentIdle === true && { agentIdle: true }),
+            ...(checkpoint.pendingTaskIds !== undefined && {
+              pendingTaskIds: checkpoint.pendingTaskIds,
+            }),
+          }
+        : args.resumeSinceSeq !== undefined
+          ? {
+              lastSeq: args.resumeSinceSeq,
+              ...(args.agentSessionId !== undefined && {
+                agentSessionId: args.agentSessionId,
+              }),
+            }
+          : null;
+    if (!resumeFrom) {
+      // No checkpoint AND no cursor — genuinely nothing to resume. Mark failed
+      // (preserving the timeline it already has) + finalize.
       await markMessageStatus(ctx, args.assistantMessageId, 'failed');
       await finalizeTurnSideEffects(ctx, turn);
       return null;
@@ -90,33 +142,12 @@ export const continueExternalAgentTurn = internalAction({
         prompt: '',
         gatewayBaseUrl: '',
         gatewayToken: '',
-        timeoutMs: TURN_TIMEOUT_MS,
+        timeoutMs: EXEC_DEADLINE_MS,
         budgetDeadlineMs: Date.now() + ACTION_WINDOW_MS,
         ...(args.permissionMode !== undefined && {
           permissionMode: args.permissionMode,
         }),
-        resumeFrom: {
-          lastSeq: checkpoint.lastSeq,
-          ...(checkpoint.agentSessionId !== undefined && {
-            agentSessionId: checkpoint.agentSessionId,
-          }),
-          ...(checkpoint.planText !== undefined && {
-            planText: checkpoint.planText,
-          }),
-          ...(checkpoint.toolNames !== undefined && {
-            toolNames: checkpoint.toolNames,
-          }),
-          ...(checkpoint.toolUseParents !== undefined && {
-            toolUseParents: checkpoint.toolUseParents,
-          }),
-          ...(checkpoint.agentResultSeen === true && {
-            agentResultSeen: true,
-          }),
-          ...(checkpoint.agentIdle === true && { agentIdle: true }),
-          ...(checkpoint.pendingTaskIds !== undefined && {
-            pendingTaskIds: checkpoint.pendingTaskIds,
-          }),
-        },
+        resumeFrom,
         onTimeline: async (content) => {
           await patchStreamingMessage(ctx, args.assistantMessageId, content);
         },

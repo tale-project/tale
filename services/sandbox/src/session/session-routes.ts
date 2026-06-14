@@ -13,6 +13,7 @@ import {
   runnerdCancelExec,
   runnerdEnvPatch,
   runnerdExec,
+  runnerdExecStatus,
   runnerdHealth,
   runnerdListDir,
   runnerdReadFile,
@@ -479,6 +480,34 @@ export class SessionRoutes {
       );
     }
     return jsonResponse({ killed }, 200);
+  }
+
+  /** GET /v1/sessions/:id/exec/:execId — per-exec status without consuming the
+   * stream. `running`/`exited` (200) or `gone` (404: session lost, or exec
+   * evicted past the recent window). A transport blip with a live backend
+   * returns 502 so the platform's restorative watchdog treats it as "unknown"
+   * and skips (never finalizes a turn on a daemon hiccup). */
+  async handleExecStatus(sessionId: string, execId: string): Promise<Response> {
+    const session = this.registry.get(sessionId);
+    if (!session) return jsonResponse({ execId, state: 'gone' }, 404);
+    try {
+      const status = await runnerdExecStatus(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        execId,
+      );
+      return jsonResponse(status, status.state === 'gone' ? 404 : 200);
+    } catch (err) {
+      if (await this.evictIfBackendGone(sessionId)) {
+        return jsonResponse({ execId, state: 'gone' }, 404);
+      }
+      return jsonResponse(
+        {
+          error: 'upstream_error',
+          message: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
   }
 
   /** POST /v1/sessions/:id/exec/:execId/stdin — append a line to a held-open

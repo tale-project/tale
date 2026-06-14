@@ -180,6 +180,15 @@ export const sandboxSessionOpsTable = defineTable({
    * nothing in new code reads it. A stale stamp on a terminal op row is dead,
    * exec-scoped data purged with the op. Remove with the next schema sweep. */
   steerSeamRequestedAt: v.optional(v.number()),
+  /** The agent's OWN self-reported terminal status from its `result` event
+   * (e.g. 'completed' | 'error_max_turns' | ...), stamped at the drain's
+   * terminal write. The restorative recovery path prefers this over a bare exec
+   * exit code so a turn the agent itself completed is never marked failed. */
+  agentResultStatus: v.optional(v.string()),
+  /** Provenance of the latest (re)attach: 'initial' | 'handoff' | 'watchdog' |
+   * 'thread-open'. Observability only — lets the management page + logs tell a
+   * normal seam handoff from a crash-recovery resume. */
+  resumedBy: v.optional(v.string()),
 })
   .index('by_sessionId', ['sessionId'])
   .index('by_threadId', ['threadId'])

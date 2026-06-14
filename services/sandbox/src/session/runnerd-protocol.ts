@@ -156,11 +156,14 @@ export interface RunnerdCancelResponse {
 
 // --- GET /execs/:id ----------------------------------------------------------
 
+/** Per-exec status without consuming the stream. `running` carries startedAtMs;
+ * `exited` carries the real exitCode (retained briefly past process exit);
+ * `gone` (evicted past the recent window / never existed) surfaces as 404. */
 export interface RunnerdExecStatus {
   execId: string;
-  state: 'running' | 'exited';
-  startedAtMs: number;
-  exitCode: number | null;
+  state: 'running' | 'exited' | 'gone';
+  startedAtMs?: number;
+  exitCode?: number | null;
 }
 
 // --- POST /env ---------------------------------------------------------------

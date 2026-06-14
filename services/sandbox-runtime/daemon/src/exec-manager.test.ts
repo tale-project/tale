@@ -268,41 +268,67 @@ describe('ExecManager', () => {
     expect(all.events.length).toBeGreaterThan(replayed.events.length);
   });
 
-  test('detach-grace kills the exec when no consumer reattaches', async () => {
+  test('an orphaned exec (no re-attach) is reaped at its sliding deadline', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
-    const done = mgr.run(
-      { ...base, execId: 'eg1', shell: 'sleep 30', cwd: ROOT },
+    // Short window, no attach → the deadline is the sole orphan reaper.
+    await mgr.run(
+      { ...base, execId: 'eg1', timeoutMs: 120, shell: 'sleep 30', cwd: ROOT },
       emit,
     );
-    await new Promise((r) => setTimeout(r, 100)); // let it start
-    mgr.scheduleDetachGrace('eg1', 80);
-    await done; // grace fires → SIGTERM → exit
     const last = events[events.length - 1];
     expect(last?.t).toBe('exit');
-    if (last?.t === 'exit') {
-      expect(last.cancelled).toBe(true);
-      expect(last.timedOut).toBe(false);
-    }
+    if (last?.t === 'exit') expect(last.timedOut).toBe(true);
   });
 
-  test('a reattach clears a pending detach-grace (exec survives)', async () => {
+  test('a re-attach slides the deadline forward (exec outlives its window)', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
     const done = mgr.run(
-      { ...base, execId: 'eg2', shell: 'sleep 30', cwd: ROOT },
+      { ...base, execId: 'eg2', timeoutMs: 150, shell: 'sleep 30', cwd: ROOT },
       emit,
     );
-    await new Promise((r) => setTimeout(r, 100));
-    mgr.scheduleDetachGrace('eg2', 120);
-    // Reconnect before the grace fires → timer cleared, child kept alive.
+    await new Promise((r) => setTimeout(r, 100)); // before the 150ms window
+    // Re-attach re-arms the deadline to now+150 → NOT killed at the original 150.
     const follower = collect();
     const stream = mgr.attach('eg2', follower.emit, 0);
     expect(stream).not.toBeNull();
-    await new Promise((r) => setTimeout(r, 300)); // past the 120ms grace
-    expect(mgr.has('eg2')).toBe(true); // not killed
+    await new Promise((r) => setTimeout(r, 130)); // t≈230, past the original 150
+    expect(mgr.has('eg2')).toBe(true); // survived: the attach slid the deadline
     expect(mgr.cancel('eg2')).toBe(true); // clean up
     await Promise.all([done, stream]);
+  });
+
+  test('extendDeadline keeps a live exec alive; no-op once exited', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { emit } = collect();
+    const done = mgr.run(
+      { ...base, execId: 'eg3', timeoutMs: 150, shell: 'sleep 30', cwd: ROOT },
+      emit,
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    expect(mgr.extendDeadline('eg3')).toBe(true); // re-arms to now+150
+    await new Promise((r) => setTimeout(r, 130)); // past the original 150
+    expect(mgr.has('eg3')).toBe(true);
+    expect(mgr.cancel('eg3')).toBe(true);
+    await done;
+    expect(mgr.extendDeadline('eg3')).toBe(false); // exited → no-op
+  });
+
+  test('status() reports running, then exited with the real exit code, then gone', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { emit } = collect();
+    const done = mgr.run(
+      { ...base, execId: 'st1', shell: 'sleep 0.3; exit 3', cwd: ROOT },
+      emit,
+    );
+    await new Promise((r) => setTimeout(r, 80));
+    expect(mgr.status('st1')?.state).toBe('running');
+    await done;
+    const exited = mgr.status('st1');
+    expect(exited?.state).toBe('exited');
+    if (exited?.state === 'exited') expect(exited.exitCode).toBe(3);
+    expect(mgr.status('never-existed')).toBeNull(); // gone
   });
 });
 
