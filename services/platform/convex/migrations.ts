@@ -14,35 +14,17 @@ import { internalAction } from './_generated/server';
 export const migrations = new Migrations<DataModel>(components.migrations);
 
 /**
- * Deploy-time runner: idempotent provisioning that re-seeds the built-in
- * default content into every org. Runs on every deploy
- * (services/platform/docker-entrypoint.sh) and on demand via `tale migrate`.
+ * Deploy-time MIGRATION runner: applies pending versioned data migrations.
+ * Runs on every deploy (services/platform/docker-entrypoint.sh) and on demand
+ * via `tale migrate`.
  *
- * New orgs receive this content from the org-creation hook; this runner is the
- * forward upgrade path that delivers newly-shipped default packs to orgs that
- * already exist. Every step is idempotent — re-runs are safe and never
- * override an org's own edits/opt-outs.
+ * Provisioning of built-in default content (prompt library, task-ops pack) is
+ * a SEPARATE concern handled by `provisioning.ts:provisionAll` — it is not a
+ * migration and is invoked as its own deploy step.
  */
 export const runAll = internalAction({
   args: {},
   handler: async (ctx) => {
-    // The default task-ops workflow pack comes PREINSTALLED: provision every
-    // existing org. Idempotent — per-workflow provision rows make re-runs
-    // no-ops, and org opt-outs (uninstalled workflows, deactivated triggers)
-    // are never overridden.
-    await ctx.runAction(
-      internal.migrations.provision_task_ops_pack.provisionTaskOpsPackAllOrgs,
-      {},
-    );
-    // The default prompt-library catalog comes PREINSTALLED: seed every
-    // existing org. Idempotent — per-prompt provision rows make re-runs
-    // no-ops, and org edits/deletes of a seeded prompt are never overridden.
-    await ctx.runAction(
-      internal.migrations.provision_default_prompts
-        .provisionDefaultPromptsAllOrgs,
-      {},
-    );
-
     // Apply pending versioned data migrations — but only NON-destructive ones.
     // Destructive migrations (table/column drops, row deletions) are never run
     // automatically on a deploy/restart; the operator applies them deliberately

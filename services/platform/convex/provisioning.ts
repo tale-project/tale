@@ -1,0 +1,40 @@
+import { internal } from './_generated/api';
+import { internalAction } from './_generated/server';
+
+/**
+ * Deploy-time PROVISIONING runner — idempotent re-seeding of the built-in
+ * default content (prompt library, task-ops workflow pack) into every org.
+ *
+ * This is deliberately SEPARATE from data migrations (`migrations.ts:runAll`).
+ * Provisioning is not a migration: it has no ledger, no up/down, no schema
+ * coupling, and is safe to run on every deploy. New orgs receive this content
+ * from the org-creation hook; this all-orgs runner is the forward upgrade path
+ * that delivers newly-shipped default packs to orgs that already exist.
+ *
+ * Every step is idempotent — per-item provision rows make re-runs no-ops, and
+ * an org's own edits/opt-outs (uninstalled workflows, deactivated triggers,
+ * deleted prompts) are never overridden.
+ *
+ * Invoked separately from the migration runner by the deploy entrypoint
+ * (services/platform/docker-entrypoint.sh) and on demand via `tale migrate`.
+ */
+export const provisionAll = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    // The default task-ops workflow pack comes PREINSTALLED: provision every
+    // existing org. Idempotent — per-workflow provision rows make re-runs
+    // no-ops, and org opt-outs are never overridden.
+    await ctx.runAction(
+      internal.provisioning.provision_task_ops_pack.provisionTaskOpsPackAllOrgs,
+      {},
+    );
+    // The default prompt-library catalog comes PREINSTALLED: seed every
+    // existing org. Idempotent — per-prompt provision rows make re-runs
+    // no-ops, and org edits/deletes of a seeded prompt are never overridden.
+    await ctx.runAction(
+      internal.provisioning.provision_default_prompts
+        .provisionDefaultPromptsAllOrgs,
+      {},
+    );
+  },
+});

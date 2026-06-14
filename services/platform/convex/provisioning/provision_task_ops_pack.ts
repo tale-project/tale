@@ -7,11 +7,11 @@
  * or deactivated a pack workflow are never re-provisioned behind their back.
  *
  * Two entry points:
- *  - `provisionTaskOpsPackAllOrgs` — registered in `migrations.ts:runAll`,
+ *  - `provisionTaskOpsPackAllOrgs` — registered in `provisioning.ts:provisionAll`,
  *    which the deploy entrypoint executes: the pack comes PREINSTALLED with
  *    active triggers for every org on every deploy, no rollout step.
  *  - `provisionTaskOpsPack` — single-org ops tool:
- *    bunx convex run migrations/provision_task_ops_pack:provisionTaskOpsPack \
+ *    bunx convex run provisioning/provision_task_ops_pack:provisionTaskOpsPack \
  *      '{ "organizationId": "<org-id>", "orgSlug": "<org-slug>" }'
  */
 

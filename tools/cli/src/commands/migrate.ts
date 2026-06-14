@@ -41,7 +41,8 @@ export function createMigrateCommand(): Command {
     )
     .action(async (opts: { dryRun?: boolean }) => {
       // Bare `tale migrate` keeps its original behaviour: run the deploy-time
-      // provisioning + safe-migration runner (migrations:runAll).
+      // provisioning runner (provisioning:provisionAll) then the safe-migration
+      // runner (migrations:runAll), as two separate steps.
       await withProject(async () => {
         await runMigrations({ dryRun: opts.dryRun ?? false });
       });

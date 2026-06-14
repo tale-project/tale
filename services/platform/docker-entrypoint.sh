@@ -374,6 +374,21 @@ deploy_convex_functions() {
     log_ok "Convex functions deployed successfully"
     rm -f "$deploy_log"
 
+    # Provision built-in default content (prompt library, task-ops pack) into
+    # every org. SEPARATE from data migrations — this is idempotent re-seeding,
+    # not a migration. Non-fatal: a transient failure is retried on next boot
+    # and must not prevent the platform from serving.
+    log_info "Provisioning built-in defaults..."
+    local provision_exit=0
+    timeout 600 bunx convex run provisioning:provisionAll \
+      --url "$CONVEX_URL" \
+      --admin-key "$ADMIN_KEY" 2>&1 || provision_exit=$?
+    if [ $provision_exit -eq 0 ]; then
+      log_ok "Provisioning complete"
+    else
+      log_error "Provisioning failed (exit code: $provision_exit) — platform will continue; defaults may need manual re-provisioning via 'tale migrate'."
+    fi
+
     # Run Convex data migrations. Non-fatal: each migration is idempotent,
     # so a transient failure here is retried on the next platform boot and
     # must not prevent the platform from serving.

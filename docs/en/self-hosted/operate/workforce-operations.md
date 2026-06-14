@@ -9,7 +9,7 @@ This is the operator's page for the AI-workforce automation. The product surface
 
 The pack provisions per organization with sticky opt-outs (org edits always win; a re-run never re-activates triggers an admin disabled):
 
-1. **Wave 0 — dogfood**: enable for an internal organization (`migrations/provision_task_ops_pack` with activation), watch the Workforce health strip for a week. Exit: zero unacknowledged automation failures.
+1. **Wave 0 — dogfood**: enable for an internal organization (`provisioning/provision_task_ops_pack` with activation), watch the Workforce health strip for a week. Exit: zero unacknowledged automation failures.
 2. **Wave 1 — provisioned, off**: all organizations receive the pack inactive; admins self-serve via the Workforce master toggle. Exit: health strip clean for 72 h across enabled orgs.
 3. **Wave 2 — default on**: enable by default for organizations that never toggled.
 

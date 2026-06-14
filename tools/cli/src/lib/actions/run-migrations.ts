@@ -1,13 +1,14 @@
 /**
- * `tale migrate` orchestration: run the Convex migration + provisioning
- * runner (`migrations:runAll`) against the running platform container, on
- * demand.
+ * `tale migrate` orchestration: run the Convex provisioning runner
+ * (`provisioning:provisionAll`) and the migration runner (`migrations:runAll`)
+ * against the running platform container, on demand.
  *
- * `runAll` is the same idempotent runner the container executes on every
- * deploy (services/platform/docker-entrypoint.sh): it applies any pending
- * one-time data migrations and re-provisions the built-in default content
- * (prompt library, task-ops workflow pack) into every org. Safe to re-run —
- * already-applied migrations and already-provisioned content are skipped.
+ * These are the same two idempotent runners the container executes on every
+ * deploy (services/platform/docker-entrypoint.sh), invoked as SEPARATE steps:
+ * provisioning re-seeds the built-in default content (prompt library, task-ops
+ * workflow pack) into every org, then migrations apply any pending non-
+ * destructive data migrations. Safe to re-run — already-provisioned content
+ * and already-applied migrations are skipped.
  *
  * Mirrors the proven env-sourcing + admin-key derivation incantation from
  * reseed-all-orgs.ts so `INSTANCE_SECRET` is populated and the admin key
@@ -40,12 +41,19 @@ env_normalize_common
 ensure_instance_secret
 ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
 cd /app
+STRIP='^Admin key\\|^📋\\|^✅ Admin\\|^━\\|^🌐\\|^$\\|Steps:\\|Open\\|Enter\\|Paste'
+HOME=/home/app timeout ${MIGRATE_TIMEOUT_S} bunx convex run \\
+  provisioning:provisionAll \\
+  --url "\${CONVEX_URL:-http://convex:3210}" \\
+  --admin-key "$ADMIN_KEY" \\
+  --no-push 2>&1 \\
+  | { grep -v "$STRIP" || true; }
 HOME=/home/app timeout ${MIGRATE_TIMEOUT_S} bunx convex run \\
   migrations:runAll \\
   --url "\${CONVEX_URL:-http://convex:3210}" \\
   --admin-key "$ADMIN_KEY" \\
   --no-push 2>&1 \\
-  | { grep -v "^Admin key\\|^📋\\|^✅ Admin\\|^━\\|^🌐\\|^$\\|Steps:\\|Open\\|Enter\\|Paste" || true; }
+  | { grep -v "$STRIP" || true; }
 `;
 
 export async function runMigrations(

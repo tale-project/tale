@@ -7,10 +7,10 @@
  * deleted a seeded prompt are never re-provisioned behind their back.
  *
  * Two entry points (mirrors `provision_task_ops_pack.ts`):
- *  - `provisionDefaultPromptsAllOrgs` — registered in `migrations.ts:runAll`,
+ *  - `provisionDefaultPromptsAllOrgs` — registered in `provisioning.ts:provisionAll`,
  *    so the catalog comes PREINSTALLED for every org on every deploy.
  *  - `provisionDefaultPrompts` — single-org ops tool:
- *    bunx convex run migrations/provision_default_prompts:provisionDefaultPrompts \
+ *    bunx convex run provisioning/provision_default_prompts:provisionDefaultPrompts \
  *      '{ "organizationId": "<org-id>", "orgSlug": "<org-slug>" }'
  */
 

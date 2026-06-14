@@ -19,8 +19,9 @@ import { resolve } from 'node:path';
 // Pair each substring with the action whose script contains it so
 // the failure message points the operator at the right place.
 const REQUIRED_MARKERS: ReadonlyArray<readonly [string, string]> = [
-  // run-migrations.ts inlines its bash via MIGRATE_SCRIPT; pin the convex
-  // function reference so a refactor that splits it back out fails here.
+  // run-migrations.ts inlines its bash via MIGRATE_SCRIPT; pin both convex
+  // function references so a refactor that splits it back out fails here.
+  ['provisioning:provisionAll', 'run-migrations.ts (MIGRATE_SCRIPT)'],
   ['migrations:runAll', 'run-migrations.ts (MIGRATE_SCRIPT)'],
   // reseed-all-orgs.ts already inlines its bash via RESEED_SCRIPT; pin it
   // so a future refactor that splits it back out also fails this check.
