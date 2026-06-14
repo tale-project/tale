@@ -463,17 +463,14 @@ export const upsertSessionOp = internalMutation({
   returns: v.id('sandboxSessionOps'),
   handler: async (ctx, args) => {
     const now = Date.now();
-    let existing: Id<'sandboxSessionOps'> | null = null;
-    let existingLastEventAt: number | undefined;
-    for await (const row of ctx.db
+    const existingRow = await ctx.db
       .query('sandboxSessionOps')
-      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
-      if (row.execId === args.execId) {
-        existing = row._id;
-        existingLastEventAt = row.lastEventAt;
-        break;
-      }
-    }
+      .withIndex('by_sessionId_and_execId', (q) =>
+        q.eq('sessionId', args.sessionId).eq('execId', args.execId),
+      )
+      .first();
+    const existing: Id<'sandboxSessionOps'> | null = existingRow?._id ?? null;
+    const existingLastEventAt: number | undefined = existingRow?.lastEventAt;
     const terminal = args.status !== 'running';
     const patch: Record<string, unknown> = { status: args.status };
     // Optional fields: patch only when provided so a throttled flush that omits
@@ -557,15 +554,16 @@ export const claimSessionOpFinalize = internalMutation({
   args: { sessionId: v.string(), execId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    for await (const row of ctx.db
+    const row = await ctx.db
       .query('sandboxSessionOps')
-      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
-      if (row.execId !== args.execId) continue;
-      if (row.finalizedAt !== undefined) return false; // already finalized
-      await ctx.db.patch(row._id, { finalizedAt: Date.now() });
-      return true;
-    }
-    return false; // op row gone → nothing to finalize
+      .withIndex('by_sessionId_and_execId', (q) =>
+        q.eq('sessionId', args.sessionId).eq('execId', args.execId),
+      )
+      .first();
+    if (!row) return false; // op row gone → nothing to finalize
+    if (row.finalizedAt !== undefined) return false; // already finalized
+    await ctx.db.patch(row._id, { finalizedAt: Date.now() });
+    return true;
   },
 });
 
@@ -588,21 +586,22 @@ export const claimRecoveryResume = internalMutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    for await (const row of ctx.db
+    const row = await ctx.db
       .query('sandboxSessionOps')
-      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
-      if (row.execId !== args.execId) continue;
-      if (row.finalizedAt !== undefined) return false; // already terminal
-      if (row.status !== 'running') return false; // not a live turn
-      // A live drainer bumped the heartbeat after the query → NOT abandoned.
-      if ((row.heartbeatAt ?? 0) >= args.staleBeforeMs) return false;
-      await ctx.db.patch(row._id, {
-        heartbeatAt: Date.now(),
-        resumedBy: 'watchdog',
-      });
-      return true;
-    }
-    return false; // op row gone
+      .withIndex('by_sessionId_and_execId', (q) =>
+        q.eq('sessionId', args.sessionId).eq('execId', args.execId),
+      )
+      .first();
+    if (!row) return false; // op row gone
+    if (row.finalizedAt !== undefined) return false; // already terminal
+    if (row.status !== 'running') return false; // not a live turn
+    // A live drainer bumped the heartbeat after the query → NOT abandoned.
+    if ((row.heartbeatAt ?? 0) >= args.staleBeforeMs) return false;
+    await ctx.db.patch(row._id, {
+      heartbeatAt: Date.now(),
+      resumedBy: 'watchdog',
+    });
+    return true;
   },
 });
 
@@ -623,14 +622,15 @@ export const recordSessionOpSpend = internalMutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    for await (const row of ctx.db
+    const row = await ctx.db
       .query('sandboxSessionOps')
-      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
-      if (row.execId !== args.execId) continue;
-      await ctx.db.patch(row._id, { spentCents: args.spentCents });
-      return true;
-    }
-    return false; // row gone → no-op
+      .withIndex('by_sessionId_and_execId', (q) =>
+        q.eq('sessionId', args.sessionId).eq('execId', args.execId),
+      )
+      .first();
+    if (!row) return false; // row gone → no-op
+    await ctx.db.patch(row._id, { spentCents: args.spentCents });
+    return true;
   },
 });
 
@@ -645,15 +645,16 @@ export const consumeSteerSeamRequest = internalMutation({
   args: { sessionId: v.string(), execId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    for await (const row of ctx.db
+    const row = await ctx.db
       .query('sandboxSessionOps')
-      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
-      if (row.execId !== args.execId) continue;
-      if (row.steerSeamRequestedAt === undefined) return false;
-      await ctx.db.patch(row._id, { steerSeamRequestedAt: undefined });
-      return true;
-    }
-    return false;
+      .withIndex('by_sessionId_and_execId', (q) =>
+        q.eq('sessionId', args.sessionId).eq('execId', args.execId),
+      )
+      .first();
+    if (!row) return false;
+    if (row.steerSeamRequestedAt === undefined) return false;
+    await ctx.db.patch(row._id, { steerSeamRequestedAt: undefined });
+    return true;
   },
 });
 

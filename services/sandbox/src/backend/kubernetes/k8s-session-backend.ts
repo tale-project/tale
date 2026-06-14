@@ -176,6 +176,12 @@ export class KubernetesSessionBackend implements SessionBackend {
   private async removePodAndSecret(sessionId: string): Promise<boolean> {
     const podName = sessionPodNameFor(sessionId);
     let existed = false;
+    // Attempt BOTH deletes even if the first hits a transient error, but
+    // remember a non-404 failure and re-throw it after. stopSession/
+    // destroySession document a throw-on-transient-hiccup contract (types.ts)
+    // so the reaper retries on the next sweep — a swallowed error would
+    // silently leak the Pod/Secret. 404 = already gone = success.
+    let transient: unknown = null;
     try {
       await this.client.core.deleteNamespacedPod(
         {
@@ -189,6 +195,7 @@ export class KubernetesSessionBackend implements SessionBackend {
     } catch (err) {
       if (httpStatusCode(err) !== 404) {
         console.warn(`[sandbox.session] delete pod ${podName} failed:`, err);
+        transient ??= err;
       }
     }
     try {
@@ -202,8 +209,10 @@ export class KubernetesSessionBackend implements SessionBackend {
     } catch (err) {
       if (httpStatusCode(err) !== 404) {
         console.warn(`[sandbox.session] delete secret for ${sessionId}:`, err);
+        transient ??= err;
       }
     }
+    if (transient) throw transient;
     return existed;
   }
 

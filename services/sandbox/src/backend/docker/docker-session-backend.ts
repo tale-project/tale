@@ -10,7 +10,10 @@ import { chown, mkdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
-import { waitForRunnerd } from '../../session/runnerd-client.ts';
+import {
+  runnerdEnvPatch,
+  waitForRunnerd,
+} from '../../session/runnerd-client.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import {
   deriveRunnerdToken,
@@ -101,37 +104,65 @@ export class DockerSessionBackend implements SessionBackend {
       runnerdToken: token,
       createdAtMs: spec.createdAtMs,
     });
-    // The seed env reaches runnerd via TALE_SESSION_ENV; passed as an extra
-    // --env appended to the argv (kept out of docker-session-args.ts so the
-    // pure builder snapshot stays env-content-free).
-    const fullArgv = this.withSeedEnv(argv, spec.env);
-
-    const run = await runDocker(fullArgv, { timeoutMs: 30_000 });
+    // The seed env is NOT passed on the `docker run` argv. A `--env
+    // TALE_SESSION_ENV=…` would be readable by anyone with host Docker access
+    // via `docker inspect`, and the seed env can carry secrets. It is instead
+    // pushed to runnerd over POST /env after readiness (below), mirroring the
+    // K8s backend, which routes it through a Secret rather than a visible arg.
+    const run = await runDocker(argv, { timeoutMs: 30_000 });
     if (run.exitCode !== 0) {
-      // Clean up a half-created container before surfacing the failure. On a
-      // resume (preexisting dir), preserve the workspace; only a fresh create
-      // deletes its own empty dir.
-      await dockerRm(containerName).catch((err) =>
-        console.warn('[sandbox.session] cleanup dockerRm failed:', err),
-      );
-      if (!preexisting) {
-        await rm(workspaceHostDir, { recursive: true, force: true }).catch(
-          (err) =>
-            console.warn('[sandbox.session] cleanup workspace rm failed:', err),
+      const stderr = run.stderr.trim();
+      // A name conflict means a CONCURRENT createSession for the same id already
+      // created the container — it is the WINNER's, not ours. Never run the
+      // destructive cleanup below against it; just surface the failure (the
+      // route layer reserves the id and returns 409 to keep the two from
+      // racing in the first place; this is defense-in-depth).
+      const nameConflict = /already in use|conflict/i.test(stderr);
+      if (!nameConflict) {
+        // Clean up a half-created container before surfacing the failure. On a
+        // resume (preexisting dir), preserve the workspace; only a fresh create
+        // deletes its own empty dir.
+        await dockerRm(containerName).catch((err) =>
+          console.warn('[sandbox.session] cleanup dockerRm failed:', err),
         );
+        if (!preexisting) {
+          await rm(workspaceHostDir, { recursive: true, force: true }).catch(
+            (err) =>
+              console.warn(
+                '[sandbox.session] cleanup workspace rm failed:',
+                err,
+              ),
+          );
+        }
       }
       throw new Error(
-        `docker run (session) failed: ${run.stderr.trim() || run.stdout.trim()}`,
+        `docker run (session) failed: ${stderr || run.stdout.trim()}`,
       );
     }
 
     // Poll runnerd until ready; on timeout tear the container down — but a
     // resume keeps its preserved workspace (stop, not destroy).
     try {
+      const baseUrl = await this.resolveEndpoint(spec.sessionId);
       await waitForRunnerd(
-        { baseUrl: await this.resolveEndpoint(spec.sessionId), token },
+        { baseUrl, token },
         this.cfg.session.createHealthTimeoutMs,
       );
+      // Push the seed env now that runnerd is ready and BEFORE createSession
+      // returns, so no exec can start without it. Fail-closed: a failed PATCH
+      // tears the container down via the catch below rather than launching a
+      // session missing its (possibly secret-bearing) env.
+      if (Object.keys(spec.env).length > 0) {
+        const denied = await runnerdEnvPatch(
+          { baseUrl, token },
+          { set: spec.env },
+        );
+        if (denied.length > 0) {
+          console.warn(
+            `[sandbox.session] runnerd rejected seed env keys for ${spec.sessionId}: ${denied.join(', ')}`,
+          );
+        }
+      }
     } catch (err) {
       if (preexisting) {
         await this.stopSession(spec.sessionId);
@@ -140,17 +171,6 @@ export class DockerSessionBackend implements SessionBackend {
       }
       throw err;
     }
-  }
-
-  /** Append the session seed env as a single TALE_SESSION_ENV JSON --env,
-   * just before the image positional. Kept here (not in the pure builder) so
-   * user-controlled env content never enters the snapshot-tested argv. */
-  private withSeedEnv(argv: string[], env: Record<string, string>): string[] {
-    if (Object.keys(env).length === 0) return argv;
-    const imageIdx = argv.lastIndexOf(this.cfg.runtimeImage);
-    if (imageIdx === -1) return argv;
-    const inject = ['--env', `TALE_SESSION_ENV=${JSON.stringify(env)}`];
-    return [...argv.slice(0, imageIdx), ...inject, ...argv.slice(imageIdx)];
   }
 
   async resolveEndpoint(sessionId: string): Promise<string> {

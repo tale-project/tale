@@ -306,6 +306,22 @@ export async function startAgentChat(
     computeDeduplicationState(existingMessages, message);
 
   const hasAttachments = attachments && attachments.length > 0;
+  // SECURITY (IDOR): each attachment fileId is a raw `_storage` id we are about
+  // to turn into a presigned URL (buildMessageWithAttachments) and hand to the
+  // generation action. Verify each is owned by THIS org BEFORE exposing it — an
+  // unvalidated fileId from another org would be a cross-tenant file read. Same
+  // gate the rag_search / document-write paths use.
+  if (attachments && attachments.length > 0) {
+    const owned = await ctx.runQuery(
+      internal.documents.internal_queries.verifyStorageIdsBelongToOrg,
+      { organizationId, storageIds: attachments.map((a) => a.fileId) },
+    );
+    if (!owned) {
+      throw new Error(
+        'One or more attachments do not belong to this organization.',
+      );
+    }
+  }
   const referencedFiles = prewarm ? [] : (args.referencedFiles ?? []);
 
   // Build message content with attachment markdown, then append the

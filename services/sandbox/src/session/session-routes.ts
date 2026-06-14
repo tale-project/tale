@@ -34,6 +34,10 @@ function b64decode(b64: string): Uint8Array {
 
 export class SessionRoutes {
   private readonly registry = new SessionRegistry();
+  // Session ids with a createSession in flight. The registry is only populated
+  // AFTER the backend create resolves, so this Set closes the synchronous gap a
+  // concurrent create of the same id would otherwise slip through.
+  private readonly creating = new Set<string>();
 
   constructor(
     private readonly cfg: SpawnerConfig,
@@ -102,32 +106,53 @@ export class SessionRoutes {
       // backstop for a re-adopted busy session.
       if (s.liveExecs.size > 0) continue;
       let expired = nowMs > s.expiresAtMs;
-      if (!expired) {
-        try {
-          const health = await runnerdHealth({
-            baseUrl: s.endpoint,
-            token: this.tokenFor(s.sessionId),
-          });
-          if (health.liveExecs > 0) continue; // busy (cold-cache backstop)
+      // Local exec cache is cold (e.g. a spawner restart re-adopted this session
+      // with an empty liveExecs map), so consult runnerd's own clock. This probe
+      // gates BOTH the idle AND the TTL reap: a re-adopted exec that's been
+      // running past the hard TTL must not be stopped mid-task just because this
+      // replica's liveExecs map is empty. Run it unconditionally (not only when
+      // !expired) — that's the cold-cache backstop for a busy re-adopted session.
+      try {
+        const health = await runnerdHealth({
+          baseUrl: s.endpoint,
+          token: this.tokenFor(s.sessionId),
+        });
+        if (health.liveExecs > 0) continue; // busy — spare from idle AND TTL
+        if (!expired) {
           expired = nowMs - health.lastActivityAtMs > s.idleTimeoutMs;
-        } catch (err) {
-          // runnerd unreachable. Distinguish a transient blip (leave for a
-          // later sweep; the TTL is the hard backstop) from a ZOMBIE — the
-          // backend object is gone but the cache entry survived. Without
-          // this, a dead session lingers routable-but-unreachable until TTL.
-          console.warn(
-            `[sandbox.session] sweep health probe failed for ${s.sessionId} (${s.endpoint}):`,
-            err,
-          );
-          if (await this.evictIfBackendGone(s.sessionId)) reaped += 1;
         }
+      } catch (err) {
+        // runnerd unreachable. Distinguish a transient blip (leave for a
+        // later sweep; the TTL is the hard backstop) from a ZOMBIE — the
+        // backend object is gone but the cache entry survived. Without
+        // this, a dead session lingers routable-but-unreachable until TTL.
+        console.warn(
+          `[sandbox.session] sweep health probe failed for ${s.sessionId} (${s.endpoint}):`,
+          err,
+        );
+        if (await this.evictIfBackendGone(s.sessionId)) {
+          reaped += 1;
+          continue;
+        }
+        // Backend still present (transient blip): fall through to the TTL-only
+        // decision below — a not-yet-expired session is left for a later sweep.
       }
       if (expired) {
         // Stop, never destroy: idle/TTL release compute but keep the workspace
-        // so the session resumes with its data on the next turn.
-        await this.backend.stopSession(s.sessionId).catch((err) => {
-          console.warn('[sandbox.session] sweep stop failed:', err);
-        });
+        // so the session resumes with its data on the next turn. stopSession
+        // THROWS on a transient backend hiccup (its contract) — keep the
+        // registry entry so the next sweep retries, rather than dropping a
+        // still-running container from the cache and orphaning it until a
+        // restart re-adopts it.
+        try {
+          await this.backend.stopSession(s.sessionId);
+        } catch (err) {
+          console.warn(
+            '[sandbox.session] sweep stop failed (will retry next sweep):',
+            err,
+          );
+          continue;
+        }
         this.registry.delete(s.sessionId);
         reaped += 1;
       }
@@ -229,61 +254,81 @@ export class SessionRoutes {
       );
     }
 
-    const createdAtMs = Date.now();
+    // Reserve the id synchronously. The registry isn't populated until AFTER
+    // backend.createSession resolves below, so without this a concurrent create
+    // of the SAME id would slip past the registry.has() check above and race
+    // into the backend — where the loser's name-conflict cleanup could
+    // `docker rm` the winner's healthy container (the backend also guards
+    // against rm-on-conflict as defense-in-depth).
+    if (this.creating.has(req.sessionId)) {
+      return jsonResponse(
+        {
+          error: 'duplicate',
+          message: `session ${req.sessionId} is being created`,
+        },
+        409,
+      );
+    }
+    this.creating.add(req.sessionId);
     try {
-      await this.backend.createSession({
+      const createdAtMs = Date.now();
+      try {
+        await this.backend.createSession({
+          sessionId: req.sessionId,
+          organizationId: req.organizationId,
+          profile: req.profile,
+          ttlMs: req.ttlMs,
+          idleTimeoutMs: req.idleTimeoutMs,
+          env: req.env,
+          createdAtMs,
+        });
+      } catch (err) {
+        return jsonResponse(
+          {
+            error: 'create_failed',
+            message: err instanceof Error ? err.message : String(err),
+          },
+          502,
+        );
+      }
+
+      let endpoint: string;
+      try {
+        endpoint = await this.backend.resolveEndpoint(req.sessionId);
+      } catch (err) {
+        // The backend object was created above but we can't address it. Roll it
+        // back rather than leak an unregistered, unroutable, never-reaped session
+        // (the sweep only walks the registry, so an unregistered backend object
+        // lingers until a spawner restart re-adopts it).
+        await this.backend.destroySession(req.sessionId).catch((destroyErr) => {
+          console.warn(
+            '[sandbox.session] rollback destroy after resolveEndpoint failure:',
+            destroyErr,
+          );
+        });
+        return jsonResponse(
+          {
+            error: 'create_failed',
+            message: err instanceof Error ? err.message : String(err),
+          },
+          502,
+        );
+      }
+      this.registry.set({
         sessionId: req.sessionId,
         organizationId: req.organizationId,
         profile: req.profile,
-        ttlMs: req.ttlMs,
-        idleTimeoutMs: req.idleTimeoutMs,
-        env: req.env,
+        state: 'ready',
         createdAtMs,
+        expiresAtMs: createdAtMs + req.ttlMs,
+        idleTimeoutMs: req.idleTimeoutMs,
+        endpoint,
+        liveExecs: new Map(),
       });
-    } catch (err) {
-      return jsonResponse(
-        {
-          error: 'create_failed',
-          message: err instanceof Error ? err.message : String(err),
-        },
-        502,
-      );
+      return jsonResponse({ session: this.toInfo(req.sessionId) }, 201);
+    } finally {
+      this.creating.delete(req.sessionId);
     }
-
-    let endpoint: string;
-    try {
-      endpoint = await this.backend.resolveEndpoint(req.sessionId);
-    } catch (err) {
-      // The backend object was created above but we can't address it. Roll it
-      // back rather than leak an unregistered, unroutable, never-reaped session
-      // (the sweep only walks the registry, so an unregistered backend object
-      // lingers until a spawner restart re-adopts it).
-      await this.backend.destroySession(req.sessionId).catch((destroyErr) => {
-        console.warn(
-          '[sandbox.session] rollback destroy after resolveEndpoint failure:',
-          destroyErr,
-        );
-      });
-      return jsonResponse(
-        {
-          error: 'create_failed',
-          message: err instanceof Error ? err.message : String(err),
-        },
-        502,
-      );
-    }
-    this.registry.set({
-      sessionId: req.sessionId,
-      organizationId: req.organizationId,
-      profile: req.profile,
-      state: 'ready',
-      createdAtMs,
-      expiresAtMs: createdAtMs + req.ttlMs,
-      idleTimeoutMs: req.idleTimeoutMs,
-      endpoint,
-      liveExecs: new Map(),
-    });
-    return jsonResponse({ session: this.toInfo(req.sessionId) }, 201);
   }
 
   /** GET /v1/sessions/:id — the platform's pre-turn aliveness probe keys its

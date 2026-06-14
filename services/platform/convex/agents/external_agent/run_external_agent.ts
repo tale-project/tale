@@ -18,7 +18,7 @@
  * plaintext gateway key is ever persisted.
  */
 
-import { saveMessage } from '@convex-dev/agent';
+import { listMessages, saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
 import { components, internal } from '../../_generated/api';
@@ -301,15 +301,13 @@ export const runExternalAgentTurn = internalAction({
         );
       }
 
-      // EVERY turn (created OR reused): ensure the org's per-org upstream key
-      // + provider config + gateway auth posture are in the gateway, BEFORE
-      // the mint below binds the VK to that key. provisionProviders is
-      // idempotent and memoized (steady-state = one GET per provider, no
-      // writes), so this is cheap on a reused session; running it only at
-      // create left reused sessions (the common case) with no key for the
-      // mint to bind to — mintVirtualKey then fails closed. NOT best-effort
-      // for the result, but its failure surfaces as the mint's fail-closed
-      // error rather than a silently over-permissive key.
+      // EVERY turn (created OR reused): ensure the org's per-org upstream key +
+      // provider config are in the gateway BEFORE the mint below binds the VK to
+      // that key. provisionProviders is idempotent and memoized (steady-state =
+      // one GET per provider, no writes), so this is cheap on a reused session.
+      // Its failure is best-effort HERE because it surfaces downstream as the
+      // mint's fail-closed error (no key to bind to) rather than a silently
+      // over-permissive key.
       try {
         const gatewayProviders = await loadOrgGatewayProviders(
           ctx,
@@ -318,13 +316,22 @@ export const runExternalAgentTurn = internalAction({
         if (gatewayProviders.length > 0) {
           await provisionProviders(args.organizationId, gatewayProviders);
         }
-        await applyGatewayConfig();
       } catch (provisionErr) {
         console.warn(
-          '[runExternalAgentTurn] gateway provisioning failed (continuing):',
+          '[runExternalAgentTurn] gateway provider provisioning failed (continuing; mint fails closed if no key):',
           provisionErr,
         );
       }
+
+      // The gateway AUTH POSTURE is fail-CLOSED, not best-effort. applyGatewayConfig
+      // sets enforce_auth_on_inference + enforce_governance_header — the controls
+      // that require a minted VK and enforce its allowed_models on the inference
+      // path. Swallowing a failure here could leave the gateway accepting
+      // un-keyed or model-unrestricted inference (fail-open), defeating the whole
+      // per-turn VK model. Let it throw: the run catch finalizes the turn as
+      // failed and the user retries, rather than running against an unguarded
+      // gateway.
+      await applyGatewayConfig();
 
       // 2. Inject Tier-2 integration credentials. Per-turn (not just at
       // create) so reused sessions pick up rotations; the broker audits
@@ -663,8 +670,41 @@ export const runExternalAgentTurn = internalAction({
             console.warn('[runExternalAgentTurn] self-heal stop failed:', e),
           );
       }
+      // handleTurnOutcome seals a segment as 'success' BEFORE its later steps
+      // (save next message / checkpoint / schedule continuation). If one of
+      // those throws we land here, but the segment is already a legitimate
+      // success — overwriting it with 'failed' would corrupt a completed turn,
+      // and finalizing would revoke the VK of a continued turn whose exec is
+      // still running. Re-read the status (mirrors cancel_generation.ts:70) and,
+      // when it's already 'success', leave the row for the recovery watchdog.
+      let alreadySucceeded = false;
+      if (assistantMessageId !== null) {
+        try {
+          const recent = await listMessages(ctx, components.agent, {
+            threadId: args.threadId,
+            paginationOpts: { numItems: 10, cursor: null },
+            excludeToolMessages: true,
+          });
+          alreadySucceeded = recent.page.some(
+            (m) => m._id === assistantMessageId && m.status === 'success',
+          );
+        } catch (statusErr) {
+          console.warn(
+            '[runExternalAgentTurn] could not re-read message status before failover:',
+            statusErr,
+          );
+        }
+      }
       try {
-        if (assistantMessageId !== null && sessionId !== null) {
+        if (alreadySucceeded) {
+          // Post-success side-effect failure: the turn's message is a genuine
+          // success and the op row is left UNfinalized for the recovery
+          // watchdog to resume/finalize — do not overwrite or revoke here.
+          console.warn(
+            '[runExternalAgentTurn] failure after a segment was sealed success; leaving the op for recovery:',
+            message,
+          );
+        } else if (assistantMessageId !== null && sessionId !== null) {
           // The streaming message already holds the partial tool timeline
           // (patched live via onTimeline). Mark it failed and APPEND the reason
           // rather than discarding the history with a bare error string — this

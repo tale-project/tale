@@ -275,6 +275,10 @@ export function buildAssistantContent(
             type: 'json',
             value: capSubAgentActivity({ report, steps: folded }),
           },
+          // Preserve the Task-level error signal: folding the sub-agent steps
+          // into a json output would otherwise drop it, and toUIMessages reads
+          // the part-level `isError` (not output.type) to render the failure.
+          ...(e.isError ? { isError: true } : {}),
         });
         continue;
       }
@@ -286,13 +290,22 @@ export function buildAssistantContent(
         output: e.isError
           ? { type: 'error-text', value }
           : { type: 'text', value },
+        // toUIMessages keys the error styling off the part-level `isError`, not
+        // output.type, so set it here too or a failed tool renders as success.
+        ...(e.isError ? { isError: true } : {}),
       });
     }
   }
 
   // Ensure the final answer is present exactly once (the stream usually already
-  // emitted it as the last text block; append only if it didn't).
-  if (finalText.trim() !== '' && finalText !== lastText) {
+  // emitted it as the last text block; append only if it didn't). Dedupe on the
+  // TRIMMED values: the final-result text and the streamed last block often
+  // differ only by trailing whitespace/newlines, which would otherwise slip the
+  // `!==` check and duplicate the whole answer in the bubble.
+  if (
+    finalText.trim() !== '' &&
+    finalText.trim() !== (lastText?.trim() ?? '')
+  ) {
     parts.push({ type: 'text', text: finalText });
   }
   return parts;

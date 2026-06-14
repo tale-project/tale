@@ -25,6 +25,12 @@
 # on parse failure we skip, leaving the files for a later boundary or the
 # finalize rollback (lossless, possibly slower — never swallowed).
 trap 'exit 0' ERR
+# Slice by characters, not bytes. The session image (python:3.12-slim-bookworm)
+# sets no locale, so bash defaults to C and `${payload:0:16000}` below would cut
+# on a raw byte offset — splitting a multibyte UTF-8 codepoint mid-sequence and
+# emitting a garbled tail. C.UTF-8 is built into bookworm's glibc (no locale-gen
+# needed) and makes the substring expansion codepoint-aware.
+export LC_ALL=C.UTF-8
 EVENT="${1:-post}"
 SRC=$(jq -r 'if (.agent_id // "") == "" then "main" else "sub" end' 2> /dev/null) || SRC=""
 [ -n "$TALE_STEER_DIR" ] || exit 0

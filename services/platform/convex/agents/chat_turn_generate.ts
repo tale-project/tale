@@ -403,7 +403,12 @@ export const runChatTurnGeneration = internalAction({
         '[runChatTurnGeneration] failed',
         err instanceof Error ? err.message : err,
       );
-      await clearGen().catch(() => {});
+      await clearGen().catch((clearErr: unknown) =>
+        console.warn(
+          '[runChatTurnGeneration] clearGenerationStatus on failure path failed:',
+          clearErr instanceof Error ? clearErr.message : clearErr,
+        ),
+      );
       throw err;
     }
   },

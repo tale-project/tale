@@ -7,7 +7,7 @@ import {
   Waypoints,
   type LucideIcon,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -67,6 +67,7 @@ function StepRow({
   expandedContent?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const bodyId = useId();
   const hasExpansion = expandedContent != null;
   return (
     <div className="flex items-start gap-2 text-sm">
@@ -85,6 +86,7 @@ function StepRow({
             type="button"
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
+            aria-controls={expanded ? bodyId : undefined}
             className={cn(
               'text-foreground flex items-center gap-1.5 text-left',
               'hover:text-foreground/80 cursor-pointer',
@@ -101,7 +103,7 @@ function StepRow({
         ) : (
           <span className="text-foreground truncate">{title}</span>
         )}
-        {expanded && expandedContent}
+        {expanded && <div id={bodyId}>{expandedContent}</div>}
         {detail != null && !expanded && (
           <span
             className={cn(

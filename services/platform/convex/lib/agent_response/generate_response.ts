@@ -268,12 +268,17 @@ function startAbortWatcher(
         return;
       }
 
-      // Check 2: cancelledAt on threadMetadata (early + universal)
+      // Check 2: cancelledAt on threadMetadata (early + universal). Anchor on
+      // the TURN's start (generationStartTime) so a cancel that landed BEFORE
+      // this action began — the front-load / queued window — is still caught.
+      // The passed baseline is only the fallback for turns with no thread
+      // generationStartTime (resume / sub-agent).
       const meta = await ctx.runQuery(
         internal.threads.internal_queries.getThreadMetadata,
         { threadId },
       );
-      if (meta?.cancelledAt && meta.cancelledAt >= generationStartTime) {
+      const turnStartMs = meta?.generationStartTime ?? generationStartTime;
+      if (meta?.cancelledAt && meta.cancelledAt >= turnStartMs) {
         cancelledByWatcher = true;
         abortController.abort();
         return;
@@ -640,12 +645,16 @@ export async function generateAgentResponse(
     > => {
       if (abortWatcher?.cancelled) return {};
       try {
-        // Check cancelledAt on threadMetadata
+        // Check cancelledAt on threadMetadata. Anchor on the TURN's start
+        // (generationStartTime), not this action's local startTime: a cancel
+        // between the turn start and this action starting is BEFORE startTime
+        // and would otherwise be missed → a phantom reply persists (#74).
         const meta = await ctx.runQuery(
           internal.threads.internal_queries.getThreadMetadata,
           { threadId },
         );
-        if (meta?.cancelledAt && meta.cancelledAt >= startTime) {
+        const turnStartMs = meta?.generationStartTime ?? startTime;
+        if (meta?.cancelledAt && meta.cancelledAt >= turnStartMs) {
           return { cancelledMessageId: meta.cancelledMessageId };
         }
         // Check aborted SDK streams

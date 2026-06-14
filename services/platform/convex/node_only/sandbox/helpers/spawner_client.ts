@@ -235,11 +235,12 @@ function getSpawnerUrl(): string {
 }
 
 function getSpawnerToken(): string | null {
-  // Opt-in HMAC: when SANDBOX_TOKEN is unset (or empty-string) the
+  // Opt-in HMAC: when SANDBOX_TOKEN is unset (or empty/whitespace-only) the
   // spawner skips signature verification and this client sends unsigned
   // requests. `tale deploy` auto-mints one via ensure-env for production
-  // deploys. Both sides treat empty-string as unset.
-  const token = process.env.SANDBOX_TOKEN;
+  // deploys. Both sides .trim() and treat empty/whitespace as unset, so a
+  // padded value can't derive a mismatched HMAC key.
+  const token = process.env.SANDBOX_TOKEN?.trim();
   return token && token.length > 0 ? token : null;
 }
 

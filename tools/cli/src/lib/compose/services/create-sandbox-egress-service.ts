@@ -35,7 +35,14 @@ export function createSandboxEgressService(
     container_name: `${getProjectId()}-sandbox-egress`,
     env_file: ['.env'],
     restart: 'unless-stopped',
-    cap_add: ['NET_ADMIN'],
+    // Least privilege: drop the full default cap set, add back only what the
+    // container provably needs (verified live against the image). NET_ADMIN
+    // installs the iptables SSRF firewall; DAC_OVERRIDE lets root touch/create
+    // the tinyproxy log in the nobody-owned /var/log/tinyproxy; CHOWN chowns it
+    // to nobody; SETUID/SETGID let tinyproxy drop privileges to nobody after
+    // bind. Keep in sync with the sandbox-egress service in compose.yml.
+    cap_drop: ['ALL'],
+    cap_add: ['NET_ADMIN', 'DAC_OVERRIDE', 'CHOWN', 'SETUID', 'SETGID'],
     // tinyproxy + tail = trivial footprint; the cap is here to bound a
     // misbehaving allowlist-regex DoS that pegs CPU or floods the log.
     mem_limit: '512m',

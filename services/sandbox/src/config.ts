@@ -80,7 +80,11 @@ export function loadConfig(): SpawnerConfig {
     );
   }
   const cacheMode: 'none' | 'pvc' = rawCacheMode;
-  const rawToken = process.env.SANDBOX_TOKEN;
+  // Trim so a whitespace-only value (e.g. SANDBOX_TOKEN='  ') is treated as
+  // UNSET like empty-string — otherwise it would silently enable HMAC with a
+  // trivially weak space key. Consistent with numEnv/userEnv above and the
+  // client side (spawner_client / session_client also trim).
+  const rawToken = process.env.SANDBOX_TOKEN?.trim();
 
   // Cross-backend env combos are accepted (so a single env file can serve
   // both deployment shapes) but warn — a silently-ignored knob reads like a

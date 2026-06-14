@@ -337,15 +337,26 @@ export class ExecManager {
           console.warn('[runnerd] initial stdin write failed:', err);
         }
       }
-    } else if (req.stdinBase64) {
-      try {
-        child.stdin.end(Buffer.from(req.stdinBase64, 'base64'));
-      } catch (err) {
-        // stdin may already be closed if the child exited instantly.
-        console.warn('[runnerd] initial stdin end failed:', err);
-      }
     } else {
-      child.stdin.end();
+      // Close-mode stdin: write the initial payload (if any) and EOF at once.
+      // Register an error listener FIRST — a child that exits before draining
+      // its stdin makes the end() pipe EPIPE ASYNCHRONOUSLY (write/end never
+      // throw synchronously for it), and without a listener Node escalates that
+      // to an unhandled 'error' that crashes the whole long-lived daemon, taking
+      // down every concurrent session. Mirror the held-stdin guard above.
+      child.stdin.on('error', (err) => {
+        console.warn('[runnerd] close-mode stdin pipe error:', err.message);
+      });
+      if (req.stdinBase64) {
+        try {
+          child.stdin.end(Buffer.from(req.stdinBase64, 'base64'));
+        } catch (err) {
+          // stdin may already be closed if the child exited instantly.
+          console.warn('[runnerd] initial stdin end failed:', err);
+        }
+      } else {
+        child.stdin.end();
+      }
     }
 
     child.stdout.on('data', (chunk: Buffer) => {

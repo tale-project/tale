@@ -4,7 +4,14 @@
 // This proves the create→exec→destroy flow + the NDJSON→SSE translation that
 // milestone A's container e2e then re-confirms end-to-end.
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from 'bun:test';
 
 import type {
   BackendSession,
@@ -111,6 +118,20 @@ beforeAll(() => {
           ]),
           { headers: { 'content-type': 'application/x-ndjson' } },
         );
+      }
+      if (url.pathname.endsWith('/cancel') && req.method === 'POST') {
+        return Response.json({ killed: true });
+      }
+      // GET /execs/:id — per-exec status (no path suffix). The execId prefix
+      // drives the state so a test can request running/exited/gone explicitly.
+      const statusMatch = /^\/execs\/([^/]+)$/.exec(url.pathname);
+      if (statusMatch && req.method === 'GET') {
+        const id = decodeURIComponent(statusMatch[1] ?? '');
+        if (id.startsWith('gone')) return new Response('gone', { status: 404 });
+        if (id.startsWith('done') || id.startsWith('exited')) {
+          return Response.json({ execId: id, state: 'exited', exitCode: 0 });
+        }
+        return Response.json({ execId: id, state: 'running', startedAtMs: 1 });
       }
       if (url.pathname === '/env' && req.method === 'POST') {
         return Response.json({ ok: true, denied: ['HOME'] });
@@ -229,6 +250,21 @@ async function readSse(res: Response): Promise<{ events: SseEvent[] }> {
   }
   return { events };
 }
+
+// Reset all module-level fakes before each test so they're order-independent
+// and can't leak state into one another (e.g. a session in `created` lingering
+// into another test's assertions). fakeServer/fakeBaseUrl stay (beforeAll-owned).
+beforeEach(() => {
+  created.clear();
+  destroyed.clear();
+  stopped.clear();
+  stdinWrites.length = 0;
+  execRequests.length = 0;
+  backendGone.clear();
+  backendCheckThrows = false;
+  fakeHealth.lastActivityAtMs = 0;
+  fakeHealth.liveExecs = 0;
+});
 
 describe('SessionRoutes (fake runnerd)', () => {
   test('create → exec echo → destroy', async () => {
@@ -686,6 +722,97 @@ describe('SessionRoutes (fake runnerd)', () => {
       const blip = await routes.handleExecStdin('dead-s2', 'e1', '{}');
       expect(blip.status).toBe(502);
       expect(destroyed.has('dead-s2')).toBe(false);
+    });
+  });
+
+  describe('exec cancel / status / boot adoption', () => {
+    test('handleExecCancel: kills via runnerd → 200 {killed}; unknown session → 404', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'sess-cancel', organizationId: 'org_c' }),
+      );
+      const ok = await routes.handleExecCancel('sess-cancel', 'e1');
+      expect(ok.status).toBe(200);
+      expect(await ok.json()).toMatchObject({ killed: true });
+
+      // Unknown session → 404, no runnerd hop.
+      expect((await routes.handleExecCancel('nope', 'e1')).status).toBe(404);
+      // (The transport-error → evict → 404 branch is exercised by the env/stdin/
+      // sweep zombie tests; runnerdCancelExec swallows a non-OK response as
+      // killed:false rather than throwing, so it can't drive eviction here.)
+    });
+
+    test('handleExecStatus: running/exited → 200, gone → 404, unknown → 404, transient blip → 502', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'sess-status', organizationId: 'org_st' }),
+      );
+      const run = await routes.handleExecStatus('sess-status', 'run1');
+      expect(run.status).toBe(200);
+      expect(await run.json()).toMatchObject({ state: 'running' });
+
+      const done = await routes.handleExecStatus('sess-status', 'done1');
+      expect(done.status).toBe(200);
+      expect(await done.json()).toMatchObject({ state: 'exited', exitCode: 0 });
+
+      // runnerd 404 → state 'gone' → the route answers 404.
+      const goneExec = await routes.handleExecStatus('sess-status', 'gone1');
+      expect(goneExec.status).toBe(404);
+      expect(await goneExec.json()).toMatchObject({ state: 'gone' });
+
+      // Unknown session → 404 {state:'gone'}, no runnerd hop.
+      const unknown = await routes.handleExecStatus('nope', 'e1');
+      expect(unknown.status).toBe(404);
+      expect(await unknown.json()).toMatchObject({ state: 'gone' });
+
+      // Transient runnerd blip on a LIVE backend → 502 so the platform's
+      // restorative watchdog treats it as "unknown" and never finalizes a turn
+      // on a daemon hiccup.
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'dead-status', organizationId: 'org_st' }),
+      );
+      const blip = await routes.handleExecStatus('dead-status', 'e1');
+      expect(blip.status).toBe(502);
+      expect(destroyed.has('dead-status')).toBe(false);
+    });
+
+    test('adoptExisting: rebuilds the registry from backend objects, idempotently', async () => {
+      const createdAtMs = 1_000;
+      const adoptBackend: SessionBackend = {
+        ...fakeBackend,
+        async listSessions(): Promise<BackendSession[]> {
+          return [
+            {
+              sessionId: 'adopt1',
+              organizationId: 'org_adopt',
+              profile: 'agent',
+              createdAtMs,
+              ttlMs: 60_000,
+              idleTimeoutMs: 30_000,
+              state: 'ready',
+            },
+          ];
+        },
+      };
+      const routes = new SessionRoutes(cfg, adoptBackend);
+      // Cold registry before adoption.
+      expect((await routes.handleGet('adopt1')).status).toBe(404);
+
+      await routes.adoptExisting();
+      const got = await routes.handleGet('adopt1');
+      expect(got.status).toBe(200);
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      const info = (await got.json()) as {
+        session: { createdAtMs: number; expiresAtMs: number; state: string };
+      };
+      // expiresAtMs is reconstructed from the backend object (createdAt + ttl).
+      expect(info.session.createdAtMs).toBe(createdAtMs);
+      expect(info.session.expiresAtMs).toBe(createdAtMs + 60_000);
+      expect(info.session.state).toBe('ready');
+
+      // Idempotent: a second adoption doesn't duplicate or disturb the entry.
+      await routes.adoptExisting();
+      expect((await routes.handleGet('adopt1')).status).toBe(200);
     });
   });
 });

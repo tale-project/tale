@@ -63,7 +63,10 @@ function getSpawnerUrl(): string {
 }
 
 function getSpawnerToken(): string | null {
-  const token = process.env.SANDBOX_TOKEN;
+  // Trim so a whitespace-only token is treated as unset — must match the
+  // server (sandbox config.ts) and spawner_client trim or a padded token would
+  // derive a different HMAC key on each side.
+  const token = process.env.SANDBOX_TOKEN?.trim();
   return token && token.length > 0 ? token : null;
 }
 
@@ -663,7 +666,9 @@ async function consumeExecSse(
     }
     const { value, done } = chunk;
     if (done) break;
-    buf += decoder.decode(value, { stream: true });
+    // Normalize CRLF → LF so the `\n\n` SSE block split below can't leave a
+    // stray `\r` on event/data lines (parity with spawner_client.ts:371).
+    buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
     let idx = buf.indexOf('\n\n');
     while (idx !== -1) {
       parseSseBlock(buf.slice(0, idx), handleEvent);

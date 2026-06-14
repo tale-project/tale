@@ -553,14 +553,27 @@ services:
     env_file:
       - .env
     restart: unless-stopped
-    # NET_ADMIN lets the entrypoint install iptables REJECT rules for
-    # IMDS (169.254.169.254) and RFC1918 ranges — in the default open
-    # mode this is the only hostname-independent egress fence (it also
-    # covers DNS-rebind when an allowlist is configured). Without this
-    # cap the entrypoint refuses to start (fail-closed). Mirrors the
-    # convex container — see services/convex/docker-entrypoint.sh.
+    # Drop the full default capability set, then add back ONLY what the
+    # container provably needs (least privilege; shrinks the attack surface of
+    # a NET_ADMIN-holding, internet-facing proxy). Verified live against the
+    # image — a tighter set breaks the entrypoint, a looser one is wasted.
+    #   NET_ADMIN     — install the iptables OUTPUT REJECT rules for IMDS
+    #                   (169.254.169.254) + RFC1918 (the only hostname-
+    #                   independent egress fence; fail-closed without it).
+    #   DAC_OVERRIDE  — entrypoint.sh (root) touches/creates the tinyproxy log
+    #                   inside /var/log/tinyproxy, which the image owns by
+    #                   `nobody`; without it the touch fails Permission denied.
+    #   CHOWN         — chown that log file to nobody.
+    #   SETUID/SETGID — tinyproxy drops privileges to nobody after bind.
+    # (NET_RAW / MKNOD / SETPCAP / SETFCAP / etc. are NOT needed.)
+    cap_drop:
+      - ALL
     cap_add:
       - NET_ADMIN
+      - DAC_OVERRIDE
+      - CHOWN
+      - SETUID
+      - SETGID
     healthcheck:
       # Plain TCP-listen check: if tinyproxy is up the port answers. We
       # intentionally do NOT CONNECT-probe an external host (pypi/npm)

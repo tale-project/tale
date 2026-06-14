@@ -28,6 +28,11 @@ vi.mock('../../_generated/api', () => ({
         generateThreadTitle: 'mock-generateThreadTitle',
       },
     },
+    documents: {
+      internal_queries: {
+        verifyStorageIdsBelongToOrg: 'mock-verifyStorageIds',
+      },
+    },
   },
 }));
 
@@ -108,6 +113,10 @@ function createMockCtx(
       // betterAuth adapter queries (getUserTeamIds + resolveBudgetContext)
       if (queryRef === 'mock-betterAuth-findMany') {
         return Promise.resolve({ page: [], isDone: true });
+      }
+      // Attachment org-ownership gate (verifyStorageIdsBelongToOrg) → owned.
+      if (queryRef === 'mock-verifyStorageIds') {
+        return Promise.resolve(true);
       }
       return Promise.resolve({ userId: 'user_1' });
     }),

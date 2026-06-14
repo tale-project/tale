@@ -193,6 +193,10 @@ export const sandboxSessionOpsTable = defineTable({
   .index('by_sessionId', ['sessionId'])
   .index('by_threadId', ['threadId'])
   .index('by_organizationId_and_status', ['organizationId', 'status'])
+  // Point lookup of one exec within a session (upsert/finalize/resume/spend/
+  // steer), avoiding an O(ops-in-session) by_sessionId scan + execId filter on
+  // the 500ms progress-flush hot path.
+  .index('by_sessionId_and_execId', ['sessionId', 'execId'])
   // Watchdog: scan `running` ops by heartbeat to find abandoned turns.
   .index('by_status_and_heartbeat', ['status', 'heartbeatAt']);
 
