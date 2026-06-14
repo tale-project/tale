@@ -450,6 +450,18 @@ async function waitForBifrostGateway(timeoutMs = 30_000): Promise<void> {
  *  Docker absent is NON-FATAL: warn with the concrete side-effects and let the
  *  app come up anyway (pure frontend/Convex work doesn't need the gateway). */
 async function ensureDockerDependencies(): Promise<void> {
+  // The hermetic E2E stack (playwright.config.ts) is anonymous-Convex + mock
+  // LLM with "no external services" — the backing images aren't built in the
+  // E2E CI job, so `docker compose up` can only ever fail there. Attempting it
+  // wastes the cold-boot budget and destabilizes the Convex pre-warm that
+  // follows. Let the E2E webServer opt out explicitly.
+  if (/^(1|true|yes|on)$/i.test(process.env.TALE_DEV_SKIP_DOCKER ?? '')) {
+    console.log(
+      '[dev] ⏭  Skipping docker backing services (TALE_DEV_SKIP_DOCKER set)',
+    );
+    return;
+  }
+
   const status = await probeDocker(10_000);
   if (status !== 'ok') {
     const why =

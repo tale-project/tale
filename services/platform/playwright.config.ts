@@ -99,20 +99,29 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       // Convex pre-warm (binary download + function push) dominates cold boot.
       timeout: 300_000,
-      env: useMockLlm
-        ? {
-            // Hermetic config dir: seeds every new org with the single E2E
-            // agent + the mock provider + the trivial `test` workflow.
-            TALE_CONFIG_DIR: path.join(dirname, 'e2e/fixtures/config'),
-            // Resolved by the fixture provider's `secretsEnv`; pushed into the
-            // Convex deployment env by scripts/sync-convex-env-from-dotenv.ts
-            // (TALE_PROVIDER_KEY_* passthrough).
-            TALE_PROVIDER_KEY_E2E_MOCK: 'tale-e2e-mock-key',
-            // The mock LLM lives on 127.0.0.1, which the provider host policy
-            // blocks by default (SSRF defence) — opt in for the E2E stack.
-            TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
-          }
-        : {},
+      env: {
+        // The E2E stack is hermetic (anonymous Convex + mock LLM, no external
+        // services). The docker backing services dev.ts brings up for full
+        // local dev (bifrost/sandbox/db/rag/crawler) have no built images in
+        // the E2E CI job, so the bring-up can only fail and waste the cold-boot
+        // budget — skip it. Applies in both mock and live-stack modes.
+        TALE_DEV_SKIP_DOCKER: '1',
+        ...(useMockLlm
+          ? {
+              // Hermetic config dir: seeds every new org with the single E2E
+              // agent + the mock provider + the trivial `test` workflow.
+              TALE_CONFIG_DIR: path.join(dirname, 'e2e/fixtures/config'),
+              // Resolved by the fixture provider's `secretsEnv`; pushed into
+              // the Convex deployment env by
+              // scripts/sync-convex-env-from-dotenv.ts (TALE_PROVIDER_KEY_*
+              // passthrough).
+              TALE_PROVIDER_KEY_E2E_MOCK: 'tale-e2e-mock-key',
+              // The mock LLM lives on 127.0.0.1, which the provider host policy
+              // blocks by default (SSRF defence) — opt in for the E2E stack.
+              TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+            }
+          : {}),
+      },
     },
   ],
 });
