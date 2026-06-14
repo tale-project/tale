@@ -32,7 +32,7 @@ export interface MigrationMeta {
   snapshot: 'none' | 'table-rows' | 'fs-tree';
 }
 
-export interface MigrationStatus {
+interface MigrationStatus {
   frontier: string | null;
   applied: MigrationMeta[];
   pending: MigrationMeta[];

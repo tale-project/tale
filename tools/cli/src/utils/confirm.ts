@@ -16,7 +16,7 @@ export async function confirm(message: string): Promise<boolean> {
 }
 
 /** The choices a per-step migration review offers. */
-export type StepChoice = 'yes' | 'skip' | 'accept-all' | 'abort';
+type StepChoice = 'yes' | 'skip' | 'accept-all' | 'abort';
 
 /**
  * Prompt for a per-step decision in `tale migrate --step`. Returns:

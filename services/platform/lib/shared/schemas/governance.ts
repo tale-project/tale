@@ -89,14 +89,14 @@ export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
 // `userPreferences.customInstructionsEnabled` may override this default;
 // absent user preference falls back to this value. Missing row entirely →
 // effective default is OFF.
-export const customInstructionsConfigSchema = z.object({
+const customInstructionsConfigSchema = z.object({
   enabled: z.boolean(),
 });
 
 // Org-level default for the user-memories feature (memory injection +
 // the `propose_memory` agent tool). Per-user
 // `userPreferences.memoriesEnabled` may override; missing row → OFF.
-export const userMemoriesConfigSchema = z.object({
+const userMemoriesConfigSchema = z.object({
   enabled: z.boolean(),
 });
 
@@ -118,7 +118,7 @@ export const voiceOutputConfigSchema = z.object({
  * this policyType and read back without validation. Schema kept tight
  * (enabled flag + bounded prompt text) to fit the actual write surface.
  */
-export const systemPromptConfigSchema = z.object({
+const systemPromptConfigSchema = z.object({
   enabled: z.boolean(),
   prompt: z.string().max(20_000),
 });

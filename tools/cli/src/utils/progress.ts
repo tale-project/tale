@@ -26,14 +26,14 @@ type StepLogger = Pick<
   'step' | 'success' | 'error' | 'info'
 >;
 
-export interface ParallelStep<T> {
+interface ParallelStep<T> {
   /** Short label shown in the per-step `[N/total]` line. */
   label: string;
   /** The work. Resolving = success; throwing = failure (never cancels peers). */
   run: () => Promise<T>;
 }
 
-export interface ParallelStepResult<T> {
+interface ParallelStepResult<T> {
   label: string;
   ok: boolean;
   value?: T;
@@ -83,7 +83,7 @@ export async function runStepsInParallel<T>(
   return Promise.all(steps.map(settle));
 }
 
-export interface ActivityWatchdog {
+interface ActivityWatchdog {
   /** Reset the silence timer; call when meaningful progress happens. */
   beat: () => void;
   /** Stop the watchdog. Always call in a `finally`. */

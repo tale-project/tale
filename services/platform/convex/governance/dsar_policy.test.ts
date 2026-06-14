@@ -1,16 +1,32 @@
 import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import type { DsarGovernanceConfig } from '../../lib/shared/schemas/governance';
 import { isLoosening } from './dsar_policy';
 
+// The file-based DSAR policy path is split across several Convex functions.
+// `proposeDsarPolicy`/`applyPendingDsarPolicyChange` are (internal) actions
+// that delegate every read/write to internal functions via
+// `ctx.runQuery`/`ctx.runMutation`/`ctx.runAction`; the audit + notify + db
+// side effects live in the `recordDsarTighten`/`stageDsarLoosen`/
+// `finalizeDsarApply` internal mutations. The api refs below are string
+// sentinels so the mock ctx can route each `run*` call by reference.
 vi.mock('../_generated/api', () => ({
   components: {
     betterAuth: { adapter: { findMany: 'betterAuth:adapter:findMany' } },
   },
   internal: {
     governance: {
+      internal_queries: { verifyOrgMember: 'verifyOrgMember' },
+      file_actions: {
+        persistGovernancePolicyFile: 'persistGovernancePolicyFile',
+      },
       dsar_policy: {
+        readDsarStateInternal: 'readDsarStateInternal',
+        recordDsarTighten: 'recordDsarTighten',
+        stageDsarLoosen: 'stageDsarLoosen',
         applyPendingDsarPolicyChange: 'applyPendingDsarPolicyChange',
+        finalizeDsarApply: 'finalizeDsarApply',
       },
     },
   },
@@ -49,6 +65,9 @@ vi.mock('../_generated/server', async (importOriginal) => {
     mutation: (config: Record<string, unknown>) => config,
     internalMutation: (config: Record<string, unknown>) => config,
     query: (config: Record<string, unknown>) => config,
+    action: (config: Record<string, unknown>) => config,
+    internalAction: (config: Record<string, unknown>) => config,
+    internalQuery: (config: Record<string, unknown>) => config,
   };
 });
 
@@ -109,15 +128,78 @@ function buildQueryRunner(rows: DbRow[]): IndexQueryBuilder {
   return builder;
 }
 
+interface RunCall {
+  ref: string;
+  args: unknown;
+}
+
 interface MockState {
+  /** Result returned by the `verifyOrgMember` internal query (action path). */
+  member: { role: string };
+  /** Result returned by the `readDsarStateInternal` internal query. */
+  dsarState: {
+    config: DsarGovernanceConfig;
+    pending: { config: DsarGovernanceConfig; effectiveAt: number } | null;
+  };
+  /** Tables backing the db-using mutations (cancel + the internal mutations). */
   tables: Record<string, DbRow[]>;
   scheduled: { delayMs: number; ref: string; args: unknown }[];
   cancels: string[];
+  deletes: string[];
+  runMutations: RunCall[];
+  runActions: RunCall[];
+}
+
+function emptyState(overrides: Partial<MockState> = {}): MockState {
+  return {
+    member: { role: 'owner' },
+    dsarState: { config: { ...BASE_CONFIG }, pending: null },
+    tables: {},
+    scheduled: [],
+    cancels: [],
+    deletes: [],
+    runMutations: [],
+    runActions: [],
+    ...overrides,
+  };
 }
 
 function createMockCtx(state: MockState) {
   let nextId = 0;
   return {
+    auth: {
+      // Production uses getAuthUserIdentity (ctx.auth.getUserIdentity). Derive
+      // the identity from the same mock source so test intent is preserved.
+      getUserIdentity: vi.fn(async () => {
+        const u = (await mockGetAuthUser()) as
+          | { _id: string; email?: string; name?: string }
+          | null
+          | undefined;
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
+    runQuery: vi.fn(async (ref: string, _args: unknown) => {
+      if (ref === 'verifyOrgMember') return state.member;
+      if (ref === 'readDsarStateInternal') return state.dsarState;
+      throw new Error(`unexpected runQuery ref: ${ref}`);
+    }),
+    runMutation: vi.fn(async (ref: string, args: unknown) => {
+      state.runMutations.push({ ref, args });
+      return null;
+    }),
+    runAction: vi.fn(async (ref: string, args: unknown) => {
+      state.runActions.push({ ref, args });
+      return null;
+    }),
+    scheduler: {
+      runAfter: vi.fn(async (delayMs: number, ref: string, args: unknown) => {
+        state.scheduled.push({ delayMs, ref, args });
+        return 'scheduled_job_id';
+      }),
+      cancel: vi.fn(async (id: string) => {
+        state.cancels.push(id);
+      }),
+    },
     db: {
       query: vi.fn((table: string) =>
         buildQueryRunner(state.tables[table] ?? []),
@@ -129,21 +211,6 @@ function createMockCtx(state: MockState) {
         }
         return null;
       }),
-      patch: vi.fn(async (id: string, patch: Record<string, unknown>) => {
-        for (const rows of Object.values(state.tables)) {
-          const idx = rows.findIndex((r) => r._id === id);
-          if (idx >= 0) {
-            // simulate Convex behavior: undefined values clear the field
-            const merged: Record<string, unknown> = { ...rows[idx] };
-            for (const [k, v] of Object.entries(patch)) {
-              if (v === undefined) delete merged[k];
-              else merged[k] = v;
-            }
-            rows[idx] = merged as DbRow;
-            return;
-          }
-        }
-      }),
       insert: vi.fn(async (table: string, doc: Record<string, unknown>) => {
         nextId++;
         const id = `${table}_${nextId}`;
@@ -151,31 +218,25 @@ function createMockCtx(state: MockState) {
         list.push({ _id: id, ...doc });
         return id;
       }),
-    },
-    scheduler: {
-      runAfter: vi.fn(async (delayMs: number, ref: string, args: unknown) => {
-        const id = `job_${state.scheduled.length}`;
-        state.scheduled.push({ delayMs, ref, args });
-        return id;
-      }),
-      cancel: vi.fn(async (id: string) => {
-        state.cancels.push(id);
-      }),
-    },
-    auth: {
-      // Production now uses getAuthUserIdentity (ctx.auth.getUserIdentity)
-      // instead of authComponent.getAuthUser. Derive the identity from the
-      // same mock source so existing test intent is preserved.
-      getUserIdentity: vi.fn(async () => {
-        const u = (await mockGetAuthUser()) as
-          | { _id: string; email?: string; name?: string }
-          | null
-          | undefined;
-        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      delete: vi.fn(async (id: string) => {
+        state.deletes.push(id);
+        for (const rows of Object.values(state.tables)) {
+          const idx = rows.findIndex((r) => r._id === id);
+          if (idx >= 0) {
+            rows.splice(idx, 1);
+            return;
+          }
+        }
       }),
     },
   };
 }
+
+const BASE_CONFIG: DsarGovernanceConfig = {
+  coolingOffHours: 24,
+  requireDualApproval: false,
+  dailyLimitPerAdmin: 5,
+};
 
 const OWNER = { _id: 'owner_user', email: 'owner@example.com' };
 
@@ -224,16 +285,14 @@ describe('proposeDsarPolicy', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAuthUser.mockResolvedValue(OWNER);
-    mockGetOrganizationMember.mockResolvedValue({ role: 'owner' });
     mockWriteNotification.mockResolvedValue(undefined);
     vi.useFakeTimers();
     vi.setSystemTime(1_700_000_000_000);
   });
 
   it('refuses non-owner (admin) writes', async () => {
-    mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
     const m = await loadDsarPolicy();
-    const state: MockState = { tables: {}, scheduled: [], cancels: [] };
+    const state = emptyState({ member: { role: 'admin' } });
     const ctx = createMockCtx(state);
     await expect(
       m.proposeDsarPolicy.handler(ctx, {
@@ -245,28 +304,24 @@ describe('proposeDsarPolicy', () => {
         },
       }),
     ).rejects.toBeInstanceOf(ConvexError);
+    // No file write or staging for a rejected caller.
+    expect(state.runActions).toHaveLength(0);
+    expect(state.runMutations).toHaveLength(0);
   });
 
-  it('tightening applies immediately (no scheduled job, audit + notify)', async () => {
+  it('tightening writes the file immediately (no scheduled job)', async () => {
     const m = await loadDsarPolicy();
-    const state: MockState = {
-      tables: {
-        governancePolicies: [
-          {
-            _id: 'policy_1',
-            organizationId: 'org_A',
-            policyType: 'dsar_governance',
-            config: {
-              coolingOffHours: 24,
-              requireDualApproval: false,
-              dailyLimitPerAdmin: 5,
-            },
-          },
-        ],
+    const state = emptyState({
+      member: { role: 'owner' },
+      dsarState: {
+        config: {
+          coolingOffHours: 24,
+          requireDualApproval: false,
+          dailyLimitPerAdmin: 5,
+        },
+        pending: null,
       },
-      scheduled: [],
-      cancels: [],
-    };
+    });
     const ctx = createMockCtx(state);
     const result = await m.proposeDsarPolicy.handler(ctx, {
       organizationId: 'org_A',
@@ -277,41 +332,44 @@ describe('proposeDsarPolicy', () => {
       },
     });
     expect(result).toEqual({ applied: true });
+    // No deferred apply scheduled for a tightening change.
     expect(state.scheduled).toHaveLength(0);
-    const row = state.tables.governancePolicies?.[0];
-    const cfg = row?.config as Record<string, unknown>;
-    expect(cfg.coolingOffHours).toBe(48);
-    expect(cfg.requireDualApproval).toBe(true);
-    expect(cfg.dailyLimitPerAdmin).toBe(3);
-    // audit + notify fired
-    const auditCall = mockCreateAuditLog.mock.calls.find((c) => {
-      const p = c[1] as { action?: string };
-      return p.action === 'dsar_governance_policy_tightened';
+    // Policy file persisted with the tightened config.
+    const persist = state.runActions.find(
+      (c) => c.ref === 'persistGovernancePolicyFile',
+    );
+    expect(persist).toBeDefined();
+    expect(persist?.args).toMatchObject({
+      organizationId: 'org_A',
+      policyType: 'dsar_governance',
+      config: {
+        coolingOffHours: 48,
+        requireDualApproval: true,
+        dailyLimitPerAdmin: 3,
+      },
     });
-    expect(auditCall).toBeDefined();
-    expect(mockWriteNotification).toHaveBeenCalled();
+    // Tighten audit + notify recorded.
+    expect(state.runMutations.some((c) => c.ref === 'recordDsarTighten')).toBe(
+      true,
+    );
+    expect(state.runMutations.some((c) => c.ref === 'stageDsarLoosen')).toBe(
+      false,
+    );
   });
 
-  it('loosening stages as pending + schedules apply (config not changed yet)', async () => {
+  it('loosening stages as pending + schedules apply (file not changed yet)', async () => {
     const m = await loadDsarPolicy();
-    const state: MockState = {
-      tables: {
-        governancePolicies: [
-          {
-            _id: 'policy_1',
-            organizationId: 'org_A',
-            policyType: 'dsar_governance',
-            config: {
-              coolingOffHours: 24,
-              requireDualApproval: true,
-              dailyLimitPerAdmin: 5,
-            },
-          },
-        ],
+    const state = emptyState({
+      member: { role: 'owner' },
+      dsarState: {
+        config: {
+          coolingOffHours: 24,
+          requireDualApproval: true,
+          dailyLimitPerAdmin: 5,
+        },
+        pending: null,
       },
-      scheduled: [],
-      cancels: [],
-    };
+    });
     const ctx = createMockCtx(state);
     const result = await m.proposeDsarPolicy.handler(ctx, {
       organizationId: 'org_A',
@@ -323,53 +381,44 @@ describe('proposeDsarPolicy', () => {
     });
     expect(result.applied).toBe(false);
     expect(typeof result.effectiveAt).toBe('number');
-    // config NOT changed yet
-    const row = state.tables.governancePolicies?.[0];
-    const cfg = row?.config as Record<string, unknown>;
-    expect(cfg.coolingOffHours).toBe(24);
-    // pending fields populated
-    const pending = row?.pendingConfig as Record<string, unknown>;
-    expect(pending.coolingOffHours).toBe(4);
-    expect(row?.pendingProposedBy).toBe('owner_user');
-    // scheduled apply with 24h delay
+    // File NOT written immediately for a loosening change.
+    expect(
+      state.runActions.some((c) => c.ref === 'persistGovernancePolicyFile'),
+    ).toBe(false);
+    // Deferred apply scheduled 24h out.
     expect(state.scheduled).toHaveLength(1);
     expect(state.scheduled[0]?.delayMs).toBe(24 * 60 * 60 * 1000);
-    // notification fired
-    const notifCall = mockWriteNotification.mock.calls.find((c) => {
-      const args = c[1] as { titleKey?: string };
-      return args.titleKey === 'dsarPolicyLoosenProposed';
+    expect(state.scheduled[0]?.ref).toBe('applyPendingDsarPolicyChange');
+    // Loosening staged with the proposed config.
+    const stage = state.runMutations.find((c) => c.ref === 'stageDsarLoosen');
+    expect(stage).toBeDefined();
+    expect(stage?.args).toMatchObject({
+      organizationId: 'org_A',
+      pendingConfig: { coolingOffHours: 4 },
+      proposedBy: 'owner_user',
     });
-    expect(notifCall).toBeDefined();
   });
 
   it('refuses when a pending change is already staged', async () => {
     const m = await loadDsarPolicy();
-    const state: MockState = {
-      tables: {
-        governancePolicies: [
-          {
-            _id: 'policy_1',
-            organizationId: 'org_A',
-            policyType: 'dsar_governance',
-            config: {
-              coolingOffHours: 24,
-              requireDualApproval: false,
-              dailyLimitPerAdmin: 5,
-            },
-            pendingConfig: {
-              coolingOffHours: 4,
-              requireDualApproval: false,
-              dailyLimitPerAdmin: 5,
-            },
-            pendingEffectiveAt: Date.now() + 60_000,
-            pendingProposedBy: 'owner_user',
-            pendingProposedAt: Date.now(),
+    const state = emptyState({
+      member: { role: 'owner' },
+      dsarState: {
+        config: {
+          coolingOffHours: 24,
+          requireDualApproval: false,
+          dailyLimitPerAdmin: 5,
+        },
+        pending: {
+          config: {
+            coolingOffHours: 4,
+            requireDualApproval: false,
+            dailyLimitPerAdmin: 5,
           },
-        ],
+          effectiveAt: Date.now() + 60_000,
+        },
       },
-      scheduled: [],
-      cancels: [],
-    };
+    });
     const ctx = createMockCtx(state);
     await expect(
       m.proposeDsarPolicy.handler(ctx, {
@@ -381,6 +430,64 @@ describe('proposeDsarPolicy', () => {
         },
       }),
     ).rejects.toBeInstanceOf(ConvexError);
+    expect(state.scheduled).toHaveLength(0);
+    expect(state.runActions).toHaveLength(0);
+  });
+});
+
+describe('recordDsarTighten / stageDsarLoosen (internal mutations)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockWriteNotification.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000);
+  });
+
+  it('recordDsarTighten audits + notifies', async () => {
+    const m = await loadDsarPolicy();
+    const state = emptyState();
+    const ctx = createMockCtx(state);
+    await m.recordDsarTighten.handler(ctx, {
+      organizationId: 'org_A',
+      previousConfig: { coolingOffHours: 24 },
+      nextConfig: { coolingOffHours: 48 },
+      actorId: 'owner_user',
+      actorEmail: 'owner@example.com',
+    });
+    const auditCall = mockCreateAuditLog.mock.calls.find((c) => {
+      const p = c[1] as { action?: string };
+      return p.action === 'dsar_governance_policy_tightened';
+    });
+    expect(auditCall).toBeDefined();
+    expect(mockWriteNotification).toHaveBeenCalled();
+  });
+
+  it('stageDsarLoosen inserts the pending row, audits + notifies', async () => {
+    const m = await loadDsarPolicy();
+    const state = emptyState();
+    const ctx = createMockCtx(state);
+    await m.stageDsarLoosen.handler(ctx, {
+      organizationId: 'org_A',
+      pendingConfig: {
+        coolingOffHours: 4,
+        requireDualApproval: false,
+        dailyLimitPerAdmin: 5,
+      },
+      effectiveAt: Date.now() + 24 * 60 * 60 * 1000,
+      proposedBy: 'owner_user',
+      proposedByEmail: 'owner@example.com',
+      proposedAt: Date.now(),
+      scheduledJobId: 'scheduled_job_id',
+      previousConfig: BASE_CONFIG,
+    });
+    const pendingRow = state.tables.dsarPolicyPendingChanges?.[0];
+    expect(pendingRow?.organizationId).toBe('org_A');
+    expect(pendingRow?.proposedBy).toBe('owner_user');
+    const notifCall = mockWriteNotification.mock.calls.find((c) => {
+      const args = c[1] as { titleKey?: string };
+      return args.titleKey === 'dsarPolicyLoosenProposed';
+    });
+    expect(notifCall).toBeDefined();
   });
 });
 
@@ -394,48 +501,34 @@ describe('cancelPendingDsarPolicyChange', () => {
     vi.setSystemTime(1_700_000_000_000);
   });
 
-  it('admin (not just owner) can cancel pending change; scheduler.cancel called; pending fields cleared', async () => {
+  it('admin (not just owner) can cancel; scheduler.cancel called; pending row deleted', async () => {
     const m = await loadDsarPolicy();
-    const state: MockState = {
+    const state = emptyState({
       tables: {
-        governancePolicies: [
+        dsarPolicyPendingChanges: [
           {
-            _id: 'policy_1',
+            _id: 'pending_1',
             organizationId: 'org_A',
-            policyType: 'dsar_governance',
-            config: {
-              coolingOffHours: 24,
-              requireDualApproval: true,
-              dailyLimitPerAdmin: 5,
-            },
             pendingConfig: {
               coolingOffHours: 4,
               requireDualApproval: false,
               dailyLimitPerAdmin: 50,
             },
-            pendingEffectiveAt: Date.now() + 60_000,
-            pendingProposedBy: 'owner_user',
-            pendingProposedAt: Date.now(),
-            pendingScheduledJobId: 'scheduled_job_id',
+            effectiveAt: Date.now() + 60_000,
+            proposedBy: 'owner_user',
+            proposedAt: Date.now(),
+            scheduledJobId: 'scheduled_job_id',
           },
         ],
       },
-      scheduled: [],
-      cancels: [],
-    };
+    });
     const ctx = createMockCtx(state);
     await m.cancelPendingDsarPolicyChange.handler(ctx, {
       organizationId: 'org_A',
     });
     expect(state.cancels).toContain('scheduled_job_id');
-    const row = state.tables.governancePolicies?.[0];
-    expect(row?.pendingConfig).toBeUndefined();
-    expect(row?.pendingEffectiveAt).toBeUndefined();
-    expect(row?.pendingScheduledJobId).toBeUndefined();
-    // config NOT changed
-    const cfg = row?.config as Record<string, unknown>;
-    expect(cfg.coolingOffHours).toBe(24);
-    // notification fired
+    expect(state.deletes).toContain('pending_1');
+    expect(state.tables.dsarPolicyPendingChanges).toHaveLength(0);
     const notifCall = mockWriteNotification.mock.calls.find((c) => {
       const args = c[1] as { titleKey?: string };
       return args.titleKey === 'dsarPolicyLoosenCancelled';
@@ -445,30 +538,40 @@ describe('cancelPendingDsarPolicyChange', () => {
 
   it('refuses when no pending change exists', async () => {
     const m = await loadDsarPolicy();
-    const state: MockState = {
-      tables: {
-        governancePolicies: [
-          {
-            _id: 'policy_1',
-            organizationId: 'org_A',
-            policyType: 'dsar_governance',
-            config: {
-              coolingOffHours: 24,
-              requireDualApproval: false,
-              dailyLimitPerAdmin: 5,
-            },
-          },
-        ],
-      },
-      scheduled: [],
-      cancels: [],
-    };
+    const state = emptyState({ tables: { dsarPolicyPendingChanges: [] } });
     const ctx = createMockCtx(state);
     await expect(
       m.cancelPendingDsarPolicyChange.handler(ctx, {
         organizationId: 'org_A',
       }),
     ).rejects.toBeInstanceOf(ConvexError);
+  });
+
+  it('refuses a non-admin, non-owner caller', async () => {
+    mockGetOrganizationMember.mockResolvedValue({ role: 'member' });
+    const m = await loadDsarPolicy();
+    const state = emptyState({
+      tables: {
+        dsarPolicyPendingChanges: [
+          {
+            _id: 'pending_1',
+            organizationId: 'org_A',
+            pendingConfig: BASE_CONFIG,
+            effectiveAt: Date.now() + 60_000,
+            proposedBy: 'owner_user',
+            proposedAt: Date.now(),
+          },
+        ],
+      },
+    });
+    const ctx = createMockCtx(state);
+    await expect(
+      m.cancelPendingDsarPolicyChange.handler(ctx, {
+        organizationId: 'org_A',
+      }),
+    ).rejects.toBeInstanceOf(ConvexError);
+    expect(state.cancels).toHaveLength(0);
+    expect(state.deletes).toHaveLength(0);
   });
 });
 
@@ -480,83 +583,68 @@ describe('applyPendingDsarPolicyChange', () => {
     vi.setSystemTime(1_700_000_000_000);
   });
 
-  it('flips config = pendingConfig and clears pending fields when window has elapsed', async () => {
+  it('writes the staged file + finalizes when the window has elapsed', async () => {
     const m = await loadDsarPolicy();
-    const state: MockState = {
-      tables: {
-        governancePolicies: [
-          {
-            _id: 'policy_1',
-            organizationId: 'org_A',
-            policyType: 'dsar_governance',
-            config: {
-              coolingOffHours: 24,
-              requireDualApproval: true,
-              dailyLimitPerAdmin: 5,
-            },
-            pendingConfig: {
-              coolingOffHours: 4,
-              requireDualApproval: false,
-              dailyLimitPerAdmin: 50,
-            },
-            pendingEffectiveAt: Date.now() - 1000, // already elapsed
-            pendingProposedBy: 'owner_user',
-            pendingProposedAt: Date.now() - 24 * 60 * 60 * 1000,
-            pendingScheduledJobId: 'scheduled_job_id',
+    const state = emptyState({
+      dsarState: {
+        config: BASE_CONFIG,
+        pending: {
+          config: {
+            coolingOffHours: 4,
+            requireDualApproval: false,
+            dailyLimitPerAdmin: 50,
           },
-        ],
+          effectiveAt: Date.now() - 1000, // already elapsed
+        },
       },
-      scheduled: [],
-      cancels: [],
-    };
+    });
     const ctx = createMockCtx(state);
     await m.applyPendingDsarPolicyChange.handler(ctx, {
       organizationId: 'org_A',
     });
-    const row = state.tables.governancePolicies?.[0];
-    const cfg = row?.config as Record<string, unknown>;
-    expect(cfg.coolingOffHours).toBe(4);
-    expect(cfg.requireDualApproval).toBe(false);
-    expect(cfg.dailyLimitPerAdmin).toBe(50);
-    expect(row?.pendingConfig).toBeUndefined();
-    expect(row?.pendingEffectiveAt).toBeUndefined();
-    // applied notification + audit
-    const notifCall = mockWriteNotification.mock.calls.find((c) => {
-      const args = c[1] as { titleKey?: string };
-      return args.titleKey === 'dsarPolicyLoosenApplied';
+    const persist = state.runActions.find(
+      (c) => c.ref === 'persistGovernancePolicyFile',
+    );
+    expect(persist).toBeDefined();
+    expect(persist?.args).toMatchObject({
+      policyType: 'dsar_governance',
+      config: { coolingOffHours: 4, dailyLimitPerAdmin: 50 },
     });
-    expect(notifCall).toBeDefined();
+    expect(state.runMutations.some((c) => c.ref === 'finalizeDsarApply')).toBe(
+      true,
+    );
   });
 
-  it('idempotent: no-op when pendingConfig already cleared (e.g. cancelled)', async () => {
+  it('no-op when the window has not yet elapsed', async () => {
     const m = await loadDsarPolicy();
-    const state: MockState = {
-      tables: {
-        governancePolicies: [
-          {
-            _id: 'policy_1',
-            organizationId: 'org_A',
-            policyType: 'dsar_governance',
-            config: {
-              coolingOffHours: 24,
-              requireDualApproval: true,
-              dailyLimitPerAdmin: 5,
-            },
-            // no pendingConfig
-          },
-        ],
+    const state = emptyState({
+      dsarState: {
+        config: BASE_CONFIG,
+        pending: {
+          config: { ...BASE_CONFIG, coolingOffHours: 4 },
+          effectiveAt: Date.now() + 60_000, // not yet due
+        },
       },
-      scheduled: [],
-      cancels: [],
-    };
+    });
     const ctx = createMockCtx(state);
     await m.applyPendingDsarPolicyChange.handler(ctx, {
       organizationId: 'org_A',
     });
-    // config unchanged
-    const row = state.tables.governancePolicies?.[0];
-    const cfg = row?.config as Record<string, unknown>;
-    expect(cfg.coolingOffHours).toBe(24);
+    expect(state.runActions).toHaveLength(0);
+    expect(state.runMutations).toHaveLength(0);
+  });
+
+  it('idempotent: no-op when there is no pending change (e.g. cancelled)', async () => {
+    const m = await loadDsarPolicy();
+    const state = emptyState({
+      dsarState: { config: BASE_CONFIG, pending: null },
+    });
+    const ctx = createMockCtx(state);
+    await m.applyPendingDsarPolicyChange.handler(ctx, {
+      organizationId: 'org_A',
+    });
+    expect(state.runActions).toHaveLength(0);
+    expect(state.runMutations).toHaveLength(0);
     expect(mockWriteNotification).not.toHaveBeenCalled();
   });
 });
