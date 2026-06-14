@@ -77,13 +77,16 @@ const OWNER_TYPE_THREAD = 'thread';
 // into the container (same split as SANDBOX_STORAGE_INTERNAL_BASE_URL).
 const EXTERNAL_AGENT_GATEWAY_URL =
   process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://bifrost:8080';
-// Platform convex-http base the in-sandbox MCP bridge calls for integration
-// dispatch (/api/integrations/*). Internal proxy alias on the sandbox network
-// (the same one storage uses); falls back to the public SITE_URL for `bun dev`.
-const PLATFORM_INTERNAL_BASE_URL = (
-  process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL ??
-  process.env.SITE_URL ??
-  ''
+// Convex HTTP-ACTIONS base the in-sandbox MCP bridge calls for integration
+// dispatch (/api/integrations/*). Resolved on the SANDBOX network, so it must
+// be an on-net alias — the `--internal`, SSRF-locked agent container can reach
+// neither the host (host.docker.internal) nor :3210; only on-net dual-homed
+// aliases (like `bifrost`) work. Default `convex:3211` (the convex http-actions
+// port): in prod the convex container is dual-homed onto the sandbox net; in
+// dev a `convex` relay alias on the sandbox net forwards to the host-run convex.
+// Override per environment with EXTERNAL_AGENT_INTEGRATIONS_URL.
+const INTEGRATIONS_BASE_URL = (
+  process.env.EXTERNAL_AGENT_INTEGRATIONS_URL || 'http://convex:3211'
 ).replace(/\/$/, '');
 // v1 static grant set: external agents get the org's GitHub credential (when
 // one is active) so they can clone/push/open PRs. The broker audits every
@@ -563,9 +566,7 @@ export const runExternalAgentTurn = internalAction({
           }),
           gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
           gatewayToken: vk.key,
-          ...(PLATFORM_INTERNAL_BASE_URL !== '' && {
-            integrationsBaseUrl: `${PLATFORM_INTERNAL_BASE_URL}/api/integrations`,
-          }),
+          integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
           timeoutMs: EXEC_DEADLINE_MS,
           budgetDeadlineMs: actionDeadlineMs,
           // Durable per-flush mirror: patch the streaming message with the

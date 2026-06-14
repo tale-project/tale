@@ -49,6 +49,10 @@ const DEV_DOCKER_SERVICES = [
   'bifrost',
   'sandbox',
   'sandbox-egress',
+  // socat relay aliased `convex` on the sandbox net → host-run convex :3211,
+  // so the in-container MCP integration bridge can reach convex http actions
+  // (the `--internal` sandbox net can't otherwise reach the host).
+  'convex-relay',
   'rag',
   'crawler',
 ];

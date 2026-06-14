@@ -84,9 +84,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         '--strict-mcp-config',
       );
     }
-    // Deny the built-in server-side WebSearch — search goes only through a
-    // connected search integration (e.g. Tavily) via the dispatch bridge, so
-    // behavior is consistent across models and the call is metered + audited.
+    // Deny the built-in SERVER-SIDE WebSearch — provider-run, ungoverned, and
+    // model-inconsistent — so search goes only through a connected search
+    // integration (e.g. Tavily) via the dispatch bridge (metered + audited).
+    // WebFetch is deliberately LEFT ENABLED: it's a CLIENT-SIDE fetch (the
+    // container GETs the URL itself, bounded by the sandbox egress allowlist),
+    // not a search service — legitimate for fetching a specific page.
     argv.push('--disallowedTools', 'WebSearch');
 
     const env: Record<string, string> = {
