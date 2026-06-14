@@ -11,6 +11,7 @@ import type { SessionExecResponse, SessionInfo } from '../wire.ts';
 import {
   runnerdAttach,
   runnerdCancelExec,
+  runnerdDeleteFiles,
   runnerdEnvPatch,
   runnerdExec,
   runnerdExecStatus,
@@ -743,6 +744,38 @@ export class SessionRoutes {
       // Evict a zombie but answer 502, NOT 404 — the file routes' 404 already
       // means "path not found" platform-side; a session-gone 404 here would
       // be misread. The eviction makes the next aliveness probe 404 instead.
+      await this.evictIfBackendGone(sessionId);
+      return jsonResponse(
+        {
+          error: 'upstream_error',
+          message: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
+    return jsonResponse(result, 200);
+  }
+
+  /** POST /v1/sessions/:id/files/delete — remove paths (file or dir) from
+   * /workspace. Idempotent reconcile primitive (e.g. pruning stale skills). */
+  async handleFilesDelete(sessionId: string, body: string): Promise<Response> {
+    const session = this.registry.get(sessionId);
+    if (!session) return jsonResponse({ error: 'not_found' }, 404);
+    let parsed: { paths?: string[] };
+    try {
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      parsed = JSON.parse(body) as { paths?: string[] };
+    } catch (err) {
+      return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
+    }
+    let result;
+    try {
+      result = await runnerdDeleteFiles(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        parsed.paths ?? [],
+      );
+    } catch (err) {
+      // 502 not 404 — see handleFilesStage.
       await this.evictIfBackendGone(sessionId);
       return jsonResponse(
         {

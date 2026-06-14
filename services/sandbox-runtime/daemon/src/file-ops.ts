@@ -8,6 +8,7 @@ import {
   readdir,
   readFile,
   realpath,
+  rm,
   stat,
   writeFile,
 } from 'node:fs/promises';
@@ -138,6 +139,38 @@ export async function stageFiles(items: StageItem[]): Promise<StageResult> {
     }
   }
   return { staged, skipped };
+}
+
+interface DeleteResult {
+  deleted: string[];
+  skipped: Array<{ path: string; reason: string }>;
+}
+
+/** Remove each path (file or directory, recursive) under the workspace. Skips
+ * (never throws) on a bad/escaping path or the root itself. Idempotent: a path
+ * that is already absent counts as deleted (force) so reconcile callers can run
+ * it unconditionally. `rm` unlinks a symlink rather than following it, so a
+ * planted symlink can't delete outside the root. */
+export async function deletePaths(paths: string[]): Promise<DeleteResult> {
+  const deleted: string[] = [];
+  const skipped: DeleteResult['skipped'] = [];
+  for (const rel of paths) {
+    const abs = resolveUnderWorkspace(rel);
+    if (abs === null || abs === workspaceRoot()) {
+      skipped.push({ path: rel, reason: 'unsafe_path' });
+      continue;
+    }
+    try {
+      await rm(abs, { recursive: true, force: true });
+      deleted.push(rel);
+    } catch (err) {
+      skipped.push({
+        path: rel,
+        reason: err instanceof Error ? err.message : 'delete_failed',
+      });
+    }
+  }
+  return { deleted, skipped };
 }
 
 interface FsEntry {

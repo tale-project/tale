@@ -1201,6 +1201,7 @@ import type * as workflow_engine_action_defs_integration_helpers_get_introspect_
 import type * as workflow_engine_action_defs_integration_helpers_get_introspect_tables_query from "../workflow_engine/action_defs/integration/helpers/get_introspect_tables_query.js";
 import type * as workflow_engine_action_defs_integration_helpers_get_introspection_operations from "../workflow_engine/action_defs/integration/helpers/get_introspection_operations.js";
 import type * as workflow_engine_action_defs_integration_helpers_is_introspection_operation from "../workflow_engine/action_defs/integration/helpers/is_introspection_operation.js";
+import type * as workflow_engine_action_defs_integration_helpers_redact_secrets from "../workflow_engine/action_defs/integration/helpers/redact_secrets.js";
 import type * as workflow_engine_action_defs_integration_helpers_validate_operation_scopes from "../workflow_engine/action_defs/integration/helpers/validate_operation_scopes.js";
 import type * as workflow_engine_action_defs_integration_helpers_validate_required_parameters from "../workflow_engine/action_defs/integration/helpers/validate_required_parameters.js";
 import type * as workflow_engine_action_defs_integration_integration_action from "../workflow_engine/action_defs/integration/integration_action.js";
@@ -2620,6 +2621,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/integration/helpers/get_introspect_tables_query": typeof workflow_engine_action_defs_integration_helpers_get_introspect_tables_query;
   "workflow_engine/action_defs/integration/helpers/get_introspection_operations": typeof workflow_engine_action_defs_integration_helpers_get_introspection_operations;
   "workflow_engine/action_defs/integration/helpers/is_introspection_operation": typeof workflow_engine_action_defs_integration_helpers_is_introspection_operation;
+  "workflow_engine/action_defs/integration/helpers/redact_secrets": typeof workflow_engine_action_defs_integration_helpers_redact_secrets;
   "workflow_engine/action_defs/integration/helpers/validate_operation_scopes": typeof workflow_engine_action_defs_integration_helpers_validate_operation_scopes;
   "workflow_engine/action_defs/integration/helpers/validate_required_parameters": typeof workflow_engine_action_defs_integration_helpers_validate_required_parameters;
   "workflow_engine/action_defs/integration/integration_action": typeof workflow_engine_action_defs_integration_integration_action;

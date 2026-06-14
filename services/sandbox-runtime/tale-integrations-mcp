@@ -21,8 +21,19 @@ const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_INFO = { name: 'tale-integrations', version: '1.0.0' };
 
 const BASE_URL = (process.env.TALE_INTEGRATIONS_URL || '').replace(/\/$/, '');
-const TOKEN =
-  process.env.TALE_INTEGRATIONS_TOKEN || process.env.ANTHROPIC_AUTH_TOKEN || '';
+// Fail closed: the per-session dispatch token is the ONLY credential this bridge
+// presents. No fallback to ANTHROPIC_AUTH_TOKEN — that is a different credential
+// (the LLM gateway key); presenting it to the integration endpoint would be a
+// credential-boundary slip. An empty token makes callPlatform report
+// "not configured" rather than authing with the wrong secret.
+const TOKEN = process.env.TALE_INTEGRATIONS_TOKEN || '';
+
+// Bound a single platform request so a slow/hung endpoint can't stall the turn.
+const REQUEST_TIMEOUT_MS = 30000;
+// Bound a single un-newlined stdin line so a misbehaving client can't grow the
+// read buffer without limit (the stdin peer is the trusted MCP host, so this is
+// defense-in-depth).
+const MAX_BUFFER_CHARS = 16 * 1024 * 1024;
 
 const TOOLS = [
   {
@@ -70,8 +81,8 @@ function sendError(id, code, message) {
 }
 
 async function callPlatform(path, body) {
-  if (!BASE_URL) {
-    return { ok: false, text: 'integration bridge is not configured (no URL)' };
+  if (!BASE_URL || !TOKEN) {
+    return { ok: false, text: 'integration bridge is not configured' };
   }
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
@@ -81,11 +92,29 @@ async function callPlatform(path, body) {
         authorization: `Bearer ${TOKEN}`,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+    // The platform always answers with JSON (structured ok / unavailable /
+    // requires_approval / error bodies). A non-JSON response is an infra-layer
+    // failure — a proxy/gateway HTML error page — whose body can carry internal
+    // detail; surface a sanitized message instead of relaying it to the agent.
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return {
+        ok: false,
+        text: `integration bridge received a non-JSON response (status ${res.status})`,
+      };
+    }
     const text = await res.text();
     return { ok: res.ok || res.status === 200, text };
   } catch (err) {
-    return { ok: false, text: `integration bridge request failed: ${err && err.message ? err.message : String(err)}` };
+    const reason =
+      err && err.name === 'TimeoutError'
+        ? `timed out after ${REQUEST_TIMEOUT_MS}ms`
+        : err && err.message
+          ? err.message
+          : String(err);
+    return { ok: false, text: `integration bridge request failed: ${reason}` };
   }
 }
 
@@ -160,6 +189,13 @@ let buffer = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => {
   buffer += chunk;
+  if (buffer.length > MAX_BUFFER_CHARS && buffer.indexOf('\n') === -1) {
+    process.stderr.write(
+      `[tale-integrations-mcp] input line exceeded ${MAX_BUFFER_CHARS} chars; dropping\n`,
+    );
+    buffer = '';
+    return;
+  }
   let nl;
   while ((nl = buffer.indexOf('\n')) !== -1) {
     const line = buffer.slice(0, nl).trim();

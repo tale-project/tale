@@ -18,9 +18,14 @@ import type { ActionCtx } from '../../_generated/server';
 import type { IntegrationCatalogEntry } from '../../integrations/file_actions';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import {
+  sessionDeleteFiles,
+  sessionListFiles,
   sessionStageFiles,
   type SessionStageFile,
 } from './helpers/session_client';
+
+const SKILLS_DIR = '.home/.claude/skills';
+const INTEGRATION_SKILL_PREFIX = 'integration-';
 
 function yamlInline(value: string): string {
   return value.replace(/"/g, "'").replace(/\s+/g, ' ').trim().slice(0, 280);
@@ -95,9 +100,32 @@ export async function stageIntegrationSkills(
     internal.integrations.file_actions.listIntegrationsInternal,
     { orgSlug },
   );
+  const currentSlugs = new Set(catalog.map((entry) => entry.slug));
+
+  // Reconcile FIRST: prune skills for integrations no longer in the catalog so a
+  // deleted integration doesn't leave a stale skill the agent still sees. Runs
+  // unconditionally (including when the catalog is now empty). Best-effort — a
+  // listing/delete failure must never fail the turn.
+  try {
+    const entries = await sessionListFiles(args.sessionId, SKILLS_DIR);
+    const stale = (entries ?? [])
+      .filter(
+        (e) =>
+          e.type === 'dir' &&
+          e.name.startsWith(INTEGRATION_SKILL_PREFIX) &&
+          !currentSlugs.has(e.name.slice(INTEGRATION_SKILL_PREFIX.length)),
+      )
+      .map((e) => `${SKILLS_DIR}/${e.name}`);
+    if (stale.length > 0) {
+      await sessionDeleteFiles(args.sessionId, stale);
+    }
+  } catch (err) {
+    console.warn('[stageIntegrationSkills] stale-skill cleanup failed:', err);
+  }
+
   if (catalog.length === 0) return;
   const files: SessionStageFile[] = catalog.map((entry) => ({
-    path: `.home/.claude/skills/integration-${entry.slug}/SKILL.md`,
+    path: `${SKILLS_DIR}/${INTEGRATION_SKILL_PREFIX}${entry.slug}/SKILL.md`,
     contentBase64: Buffer.from(buildIntegrationSkillMd(entry), 'utf8').toString(
       'base64',
     ),

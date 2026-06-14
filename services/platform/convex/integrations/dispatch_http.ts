@@ -22,7 +22,7 @@ import { internal } from '../_generated/api';
 import { httpAction } from '../_generated/server';
 import { rateLimiter } from '../lib/rate_limiter';
 import { wrapUntrusted } from '../lib/untrusted_content';
-import type { IntegrationAvailability } from './availability';
+import { isUsable, type IntegrationAvailability } from './availability';
 
 const BEARER_PREFIX = 'Bearer ';
 
@@ -98,31 +98,59 @@ export const executeIntegrationHandler = httpAction(async (ctx, req) => {
   }
   const params: Record<string, unknown> = isRecord(body.args) ? body.args : {};
 
-  const audit = (outcome: string, operationType?: string) =>
-    ctx.runMutation(
-      internal.integrations.dispatch_internal.recordIntegrationCall,
-      {
-        organizationId: auth.organizationId,
-        sessionId: auth.sessionId,
-        slug,
-        operation,
-        outcome,
-        paramsFingerprint: Object.keys(params).sort().join(','),
-        ...(operationType ? { operationType } : {}),
-      },
-    );
+  // The forensic audit write is best-effort: a transient mutation failure must
+  // never turn an already-executed integration call into an error response.
+  const audit = async (outcome: string, operationType?: string) => {
+    try {
+      await ctx.runMutation(
+        internal.integrations.dispatch_internal.recordIntegrationCall,
+        {
+          organizationId: auth.organizationId,
+          sessionId: auth.sessionId,
+          slug,
+          operation,
+          outcome,
+          paramsFingerprint: Object.keys(params).sort().join(','),
+          ...(operationType ? { operationType } : {}),
+        },
+      );
+    } catch (err) {
+      console.warn(
+        `[integrations/dispatch] audit write failed for ${slug}.${operation} (${outcome}):`,
+        err,
+      );
+    }
+  };
 
   // Availability: bound (from the token's grants) AND credential, reporting
   // ALL blockers (never short-circuited) so the agent can relay every fix.
-  const availability: IntegrationAvailability = await ctx.runAction(
-    internal.integrations.dispatch_internal.getIntegrationAvailability,
-    {
-      organizationId: auth.organizationId,
+  // Kept inside its own try/catch so an infra failure here (e.g. an
+  // unresolvable org slug) returns the structured 200 the bridge expects
+  // rather than an uncaught 500.
+  let availability: IntegrationAvailability;
+  try {
+    availability = await ctx.runAction(
+      internal.integrations.dispatch_internal.getIntegrationAvailability,
+      {
+        organizationId: auth.organizationId,
+        slug,
+        grantedSlugs: auth.grantedSlugs,
+      },
+    );
+  } catch (err) {
+    console.error(
+      `[integrations/dispatch] availability check failed for ${slug}.${operation}:`,
+      err,
+    );
+    await audit('error');
+    return json(200, {
+      status: 'error',
       slug,
-      grantedSlugs: auth.grantedSlugs,
-    },
-  );
-  if (availability.blockers.length > 0) {
+      operation,
+      message: 'integration availability check failed; try again',
+    });
+  }
+  if (!isUsable(availability)) {
     await audit('unavailable');
     return json(200, {
       status: 'unavailable',
@@ -204,9 +232,19 @@ export const executeIntegrationHandler = httpAction(async (ctx, req) => {
 export const integrationStatusHandler = httpAction(async (ctx, req) => {
   const auth = await authSession(ctx, req);
   if (!auth) return json(401, { status: 'error', message: 'unauthorized' });
-  const integrations = await ctx.runAction(
-    internal.integrations.dispatch_internal.getIntegrationStatuses,
-    { organizationId: auth.organizationId, grantedSlugs: auth.grantedSlugs },
-  );
+  let integrations: IntegrationAvailability[];
+  try {
+    integrations = await ctx.runAction(
+      internal.integrations.dispatch_internal.getIntegrationStatuses,
+      { organizationId: auth.organizationId, grantedSlugs: auth.grantedSlugs },
+    );
+  } catch (err) {
+    console.error('[integrations/dispatch] status listing failed:', err);
+    return json(200, {
+      status: 'error',
+      message: 'could not list integrations; try again',
+      integrations: [],
+    });
+  }
   return json(200, { integrations });
 });

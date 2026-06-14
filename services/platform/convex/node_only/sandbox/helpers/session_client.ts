@@ -351,6 +351,35 @@ export async function sessionStageFiles(
   return (await res.json()) as SessionStageResult;
 }
 
+export interface SessionDeleteResult {
+  deleted: string[];
+  skipped: Array<{ path: string; reason: string }>;
+}
+
+/** POST /v1/sessions/:id/files/delete — remove paths (file or dir, recursive)
+ * from the session workspace. Idempotent: an absent path counts as deleted, so
+ * reconcile callers can run it unconditionally. Throws on transport/HTTP
+ * failure; per-path failures come back in `skipped`. */
+export async function sessionDeleteFiles(
+  sessionId: string,
+  paths: string[],
+): Promise<SessionDeleteResult> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/delete`;
+  const bodyJson = JSON.stringify({ paths });
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'POST',
+    headers: signedHeaders('POST', path, bodyJson),
+    body: bodyJson,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (res.status === 404) throw new SessionNotFoundError(sessionId);
+  if (!res.ok) {
+    throw new Error(`sandbox session files delete failed (${res.status})`);
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as SessionDeleteResult;
+}
+
 export interface SessionFsEntry {
   name: string;
   type: 'file' | 'dir' | 'other';

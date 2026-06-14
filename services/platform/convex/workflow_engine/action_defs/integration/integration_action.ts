@@ -24,28 +24,11 @@ import {
   getOperationType,
 } from './helpers/detect_write_operation';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
+import { redactSecrets } from './helpers/redact_secrets';
 import { validateOperationScopes } from './helpers/validate_operation_scopes';
 import { validateRequiredParameters } from './helpers/validate_required_parameters';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
-
-/**
- * Mask any decrypted secret value that a connector echoed into its error
- * string before it crosses back out of the VM into a thrown Error (which, for
- * the sandbox dispatch path, propagates into the container). A hostile upstream
- * 4xx body or a connector that stringifies its auth header would otherwise
- * round-trip a credential fragment out. Only masks values long enough to be a
- * real secret (≥8 chars) to avoid clobbering short, non-sensitive substrings.
- */
-function redactSecrets(text: string, secrets: Record<string, string>): string {
-  let out = text;
-  for (const value of Object.values(secrets)) {
-    if (value && value.length >= 8) {
-      out = out.split(value).join('[REDACTED]');
-    }
-  }
-  return out;
-}
 
 export const integrationAction: ActionDefinition<{
   // The name/type of integration to use (e.g., 'shopify', 'circuly', 'my_erp')

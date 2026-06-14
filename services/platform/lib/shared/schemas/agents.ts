@@ -209,7 +209,7 @@ export const agentJsonSchema = z
     agentKind: agentKindSchema.optional(),
     systemInstructions: z.string().optional(),
     toolNames: z.array(z.string()).optional(),
-    integrationBindings: z.array(z.string()).optional(),
+    integrationBindings: z.array(z.string().min(1)).optional(),
     workflows: z.array(z.string()).optional(),
     skillBindings: z
       .array(z.string().min(1).max(64).regex(SKILL_NAME_REGEX))

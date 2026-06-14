@@ -279,6 +279,28 @@ export async function runnerdStageFiles(
   return (await res.json()) as RunnerdStageResult;
 }
 
+interface RunnerdDeleteResult {
+  deleted: string[];
+  skipped: Array<{ path: string; reason: string }>;
+}
+
+/** POST /files/delete — remove each path (file or dir, recursive) from the
+ * workspace. Idempotent: an absent path counts as deleted. */
+export async function runnerdDeleteFiles(
+  opts: RunnerdClientOptions,
+  paths: string[],
+): Promise<RunnerdDeleteResult> {
+  const res = await fetch(`${opts.baseUrl}/files/delete`, {
+    method: 'POST',
+    headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
+    body: JSON.stringify({ paths }),
+    signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`runnerd /files/delete ${res.status}`);
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as RunnerdDeleteResult;
+}
+
 interface RunnerdFsEntry {
   name: string;
   type: 'file' | 'dir' | 'other';
