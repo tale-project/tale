@@ -224,13 +224,18 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
         existsSync(join(proj, 'default', 'branding', 'images', '.gitkeep')),
       ).toBe(true);
 
-      for (const rulesFile of [
-        'CLAUDE.md',
+      // Agent instructions: AGENTS.md holds the full Tale guidance and
+      // CLAUDE.md points at it. The per-tool rules files are no longer
+      // scaffolded.
+      expect(existsSync(join(proj, 'AGENTS.md'))).toBe(true);
+      const claudeMd = await readFile(join(proj, 'CLAUDE.md'), 'utf-8');
+      expect(claudeMd).toContain('AGENTS.md');
+      for (const dropped of [
         join('.cursor', 'rules', 'tale.mdc'),
         join('.github', 'copilot-instructions.md'),
         '.windsurfrules',
       ]) {
-        expect(existsSync(join(proj, rulesFile))).toBe(true);
+        expect(existsSync(join(proj, dropped))).toBe(false);
       }
 
       const gitignore = await readFile(join(proj, '.gitignore'), 'utf-8');

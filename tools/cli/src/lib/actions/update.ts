@@ -20,7 +20,7 @@ import { setProjectId } from '../project/project-context';
 import { readProject } from '../project/read-project';
 import type { Checksums } from '../project/types';
 import { writeProject } from '../project/write-project';
-import { generateAllRules } from '../rules/generators';
+import { writeAgentInstructions } from '../rules/generators';
 import { legacyLayoutPreflight } from './legacy-layout-preflight';
 
 interface UpdateOptions {
@@ -108,70 +108,20 @@ export async function update(options: UpdateOptions): Promise<void> {
   const oldChecksums = await readChecksums(projectDir);
   const oldFiles = oldChecksums?.files ?? {};
 
-  // Regenerate AI rules files. Same protection policy as examples:
-  // - new file → write
-  // - deleted by user → skip
-  // - unmodified-since-last-update → overwrite
-  // - locally modified + no --force → keep, warn
-  // - locally modified + --force → overwrite
-  logger.step(`${prefix}Updating AI rules files...`);
-  const rulesFiles = generateAllRules();
+  // Refresh the agent instructions. AGENTS.md / CLAUDE.md are written through
+  // a managed marker block (writeAgentInstructions), so any user content
+  // *outside* the block is preserved on every run — no per-file hash/force
+  // dance is needed to protect local edits.
+  logger.step(`${prefix}Updating agent instructions (AGENTS.md, CLAUDE.md)...`);
   const rulesUpdates: Record<string, string> = {};
-  for (const { relativePath, content } of rulesFiles) {
-    const destPath = join(projectDir, relativePath);
-    const newHash = computeContentHash(content);
-    const oldHash = oldFiles[relativePath];
-
-    if (!oldHash && !existsSync(destPath)) {
-      logger.info(`${prefix}+ ${relativePath} (new)`);
-      if (!options.dryRun) {
-        await mkdir(dirname(destPath), { recursive: true });
-        await writeFile(destPath, content);
-      }
-      rulesUpdates[relativePath] = newHash;
-    } else if (!oldHash) {
-      // File present on disk but missing from checksums.json — treat
-      // as locally-modified (likely a project init'd by a pre-fix CLI
-      // version that wrote the rules files without recording their
-      // hashes). Preserve user edits; require --force to overwrite.
-      // Round-2 P1-34 defense in depth.
-      if (options.force) {
-        logger.warn(
-          `${prefix}~ ${relativePath} (overwritten, no recorded hash)`,
-        );
-        if (!options.dryRun) {
-          await writeFile(destPath, content);
-        }
-        rulesUpdates[relativePath] = newHash;
-      } else {
-        logger.warn(
-          `${prefix}! ${relativePath} (present on disk but no recorded hash; preserving — pass --force to overwrite)`,
-        );
-      }
-    } else if (!existsSync(destPath)) {
-      logger.info(`${prefix}- ${relativePath} (deleted by user, skipping)`);
-    } else {
-      const currentHash = await computeFileHash(destPath);
-      if (currentHash === oldHash) {
-        logger.info(`${prefix}~ ${relativePath} (updated)`);
-        if (!options.dryRun) {
-          await writeFile(destPath, content);
-        }
-        rulesUpdates[relativePath] = newHash;
-      } else if (options.force) {
-        logger.warn(
-          `${prefix}~ ${relativePath} (overwritten, was locally modified)`,
-        );
-        if (!options.dryRun) {
-          await writeFile(destPath, content);
-        }
-        rulesUpdates[relativePath] = newHash;
-      } else {
-        logger.warn(
-          `${prefix}⚠ Skipped ${relativePath} (locally modified). Re-run with --force to overwrite.`,
-        );
-        rulesUpdates[relativePath] = oldHash;
-      }
+  if (options.dryRun) {
+    logger.info(`${prefix}~ AGENTS.md, CLAUDE.md (managed section)`);
+  } else {
+    for (const { relativePath, content } of await writeAgentInstructions(
+      projectDir,
+    )) {
+      logger.info(`${prefix}~ ${relativePath} (managed section)`);
+      rulesUpdates[relativePath] = computeContentHash(content);
     }
   }
 
