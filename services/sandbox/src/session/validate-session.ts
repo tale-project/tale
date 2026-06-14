@@ -35,6 +35,11 @@ interface ExecSessionRequest {
   stdinBase64?: string;
   stdinMode?: 'close' | 'hold';
   timeoutMs: number;
+  /** Whether the spawner collects stdout/stderr into the terminal `result`
+   * buffers. Default true (one-shot commands). Long-lived streaming execs (the
+   * agent) pass false: the live SSE is the sole delivery, so the spawner skips
+   * accumulation (no unbounded growth) and tells runnerd the cap is unlimited. */
+  collectOutput?: boolean;
 }
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -165,6 +170,10 @@ export function validateExecSession(
   ) {
     return { ok: false, error: 'stdinMode must be close|hold' };
   }
+  const collectOutput = raw.collectOutput;
+  if (collectOutput !== undefined && typeof collectOutput !== 'boolean') {
+    return { ok: false, error: 'collectOutput must be a boolean' };
+  }
   const env = validateEnv(raw.env);
   if (!env.ok) return env;
   const timeoutMs = clampPositive(
@@ -182,6 +191,8 @@ export function validateExecSession(
   if (typeof cwd === 'string') value.cwd = cwd;
   if (typeof stdinBase64 === 'string') value.stdinBase64 = stdinBase64;
   if (stdinMode === 'hold') value.stdinMode = stdinMode;
+  // Only carry the non-default (false): absence means collect, the common case.
+  if (collectOutput === false) value.collectOutput = false;
   return { ok: true, value };
 }
 

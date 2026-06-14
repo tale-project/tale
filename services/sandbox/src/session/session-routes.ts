@@ -341,10 +341,17 @@ export class SessionRoutes {
     this.registry.registerExec(sessionId, execReq.execId, ac);
 
     const token = this.tokenFor(sessionId);
+    // collectOutput (default true): accumulate stdout/stderr into the terminal
+    // `result` buffers (one-shot contract). A long-lived streaming exec (the
+    // agent) passes false — the live SSE is the sole delivery, so we skip
+    // accumulation (no unbounded growth for a never-exiting exec) and tell
+    // runnerd the cap is unlimited (0) so its output is never silently cut off.
+    const collect = execReq.collectOutput ?? true;
     return sseResponse(async ({ send }) => {
       // Terminal-state accumulation so the SSE `result` event matches the
       // one-shot ExecuteResponse contract (the runnerd `exit` carries
       // truncation/timeout; stdout/stderr are summed here for the buffers).
+      // Skipped entirely when collect=false — the buffers stay empty.
       const stdoutChunks: Uint8Array[] = [];
       const stderrChunks: Uint8Array[] = [];
       let result: SessionExecResponse | null = null;
@@ -355,7 +362,7 @@ export class SessionRoutes {
             break;
           case 'stdout': {
             const bytes = b64decode(e.b64);
-            stdoutChunks.push(bytes);
+            if (collect) stdoutChunks.push(bytes);
             send('stdout', {
               text: new TextDecoder().decode(bytes),
               seq: e.seq,
@@ -364,7 +371,7 @@ export class SessionRoutes {
           }
           case 'stderr': {
             const bytes = b64decode(e.b64);
-            stderrChunks.push(bytes);
+            if (collect) stderrChunks.push(bytes);
             send('stderr', {
               text: new TextDecoder().decode(bytes),
               seq: e.seq,
@@ -420,8 +427,10 @@ export class SessionRoutes {
               : {}),
             ...(execReq.stdinMode ? { stdinMode: execReq.stdinMode } : {}),
             timeoutMs: execReq.timeoutMs,
-            stdoutMaxBytes: this.cfg.stdoutMaxBytes,
-            stderrMaxBytes: this.cfg.stderrMaxBytes,
+            // 0 = unlimited for streaming execs (collect=false): runnerd never
+            // truncates the live stream; memory stays bounded by its ring.
+            stdoutMaxBytes: collect ? this.cfg.stdoutMaxBytes : 0,
+            stderrMaxBytes: collect ? this.cfg.stderrMaxBytes : 0,
           },
           onEvent,
           ac.signal,

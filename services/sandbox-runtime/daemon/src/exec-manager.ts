@@ -247,6 +247,11 @@ export class ExecManager {
     let stderrBytes = 0;
     let stdoutTrunc = false;
     let stderrTrunc = false;
+    // Per-exec one-time truncation log. Closure-scoped (NOT module-level) so a
+    // long-lived daemon running many capped execs warns once PER exec, never
+    // going silent again after the first.
+    let stdoutTruncLogged = false;
+    let stderrTruncLogged = false;
     let settled = false;
     let resolveDone: () => void = () => {};
     const done = new Promise<void>((r) => {
@@ -343,7 +348,16 @@ export class ExecManager {
       // handling below). Keeps the start..stdout..exit order the platform
       // adapters depend on and never mutates the already-retained ring.
       if (settled) return;
-      if (stdoutBytes >= req.stdoutMaxBytes) {
+      // stdoutMaxBytes <= 0 ⇒ UNLIMITED: never truncate (the ring + per-consumer
+      // buffer ceiling bound memory). Long-lived streaming execs pass 0 so their
+      // live output is never silently cut off mid-run.
+      if (req.stdoutMaxBytes > 0 && stdoutBytes >= req.stdoutMaxBytes) {
+        if (!stdoutTruncLogged) {
+          stdoutTruncLogged = true;
+          console.warn(
+            `[runnerd] exec ${req.execId} stdout hit cap ${req.stdoutMaxBytes}B — further stdout dropped (truncated)`,
+          );
+        }
         stdoutTrunc = true;
         return;
       }
@@ -352,7 +366,13 @@ export class ExecManager {
     });
     child.stderr.on('data', (chunk: Buffer) => {
       if (settled) return;
-      if (stderrBytes >= req.stderrMaxBytes) {
+      if (req.stderrMaxBytes > 0 && stderrBytes >= req.stderrMaxBytes) {
+        if (!stderrTruncLogged) {
+          stderrTruncLogged = true;
+          console.warn(
+            `[runnerd] exec ${req.execId} stderr hit cap ${req.stderrMaxBytes}B — further stderr dropped (truncated)`,
+          );
+        }
         stderrTrunc = true;
         return;
       }

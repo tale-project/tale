@@ -387,6 +387,12 @@ export interface SessionExecBody {
   /** 'hold' keeps the child's stdin open for sessionWriteExecStdin pushes
    * (Claude Code --input-format stream-json). Default 'close'. */
   stdinMode?: 'close' | 'hold';
+  /** Whether the spawner collects stdout/stderr into the terminal `result`
+   * buffers. Default true (one-shot). The agent run passes false: its output is
+   * consumed live (the collected buffer is unused for it), so collecting would
+   * grow the spawner unboundedly AND trip runnerd's cumulative cap → the live
+   * stream would go silently dark mid-run. false ⇒ stream-only, unbounded. */
+  collectOutput?: boolean;
   timeoutMs?: number;
 }
 

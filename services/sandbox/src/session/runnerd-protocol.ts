@@ -86,7 +86,11 @@ export interface RunnerdExecRequest {
    * Code --input-format stream-json). Default 'close' = write-then-end. */
   stdinMode?: 'close' | 'hold';
   timeoutMs: number;
+  /** Cumulative stdout truncation cap; `<= 0` means UNLIMITED (the live stream
+   * is never truncated, memory bounded by runnerd's ring). The spawner sends 0
+   * for streaming execs (collectOutput=false), a positive cap otherwise. */
   stdoutMaxBytes: number;
+  /** Cumulative stderr truncation cap; `<= 0` means UNLIMITED (see above). */
   stderrMaxBytes: number;
 }
 

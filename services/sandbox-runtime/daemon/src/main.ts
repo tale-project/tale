@@ -25,6 +25,7 @@ import {
   type StageItem,
 } from './file-ops.ts';
 import {
+  RUNNERD_CONSUMER_BUFFER_MAX_BYTES,
   RUNNERD_MAX_LIVE_EXECS,
   RUNNERD_PORT,
   RUNNERD_TOKEN_HEADER,
@@ -133,6 +134,16 @@ async function handleExec(
   let primaryClosed = false;
   const emit = (event: RunnerdExecEvent) => {
     if (primaryClosed) return; // stop writing to a dead socket (no log spam)
+    // Backpressure ceiling: a stalled-but-attached consumer must not let the
+    // response buffer grow without bound. Stop writing to THIS consumer past the
+    // cap; it reconnects via /attach?sinceSeq= and replays from the ring.
+    if (res.writableLength > RUNNERD_CONSUMER_BUFFER_MAX_BYTES) {
+      primaryClosed = true;
+      console.warn(
+        `[runnerd] exec stream consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — dropping it (reconnect via /attach)`,
+      );
+      return;
+    }
     try {
       res.write(`${JSON.stringify(event)}\n`);
     } catch (err) {
@@ -183,6 +194,15 @@ async function handleAttach(
   let attachClosed = false;
   const emit = (event: RunnerdExecEvent) => {
     if (attachClosed) return;
+    // Same backpressure ceiling as the primary stream (see handleExec): bound a
+    // slow attach consumer's buffer; it can reconnect and replay from the ring.
+    if (res.writableLength > RUNNERD_CONSUMER_BUFFER_MAX_BYTES) {
+      attachClosed = true;
+      console.warn(
+        `[runnerd] attach consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — dropping it (reconnect via /attach)`,
+      );
+      return;
+    }
     try {
       res.write(`${JSON.stringify(event)}\n`);
     } catch (err) {

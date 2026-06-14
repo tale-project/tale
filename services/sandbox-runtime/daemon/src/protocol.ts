@@ -11,6 +11,13 @@ export const RUNNERD_TOKEN_CONTEXT = 'runnerd-v1:';
 
 export const RUNNERD_MAX_LIVE_EXECS = 4;
 export const RUNNERD_RING_BUFFER_BYTES = 256 * 1024;
+/** Per-consumer in-flight write ceiling. A slow/stalled (but still attached)
+ * SSE consumer would otherwise let Node buffer un-drained stdout in the HTTP
+ * response unboundedly — the only thing the old fixed stdout cap incidentally
+ * bounded. Past this, the daemon stops writing to that ONE consumer (the others
+ * are unaffected); it reconnects via /attach?sinceSeq= and replays from the
+ * bounded ring. Not a stream cap — it bounds memory, never truncates output. */
+export const RUNNERD_CONSUMER_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
 export const RUNNERD_ENV_MAX_ENTRIES = 128;
 export const RUNNERD_ENV_MAX_VALUE_BYTES = 32 * 1024;
 
@@ -43,7 +50,12 @@ export interface RunnerdExecRequest {
    * Code --input-format stream-json). Default 'close' = write-then-end. */
   stdinMode?: 'close' | 'hold';
   timeoutMs: number;
+  /** Cumulative stdout truncation cap. `<= 0` means UNLIMITED — the live stream
+   * is never truncated and memory stays bounded by the ring (+ the per-consumer
+   * buffer ceiling). One-shot collected execs pass a positive cap to bound the
+   * response; long-lived streaming execs (the agent) pass 0. */
   stdoutMaxBytes: number;
+  /** Cumulative stderr truncation cap. `<= 0` means UNLIMITED (see above). */
   stderrMaxBytes: number;
 }
 

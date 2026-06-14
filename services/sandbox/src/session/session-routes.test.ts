@@ -51,6 +51,15 @@ const created = new Set<string>();
 const destroyed = new Set<string>();
 const stopped = new Set<string>();
 const stdinWrites: Array<{ execId: string; b64?: string; eof?: boolean }> = [];
+// Captures each POST /execs body the spawner sends to runnerd, so tests can
+// assert the per-exec stdoutMaxBytes/stderrMaxBytes the spawner chose.
+const execRequests: Array<{
+  execId?: string;
+  command?: string[];
+  shell?: string;
+  stdoutMaxBytes?: number;
+  stderrMaxBytes?: number;
+}> = [];
 // Mutable so the sweepExpired tests can drive runnerd's reported activity/liveExecs.
 const fakeHealth = { lastActivityAtMs: 0, liveExecs: 0 };
 
@@ -74,9 +83,13 @@ beforeAll(() => {
       if (url.pathname === '/execs' && req.method === 'POST') {
         // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
         const body = (await req.json()) as {
+          execId?: string;
           command?: string[];
           shell?: string;
+          stdoutMaxBytes?: number;
+          stderrMaxBytes?: number;
         };
+        execRequests.push(body);
         // Echo-style script: a start, one stdout chunk, then exit 0.
         const text: string =
           body.command?.slice(1).join(' ') ?? body.shell ?? '';
@@ -292,6 +305,55 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(payload.status).toBe('completed');
     expect(payload.exitCode).toBe(0);
     expect(payload.errorCode).toBeUndefined();
+  });
+
+  test('collectOutput:false ⇒ runnerd gets an unlimited cap (0) and the result carries no collected output', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_stream', organizationId: 'org_s' }),
+    );
+    const execRes = routes.handleExec(
+      new Request('http://x/v1/sessions/sess_stream/exec', { method: 'POST' }),
+      'sess_stream',
+      JSON.stringify({
+        execId: 'e_stream',
+        command: ['echo', 'hi'],
+        collectOutput: false,
+      }),
+    );
+    const { events } = await readSse(execRes);
+    // Live stream still delivers the chunk...
+    expect(events.find((e) => e.event === 'stdout')?.data.text).toBe('hi\n');
+    // ...but the terminal result buffers are empty (no spawner accumulation).
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    expect(payload.status).toBe('completed');
+    expect(payload.stdoutBase64).toBe('');
+    expect(payload.stderrBase64).toBe('');
+    // The spawner told runnerd the cap is unlimited so the live stream is never
+    // truncated mid-run (the blackout fix).
+    const sent = execRequests.find((r) => r.execId === 'e_stream');
+    expect(sent?.stdoutMaxBytes).toBe(0);
+    expect(sent?.stderrMaxBytes).toBe(0);
+  });
+
+  test('collectOutput default (one-shot) keeps the 5MB cap and collects output', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_oneshot', organizationId: 'org_o' }),
+    );
+    const execRes = routes.handleExec(
+      new Request('http://x/v1/sessions/sess_oneshot/exec', { method: 'POST' }),
+      'sess_oneshot',
+      JSON.stringify({ execId: 'e_oneshot', command: ['echo', 'hi'] }),
+    );
+    const { events } = await readSse(execRes);
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    expect(Buffer.from(String(payload.stdoutBase64), 'base64').toString()).toBe(
+      'hi\n',
+    );
+    const sent = execRequests.find((r) => r.execId === 'e_oneshot');
+    expect(sent?.stdoutMaxBytes).toBe(cfg.stdoutMaxBytes);
+    expect(sent?.stderrMaxBytes).toBe(cfg.stderrMaxBytes);
   });
 
   test('per-org session cap returns 429', async () => {

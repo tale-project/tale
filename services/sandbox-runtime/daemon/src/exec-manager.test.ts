@@ -333,6 +333,110 @@ describe('ExecManager', () => {
   });
 });
 
+describe('ExecManager output caps', () => {
+  const BIG = 600_000;
+  const payload = 'x'.repeat(BIG);
+
+  // Capture console.warn around a body, restoring it even on throw, so the
+  // truncation-warn assertions don't leak a patched console into other tests.
+  async function withWarnCapture(body: () => Promise<void>): Promise<string[]> {
+    const warns: string[] = [];
+    const orig = console.warn;
+    console.warn = (...a: unknown[]) => {
+      warns.push(a.map(String).join(' '));
+    };
+    try {
+      await body();
+    } finally {
+      console.warn = orig;
+    }
+    return warns;
+  }
+
+  test('stdoutMaxBytes <= 0 ⇒ UNLIMITED: forwards past the old cap, never truncates', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    const warns = await withWarnCapture(() =>
+      mgr.run(
+        {
+          ...base,
+          execId: 'cap-unl',
+          command: ['cat'],
+          cwd: ROOT,
+          stdoutMaxBytes: 0, // unlimited sentinel (the streaming-agent path)
+          stdinBase64: Buffer.from(payload).toString('base64'),
+        },
+        emit,
+      ),
+    );
+    expect(decode(events, 'stdout').length).toBe(BIG);
+    const exit = events[events.length - 1];
+    expect(exit?.t).toBe('exit');
+    if (exit?.t === 'exit') expect(exit.truncated.stdout).toBe(false);
+    expect(warns.filter((w) => w.includes('hit cap')).length).toBe(0);
+  });
+
+  test('a positive stdoutMaxBytes still truncates and warns exactly once per exec', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    const warns = await withWarnCapture(() =>
+      mgr.run(
+        {
+          ...base,
+          execId: 'cap-trunc',
+          command: ['cat'],
+          cwd: ROOT,
+          stdoutMaxBytes: 100, // tiny cap → truncates after the first chunk
+          stdinBase64: Buffer.from(payload).toString('base64'),
+        },
+        emit,
+      ),
+    );
+    expect(decode(events, 'stdout').length).toBeLessThan(BIG);
+    const exit = events[events.length - 1];
+    expect(exit?.t).toBe('exit');
+    if (exit?.t === 'exit') expect(exit.truncated.stdout).toBe(true);
+    // Per-exec one-time: many chunks are dropped, but the warn fires once.
+    expect(warns.filter((w) => w.includes('stdout hit cap')).length).toBe(1);
+  });
+
+  test('stderr honors the same unlimited sentinel and one-time truncation warn', async () => {
+    const unlMgr = new ExecManager(new EnvStore(), () => {});
+    const unl = collect();
+    await unlMgr.run(
+      {
+        ...base,
+        execId: 'err-unl',
+        shell: `head -c ${BIG} /dev/zero 1>&2`,
+        cwd: ROOT,
+        stderrMaxBytes: 0,
+      },
+      unl.emit,
+    );
+    expect(decode(unl.events, 'stderr').length).toBe(BIG);
+    const unlExit = unl.events[unl.events.length - 1];
+    if (unlExit?.t === 'exit') expect(unlExit.truncated.stderr).toBe(false);
+
+    const capMgr = new ExecManager(new EnvStore(), () => {});
+    const cap = collect();
+    const warns = await withWarnCapture(() =>
+      capMgr.run(
+        {
+          ...base,
+          execId: 'err-trunc',
+          shell: `head -c ${BIG} /dev/zero 1>&2`,
+          cwd: ROOT,
+          stderrMaxBytes: 100,
+        },
+        cap.emit,
+      ),
+    );
+    const capExit = cap.events[cap.events.length - 1];
+    if (capExit?.t === 'exit') expect(capExit.truncated.stderr).toBe(true);
+    expect(warns.filter((w) => w.includes('stderr hit cap')).length).toBe(1);
+  });
+});
+
 describe('ExecManager stdinMode hold + writeStdin', () => {
   const line = (obj: unknown) =>
     Buffer.from(`${JSON.stringify(obj)}\n`).toString('base64');

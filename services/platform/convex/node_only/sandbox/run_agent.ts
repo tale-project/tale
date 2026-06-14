@@ -943,6 +943,11 @@ export async function runAgentInSessionImpl(
       // stdin write comes back STDIN_CLOSED (the silent-fallback trap that
       // shipped the feature dark on first deploy).
       ...(exec.stdinMode !== undefined && { stdinMode: exec.stdinMode }),
+      // Stream-only: the agent's output is consumed live off the SSE; the
+      // spawner's terminal stdout buffer is unused here. Collecting it would
+      // grow the spawner unboundedly for a long turn AND, once past runnerd's
+      // 5 MB cap, silently cut the live stream dark mid-run (the blackout bug).
+      collectOutput: false,
     }),
     ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
   };
