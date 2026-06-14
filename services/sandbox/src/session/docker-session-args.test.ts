@@ -75,8 +75,8 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('--cap-drop=ALL');
     expect(args).toContain('--read-only');
     expect(args).toContain('no-new-privileges');
-    // Gateway reachable directly (not via tinyproxy).
-    expect(args).toContain('NO_PROXY=127.0.0.1,localhost,bifrost');
+    // Gateway + convex http-actions reachable directly (not via tinyproxy).
+    expect(args).toContain('NO_PROXY=127.0.0.1,localhost,bifrost,convex');
     // Runnerd token in env.
     expect(args).toContain(`TALE_RUNNERD_TOKEN=${'a'.repeat(64)}`);
     // Container + workspace mount.
