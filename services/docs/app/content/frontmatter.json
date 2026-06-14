@@ -277,7 +277,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Agents externes",
-      "description": "L'agent intégré Claude Code, qui s'exécute dans un bac à sable isolé ; vous discutez directement avec lui pendant qu'il modifie des fichiers, lance des commandes et poursuit le travail sur plusieurs tours."
+      "description": "L'agent intégré Claude Code, qui s'exécute dans un bac à sable isolé ; tu discutes directement avec lui pendant qu'il modifie des fichiers, lance des commandes et poursuit le travail sur plusieurs tours."
     }
   },
   "fr:platform/agents/delegation": {
