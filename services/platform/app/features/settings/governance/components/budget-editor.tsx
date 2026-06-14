@@ -5,6 +5,15 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 import { Pencil, Plus, Trash2, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -501,172 +510,139 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           </Text>
 
           <div className="border-border overflow-hidden rounded-lg border">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <caption className="sr-only">{t('budgets.title')}</caption>
-                <thead className="bg-muted/50">
-                  <tr className="border-border border-b">
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('budgets.scope')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('budgets.target')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('budgets.period')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('budgets.tokenLimit')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('budgets.maxCost')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('budgets.maxRequests')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('budgets.actions')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    Array.from({ length: PLACEHOLDER_ROW_COUNT }).map(
-                      (_, i) => (
-                        <tr
-                          key={`placeholder-${i}`}
-                          className="border-border border-b last:border-b-0"
-                        >
-                          <td className="px-3 py-2">
-                            <SkeletonBox>
-                              <div className="h-3.5 w-16" />
-                            </SkeletonBox>
-                          </td>
-                          <td className="px-3 py-2">
-                            <SkeletonBox>
-                              <div className="h-3.5 w-24" />
-                            </SkeletonBox>
-                          </td>
-                          <td className="px-3 py-2">
-                            <SkeletonBox>
-                              <div className="h-3.5 w-16" />
-                            </SkeletonBox>
-                          </td>
-                          <td className="px-3 py-2">
-                            <SkeletonBox fullWidth>
-                              <div className="ml-auto h-3.5 w-14" />
-                            </SkeletonBox>
-                          </td>
-                          <td className="px-3 py-2">
-                            <SkeletonBox fullWidth>
-                              <div className="ml-auto h-3.5 w-14" />
-                            </SkeletonBox>
-                          </td>
-                          <td className="px-3 py-2">
-                            <SkeletonBox fullWidth>
-                              <div className="ml-auto h-3.5 w-12" />
-                            </SkeletonBox>
-                          </td>
-                          <td className="px-3 py-2">
-                            <HStack gap={1} justify="end">
-                              <SkeletonBox>
-                                <div className="size-8 rounded-md" />
-                              </SkeletonBox>
-                              <SkeletonBox>
-                                <div className="size-8 rounded-md" />
-                              </SkeletonBox>
-                            </HStack>
-                          </td>
-                        </tr>
-                      ),
-                    )
-                  ) : rules.length > 0 ? (
-                    rules.map((rule, index) => (
-                      <tr
-                        key={index}
-                        className="border-border border-b last:border-b-0"
-                      >
-                        <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                        <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                        <td className="px-3 py-2 capitalize">{rule.period}</td>
-                        <td className="px-3 py-2 text-right">
-                          {rule.maxTokens != null
-                            ? rule.maxTokens.toLocaleString()
-                            : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {rule.maxCostCents != null
-                            ? formatCost(rule.maxCostCents)
-                            : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {rule.maxRequests != null
-                            ? rule.maxRequests.toLocaleString()
-                            : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <HStack gap={1} justify="end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => onEditRule(index)}
-                              disabled={cannotManage}
-                              aria-label={t('budgets.editRuleAriaLabel', {
-                                index: index + 1,
-                              })}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => onRemoveRule(index)}
-                              disabled={cannotManage}
-                              aria-label={t('budgets.removeRuleAriaLabel', {
-                                index: index + 1,
-                              })}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </HStack>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={COLUMN_COUNT} className="p-0">
-                        <RulesTableEmptyState
-                          icon={Wallet}
-                          title={t('budgets.noRulesTitle')}
-                          description={t('budgets.noRulesDescription')}
-                        />
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <Table>
+              <TableCaption className="sr-only">
+                {t('budgets.title')}
+              </TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('budgets.scope')}</TableHead>
+                  <TableHead>{t('budgets.target')}</TableHead>
+                  <TableHead>{t('budgets.period')}</TableHead>
+                  <TableHead className="text-right">
+                    {t('budgets.tokenLimit')}
+                  </TableHead>
+                  <TableHead className="text-right">
+                    {t('budgets.maxCost')}
+                  </TableHead>
+                  <TableHead className="text-right">
+                    {t('budgets.maxRequests')}
+                  </TableHead>
+                  <TableHead className="text-right">
+                    {t('budgets.actions')}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => (
+                    <TableRow key={`placeholder-${i}`}>
+                      <TableCell>
+                        <SkeletonBox>
+                          <div className="h-3.5 w-16" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <SkeletonBox>
+                          <div className="h-3.5 w-24" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <SkeletonBox>
+                          <div className="h-3.5 w-16" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <SkeletonBox fullWidth>
+                          <div className="ml-auto h-3.5 w-14" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <SkeletonBox fullWidth>
+                          <div className="ml-auto h-3.5 w-14" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <SkeletonBox fullWidth>
+                          <div className="ml-auto h-3.5 w-12" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <HStack gap={1} justify="end">
+                          <SkeletonBox>
+                            <div className="size-8 rounded-md" />
+                          </SkeletonBox>
+                          <SkeletonBox>
+                            <div className="size-8 rounded-md" />
+                          </SkeletonBox>
+                        </HStack>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : rules.length > 0 ? (
+                  rules.map((rule, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="capitalize">{rule.scope}</TableCell>
+                      <TableCell>{resolveTarget(rule)}</TableCell>
+                      <TableCell className="capitalize">
+                        {rule.period}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {rule.maxTokens != null
+                          ? rule.maxTokens.toLocaleString()
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {rule.maxCostCents != null
+                          ? formatCost(rule.maxCostCents)
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {rule.maxRequests != null
+                          ? rule.maxRequests.toLocaleString()
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <HStack gap={1} justify="end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onEditRule(index)}
+                            disabled={cannotManage}
+                            aria-label={t('budgets.editRuleAriaLabel', {
+                              index: index + 1,
+                            })}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onRemoveRule(index)}
+                            disabled={cannotManage}
+                            aria-label={t('budgets.removeRuleAriaLabel', {
+                              index: index + 1,
+                            })}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </HStack>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={COLUMN_COUNT} className="p-0">
+                      <RulesTableEmptyState
+                        icon={Wallet}
+                        title={t('budgets.noRulesTitle')}
+                        description={t('budgets.noRulesDescription')}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
         </Stack>
 

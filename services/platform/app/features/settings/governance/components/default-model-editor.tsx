@@ -6,6 +6,15 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 import { AlertCircle, Database, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -544,134 +553,105 @@ export function DefaultModelEditor({
         }
       >
         <div className="border-border overflow-hidden rounded-lg border">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <caption className="sr-only">{t('defaultModels.title')}</caption>
-              <thead className="bg-muted/50">
-                <tr className="border-border border-b">
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-left font-medium"
-                  >
-                    {t('defaultModels.scope')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-left font-medium"
-                  >
-                    {t('defaultModels.target')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-left font-medium"
-                  >
-                    {t('defaultModels.provider')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-left font-medium"
-                  >
-                    {t('defaultModels.model')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-right font-medium"
-                  >
-                    {t('defaultModels.actions')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  displayRows.map((_, index) => (
-                    <tr
-                      key={`skeleton-${index}`}
-                      className="border-border border-b last:border-b-0"
-                    >
-                      <td className="px-3 py-2">
+          <Table>
+            <TableCaption className="sr-only">
+              {t('defaultModels.title')}
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('defaultModels.scope')}</TableHead>
+                <TableHead>{t('defaultModels.target')}</TableHead>
+                <TableHead>{t('defaultModels.provider')}</TableHead>
+                <TableHead>{t('defaultModels.model')}</TableHead>
+                <TableHead className="text-right">
+                  {t('defaultModels.actions')}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                displayRows.map((_, index) => (
+                  <TableRow key={`skeleton-${index}`}>
+                    <TableCell>
+                      <SkeletonBox>
+                        <div className="h-3.5 w-16" />
+                      </SkeletonBox>
+                    </TableCell>
+                    <TableCell>
+                      <SkeletonBox>
+                        <div className="h-3.5 w-24" />
+                      </SkeletonBox>
+                    </TableCell>
+                    <TableCell>
+                      <SkeletonBox>
+                        <div className="h-3.5 w-20" />
+                      </SkeletonBox>
+                    </TableCell>
+                    <TableCell>
+                      <SkeletonBox>
+                        <div className="h-3.5 w-28" />
+                      </SkeletonBox>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <HStack gap={1} justify="end">
                         <SkeletonBox>
-                          <div className="h-3.5 w-16" />
+                          <div className="size-8 rounded-md" />
                         </SkeletonBox>
-                      </td>
-                      <td className="px-3 py-2">
                         <SkeletonBox>
-                          <div className="h-3.5 w-24" />
+                          <div className="size-8 rounded-md" />
                         </SkeletonBox>
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonBox>
-                          <div className="h-3.5 w-20" />
-                        </SkeletonBox>
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonBox>
-                          <div className="h-3.5 w-28" />
-                        </SkeletonBox>
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <HStack gap={1} justify="end">
-                          <SkeletonBox>
-                            <div className="size-8 rounded-md" />
-                          </SkeletonBox>
-                          <SkeletonBox>
-                            <div className="size-8 rounded-md" />
-                          </SkeletonBox>
-                        </HStack>
-                      </td>
-                    </tr>
-                  ))
-                ) : rules.length > 0 ? (
-                  rules.map((rule, index) => (
-                    <tr
-                      key={index}
-                      className="border-border border-b last:border-b-0"
-                    >
-                      <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                      <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                      <td className="px-3 py-2">{resolveProviderName(rule)}</td>
-                      <td className="px-3 py-2">{resolveModelName(rule)}</td>
-                      <td className="px-3 py-2 text-right">
-                        <HStack gap={1} justify="end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(index)}
-                            disabled={cannotManage}
-                            aria-label={t('defaultModels.editRule', {
-                              index: index + 1,
-                            })}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeletingIndex(index)}
-                            disabled={cannotManage}
-                            aria-label={t('defaultModels.removeRule', {
-                              index: index + 1,
-                            })}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </HStack>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="p-0">
-                      <RulesTableEmptyState
-                        icon={Database}
-                        title={t('defaultModels.noRulesTitle')}
-                        description={t('defaultModels.noRulesDescription')}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                      </HStack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : rules.length > 0 ? (
+                rules.map((rule, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="capitalize">{rule.scope}</TableCell>
+                    <TableCell>{resolveTarget(rule)}</TableCell>
+                    <TableCell>{resolveProviderName(rule)}</TableCell>
+                    <TableCell>{resolveModelName(rule)}</TableCell>
+                    <TableCell className="text-right">
+                      <HStack gap={1} justify="end">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(index)}
+                          disabled={cannotManage}
+                          aria-label={t('defaultModels.editRule', {
+                            index: index + 1,
+                          })}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeletingIndex(index)}
+                          disabled={cannotManage}
+                          aria-label={t('defaultModels.removeRule', {
+                            index: index + 1,
+                          })}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </HStack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={5} className="p-0">
+                    <RulesTableEmptyState
+                      icon={Database}
+                      title={t('defaultModels.noRulesTitle')}
+                      description={t('defaultModels.noRulesDescription')}
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
 
         <RuleDialog

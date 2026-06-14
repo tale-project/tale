@@ -1,4 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 
 import { CopyableTimestamp } from './copyable-timestamp';
 
@@ -118,28 +126,28 @@ export const AlignRight: Story = {
 
 export const InTableRow: Story = {
   render: () => (
-    <table className="border-collapse text-sm">
-      <thead>
-        <tr>
-          <th className="border p-2 text-left">Name</th>
-          <th className="border p-2 text-right">Modified</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead className="text-right">Modified</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {[
           { name: 'Design brief.pdf', date: NOW },
           { name: 'Q1 report.docx', date: YESTERDAY },
           { name: 'Onboarding guide.pdf', date: LAST_WEEK },
         ].map(({ name, date }) => (
-          <tr key={name}>
-            <td className="border p-2">{name}</td>
-            <td className="border p-2">
+          <TableRow key={name}>
+            <TableCell>{name}</TableCell>
+            <TableCell className="text-right">
               <CopyableTimestamp date={date} preset="short" alignRight />
-            </td>
-          </tr>
+            </TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   ),
   parameters: {
     docs: {

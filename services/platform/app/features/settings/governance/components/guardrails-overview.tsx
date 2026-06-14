@@ -5,6 +5,14 @@ import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 import { Copy, Info, ShieldAlert } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -388,37 +396,37 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
         <Skeletonize
           loading={isLoading}
           label={t('guardrailsOverview.recentEvents.title')}
-          className="border-border overflow-x-auto rounded-lg border"
+          className="border-border overflow-hidden rounded-lg border"
         >
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-border bg-muted/40 text-muted-foreground border-b text-left text-xs">
-                <th className="px-3 py-2 font-medium">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
                   {t('guardrailsOverview.recentEvents.columnTime')}
-                </th>
-                <th className="px-3 py-2 font-medium">
+                </TableHead>
+                <TableHead>
                   {t('guardrailsOverview.recentEvents.columnFilter')}
-                </th>
-                <th className="px-3 py-2 font-medium">
+                </TableHead>
+                <TableHead>
                   {t('guardrailsOverview.recentEvents.columnDirection')}
-                </th>
-                <th className="px-3 py-2 font-medium">
+                </TableHead>
+                <TableHead>
                   {t('guardrailsOverview.recentEvents.columnKind')}
-                </th>
-                <th className="px-3 py-2 font-medium">
+                </TableHead>
+                <TableHead>
                   {t('guardrailsOverview.recentEvents.columnCategories')}
-                </th>
-                <th className="px-3 py-2 text-right font-medium">
+                </TableHead>
+                <TableHead className="text-right">
                   {t('guardrailsOverview.recentEvents.columnMatches')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoading
                 ? Array.from({ length: 3 }).map((_, i) => (
-                    <tr key={i} className="border-border border-t">
+                    <TableRow key={i}>
                       {Array.from({ length: 6 }).map((__, j) => (
-                        <td key={j} className="px-3 py-2">
+                        <TableCell key={j}>
                           <div
                             className="max-w-24"
                             style={{
@@ -429,16 +437,16 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
                               <div className="h-3.5" />
                             </SkeletonBox>
                           </div>
-                        </td>
+                        </TableCell>
                       ))}
-                    </tr>
+                    </TableRow>
                   ))
                 : (events ?? []).map((event) => {
                     const typedEvent = event as RecentEvent;
                     return (
-                      <tr
+                      <TableRow
                         key={typedEvent._id}
-                        className="border-border hover:bg-muted/30 cursor-pointer border-t transition-colors"
+                        className="hover:bg-muted/30 cursor-pointer transition-colors"
                         tabIndex={0}
                         aria-label={t(
                           'guardrailsOverview.recentEvents.viewEventAria',
@@ -452,8 +460,8 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
                           }
                         }}
                       >
-                        <td
-                          className="px-3 py-2 whitespace-nowrap"
+                        <TableCell
+                          className="whitespace-nowrap"
                           title={formatDate(
                             new Date(typedEvent.createdAt),
                             'medium',
@@ -463,17 +471,17 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
                             new Date(typedEvent.createdAt),
                             'relative',
                           )}
-                        </td>
-                        <td className="px-3 py-2">
+                        </TableCell>
+                        <TableCell>
                           {filterNameLabel(typedEvent.filterName, t)}
-                        </td>
-                        <td className="px-3 py-2 capitalize">
+                        </TableCell>
+                        <TableCell className="capitalize">
                           {typedEvent.direction}
-                        </td>
-                        <td className="px-3 py-2">
+                        </TableCell>
+                        <TableCell>
                           <KindBadge kind={typedEvent.kind} />
-                        </td>
-                        <td className="px-3 py-2">
+                        </TableCell>
+                        <TableCell>
                           {typedEvent.categoryIds.length === 0 ? (
                             <span className="text-muted-foreground">—</span>
                           ) : (
@@ -485,15 +493,15 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
                               ).join(', ')}
                             </span>
                           )}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
                           {typedEvent.matchCount ?? 0}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </Skeletonize>
       )}
 

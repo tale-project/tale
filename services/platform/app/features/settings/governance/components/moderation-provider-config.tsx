@@ -4,6 +4,15 @@ import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -1632,46 +1641,47 @@ function MappingList({ mappings, disabled, onAdd, onEdit }: MappingListProps) {
           {t('moderationProvider.mappingsEmpty')}
         </div>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-muted-foreground text-left text-xs">
-              <th className="py-1 font-medium">
+        <Table>
+          <TableCaption className="sr-only">
+            {t('moderationProvider.categoryMappings')}
+          </TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead>
                 {t('moderationProvider.mappingColumnProviderCategory')}
-              </th>
-              <th className="py-1 font-medium">
+              </TableHead>
+              <TableHead>
                 {t('moderationProvider.mappingColumnInternalLabel')}
-              </th>
-              <th className="py-1 font-medium">
-                {t('moderationProvider.mappingColumnMode')}
-              </th>
-              <th className="py-1 font-medium">
+              </TableHead>
+              <TableHead>{t('moderationProvider.mappingColumnMode')}</TableHead>
+              <TableHead>
                 {t('moderationProvider.mappingColumnThreshold')}
-              </th>
-              <th className="py-1 font-medium">
+              </TableHead>
+              <TableHead>
                 {t('moderationProvider.mappingColumnEnabled')}
-              </th>
-              <th className="py-1 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {mappings.map((mapping, index) => (
-              <tr key={index} className="border-border border-t">
-                <td className="py-2 font-mono text-xs">
+              <TableRow key={index}>
+                <TableCell className="font-mono text-xs">
                   {mapping.providerCategory}
-                </td>
-                <td className="py-2">{mapping.internalLabel}</td>
-                <td className="py-2 capitalize">{mapping.mode}</td>
-                <td className="py-2">
+                </TableCell>
+                <TableCell>{mapping.internalLabel}</TableCell>
+                <TableCell className="capitalize">{mapping.mode}</TableCell>
+                <TableCell>
                   {mapping.scoreThreshold ?? (
                     <span className="text-muted-foreground">—</span>
                   )}
-                </td>
-                <td className="py-2">
+                </TableCell>
+                <TableCell>
                   {mapping.enabled
                     ? t('moderationProvider.yes')
                     : t('moderationProvider.no')}
-                </td>
-                <td className="py-2 text-right">
+                </TableCell>
+                <TableCell className="text-right">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1681,11 +1691,11 @@ function MappingList({ mappings, disabled, onAdd, onEdit }: MappingListProps) {
                   >
                     {tCommon('actions.edit')}
                   </Button>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
       <div>
         <Button

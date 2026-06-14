@@ -1,4 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 
 import { TableDateCell, TableTimestampCell } from './table-date-cell';
 
@@ -193,35 +201,35 @@ export const ISOStringInput: Story = {
 
 export const InTableContext: Story = {
   render: () => (
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="border-b">
-          <th className="p-2 text-left text-sm font-medium">Name</th>
-          <th className="p-2 text-left text-sm font-medium">Created</th>
-          <th className="p-2 text-right text-sm font-medium">Updated</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr className="border-b">
-          <td className="p-2 text-sm">Document 1</td>
-          <td className="p-2">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead>Created</TableHead>
+          <TableHead className="text-right">Updated</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>Document 1</TableCell>
+          <TableCell>
             <TableDateCell date={sampleDate} preset="short" />
-          </td>
-          <td className="p-2">
+          </TableCell>
+          <TableCell>
             <TableDateCell date={recentDate} preset="relative" alignRight />
-          </td>
-        </tr>
-        <tr className="border-b">
-          <td className="p-2 text-sm">Document 2</td>
-          <td className="p-2">
+          </TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>Document 2</TableCell>
+          <TableCell>
             <TableDateCell date={new Date('2024-01-10')} preset="short" />
-          </td>
-          <td className="p-2">
+          </TableCell>
+          <TableCell>
             <TableDateCell date={null} alignRight />
-          </td>
-        </tr>
-      </tbody>
-    </table>
+          </TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
   ),
   parameters: {
     docs: {

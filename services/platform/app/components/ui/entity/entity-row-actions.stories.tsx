@@ -1,5 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
+import {
   Eye,
   Pencil,
   Trash2,
@@ -262,22 +270,22 @@ export const AlignStart: Story = {
 
 export const InTableContext: Story = {
   render: () => (
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="border-b">
-          <th className="p-2 text-left text-sm font-medium">Name</th>
-          <th className="p-2 text-left text-sm font-medium">Status</th>
-          <th className="w-10"></th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead className="w-10" />
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {['Document 1', 'Document 2', 'Document 3'].map((name, i) => (
-          <tr key={name} className="hover:bg-muted/50 border-b">
-            <td className="p-2 text-sm">{name}</td>
-            <td className="text-muted-foreground p-2 text-sm">
+          <TableRow key={name}>
+            <TableCell>{name}</TableCell>
+            <TableCell className="text-muted-foreground">
               {i === 0 ? 'Active' : i === 1 ? 'Draft' : 'Archived'}
-            </td>
-            <td className="p-2">
+            </TableCell>
+            <TableCell>
               <EntityRowActions
                 actions={[
                   { key: 'view', label: 'View', icon: Eye, onClick: () => {} },
@@ -298,11 +306,11 @@ export const InTableContext: Story = {
                   },
                 ]}
               />
-            </td>
-          </tr>
+            </TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   ),
   parameters: {
     docs: {
