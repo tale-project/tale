@@ -12,6 +12,7 @@
 // into a container-escape primitive. User code is NEVER in argv; it arrives
 // over the runnerd HTTP API after the container is up.
 
+import { dindCapabilityOf, dockerRuntimeFor } from '../runtime-tier.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 import { sessionContainerName } from './session-naming.ts';
@@ -29,6 +30,13 @@ interface DockerSessionRunInput {
   /** Per-session runnerd auth token (deriveRunnerdToken). */
   runnerdToken: string;
   createdAtMs: number;
+  /**
+   * Per-session docker storage volume name, mounted at /var/lib/docker. Required
+   * (and only used) when cfg.dockerInContainer is true; the backend creates an
+   * ephemeral, size-bounded volume so the inner dockerd's image/layer store is
+   * isolated per session and doesn't share the (overlay-backed) workspace.
+   */
+  dockerStorageVolume?: string;
 }
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -85,11 +93,100 @@ export function buildDockerSessionRunArgs(
   assertSafe('profile.tmpfsSize', profile.tmpfsSize, MEM_RE);
   assertSafe('profile.shmSize', profile.shmSize, MEM_RE);
 
+  // Docker-in-container mode. The inner dockerd needs a rootful init, so the
+  // container starts as uid 0 (the entrypoint drops back to uid 10001 for
+  // runnerd once dockerd is up) and the hardened flags are relaxed — HOW they're
+  // relaxed depends on the tier's boundary:
+  //   sysbox/kata ('native'/'vm') — keep cap-drop off + apparmor=unconfined;
+  //     the per-container userns / guest VM is the real boundary (no --privileged).
+  //   runc ('privileged') — --privileged; NO boundary (in-container root = host
+  //     root). config.ts allows this only with a loud trusted-only warning.
+  // When !dind every conditional collapses to today's hardened argv (byte-for-
+  // byte, unit-tested).
+  const dind = cfg.dockerInContainer;
+  const dindMode = dindCapabilityOf(cfg.runtimeTier);
+
+  let hardeningFlags: string[];
+  if (!dind) {
+    hardeningFlags = [
+      '--cap-drop=ALL',
+      '--security-opt',
+      'no-new-privileges',
+      '--security-opt',
+      'apparmor=docker-default',
+    ];
+  } else if (dindMode === 'privileged') {
+    hardeningFlags = ['--privileged'];
+  } else {
+    hardeningFlags = ['--security-opt', 'apparmor=unconfined'];
+  }
+  const userValue = dind ? '0:0' : profile.user;
+  // dockerd needs a writable rootfs (/var/run, /etc/docker, etc.); /var/lib/
+  // docker is a dedicated volume (below). Non-dind keeps the read-only root.
+  const readOnlyFlag = dind ? [] : ['--read-only'];
+
+  // Inner dockerd storage: a dedicated, ephemeral, size-bounded volume so the
+  // image/layer store never lands on the overlay-backed workspace bind mount
+  // (nested overlay is rejected by the kernel) and can't fill the host disk.
+  let dockerStorageMount: string[] = [];
+  let dindEnv: string[] = [];
+  if (dind) {
+    if (!inp.dockerStorageVolume) {
+      throw new Error(
+        'docker-session-args: dockerStorageVolume is required when dockerInContainer is enabled',
+      );
+    }
+    assertSafe('dockerStorageVolume', inp.dockerStorageVolume, VOL_RE);
+    dockerStorageMount = [
+      '--mount',
+      `type=volume,src=${inp.dockerStorageVolume},dst=/var/lib/docker`,
+    ];
+    // TALE_DIND switches the entrypoint into DinD mode; TALE_RUNTIME_TIER lets
+    // it apply the sysbox-only uid_map remap assertion. The tier is a typed
+    // enum constant (no injection surface).
+    dindEnv = [
+      '--env',
+      'TALE_DIND=1',
+      '--env',
+      `TALE_RUNTIME_TIER=${cfg.runtimeTier}`,
+    ];
+  }
+
+  // Per-org shared dep caches are DISABLED under DinD (sysbox userns shifting
+  // makes a cross-session shared volume's ownership/integrity unsafe — a
+  // same-org cache-poisoning vector). Cold caches are the safe default; installs
+  // still work, just uncached across sessions. See plan D2.
+  const cacheEnv = dind
+    ? []
+    : [
+        '--env',
+        `PIP_CACHE_DIR=/cache/pip`,
+        '--env',
+        `UV_CACHE_DIR=/cache/pip`,
+        '--env',
+        `NPM_CONFIG_CACHE=/cache/npm`,
+        // bun's package cache on the shared per-org volume too (else it falls to
+        // ~/.bun inside the per-user workspace — unmanaged + not reused across
+        // sessions). bun honors this; install temp follows TMPDIR (workspace disk).
+        '--env',
+        `BUN_INSTALL_CACHE_DIR=/cache/bun`,
+      ];
+  const cacheMounts = dind
+    ? []
+    : [
+        '--mount',
+        `type=volume,src=${inp.pipCacheVolume},dst=/cache/pip`,
+        '--mount',
+        `type=volume,src=${inp.npmCacheVolume},dst=/cache/npm`,
+        '--mount',
+        `type=volume,src=${inp.bunCacheVolume},dst=/cache/bun`,
+      ];
+
   const containerName = sessionContainerName(inp.sessionId);
   return [
     'run',
     '-d',
-    `--runtime=${cfg.runtime}`,
+    `--runtime=${dockerRuntimeFor(cfg.runtimeTier)}`,
     '--name',
     containerName,
     // Distinct label from the one-shot `tale.sandbox=1` so cleanup.ts's
@@ -119,17 +216,8 @@ export function buildDockerSessionRunArgs(
     // EXTERNAL_AGENT_INTEGRATIONS_URL overrides the host, this list must match.
     '--env',
     `NO_PROXY=127.0.0.1,localhost,bifrost,convex`,
-    '--env',
-    `PIP_CACHE_DIR=/cache/pip`,
-    '--env',
-    `UV_CACHE_DIR=/cache/pip`,
-    '--env',
-    `NPM_CONFIG_CACHE=/cache/npm`,
-    // bun's package cache on the shared per-org volume too (else it falls to
-    // ~/.bun inside the per-user workspace — unmanaged + not reused across
-    // sessions). bun honors this; install temp follows TMPDIR (workspace disk).
-    '--env',
-    `BUN_INSTALL_CACHE_DIR=/cache/bun`,
+    // Per-org shared dep caches (empty under DinD — see cacheEnv above).
+    ...cacheEnv,
     // HOME on the persistent workspace volume so agent state (~/.claude,
     // ~/.config/opencode, ~/.gitconfig) survives every exec + restart.
     '--env',
@@ -138,6 +226,8 @@ export function buildDockerSessionRunArgs(
     // check); a real hex token otherwise.
     '--env',
     `TALE_RUNNERD_TOKEN=${inp.runnerdToken}`,
+    // DinD signal + tier for the entrypoint (empty when DinD is off).
+    ...dindEnv,
     `--cpus=${profile.cpus}`,
     `--memory=${profile.memory}`,
     `--memory-swap=${profile.memory}`,
@@ -157,26 +247,24 @@ export function buildDockerSessionRunArgs(
     '--ulimit',
     'core=0:0',
     '--oom-score-adj=500',
-    '--read-only',
+    // Read-only root unless DinD (dockerd needs a writable rootfs; its store is
+    // the dedicated /var/lib/docker volume below).
+    ...readOnlyFlag,
     '--tmpfs',
     `/tmp:exec,nosuid,nodev,size=${profile.tmpfsSize}`,
     // /dev/shm: Docker's 64m default crashes Chromium under Playwright.
     `--shm-size=${profile.shmSize}`,
     '--mount',
     `type=bind,src=${inp.workspaceHostDir},dst=/workspace`,
-    '--cap-drop=ALL',
-    '--security-opt',
-    'no-new-privileges',
-    '--security-opt',
-    'apparmor=docker-default',
+    // Inner dockerd storage volume (empty when DinD is off).
+    ...dockerStorageMount,
+    // Hardening: cap-drop/no-new-privileges/apparmor=docker-default when !dind;
+    // apparmor=unconfined when dind (the userns/VM is the real boundary).
+    ...hardeningFlags,
     '--user',
-    profile.user,
-    '--mount',
-    `type=volume,src=${inp.pipCacheVolume},dst=/cache/pip`,
-    '--mount',
-    `type=volume,src=${inp.npmCacheVolume},dst=/cache/npm`,
-    '--mount',
-    `type=volume,src=${inp.bunCacheVolume},dst=/cache/bun`,
+    userValue,
+    // Per-org cache volume mounts (empty under DinD — cold caches; see above).
+    ...cacheMounts,
     cfg.runtimeImage,
     // Entrypoint dispatch: `daemon` mode boots runnerd as PID 1 instead of
     // running a one-shot script. See sandbox-runtime/entrypoint.sh.

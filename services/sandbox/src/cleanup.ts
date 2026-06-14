@@ -311,6 +311,45 @@ export async function dockerSweepOrphans(
   // dir reaping to the next cycle (matches the prior short-circuit).
   if (containerProbeOk) {
     removed += await sweepHostSessionDirs(cfg, staleThreshold);
+    // Reap orphaned per-session inner-docker (DinD) storage volumes. A volume
+    // still attached to a live session container fails `volume rm` and is
+    // skipped; only volumes whose session is gone (crash, missed teardown) are
+    // removed. Cheap + opportunistic — runs even if DinD is currently disabled
+    // so a config flip-back doesn't leak the old volumes.
+    removed += await sweepOrphanDindVolumes();
+  }
+  return removed;
+}
+
+/** Best-effort removal of dangling DinD storage volumes (label
+ * tale.sandbox-dind=1). In-use volumes fail `volume rm` and are left alone. */
+async function sweepOrphanDindVolumes(): Promise<number> {
+  let removed = 0;
+  try {
+    const ls = await runDocker([
+      'volume',
+      'ls',
+      '-q',
+      '--filter',
+      'label=tale.sandbox-dind=1',
+    ]);
+    if (ls.exitCode !== 0) return 0;
+    for (const name of ls.stdout.split('\n')) {
+      const vol = name.trim();
+      if (!vol) continue;
+      const rmRes = await runDocker(['volume', 'rm', vol], {
+        timeoutMs: 10_000,
+      });
+      if (rmRes.exitCode === 0) {
+        removed += 1;
+        console.log(
+          `[sandbox] periodic sweep removed orphan dind volume ${vol}`,
+        );
+      }
+      // Non-zero = in use by a live session → expected, skip silently.
+    }
+  } catch (err) {
+    console.warn('[sandbox.periodic] dind volume sweep error:', err);
   }
   return removed;
 }

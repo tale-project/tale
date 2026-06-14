@@ -5,7 +5,7 @@
 // deployment-config change (external knowledge Postgres / Convex S3 storage)
 // takes effect. It mounts the docker socket (host root — same accepted threat
 // boundary as the sandbox spawner) but is far more constrained: HMAC-signed
-// requests only, a hard service allowlist of {rag, convex}, and only
+// requests only, a hard service allowlist of {rag, convex, sandbox}, and only
 // list+restart (no run/exec). Reachable only on the internal network.
 
 import { SIGNATURE_HEADER, TIMESTAMP_HEADER, verify } from './auth.ts';
@@ -24,8 +24,10 @@ const PROJECT =
   process.env.CONTROLLER_PROJECT ||
   undefined;
 
-/** Hard allowlist — the only services this control plane may ever restart. */
-const ALLOWED = new Set(['rag', 'convex']);
+/** Hard allowlist — the only services this control plane may ever restart.
+ * `sandbox` is here so a sandboxRuntime tier change in deployment.json takes
+ * effect on apply-and-restart (the spawner reads it at boot). */
+const ALLOWED = new Set(['rag', 'convex', 'sandbox']);
 
 // Delay before bouncing the caller's own container (`convex`) so the signed
 // HTTP response is flushed and the Convex action can return its result first.
@@ -137,7 +139,7 @@ Bun.serve({
         return Response.json(
           {
             ok: false,
-            error: `services must be a non-empty subset of {rag, convex}${
+            error: `services must be a non-empty subset of {rag, convex, sandbox}${
               invalid.length ? `; rejected: ${invalid.join(', ')}` : ''
             }`,
           },
@@ -195,5 +197,5 @@ Bun.serve({
 });
 
 console.log(
-  `[controller] listening on :${PORT} — allowlist {rag, convex}, project=${PROJECT ?? '(any)'}`,
+  `[controller] listening on :${PORT} — allowlist {rag, convex, sandbox}, project=${PROJECT ?? '(any)'}`,
 );

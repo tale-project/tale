@@ -128,6 +128,22 @@ const dataStoresSchema = z
   .strict();
 
 /**
+ * `sandboxRuntime` section — the deployment-wide container runtime tier for the
+ * sandbox, uniform across all tenants. `tier` selects the OCI runtime
+ * (`runc` default, `gvisor`, `sysbox`, `kata`); `dockerInContainer` enables
+ * native `docker`/`docker compose` inside session containers and is only valid
+ * on a tier that keeps an isolation boundary (`sysbox`/`kata`) — the spawner
+ * fails closed otherwise. Absent = the `.env` (SANDBOX_RUNTIME /
+ * SANDBOX_DOCKER_IN_CONTAINER) defaults. Carries no secrets.
+ */
+const sandboxRuntimeSchema = z
+  .object({
+    tier: z.enum(['runc', 'gvisor', 'sysbox', 'kata']).optional(),
+    dockerInContainer: z.boolean().optional(),
+  })
+  .strict();
+
+/**
  * Root deployment config. `version` pins the file format (future migrations
  * bump it). Every section is optional so adding a new one never breaks an
  * older file, and an empty `{ version: 1 }` is valid (no overrides → `.env`
@@ -137,6 +153,7 @@ export const deploymentConfigSchema = z
   .object({
     version: z.literal(DEPLOYMENT_CONFIG_VERSION),
     dataStores: dataStoresSchema.optional(),
+    sandboxRuntime: sandboxRuntimeSchema.optional(),
   })
   .strict();
 

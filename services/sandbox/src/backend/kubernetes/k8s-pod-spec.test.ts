@@ -16,10 +16,11 @@ const cfg: SpawnerConfig = {
   port: 8003,
   sandboxToken: 'test',
   runtimeImage: 'tale-sandbox-runtime:test',
-  runtime: 'runc',
+  runtimeTier: 'runc',
+  dockerInContainer: false,
   k8s: {
     namespace: 'tale-sandbox',
-    runtimeClassName: 'gvisor',
+    runtimeClassName: null,
     spawnerImage: 'tale-sandbox:test',
     cacheMode: 'none',
     workspaceSizeLimit: '4Gi',
@@ -272,12 +273,28 @@ describe('buildSandboxPod', () => {
     expect(lastLine).toBe('echo $? > /workspace/.tale/exit-code');
   });
 
-  test('gVisor: runtimeClassName set only when runtime === runsc', () => {
+  test('runtimeClassName: omitted for runc, applied per tier', () => {
     expect(
       buildSandboxPod(cfg, goodInput).spec?.runtimeClassName,
     ).toBeUndefined();
-    const gvisor = buildSandboxPod({ ...cfg, runtime: 'runsc' }, goodInput);
+    const gvisor = buildSandboxPod(
+      {
+        ...cfg,
+        runtimeTier: 'gvisor',
+        k8s: { ...cfg.k8s, runtimeClassName: 'gvisor' },
+      },
+      goodInput,
+    );
     expect(gvisor.spec?.runtimeClassName).toBe('gvisor');
+    const sysbox = buildSandboxPod(
+      {
+        ...cfg,
+        runtimeTier: 'sysbox',
+        k8s: { ...cfg.k8s, runtimeClassName: 'sysbox-runc' },
+      },
+      goodInput,
+    );
+    expect(sysbox.spec?.runtimeClassName).toBe('sysbox-runc');
   });
 
   test('cacheMode pvc mounts per-org PVCs + sets cache env', () => {

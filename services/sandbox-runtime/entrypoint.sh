@@ -42,6 +42,107 @@
 set -e
 
 # ---------------------------------------------------------------------------
+# Docker-in-container (DinD) helpers — used only when the spawner launches the
+# session with TALE_DIND=1 (a sysbox/kata tier with SANDBOX_DOCKER_IN_CONTAINER;
+# see config.ts + docker-session-args.ts). The container then starts as root
+# (--user 0:0) so it can run an inner dockerd; we drop back to uid 10001 for
+# runnerd. Everything here is dead code on the default (non-DinD) path.
+# ---------------------------------------------------------------------------
+
+# Controlled address pool for the inner daemon's bridges (docker0 +
+# compose-created networks). Known so the egress fence can EXEMPT intra-inner
+# traffic (service-to-service) while rejecting the rest of RFC1918.
+TALE_DIND_INNER_POOL="172.31.0.0/16"
+
+# Install the inner-DinD egress fence in the tenant netns. Inner containers must
+# not reach IMDS, link-local, or RFC1918 — which on tale-sandbox-net includes
+# the LLM gateway (bifrost), the egress proxy, and OTHER tenants. Rules live in
+# FORWARD so the session's OWN traffic (OUTPUT — e.g. pip/LLM via HTTPS_PROXY)
+# is untouched; the inner pool is exempted first so `docker compose` service-to-
+# service still works. Fail closed: a session with DinD but no fence is a hole.
+# Absolute paths: iptables/ip6tables live in /usr/sbin, which the image's ENV
+# PATH deliberately drops (keeps sbin tools off the agent PATH). The inner
+# dockerd is given /usr/sbin on its own PATH separately (it shells out to
+# iptables for NAT).
+_IPTABLES=/usr/sbin/iptables
+_IP6TABLES=/usr/sbin/ip6tables
+
+apply_inner_egress_fence() {
+  _pool="$TALE_DIND_INNER_POOL"
+  # Exempt intra-inner traffic BEFORE the broad rejects (iptables is first-match;
+  # the pool is inside 172.16/12, so this must precede that reject).
+  "$_IPTABLES" -I FORWARD 1 -s "$_pool" -d "$_pool" -j ACCEPT || return 1
+  for _cidr in 169.254.0.0/16 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10; do
+    "$_IPTABLES" -A FORWARD -s "$_pool" -d "$_cidr" -j REJECT \
+      --reject-with icmp-admin-prohibited || return 1
+  done
+  # Best-effort IPv6 (inner daemon runs without --ipv6, so this is belt-and-
+  # suspenders): reject inner forwards to ULA/link-local/IPv4-mapped internals.
+  if [ -x "$_IP6TABLES" ]; then
+    for _c6 in fd00::/8 fe80::/10 ::ffff:169.254.0.0/112 ::ffff:10.0.0.0/104 \
+      ::ffff:172.16.0.0/108 ::ffff:192.168.0.0/112; do
+      "$_IP6TABLES" -A FORWARD -d "$_c6" -j REJECT 2>/dev/null || true
+    done
+  fi
+  return 0
+}
+
+# Start an inner dockerd and block until it's ready. Fails closed (exit 1) on
+# any of: fence install failure, a non-remapped userns on the sysbox tier
+# (would mean container-root == host-root), dockerd dying, or a readiness
+# timeout — so a broken DinD session never silently serves with a dead/unsafe
+# daemon. dockerd inherits HTTP(S)_PROXY/NO_PROXY from the container env so
+# image pulls traverse the egress proxy.
+start_inner_dockerd() {
+  if ! apply_inner_egress_fence; then
+    echo "[entrypoint] FATAL: could not install inner-DinD egress fence — refusing to start dockerd" >&2
+    exit 1
+  fi
+
+  # Sysbox must remap the userns (container-root -> unprivileged host subuid).
+  # If it didn't, we'd be granting a daemon real host-root; refuse. Kata is
+  # VM-isolated, so an identity map there is expected and fine.
+  if [ "${TALE_RUNTIME_TIER:-}" = "sysbox" ]; then
+    _host0="$(awk 'NR==1{print $2}' /proc/self/uid_map 2>/dev/null || echo 0)"
+    if [ "${_host0:-0}" = "0" ]; then
+      echo "[entrypoint] FATAL: sysbox tier but container-root maps to host-root (uid_map: $(cat /proc/self/uid_map 2>/dev/null)); not a remapped userns — refusing dockerd" >&2
+      exit 1
+    fi
+  fi
+
+  mkdir -p /var/lib/docker /var/log
+  # dockerd (and the iptables/modprobe it shells out to) need /usr/sbin on PATH,
+  # which the image ENV drops. Scope the widened PATH to dockerd only — runnerd
+  # is exec'd later with the unmodified (sbin-free) agent PATH.
+  PATH="/usr/sbin:/sbin:${PATH}" dockerd \
+    --host=unix:///var/run/docker.sock \
+    --data-root=/var/lib/docker \
+    --bip=172.31.0.1/24 \
+    --default-address-pool "base=${TALE_DIND_INNER_POOL},size=24" \
+    --storage-driver=overlay2 \
+    >/var/log/dockerd.log 2>&1 &
+  TALE_DOCKERD_PID=$!
+
+  _i=0
+  while [ "$_i" -lt 60 ]; do
+    if ! kill -0 "$TALE_DOCKERD_PID" 2>/dev/null; then
+      echo "[entrypoint] FATAL: inner dockerd exited during startup:" >&2
+      tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
+      exit 1
+    fi
+    if docker info >/dev/null 2>&1; then
+      echo "[entrypoint] inner dockerd ready (tier=${TALE_RUNTIME_TIER:-?}, pid=${TALE_DOCKERD_PID})"
+      return 0
+    fi
+    _i=$((_i + 1))
+    sleep 0.5
+  done
+  echo "[entrypoint] FATAL: inner dockerd not ready within 30s:" >&2
+  tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
+  exit 1
+}
+
+# ---------------------------------------------------------------------------
 # Session daemon dispatch (sessions plan). The spawner launches a long-lived
 # session container with a single positional arg `daemon` (see
 # session/docker-session-args.ts); everything else is the one-shot
@@ -49,11 +150,20 @@ set -e
 # so we `exec` it (SIGTERM from container-stop must reach it directly).
 # ---------------------------------------------------------------------------
 if [ "$1" = "daemon" ]; then
+  # In DinD mode the container starts as root (so it can run an inner dockerd),
+  # so the workspace skeleton + steer cleanup must be done AS the agent (uid
+  # 10001) — otherwise the dirs would be root-owned and runnerd couldn't write
+  # them. On the default path the container is already uid 10001 (--user), so
+  # DROP is empty and these run directly, exactly as before.
+  DROP=""
+  [ "${TALE_DIND:-}" = "1" ] &&
+    DROP="setpriv --reuid 10001 --regid 10001 --init-groups --"
+
   # Bootstrap the persistent workspace skeleton. HOME lives here so agent
   # state (~/.claude, ~/.config/opencode, ~/.gitconfig) survives every exec
   # and container restart within the session. Idempotent — the dirs already
   # exist on a container restart against the same workspace volume.
-  mkdir -p \
+  $DROP mkdir -p \
     /workspace/repo \
     /workspace/uploads \
     /workspace/output \
@@ -65,7 +175,7 @@ if [ "$1" = "daemon" ]; then
   # (re)start means no exec is live, so leftover steer/consumed files are
   # garbage from a previous incarnation — drop them. The platform re-queues
   # anything it hadn't reconciled.
-  rm -rf /workspace/.tale/steer
+  $DROP rm -rf /workspace/.tale/steer
   # Same install env the one-shot path exports, so inline pip/npm from a
   # session exec lands in the writable, on-PYTHONPATH/NODE_PATH location.
   export HOME=/workspace/.home
@@ -76,6 +186,21 @@ if [ "$1" = "daemon" ]; then
   export NPM_CONFIG_PREFIX=/workspace/.deps/node
   export NODE_PATH=/workspace/.deps/node/lib/node_modules
   export PATH=/workspace/.deps/python/bin:/workspace/.deps/node/bin:$PATH
+
+  # DinD: bring up the inner dockerd as root, then hand off. tini becomes PID 1
+  # to reap the many short-lived shims native docker spawns (teardown is a
+  # SIGKILL to PID 1, so runnerd no longer needs to be PID 1 itself); the
+  # already-backgrounded dockerd reparents to tini. setpriv drops to the agent
+  # user so Claude Code's bypassPermissions (refused as root) still works.
+  if [ "${TALE_DIND:-}" = "1" ]; then
+    start_inner_dockerd
+    exec tini -g -- \
+      setpriv --reuid 10001 --regid 10001 --init-groups -- \
+      node /usr/local/lib/tale/runnerd.mjs
+  fi
+
+  # Default (non-DinD) path: runnerd is PID 1 at the container's --user, exactly
+  # as before — SIGTERM from container-stop reaches it directly.
   exec node /usr/local/lib/tale/runnerd.mjs
 fi
 

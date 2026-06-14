@@ -235,8 +235,9 @@ export function buildSandboxPod(
       // docker --runtime path. The spawner only deletes after reading the
       // harvest result, so output isn't lost.
       terminationGracePeriodSeconds: 0,
-      // gVisor: the RuntimeClass replaces docker's --runtime=runsc.
-      ...(cfg.runtime === 'runsc' && {
+      // RuntimeClass replaces docker's --runtime; resolved per tier (null for
+      // runc → field omitted, e.g. gvisor → 'gvisor', sysbox → 'sysbox-runc').
+      ...(cfg.k8s.runtimeClassName !== null && {
         runtimeClassName: cfg.k8s.runtimeClassName,
       }),
       securityContext: {

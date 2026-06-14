@@ -134,6 +134,48 @@ RUN set -eux; \
     rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}"; \
     gh --version
 
+# --- docker-in-container tooling (sysbox/kata tiers) ------------------------
+# Native `docker` / `docker compose` INSIDE a session container. Present in
+# every image but INERT unless the session is launched in DinD mode
+# (SANDBOX_DOCKER_IN_CONTAINER + a sysbox/kata tier): the binaries are not
+# setuid and cannot start a daemon without caps the one-shot/non-DinD paths
+# drop, so adding them does not change the one-shot (uid 65534) attack surface.
+# The session entrypoint starts an inner dockerd only in DinD mode.
+#   docker-ce/cli + compose/buildx plugins + containerd = the engine
+#   tini       = PID-1 reaper (DinD spawns many short-lived containerd-shims)
+#   uidmap     = newuidmap/newgidmap (rootless/userns helpers)
+#   fuse-overlayfs + iptables = inner daemon storage + networking fence
+#   util-linux = setpriv, to drop dockerd's root back to uid 10001 for runnerd
+# Versions are the live Docker apt-repo stable channel; pin here if a build
+# needs to be byte-reproducible.
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" \
+        > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+      docker-ce \
+      docker-ce-cli \
+      containerd.io \
+      docker-compose-plugin \
+      docker-buildx-plugin \
+      tini \
+      uidmap \
+      fuse-overlayfs \
+      iptables \
+      util-linux \
+    && rm -rf /var/lib/apt/lists/* \
+    # The image's dockerd is started per-session by the entrypoint in DinD mode,
+    # never as a baked service — strip any auto-start unit (no-op without systemd).
+    && rm -f /etc/systemd/system/multi-user.target.wants/docker.service 2>/dev/null || true
+
+# subuid/subgid ranges for the agent user. Sysbox handles userns mapping at the
+# container boundary; these are here for any rootless inner tooling and are inert
+# otherwise.
+RUN echo 'agent:100000:65536' >> /etc/subuid \
+    && echo 'agent:100000:65536' >> /etc/subgid
+
 # runnerd — the session control daemon, bundled to a single file in the
 # daemon-build stage and run by the image's Node 24 (session mode only).
 COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
@@ -184,7 +226,13 @@ RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-creden
 # Absolute paths: the ENV PATH override above drops /usr/sbin.
 RUN /usr/sbin/groupadd --gid 10001 agent \
     && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /workspace/.home \
-       --shell /bin/bash --no-create-home agent
+       --shell /bin/bash --no-create-home agent \
+    # docker-in-container: the inner dockerd creates /var/run/docker.sock as
+    # root:docker (660), so the agent (uid 10001, runs `docker` after the
+    # entrypoint drops privileges) must be in the `docker` group to reach it.
+    # Inert on non-DinD tiers (no socket exists). The `docker` group is created
+    # by the docker-ce install above.
+    && /usr/sbin/usermod -aG docker agent
 
 # Default user is nobody; spawner pins --user per profile at the call site
 # (65534 one-shot, 10001 session-agent).

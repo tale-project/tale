@@ -642,6 +642,10 @@ services:
       - .env
     environment:
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runc}
+      # Native docker/docker compose inside session containers. Off by default;
+      # only valid on a sysbox/kata tier (the spawner fails closed otherwise).
+      # The deployment.json sandboxRuntime section overrides both of these.
+      SANDBOX_DOCKER_IN_CONTAINER: ${SANDBOX_DOCKER_IN_CONTAINER:-false}
       SANDBOX_RUNTIME_IMAGE: ${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
@@ -654,6 +658,9 @@ services:
       # docker daemon resolves --mount source paths against the host fs,
       # so the spawner and the daemon must agree on the path).
       - /var/lib/tale-sandbox:/var/lib/tale-sandbox
+      # Read-only deployment config so loadConfig can read the sandboxRuntime
+      # tier from deployment.json (same convex-data volume as rag/platform).
+      - ${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro
     restart: unless-stopped
     # Resource caps mirror the CLI compose generator
     # (`tools/cli/src/lib/compose/services/create-sandbox-service.ts`). The
