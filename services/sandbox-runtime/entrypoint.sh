@@ -50,41 +50,55 @@ set -e
 # ---------------------------------------------------------------------------
 
 # Controlled address pool for the inner daemon's bridges (docker0 +
-# compose-created networks). Known so the egress fence can EXEMPT intra-inner
-# traffic (service-to-service) while rejecting the rest of RFC1918.
+# compose-created networks). Known so inner service-to-service traffic can be
+# kept OUT of the egress proxy via noProxy (see write_dind_docker_config).
 TALE_DIND_INNER_POOL="172.31.0.0/16"
 
-# Install the inner-DinD egress fence in the tenant netns. Inner containers must
-# not reach IMDS, link-local, or RFC1918 — which on tale-sandbox-net includes
-# the LLM gateway (bifrost), the egress proxy, and OTHER tenants. Rules live in
-# FORWARD so the session's OWN traffic (OUTPUT — e.g. pip/LLM via HTTPS_PROXY)
-# is untouched; the inner pool is exempted first so `docker compose` service-to-
-# service still works. Fail closed: a session with DinD but no fence is a hole.
-# Absolute paths: iptables/ip6tables live in /usr/sbin, which the image's ENV
-# PATH deliberately drops (keeps sbin tools off the agent PATH). The inner
-# dockerd is given /usr/sbin on its own PATH separately (it shells out to
-# iptables for NAT).
+# iptables/ip6tables live in /usr/sbin, which the image ENV PATH deliberately
+# drops (keeps sbin tools off the agent PATH); call them by absolute path.
 _IPTABLES=/usr/sbin/iptables
 _IP6TABLES=/usr/sbin/ip6tables
 
+# Make nested `docker build` / `docker run` use the sandbox egress proxy. Inner
+# build RUN steps (apt/pip) and inner containers do NOT inherit the session's
+# proxy env, and the --internal network gives them no direct DNS — so without
+# this they can't reach the (otherwise open) internet, and `docker compose up
+# --build` fails on apt/pip. Writing the agent's docker client `proxies` makes
+# the CLI auto-inject HTTP(S)_PROXY into every build step + container. noProxy
+# keeps loopback, the inner pool, and the internal gateways (bifrost/convex)
+# direct so service-to-service and the LLM gateway aren't routed through tinyproxy.
+write_dind_docker_config() {
+  _cfgdir=/workspace/.home/.docker
+  mkdir -p "$_cfgdir"
+  cat >"$_cfgdir/config.json" <<EOF
+{ "proxies": { "default": {
+  "httpProxy": "${HTTP_PROXY:-}",
+  "httpsProxy": "${HTTPS_PROXY:-}",
+  "noProxy": "${NO_PROXY:-localhost,127.0.0.1},::1,${TALE_DIND_INNER_POOL}"
+} } }
+EOF
+  chown -R 10001:10001 "$_cfgdir" 2>/dev/null || true
+}
+
+# Block inner containers from the cloud metadata endpoint (IMDS) + link-local —
+# never legitimate; cheap defense-in-depth. Installed in DOCKER-USER, which
+# Docker evaluates BEFORE its own per-bridge ACCEPT rules, so it actually takes
+# effect (a plain FORWARD append is shadowed by Docker's rules and does nothing).
+# Must run AFTER dockerd starts (dockerd creates the DOCKER-USER chain). Egress
+# is otherwise OPEN: inner containers reach the internet through the egress proxy
+# (write_dind_docker_config). Broader internal lockdown (RFC1918 / cross-tenant)
+# is a follow-up tied to an egress allowlist and must exempt the proxy + pool.
+# Best-effort: IMDS is already unreachable via the --internal network, so a
+# failure here is not fatal.
 apply_inner_egress_fence() {
-  _pool="$TALE_DIND_INNER_POOL"
-  # Exempt intra-inner traffic BEFORE the broad rejects (iptables is first-match;
-  # the pool is inside 172.16/12, so this must precede that reject).
-  "$_IPTABLES" -I FORWARD 1 -s "$_pool" -d "$_pool" -j ACCEPT || return 1
-  for _cidr in 169.254.0.0/16 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10; do
-    "$_IPTABLES" -A FORWARD -s "$_pool" -d "$_cidr" -j REJECT \
-      --reject-with icmp-admin-prohibited || return 1
-  done
-  # Best-effort IPv6 (inner daemon runs without --ipv6, so this is belt-and-
-  # suspenders): reject inner forwards to ULA/link-local/IPv4-mapped internals.
+  "$_IPTABLES" -I DOCKER-USER -d 169.254.0.0/16 -j REJECT \
+    --reject-with icmp-host-prohibited 2>/dev/null ||
+    echo "[entrypoint] WARN: could not install inner IMDS egress fence (non-fatal; --internal already blocks it)" >&2
   if [ -x "$_IP6TABLES" ]; then
-    for _c6 in fd00::/8 fe80::/10 ::ffff:169.254.0.0/112 ::ffff:10.0.0.0/104 \
-      ::ffff:172.16.0.0/108 ::ffff:192.168.0.0/112; do
-      "$_IP6TABLES" -A FORWARD -d "$_c6" -j REJECT 2>/dev/null || true
+    for _c6 in fe80::/10 ::ffff:169.254.0.0/112; do
+      "$_IP6TABLES" -I DOCKER-USER -d "$_c6" -j REJECT 2>/dev/null || true
     done
   fi
-  return 0
 }
 
 # Start an inner dockerd and block until it's ready. Fails closed (exit 1) on
@@ -94,11 +108,6 @@ apply_inner_egress_fence() {
 # daemon. dockerd inherits HTTP(S)_PROXY/NO_PROXY from the container env so
 # image pulls traverse the egress proxy.
 start_inner_dockerd() {
-  if ! apply_inner_egress_fence; then
-    echo "[entrypoint] FATAL: could not install inner-DinD egress fence — refusing to start dockerd" >&2
-    exit 1
-  fi
-
   # Sysbox must remap the userns (container-root -> unprivileged host subuid).
   # If it didn't, we'd be granting a daemon real host-root; refuse. Kata is
   # VM-isolated, so an identity map there is expected and fine.
@@ -131,6 +140,8 @@ start_inner_dockerd() {
       exit 1
     fi
     if docker info >/dev/null 2>&1; then
+      # DOCKER-USER exists now that dockerd is up — install the IMDS fence.
+      apply_inner_egress_fence
       echo "[entrypoint] inner dockerd ready (tier=${TALE_RUNTIME_TIER:-?}, pid=${TALE_DOCKERD_PID})"
       return 0
     fi
@@ -193,6 +204,7 @@ if [ "$1" = "daemon" ]; then
   # already-backgrounded dockerd reparents to tini. setpriv drops to the agent
   # user so Claude Code's bypassPermissions (refused as root) still works.
   if [ "${TALE_DIND:-}" = "1" ]; then
+    write_dind_docker_config
     start_inner_dockerd
     exec tini -g -- \
       setpriv --reuid 10001 --regid 10001 --init-groups -- \
