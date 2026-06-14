@@ -144,6 +144,20 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
     SMOKE_TIMEOUT,
   );
 
+  // doctor runs real preflight checks (docker CLI, daemon, gVisor, userns,
+  // sandbox token). Every docker probe is timeout-bounded, so the command must
+  // terminate with a real verdict — never hang or get SIGKILLed — whatever the
+  // daemon's state. A regression that drops a timeout would hang this test.
+  test(
+    'doctor runs every preflight check and exits without hanging',
+    async () => {
+      const result = await run(['doctor'], dir);
+      expect([0, 1]).toContain(result.exitCode);
+      expect(`${result.stdout}${result.stderr}`).toContain('docker');
+    },
+    SMOKE_TIMEOUT,
+  );
+
   test(
     'init scaffolds a complete project without .env',
     async () => {

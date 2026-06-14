@@ -24,7 +24,10 @@ export async function daemonReachable(): Promise<DaemonStatus> {
     const result = await exec(
       'docker',
       ['version', '--format', '{{.Server.Version}}'],
-      { silent: true },
+      // Bound the probe: a present-but-unresponsive daemon (socket exists,
+      // VM/engine not answering) makes `docker version` hang indefinitely,
+      // which would freeze any caller (`tale doctor`, `tale start`).
+      { silent: true, timeout: 10 },
     );
     if (result.success) {
       return {

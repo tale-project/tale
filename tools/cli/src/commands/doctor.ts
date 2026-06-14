@@ -25,7 +25,13 @@ interface Check {
 
 function tryRun(cmd: string): string | undefined {
   try {
-    return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] })
+    return execSync(cmd, {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      // Bound every docker probe: a present-but-unreachable daemon makes
+      // `docker info`/`docker version` hang indefinitely, which would freeze
+      // `tale doctor` with no output. Treat a timeout as a failed check.
+      timeout: 10_000,
+    })
       .toString()
       .trim();
   } catch {
@@ -178,11 +184,24 @@ export function createDoctorCommand(): Command {
         }
       }
       const env = process.env;
+      const daemon = await checkDaemon();
+      // runsc + userns-remap are read through `docker info`; when the daemon
+      // is unreachable that call only fails slowly (timeout). Skip them with a
+      // clear note rather than probing a daemon we already know is down.
+      const daemonDownNote = (name: string): Check => ({
+        name,
+        status: 'warn',
+        detail: 'skipped — Docker daemon not reachable',
+      });
       const checks: Check[] = [
         checkDocker(),
-        await checkDaemon(),
-        checkRunsc(),
-        checkUserns(),
+        daemon,
+        daemon.status === 'ok'
+          ? checkRunsc()
+          : daemonDownNote('gVisor runtime (runsc)'),
+        daemon.status === 'ok'
+          ? checkUserns()
+          : daemonDownNote('dockerd userns-remap'),
         checkApparmor(),
         checkSandboxToken(env),
       ];
