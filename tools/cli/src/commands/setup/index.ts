@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 import { Command } from 'commander';
 
@@ -63,11 +63,16 @@ export function createSetupCommand(): Command {
             'Install Docker (see above), then run the launch command below.',
           );
         }
-        if (result.mode === 'production') {
-          logger.info('You\'re set up. Run "tale deploy" to go live.');
-        } else {
-          logger.info('You\'re set up. Run "tale start" to launch locally.');
-        }
+        // init may scaffold into a named subdirectory; prefix the launch with
+        // `cd <dir>` so it runs from the project root. Otherwise `tale start`
+        // finds no project there and initializes a second one on top.
+        const launch =
+          result.mode === 'production' ? 'tale deploy' : 'tale start';
+        const goal =
+          result.mode === 'production' ? 'go live' : 'launch locally';
+        const rel = relative(process.cwd(), result.directory);
+        const command = rel ? `cd ${rel} && ${launch}` : launch;
+        logger.info(`You're set up. Run "${command}" to ${goal}.`);
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));
         process.exit(1);

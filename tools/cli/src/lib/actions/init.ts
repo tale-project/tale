@@ -34,7 +34,7 @@ interface InitOptions {
  */
 type InitResult =
   | { status: 'aborted' }
-  | { status: 'initialized'; mode?: DeployMode };
+  | { status: 'initialized'; mode?: DeployMode; directory: string };
 
 const GITIGNORE_ENTRIES = [
   '.tale/',
@@ -339,7 +339,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
     logger.info(`  ${step++}. tale start    (launch the platform locally)`);
   }
 
-  return { status: 'initialized', mode };
+  return { status: 'initialized', mode, directory: target };
 }
 
 // Top-level markers indicating a Tale project. Under the uniform org-first

@@ -159,6 +159,25 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
   );
 
   test(
+    'start from a parent dir points at the child project, not a re-init',
+    async () => {
+      // init scaffolds into ./proj; running `tale start` from the parent must
+      // guide the user to cd into it — NOT silently initialize a second
+      // project on top (the "No Tale project found. Initializing…" footgun).
+      const init = await run(['init', 'proj', '--force', '--no-env'], dir);
+      expect(init.exitCode).toBe(0);
+
+      const result = await run(['start'], dir);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('cd proj');
+      expect(`${result.stdout}${result.stderr}`).not.toContain(
+        'Initializing in current directory',
+      );
+    },
+    SMOKE_TIMEOUT,
+  );
+
+  test(
     'init scaffolds a complete project without .env',
     async () => {
       const result = await run(['init', 'proj', '--force', '--no-env'], dir);

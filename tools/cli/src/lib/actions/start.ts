@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 
 import pkg from '../../../package.json';
 import { isUserInterrupt } from '../../utils/exit-codes';
@@ -13,7 +13,7 @@ import { ensureDocker } from '../docker/ensure-docker';
 import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
-import { findProject } from '../project/find-project';
+import { findChildProject, findProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
 import { withLock } from '../state/with-lock';
 import { init } from './init';
@@ -138,6 +138,17 @@ interface StartOptions {
 export async function start(options: StartOptions): Promise<void> {
   let projectDir = findProject();
   if (!projectDir) {
+    // `tale init` / `tale setup` scaffold into a named subdirectory, so a
+    // common mistake is running `tale start` one level up. Point at the child
+    // project rather than silently initializing a second one on top.
+    const childProject = findChildProject();
+    if (childProject) {
+      const rel = relative(process.cwd(), childProject);
+      throw new Error(
+        `No Tale project in this directory — found one at ./${rel}. ` +
+          `Run it from there:\n  cd ${rel} && tale start`,
+      );
+    }
     logger.warn('No Tale project found. Initializing in current directory...');
     logger.blank();
     await init({ directory: process.cwd() });
