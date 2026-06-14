@@ -13,9 +13,7 @@ vi.mock('./thought-timeline', () => ({
   MessageThoughtHeader: () => <div data-testid="thought-header" />,
   InlineReasoning: () => <div data-testid="reasoning-row" />,
   ToolStepRow: () => <div data-testid="tool-row" />,
-  ThinkingIndicator: ({ lastEventAt }: { lastEventAt?: number }) => (
-    <div data-testid="thinking" data-last-event-at={lastEventAt} />
-  ),
+  ThinkingIndicator: () => <div data-testid="thinking" />,
 }));
 
 const mockedUseSessionProgress = vi.mocked(useSessionProgress);
@@ -45,20 +43,35 @@ describe('ExternalAgentLiveTimeline', () => {
     expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
   });
 
-  it('anchors the silence signal on startedAt before the first event', () => {
-    const { lastEventAt: _omitted, ...withoutLastEvent } = runningProgress;
-    // No events yet → no thought segments → falls back to the placeholder,
-    // whose honest-silence label anchors on startedAt.
+  it('lets the header own reasoning — no inline reasoning row', () => {
+    // A `text` event maps to a reasoning part. The header is the single thinking
+    // control, so it renders but the inline reasoning row does NOT (parity with
+    // the saved bubble).
     mockedUseSessionProgress.mockReturnValue({
-      ...withoutLastEvent,
+      ...runningProgress,
+      recentEvents: [
+        JSON.stringify({ type: 'text', text: 'Considering the request' }),
+      ],
+    });
+
+    render(<ExternalAgentLiveTimeline threadId="thread-1" phase="thinking" />);
+
+    expect(screen.getByTestId('thought-header')).toBeInTheDocument();
+    expect(screen.queryByTestId('reasoning-row')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tool-row')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the placeholder when no events have streamed yet', () => {
+    mockedUseSessionProgress.mockReturnValue({
+      ...runningProgress,
       recentEvents: [],
     });
 
     render(<ExternalAgentLiveTimeline threadId="thread-1" phase="thinking" />);
 
-    expect(screen.getByTestId('thinking').dataset['lastEventAt']).toBe(
-      String(runningProgress.startedAt),
-    );
+    // No thought segments yet → the gap-shell placeholder renders.
+    expect(screen.getByTestId('thinking')).toBeInTheDocument();
+    expect(screen.queryByTestId('tool-row')).not.toBeInTheDocument();
   });
 
   it('falls back to the placeholder when there is no running op', () => {

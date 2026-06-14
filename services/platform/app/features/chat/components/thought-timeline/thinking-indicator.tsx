@@ -7,7 +7,6 @@ import type { RouteReason } from '../../utils/route-reason';
 import { activityLabel } from './activity-label';
 import { RoutingStepRow } from './step-rows';
 import { ThoughtHeader } from './thought-header';
-import { useStalledSilence } from './use-stalled-silence';
 import { toSeconds, useThinkingTimer } from './use-thinking-timer';
 
 /**
@@ -30,7 +29,6 @@ export function ThinkingIndicator({
   routedAgentName,
   routeReason,
   turnStartMs,
-  lastEventAt,
 }: {
   className?: string;
   /** 'routing' while the Auto router is still deciding (no agent yet); 'thinking'
@@ -39,29 +37,19 @@ export function ThinkingIndicator({
   routedAgentName?: string;
   routeReason?: RouteReason;
   turnStartMs?: number;
-  /** When the turn's agent last emitted a stream event. A gap past
-   *  WORKING_STALL_MS swaps the "Thinking" label for "Still working" — the
-   *  turn is alive but silent (e.g. an in-session background task). */
-  lastEventAt?: number;
 }) {
   const { t } = useT('chat');
   // The gap is always a pre-answer "thinking" window, so the timer ticks.
   const { liveElapsedMs } = useThinkingTimer(turnStartMs, true);
-  const stalled = useStalledSilence(lastEventAt, true);
 
   // "Routing · Ns" while the router decides; "Thinking · Ns" once it has (or for
   // a pinned agent). Once resolved, chat-interface passes phase 'thinking' with
   // the routed agent, so the header reads "Thinking" and the chip carries the
   // routing decision — matching the in-bubble split.
-  let activity: ThoughtActivity =
+  const activity: ThoughtActivity =
     phase === 'routing' && !routedAgentName
       ? { type: 'routing' }
       : { type: 'thinking' };
-  // Honest-silence override: the turn is alive but the agent has been quiet
-  // past the threshold — say so instead of ticking "Thinking" forever.
-  if (stalled && activity.type === 'thinking') {
-    activity = { type: 'working' };
-  }
   const label = activityLabel(t, activity);
   const headerText =
     liveElapsedMs != null

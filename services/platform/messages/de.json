@@ -847,8 +847,7 @@
       "skillsCount": "{count, plural, one {# Skill} other {# Skills}}",
       "tokensCount": "{count, plural, one {# Token} other {# Tokens}}",
       "summaryReasoningOnly": "Hat den Gedankengang gezeigt",
-      "responding": "Antwortet",
-      "working": "Arbeitet weiter — länger laufender Schritt"
+      "responding": "Antwortet"
     },
     "routing": {
       "routedTo": "An {agent} weitergeleitet",

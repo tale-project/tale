@@ -39,7 +39,6 @@ import {
   useChatAgents,
   useMessageMetadata,
   useFileUrls,
-  useSessionProgress,
   useThreadLiveRoute,
   useThreadGenerationStart,
   type ThreadLiveRoute,
@@ -54,6 +53,7 @@ import {
 import {
   buildMessageSegments,
   deriveActivity,
+  type MessageSegment,
 } from '../utils/build-message-segments';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
@@ -201,20 +201,6 @@ function MessageBubbleComponent({
   const isUser = message.role === 'user';
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
-  // External-agent silence signal for the in-bubble header: once the answer
-  // text lands, this bubble is the only live "Thinking" surface (the footer
-  // timeline unmounts), so it needs the op's lastEventAt to swap a long-silent
-  // "Thinking" for the honest "Still working" label. Subscribed only for the
-  // last streaming assistant bubble; normal chat threads have no op → null.
-  const sessionProgress = useSessionProgress(
-    isAssistantStreaming && isLastAssistantMessage
-      ? message.threadId
-      : undefined,
-  );
-  const lastEventAt =
-    sessionProgress?.status === 'running'
-      ? (sessionProgress.lastEventAt ?? sessionProgress.startedAt)
-      : undefined;
   const voiceMode = useVoiceModeEffective(message.threadId);
   useVoiceOutputChunker({
     // Gate on assistant role explicitly. `!isUser` would let system
@@ -541,6 +527,21 @@ function MessageBubbleComponent({
     messageSegments.hasReasoning ||
     messageSegments.toolCount > 0 ||
     messageSegments.skillCount > 0;
+  // The header is the SINGLE thinking control: it owns the reasoning blocks (a
+  // chevron reveals them all, in order) so they aren't repeated inline among the
+  // answer/tool rows. The header renders exactly when `hasActualThought`; when
+  // it does, it owns reasoning and `MessageSegments` skips the inline blocks.
+  // When it does NOT (e.g. redacted-only reasoning with no text → no tools), the
+  // inline path still surfaces the neutral note, so nothing is lost.
+  const reasoningSteps = useMemo(
+    () =>
+      messageSegments.segments.filter(
+        (s): s is Extract<MessageSegment, { kind: 'reasoning' }> =>
+          s.kind === 'reasoning',
+      ),
+    [messageSegments.segments],
+  );
+  const headerOwnsReasoning = hasActualThought;
   // Memoize the header strip element so it re-renders only when its inputs
   // genuinely change, not on every streamed answer token.
   const thoughtHeader = useMemo(
@@ -560,7 +561,7 @@ function MessageBubbleComponent({
           hasReasoning={messageSegments.hasReasoning}
           turnStartMs={turnStartMs}
           activity={activity}
-          {...(lastEventAt !== undefined && { lastEventAt })}
+          reasoningSteps={reasoningSteps}
         />
       ) : null,
     [
@@ -573,7 +574,7 @@ function MessageBubbleComponent({
       messageSegments,
       turnStartMs,
       activity,
-      lastEventAt,
+      reasoningSteps,
     ],
   );
 
@@ -807,6 +808,7 @@ function MessageBubbleComponent({
                   <MessageSegments
                     segments={messageSegments.segments}
                     active={!!isAssistantStreaming}
+                    headerOwnsReasoning={headerOwnsReasoning}
                     citationNumbers={citationNumbers}
                     onSendFollowUp={onSendFollowUp}
                     messageId={message.id}

@@ -3,10 +3,6 @@ import type { useT } from '@/lib/i18n/client';
 import type { ThoughtActivity } from '../../utils/build-message-segments';
 import { formatToolDetail } from '../../utils/format-tool-detail';
 
-/** How long the turn may stay silent (no stream events) before the live
- * "Thinking" header switches to the honest "Still working" label. */
-export const WORKING_STALL_MS = 60_000;
-
 /**
  * Localize a streaming turn's live activity into the header verb
  * ("Routing…" / "Thinking…" / "Responding…" / "Searching knowledge base for …").
@@ -20,7 +16,6 @@ export function activityLabel(
   if (activity.type === 'routing') return t('thoughtProcess.routingPhase');
   if (activity.type === 'thinking') return t('thoughtProcess.thinking');
   if (activity.type === 'responding') return t('thoughtProcess.responding');
-  if (activity.type === 'working') return t('thoughtProcess.working');
   // 'tool' (incl. delegate_* → "Asking {agent}").
   return formatToolDetail(t, activity.toolName, activity.input).displayText;
 }

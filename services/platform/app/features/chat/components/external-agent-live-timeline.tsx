@@ -7,10 +7,10 @@ import { buildExternalAgentParts } from '../utils/build-external-agent-parts';
 import {
   buildMessageSegments,
   deriveActivity,
+  type MessageSegment,
 } from '../utils/build-message-segments';
 import type { RouteReason } from '../utils/route-reason';
 import {
-  InlineReasoning,
   MessageThoughtHeader,
   ThinkingIndicator,
   ToolStepRow,
@@ -59,12 +59,12 @@ export function ExternalAgentLiveTimeline({
   // The agent's narration maps to reasoning parts and the final answer arrives
   // as the saved message, so only the thought rows render here — no text runs.
   const thoughtSegments = segments.filter((s) => s.kind !== 'text');
-  // Anchor on startedAt before the first event lands — a turn that wedges at
-  // CLI boot is exactly the silent-but-alive case the honest label exists for.
-  const lastEventAt =
-    progress?.status === 'running'
-      ? (progress.lastEventAt ?? progress.startedAt)
-      : undefined;
+  // The header is the single thinking control — it owns reasoning (expandable),
+  // so only the action (tool) rows render inline. Mirrors the saved bubble.
+  const reasoningSteps = segments.filter(
+    (s): s is Extract<MessageSegment, { kind: 'reasoning' }> =>
+      s.kind === 'reasoning',
+  );
 
   if (progress?.status === 'running' && thoughtSegments.length > 0) {
     return (
@@ -76,13 +76,12 @@ export function ExternalAgentLiveTimeline({
           skillCount={skillCount}
           hasReasoning={hasReasoning}
           activity={deriveActivity(segments)}
+          reasoningSteps={reasoningSteps}
           {...(turnStartMs !== undefined && { turnStartMs })}
-          {...(lastEventAt !== undefined && { lastEventAt })}
         />
         {thoughtSegments.map((segment) =>
-          segment.kind === 'reasoning' ? (
-            <InlineReasoning key={segment.id} step={segment} active />
-          ) : (
+          // Reasoning is owned by the header above; render only action rows.
+          segment.kind === 'reasoning' ? null : (
             <div key={segment.id} className="my-2">
               <ToolStepRow step={segment} active />
             </div>
@@ -99,7 +98,6 @@ export function ExternalAgentLiveTimeline({
       {...(routedAgentName !== undefined && { routedAgentName })}
       {...(routeReason !== undefined && { routeReason })}
       {...(turnStartMs !== undefined && { turnStartMs })}
-      {...(lastEventAt !== undefined && { lastEventAt })}
     />
   );
 }

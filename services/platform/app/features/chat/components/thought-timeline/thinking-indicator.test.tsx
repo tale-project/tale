@@ -15,7 +15,6 @@ vi.mock('@/lib/i18n/client', () => ({
         'thoughtProcess.seconds': `${p('seconds')}s`,
         'routing.routedTo': `Routed to ${p('agent')}`,
         'routing.reason.classified': 'Best match for this request',
-        'thoughtProcess.working': 'Still working',
       };
       return map[key] ?? key;
     },
@@ -53,27 +52,12 @@ describe('ThinkingIndicator', () => {
     expect(screen.queryByText(/Routed to/)).not.toBeInTheDocument();
   });
 
-  it('swaps to "Still working" once the silence passes the stall threshold', () => {
-    render(
-      <ThinkingIndicator phase="thinking" lastEventAt={Date.now() - 120_000} />,
-    );
-    expect(screen.getByText(/Still working/)).toBeInTheDocument();
-    expect(screen.queryByText(/Thinking/)).not.toBeInTheDocument();
-  });
-
-  it('keeps "Thinking" while events are fresh', () => {
-    render(
-      <ThinkingIndicator phase="thinking" lastEventAt={Date.now() - 5_000} />,
-    );
-    expect(screen.getByText(/Thinking/)).toBeInTheDocument();
-  });
-
-  it('never overrides the routing phase', () => {
-    render(
-      <ThinkingIndicator phase="routing" lastEventAt={Date.now() - 120_000} />,
-    );
-    expect(screen.getByText(/Routing/)).toBeInTheDocument();
-    expect(screen.queryByText(/Still working/)).not.toBeInTheDocument();
+  it('renders no expand toggle (it shares the non-interactive header with the bubble)', () => {
+    // The gap shell is never expandable: ThoughtHeader gets the reserved-width
+    // spacer, not a chevron/button, so the brain/label sit at the exact x-offset
+    // the bubble will use — zero jitter when the bubble takes over.
+    render(<ThinkingIndicator phase="thinking" />);
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('passes an accessibility audit', async () => {
