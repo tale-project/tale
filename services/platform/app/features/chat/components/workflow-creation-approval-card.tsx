@@ -204,11 +204,7 @@ function getStepConfigEntries(
     }
 
     case 'output': {
-      const mapping = isRecord(config.mapping)
-        ? config.mapping
-        : isRecord(config.outputMapping)
-          ? config.outputMapping
-          : undefined;
+      const mapping = isRecord(config.mapping) ? config.mapping : undefined;
       if (mapping) {
         for (const [key, val] of Object.entries(mapping)) {
           entries.push({

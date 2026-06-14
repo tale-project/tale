@@ -60,6 +60,45 @@ download_file() {
     success "Download complete"
 }
 
+# Verify the downloaded binary against the release's SHA256SUMS file. Releases
+# that predate checksum publishing won't have one — warn and continue rather
+# than hard-fail, so the installer keeps working against older tags.
+verify_checksum() {
+    local file=$1 tag=$2 asset="${BINARY_NAME}_${PLATFORM}"
+    local sums_url="https://github.com/${REPO}/releases/download/${tag}/tale_checksums.txt"
+    local sums expected actual
+
+    if [ "$DOWNLOADER" = "curl" ]; then
+        sums=$(curl -fsSL "$sums_url" 2>/dev/null || true)
+    else
+        sums=$(wget -qO- "$sums_url" 2>/dev/null || true)
+    fi
+    if [ -z "$sums" ]; then
+        info "No checksum file published for ${tag}; skipping verification."
+        return
+    fi
+
+    expected=$(printf '%s\n' "$sums" | awk -v n="$asset" '$2==n {print $1}')
+    if [ -z "$expected" ]; then
+        info "No checksum entry for ${asset}; skipping verification."
+        return
+    fi
+
+    if command -v sha256sum &>/dev/null; then
+        actual=$(sha256sum "$file" | awk '{print $1}')
+    elif command -v shasum &>/dev/null; then
+        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+    else
+        info "No sha256 tool found; skipping verification."
+        return
+    fi
+
+    if [ "$actual" != "$expected" ]; then
+        error "Checksum mismatch for ${asset} (expected ${expected}, got ${actual}). Aborting."
+    fi
+    success "Checksum verified"
+}
+
 # Find the first release whose assets include our platform binary. Walks the
 # JSON line-by-line: remembers the most recent tag_name and prints it the
 # moment the expected asset filename appears in the same release block.
@@ -160,6 +199,7 @@ install_binary() {
     [ -n "${VERSION:-}" ] && verify_release_exists "$binary_url"
 
     download_file "$binary_url" "$tmp_file"
+    verify_checksum "$tmp_file" "$tag"
     chmod +x "$tmp_file"
 
     if [ -w "$INSTALL_DIR" ]; then
@@ -197,7 +237,10 @@ main() {
     install_binary
     verify_installation
 
-    success "Run 'tale --help' to get started."
+    # Hand off to the CLI: `tale init` scaffolds a project (no prerequisites);
+    # `tale start` then installs/starts Docker on demand and launches locally.
+    echo
+    success "Next: run 'tale init' to create your project, then 'tale start' to launch it."
 }
 
 main

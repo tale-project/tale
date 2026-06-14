@@ -23,7 +23,7 @@ import {
   promptScopeValidator,
   promptTemplateValidator,
 } from './validators';
-import { synthesizeLegacyV1Entry } from './version_history';
+import { synthesizeV1Entry } from './version_history';
 
 type PromptDoc = Doc<'promptTemplates'>;
 
@@ -480,12 +480,13 @@ export const getPromptHistory = queryWithRLS({
     const resolveName = (id: string): string | null => nameMap.get(id) ?? null;
 
     if (all.length === 0) {
-      // Legacy or freshly-seeded row with no inline history yet. Synthesize
-      // a v1 from the row's current state via the shared helper so the dialog
-      // and `resolveRestoreTarget` always read the same shape. The JIT seed
-      // in `buildNextVersionEntry` later promotes this into the persisted
-      // array on first edit.
-      const v1 = synthesizeLegacyV1Entry(prompt);
+      // Defensive: prompts created here are born with inline history, but
+      // `versionHistory` is optional on the schema, so synthesize a v1 from
+      // the row's current state via the shared helper. Using the same helper
+      // as `resolveRestoreTarget` keeps the dialog and the restore path
+      // reading one shape; the JIT seed in `buildNextVersionEntry` promotes
+      // it into the persisted array on first edit.
+      const v1 = synthesizeV1Entry(prompt);
       return {
         current: {
           ...v1,

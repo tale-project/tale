@@ -33,17 +33,13 @@ import {
  * The watchdog (see `internal_mutations.ts:recoverStuckSandboxes`) sweeps
  * `queued`, `installing`, AND any legacy `running` rows past
  * `SANDBOX_WATCHDOG_CUTOFF_MS` so a throw between `reserveSlotAndInsert`
- * and any subsequent patch cannot leak a quota slot forever. When the
- * watchdog reaps a row that's bound to a runnable artifact (artifactId
- * non-null), it cascades the failure to the artifact row so the canvas
- * spinner terminates immediately.
+ * and any subsequent patch cannot leak a quota slot forever.
  *
  * Indexes:
  *   by_organizationId_and_status — quota counting (reserveSlot scan)
  *   by_organizationId            — daily CPU-budget sum + per-org history
  *                                  + opportunistic 90-day GC sweep
  *   by_status                    — watchdog sweep across all orgs
- *   by_artifactId                — watchdog cascade lookup
  *
  * This is an audit table; user-facing soft-delete / trash UI is intentionally
  * NOT wired up. Retention is 90 days; cleanup runs opportunistically
@@ -57,19 +53,14 @@ export const sandboxExecutionsTable = defineTable({
   toolCallId: v.optional(v.string()),
   uploadedBy: v.string(),
   agentSlug: v.optional(v.string()),
-  // @deprecated — artifacts module removed. Field kept (typed loosely) so
-  // existing rows pass the read validator after schema deploy.
-  artifactId: v.optional(v.string()),
-  // For artifact-bound runs: which file path the LLM asked the sandbox to
-  // execute (`main.js`, `verify.py`, …). Lets the canvas render the
-  // latest-run-per-file panel so a verify run no longer clobbers the
-  // generator's output chip. Optional for back-compat with rows written
-  // before the column existed.
+  // Which file path the LLM asked the sandbox to execute (`main.js`,
+  // `verify.py`, …). Lets the canvas render the latest-run-per-file panel so
+  // a verify run no longer clobbers the generator's output chip. Optional for
+  // back-compat with rows written before the column existed.
   path: v.optional(v.string()),
-  // For `skill_run` invocations: the skill slug (mutually exclusive with
-  // artifactId — a row is either artifact-bound or skill-bound). Lets
-  // forensics enumerate "all runs of skill X" without substring-grepping
-  // `purpose`. Populated by `skill_run_tool.ts`.
+  // For `skill_run` invocations: the skill slug. Lets forensics enumerate
+  // "all runs of skill X" without substring-grepping `purpose`. Populated by
+  // `skill_run_tool.ts`.
   skillSlug: v.optional(v.string()),
   // sha256 of SKILL.md at execution time. Detects whether the skill was
   // edited between bind-time snapshot and runtime — important for
@@ -84,16 +75,6 @@ export const sandboxExecutionsTable = defineTable({
   codePreview: v.string(),
   codeStorageId: v.optional(v.id('_storage')),
   packages: v.array(v.string()),
-  // @deprecated — install-time guards (--only-binary, --ignore-scripts) were
-  // dropped; the ephemeral container is the security boundary and install-time
-  // flags added nothing on top. Field retained as optional for read-validation
-  // on legacy rows; new writes never set it.
-  installOptions: v.optional(
-    v.object({
-      allowSdist: v.optional(v.boolean()),
-      allowInstallScripts: v.optional(v.boolean()),
-    }),
-  ),
 
   status: sandboxRunStatusValidator,
   // Every status patch must update this. Watchdog reads
@@ -197,7 +178,6 @@ export const sandboxExecutionsTable = defineTable({
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId', ['organizationId'])
   .index('by_status', ['status'])
-  .index('by_artifactId', ['artifactId'])
   // For skill_run forensics: "all runs of skill X" without substring grep.
   .index('by_organizationId_and_skillSlug', ['organizationId', 'skillSlug'])
   // For the user-Stop cascade in `cancel_generation.ts` — locates every

@@ -9,7 +9,7 @@ La page de l'opérateur pour l'automatisation de la workforce IA. Les surfaces p
 
 Le pack se provisionne par organisation avec des désactivations persistantes (les modifications de l'organisation gagnent toujours ; une ré-exécution ne réactive jamais un déclencheur désactivé par un admin) :
 
-1. **Vague 0 — interne** : activer pour une organisation interne (`migrations/provision_task_ops_pack` avec activation), surveiller la bande de santé Workforce pendant une semaine. Sortie : zéro échec d'automatisation non traité.
+1. **Vague 0 — interne** : activer pour une organisation interne (`provisioning/provision_task_ops_pack` avec activation), surveiller la bande de santé Workforce pendant une semaine. Sortie : zéro échec d'automatisation non traité.
 2. **Vague 1 — provisionné, coupé** : toutes les organisations reçoivent le pack inactif ; les admins l'activent eux-mêmes via l'interrupteur Workforce. Sortie : bande de santé propre 72 h sur les organisations activées.
 3. **Vague 2 — activé par défaut** : activation par défaut pour les organisations n'ayant jamais touché l'interrupteur.
 

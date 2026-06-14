@@ -111,6 +111,18 @@ export default defineConfig({
       // discovers it plus its transitive prop-types -> react-is, forcing a
       // re-optimization that 404s the in-flight `react-is-*.js` chunk.
       'recharts',
+      // Three deps reached only through lazily-loaded components/dialogs, so
+      // the cold-start scanner never sees them. The first mount of each
+      // discovers it mid-session and triggers a re-optimization that 504s the
+      // in-flight dynamic import (an "Outdated Optimize Dep"), crashing the
+      // feature into its error boundary:
+      //   - `diff`        -> prompt compare view (behind the chat prompt library)
+      //   - `elkjs`       -> the shared flow layout engine (lazy `elk.bundled.js`)
+      //   - react-json-view -> the JSON input/viewer (automation step config panel)
+      // Pre-bundling them keeps the optimizer hash stable from cold start.
+      'diff',
+      'elkjs/lib/elk.bundled.js',
+      '@microlink/react-json-view',
     ],
     exclude: [
       '@tanstack/react-start/server',

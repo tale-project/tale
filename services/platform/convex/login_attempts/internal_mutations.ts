@@ -4,6 +4,7 @@ import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { readConfigCacheRow } from '../lib/config_cache/read';
 import { splitEmailForAudit, splitIpForAudit } from '../lib/helpers/pii_hash';
 import { writeNotificationForOrgs } from '../notifications/helpers';
 import {
@@ -86,14 +87,12 @@ export const recordFailure = internalMutation({
     if (orgs.length > 0) {
       const policies = await Promise.all(
         orgs.map(async ({ organizationId }) => {
-          const row = await ctx.db
-            .query('governancePolicies')
-            .withIndex('by_org_policyType', (q) =>
-              q
-                .eq('organizationId', organizationId)
-                .eq('policyType', 'login_policy'),
-            )
-            .first();
+          const row = await readConfigCacheRow(
+            ctx.db,
+            organizationId,
+            'governance',
+            'login_policy',
+          );
           return parseLoginPolicy(row?.config);
         }),
       );

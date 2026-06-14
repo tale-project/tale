@@ -36,4 +36,3 @@ export * from './find_document_by_title';
 export * from './find_document_by_external_id';
 export * from './find_document_by_file_id';
 export * from './update_document_internal';
-export * from './update_document_rag_info';

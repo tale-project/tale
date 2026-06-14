@@ -4,10 +4,27 @@ import type { Edge, Node } from '@xyflow/react';
 import { MarkerType } from '@xyflow/react';
 import React, { useMemo } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ElkLayoutOptions } from '@/app/components/flow/layout/elk-layout';
+import { useElkLayout } from '@/app/components/flow/layout/use-elk-layout';
+import { useT } from '@/lib/i18n/client';
 
-import { getLayoutedElements } from '../utils/dagre-layout';
-import { getStepActionType } from '../utils/step-icons';
+import { getStepActionType, type StepDef } from '../utils/step-icons';
+
+// Loop containers are compound nodes — ELK sizes them to fit their children
+// (top padding leaves room for the loop header). These dimensions are only the
+// nominal fallback for an empty loop that has no body nodes to measure.
+const LOOP_NOMINAL_WIDTH = 640;
+const LOOP_NOMINAL_HEIGHT = 310;
+
+const AUTOMATION_ELK_OPTIONS: ElkLayoutOptions = {
+  direction: 'DOWN',
+  // Generous gaps so branches and their Yes/No labels have room to breathe and
+  // the orthogonal arrows read as distinct paths rather than a tangle.
+  nodeNodeSpacing: 90,
+  layerSpacing: 90,
+  edgeNodeSpacing: 28,
+  compoundPadding: { top: 84, right: 24, bottom: 32, left: 24 },
+};
 
 const LOOP_EXIT_KEYS = new Set(['done', 'complete', 'finished', 'exit']);
 const NEGATIVE_BRANCH_KEYS = new Set([
@@ -24,7 +41,9 @@ const POSITIVE_BRANCH_KEYS = new Set([
   'success',
   'default',
 ]);
-const NEUTRAL_EDGE_COLOR = '#9CA3AF';
+// Calm, theme-aware gray for the main "spine" (non-branching) connections, so
+// the eye follows the happy path and only decisions/outcomes draw color.
+const NEUTRAL_EDGE_COLOR = 'hsl(var(--muted-foreground))';
 
 /**
  * Resolve the color + label for a condition step's branch edge. Standard
@@ -46,10 +65,14 @@ export function resolveConditionBranchEdge(key: string): {
   return { color: NEUTRAL_EDGE_COLOR, label: key };
 }
 
-export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
-  return useMemo(() => {
+export function useAutomationLayout(steps: StepDef[]) {
+  const { t } = useT('automations');
+  const { rawNodes, builtEdges } = useMemo<{
+    rawNodes: Node[];
+    builtEdges: Edge[];
+  }>(() => {
     if (!steps || steps.length === 0) {
-      return { initialNodes: [], initialEdges: [] };
+      return { rawNodes: [], builtEdges: [] };
     }
 
     const sortedSteps = [...steps].sort((a, b) => a.order - b.order);
@@ -112,83 +135,6 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
       loopBodyMap.set(loopNode.stepSlug, bodyNodes);
     });
 
-    const calculateLoopWidth = (loopStepSlug: string): number => {
-      const BASE_WIDTH = 640;
-      const NODE_WIDTH = 300;
-      const HORIZONTAL_PADDING = 32;
-      const NODE_SEP = 120;
-      const EXTRA_MARGIN = 64;
-
-      const children = sortedSteps.filter((s) => {
-        const childParentSlug = Array.from(loopBodyMap.entries()).find(
-          ([, bodies]) => bodies.has(s.stepSlug),
-        )?.[0];
-        return childParentSlug === loopStepSlug;
-      });
-
-      if (children.length === 0) {
-        return BASE_WIDTH;
-      }
-
-      const nestedLoops = children.filter((child) => child.stepType === 'loop');
-
-      if (nestedLoops.length === 0) {
-        return BASE_WIDTH;
-      }
-
-      const nestedLoopWidths = nestedLoops.map((loop) =>
-        calculateLoopWidth(loop.stepSlug),
-      );
-
-      const maxNestedWidth = Math.max(...nestedLoopWidths);
-
-      const conditionalNodes = children.filter(
-        (child) => child.stepType === 'condition',
-      );
-
-      let maxBranchWidth = 0;
-      conditionalNodes.forEach((condNode) => {
-        const targets = Object.values(condNode.nextSteps);
-        const targetNodes = targets
-          .map((targetSlug) => children.find((c) => c.stepSlug === targetSlug))
-          .filter(Boolean);
-
-        const hasLoopBranch = targetNodes.some((t) => t?.stepType === 'loop');
-        const hasNonLoopBranch = targetNodes.some(
-          (t) => t?.stepType !== 'loop',
-        );
-
-        if (hasLoopBranch && hasNonLoopBranch) {
-          const loopWidth = targetNodes
-            .filter((t) => t?.stepType === 'loop')
-            .map((t) => calculateLoopWidth(t?.stepSlug ?? ''))
-            .reduce((max, w) => Math.max(max, w), 0);
-
-          const nonLoopWidth = NODE_WIDTH;
-          const branchWidth = loopWidth + NODE_SEP + nonLoopWidth;
-          maxBranchWidth = Math.max(maxBranchWidth, branchWidth);
-        }
-      });
-
-      if (maxBranchWidth > 0) {
-        return Math.min(maxBranchWidth + HORIZONTAL_PADDING, 1920);
-      }
-
-      if (nestedLoops.length === 1) {
-        return maxNestedWidth + HORIZONTAL_PADDING + EXTRA_MARGIN;
-      }
-
-      const totalNestedWidth = nestedLoopWidths.reduce((sum, w) => sum + w, 0);
-      const spacingBetween = (nestedLoops.length - 1) * NODE_SEP;
-
-      const widthForBranching =
-        totalNestedWidth + spacingBetween + HORIZONTAL_PADDING;
-      const widthForStacking =
-        maxNestedWidth + HORIZONTAL_PADDING + EXTRA_MARGIN;
-
-      return Math.min(Math.max(widthForBranching, widthForStacking), 1920);
-    };
-
     const nodes: Node[] = sortedSteps.map((step) => {
       const isLoopNode = step.stepType === 'loop';
 
@@ -238,16 +184,13 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
       };
 
       if (isLoopNode) {
-        const loopWidth = calculateLoopWidth(step.stepSlug);
-        const topPadding = 80;
-        const bottomPadding = 30;
-        const estimatedHeight = topPadding + 200 + bottomPadding;
-
-        nodeConfig.width = loopWidth;
-        nodeConfig.height = estimatedHeight;
+        // ELK auto-sizes loop containers (compound nodes) to fit their body.
+        // These nominal dimensions only apply to an empty loop with no body.
+        nodeConfig.width = LOOP_NOMINAL_WIDTH;
+        nodeConfig.height = LOOP_NOMINAL_HEIGHT;
         nodeConfig.style = {
-          width: loopWidth,
-          height: estimatedHeight,
+          width: LOOP_NOMINAL_WIDTH,
+          height: LOOP_NOMINAL_HEIGHT,
         };
       } else {
         nodeConfig.width = 300;
@@ -261,7 +204,6 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
       if (parentLoopId) {
         nodeConfig.parentId = parentLoopId;
         nodeConfig.extent = 'parent';
-        nodeConfig.draggable = true;
         nodeConfig.position = { x: 0, y: 0 };
       }
 
@@ -298,7 +240,7 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
             let edgeColor = NEUTRAL_EDGE_COLOR;
             let edgeLabel: string | undefined = undefined;
             let edgeStyle: React.CSSProperties = {
-              strokeWidth: 1.5,
+              strokeWidth: 2,
               stroke: edgeColor,
             };
 
@@ -310,15 +252,22 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
             } else if (step.stepType === 'condition') {
               const branch = resolveConditionBranchEdge(key);
               edgeColor = branch.color;
-              edgeLabel = branch.label;
-              edgeStyle = { strokeWidth: 1.5, stroke: edgeColor };
+              // Show plain-language Yes/No at decisions; keep any custom branch
+              // key (e.g. a named outcome) as-is so it stays identifiable.
+              edgeLabel =
+                branch.label === 'true'
+                  ? t('edges.yes')
+                  : branch.label === 'false'
+                    ? t('edges.no')
+                    : branch.label;
+              edgeStyle = { strokeWidth: 2, stroke: edgeColor };
             } else if (step.stepType === 'action' || step.stepType === 'llm') {
               if (isNegativePath) {
                 edgeColor = 'hsl(var(--destructive))';
               } else if (isPositivePath) {
                 edgeColor = 'hsl(var(--chart-2))';
               }
-              edgeStyle = { strokeWidth: 1.5, stroke: edgeColor };
+              edgeStyle = { strokeWidth: 2, stroke: edgeColor };
             }
 
             const targetStepData = sortedSteps.find(
@@ -372,8 +321,9 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
                     ? -1
                     : -2,
               markerEnd: {
-                type: MarkerType.Arrow,
-                strokeWidth: 1.5,
+                type: MarkerType.ArrowClosed,
+                width: 18,
+                height: 18,
                 color: edgeColor,
               },
               style: {
@@ -386,10 +336,14 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
                     }
                   : {}),
               },
-              animated: !isBackwardConnection,
+              // Static lines: the editor shows structure, not live execution.
+              // Animating every edge reads as noise to a non-technical viewer.
+              animated: false,
               data: {
                 isBackward: isBackwardConnection,
                 label: edgeLabel,
+                // Outline badge in the branch color (colored text + border on a
+                // solid background), matching its arrow without a heavy fill.
                 labelStyle: edgeLabel
                   ? {
                       fill: edgeColor,
@@ -478,15 +432,35 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
       },
     }));
 
-    const layouted = getLayoutedElements(
-      nodesWithFullConnectionData,
-      edges,
-      'TB',
-    );
+    return { rawNodes: nodesWithFullConnectionData, builtEdges: edges };
+  }, [steps, t]);
 
-    return {
-      initialNodes: layouted.nodes,
-      initialEdges: layouted.edges,
-    };
-  }, [steps]);
+  // Lay out with ELK using only the forward edges so the vertical layering
+  // stays clean; React Flow still renders every edge (forward + the backward
+  // loop edges, which route through the nodes' side handles).
+  const layoutEdges = useMemo(
+    () => builtEdges.filter((edge) => !edge.data?.isBackwardConnection),
+    [builtEdges],
+  );
+
+  const { nodes: initialNodes, edgeRoutes } = useElkLayout(
+    rawNodes,
+    layoutEdges,
+    AUTOMATION_ELK_OPTIONS,
+  );
+
+  // Attach each edge's ELK orthogonal route so the renderer draws clean
+  // right-angle arrows. Edges without a route (e.g. backward loop edges) keep
+  // their handle-derived smoothstep path.
+  const initialEdges = useMemo(
+    () =>
+      builtEdges.map((edge) => {
+        const points = edgeRoutes[edge.id];
+        if (!points) return edge;
+        return { ...edge, data: { ...edge.data, elkPoints: points } };
+      }),
+    [builtEdges, edgeRoutes],
+  );
+
+  return { initialNodes, initialEdges };
 }

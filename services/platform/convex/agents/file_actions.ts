@@ -84,7 +84,7 @@ type AgentAuditAction =
  * Best-effort audit emit for agent writes — never blocks the user-visible
  * operation. Mirrors `logSkillAudit` in skills/file_actions.ts. Capability
  * fields (toolNames, integrationBindings, workflowBindings, skillBindings,
- * reportsTo, roleRestriction) belong in the state diff so a reviewer can
+ * delegates, roleRestriction) belong in the state diff so a reviewer can
  * see exactly what changed; the agent-side audit was previously absent
  * altogether, making skillBindings widening invisible.
  */
@@ -139,7 +139,6 @@ function captureCapability(
     ...(config.roleRestriction && { roleRestriction: config.roleRestriction }),
     // Delegation edges: grant this agent a delegate_* tool per target.
     ...(config.delegates && { delegates: config.delegates }),
-    ...(config.reportsTo && { reportsTo: config.reportsTo }),
     // Guardrails: spend authority + parallelism are capability-grade.
     ...(config.budget && { budget: config.budget }),
     ...(config.maxConcurrentTasks !== undefined && {
@@ -348,20 +347,14 @@ export const saveAgent = action({
       ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
       : memberAuth;
 
-    // `skillBindingsResolved` is a legacy snapshot from the old transitive
-    // tool-grant model — never write it again. `skillBindings` itself is now
-    // a hard allowlist and is persisted as-is.
-    //
-    // `delegates` / `reportsTo` (the organigram delegation edges) have exactly
-    // ONE write path: the organigram actions (`setAgentDelegates` /
-    // `setAgentParents`). The settings form must never carry them — a stale
-    // form would silently re-wire delegation — so incoming values are dropped
-    // and the on-disk values re-applied here.
+    // `delegates` (the organigram delegation edges) has exactly ONE write
+    // path: the organigram actions (`setAgentDelegates` / `setAgentParents`).
+    // The settings form must never carry it — a stale form would silently
+    // re-wire delegation — so the incoming value is dropped and the on-disk
+    // value re-applied here.
     config = {
       ...config,
-      skillBindingsResolved: undefined,
       delegates: prevAgent.ok ? prevAgent.config.delegates : undefined,
-      reportsTo: prevAgent.ok ? prevAgent.config.reportsTo : undefined,
     };
 
     // Cross-validate supportedModels against provider model lists.
@@ -562,11 +555,9 @@ export const duplicateAgent = action({
   handler: async (ctx, args): Promise<{ newAgentName: string }> => {
     // Duplicating an agent that has any capability-bearing field (skill
     // bindings, tools, integrations, workflows) creates a NEW agent with
-    // the same grants. The legacy `skillBindingsResolved` snapshot is
-    // stripped on write (see `skillBindingsResolved: undefined` below);
-    // `skillBindings` itself carries forward as-is. The duplicate-vs-save
-    // trust boundary must match saveAgent — both create reachable grants,
-    // both gate on developerSettings.
+    // the same grants — `skillBindings` carries forward as-is. The
+    // duplicate-vs-save trust boundary must match saveAgent — both create
+    // reachable grants, both gate on developerSettings.
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     const { orgSlug } = auth;
     const source = await readAgentFile(orgSlug, args.agentName);
@@ -620,14 +611,13 @@ export const duplicateAgent = action({
         )
       : undefined;
 
-    const legacyDisplayName = source.config.displayName;
-    const suffixedTopLevel = legacyDisplayName
-      ? `${legacyDisplayName}${suffix}`
+    const topLevelDisplayName = source.config.displayName;
+    const suffixedTopLevel = topLevelDisplayName
+      ? `${topLevelDisplayName}${suffix}`
       : undefined;
 
     // `skillBindings` carries over to the copy (the copy should have the
-    // same skill surface as the source). `skillBindingsResolved` is the
-    // legacy transitive-grant snapshot and is dropped.
+    // same skill surface as the source).
     const draft: AgentJsonConfig = {
       ...source.config,
       ...(suffixedTopLevel !== undefined
@@ -635,7 +625,6 @@ export const duplicateAgent = action({
         : {}),
       ...(nextI18n ? { i18n: nextI18n } : {}),
       visibleInChat: false,
-      skillBindingsResolved: undefined,
     };
 
     // If neither the legacy top-level nor any i18n locale had a displayName,

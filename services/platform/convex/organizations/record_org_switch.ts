@@ -19,9 +19,8 @@
  *
  * Without dedup the same user re-activating the same org during a session
  * would spam the audit log. We skip the audit write if the same user already
- * has an entry for the same org within DEDUP_WINDOW_MS. The check OR-matches
- * the legacy `entered_organization` action name so dedup keeps working
- * across the rename for any old rows in the window.
+ * has a `signed_in_to_organization` entry for the same org within
+ * DEDUP_WINDOW_MS.
  */
 
 import { v } from 'convex/values';
@@ -67,11 +66,7 @@ export const recordOrgSwitch = mutation({
           .gte('timestamp', cutoff),
       )
       .order('desc')) {
-      if (
-        // TODO: drop `entered_organization` branch after demo data purge.
-        entry.action === 'signed_in_to_organization' ||
-        entry.action === 'entered_organization'
-      ) {
+      if (entry.action === 'signed_in_to_organization') {
         hasRecentEntry = true;
         break;
       }

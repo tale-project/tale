@@ -641,10 +641,9 @@ export const ingestVideoLink = internalAction({
           source: 'video_link',
           uploadedBy: job.uploadedBy,
           ...(job.threadId !== undefined && { threadId: job.threadId }),
-          // sourceUrl/sourcePlatform/videoTitle/uploader/duration NOT
-          // copied here — `start_agent_chat.ts` JOINs videoLinkJobs by
-          // storageId. Avoids two writers of the same data; the legacy
-          // fileMetadata fields stay as @deprecated fallback.
+          // Video-link provenance (sourceUrl/sourcePlatform/videoTitle/
+          // uploader/duration) lives on `videoLinkJobs` — `start_agent_chat.ts`
+          // JOINs it by storageId. Single writer; not duplicated here.
         },
       );
 

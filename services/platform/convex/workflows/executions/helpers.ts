@@ -16,7 +16,6 @@ export * from './resume_execution';
 export * from './set_component_workflow';
 export * from './update_execution_metadata';
 export * from './update_execution_variables';
-export * from './get_workflow_execution_stats';
 export * from './get_execution_step_journal';
 export * from './get_execution_step_statuses';
 export * from './get_workflow_component';

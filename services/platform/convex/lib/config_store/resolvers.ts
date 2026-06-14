@@ -1,0 +1,47 @@
+'use node';
+
+/**
+ * Layer B of the config-domain registry: the filesystem path resolvers.
+ *
+ * The V8-safe registry (`lib/shared/config/registry.ts`, Layer A) declares the
+ * set of domains as pure data; it cannot reference the per-domain
+ * `resolve<Domain>Dir` functions because those live in `'use node'`
+ * `file_utils.ts` modules (they call `node:path` / `getConfigRoot`). This is the
+ * ONE place that value-imports them, keyed by `ConfigDomain.name`, so the
+ * scaffold and the generic file→cache sync action resolve a domain's on-disk
+ * dir without re-importing each resolver. Never imported by V8 code.
+ */
+
+import { resolveAgentsDir } from '../../agents/file_utils';
+import { resolveBrandingDir } from '../../branding/file_utils';
+import { resolveGovernanceDir } from '../../governance/file_utils';
+import { resolveIntegrationsDir } from '../../integrations/file_utils';
+import { resolvePromptsDir } from '../../prompts/file_utils';
+import { resolveProvidersDir } from '../../providers/file_utils';
+import { resolveSkillsDir } from '../../skills/file_utils';
+import { resolveWorkflowsDir } from '../../workflows/file_utils';
+
+export type DomainDirResolver = (orgSlug: string) => string;
+
+/** `ConfigDomain.name` → absolute on-disk domain dir for an org. */
+export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
+  agents: resolveAgentsDir,
+  prompts: resolvePromptsDir,
+  providers: resolveProvidersDir,
+  integrations: resolveIntegrationsDir,
+  workflows: resolveWorkflowsDir,
+  skills: resolveSkillsDir,
+  branding: resolveBrandingDir,
+  governance: resolveGovernanceDir,
+};
+
+/** Resolve a domain's dir for an org, throwing if the domain has no resolver. */
+export function resolveDomainDir(domain: string, orgSlug: string): string {
+  const resolver = DOMAIN_DIR_RESOLVERS[domain];
+  if (!resolver) {
+    throw new Error(
+      `No directory resolver registered for config domain: ${domain}`,
+    );
+  }
+  return resolver(orgSlug);
+}

@@ -1,26 +1,10 @@
-import { execSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { deriveAgePublicKey, generateAgeKeypair } from '../crypto/age-keygen';
-
-function listTaleVolumes(): string[] {
-  try {
-    const filter = `name=${getProjectId()}-dev`;
-    const result = execSync(`docker volume ls --filter ${filter} -q`, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'ignore'],
-    });
-    return result.trim().split('\n').filter(Boolean);
-  } catch (err) {
-    logger.debug(`Failed to list Docker volumes: ${err}`);
-    return [];
-  }
-}
 
 const isTTY = process.stdin.isTTY && process.stdout.isTTY;
 
@@ -36,26 +20,77 @@ function generatePassword(): string {
   return randomBytes(16).toString('base64url');
 }
 
-const OPENROUTER_KEY_PREFIX = 'sk-or-';
+/**
+ * Internal TLS-derivation discriminator. `trial` = the local default written
+ * by `tale init`; `production` = a real domain chosen at `tale deploy`.
+ */
+type DeployMode = 'trial' | 'production';
 
-async function warnIfInvalidKeyFormat(key: string): Promise<boolean> {
-  if (key.startsWith(OPENROUTER_KEY_PREFIX)) return true;
+interface DomainTlsConfig {
+  mode: DeployMode;
+  host: string;
+  siteUrl: string;
+  tlsMode: 'selfsigned' | 'letsencrypt';
+  tlsEmail: string;
+}
 
-  if (process.stdin.isTTY && process.stdout.isTTY) {
-    const { confirm } = await import('@inquirer/prompts');
-    logger.warn(
-      `This key does not start with "${OPENROUTER_KEY_PREFIX}", which is the expected format for OpenRouter API keys.`,
-    );
-    return await confirm({
-      message: 'Continue with this key anyway?',
-      default: true,
-    });
+/**
+ * A hostname that can never receive a public Let's Encrypt certificate:
+ * loopback, `*.local`/`*.localhost`, or a bare IP. Used to downgrade a
+ * "production" choice to self-signed instead of failing the ACME challenge.
+ */
+export function isLocalHostname(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  if (!h) return true;
+  if (h === 'localhost' || h === '::1') return true;
+  if (h.endsWith('.local') || h.endsWith('.localhost')) return true;
+  // IPv4 (any address — public certs are issued for names, not IPs).
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return true;
+  // Bare IPv6 literal (optionally bracketed), e.g. `[::1]`, `fe80::1`,
+  // `2001:db8::1`. Like IPv4, a public CA never issues for an IP literal, so
+  // letsencrypt would fail the ACME challenge — treat it as local.
+  const v6 = h.replace(/^\[|\]$/g, '');
+  if (v6.includes(':') && /^[0-9a-f:]+$/.test(v6)) return true;
+  return false;
+}
+
+/**
+ * Pure derivation of the domain + TLS settings from the chosen mode. Both
+ * `tale init` and CI flag-driven setup route through this so the `.env` is
+ * identical regardless of how the inputs were collected. Production against a
+ * local host is automatically downgraded to self-signed (footgun guard).
+ */
+export function deriveDomainTls(input: {
+  mode: DeployMode;
+  host?: string;
+  email?: string;
+}): DomainTlsConfig {
+  if (input.mode === 'trial') {
+    return {
+      mode: 'trial',
+      host: 'localhost',
+      siteUrl: 'https://localhost',
+      tlsMode: 'selfsigned',
+      tlsEmail: '',
+    };
   }
-
-  logger.warn(
-    `API key does not match expected OpenRouter format (prefix "${OPENROUTER_KEY_PREFIX}"). Proceeding anyway.`,
-  );
-  return true;
+  const host = (input.host ?? '').trim();
+  if (isLocalHostname(host)) {
+    return {
+      mode: 'production',
+      host,
+      siteUrl: `https://${host}`,
+      tlsMode: 'selfsigned',
+      tlsEmail: '',
+    };
+  }
+  return {
+    mode: 'production',
+    host,
+    siteUrl: `https://${host}`,
+    tlsMode: 'letsencrypt',
+    tlsEmail: input.email ?? '',
+  };
 }
 
 /** Parse a .env file into a key-value map (ignores comments and blank lines). */
@@ -80,7 +115,6 @@ interface EnvSetupOptions {
 interface EnvSetupResult {
   success: boolean;
   agePublicKey?: string;
-  openrouterKey?: string;
   /**
    * Set when `ensureEnv` filled in missing auto-gen secrets (most relevant:
    * `SANDBOX_TOKEN`) — so the deploy action can force-recreate the
@@ -90,6 +124,100 @@ interface EnvSetupResult {
    * the HMAC handshake until the next manual restart.
    */
   regeneratedAutoSecrets?: readonly string[];
+}
+
+/**
+ * Prompt for the production domain + Let's Encrypt email. There is no "trial
+ * vs production" question — running `tale deploy` *is* the production choice.
+ * A local-looking host downgrades to self-signed automatically.
+ */
+async function promptProductionDomain(): Promise<DomainTlsConfig> {
+  const { input } = await import('@inquirer/prompts');
+  const host = await input({
+    message: 'Domain to deploy to (without protocol):',
+    validate: (value) => {
+      if (!value.trim()) return 'Domain cannot be empty';
+      if (value.includes('://'))
+        return 'Enter domain only, without protocol (e.g., demo.tale.dev)';
+      return true;
+    },
+  });
+
+  if (isLocalHostname(host)) {
+    logger.notice(
+      "That's a local address — using a self-signed certificate (Let's Encrypt needs a public domain).",
+    );
+    return deriveDomainTls({ mode: 'production', host });
+  }
+
+  const email = await input({
+    message: "Email for Let's Encrypt notifications:",
+    validate: (value) => {
+      if (!value.trim()) return "Email is required for Let's Encrypt";
+      if (!value.includes('@')) return 'Please enter a valid email address';
+      return true;
+    },
+  });
+  return deriveDomainTls({ mode: 'production', host, email });
+}
+
+/** Update or append `KEY=value` lines in an .env file, preserving the rest. */
+async function applyEnvUpdates(
+  envPath: string,
+  existing: Record<string, string>,
+  updates: Record<string, string>,
+): Promise<void> {
+  let content = await readFile(envPath, 'utf-8');
+  for (const [key, value] of Object.entries(updates)) {
+    const line = `${key}=${value}`;
+    if (existing[key] !== undefined) {
+      content = content.replace(new RegExp(`^${key}=.*$`, 'm'), line);
+    } else {
+      content = `${content.endsWith('\n') ? content : `${content}\n`}${line}\n`;
+    }
+  }
+  await writeFile(envPath, content, 'utf-8');
+}
+
+/**
+ * Configure the production domain + TLS ahead of a deploy. `tale init` leaves a
+ * local default (localhost + self-signed); deploy is where a real domain is
+ * picked. Non-interactive with `--host` or when HOST is already public;
+ * otherwise it prompts. On a non-TTY run with no `--host` and a still-local
+ * HOST it is a no-op — deploy-preflight then validates the result.
+ */
+export async function ensureProductionDomain(
+  deployDir: string,
+  opts: { host?: string } = {},
+): Promise<void> {
+  const envPath = join(deployDir, '.env');
+  if (!existsSync(envPath)) return;
+  const existing = parseEnvFile(await readFile(envPath, 'utf-8'));
+  const currentHost = (existing.HOST ?? '').trim();
+
+  let config: DomainTlsConfig | undefined;
+  const flagHost = opts.host?.trim();
+  if (flagHost) {
+    config = deriveDomainTls({ mode: 'production', host: flagHost });
+  } else if (!isLocalHostname(currentHost)) {
+    return; // HOST already points at a public domain — keep it.
+  } else if (isTTY) {
+    config = await promptProductionDomain();
+  } else {
+    return; // Non-interactive with nothing to go on — keep the local default.
+  }
+
+  if (isLocalHostname(config.host)) return; // local host → keep local default
+
+  await applyEnvUpdates(envPath, existing, {
+    HOST: config.host,
+    SITE_URL: config.siteUrl,
+    TLS_MODE: config.tlsMode,
+    ...(config.tlsEmail ? { TLS_EMAIL: config.tlsEmail } : {}),
+  });
+  logger.success(
+    `Production domain configured: ${config.host} (${config.tlsMode}).`,
+  );
 }
 
 export async function ensureEnv(
@@ -120,6 +248,13 @@ export async function ensureEnv(
       // Shared HMAC secret for Convex → sandbox spawner. Generated as
       // 32 random bytes (hex); see services/sandbox/src/auth.ts.
       'SANDBOX_TOKEN',
+      // HMAC key that signs audit-log retention/scrub checkpoints, making the
+      // hash chain tamper-evident (SOC 2 / ISO 27001). Auto-generated so the
+      // control is ON by default and STABLE across deploys — a missing or
+      // changing key is what makes the daily integrity cron raise a scary
+      // "Audit log integrity check failed" alert on an otherwise-clean stack.
+      // See convex/audit_logs/{internal_mutations,verify_integrity}.ts.
+      'TALE_AUDIT_SIGNING_KEY',
     ];
     const missingUser = requiredUserVars.filter((v) => !existing[v]);
     const missingAuto = requiredAutoVars.filter((v) => !existing[v]);
@@ -150,26 +285,11 @@ export async function ensureEnv(
       ]);
     }
 
-    // .env-already-exists path → onboarding for OpenRouter happens elsewhere
-    // (`tale init` or the platform's Settings → AI providers UI). Avoid
-    // hijacking deploy/upgrade with an interactive prompt that was only
-    // supposed to fire on first install.
-    if (result.success) {
-      warnIfOpenrouterSecretMissing(options.deployDir);
-    }
     return result;
   }
 
-  if (!isTTY) {
-    logger.error('Environment file not found');
-    logger.blank();
-    logger.info(`Expected location: ${envPath}`);
-    logger.blank();
-    logger.info('Run the CLI interactively to set up your environment,');
-    logger.info('or create the .env file manually.');
-    return { success: false };
-  }
-
+  // No .env yet — write the local default. Non-interactive (no prompts, no
+  // Docker), so this works the same in a terminal and in CI.
   return await runEnvSetup(envPath);
 }
 
@@ -196,6 +316,7 @@ async function runHeadlessAutoSecretFill(
     INSTANCE_SECRET: generateHexSecret,
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
+    TALE_AUDIT_SIGNING_KEY: generateHexSecret,
   };
 
   const updates: Record<string, string> = {};
@@ -319,6 +440,7 @@ async function runPartialEnvSetup(
     INSTANCE_SECRET: generateHexSecret,
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
+    TALE_AUDIT_SIGNING_KEY: generateHexSecret,
   };
 
   let generatedCount = 0;
@@ -364,174 +486,38 @@ async function runPartialEnvSetup(
   return { success: true, agePublicKey };
 }
 
-/**
- * Emit a one-line warning when the local OpenRouter secrets file is missing
- * on the `.env`-already-exists path. Intentionally non-fatal: the operator
- * may have configured OpenRouter through Settings → AI providers (which
- * writes to the platform DB, not this file), or be using a different
- * provider altogether. Re-prompting on every deploy/upgrade for users who
- * legitimately have no local file is the bug we're avoiding.
- */
-function warnIfOpenrouterSecretMissing(deployDir: string): void {
-  const secretsPath = join(deployDir, 'providers', 'openrouter.secrets.json');
-  if (existsSync(secretsPath)) return;
-  logger.warn(
-    'providers/openrouter.secrets.json not found. ' +
-      'If OpenRouter is already configured via Settings → AI providers or ' +
-      'another provider is in use, ignore this. ' +
-      "Otherwise run 'tale init' to provision a key.",
-  );
-}
-
 async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
-  const { input, password, select } = await import('@inquirer/prompts');
-
-  const existingVolumes = listTaleVolumes();
-
-  if (existingVolumes.length > 0) {
-    const { confirm } = await import('@inquirer/prompts');
-    logger.blank();
-    logger.warn(`Found ${existingVolumes.length} existing Tale dev volume(s):`);
-    for (const v of existingVolumes) {
-      logger.info(`  - ${v}`);
-    }
-    const shouldRemove = await confirm({
-      message: 'Remove all Tale dev volumes and start fresh?',
-      default: true,
-    });
-    if (!shouldRemove) {
-      logger.error(
-        'Cannot continue with existing volumes. Run "tale init" again after removing manually:',
-      );
-      logger.info('  docker volume rm ' + existingVolumes.join(' '));
-      return { success: false };
-    }
-    logger.step('Stopping Tale containers...');
-    const composeProject = `${getProjectId()}-dev`;
-    try {
-      execSync(`docker compose -p ${composeProject} down --remove-orphans`, {
-        stdio: 'ignore',
-      });
-    } catch (err) {
-      logger.debug(`Failed to stop ${composeProject} containers: ${err}`);
-    }
-
-    for (const v of existingVolumes) {
-      execSync(`docker volume rm ${v}`, { stdio: 'ignore' });
-    }
-    logger.success(`Removed ${existingVolumes.length} Tale dev volume(s).`);
-  }
-
-  logger.blank();
-  logger.header('Environment Setup');
-  logger.info("Let's configure your deployment environment.");
-  logger.blank();
-
-  const host = await input({
-    message: 'Enter your domain (without protocol):',
-    default: 'localhost',
-    validate: (value) => {
-      if (!value.trim()) {
-        return 'Domain cannot be empty';
-      }
-      if (value.includes('://')) {
-        return 'Enter domain only, without protocol (e.g., demo.tale.dev)';
-      }
-      return true;
-    },
+  // `tale init` produces a local-by-default environment — localhost with a
+  // self-signed certificate and freshly generated secrets. No prompts and no
+  // Docker contact: the production domain + TLS are chosen later, at
+  // `tale deploy`.
+  const { host, siteUrl, tlsMode, tlsEmail } = deriveDomainTls({
+    mode: 'trial',
   });
 
-  const siteUrl = `https://${host}`;
-
-  const tlsMode = await select({
-    message: 'Select TLS/SSL mode:',
-    choices: [
-      {
-        name: 'selfsigned (development)',
-        value: 'selfsigned',
-        description: 'Self-signed certificates, browser will show warning',
-      },
-      {
-        name: 'letsencrypt (production)',
-        value: 'letsencrypt',
-        description: 'Free trusted certificates, requires public domain',
-      },
-    ],
-    default: 'selfsigned',
-  });
-
-  let tlsEmail = '';
-  if (tlsMode === 'letsencrypt') {
-    tlsEmail = await input({
-      message: "Enter email for Let's Encrypt notifications:",
-      validate: (value) => {
-        if (!value.trim()) {
-          return "Email is required for Let's Encrypt";
-        }
-        if (!value.includes('@')) {
-          return 'Please enter a valid email address';
-        }
-        return true;
-      },
-    });
-  }
-
-  logger.blank();
-  logger.header('API Configuration');
-
-  const openrouterKey = await password({
-    message: 'Enter your OpenRouter API key (from https://openrouter.ai):',
-    mask: '*',
-    validate: (value) => {
-      if (!value.trim()) {
-        return 'OpenRouter API key is required';
-      }
-      return true;
-    },
-  });
-  const shouldContinue = await warnIfInvalidKeyFormat(openrouterKey);
-  if (!shouldContinue) {
-    logger.info('Aborted. Please re-run with a valid API key.');
-    return { success: false };
-  }
-
-  logger.blank();
   logger.step('Generating security secrets...');
-
-  const dbPassword = generatePassword();
-  logger.info('Generated new database password.');
-
   const ageKeypair = generateAgeKeypair();
-  logger.info('Generated age encryption keypair for provider secrets.');
-
-  const secrets = {
-    betterAuthSecret: generateBase64Secret(),
-    encryptionSecretHex: generateHexSecret(),
-    instanceSecret: generateHexSecret(),
-    dbPassword,
-    sopsAgeKey: ageKeypair.secretKey,
-    sandboxToken: generateHexSecret(),
-  };
 
   const envContent = generateEnvContent({
     host,
     siteUrl,
     tlsMode,
     tlsEmail,
-    ...secrets,
+    betterAuthSecret: generateBase64Secret(),
+    encryptionSecretHex: generateHexSecret(),
+    instanceSecret: generateHexSecret(),
+    dbPassword: generatePassword(),
+    sopsAgeKey: ageKeypair.secretKey,
+    sandboxToken: generateHexSecret(),
+    auditSigningKey: generateHexSecret(),
   });
 
   await writeFile(envPath, envContent, 'utf-8');
+  logger.success(
+    'Environment configured (local defaults: localhost, self-signed TLS).',
+  );
 
-  logger.blank();
-  logger.success('Environment file created!');
-  logger.info(`Location: ${envPath}`);
-  logger.blank();
-  logger.info('Generated secrets have been configured automatically.');
-  logger.info('You can modify the .env file later to customize settings.');
-  logger.blank();
-
-  return { success: true, agePublicKey: ageKeypair.publicKey, openrouterKey };
+  return { success: true, agePublicKey: ageKeypair.publicKey };
 }
 
 interface EnvConfig {
@@ -545,6 +531,7 @@ interface EnvConfig {
   dbPassword: string;
   sopsAgeKey: string;
   sandboxToken: string;
+  auditSigningKey: string;
 }
 
 function generateEnvContent(config: EnvConfig): string {
@@ -619,9 +606,26 @@ function generateEnvContent(config: EnvConfig): string {
     '# with this; the spawner rejects unsigned/wrong-signed requests. Rotate',
     '# by setting a new value and restarting both `platform` and `sandbox`.',
     `SANDBOX_TOKEN=${config.sandboxToken}`,
+    '',
+    '# ============================================================================',
+    '# Audit Log Signing (security / compliance)',
+    '# ============================================================================',
+    '# HMAC-SHA256 key that signs audit-log retention & PII-scrub checkpoints so',
+    '# the audit hash chain is tamper-evident (SOC 2 CC7.2, ISO 27001). The daily',
+    '# integrity cron verifies these signatures; a MISSING or CHANGED key is what',
+    '# surfaces the "Audit log integrity check failed" alert — so this is',
+    '# auto-generated and must stay STABLE across deploys.',
+    '#   - Back it up with your other secrets (secret manager / Vault). Losing it',
+    '#     means checkpoints signed with it can no longer be verified.',
+    '#   - To ROTATE: move the current value to TALE_AUDIT_SIGNING_KEY_PREVIOUS,',
+    '#     set a fresh TALE_AUDIT_SIGNING_KEY (openssl rand -hex 32), redeploy.',
+    '#     The verifier accepts both during the rotation window; drop the',
+    '#     previous key on the next rotation.',
+    `TALE_AUDIT_SIGNING_KEY=${config.auditSigningKey}`,
+    '# TALE_AUDIT_SIGNING_KEY_PREVIOUS=',
     '# Container runtime for spawned sandbox containers. `runc` (default) is',
     '# plain Docker; `runsc` is gVisor (requires `runsc` installed on the',
-    '# host and registered with dockerd — see `tale doctor`). gVisor provides',
+    '# host and registered with dockerd). gVisor provides',
     '# a userspace kernel that mitigates runc-class escape CVEs at the cost',
     '# of ~6x pip-install latency for native-extension packages.',
     '# SANDBOX_RUNTIME=runc',

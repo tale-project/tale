@@ -73,9 +73,4 @@ export interface ParsedFilterExpression {
   conditions: FilterCondition[];
   /** Whether the expression contains complex conditions that require post-filtering */
   hasComplexConditions: boolean;
-  /**
-   * Backward compatibility: equality conditions only
-   * @deprecated Use conditions array instead
-   */
-  equalityConditions: Record<string, unknown>;
 }

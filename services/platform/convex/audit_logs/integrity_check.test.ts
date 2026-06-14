@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { internal } from '../_generated/api';
 import schema from '../schema';
+import { classifyIntegrityFinding } from './integrity_check';
 
 // convex-test module map keyed relative to the convex/ root. This file lives
 // at convex/audit_logs/, so resolve glob keys against that base (mirrors
@@ -49,19 +50,18 @@ async function notificationsForOrg(t: T) {
   });
 }
 
-async function failureAuditRows(t: T) {
+async function auditRowsByAction(t: T, action: string) {
   return await t.run(async (ctx) => {
     const rows = [];
     for (const r of await ctx.db.query('auditLogs').collect()) {
-      if (
-        r.organizationId === ORG &&
-        r.action === 'audit_log.integrity_check_failed'
-      ) {
-        rows.push(r);
-      }
+      if (r.organizationId === ORG && r.action === action) rows.push(r);
     }
     return rows;
   });
+}
+
+async function failureAuditRows(t: T) {
+  return auditRowsByAction(t, 'audit_log.integrity_check_failed');
 }
 
 // #1505: the scheduled integrity check must raise an OUT-OF-BAND alert (the
@@ -120,5 +120,84 @@ describe('scheduled audit-log integrity alert (#1505)', () => {
       bodyKey: 'auditIntegrityFailedDetails',
     });
     expect(notes[0].params?.reason).toBeTruthy();
+  });
+
+  it('raises a calm WARNING (not critical) when a checkpoint is unverifiable for lack of a key', async () => {
+    // A fresh stack with no TALE_AUDIT_SIGNING_KEY but a signed checkpoint is a
+    // CONFIG gap, not tampering. The alert must be a warning the operator can
+    // act on — never a scary "tampering detected" critical.
+    const prevKey = process.env.TALE_AUDIT_SIGNING_KEY;
+    delete process.env.TALE_AUDIT_SIGNING_KEY;
+    try {
+      const t = convexTest(schema, modules);
+      await seedEntry(t, 'customer.create');
+      // Insert a signed retention checkpoint while no key is configured →
+      // verifyCheckpointSignature returns 'no-key'.
+      await t.run(async (ctx) => {
+        await ctx.db.insert('auditLogCheckpoints', {
+          organizationId: ORG,
+          subtype: 'retention',
+          lastDeletedHash: 'deadbeef',
+          maxDeletedTimestamp: 1,
+          deletedCount: 1,
+          signature: 'a-signature-without-a-key-to-verify-it',
+          signatureVersion: 2,
+          createdAt: 1,
+        });
+      });
+
+      await t.action(
+        internal.audit_logs.integrity_check.runAuditIntegrityCheck,
+        {},
+      );
+
+      // No "tampering" failure row; an "unverifiable" config row instead.
+      expect(await failureAuditRows(t)).toHaveLength(0);
+      expect(
+        await auditRowsByAction(t, 'audit_log.integrity_unverifiable'),
+      ).toHaveLength(1);
+
+      const notes = await notificationsForOrg(t);
+      expect(notes).toHaveLength(1);
+      expect(notes[0]).toMatchObject({
+        category: 'security',
+        severity: 'warning',
+        titleKey: 'auditIntegrityUnverifiable',
+        bodyKey: 'auditIntegrityUnverifiableDetails',
+      });
+    } finally {
+      if (prevKey === undefined) delete process.env.TALE_AUDIT_SIGNING_KEY;
+      else process.env.TALE_AUDIT_SIGNING_KEY = prevKey;
+    }
+  });
+});
+
+describe('classifyIntegrityFinding', () => {
+  it('treats a hash-chain break as tampering', () => {
+    expect(
+      classifyIntegrityFinding({ firstBrokenAt: { logId: 'log123' } }),
+    ).toEqual({ kind: 'tampering', reason: 'hash chain broken at log log123' });
+  });
+
+  it('treats a "not configured" checkpoint verdict as a config gap', () => {
+    const reason =
+      'Checkpoint is signed but TALE_AUDIT_SIGNING_KEY is not configured — operator must restore the key to verify.';
+    expect(
+      classifyIntegrityFinding({ checkpointMismatch: { reason } }),
+    ).toEqual({ kind: 'config', reason });
+  });
+
+  it('treats a signature mismatch as tampering', () => {
+    const reason = 'HMAC signature does not match the active or previous key.';
+    expect(
+      classifyIntegrityFinding({ checkpointMismatch: { reason } }),
+    ).toEqual({ kind: 'tampering', reason });
+  });
+
+  it('falls back to tampering when nothing specific is reported', () => {
+    expect(classifyIntegrityFinding({})).toEqual({
+      kind: 'tampering',
+      reason: 'audit log chain failed verification',
+    });
   });
 });

@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ExternalLink } from '@/app/components/layout/external-link';
 import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
-import { DOCS_URL } from '@/lib/docs-url';
+import { GET_STARTED_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
@@ -60,7 +60,7 @@ export function HeroHeadline() {
               variant="secondary"
               className="rounded-[10px] text-base"
             >
-              <ExternalLink href={DOCS_URL} showIcon={false}>
+              <ExternalLink href={GET_STARTED_URL} showIcon={false}>
                 {t('hero.ctaSecondary')}
               </ExternalLink>
             </Button>

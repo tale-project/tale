@@ -1,14 +1,40 @@
-# Tale
+<div align="center">
 
-> **Lis ceci en :** [English](README.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
+  <img alt="Tale" src=".github/assets/logo-light.svg" width="150">
+</picture>
 
-Construis des applications IA en quelques minutes, pas en quelques mois.
+### L'orchestrateur pour agents IA
 
-Tale est une plateforme IA auto-hébergée avec des agents personnalisés, une base de connaissances, l'automatisation de workflows, des intégrations et un inbox unifié. Installe le CLI et lance une seule commande pour démarrer.
+Connecte **OpenClaw**, **Hermes Agent**, **Claude Code**, **Codex**, **Cursor**, **Gemini CLI**, **OpenCode** et **Pi**.<br/>
+Mets en commun leurs connaissances, délègue des tâches et construis ton essaim d'agents.
+
+[![Licence : MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-tale-0a0a0a.svg)](docs/fr/index.md)
+[![Auto-hébergé](https://img.shields.io/badge/self--hosted-Docker-2496ed.svg)](docs/fr/self-hosted/install/quickstart.md)
+
+[Démarrage rapide](#démarrage-rapide) · [Que peux-tu faire ?](#que-peux-tu-faire) · [Commandes](#référence-des-commandes) · [Documentation](#documentation) · [Contribuer](#contribuer)
+
+**Lis ceci en :** [English](README.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
+
+</div>
+
+---
+
+Tale est une **plateforme IA auto-hébergée** qui transforme les agents et CLI que ton équipe utilise déjà en une force de travail coordonnée. Donne-leur une base de connaissances partagée, branche tes outils et tes intégrations, et délègue le travail entre eux — agents, automatisations et un inbox unifié, le tout sur ta propre infrastructure. Installe le CLI et lance une seule commande pour démarrer.
+
+**Choisis ta voie :**
+
+- **Essayer Tale en local** — installe la CLI et lance deux commandes sur ta propre machine. Commence par [Démarrage rapide](#démarrage-rapide) ci-dessous.
+- **Utiliser Tale Cloud** — laisse Tale exploiter la stack, inscris-toi et embarque ton équipe. Commence par [Onboarding Cloud](docs/fr/cloud/onboarding.md).
+- **Contribuer** — fais tourner Tale depuis le code source et renvoie une modification. Commence par [Configuration contributeur](docs/fr/develop/contributor-setup.md).
 
 ## Démarrage rapide
 
-**Prérequis :** [Docker Desktop](https://www.docker.com/products/docker-desktop) (v24+) et une [clé API OpenRouter](https://openrouter.ai).
+Fais tourner Tale sur ta machine en trois commandes — installe la CLI, échafaude un projet, démarre-le. La CLI installe Docker s'il est absent et génère chaque secret pour toi, donc il n'y a rien à installer au préalable ni à éditer à la main.
+
+**Prérequis pour un essai local : aucun.** L'installeur met en place Docker pour toi, et `tale init` génère chaque secret — tu n'as rien à apporter pour faire tourner la stack. Une [clé API OpenRouter](https://openrouter.ai) (ou tout fournisseur compatible OpenAI) est optionnelle et n'est nécessaire qu'avant qu'un agent puisse répondre : tu l'ajoutes dans l'app après l'inscription, dans l'assistant de configuration ou sous **Paramètres → Fournisseurs IA**. `tale init` ne la demande pas.
 
 > **Windows avec backend Hyper-V :** vérifie que ton lecteur de projet est partagé dans Docker Desktop Settings > Resources > File Sharing. Le backend WSL2 (par défaut) ne demande aucune configuration supplémentaire.
 
@@ -33,7 +59,7 @@ tale init my-project
 cd my-project
 ```
 
-Le CLI demande ton domaine, ta clé API et le mode TLS. Les secrets de sécurité sont générés automatiquement. Il génère aussi des fichiers de configuration pour les éditeurs IA et extrait le code source de la plateforme dans `.tale/reference/` pour que les éditeurs IA puissent créer et modifier des configs en connaissant la plateforme.
+Le CLI pose une seule question — **essai local** ou **domaine de production** — et configure tout pour cette cible : TLS, tous les secrets de sécurité, les fichiers de configuration pour les éditeurs IA et le code source de la plateforme extrait dans `.tale/reference/` pour que les éditeurs IA puissent créer et modifier des configs en connaissant la plateforme. Le même projet fonctionne pour un essai local comme pour un vrai déploiement.
 
 ### 3. Démarrer Tale
 
@@ -67,7 +93,7 @@ Tous les fichiers dans `agents/`, `workflows/` et `integrations/` sont rechargé
 ### Développement
 
 ```bash
-tale init [directory]              # Créer un nouveau projet avec des configs d'exemple
+tale init [directory]              # Créer un nouveau projet avec des configs d'exemple (sans Docker)
 tale start                         # Démarrer tous les services localement
 tale start --detach                # Démarrer en arrière-plan
 tale start --port 8443             # Utiliser un port HTTPS personnalisé
@@ -155,7 +181,8 @@ cd services/crawler && uv sync --extra dev
 
 Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`, `de`, `fr`) plus des variantes régionales lorsque la formulation locale diffère (aujourd'hui : `de-CH` ; le chargeur détecte tout nouveau bundle `xx-YY` automatiquement). Les variantes ne portent que les chaînes qui diffèrent de leur base ; les clés manquantes retombent via la base jusqu'à l'anglais. Démarre par [`docs/fr/index.md`](docs/fr/index.md) pour choisir un point d'entrée par persona.
 
-### Pour les utilisateurs au quotidien
+<details>
+<summary><strong>Pour les utilisateurs au quotidien</strong></summary>
 
 - **[Aperçu du chat](docs/fr/platform/chat/overview.md)** — les quatre parties de l'écran, où creuser
 - **[Bases du chat IA](docs/fr/platform/chat/basics.md)** — composer, agents, sélecteur de modèles, streaming, citations
@@ -164,7 +191,10 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 - **[Chats partagés](docs/fr/platform/chat/shared-threads.md)** — partager un chat avec l'organisation, dupliquer en un chat à toi
 - **[Approbations](docs/fr/platform/approvals/concepts.md)** — relire les actions IA
 
-### Pour les bâtisseurs (agents, automatisations, intégrations)
+</details>
+
+<details>
+<summary><strong>Pour les bâtisseurs (agents, automatisations, intégrations)</strong></summary>
 
 - **[Concepts d'agent](docs/fr/platform/agents/concepts.md)** — le modèle à quatre boutons derrière chaque agent
 - **[Créer un agent](docs/fr/platform/agents/create.md)** — assistants IA spécialisés de bout en bout
@@ -172,16 +202,22 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 - **[Projets](docs/fr/platform/projects/overview.md)** — espace de travail partagé pour fichiers, chats et agents de Projet
 - **[Concepts d'automatisation](docs/fr/platform/automations/concepts.md)** — workflows, déclencheurs, portes d'approbation
 - **[Aperçu des intégrations](docs/fr/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
-- **[Modèles livrés en standard](docs/fr/platform/models.md)** — OpenRouter, OpenAI, Vercel AI Gateway et les listes de modèles livrées
+- **[Modèles livrés en standard](docs/fr/platform/models.md)** — OpenRouter comme unique fournisseur par défaut, plus les listes de modèles livrées
 
-### Pour les admins
+</details>
+
+<details>
+<summary><strong>Pour les admins</strong></summary>
 
 - **[Membres et rôles](docs/fr/platform/admin/members-and-roles.md)** — gestion des utilisateurs et matrice de permissions
 - **[Modèles livrés en standard](docs/fr/platform/models.md)** — quels modèles les défauts embarquent ; échanger ou ajouter un fournisseur
 - **[Aperçu des intégrations](docs/fr/platform/integrations/overview.md)** — connecteurs tiers, serveurs MCP, configurations personnalisées
 - **[Cloud trust et conformité](docs/fr/cloud/trust-and-compliance.md)** — cadres, responsabilité partagée, preuves à remettre aux auditeurs
 
-### Pour les opérateurs
+</details>
+
+<details>
+<summary><strong>Pour les opérateurs</strong></summary>
 
 - **[Aperçu auto-hébergé](docs/fr/self-hosted/overview.md)** — architecture et services
 - **[Démarrage rapide](docs/fr/self-hosted/install/quickstart.md)** — installation sur un seul hôte en vingt minutes
@@ -191,11 +227,16 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 - **[Référence d'environnement](docs/fr/self-hosted/configuration/environment-reference.md)** — toutes les variables d'environnement
 - **[Architecture des conteneurs](docs/fr/self-hosted/operate/container-architecture.md)** — sept conteneurs, qui possède quoi
 
-### Pour les développeurs
+</details>
+
+<details>
+<summary><strong>Pour les développeurs</strong></summary>
 
 - **[Référence API](docs/fr/develop/api-reference.md)** — API REST pour RAG, Crawler et Platform
 - **[Webhooks](docs/fr/develop/webhooks.md)** — webhooks de workflows et d'agents avec vérification de signature
 - **[Aperçu développeur](docs/fr/develop/overview.md)** — la surface développeur de bout en bout
+
+</details>
 
 ## Besoin d'aide ?
 
@@ -207,7 +248,7 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 
 ## Contribuer
 
-Lis [`AGENTS.md`](AGENTS.md) avant ton premier PR — c'est le contrat unique pour le style de code, la sécurité, les tests, l'i18n et la documentation à travers tous les workspaces. Le skill [`docs`](.agents/docs/AGENTS.md) couvre le site de doc ; le skill [`translation`](.agents/translation/AGENTS.md) les règles de traduction inter-langues. Lance `bun run check` (format, lint, typecheck, tests) avant d'ouvrir un PR ; le [pull request template](.github/pull_request_template.md) liste le reste de la checklist pre-merge.
+Nouveau dans le dépôt ? [Configuration contributeur](docs/fr/develop/contributor-setup.md) est la source unique de vérité pour faire tourner le code source en local — prérequis, `bun install`, le pré-vol `bun run setup:check`, `bun run dev` et les services Python. Lis [`AGENTS.md`](AGENTS.md) avant ton premier PR — c'est le contrat unique pour le style de code, la sécurité, les tests, l'i18n et la documentation à travers tous les workspaces. Le skill [`docs`](.agents/docs/AGENTS.md) couvre le site de doc ; le skill [`translation`](.agents/translation/AGENTS.md) les règles de traduction inter-langues. Lance `bun run check` (format, lint, typecheck, tests) avant d'ouvrir un PR ; le [pull request template](.github/pull_request_template.md) liste le reste de la checklist pre-merge.
 
 ---
 

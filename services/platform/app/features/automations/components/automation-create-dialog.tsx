@@ -163,6 +163,7 @@ function BlankTabContent({
         <Input
           id="name"
           label={t('configuration.name')}
+          labelInfo={t('createDialog.nameTooltip')}
           {...register('name')}
           placeholder={t('createDialog.namePlaceholder')}
           errorMessage={errors.name?.message}

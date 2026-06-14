@@ -25,11 +25,12 @@ export const getPiiConfigInternal = internalQuery({
   returns: v.any(),
   handler: async (ctx, args) => {
     return ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
+      .query('configCache')
+      .withIndex('by_org_domain_key', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('policyType', 'pii_config'),
+          .eq('domain', 'governance')
+          .eq('key', 'pii_config'),
       )
       .first();
   },
@@ -57,12 +58,12 @@ export const getPolicyConfigInternal = internalQuery({
   returns: v.any(),
   handler: async (ctx, args) => {
     const row = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
+      .query('configCache')
+      .withIndex('by_org_domain_key', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated against the closed union by the index equality itself
-          .eq('policyType', args.policyType as never),
+          .eq('domain', 'governance')
+          .eq('key', args.policyType),
       )
       .first();
     return row?.config ?? null;
@@ -94,11 +95,12 @@ export const getSystemPromptPolicyInternal = internalQuery({
   returns: v.any(),
   handler: async (ctx, args) => {
     return ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
+      .query('configCache')
+      .withIndex('by_org_domain_key', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('policyType', 'system_prompt'),
+          .eq('domain', 'governance')
+          .eq('key', 'system_prompt'),
       )
       .first();
   },
@@ -194,32 +196,33 @@ export const evaluateExternalAgentBudget = internalQuery({
 /**
  * Returns every org's retention_policy row. Used by the multi-org
  * dispatcher (`runRetentionCleanup`, `effectReleasesOnly`) to enumerate
- * orgs that have retention configured. The full-table scan is intrinsic
- * to "find all orgs with X policy" — there is no leading-org index that
- * can answer it in less than O(orgs). Bounded by `orgs × policyTypes`
- * which stays well under Convex's 16K per-transaction read limit at
- * realistic deployment sizes (each org has 14–15 policy types).
+ * orgs that have retention configured. Ranges the `configCache`
+ * `by_domain_key` index on `(domain='governance', key='retention_policy')`
+ * so it reads exactly the retention rows (one per org) rather than scanning
+ * the whole cache — strictly bounded by the org count.
  *
  * For per-org reads, use `getRetentionPolicyForOrg` instead — that path
  * is hit on every page-load + cleanup invocation and MUST go through
- * the `by_org_policyType` index. Round-2 review CRITICAL #15 / D.8.j.
+ * the `by_org_domain_key` index. Round-2 review CRITICAL #15 / D.8.j.
  */
 export const listRetentionPolicies = internalQuery({
   args: {},
   returns: v.any(),
   handler: async (ctx) => {
     const policies = [];
-    for await (const policy of ctx.db.query('governancePolicies')) {
-      if (policy.policyType === 'retention_policy') {
-        policies.push(policy);
-      }
+    for await (const policy of ctx.db
+      .query('configCache')
+      .withIndex('by_domain_key', (q) =>
+        q.eq('domain', 'governance').eq('key', 'retention_policy'),
+      )) {
+      policies.push(policy);
     }
     return policies;
   },
 });
 
 /**
- * Per-org retention policy lookup via the `by_org_policyType` index.
+ * Per-org retention policy lookup via the `by_org_domain_key` index.
  * Hot-path query: called by `runOrgRetentionCleanup` per org per run
  * and by the bounds-proposal banner on every governance page load.
  */
@@ -228,11 +231,12 @@ export const getRetentionPolicyForOrg = internalQuery({
   returns: v.any(),
   handler: async (ctx, args) => {
     return ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
+      .query('configCache')
+      .withIndex('by_org_domain_key', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('policyType', 'retention_policy'),
+          .eq('domain', 'governance')
+          .eq('key', 'retention_policy'),
       )
       .first();
   },
@@ -586,6 +590,24 @@ export const getPendingRetentionChange = internalQuery({
       newConfig: row.newConfig,
       summary: row.summary,
     };
+  },
+});
+
+/**
+ * Fetch a specific pending retention-change row's `oldConfig` by id, scoped to
+ * the org. Used by `cancelPendingRetentionChange` (V8 action) to know which
+ * config to revert the file to before deleting the pending row.
+ */
+export const getRetentionPendingById = internalQuery({
+  args: {
+    organizationId: v.string(),
+    pendingId: v.id('retentionPolicyPendingChanges'),
+  },
+  returns: v.union(v.object({ oldConfig: v.any() }), v.null()),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.pendingId);
+    if (!row || row.organizationId !== args.organizationId) return null;
+    return { oldConfig: row.oldConfig };
   },
 });
 

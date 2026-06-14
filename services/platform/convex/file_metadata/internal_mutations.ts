@@ -25,14 +25,6 @@ export const saveFileMetadata = internalMutation({
      * thread id so the soft-delete cascade + RAG thread-scope auth chain
      * work. Document Hub uploads omit this. */
     threadId: v.optional(v.string()),
-    /** Video-link provenance: when the file originated from yt-dlp, the
-     * orchestrator hands these in so the synthetic row carries the source
-     * URL + title + uploader for citation + agent hint enrichment. */
-    sourceUrl: v.optional(v.string()),
-    sourcePlatform: v.optional(v.string()),
-    videoTitle: v.optional(v.string()),
-    videoUploader: v.optional(v.string()),
-    videoDurationSec: v.optional(v.number()),
   },
   async handler(ctx, args) {
     const existing = await ctx.db
@@ -56,14 +48,6 @@ export const saveFileMetadata = internalMutation({
         patchData.uploadedBy = args.uploadedBy;
       }
       if (args.threadId !== undefined) patchData.threadId = args.threadId;
-      if (args.sourceUrl !== undefined) patchData.sourceUrl = args.sourceUrl;
-      if (args.sourcePlatform !== undefined)
-        patchData.sourcePlatform = args.sourcePlatform;
-      if (args.videoTitle !== undefined) patchData.videoTitle = args.videoTitle;
-      if (args.videoUploader !== undefined)
-        patchData.videoUploader = args.videoUploader;
-      if (args.videoDurationSec !== undefined)
-        patchData.videoDurationSec = args.videoDurationSec;
       await ctx.db.patch(existing._id, patchData);
       return existing._id;
     }
@@ -94,17 +78,6 @@ export const saveFileMetadata = internalMutation({
       ...(args.source !== undefined && { source: args.source }),
       ...(args.uploadedBy !== undefined && { uploadedBy: args.uploadedBy }),
       ...(args.threadId !== undefined && { threadId: args.threadId }),
-      ...(args.sourceUrl !== undefined && { sourceUrl: args.sourceUrl }),
-      ...(args.sourcePlatform !== undefined && {
-        sourcePlatform: args.sourcePlatform,
-      }),
-      ...(args.videoTitle !== undefined && { videoTitle: args.videoTitle }),
-      ...(args.videoUploader !== undefined && {
-        videoUploader: args.videoUploader,
-      }),
-      ...(args.videoDurationSec !== undefined && {
-        videoDurationSec: args.videoDurationSec,
-      }),
     });
 
     if (shouldIndex) {

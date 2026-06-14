@@ -266,10 +266,6 @@
       "lockoutAdvisory": "Des échecs répétés verrouillent temporairement le compte."
     },
     "signup": {
-      "signupTitle": "Crée ton compte",
-      "creating": "Création...",
-      "createButton": "Créer",
-      "accountCreated": "Compte créé avec succès !",
       "wrongCredentials": "Courriel ou mot de passe incorrect"
     },
     "validation": {
@@ -573,6 +569,7 @@
       "title": "Créer une automatisation",
       "tabBlank": "Vierge",
       "tabTemplate": "À partir d'un modèle",
+      "nameTooltip": "Devient l'identifiant de l'automatisation dans son URL. Garde-le court — tu peux changer le nom d'affichage plus tard.",
       "namePlaceholder": "ex., Workflow réseaux sociaux",
       "descriptionPlaceholder": "Décris ce que fait cette automatisation...",
       "creating": "Création...",
@@ -599,7 +596,7 @@
         "apiNotWired": "Les API publiques pour la modification des étapes de workflow ne sont pas encore connectées."
       },
       "banners": {
-        "hasActiveTriggers": "Cette automatisation a des déclencheurs actifs — les modifications prennent effet immédiatement."
+        "hasActiveTriggers": "Cette automatisation est active — les modifications enregistrées s’appliquent aux nouvelles exécutions."
       },
       "toolbar": {
         "testAutomation": "Tester l'automatisation",
@@ -635,6 +632,10 @@
       "loop": "Boucle",
       "action": "Action",
       "output": "Sortie"
+    },
+    "edges": {
+      "yes": "Oui",
+      "no": "Non"
     },
     "step": {
       "openStep": "Ouvrir l'étape {name}",
@@ -1410,6 +1411,8 @@
       "close": "Fermer",
       "confirm": "Confirmer",
       "back": "Retour",
+      "next": "Suivant",
+      "skip": "Passer",
       "loading": "Chargement...",
       "done": "Terminé",
       "duplicate": "Dupliquer",
@@ -1510,6 +1513,7 @@
       "system": "Système",
       "debug": "Débogage"
     },
+    "stepProgress": "Étape {current} sur {total} : {label}",
     "validation": {
       "required": "{field} est requis",
       "email": "Entre une adresse email valide",
@@ -1542,6 +1546,7 @@
       "agentsNavigation": "Navigation des agents",
       "knowledgeNavigation": "Navigation de la base de connaissances",
       "actionsMenu": "Menu des actions",
+      "moreInfo": "Plus d'informations",
       "required": "requis",
       "valid": "valide",
       "invalid": "invalide",
@@ -1810,6 +1815,7 @@
     },
     "editCustomer": "Modifier le client",
     "deleteCustomer": "Supprimer le client",
+    "addButton": "Ajouter un client",
     "importMenu": {
       "importCustomers": "Importer des clients",
       "fromDevice": "Depuis ton appareil",
@@ -2158,6 +2164,59 @@
       "sharePoint": "SharePoint",
       "sharePointSynced": "SharePoint (synchronisé)",
       "uploaded": "Téléversement"
+    }
+  },
+  "onboarding": {
+    "title": "Configure ton espace de travail",
+    "subtitle": "Quelques étapes rapides et c'est prêt.",
+    "stepsAriaLabel": "Étapes d'intégration",
+    "progress": "Étape {current} sur {total} : {label}",
+    "steps": {
+      "preferences": "Préférences",
+      "account": "Compte",
+      "workspace": "Espace de travail",
+      "provider": "OpenRouter",
+      "finish": "Terminer"
+    },
+    "preferences": {
+      "heading": "Personnalise",
+      "why": "Choisis ta langue et ton thème. Tu peux les changer à tout moment.",
+      "languageLabel": "Langue",
+      "themeLabel": "Thème"
+    },
+    "account": {
+      "heading": "Crée ton compte propriétaire",
+      "why": "C'est le premier compte de cette installation Tale ; il dispose donc de tous les droits d'administration. Tu ajouteras des coéquipiers plus tard."
+    },
+    "workspace": {
+      "heading": "Nomme ton espace de travail",
+      "why": "C'est ainsi que ton équipe reconnaîtra cet espace de travail.",
+      "languageDescription": "La langue par défaut du contenu de cet espace, comme la bibliothèque de prompts."
+    },
+    "provider": {
+      "heading": "Connecter OpenRouter",
+      "why": "Une seule clé OpenRouter débloque le chat, la génération et l'édition d'images, le mode vocal et plus encore, parmi des centaines de modèles de tous les grands laboratoires. Nous préconfigurons une sélection recommandée pour que tu sois prêt immédiatement.",
+      "keyLabel": "Clé API OpenRouter",
+      "keyPlaceholder": "sk-or-...",
+      "keyHelp": "Stockée chiffrée. Laisse vide pour la configurer plus tard dans les paramètres.",
+      "hasKeyQuestion": "Tu n'as pas encore de clé ?",
+      "getKeyLink": "En créer une sur OpenRouter",
+      "saveError": "Impossible de se connecter à OpenRouter avec cette clé. Vérifie-la et réessaie.",
+      "noModelsError": "Aucun modèle n'était disponible pour cette clé.",
+      "invalidKeyError": "Cela ne ressemble pas à une clé OpenRouter — elle devrait commencer par « sk-or- ». Copie-la depuis openrouter.ai/keys.",
+      "authError": "OpenRouter a refusé cette clé. Vérifie qu'elle a été copiée en entier et qu'elle est toujours active.",
+      "networkError": "Impossible de joindre OpenRouter. Vérifie ta connexion et réessaie."
+    },
+    "finish": {
+      "heading": "Tout est prêt",
+      "subtitle": "Voici ce que tu peux faire ensuite :",
+      "providerItem": "Connecte un fournisseur d'IA pour alimenter les agents et le chat.",
+      "agentItem": "Crée ton premier agent.",
+      "inviteItem": "Invite des coéquipiers à collaborer.",
+      "providerCta": "Connecter un fournisseur",
+      "agentCta": "Créer un agent",
+      "inviteCta": "Inviter des coéquipiers",
+      "goToDashboard": "Aller au tableau de bord"
     }
   },
   "emptyStates": {
@@ -3879,6 +3938,8 @@
     "lockoutDetails": "{consecutiveFailures} tentatives de connexion échouées depuis {ip}.",
     "auditIntegrityFailed": "Échec du contrôle d'intégrité du journal d'audit",
     "auditIntegrityFailedDetails": "Nous n'avons pas pu vérifier l'intégrité du journal d'audit de cette organisation : {reason}. Cela peut indiquer une altération — examine la situation dès que possible.",
+    "auditIntegrityUnverifiable": "Les signatures du journal d'audit ne peuvent pas être vérifiées",
+    "auditIntegrityUnverifiableDetails": "Les points de contrôle du journal d'audit de cette organisation sont signés, mais aucune clé de signature n'est configurée pour les vérifier : {reason}. Définis TALE_AUDIT_SIGNING_KEY pour rétablir la protection contre l'altération — il s'agit d'une lacune de configuration, pas d'une altération détectée.",
     "dsarScheduled": "Demande d'effacement planifiée",
     "dsarScheduledBody": "Une demande d'effacement a été déposée concernant un membre de cette organisation. Elle s'exécute dans {coolingOffHours} heures — ouvre le reçu pour la consulter ou l'annuler.",
     "dsarApprovalNeeded": "Demande d'effacement en attente de ton approbation",
@@ -4134,6 +4195,14 @@
         "success": "Produit créé avec succès",
         "error": "Échec de la création du produit"
       }
+    },
+    "createWizard": {
+      "steps": {
+        "basics": "Bases",
+        "pricing": "Prix et stock",
+        "review": "Vérification"
+      },
+      "reviewHint": "Vérifie les détails, puis crée le produit."
     },
     "import": {
       "uploadProducts": "Téléverser des produits",
@@ -4451,13 +4520,11 @@
       "addMember": "Ajouter un membre",
       "createOrganization": "Créer une organisation",
       "organizationName": "Nom de l'organisation",
-      "companyNameRequired": "Le nom de l'entreprise est requis",
       "companyNameCharacterError": "Utilise uniquement des lettres, chiffres, espaces, tirets et tirets bas, en commençant par une lettre ou un chiffre.",
       "nameReserved": "Ce nom est réservé par la plateforme.",
       "identifierPreview": "Identifiant : {slug}",
       "enterCompanyName": "Entre le nom de ton entreprise",
       "organizationCreated": "Organisation créée avec succès !",
-      "creating": "Création...",
       "switching": "Changement en cours…",
       "switchingTo": "Passage à {name}…",
       "switchingLabel": "Changement d'organisation",
@@ -4646,8 +4713,10 @@
         "name": "Nom",
         "namePlaceholder": "mon-agent",
         "nameHelp": "Identifiant unique (lettres minuscules, chiffres, tirets et underscores uniquement)",
+        "nameTooltip": "Un identifiant unique et compatible URL, utilisé dans les liens et l'API. Non modifiable ensuite.",
         "namePatternError": "Doit commencer par une lettre ou un chiffre et ne contenir que des lettres minuscules, des chiffres, des tirets et des underscores",
         "displayName": "Nom d'affichage",
+        "displayNameTooltip": "Le nom convivial que les autres voient dans le chat. Modifiable à tout moment.",
         "displayNamePlaceholder": "Mon Agent",
         "description": "Description",
         "descriptionPlaceholder": "Que fait cet agent ?",
@@ -5224,6 +5293,7 @@
       "editProvider": "Modifier le fournisseur",
       "deleteProvider": "Supprimer le fournisseur",
       "apiKey": "Clé API",
+      "apiKeyTooltip": "Stockée chiffrée et utilisée uniquement pour appeler ce fournisseur.",
       "apiKeyConfigured": "Clé API configurée",
       "apiKeyNotConfigured": "Non configurée",
       "models": "Modèles",
@@ -5237,6 +5307,7 @@
       "displayName": "Nom d'affichage",
       "description_field": "Description",
       "baseUrl": "URL de base",
+      "baseUrlTooltip": "Le point de terminaison d'API compatible OpenAI, par ex. https://api.openai.com/v1",
       "tags": "Tags",
       "defaultModels": "Modèles par défaut",
       "defaultModelsDescription": "Modèles par défaut utilisés par le crawler, le RAG et d'autres services pour chaque capacité.",
@@ -6395,6 +6466,7 @@
     },
     "editVendor": "Modifier le fournisseur",
     "deleteVendor": "Supprimer le fournisseur",
+    "addButton": "Ajouter un fournisseur",
     "importMenu": {
       "importVendors": "Importer des fournisseurs",
       "fromDevice": "Depuis ton appareil",
@@ -6912,7 +6984,9 @@
     "humans": {
       "title": "Humains",
       "subtitle": "Agents de premier niveau : {count}"
-    }
+    },
+    "saved": "Délégation enregistrée",
+    "unsavedChanges": "Modifications non enregistrées"
   },
   "workforce": {
     "title": "Workforce",

@@ -1,7 +1,7 @@
 'use client';
 
 import type { RowSelectionState } from '@tanstack/react-table';
-import { Users } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -45,6 +45,8 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   const { t: tSettings } = useT('settings');
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  // Lifted so the action menu and the empty-state CTA share one dialog.
+  const [createOpen, setCreateOpen] = useState(false);
 
   const handleViewTeam = useCallback((team: Team) => {
     setSelectedTeam(team);
@@ -98,11 +100,22 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
         enableRowSelection
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
-        actionMenu={<TeamsActionMenu organizationId={organizationId} />}
+        actionMenu={
+          <TeamsActionMenu
+            organizationId={organizationId}
+            createOpen={createOpen}
+            onCreateOpenChange={setCreateOpen}
+          />
+        }
         emptyState={{
           icon: Users,
           title: tEmpty('teams.title'),
           description: tEmpty('teams.description'),
+          action: {
+            label: tSettings('teams.createTeam'),
+            icon: Plus,
+            onClick: () => setCreateOpen(true),
+          },
         }}
         onRowClick={(row) => setSelectedTeam(row.original)}
         clickableRows

@@ -2,11 +2,12 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
-import { Globe } from 'lucide-react';
+import { Globe, Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -38,6 +39,10 @@ export function WebsitesTable({
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tWebsites } = useT('websites');
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
+  // Lifted so the action menu and the empty-state CTA share one dialog.
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { data: count } = useApproxWebsiteCount(organizationId);
   const { mutate: syncStatuses } = useSyncWebsiteStatuses();
@@ -194,11 +199,24 @@ export function WebsitesTable({
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         onRowClick={handleRowClick}
-        actionMenu={<WebsitesActionMenu organizationId={organizationId} />}
+        actionMenu={
+          <WebsitesActionMenu
+            organizationId={organizationId}
+            createOpen={createOpen}
+            onCreateOpenChange={setCreateOpen}
+          />
+        }
         emptyState={{
           icon: Globe,
           title: tEmpty('websites.title'),
           description: tEmpty('websites.description'),
+          action: canWrite
+            ? {
+                label: tWebsites('addButton'),
+                icon: Plus,
+                onClick: () => setCreateOpen(true),
+              }
+            : undefined,
         }}
         footer={
           <BulkDeleteBar

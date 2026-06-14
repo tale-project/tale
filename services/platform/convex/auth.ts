@@ -16,6 +16,7 @@ import {
 import { assertValidOrgSlug } from '../lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '../lib/shared/constants/reserved-org-slugs';
 import { sessionIdleWindowSeconds } from '../lib/shared/session-idle';
+import { getOrganizationDefaultLocale } from '../lib/shared/utils/get-organization-default-locale';
 import { isRecord, getString } from '../lib/utils/type-guards';
 import { components, internal } from './_generated/api';
 import { DataModel } from './_generated/dataModel';
@@ -66,9 +67,7 @@ const platformResourceStatements = {
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
@@ -100,9 +99,7 @@ const admin = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
@@ -125,9 +122,7 @@ const developer = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
@@ -151,9 +146,7 @@ const editor = ac.newRole({
   onedriveSyncConfigs: ['read'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
   approvals: ['read', 'write'],
@@ -177,9 +170,7 @@ const member = ac.newRole({
   onedriveSyncConfigs: ['read'],
   conversations: ['read'],
   conversationMessages: ['read'],
-  wfDefinitions: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
   approvals: ['read'],
@@ -203,9 +194,7 @@ const disabled = ac.newRole({
   onedriveSyncConfigs: [],
   conversations: [],
   conversationMessages: [],
-  wfDefinitions: [], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: [], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: [], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: [], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: [],
   workflowProcessingRecords: [],
   approvals: [],
@@ -230,9 +219,7 @@ const owner = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
@@ -329,6 +316,13 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
     baseURL: siteUrl,
     trustedOrigins: [new URL(siteUrl).origin],
     database: authComponent.adapter(ctx),
+    // Explicitly opt out of Better Auth's anonymous usage telemetry. It ships
+    // disabled by default today, but pinning it here keeps it off regardless
+    // of any future change to that default.
+    // See https://better-auth.com/docs/reference/telemetry
+    telemetry: {
+      enabled: false,
+    },
     // Configure simple, non-verified email/password to get started
     emailAndPassword: {
       enabled: true,
@@ -611,37 +605,17 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
             // Refuse reserved slugs ("default", "agents", "branding",
             // "providers", "retention", "skills", "workflows",
             // "integrations") — the platform pins on-disk and DB
-            // resources to these names. Without this, an open-signup
-            // user could claim e.g. "branding" before the platform's
-            // first-run seed runs and lock the operator out.
-            //
-            // Narrow first-run bypass: ONLY `default` is auto-claimed
-            // by the platform on first signup; the other reserved
-            // slugs have no legitimate "user wants this on a fresh
-            // deploy" path. A wider bypass (any reserved slug when
-            // anyOrg.length === 0) would let a racing first user claim
-            // e.g. `providers` before the operator creates `default`,
-            // wedging the deployment in `findOrgDirs`' legacy-artifact
-            // trap.
+            // resources to these names. `default` in particular is a
+            // scaffold TEMPLATE, never a user organization: every new org
+            // is seeded from the on-disk `default/` tree, and the
+            // governance/branding baselines key off the literal slug
+            // string (not a `default` org row). The first user picks their
+            // own workspace name via the onboarding wizard, so there is no
+            // longer any first-run path that needs to mint `default`.
             if (isReservedOrgSlug(normalizedSlug)) {
-              if (normalizedSlug !== 'default') {
-                throw new APIError('BAD_REQUEST', {
-                  message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
-                });
-              }
-              const anyOrg = await ctx.runQuery(
-                components.betterAuth.adapter.findMany,
-                {
-                  model: 'organization',
-                  paginationOpts: { cursor: null, numItems: 1 },
-                  where: [],
-                },
-              );
-              if (anyOrg && anyOrg.page.length > 0) {
-                throw new APIError('BAD_REQUEST', {
-                  message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
-                });
-              }
+              throw new APIError('BAD_REQUEST', {
+                message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
+              });
             }
             // Convex has no unique-index primitive, so enforce slug uniqueness
             // at application level before Better Auth's adapter writes the row.
@@ -737,6 +711,17 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                   internal.organizations.scaffold.scaffoldNewOrganization,
                   { orgSlug: slug },
                 );
+                // Mirror the scaffolded governance files into `configCache` so
+                // V8 readers (password/2FA/feature enforcement) see this org's
+                // policies instead of falling back to schema defaults. Same
+                // head-start delay as the provisioners below; the sync is
+                // idempotent and re-derivable, so a missed beat self-heals on
+                // the next write or the periodic reconcile cron.
+                await runCtx.scheduler.runAfter(
+                  10_000,
+                  internal.lib.config_cache.sync_org.syncOrgConfigCaches,
+                  { organizationId: data.organization.id },
+                );
                 // Auto-install the default workflow pack (task-ops) once the
                 // scaffold has copied the catalog. The provisioner self-retries
                 // while the workflows dir is still being written, so the small
@@ -746,6 +731,23 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                   internal.workflows.provision_defaults
                     .syncDefaultWorkflowInstallations,
                   { organizationId: data.organization.id, orgSlug: slug },
+                );
+                // Seed the default prompt-library catalog (global prompts) in
+                // the org's chosen language (from the wizard, persisted as the
+                // `defaultLocale` metadata). Same deferral rationale as the
+                // workflow pack — the provisioner self-retries while the
+                // scaffold copies files.
+                await runCtx.scheduler.runAfter(
+                  10_000,
+                  internal.prompts.provision_defaults
+                    .syncDefaultPromptInstallations,
+                  {
+                    organizationId: data.organization.id,
+                    orgSlug: slug,
+                    locale: getOrganizationDefaultLocale(
+                      data.organization.metadata,
+                    ),
+                  },
                 );
               } catch (err) {
                 console.error(

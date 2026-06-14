@@ -57,6 +57,10 @@ export const reseedAllOrgsFromBuiltin = internalAction({
   }),
   handler: async (ctx) => {
     const slugSet = new Set<string>(['default']);
+    // slug → betterAuth org id, captured during pagination so the post-scaffold
+    // `configCache` re-sync (keyed by org id) can run per real org. `default` is
+    // the template (no DB row) and gets no entry.
+    const orgIdBySlug = new Map<string, string>();
 
     const invalidSlugs: string[] = [];
     let cursor: string | null = null;
@@ -104,6 +108,8 @@ export const reseedAllOrgsFromBuiltin = internalAction({
           continue;
         }
         slugSet.add(slug);
+        const orgId = getString(raw, '_id');
+        if (orgId) orgIdBySlug.set(slug, orgId);
       }
       cursor =
         isRecord(res) && typeof res.continueCursor === 'string'
@@ -133,6 +139,23 @@ export const reseedAllOrgsFromBuiltin = internalAction({
           internal.organizations.scaffold.scaffoldNewOrganization,
           { orgSlug: slug, override: true, strict: true },
         );
+        // Re-derive the governance configCache from the just-reseeded files
+        // (keyed by org id). Best-effort: the cache is re-derivable, so a sync
+        // failure must not fail the reseed. `default` has no org id (template).
+        const orgId = orgIdBySlug.get(slug);
+        if (orgId) {
+          try {
+            await ctx.runAction(
+              internal.lib.config_cache.sync_org.syncOrgConfigCaches,
+              { organizationId: orgId },
+            );
+          } catch (err) {
+            console.warn(
+              `[reseedAllOrgs] configCache sync for "${slug}" failed (re-derivable):`,
+              err instanceof Error ? err.message : err,
+            );
+          }
+        }
         results.push({ slug, status: 'ok' });
         console.log(`[reseedAllOrgs] reseeded "${slug}"`);
       } catch (err) {

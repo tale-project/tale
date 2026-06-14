@@ -21,10 +21,8 @@ export type PlatformResource =
   | 'projects'
   | 'vendors'
   | 'websites'
-  | 'wfDefinitions' // @deprecated — DB table deprecated; kept as permission subject
+  | 'wfDefinitions' // file-based automations UI permission subject (DB-backed workflows removed)
   | 'wfExecutions'
-  | 'wfStepAuditLogs' // @deprecated — DB table deprecated; kept as permission subject
-  | 'wfStepDefs' // @deprecated — DB table deprecated; kept as permission subject
   | 'workflowProcessingRecords';
 
 /**
@@ -102,8 +100,6 @@ export function defineAbilityFor(role: string | null): AppAbility {
         'onedriveSyncConfigs',
         'wfDefinitions',
         'wfExecutions',
-        'wfStepAuditLogs',
-        'wfStepDefs',
         'workflowProcessingRecords',
       ];
       for (const resource of readOnlyResources) {

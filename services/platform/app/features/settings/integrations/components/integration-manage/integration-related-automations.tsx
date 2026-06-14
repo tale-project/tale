@@ -9,8 +9,6 @@ import { ChevronDown, ChevronRight, ExternalLink, Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { CreateAutomationDialog } from '@/app/features/automations/components/automation-create-dialog';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 interface IntegrationRelatedAutomationsProps {
@@ -27,12 +25,18 @@ export function IntegrationRelatedAutomations({
   const { t } = useT('settings');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const { data: automations, isLoading } = useConvexQuery(
-    api.integrations.queries.listRelatedAutomations,
-    { organizationId, integrationName },
-  );
+  // DB-backed automation linkage was removed in the file-based workflow
+  // migration; the list is always empty until file-based linkage is
+  // reintroduced, so the empty state + Create CTA always render.
+  const automations: Array<{
+    _id: string;
+    activeVersionId?: string;
+    name: string;
+    status: string;
+  }> = [];
+  const isLoading = false;
 
-  const count = automations?.length ?? 0;
+  const count = automations.length;
 
   return (
     <>
@@ -87,7 +91,7 @@ export function IntegrationRelatedAutomations({
             </Skeletonize>
           ) : count > 0 ? (
             <ul className="space-y-1 text-sm" role="list">
-              {automations?.map((automation) => {
+              {automations.map((automation) => {
                 const targetId = automation.activeVersionId ?? automation._id;
                 return (
                   <li key={automation._id} className="flex items-center gap-2">

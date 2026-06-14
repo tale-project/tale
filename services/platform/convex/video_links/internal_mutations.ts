@@ -270,8 +270,7 @@ export const insertSyntheticFileMetadata = internalMutation({
       transcriptRagStatus: 'queued',
       // Provenance fields (sourceUrl/sourcePlatform/videoTitle/uploader/
       // duration) are NOT written here — `start_agent_chat.ts` JOINs
-      // videoLinkJobs by storageId for live state. The legacy schema
-      // fields are kept @deprecated for rows from older builds.
+      // videoLinkJobs by storageId for live state.
       lifecycleStatus: 'active',
       statusChangedAt: Date.now(),
     });

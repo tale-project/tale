@@ -94,7 +94,6 @@ export {
   wrapInDetails,
   formatUserMessage,
   formatAssistantMessage,
-  formatToolCall,
   formatHumanInputRequest,
   formatHumanResponse,
   formatContextSummary,

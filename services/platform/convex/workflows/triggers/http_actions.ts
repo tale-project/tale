@@ -128,7 +128,6 @@ export const webhookHandler = httpAction(async (ctx, req) => {
       internal.workflows.triggers.internal_mutations.createTriggerLog,
       {
         organizationId: webhook.organizationId,
-        workflowRootId: webhook.workflowRootId,
         workflowSlug: webhook.workflowSlug,
         triggerType: 'webhook',
         status: 'accepted',

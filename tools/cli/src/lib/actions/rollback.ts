@@ -1,6 +1,7 @@
 import { sameMinor } from '../../utils/compare-versions';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { runStepsInParallel } from '../../utils/progress';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { ROTATABLE_SERVICES } from '../compose/types';
@@ -24,6 +25,18 @@ interface RollbackOptions {
 }
 
 /**
+ * `pullImage` is injectable so the unit test can supply a fake without
+ * `mock.module`-ing the shared pull-image module. That mock is process-global
+ * in Bun and is not reset between files; it leaked into pull-image.test.ts and
+ * broke its suite on Windows (where Bun's per-file mock scoping doesn't hold).
+ * The rollback's other collaborators are still swapped via mock.module in the
+ * test — none of them has a sibling suite that imports the real module.
+ */
+interface RollbackDeps {
+  pullImage?: typeof pullImage;
+}
+
+/**
  * Printed whenever the rollback gate refuses. Minor and major upgrades can
  * run forward-only data migrations, so re-deploying an older binary on top
  * of migrated data corrupts the instance instead of recovering it — the
@@ -32,20 +45,30 @@ interface RollbackOptions {
  */
 function printSnapshotRestoreRunbook(): void {
   logger.blank();
-  logger.info('Minor and major upgrades can run forward-only data migrations;');
   logger.info(
-    'redeploying an older binary on top of migrated data corrupts the',
+    'Minor and major upgrades can run data migrations. Redeploying an',
   );
-  logger.info('instance instead of recovering it. To recover:');
-  logger.info('  1. Restore the data-volume backup taken before the upgrade');
-  logger.info('     (see docs/self-hosted/operate/backups-and-restore.md).');
-  logger.info('  2. Re-deploy the version that matches the restored data:');
+  logger.info('older binary on top of migrated data corrupts the instance, so');
+  logger.info('reverse the migrations FIRST. To roll back across versions:');
+  logger.info('  1. Reverse the data migrations to the target version');
+  logger.info('     (interactive, snapshot-backed):');
+  logger.info('       tale migrate down --to <version> --step');
+  logger.info(
+    '  2. Re-deploy the version that matches the migrated-down data:',
+  );
   logger.info('       tale upgrade --version <version>');
   logger.info('       tale deploy --all');
+  logger.info('  If a migration is not reversible, restore the data-volume');
+  logger.info('  backup taken before the upgrade instead');
+  logger.info('  (see docs/self-hosted/operate/backups-and-restore.md).');
 }
 
-export async function rollback(options: RollbackOptions): Promise<void> {
+export async function rollback(
+  options: RollbackOptions,
+  deps: RollbackDeps = {},
+): Promise<void> {
   const { env } = options;
+  const pull = deps.pullImage ?? pullImage;
 
   await withLock(env.DEPLOY_DIR, 'rollback', async () => {
     logger.header('Rolling Back Deployment');
@@ -57,13 +80,14 @@ export async function rollback(options: RollbackOptions): Promise<void> {
       throw new Error('No active deployment');
     }
 
-    // Forward-only migration gate: the only legal rollback target is the
-    // recorded previous version, and only when it is a patch-level step
-    // from the running version (the "patch = always safe" contract in
-    // docs/self-hosted/operate/upgrades.md). There is no applied-migrations
-    // ledger to consult, so anything beyond a patch difference must be
-    // treated as potentially migrated — refuse and point at the
-    // snapshot-restore runbook instead of corrupting the instance.
+    // Image-rollback gate: this command only swaps the running binary, so the
+    // only safe automatic target is a patch-level step from the running version
+    // (the "patch = always safe" contract in
+    // docs/self-hosted/operate/upgrades.md). Crossing a minor/major may have
+    // run data migrations; the migration ledger now makes those reversible, but
+    // the reverse must be done deliberately via `tale migrate down` BEFORE
+    // swapping the binary — so here we refuse and point at that runbook rather
+    // than rolling the image onto a forward-migrated schema.
     const rollbackVersion = await getPreviousVersion(env.DEPLOY_DIR);
     if (!rollbackVersion) {
       logger.error('No previous version recorded — nothing to roll back to.');
@@ -114,14 +138,26 @@ export async function rollback(options: RollbackOptions): Promise<void> {
       registry: env.GHCR_REGISTRY,
     };
 
-    // Pull previous version images sequentially for clearer progress and failure attribution
-    logger.step('Pulling previous version images...');
-    for (const service of ROTATABLE_SERVICES) {
-      const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
-      const success = await pullImage(image);
-      if (!success) {
-        throw new Error(`Failed to pull image: ${image}`);
-      }
+    // Pull previous-version images CONCURRENTLY, reporting each as a step so
+    // progress + failure attribution stay clear. A single failure doesn't
+    // cancel the others; collect them and report together.
+    const pullResults = await runStepsInParallel(
+      ROTATABLE_SERVICES.map((service) => {
+        const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
+        return {
+          label: image,
+          run: async () => {
+            if (!(await pull(image))) throw new Error(`pull failed: ${image}`);
+          },
+        };
+      }),
+      { title: 'Pulling previous version images' },
+    );
+    const failedPulls = pullResults.filter((r) => !r.ok).map((r) => r.label);
+    if (failedPulls.length > 0) {
+      throw new Error(
+        `Failed to pull ${failedPulls.length} image(s): ${failedPulls.join(', ')}`,
+      );
     }
 
     // Clean up any stale containers from a previous failed rollback on this

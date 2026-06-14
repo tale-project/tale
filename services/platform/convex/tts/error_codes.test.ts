@@ -132,11 +132,6 @@ describe('errorCodeFromCaught', () => {
       expectedCode: 'TIMEOUT',
     },
     {
-      name: 'TTS API 429 (legacy Error shape) → RATE_LIMITED',
-      err: new Error('TTS API 429: rate limited'),
-      expectedCode: 'RATE_LIMITED',
-    },
-    {
       name: 'TtsProviderHttpError 429 → RATE_LIMITED',
       err: new TtsProviderHttpError(429, undefined, 'rate limited'),
       expectedCode: 'RATE_LIMITED',
@@ -170,16 +165,6 @@ describe('errorCodeFromCaught', () => {
       name: 'TtsProviderHttpError 418 → PROVIDER_4XX (generic fallback)',
       err: new TtsProviderHttpError(418, undefined, 'teapot'),
       expectedCode: 'PROVIDER_4XX',
-    },
-    {
-      name: 'TTS API 500 → PROVIDER_5XX',
-      err: new Error('TTS API 500: internal'),
-      expectedCode: 'PROVIDER_5XX',
-    },
-    {
-      name: 'TTS API 502 → PROVIDER_5XX',
-      err: new Error('TTS API 502: bad gateway'),
-      expectedCode: 'PROVIDER_5XX',
     },
     {
       name: 'TtsProviderHttpError 503 → PROVIDER_5XX',

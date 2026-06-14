@@ -20,7 +20,7 @@ import { isIdentifier } from './types';
 
 export function extractComparison(
   node: BinaryExpression,
-): Omit<ParsedFilterExpression, 'equalityConditions'> {
+): ParsedFilterExpression {
   const left = node.left;
   const right = node.right;
 

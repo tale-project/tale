@@ -1,21 +1,19 @@
 ---
 title: Modèles livrés en standard
-description: Quels fournisseurs et modèles une instance Tale toute neuve embarque — OpenRouter pour le chat et la vision, OpenAI pour la voix, Vercel AI Gateway pour la génération d'images.
+description: Quels fournisseurs et modèles une instance Tale toute neuve embarque — OpenRouter couvre le chat, la vision, les embeddings, la voix et la génération d'images via une seule clé.
 ---
 
-Une instance Tale toute neuve embarque trois fournisseurs configurés : OpenRouter pour le chat, la vision et les embeddings ; OpenAI pour la reconnaissance et la synthèse vocales ; Vercel AI Gateway pour la génération d'images. Les agents par défaut dans `examples/default/agents/` puisent dans l'un de ces trois seaux, et la plupart des équipes restent sur les défauts pendant des semaines avant d'en changer. Cette page liste ce qui est livré et renvoie vers le catalogue complet de chaque fournisseur.
+Une instance Tale toute neuve embarque un seul fournisseur configuré : **OpenRouter**, couvrant le chat, la vision, les embeddings, la reconnaissance vocale, la synthèse vocale et la génération d'images. Les agents par défaut dans `examples/default/agents/` puisent dans les modèles OpenRouter, et la plupart des équipes restent sur les défauts pendant des semaines avant d'en changer. Une clé, un rate-limit, une facture — et tu peux toujours ajouter un fournisseur direct (OpenAI, un serveur Ollama/vLLM local, un proxy Bedrock) dès qu'une charge de travail l'exige. Cette page liste ce qui est livré et renvoie vers le catalogue complet.
 
-Les modèles dérivent plus vite que la doc. Les listes ci-dessous sont correctes au moment où `examples/default/providers/*.json` a été écrit ; la vérité canonique, ce sont les fichiers JSON, et le « ce qui est joignable aujourd'hui » canonique est ce que montre la page **Paramètres > Providers** sur ton instance.
+Les modèles dérivent plus vite que la doc. Les listes ci-dessous sont correctes au moment où `examples/default/providers/openrouter.json` a été écrit ; la vérité canonique, c'est le fichier JSON, et le « ce qui est joignable aujourd'hui » canonique est ce que montre la page **Paramètres > Providers** sur ton instance.
 
-## Les trois fournisseurs
+## Le fournisseur par défaut
 
-| Fournisseur           | Rôle par défaut                    | Pourquoi celui-ci                                                                                                                 | Documentation                                                                  |
-| --------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| **OpenRouter**        | Chat, vision, embeddings           | Une seule clé donne accès à des dizaines de modèles frontier et open-weight avec une tarification cohérente et un seul rate-limit | [openrouter.ai/models](https://openrouter.ai/models)                           |
-| **OpenAI**            | Reconnaissance et synthèse vocales | Whisper est la baseline pratique pour la transcription ; gpt-4o-mini-tts est le TTS fiable le moins cher                          | [platform.openai.com/docs/models](https://platform.openai.com/docs/models)     |
-| **Vercel AI Gateway** | Génération d'images                | Un seul endpoint compatible OpenAI couvre FLUX, Imagen et Nano Banana sans clé par fournisseur                                    | [vercel.com/docs/ai-gateway/models](https://vercel.com/docs/ai-gateway/models) |
+| Fournisseur    | Rôle par défaut                                                                       | Pourquoi celui-ci                                                                                                                                                     | Documentation                                        |
+| -------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **OpenRouter** | Chat, vision, embeddings, reconnaissance vocale, synthèse vocale, génération d'images | Une seule clé donne accès à des dizaines de modèles frontier et open-weight — plus des modèles audio et image — avec une tarification cohérente et un seul rate-limit | [openrouter.ai/models](https://openrouter.ai/models) |
 
-Chaque fournisseur ci-dessus est un endpoint compatible OpenAI que Tale appelle en HTTPS avec un bearer token. Tu peux remplacer chacun par un autre fournisseur (y compris un serveur Ollama ou vLLM local) en éditant le JSON correspondant sous `TALE_CONFIG_DIR/<orgSlug>/providers/` de ton instance — sous le layout org-first, les catalogues de fournisseurs sont par-org (chaque org a son propre sous-arbre `providers/`).
+OpenRouter est un endpoint compatible OpenAI que Tale appelle en HTTPS avec un bearer token. Tu peux le remplacer (ou ajouter d'autres fournisseurs à côté, y compris un serveur Ollama ou vLLM local) en éditant le JSON sous `TALE_CONFIG_DIR/<orgSlug>/providers/` de ton instance — sous le layout org-first, les catalogues de fournisseurs sont par-org (chaque org a son propre sous-arbre `providers/`).
 
 ## OpenRouter — chat, vision, embeddings
 
@@ -37,27 +35,27 @@ OpenRouter est une passerelle multi-modèles. La configuration livrée choisit `
 
 Le catalogue complet et à jour vit sur [openrouter.ai/models](https://openrouter.ai/models). Tout modèle exposé par OpenRouter peut être ajouté à ton instance en éditant le tableau `models` dans `<orgSlug>/providers/openrouter.json` sous `TALE_CONFIG_DIR` (par-org sous le layout org-first).
 
-## OpenAI — reconnaissance et synthèse vocales
+## OpenRouter — reconnaissance et synthèse vocales
 
-La configuration OpenAI livrée est volontairement étroite — voix uniquement. Les deux modèles couvrent la boucle dont le [mode vocal](/fr/platform/chat/voice-mode) a besoin :
+La même clé OpenRouter couvre la boucle audio dont le [mode vocal](/fr/platform/chat/voice-mode) a besoin :
 
-- **whisper-1** — reconnaissance vocale. Le fournisseur de transcription chaque fois qu'un utilisateur enregistre un message.
-- **gpt-4o-mini-tts** — synthèse vocale. Le fournisseur de voix par défaut pour les réponses d'agent lues en audio.
+- **openai/whisper-1** — reconnaissance vocale. Le fournisseur de transcription chaque fois qu'un utilisateur enregistre un message. La configuration livrée définit `transcriptionMode: "json-base64"`, ce qui sélectionne le format de transcription audio d'OpenRouter.
+- **openai/gpt-4o-mini-tts-2025-12-15** — synthèse vocale. Le fournisseur de voix par défaut pour les réponses d'agent lues en audio, avec des voix mappées par locale.
 
-Ajoute des modèles chat et vision à la configuration OpenAI si tu veux les appeler directement sans passer par OpenRouter — utile pour les équipes déjà sur un contrat OpenAI Enterprise. La liste complète des modèles vit sur [platform.openai.com/docs/models](https://platform.openai.com/docs/models).
+Les versions de modèles TTS sont datées et changent, donc confirme le slug actuel dans les collections **Speech-to-Text** et **Text-to-Speech** sur [openrouter.ai/models](https://openrouter.ai/models) et mets à jour l'`id` plus l'entrée `defaults` correspondante ensemble s'il change. Tu préfères appeler Whisper ou gpt-4o-mini-tts directement contre OpenAI ? Ajoute un fournisseur `openai.json` pointant vers `https://api.openai.com/v1` et laisse `transcriptionMode` non défini (le format `multipart` par défaut est ce qu'OpenAI attend).
 
-## Vercel AI Gateway — génération d'images
+## OpenRouter — génération d'images
 
-Le Vercel AI Gateway expose les endpoints de génération d'images de plusieurs éditeurs derrière une seule URL compatible OpenAI. Le modèle image par défaut est FLUX.2 [pro] ; la liste livrée :
+La génération et l'édition d'images passent par le chemin multimodal `/chat/completions` d'OpenRouter. Le modèle image par défaut est FLUX.2 [pro] ; la liste livrée :
 
-- **Black Forest Labs** — FLUX 2 [pro], FLUX 1.1 [pro] Ultra, FLUX.1 Kontext Pro, FLUX.1 Kontext Max.
-- **Google** — Imagen 4, Imagen 4 Fast, Imagen 4 Ultra, Nano Banana (Gemini 2.5 Flash Image).
+- **Black Forest Labs** — FLUX.2 [max], FLUX.2 [pro], FLUX.2 [flex] — chacun génère et édite des images (image de référence).
+- **Google** — Nano Banana (Gemini 2.5 Flash Image) — génération plus édition par image de référence.
 
-Le catalogue plus large vit sur [vercel.com/docs/ai-gateway/models](https://vercel.com/docs/ai-gateway/models).
+Le catalogue plus large vit sur [openrouter.ai/models](https://openrouter.ai/models) (collection Image).
 
 ## Échanger ou ajouter des fournisseurs
 
-Les trois fournisseurs ci-dessus sont des défauts, pas des obligations. Remplace chacun par un autre endpoint compatible OpenAI en éditant le JSON dans `TALE_CONFIG_DIR/<orgSlug>/providers/` — pointe-le vers ton API, change le tableau `models`, et Tale recharge au prochain démarrage. Une instance Ollama locale, un cluster vLLM privé, ou un proxy Bedrock entrent tous dans la même forme. La mécanique vit sous [Configuration → providers](/fr/self-hosted/configuration/providers) ; le formulaire UI admin pour la même configuration est sur [Providers](/fr/platform/admin/providers).
+OpenRouter est le défaut, pas une obligation. Remplace-le par un autre endpoint compatible OpenAI, ou ajoute d'autres fournisseurs à côté, en éditant le JSON dans `TALE_CONFIG_DIR/<orgSlug>/providers/` — pointe un fichier vers ton API, définis son tableau `models`, et Tale recharge au prochain démarrage. Une instance Ollama locale, un cluster vLLM privé, un contrat OpenAI direct, ou un proxy Bedrock entrent tous dans la même forme. La mécanique vit sous [Configuration → providers](/fr/self-hosted/configuration/providers) ; le formulaire UI admin pour la même configuration est sur [Providers](/fr/platform/admin/providers).
 
 ## Où ça s'inscrit
 

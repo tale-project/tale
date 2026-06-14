@@ -25,7 +25,7 @@ Aus dem Repo-Root:
 ./scripts/get-admin-key.sh
 ```
 
-Das Skript gibt einen Einmal-Key auf stdout aus. Kopier ihn — das Skript speichert ihn nirgendwo.
+Das Skript gibt einen Einmal-Key auf stdout aus. Kopier ihn — das Skript speichert ihn nirgendwo. Hast du mit der `tale`-CLI statt mit einem Klon installiert, liegt das Skript nicht in deinem Baum, aber es umwickelt nur einen Generator, der im Platform-Container lebt — lauf ihn direkt mit `docker exec -it $(docker ps --format '{{.Names}}' | grep platform | head -1) ./generate-admin-key.sh`.
 
 ## Schritt 2 — Anmelden über SITE_URL
 

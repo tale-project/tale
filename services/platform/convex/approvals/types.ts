@@ -1,6 +1,7 @@
 import type { Infer } from 'convex/values';
 
-import type { Doc, Id } from '../_generated/dataModel';
+import type { Id } from '../_generated/dataModel';
+import type { StepType } from '../workflow_engine/helpers/data_source/types';
 import {
   approvalItemValidator,
   approvalPriorityValidator,
@@ -42,7 +43,7 @@ export interface WorkflowCreationMetadata {
   stepsConfig: Array<{
     stepSlug: string;
     name: string;
-    stepType: Doc<'wfStepDefs'>['stepType'];
+    stepType: StepType;
     config: Record<string, unknown>;
     nextSteps: Record<string, string>;
   }>;
@@ -79,7 +80,7 @@ export interface WorkflowUpdateMetadata {
   stepsConfig?: Array<{
     stepSlug: string;
     name: string;
-    stepType: Doc<'wfStepDefs'>['stepType'];
+    stepType: StepType;
     config: Record<string, unknown>;
     nextSteps: Record<string, string>;
   }>;

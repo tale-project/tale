@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { isRecord } from '../../lib/utils/type-guards';
 import type { DataModel, Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
+import { readConfigCacheRow } from '../lib/config_cache/read';
 
 const MEMORY_INJECTION_LIMIT = 20;
 
@@ -30,12 +31,12 @@ async function isFeatureEnabledForOrg(
   organizationId: string,
   feature: PersonalizationFeature,
 ): Promise<boolean> {
-  const policy = await ctx.db
-    .query('governancePolicies')
-    .withIndex('by_org_policyType', (q) =>
-      q.eq('organizationId', organizationId).eq('policyType', feature),
-    )
-    .first();
+  const policy = await readConfigCacheRow(
+    ctx.db,
+    organizationId,
+    'governance',
+    feature,
+  );
 
   if (!policy || policy.enabled === false) return false;
   const config = policy.config;
@@ -123,12 +124,9 @@ export async function evaluatePersonalizationGates(
   return {
     customInstructions: applyUserOverride(
       orgCustom,
-      prefs?.customInstructionsEnabled ?? prefs?.enabled,
+      prefs?.customInstructionsEnabled,
     ),
-    memories: applyUserOverride(
-      orgMemories,
-      prefs?.memoriesEnabled ?? prefs?.enabled,
-    ),
+    memories: applyUserOverride(orgMemories, prefs?.memoriesEnabled),
   };
 }
 

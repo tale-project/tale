@@ -5,7 +5,7 @@
  * delegated to `internal.lib.config_store.actions` via `ctx.runAction`.
  *
  * Why actions and not a query:
- *   - Bounds live in `$TALE_CONFIG_DIR/<orgSlug>/retention.json` under
+ *   - Bounds live in `$TALE_CONFIG_DIR/<orgSlug>/governance/retention.json` under
  *     the org-first layout. V8 queries/mutations cannot read fs and
  *     cannot await a Node action inline. Only V8 actions can
  *     `ctx.runAction(internal nodeAction)`.
@@ -43,15 +43,21 @@ async function loadOrgRetentionConfig(
   ctx: ActionCtx,
   orgSlug: string,
 ): Promise<RetentionDefaultsConfig | null> {
+  // readConfigArea validates retention.json via parseRetentionJson before
+  // returning; the generic `unknown` result is therefore a RetentionDefaultsConfig.
   const own = await ctx.runAction(
-    internal.lib.config_store.actions.readRetentionConfig,
-    { orgSlug },
+    internal.lib.config_store.actions.readConfigArea,
+    { area: 'retention', orgSlug },
   );
-  if (own) return own;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by readConfigArea
+  if (own) return own as RetentionDefaultsConfig;
   if (orgSlug === 'default') return null;
-  return ctx.runAction(internal.lib.config_store.actions.readRetentionConfig, {
-    orgSlug: 'default',
-  });
+  const fallback = await ctx.runAction(
+    internal.lib.config_store.actions.readConfigArea,
+    { area: 'retention', orgSlug: 'default' },
+  );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by readConfigArea
+  return fallback as RetentionDefaultsConfig | null;
 }
 
 /**
@@ -120,7 +126,7 @@ export const getRetentionBoundsAction = action({
       throw new ConvexError({
         code: 'RETENTION_CONFIG_MISSING',
         message:
-          'Retention config not yet installed. Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json then reload.',
+          'Retention config not yet installed. Copy examples/default/governance/retention.json to $TALE_CONFIG_DIR/default/governance/retention.json then reload.',
       });
     }
 
@@ -159,8 +165,8 @@ export const upsertRetentionPolicyAction = action({
     organizationId: v.string(),
     config: v.any(),
   },
-  returns: v.id('governancePolicies'),
-  handler: async (ctx, args) => {
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
@@ -190,7 +196,7 @@ export const upsertRetentionPolicyAction = action({
       throw new ConvexError({
         code: 'RETENTION_CONFIG_MISSING',
         message:
-          'Retention config not yet installed. Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json.',
+          'Retention config not yet installed. Copy examples/default/governance/retention.json to $TALE_CONFIG_DIR/default/governance/retention.json.',
       });
     }
     const boundsByCategory = buildBoundsByCategory(orgConfig);
@@ -238,17 +244,107 @@ export const upsertRetentionPolicyAction = action({
       }
     }
 
-    const policyId: import('../_generated/dataModel').Id<'governancePolicies'> =
-      await ctx.runMutation(
-        internal.governance.mutations.upsertRetentionPolicyInternal,
-        {
-          organizationId: args.organizationId,
-          config: args.config,
-          actorId: authUser.userId,
-          actorEmail: authUser.email,
-          actorName: authUser.name,
-        },
-      );
-    return policyId;
+    // Capture the previous effective config from the cache BEFORE the file is
+    // overwritten, so the cooldown can detect shortening against it.
+    const oldConfig: unknown = await ctx.runQuery(
+      internal.governance.internal_queries.getPolicyConfigInternal,
+      { organizationId: args.organizationId, policyType: 'retention_policy' },
+    );
+
+    // Files are the source of truth: write the validated config to
+    // `<org>/governance/retention-policy.json` and re-sync the cache.
+    await ctx.runAction(
+      internal.governance.file_actions.persistGovernancePolicyFile,
+      {
+        organizationId: args.organizationId,
+        policyType: 'retention_policy',
+        config: args.config,
+      },
+    );
+
+    // Cooldown + audit + first-enable bounds seed (DB-side bookkeeping).
+    await ctx.runMutation(
+      internal.governance.mutations.recordRetentionPolicyChange,
+      {
+        organizationId: args.organizationId,
+        oldConfig,
+        config: args.config,
+        actorId: authUser.userId,
+        actorEmail: authUser.email,
+        actorName: authUser.name,
+      },
+    );
+    return null;
+  },
+});
+
+/**
+ * Cancel a pending retention-shortening before its cooldown elapses
+ * (admin-only). Reverts the on-disk `retention-policy.json` to the snapshot's
+ * `oldConfig`, re-syncs the cache, then deletes the pending row + audits.
+ * File-based replacement for the old `mutations.cancelPendingRetentionChange`
+ * (which patched the `governancePolicies` row).
+ */
+export const cancelPendingRetentionChange = action({
+  args: {
+    organizationId: v.string(),
+    pendingId: v.id('retentionPolicyPendingChanges'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'unauthenticated',
+        message: 'Sign in required.',
+      });
+    }
+    const member = await ctx.runQuery(
+      internal.governance.internal_queries.verifyOrgAdmin,
+      {
+        organizationId: args.organizationId,
+        userId: authUser.userId,
+        email: authUser.email ?? '',
+        name: authUser.name,
+      },
+    );
+    if (!member) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only admins can cancel pending retention changes.',
+      });
+    }
+
+    const pending = await ctx.runQuery(
+      internal.governance.internal_queries.getRetentionPendingById,
+      { organizationId: args.organizationId, pendingId: args.pendingId },
+    );
+    if (!pending) {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Pending change does not exist.',
+      });
+    }
+
+    // Revert the file to the pre-shortening config + re-sync the cache.
+    await ctx.runAction(
+      internal.governance.file_actions.persistGovernancePolicyFile,
+      {
+        organizationId: args.organizationId,
+        policyType: 'retention_policy',
+        config: pending.oldConfig,
+      },
+    );
+
+    await ctx.runMutation(
+      internal.governance.mutations.finalizeCancelPendingRetention,
+      {
+        organizationId: args.organizationId,
+        pendingId: args.pendingId,
+        actorId: authUser.userId,
+        actorEmail: authUser.email,
+      },
+    );
+    return null;
   },
 });

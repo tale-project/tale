@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
@@ -18,13 +18,22 @@ import {
   type TaleProject,
 } from '../project/types';
 import { writeProject } from '../project/write-project';
-import { generateAllRules } from '../rules/generators';
+import { writeAgentInstructions } from '../rules/generators';
 
 interface InitOptions {
   directory?: string;
   force?: boolean;
   noEnv?: boolean;
 }
+
+/**
+ * Distinguishes "the user aborted" from "we initialized" so callers don't
+ * print success guidance after an abort. `directory` is the resolved project
+ * directory the scaffold was written to.
+ */
+type InitResult =
+  | { status: 'aborted' }
+  | { status: 'initialized'; directory: string };
 
 const GITIGNORE_ENTRIES = [
   '.tale/',
@@ -39,7 +48,7 @@ const GITIGNORE_ENTRIES = [
   '**/*.secrets.json',
 ];
 
-export async function init(options: InitOptions): Promise<void> {
+export async function init(options: InitOptions): Promise<InitResult> {
   let directory = options.directory;
   let force = options.force ?? false;
 
@@ -55,7 +64,7 @@ export async function init(options: InitOptions): Promise<void> {
         });
         if (!shouldReinit) {
           logger.info('Aborted.');
-          return;
+          return { status: 'aborted' };
         }
       } else {
         throw new Error(
@@ -111,7 +120,7 @@ export async function init(options: InitOptions): Promise<void> {
         });
         if (!shouldOverwrite) {
           logger.info('Aborted.');
-          return;
+          return { status: 'aborted' };
         }
       } else {
         throw new Error(
@@ -121,7 +130,7 @@ export async function init(options: InitOptions): Promise<void> {
     }
   }
 
-  logger.header('Initializing Tale Project');
+  logger.header('Initializing Tale');
 
   logger.info(`Project directory: ${target}`);
 
@@ -129,14 +138,20 @@ export async function init(options: InitOptions): Promise<void> {
   await mkdir(target, { recursive: true });
 
   // Fetch reference code
-  logger.step('Copying reference code to .tale/reference/...');
+  logger.step('Copying reference code...');
   await mkdir(join(target, '.tale'), { recursive: true });
+  // Real organizations (created in-app) are runtime data and live here, kept
+  // out of the committed `default/` template. Created up front so the
+  // location is discoverable and so `tale deploy` has a stable sync target.
+  await mkdir(join(target, '.tale', 'orgs'), { recursive: true });
   await fetchReference(target);
 
-  // Host workspace mirrors the uniform org-first layout: scaffold under
-  // `default/<domain>/...`. The default org is the canonical template;
-  // operators can add `<otherOrg>/<domain>/...` subtrees alongside and
-  // `tale deploy --override` will push each `<org>` it finds at root.
+  // Host workspace mirrors the uniform org-first layout: scaffold the
+  // committed `default/<domain>/...` template at the project root. `default`
+  // is the canonical seed for every new organization — never a deployable
+  // org itself. Real organizations are created in-app and live as runtime
+  // data under `.tale/orgs/<orgSlug>/<domain>/`, which `tale deploy
+  // --override` pushes.
   const defaultOrgDir = join(target, 'default');
 
   // Copy agents from embedded examples
@@ -157,10 +172,18 @@ export async function init(options: InitOptions): Promise<void> {
     join(defaultOrgDir, 'integrations'),
   );
 
-  // Create branding directory with empty config
-  logger.step('Creating branding configuration...');
+  // Copy the branding config from the embedded example (fall back to an empty
+  // object). Written directly rather than through writeEmbeddedFiles so this
+  // single root-level file always lands cross-platform (a Map-iteration copy
+  // dropped it on Windows). Keep an images/ dir for uploaded assets.
+  logger.step('Copying branding configuration...');
+  const brandingJson =
+    getEmbeddedExamples('branding').get('branding.json') ?? '{}\n';
   await mkdir(join(defaultOrgDir, 'branding', 'images'), { recursive: true });
-  await writeFile(join(defaultOrgDir, 'branding', 'branding.json'), '{}\n');
+  await writeFile(
+    join(defaultOrgDir, 'branding', 'branding.json'),
+    brandingJson,
+  );
   await writeFile(join(defaultOrgDir, 'branding', 'images', '.gitkeep'), '');
 
   // Copy provider configs (public JSON only, not encrypted secrets)
@@ -182,22 +205,15 @@ export async function init(options: InitOptions): Promise<void> {
   const skillFiles = getEmbeddedExamples('skills');
   await writeEmbeddedFiles(skillFiles, join(defaultOrgDir, 'skills'));
 
-  // Write AI rules files. Moved ABOVE the checksum step (was below,
-  // after writeChecksums) so the four rules files — CLAUDE.md,
-  // .cursor/rules/tale.mdc, .github/copilot-instructions.md,
-  // .windsurfrules — get hashed into `.tale/checksums.json` alongside
-  // the example files. Without the hash recorded, `tale update`'s
-  // `!oldHash` "new" branch (update.ts:95-101) hits unconditional
-  // overwrite on the FIRST run after init and silently clobbers any
-  // local edits the user made between init and that first update
-  // (round-2 P1-34).
-  logger.step('Writing AI rules files...');
-  const rulesFiles = generateAllRules();
-  for (const { relativePath, content } of rulesFiles) {
-    const destPath = join(target, relativePath);
-    await mkdir(dirname(destPath), { recursive: true });
-    await Bun.write(destPath, content);
-  }
+  // Write the agent instructions (AGENTS.md + CLAUDE.md). Kept ABOVE the
+  // checksum step so their hashes land in `.tale/checksums.json`: without that,
+  // `tale update`'s `!oldHash` "new" branch (update.ts:95-101) would
+  // unconditionally overwrite on the first update after init and clobber local
+  // edits (round-2 P1-34). `writeAgentInstructions` merges into any existing
+  // files through a managed marker block, so it returns the final written
+  // content to hash.
+  logger.step('Writing agent instructions (AGENTS.md, CLAUDE.md)...');
+  const rulesFiles = await writeAgentInstructions(target);
 
   // Compute checksums. Paths are recorded relative to the project root,
   // matching where the files actually live (default/<domain>/... and
@@ -240,7 +256,7 @@ export async function init(options: InitOptions): Promise<void> {
   }
   allFiles.set(
     join('default', 'branding', 'branding.json'),
-    computeContentHash('{}\n'),
+    computeContentHash(brandingJson),
   );
 
   const checksums: Checksums = {
@@ -282,38 +298,10 @@ export async function init(options: InitOptions): Promise<void> {
   // Ensure .gitignore
   await ensureGitignore(target);
 
-  // .env setup
+  // .env setup — local defaults (production domain/TLS is chosen at deploy).
   if (!options.noEnv) {
     const { ensureEnv } = await import('../config/ensure-env');
-    logger.blank();
-    const envResult = await ensureEnv({ deployDir: target });
-
-    // Persist the OpenRouter API key collected during env setup as a SOPS-
-    // encrypted file. `ensureEnv` always provisions a SOPS age keypair at
-    // init time, so `agePublicKey` is invariably present here. Operators who
-    // want plaintext-mode storage do so by clearing `SOPS_AGE_KEY` in .env
-    // after init and re-saving keys via Settings → AI providers; the
-    // encrypted-vs-plaintext mode is a runtime save-path decision, not an
-    // init-time choice.
-    if (envResult.openrouterKey && envResult.agePublicKey) {
-      const secretsPath = join(
-        target,
-        'default',
-        'providers',
-        'openrouter.secrets.json',
-      );
-      const { sopsEncryptJson } = await import('../crypto/sops-encrypt');
-      const encrypted = await sopsEncryptJson(
-        { apiKey: envResult.openrouterKey },
-        envResult.agePublicKey,
-      );
-      // 0600: SOPS-encrypted, but least-privilege convention for any
-      // `*.secrets.*` file. Limits readability to the owner.
-      await writeFile(secretsPath, encrypted, { mode: 0o600 });
-      logger.success(
-        'Encrypted provider API key into default/providers/openrouter.secrets.json',
-      );
-    }
+    await ensureEnv({ deployDir: target });
   }
 
   logger.blank();
@@ -331,40 +319,37 @@ export async function init(options: InitOptions): Promise<void> {
   ]);
   logger.blank();
   const needsCd = resolve(process.cwd()) !== resolve(target);
+  const relTarget = relative(process.cwd(), target) || '.';
   let step = 1;
 
   logger.info('Next steps:');
   if (needsCd) {
-    logger.info(`  ${step++}. Run "cd ${target}" to enter your project`);
+    logger.info(`  ${step++}. cd ${relTarget}`);
   }
+  logger.info(`  ${step++}. tale start    (launch locally)`);
   logger.info(
-    `  ${step++}. Edit default/agents/, default/workflows/, default/integrations/, default/skills/, and default/branding/ to customize your setup`,
+    `  ${step++}. Open the app, create the owner account, then add your`,
   );
+  logger.info('       OpenRouter key when the setup wizard asks — or later in');
   logger.info(
-    `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,
+    '       Settings → AI providers. Get a key: https://openrouter.ai/keys',
   );
-  logger.info(`  ${step++}. Run "tale start" to launch the platform locally`);
+  logger.info(`  ${step++}. tale deploy   (when ready, deploy to your domain)`);
+  logger.blank();
+  logger.notice(
+    'Production-ready by default: every secret — including the audit-log ' +
+      'signing key — is auto-generated in .env. Nothing to hand-edit; just ' +
+      'back up .env so you can restore or redeploy.',
+  );
+
+  return { status: 'initialized', directory: target };
 }
 
 // Top-level markers indicating a Tale project. Under the uniform org-first
 // layout, `default/` is the canonical org dir (and any other org dir is
 // also a marker, but we don't try to enumerate slugs — `default/` is enough
-// to detect a project). Legacy per-domain dirs (`agents/`, `workflows/`,
-// etc.) at the root are kept as markers so `tale init` re-detects old
-// projects from a prior CLI version.
-const TALE_PROJECT_MARKERS = new Set([
-  '.env',
-  'tale.json',
-  '.tale',
-  'default',
-  // Legacy / pre-org-first markers (detected during reinit only):
-  'providers',
-  'agents',
-  'workflows',
-  'integrations',
-  'skills',
-  'branding',
-]);
+// to detect a project).
+const TALE_PROJECT_MARKERS = new Set(['.env', 'tale.json', '.tale', 'default']);
 
 async function detectTaleProjectFiles(dir: string): Promise<string[]> {
   try {

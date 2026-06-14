@@ -18,17 +18,14 @@
  * workflows dir does not exist yet (scaffold still running).
  */
 
-import { readdir } from 'node:fs/promises';
-import path from 'node:path';
-
 import { v } from 'convex/values';
 
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
-import { readFileSafe, sha256 } from '../lib/file_io';
+import { listCatalogArea } from '../lib/config_store/catalog';
+import { sha256 } from '../lib/file_io';
 import {
-  resolveWorkflowsDir,
   validateWorkflowSlug,
   workflowSlugFromRelativePath,
 } from './file_utils';
@@ -52,11 +49,12 @@ export const syncDefaultWorkflowInstallations = internalAction({
     args,
   ): Promise<{ provisioned: number; skipped: number; failed: number }> => {
     const attempt = args.attempt ?? 1;
-    const dir = resolveWorkflowsDir(args.orgSlug);
 
-    let entries;
+    let files;
     try {
-      entries = await readdir(dir, { recursive: true, withFileTypes: true });
+      files = await listCatalogArea('workflows', args.orgSlug, {
+        recursive: true,
+      });
     } catch {
       // Scaffold may still be copying the catalog — retry a bounded number
       // of times, then give up quietly (the ops migration can re-run).
@@ -80,17 +78,11 @@ export const syncDefaultWorkflowInstallations = internalAction({
     let skipped = 0;
     let failed = 0;
 
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
-      const parentPath = entry.parentPath ?? dir;
-      const fullPath = path.join(parentPath, entry.name);
-      const relativePath = path.relative(dir, fullPath);
+    for (const { relativePath, content } of files) {
       const workflowSlug = workflowSlugFromRelativePath(relativePath);
       if (!workflowSlug || !validateWorkflowSlug(workflowSlug)) continue;
 
       try {
-        const content = await readFileSafe(fullPath);
-        if (!content) continue;
         const parsed = workflowJsonSchema.safeParse(JSON.parse(content));
         if (!parsed.success) {
           console.warn('[TaskOpsProvision] invalid workflow JSON; skipping', {

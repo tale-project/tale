@@ -21,6 +21,7 @@ import { ConvexError, v } from 'convex/values';
 import { dataNoticeConfigSchema } from '../../lib/shared/schemas/governance';
 import { mutation, query } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { readConfigCacheRow } from '../lib/config_cache/read';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
@@ -64,14 +65,12 @@ export const acknowledgePolicy = mutation({
     // the client-supplied version let users self-ack
     // `Number.MAX_SAFE_INTEGER` to silence the modal forever even when
     // the admin bumps the live version repeatedly.
-    const livePolicy = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('policyType', args.policyType),
-      )
-      .first();
+    const livePolicy = await readConfigCacheRow(
+      ctx.db,
+      args.organizationId,
+      'governance',
+      args.policyType,
+    );
     if (!livePolicy) {
       throw new ConvexError({
         code: 'POLICY_NOT_CONFIGURED',

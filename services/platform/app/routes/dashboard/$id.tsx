@@ -15,7 +15,6 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
-import { MobileBackButton } from '@/app/components/layout/mobile-back-button';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { DirtyBlockerProvider } from '@/app/components/ui/editor';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
@@ -291,11 +290,10 @@ function DashboardLayout() {
             <AdaptiveHeaderProvider>
               <div className="flex h-full w-full flex-col overflow-hidden md:flex-row">
                 {/* Safe-area inset clears the notch; the inner fixed-height row
-                    vertically centers the back button, title and profile button
-                    so none of them sit high/low in the bar on notch devices. */}
+                    vertically centers the title and profile button so neither
+                    sits high/low in the bar on notch devices. */}
                 <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
                   <div className="flex min-h-12 items-center gap-2">
-                    <MobileBackButton organizationId={organizationId} />
                     <div className="min-w-0 flex-1">
                       <AdaptiveHeaderSlot />
                     </div>

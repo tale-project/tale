@@ -9,7 +9,6 @@ import { internalAction } from '../_generated/server';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
 import { classifyError } from '../lib/error_classification';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import type { ResolvedModelData } from '../providers/resolve_model';
 import { resolveTranscriptionModel } from '../providers/resolve_model';
 import { uploadFile } from '../workflow_engine/action_defs/rag/helpers/upload_file_direct';
 import {
@@ -24,6 +23,10 @@ import {
   WHISPER_PROFILE,
   type ParagraphSegment,
 } from './paragraphize';
+import {
+  requestTranscription,
+  type TranscriptionSegment,
+} from './transcription_request';
 
 /** Matches EXTRACT_METADATA_RETRY_DELAYS in internal_actions.ts — consistent
  * backoff pattern across the scheduled-action family. */
@@ -32,20 +35,6 @@ const TRANSCRIBE_RETRY_DELAYS_MS = [30_000, 60_000, 120_000];
 /** Per-chunk API timeout. Covers long OpenAI transcriptions on ~21 MB chunks
  * (empirically 30–90s). */
 const TRANSCRIBE_API_TIMEOUT_MS = 5 * 60_000;
-
-interface TranscriptionSegment {
-  id: number;
-  start: number;
-  end: number;
-  text: string;
-}
-
-interface TranscriptionResponse {
-  text: string;
-  duration?: number;
-  language?: string;
-  segments?: TranscriptionSegment[];
-}
 
 /**
  * Adapter: Whisper `verbose_json` segments → shared `ParagraphSegment` shape.
@@ -80,58 +69,17 @@ function sanitizeTranscriptionError(err: unknown): string {
     .slice(0, 500);
 }
 
-async function postChunkToTranscriptionApi(
-  modelData: ResolvedModelData,
-  chunk: AudioChunk,
-  originalFileName: string,
-): Promise<TranscriptionResponse> {
-  const formData = new FormData();
-  // OpenAI and most OpenAI-compatible servers validate by file extension.
-  // Our compressed output is Opus-in-OGG, so the extension must be `.ogg`
-  // (`.opus` is NOT in OpenAI's accepted list even though the content is
-  // identical). https://platform.openai.com/docs/guides/speech-to-text
-  const chunkName =
-    chunk.index === 0 && chunk.durationSec > 0
-      ? `${originalFileName}.ogg`
-      : `${originalFileName}.chunk-${chunk.index}.ogg`;
-  formData.append('file', chunk.blob, chunkName);
-  formData.append('model', modelData.modelId);
-  // `verbose_json` is required to get `duration` across OpenAI, vLLM,
-  // LocalAI, and faster-whisper-server. Plain `json` omits it on OpenAI.
-  formData.append('response_format', 'verbose_json');
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    TRANSCRIBE_API_TIMEOUT_MS,
-  );
-
-  try {
-    const response = await fetch(`${modelData.baseUrl}/audio/transcriptions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${modelData.apiKey}` },
-      body: formData,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      // Attach the HTTP status to the Error so `classifyError` can properly
-      // mark 4xx as non-retryable (vs. 429/5xx which should retry). Without
-      // this, all API errors fall into the default `unknown + retryable`
-      // bucket and waste 3 retries.
-      const err: Error & { status?: number } = new Error(
-        `Transcription API ${response.status}: ${errorText.slice(0, 400)}`,
-      );
-      err.status = response.status;
-      throw err;
-    }
-
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- OpenAI-compatible response shape
-    return (await response.json()) as TranscriptionResponse;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+/**
+ * Whisper validates by file extension, and our compressed output is
+ * Opus-in-OGG, so the `multipart` `file` field must use `.ogg` (`.opus` is NOT
+ * in OpenAI's accepted list even though the content is identical). The same
+ * `'ogg'` value feeds the `json-base64` `input_audio.format` field.
+ * https://platform.openai.com/docs/guides/speech-to-text
+ */
+function chunkFileName(originalFileName: string, chunk: AudioChunk): string {
+  return chunk.index === 0 && chunk.durationSec > 0
+    ? `${originalFileName}.ogg`
+    : `${originalFileName}.chunk-${chunk.index}.ogg`;
 }
 
 async function patchProgress(
@@ -480,11 +428,13 @@ export const transcribeAudio = internalAction({
             : `transcribing chunk ${chunk.index + 1} of ${chunks.length}`;
         await patchProgress(ctx, args.storageId, progressLabel);
 
-        const result = await postChunkToTranscriptionApi(
-          modelData,
-          chunk,
-          args.fileName,
-        );
+        const result = await requestTranscription({
+          model: modelData,
+          blob: chunk.blob,
+          fileName: chunkFileName(args.fileName, chunk),
+          format: 'ogg',
+          timeoutMs: TRANSCRIBE_API_TIMEOUT_MS,
+        });
         // Timestamps are only meaningful for video-link transcripts —
         // they let the agent cite "Chapter 3 @ 12:34" in summaries.
         // Regular microphone recordings don't carry that context, so

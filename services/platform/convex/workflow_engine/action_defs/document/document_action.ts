@@ -849,11 +849,11 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
       case 'index_in_rag': {
         // Wraps the canonical RAG indexing flow: upload to RAG service, mark
-        // the document `ragInfo.status='queued'`, and schedule status polling
-        // (which flips it to 'completed' or 'failed'). Without this wrapper,
-        // a workflow that calls `rag.upload_document` directly would push the
-        // file to RAG but leave `ragInfo` untouched — so the UI still shows
-        // "Not indexed".
+        // the file's `fileMetadata.ragStatus='queued'`, and schedule status
+        // polling (which flips it to 'completed' or 'failed'). Without this
+        // wrapper, a workflow that calls `rag.upload_document` directly would
+        // push the file to RAG but leave `ragStatus` untouched — so the UI
+        // still shows "Not indexed".
         await ctx.runAction(
           internal.documents.internal_actions.uploadDocumentToRag,
           { documentId: toId<'documents'>(params.documentId) },

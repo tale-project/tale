@@ -201,26 +201,6 @@ describe('recordOrgSwitch', () => {
     expect(mockLogSuccess).not.toHaveBeenCalled();
   });
 
-  it('skips audit log when legacy entered_organization entry exists within window', async () => {
-    // Transitional dedup: until demo data is purged, the dedup query must
-    // also recognize the old action name so back-to-back sign-ins straddling
-    // the rename deploy don't double-log.
-    const ctx = createMockCtx([
-      {
-        actorId: 'user_1',
-        action: 'entered_organization',
-        organizationId: 'org_1',
-        category: 'auth',
-        timestamp: Date.now() - 5 * 60 * 1000,
-      },
-    ]);
-    const handler = await getHandler();
-
-    await handler(ctx, { organizationId: 'org_1' });
-
-    expect(mockLogSuccess).not.toHaveBeenCalled();
-  });
-
   it('writes audit log when previous same-org entry is from a different user', async () => {
     const ctx = createMockCtx([
       {

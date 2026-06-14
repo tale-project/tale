@@ -183,10 +183,20 @@ describe('Integration: parseFilterExpression + selectOptimalIndex', () => {
       );
 
       expect(parsed.conditions).toHaveLength(2);
-      expect(parsed.equalityConditions).toEqual({
-        status: 'active',
-        category: 'electronics',
-      });
+      expect(parsed.conditions).toEqual([
+        {
+          field: 'status',
+          operator: '==',
+          value: 'active',
+          isSimpleField: true,
+        },
+        {
+          field: 'category',
+          operator: '==',
+          value: 'electronics',
+          isSimpleField: true,
+        },
+      ]);
 
       const selected = selectOptimalIndex(
         'products',

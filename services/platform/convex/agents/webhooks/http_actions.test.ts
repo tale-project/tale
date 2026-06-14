@@ -14,9 +14,9 @@ const {
 const VALID_TOKEN = 'a'.repeat(64);
 
 describe('parseWebhookPath', () => {
-  it('parses the legacy webhook path', () => {
+  it('parses the native webhook path', () => {
     const r = parseWebhookPath(`/api/agents/wh/${VALID_TOKEN}`);
-    expect(r).toEqual({ token: VALID_TOKEN, mode: 'legacy' });
+    expect(r).toEqual({ token: VALID_TOKEN, mode: 'native' });
   });
 
   it('parses the OpenAI-compat sub-path', () => {
@@ -54,9 +54,9 @@ describe('parseWebhookPath', () => {
     });
   });
 
-  it('tolerates trailing slash on the legacy form', () => {
+  it('tolerates trailing slash on the native form', () => {
     const r = parseWebhookPath(`/api/agents/wh/${VALID_TOKEN}/`);
-    expect(r).toEqual({ token: VALID_TOKEN, mode: 'legacy' });
+    expect(r).toEqual({ token: VALID_TOKEN, mode: 'native' });
   });
 
   it('extracts the token from the fixed position regardless of suffix length', () => {

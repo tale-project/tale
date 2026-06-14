@@ -1,14 +1,14 @@
 /**
  * Structural interface for functions that need to access integration credentials.
  *
- * Satisfied by both Doc<'integrations'> (legacy) and LoadedIntegration (file-based).
- * Use this in shared helpers that must work with either source during the migration.
+ * Satisfied by both `integrationCredentials` rows and file-based
+ * `LoadedIntegration` objects.
  */
 
 import type { Id } from '../_generated/dataModel';
 
 export interface IntegrationWithCredentials {
-  _id: Id<'integrations'> | Id<'integrationCredentials'>;
+  _id: Id<'integrationCredentials'>;
   authMethod: 'api_key' | 'bearer_token' | 'basic_auth' | 'oauth2';
   connectionConfig?: {
     domain?: string;

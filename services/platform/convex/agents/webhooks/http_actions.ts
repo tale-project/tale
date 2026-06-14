@@ -63,10 +63,10 @@ type WebhookRecord = {
   createdByUserId?: string;
 };
 
-type RouteMode = 'legacy' | 'openai';
+type RouteMode = 'native' | 'openai';
 
 /**
- * Parse `/api/agents/wh/<TOKEN>` (legacy) or
+ * Parse `/api/agents/wh/<TOKEN>` (native) or
  * `/api/agents/wh/<TOKEN>/chat/completions` (OpenAI-compat).
  * Token is always at fixed index 3; suffix determines the wire format.
  */
@@ -85,7 +85,7 @@ function parseWebhookPath(
   const token = parts[3];
   const suffix = parts.slice(4);
   if (suffix.length === 0) {
-    return { token, mode: 'legacy' };
+    return { token, mode: 'native' };
   }
   if (
     suffix.length === 2 &&
@@ -167,14 +167,14 @@ export const agentWebhookHandler = httpAction(async (ctx, req) => {
   if (mode === 'openai') {
     return handleOpenAIRequest(ctx, req, webhook);
   }
-  return handleLegacyRequest(ctx, req, webhook);
+  return handleNativeRequest(ctx, req, webhook);
 });
 
 // ---------------------------------------------------------------------------
-// Legacy handler — unchanged wire format: { message, threadId?, stream? }
+// Native handler — Tale's default wire format: { message, threadId?, stream? }
 // ---------------------------------------------------------------------------
 
-async function handleLegacyRequest(
+async function handleNativeRequest(
   ctx: ActionCtx,
   req: Request,
   webhook: WebhookRecord,
@@ -560,7 +560,7 @@ async function pollOpenAIResponse(
 }
 
 // ---------------------------------------------------------------------------
-// Shared poll + stream response helpers (legacy path)
+// Shared poll + stream response helpers (native path)
 // ---------------------------------------------------------------------------
 
 async function pollResponse(

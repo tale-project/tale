@@ -18,8 +18,6 @@ const ALL_TABLES = [
   'conversations',
   'conversationMessages',
   'wfDefinitions',
-  'wfStepDefs',
-  'wfStepAuditLogs',
   'wfExecutions',
   'approvals',
   'websites',
@@ -74,8 +72,6 @@ describe('authorizeRls', () => {
       'integrations',
       'onedriveSyncConfigs',
       'wfDefinitions',
-      'wfStepDefs',
-      'wfStepAuditLogs',
       'wfExecutions',
       'workflowProcessingRecords',
     ];

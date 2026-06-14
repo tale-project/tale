@@ -2,7 +2,7 @@
 
 /**
  * Workforce org-chart operations for the task-ops automation pack — the
- * runtime slice of the agents-only organigram (`reportsTo` edges in the agent
+ * runtime slice of the agents-only organigram (`delegates` edges in the agent
  * JSON configs). Exposed to workflows through the `agent` action
  * (`workflow_engine/action_defs/agent/agent_action.ts`):
  *
@@ -61,8 +61,6 @@ export interface WorkforceRosterEntry {
   description?: string;
   /** Agents this agent delegates to (its direct reports). Many-to-many. */
   delegates: string[];
-  /** Legacy single manager, still read so pre-migration configs render. */
-  reportsTo?: string;
   budget?: { monthlyCents: number; warnPct?: number; pausePct?: number };
   maxConcurrentTasks?: number;
 }
@@ -95,7 +93,7 @@ function asBudget(
 
 /**
  * The org-chart roster: every real org agent (router/system slugs excluded)
- * with its `reportsTo` edge, projected off the cached agent list.
+ * with its `delegates` edges, projected off the cached agent list.
  */
 export async function readWorkforceRoster(
   orgSlug: string,
@@ -115,7 +113,6 @@ export async function readWorkforceRoster(
       displayName: asOptionalString(entry.displayName),
       description: asOptionalString(entry.description),
       delegates: asStringArray(entry.delegates),
-      reportsTo: asOptionalString(entry.reportsTo),
       budget: asBudget(entry.budget),
       maxConcurrentTasks:
         typeof entry.maxConcurrentTasks === 'number'
@@ -158,7 +155,6 @@ export function buildChartFromRoster(roster: WorkforceRosterEntry[]): OrgChart {
     roster.map((entry) => ({
       slug: entry.slug,
       delegates: entry.delegates,
-      reportsTo: entry.reportsTo,
     })),
   );
 }
@@ -417,8 +413,7 @@ export const reassignOrUnassign = internalAction({
 //
 // The graph is a many-to-many DELEGATION graph stored as each agent's
 // `delegates` array (the agents it delegates to). There is no limitation
-// beyond a forbidden self-edge; cycles are allowed. `reportsTo` is the legacy
-// single-manager field — writers migrate it away as they touch agents.
+// beyond a forbidden self-edge; cycles are allowed.
 // ---------------------------------------------------------------------------
 
 /**
@@ -477,29 +472,6 @@ function sanitizeTargets(
   return cleaned;
 }
 
-/** Drop a legacy `reportsTo` on `childSlug` (optionally only when it equals
- *  `onlyIfManager`), so a removed edge can't be resurrected by the read-fold. */
-async function clearLegacyManager(
-  orgSlug: string,
-  childSlug: string,
-  onlyIfManager?: string,
-): Promise<void> {
-  const filePath = resolveAgentFilePath(orgSlug, childSlug);
-  const file = await readJsonFile<AgentJsonConfig>(
-    filePath,
-    MAX_FILE_SIZE_BYTES,
-    parseAgentJson,
-  );
-  if (!file.ok || file.data.reportsTo === undefined) return;
-  if (onlyIfManager !== undefined && file.data.reportsTo !== onlyIfManager) {
-    return;
-  }
-  const config = file.data;
-  delete config.reportsTo;
-  await snapshotAgentHistory(orgSlug, childSlug);
-  await atomicWrite(filePath, serializeAgentJson(config));
-}
-
 /**
  * Set the agents that `agentSlug` delegates to (its outgoing edges / direct
  * reports). Throws RESERVED_AGENT_SLUG, AGENT_NOT_FOUND, SELF_EDGE,
@@ -529,21 +501,15 @@ export async function writeAgentDelegates(args: {
   await snapshotAgentHistory(orgSlug, agentSlug);
   await atomicWrite(filePath, serializeAgentJson(config));
 
-  // A child removed here whose legacy `reportsTo` still points at us would be
-  // re-linked by the read-time fold — clear it so the removal sticks.
-  for (const childSlug of previous.filter((slug) => !next.includes(slug))) {
-    await clearLegacyManager(orgSlug, childSlug, agentSlug);
-  }
-
   invalidateAgentListCache(orgSlug);
   return { previous };
 }
 
 /**
  * Set the agents that delegate to `agentSlug` (its incoming edges / the
- * "reports to" list). Adjusts each candidate parent's `delegates` to match,
- * and migrates the agent's own legacy `reportsTo` away. Throws the same codes
- * as {@link writeAgentDelegates}. Returns the previous parent list.
+ * "reports to" list). Adjusts each candidate parent's `delegates` to match.
+ * Throws the same codes as {@link writeAgentDelegates}. Returns the previous
+ * parent list.
  */
 export async function writeAgentParents(args: {
   orgSlug: string;
@@ -578,10 +544,6 @@ export async function writeAgentParents(args: {
     await snapshotAgentHistory(orgSlug, entry.slug);
     await atomicWrite(filePath, serializeAgentJson(config));
   }
-
-  // The agent's parent is now expressed via the parents' `delegates`; drop any
-  // legacy `reportsTo` so it doesn't add a phantom parent.
-  await clearLegacyManager(orgSlug, agentSlug);
 
   invalidateAgentListCache(orgSlug);
   return { previous };

@@ -5,10 +5,6 @@ import {
   agentGuardrailNoticesTable,
   agentRunCountersTable,
 } from './agents/guardrails/schema';
-import {
-  customAgentsTable,
-  customAgentWebhooksTable,
-} from './agents/legacy_schema';
 import { agentBindingsTable, autoRouteCacheTable } from './agents/schema';
 import {
   agentWebhooksTable,
@@ -16,10 +12,6 @@ import {
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
-import {
-  brandingBindingsTable,
-  brandingSettingsLegacyTable,
-} from './branding/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
   notificationPreferencesTable,
@@ -40,8 +32,8 @@ import {
   activeErasureClaimsTable,
   activeLegalHoldClaimsTable,
   auditLogCheckpointsTable,
+  dsarPolicyPendingChangesTable,
   gdprErasureRequestsTable,
-  governancePoliciesTable,
   governanceSecretsTable,
   legalHoldReleaseRequestsTable,
   legalHoldsTable,
@@ -55,19 +47,22 @@ import {
 } from './governance/schema';
 import { externalIdentitiesTable } from './identities/external_identities_schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
-import { integrationsTable } from './integrations/schema';
 import {
   slackEventDedupTable,
   slackThreadsTable,
 } from './integrations/slack/schema';
 import { slackInstallationsTable } from './integrations/slack_installations_schema';
 import { knowledgeEntriesTable } from './knowledge_entries/schema';
-import { llmResponseCacheTable } from './lib/response_cache/schema';
+import { configCacheTable } from './lib/config_cache/schema';
 import {
   loginAttemptsTable,
   loginBlockCountersTable,
 } from './login_attempts/schema';
 import { mcpServersTable } from './mcp_servers/schema';
+import {
+  migrationLedgerTable,
+  migrationSnapshotsTable,
+} from './migrations/framework/schema';
 import {
   modelCapabilityCacheTable,
   modelCatalogSyncTable,
@@ -81,7 +76,11 @@ import {
   agentSecretAccessTable,
   projectSecretsTable,
 } from './projects/secrets/schema';
-import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
+import {
+  promptCategoriesTable,
+  promptDefaultProvisionsTable,
+  promptTemplatesTable,
+} from './prompts/schema';
 import { reasoningProfilesTable } from './reasoning_profiles/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
 import {
@@ -125,11 +124,8 @@ import { webdavAppPasswordsTable, webdavLocksTable } from './webdav/schema';
 import { websitesTable } from './websites/schema';
 import {
   wfDefaultProvisionsTable,
-  wfDefinitionsTable,
   wfExecutionsTable,
   wfInstallationsTable,
-  wfStepAuditLogsTable,
-  wfStepDefsTable,
   workflowProcessingRecordsTable,
 } from './workflows/schema';
 import {
@@ -144,7 +140,17 @@ export default defineSchema({
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
-  governancePolicies: governancePoliciesTable,
+  // Generic file→cache mirror for all `v8-sync` config domains (governance
+  // today). Source of truth is the per-org JSON files under
+  // `$TALE_CONFIG_DIR/<org>/governance/`; this table is re-derivable. See
+  // `lib/config_cache/schema.ts`.
+  configCache: configCacheTable,
+  // Versioned data-migration framework. `migrationLedger` records which
+  // migrations have applied (and their resume cursors); `migrationSnapshots`
+  // holds pre-`up` backups so destructive migrations can be rolled back. See
+  // `migrations/framework/`.
+  migrationLedger: migrationLedgerTable,
+  migrationSnapshots: migrationSnapshotsTable,
   governanceSecrets: governanceSecretsTable,
   legalHolds: legalHoldsTable,
   activeLegalHoldClaims: activeLegalHoldClaimsTable,
@@ -153,6 +159,7 @@ export default defineSchema({
   auditLogCheckpoints: auditLogCheckpointsTable,
   retentionRuns: retentionRunsTable,
   retentionPolicyPendingChanges: retentionPolicyPendingChangesTable,
+  dsarPolicyPendingChanges: dsarPolicyPendingChangesTable,
   retentionAppliedBounds: retentionAppliedBoundsTable,
   gdprErasureRequests: gdprErasureRequestsTable,
   activeErasureClaims: activeErasureClaimsTable,
@@ -161,35 +168,25 @@ export default defineSchema({
   usageLedger: usageLedgerTable,
   promptTemplates: promptTemplatesTable,
   promptCategories: promptCategoriesTable,
+  promptDefaultProvisions: promptDefaultProvisionsTable,
   messageFeedback: messageFeedbackTable,
   mcpServers: mcpServersTable,
-  brandingBindings: brandingBindingsTable,
-  /** @deprecated Retained for backward compatibility with existing data. */
-  brandingSettings: brandingSettingsLegacyTable,
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
   agentBindings: agentBindingsTable,
   autoRouteCache: autoRouteCacheTable,
   agentWebhooks: agentWebhooksTable,
   agentWebhookUserThreads: agentWebhookUserThreadsTable,
-  /** @deprecated Retained for backward compatibility with existing data. */
-  customAgents: customAgentsTable,
-  /** @deprecated Retained for backward compatibility with existing data. */
-  customAgentWebhooks: customAgentWebhooksTable,
   customers: customersTable,
   documents: documentsTable,
   fileMetadata: fileMetadataTable,
   folders: foldersTable,
   knowledgeEntries: knowledgeEntriesTable,
   integrationCredentials: integrationCredentialsTable,
-  /** @deprecated Retained for backward compatibility with existing data. Use integrationCredentials + file-based config. */
-  integrations: integrationsTable,
   slackInstallations: slackInstallationsTable,
   slackThreads: slackThreadsTable,
   slackEventDedup: slackEventDedupTable,
   externalIdentities: externalIdentitiesTable,
-  /** @deprecated Retained only for schema-validation compatibility on deployments with prior cache rows. Read/write code removed in 83a3c28da. */
-  llmResponseCache: llmResponseCacheTable,
   loginAttempts: loginAttemptsTable,
   loginBlockCounters: loginBlockCountersTable,
   messageMetadata: messageMetadataTable,
@@ -247,14 +244,11 @@ export default defineSchema({
   webdavLocks: webdavLocksTable,
   websites: websitesTable,
   wfApiKeys: wfApiKeysTable,
-  wfDefinitions: wfDefinitionsTable,
   wfEventSubscriptions: wfEventSubscriptionsTable,
   wfExecutions: wfExecutionsTable,
   wfInstallations: wfInstallationsTable,
   wfDefaultProvisions: wfDefaultProvisionsTable,
   wfSchedules: wfSchedulesTable,
-  wfStepAuditLogs: wfStepAuditLogsTable,
-  wfStepDefs: wfStepDefsTable,
   wfTriggerLogs: wfTriggerLogsTable,
   wfWebhooks: wfWebhooksTable,
   workflowProcessingRecords: workflowProcessingRecordsTable,

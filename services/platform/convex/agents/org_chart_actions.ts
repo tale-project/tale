@@ -14,9 +14,9 @@
  *    real targets), written atomically to the JSON file(s), audited, and
  *    write-through cache-dropped so the next read sees it immediately.
  *
- * `saveAgent` (file_actions) deliberately strips incoming `delegates` /
- * `reportsTo` and re-applies the on-disk values, so the organigram remains
- * the only editor of delegation edges.
+ * `saveAgent` (file_actions) deliberately strips incoming `delegates` and
+ * re-applies the on-disk value, so the organigram remains the only editor of
+ * delegation edges.
  */
 
 import { v } from 'convex/values';
@@ -180,8 +180,8 @@ export const setAgentParents = action({
       actorRole: auth.member.role,
       action: 'set_agent_parents',
       resourceId: args.agentSlug,
-      previousState: { reportsTo: previous },
-      newState: { reportsTo: args.parentSlugs },
+      previousState: { parents: previous },
+      newState: { parents: args.parentSlugs },
     });
     return { ok: true };
   },

@@ -9,7 +9,6 @@ import {
   documentItemValidator,
   documentFindResponseValidator,
   documentRecordValidator,
-  ragInfoValidator,
   ragStatusValidator,
   sourceProviderValidator,
   sourceModeValidator,
@@ -20,12 +19,6 @@ import {
 // =============================================================================
 
 export type RagStatus = Infer<typeof ragStatusValidator>;
-/**
- * @deprecated Mirrors the retired `documents.ragInfo` field. RAG status is
- * canonical on `fileMetadata.ragStatus`; project it via
- * `getDocumentRagProjection`.
- */
-export type RagInfo = Infer<typeof ragInfoValidator>;
 export type SourceProvider = Infer<typeof sourceProviderValidator>;
 export type SourceMode = Infer<typeof sourceModeValidator>;
 export type DocumentItemResponse = Infer<typeof documentItemValidator>;

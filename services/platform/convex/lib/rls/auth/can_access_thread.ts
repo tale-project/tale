@@ -58,7 +58,7 @@ export async function canAccessThread(
 
   // Owner branch
   if (metadata.userId === authUser.userId) {
-    if (!metadata.organizationId) return metadata; // legacy: no org to check
+    if (!metadata.organizationId) return metadata; // org-less thread: owner access, no org to check
     if (expectedOrgId === metadata.organizationId) {
       return expectedMembership ? metadata : null;
     }

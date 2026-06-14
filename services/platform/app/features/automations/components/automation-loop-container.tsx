@@ -84,7 +84,7 @@ export function AutomationLoopContainer({
             ? t('aria.openNamed', { name: data.label })
             : t('aria.openLoop')
         }
-        className="border-border bg-background h-full w-full cursor-pointer rounded-lg border-2 border-dashed text-left shadow-sm transition-shadow hover:shadow-md focus:outline-none"
+        className="h-full w-full cursor-pointer rounded-xl border-2 border-dashed border-cyan-300 bg-cyan-50/40 text-left shadow-sm transition-shadow hover:shadow-md focus:outline-none dark:border-cyan-800/70 dark:bg-cyan-950/20"
         onClick={() => data.onNodeClick?.(data.stepSlug)}
         style={{ overflow: 'visible', position: 'relative' }}
       >
@@ -92,7 +92,7 @@ export function AutomationLoopContainer({
           {/* Header with icon, title, and label */}
           <div className="mb-4 flex flex-shrink-0 items-start gap-3">
             {/* Icon on left */}
-            <Repeat className="bg-primary/10 text-primary size-6 shrink-0 rounded-sm p-1" />
+            <Repeat className="size-6 shrink-0 rounded-md bg-cyan-100 p-1 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300" />
 
             {/* Title in center */}
             <div className="min-w-0 flex-1">
@@ -102,7 +102,10 @@ export function AutomationLoopContainer({
             </div>
 
             {/* Step type label on right */}
-            <Badge variant="outline" className="text-muted-foreground text-xs">
+            <Badge
+              variant="outline"
+              className="border-cyan-300 text-xs text-cyan-700 dark:border-cyan-800 dark:text-cyan-300"
+            >
               {t('stepTypes.loop')}
             </Badge>
           </div>

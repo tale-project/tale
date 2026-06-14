@@ -759,7 +759,7 @@ const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
     'Action step types and parameters (workflow_processing_records, integration_processing_records, customer, conversation, approval, set_variables, integration, document)',
   condition: 'Condition step with JEXL expressions',
   loop: 'Loop step for iteration',
-  output: 'Output step configuration (workflow output via outputMapping)',
+  output: 'Output step configuration (workflow output via mapping)',
   workflow_config:
     'Workflow-level config: timeout, retryPolicy, and initial variables',
   variables: 'Variable syntax and JEXL filters',

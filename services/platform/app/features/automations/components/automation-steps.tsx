@@ -28,12 +28,16 @@ import React, {
 import { FlowCanvas } from '@/app/components/flow/flow-canvas';
 import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
-import { Doc } from '@/convex/_generated/dataModel';
 import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/debug_gate';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomationLayout } from '../hooks/use-automation-layout';
-import { getStepActionType } from '../utils/step-icons';
+import {
+  getStepActionType,
+  type StepConfig,
+  type StepDef,
+  type StepType,
+} from '../utils/step-icons';
 import { AutomationCallbacksProvider } from './automation-callbacks-context';
 import { AutomationEdge } from './automation-edge';
 import { AutomationGroupNode } from './automation-group-node';
@@ -46,7 +50,7 @@ import {
 import { CreateStepDialog } from './step-create-dialog';
 
 interface AutomationStepsProps {
-  steps: Doc<'wfStepDefs'>[];
+  steps: StepDef[];
   className?: string;
   hasActiveTrigger: boolean;
   onStepCreated?: () => void;
@@ -321,9 +325,9 @@ function AutomationStepsInner({
 
   const handleCreateStep = async (_data: {
     name: string;
-    stepType: Doc<'wfStepDefs'>['stepType'];
-    config: Doc<'wfStepDefs'>['config'];
-    nextSteps?: Doc<'wfStepDefs'>['nextSteps'];
+    stepType: StepType;
+    config: StepConfig;
+    nextSteps?: Record<string, string>;
   }) => {
     // TODO: Replace with file-based workflow save (modify workflow JSON and save via useSaveWorkflow)
     toast({
@@ -393,7 +397,7 @@ function AutomationStepsInner({
               zIndex: 0,
             }}
             deleteKeyCode={['Backspace', 'Delete']}
-            nodesDraggable
+            nodesDraggable={false}
             nodesConnectable
             nodesFocusable
             edgesFocusable

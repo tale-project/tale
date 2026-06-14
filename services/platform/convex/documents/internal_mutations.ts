@@ -7,9 +7,8 @@ import { eraseDocumentBlobs } from '../governance/erase_document_blobs';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { createDocument as createDocumentHelper } from './create_document';
 import { updateDocumentInternal as updateDocumentInternalHelper } from './update_document_internal';
-import { updateDocumentRagInfo as updateDocumentRagInfoHelper } from './update_document_rag_info';
 import { upsertDocumentByExternalId as upsertDocumentByExternalIdHelper } from './upsert_document_by_external_id';
-import { sourceProviderValidator, ragInfoValidator } from './validators';
+import { sourceProviderValidator } from './validators';
 
 export const updateDocument = internalMutation({
   args: {
@@ -48,16 +47,6 @@ export const updateDocument = internalMutation({
     }
     const { callerOrgId: _drop, ...rest } = args;
     await updateDocumentInternalHelper(ctx, rest);
-  },
-});
-
-export const updateDocumentRagInfo = internalMutation({
-  args: {
-    documentId: v.id('documents'),
-    ragInfo: ragInfoValidator,
-  },
-  handler: async (ctx, args) => {
-    await updateDocumentRagInfoHelper(ctx, args);
   },
 });
 
@@ -173,43 +162,6 @@ export const updateDocumentDates = internalMutation({
     }
 
     return null;
-  },
-});
-
-export const backfillIndexedField = internalMutation({
-  args: {
-    cursor: v.optional(v.string()),
-    batchSize: v.optional(v.number()),
-  },
-  returns: v.object({
-    processed: v.number(),
-    updated: v.number(),
-    cursor: v.union(v.string(), v.null()),
-    done: v.boolean(),
-  }),
-  handler: async (ctx, args) => {
-    const batchSize = args.batchSize ?? 500;
-    let updated = 0;
-
-    const result = await ctx.db
-      .query('documents')
-      .order('asc')
-      .paginate({ cursor: args.cursor ?? null, numItems: batchSize });
-
-    for (const doc of result.page) {
-      const shouldBeIndexed = doc.ragInfo?.status === 'completed';
-      if (doc.indexed !== shouldBeIndexed) {
-        await ctx.db.patch(doc._id, { indexed: shouldBeIndexed });
-        updated++;
-      }
-    }
-
-    return {
-      processed: result.page.length,
-      updated,
-      cursor: result.continueCursor,
-      done: result.isDone,
-    };
   },
 });
 

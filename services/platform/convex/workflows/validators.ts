@@ -14,8 +14,6 @@ import {
   jsonRecordValidator,
   jsonValueValidator,
 } from '../lib/validators/json';
-// From workflow_engine
-import { stepConfigValidator } from '../workflow_engine/types/nodes';
 
 // =============================================================================
 // WORKFLOW DEFINITIONS VALIDATORS
@@ -74,68 +72,3 @@ export {
   listExecutionsArgsValidator,
   listExecutionsCursorArgsValidator,
 } from './executions/validators';
-
-// =============================================================================
-// WORKFLOW STEP DEFINITIONS VALIDATORS
-// =============================================================================
-
-export const stepTypeValidator = v.union(
-  v.literal('start'),
-  v.literal('trigger'),
-  v.literal('llm'),
-  v.literal('condition'),
-  v.literal('action'),
-  v.literal('loop'),
-  v.literal('output'),
-);
-
-export const wfStepDefDocValidator = v.object({
-  _id: v.id('wfStepDefs'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  wfDefinitionId: v.id('wfDefinitions'),
-  stepSlug: v.string(),
-  name: v.string(),
-  description: v.optional(v.string()),
-  stepType: stepTypeValidator,
-  order: v.number(),
-  nextSteps: v.record(v.string(), v.string()),
-  config: stepConfigValidator,
-  // @deprecated — unused legacy fields, kept for schema compatibility
-  inputMapping: v.optional(v.record(v.string(), jsonValueValidator)),
-  outputMapping: v.optional(v.record(v.string(), jsonValueValidator)),
-  metadata: v.optional(jsonRecordValidator),
-});
-
-export const getOrderedStepsArgsValidator = {
-  wfDefinitionId: v.id('wfDefinitions'),
-};
-
-export const listWorkflowStepsArgsValidator = {
-  wfDefinitionId: v.id('wfDefinitions'),
-};
-
-export const createStepArgsValidator = {
-  wfDefinitionId: v.id('wfDefinitions'),
-  stepSlug: v.string(),
-  name: v.string(),
-  stepType: stepTypeValidator,
-  config: stepConfigValidator,
-  nextSteps: v.record(v.string(), v.string()),
-  organizationId: v.string(),
-};
-
-export const deleteStepArgsValidator = {
-  stepRecordId: v.id('wfStepDefs'),
-};
-
-export const updateStepArgsValidator = {
-  stepRecordId: v.id('wfStepDefs'),
-  updates: v.object({
-    name: v.optional(v.string()),
-    description: v.optional(v.string()),
-    config: v.optional(stepConfigValidator),
-    nextSteps: v.optional(v.record(v.string(), v.string())),
-    metadata: v.optional(jsonRecordValidator),
-  }),
-};

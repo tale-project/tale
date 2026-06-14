@@ -13,15 +13,15 @@ import {
 
 /**
  * Auth setup project: creates a fresh per-run account via the sign-up
- * endpoint (see helpers/auth.ts), completes first-run organization creation
- * through the UI, and persists the session (`owner.json` storageState) plus
- * the organization id (`context.json`) for the chromium specs.
+ * endpoint (see helpers/auth.ts), completes first-run setup through the
+ * onboarding wizard, and persists the session (`owner.json` storageState)
+ * plus the organization id (`context.json`) for the chromium specs.
  *
- * Two landing paths exist after `/dashboard` (app/routes/dashboard/index.tsx):
- *  - fresh instance (CI): the app auto-creates a `default` organization and
- *    navigates straight to `/dashboard/<orgId>`;
- *  - instance with existing orgs (local re-runs): the new user is routed to
- *    the create-organization form.
+ * Fresh users always land on `/dashboard/create-organization` (the onboarding
+ * wizard) — `default` is never auto-created. The wizard creates the org on the
+ * first "Next", then the optional provider step is skipped and "Finish"
+ * navigates to `/dashboard/<orgId>`. A user who already has an org (local
+ * re-run) lands straight on `/dashboard/<orgId>`.
  */
 
 const ORG_ID_URL = /\/dashboard\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
@@ -44,12 +44,29 @@ setup('create owner account and organization', async ({ page }) => {
     await page
       .getByLabel(t('settings.organization.organizationName'))
       .fill(orgName);
-    const createButton = page.getByRole('button', {
-      name: t('common.actions.create'),
+
+    // Step 1 → Next creates the org and advances to the provider step.
+    const nextButton = page.getByRole('button', {
+      name: t('common.actions.next'),
       exact: true,
     });
-    await expect(createButton).toBeEnabled();
-    await createButton.click();
+    await expect(nextButton).toBeEnabled();
+    await nextButton.click();
+
+    // Skip the optional provider step, then Finish to the dashboard.
+    const skipButton = page.getByRole('button', {
+      name: t('common.actions.skip'),
+      exact: true,
+    });
+    await expect(skipButton).toBeVisible();
+    await skipButton.click(); // provider → finish
+
+    await page
+      .getByRole('button', {
+        name: t('onboarding.finish.goToDashboard'),
+        exact: true,
+      })
+      .click();
   }
 
   await page.waitForURL(ORG_ID_URL, { timeout: 120_000 });

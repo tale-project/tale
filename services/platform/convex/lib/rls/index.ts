@@ -13,7 +13,6 @@ export * from './organization/get_user_organizations';
 export * from './organization/validate_organization_access';
 export * from './organization/validate_resource_organization';
 export * from './context/create_rls_context';
-export * from './context/create_org_query_builder';
 export * from './wrappers/with_organization_rls';
 export * from './wrappers/with_resource_rls';
 export * from './helpers/query_with_rls';

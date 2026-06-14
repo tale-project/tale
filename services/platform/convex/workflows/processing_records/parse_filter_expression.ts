@@ -43,7 +43,6 @@ export function parseFilterExpression(
     return {
       conditions: [],
       hasComplexConditions: false,
-      equalityConditions: {},
     };
   }
 
@@ -55,20 +54,7 @@ export function parseFilterExpression(
     const ast = compiled._getAst();
 
     // Traverse AST to extract indexable conditions
-    const result = traverseAST(ast as ASTNode);
-
-    // Build backward-compatible equalityConditions
-    const equalityConditions: Record<string, unknown> = {};
-    for (const condition of result.conditions) {
-      if (condition.operator === '==') {
-        equalityConditions[condition.field] = condition.value;
-      }
-    }
-
-    return {
-      ...result,
-      equalityConditions,
-    };
+    return traverseAST(ast as ASTNode);
   } catch (error) {
     // Invalid expression - treat as complex
     console.error('Failed to parse filter expression:', {
@@ -78,7 +64,6 @@ export function parseFilterExpression(
     return {
       conditions: [],
       hasComplexConditions: true,
-      equalityConditions: {},
     };
   }
 }

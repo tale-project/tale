@@ -20,18 +20,12 @@ import { setProjectId } from '../project/project-context';
 import { readProject } from '../project/read-project';
 import type { Checksums } from '../project/types';
 import { writeProject } from '../project/write-project';
-import { generateAllRules } from '../rules/generators';
-import { legacyLayoutPreflight } from './legacy-layout-preflight';
+import { writeAgentInstructions } from '../rules/generators';
 
 interface UpdateOptions {
   force?: boolean;
   dryRun?: boolean;
   skipHeader?: boolean;
-  /**
-   * Non-interactive: auto-accept the legacy-layout migration prompt
-   * when a pre-org-first project root is detected.
-   */
-  assumeYes?: boolean;
 }
 
 interface UpdateSummary {
@@ -57,14 +51,9 @@ export async function update(options: UpdateOptions): Promise<void> {
   logger.info(`Current version: ${project.cliVersion}`);
   logger.info(`Target version:  ${pkg.version}`);
 
-  // Resolve (or assign) the project ID and prime the module-level singleton
-  // BEFORE the legacy-layout preflight. The preflight may run
-  // `migrateConfigLayout`, whose container-side phase derives the convex
-  // container name from `getProjectId()`; without a primed singleton it throws
-  // "Project context not initialized" — and by then Phase 1 has already
-  // irreversibly moved the host dirs. Legacy projects (pre-ID) get an ID
-  // auto-assigned + persisted here; projects that already have one still need
-  // the singleton primed (the old `!project.id` branch skipped them).
+  // Resolve (or assign) the project ID and prime the module-level singleton.
+  // Projects without an ID get one auto-assigned + persisted here; projects
+  // that already have one still need the singleton primed.
   let assignedId: string | undefined;
   if (!project.id) {
     assignedId = generateProjectId(basename(projectDir));
@@ -79,24 +68,6 @@ export async function update(options: UpdateOptions): Promise<void> {
     setProjectId(project.id);
   }
 
-  // If the project is on the pre-org-first layout, migrate now (before
-  // we write any new `default/<domain>/...` files). Without this gate
-  // `tale update` happily lays the new tree down next to the legacy
-  // dirs, and the subsequent `tale start` then refuses to boot — a
-  // user-visible deadlock. The preflight prompts in interactive runs
-  // and requires `--yes` in non-TTY contexts.
-  if (!options.dryRun) {
-    // Snapshot policy {}: auto-resolve the volume prefix (prod volumes win
-    // over dev) and snapshot before the migration touches the convex data
-    // volume; warns and proceeds when no data volumes exist yet.
-    await legacyLayoutPreflight({
-      projectDir,
-      assumeYes: options.assumeYes ?? false,
-      context: 'update',
-      backup: {},
-    });
-  }
-
   // Update reference code
   logger.step(`${prefix}Updating reference code...`);
   if (!options.dryRun) {
@@ -108,70 +79,20 @@ export async function update(options: UpdateOptions): Promise<void> {
   const oldChecksums = await readChecksums(projectDir);
   const oldFiles = oldChecksums?.files ?? {};
 
-  // Regenerate AI rules files. Same protection policy as examples:
-  // - new file → write
-  // - deleted by user → skip
-  // - unmodified-since-last-update → overwrite
-  // - locally modified + no --force → keep, warn
-  // - locally modified + --force → overwrite
-  logger.step(`${prefix}Updating AI rules files...`);
-  const rulesFiles = generateAllRules();
+  // Refresh the agent instructions. AGENTS.md / CLAUDE.md are written through
+  // a managed marker block (writeAgentInstructions), so any user content
+  // *outside* the block is preserved on every run — no per-file hash/force
+  // dance is needed to protect local edits.
+  logger.step(`${prefix}Updating agent instructions (AGENTS.md, CLAUDE.md)...`);
   const rulesUpdates: Record<string, string> = {};
-  for (const { relativePath, content } of rulesFiles) {
-    const destPath = join(projectDir, relativePath);
-    const newHash = computeContentHash(content);
-    const oldHash = oldFiles[relativePath];
-
-    if (!oldHash && !existsSync(destPath)) {
-      logger.info(`${prefix}+ ${relativePath} (new)`);
-      if (!options.dryRun) {
-        await mkdir(dirname(destPath), { recursive: true });
-        await writeFile(destPath, content);
-      }
-      rulesUpdates[relativePath] = newHash;
-    } else if (!oldHash) {
-      // File present on disk but missing from checksums.json — treat
-      // as locally-modified (likely a project init'd by a pre-fix CLI
-      // version that wrote the rules files without recording their
-      // hashes). Preserve user edits; require --force to overwrite.
-      // Round-2 P1-34 defense in depth.
-      if (options.force) {
-        logger.warn(
-          `${prefix}~ ${relativePath} (overwritten, no recorded hash)`,
-        );
-        if (!options.dryRun) {
-          await writeFile(destPath, content);
-        }
-        rulesUpdates[relativePath] = newHash;
-      } else {
-        logger.warn(
-          `${prefix}! ${relativePath} (present on disk but no recorded hash; preserving — pass --force to overwrite)`,
-        );
-      }
-    } else if (!existsSync(destPath)) {
-      logger.info(`${prefix}- ${relativePath} (deleted by user, skipping)`);
-    } else {
-      const currentHash = await computeFileHash(destPath);
-      if (currentHash === oldHash) {
-        logger.info(`${prefix}~ ${relativePath} (updated)`);
-        if (!options.dryRun) {
-          await writeFile(destPath, content);
-        }
-        rulesUpdates[relativePath] = newHash;
-      } else if (options.force) {
-        logger.warn(
-          `${prefix}~ ${relativePath} (overwritten, was locally modified)`,
-        );
-        if (!options.dryRun) {
-          await writeFile(destPath, content);
-        }
-        rulesUpdates[relativePath] = newHash;
-      } else {
-        logger.warn(
-          `${prefix}⚠ Skipped ${relativePath} (locally modified). Re-run with --force to overwrite.`,
-        );
-        rulesUpdates[relativePath] = oldHash;
-      }
+  if (options.dryRun) {
+    logger.info(`${prefix}~ AGENTS.md, CLAUDE.md (managed section)`);
+  } else {
+    for (const { relativePath, content } of await writeAgentInstructions(
+      projectDir,
+    )) {
+      logger.info(`${prefix}~ ${relativePath} (managed section)`);
+      rulesUpdates[relativePath] = computeContentHash(content);
     }
   }
 
@@ -295,7 +216,4 @@ export async function update(options: UpdateOptions): Promise<void> {
       'Skipped files can be compared against .tale/reference/examples/ to merge changes.',
     );
   }
-
-  // (Auto-migration planning removed — `tale migrate config-layout` is the
-  // only opt-in, manually-run migration now; operators invoke it directly.)
 }

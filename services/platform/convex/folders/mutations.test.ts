@@ -539,7 +539,6 @@ describe('updateFolderTeams validation logic', () => {
 
     expect(result.teamId).toBe('team_sales');
     expect(result.teamTags).toEqual(['team_sales']);
-    expect(result.sharedWithTeamIds).toBeUndefined();
   });
 
   it('computes correct fields when updating from team-scoped to org-wide', () => {
@@ -547,7 +546,6 @@ describe('updateFolderTeams validation logic', () => {
 
     expect(result.teamId).toBeUndefined();
     expect(result.teamTags).toBeUndefined();
-    expect(result.sharedWithTeamIds).toBeUndefined();
   });
 
   it('computes correct fields when assigning multiple teams', () => {
@@ -555,7 +553,6 @@ describe('updateFolderTeams validation logic', () => {
 
     expect(result.teamId).toBe('team_sales');
     expect(result.teamTags).toEqual(['team_sales', 'team_support']);
-    expect(result.sharedWithTeamIds).toBeUndefined();
   });
 
   it('treats empty array same as undefined (org-wide)', () => {

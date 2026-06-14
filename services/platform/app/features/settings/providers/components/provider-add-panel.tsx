@@ -608,6 +608,7 @@ export function ProviderAddPanel({
             <Input
               id="baseUrl"
               label={t('providers.baseUrl')}
+              labelInfo={t('providers.baseUrlTooltip')}
               {...register('baseUrl')}
               placeholder={t('providers.baseUrlPlaceholder')}
               errorMessage={errors.baseUrl?.message}
@@ -616,6 +617,7 @@ export function ProviderAddPanel({
             <Input
               id="apiKey"
               label={t('providers.apiKey')}
+              labelInfo={t('providers.apiKeyTooltip')}
               type="password"
               {...register('apiKey')}
               placeholder={t('providers.apiKeyPlaceholder')}

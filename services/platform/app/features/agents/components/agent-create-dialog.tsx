@@ -269,6 +269,7 @@ export function CreateAgentDialog({
       <Input
         id="name"
         label={t('agents.form.name')}
+        labelInfo={t('agents.form.nameTooltip')}
         {...register('name')}
         placeholder={t('agents.form.namePlaceholder')}
         errorMessage={errors.name?.message}
@@ -280,6 +281,7 @@ export function CreateAgentDialog({
       <Input
         id="displayName"
         label={t('agents.form.displayName')}
+        labelInfo={t('agents.form.displayNameTooltip')}
         {...register('displayName')}
         placeholder={t('agents.form.displayNamePlaceholder')}
         errorMessage={errors.displayName?.message}

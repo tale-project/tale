@@ -219,14 +219,6 @@ export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
   if (err instanceof TtsProviderHttpError) {
     return classifyProviderHttpStatus(err.status, err.retryAfterMs);
   }
-  // Back-compat path: legacy `new Error('TTS API ${status}: ...')` shape may
-  // still surface from helpers that haven't migrated. Drop after one release.
-  if (err instanceof Error) {
-    const m = err.message.match(/^TTS API (\d{3}):/);
-    if (m) {
-      return classifyProviderHttpStatus(Number(m[1]), undefined);
-    }
-  }
   return { code: 'PROVIDER_ERROR' };
 }
 

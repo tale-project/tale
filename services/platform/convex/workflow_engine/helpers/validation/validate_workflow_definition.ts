@@ -19,9 +19,6 @@ import { validateStepConfig } from './validate_step_config';
 import { validateWorkflowSteps } from './validate_workflow_steps';
 import { validateWorkflowVariableReferences } from './variables';
 
-// Re-export types for backward compatibility
-export type { WorkflowValidationResult } from './types';
-
 /**
  * Validate a complete workflow definition.
  *

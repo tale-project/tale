@@ -12,10 +12,16 @@ on:
       - main
     paths:
       - 'tools/cli/**'
+      - 'scripts/install-cli.*'
+      - '.github/workflows/cli.yml'
+  pull_request:
+    paths:
+      - 'tools/cli/**'
+      - 'scripts/install-cli.*'
       - '.github/workflows/cli.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -102,6 +108,12 @@ jobs:
         working-directory: tools/cli
         run: bun run generate
 
+      # Smoke tests in tests/ are discovered too but skip cleanly here —
+      # TALE_BINARY is only set after the binary is built.
+      - name: Run unit tests
+        working-directory: tools/cli
+        run: bun test
+
       - name: Run type check
         if: matrix.platform == 'linux'
         working-directory: tools/cli
@@ -129,7 +141,14 @@ jobs:
           fi
           ./${{ matrix.artifact }} --version
 
+      - name: Run smoke tests
+        working-directory: tools/cli
+        env:
+          TALE_BINARY: dist/${{ matrix.artifact }}
+        run: bun test tests/smoke.test.ts
+
       - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ matrix.artifact }}
@@ -145,6 +164,8 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
 
     steps:
       - name: Download artifacts
@@ -175,13 +196,30 @@ jobs:
           echo "::error::Release $TAG not found after $MAX_ATTEMPTS attempts."
           exit 1
 
+      - name: Generate checksums
+        run: |
+          # Flatten the per-artifact dirs into one, then emit a single
+          # SHA256SUMS-style file the installers verify the binary against.
+          mkdir -p release
+          cp artifacts/tale_linux/* release/tale_linux
+          cp artifacts/tale_macos/* release/tale_macos
+          cp artifacts/tale_windows.exe/* release/tale_windows.exe
+          cd release
+          sha256sum tale_linux tale_macos tale_windows.exe > tale_checksums.txt
+          cat tale_checksums.txt
+
       - name: Upload binaries
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pass workflow inputs through the environment and quote them in the
+          # shell, so the tag is treated as data — never interpolated as code.
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          REPO: ${{ github.repository }}
         run: |
-          gh release upload ${{ github.event.inputs.release_tag }} \
-            artifacts/tale_linux/* \
-            artifacts/tale_macos/* \
-            artifacts/tale_windows.exe/* \
-            --repo ${{ github.repository }} \
+          gh release upload "$RELEASE_TAG" \
+            release/tale_linux \
+            release/tale_macos \
+            release/tale_windows.exe \
+            release/tale_checksums.txt \
+            --repo "$REPO" \
             --clobber

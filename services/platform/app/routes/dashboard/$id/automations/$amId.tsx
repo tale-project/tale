@@ -28,11 +28,14 @@ import {
   useWorkflowConfig,
 } from '@/app/features/automations/hooks/use-workflow-config-context';
 import { useWorkflowActivity } from '@/app/features/automations/triggers/hooks/queries';
+import type {
+  StepConfig,
+  StepDef,
+} from '@/app/features/automations/utils/step-icons';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import { api } from '@/convex/_generated/api';
-import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 import { urlParamToSlug, getSlugBaseName } from '@/lib/utils/workflow-slug';
@@ -400,7 +403,7 @@ function AutomationDetailInner({
         stepType: step.stepType,
         order: step.order ?? index,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based config is validated by schema
-        config: step.config as Doc<'wfStepDefs'>['config'],
+        config: step.config as StepConfig,
         nextSteps: step.nextSteps,
       })),
     [config.steps, workflowSlug, organizationId],
@@ -410,8 +413,8 @@ function AutomationDetailInner({
     if (!panelState.step) return null;
     const found = steps.find((s) => s.stepSlug === panelState.step);
     if (!found) return null;
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to Doc shape; AutomationSidePanel only reads display fields
-    return found as Doc<'wfStepDefs'>;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to StepDef shape; AutomationSidePanel only reads display fields
+    return found as StepDef;
   }, [steps, panelState.step]);
 
   const stepOptions = useMemo(
@@ -481,8 +484,8 @@ function AutomationDetailInner({
                 <AutomationSteps
                   hasActiveTrigger={hasActiveTrigger}
                   className="flex-1"
-                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to Doc shape; component only reads display fields
-                  steps={steps as Doc<'wfStepDefs'>[]}
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to StepDef shape; component only reads display fields
+                  steps={steps as StepDef[]}
                   onOpenAIChat={handleOpenAIChat}
                 />
               </SuspenseBoundary>

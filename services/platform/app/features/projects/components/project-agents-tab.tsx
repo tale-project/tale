@@ -5,9 +5,13 @@ import { PageSection } from '@tale/ui/page-section';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle } from 'lucide-react';
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import {
+  useJsonConfigEditor,
+  useRegisterActiveEditor,
+} from '@/app/components/ui/editor';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { useListAgents } from '@/app/features/agents/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
@@ -16,6 +20,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
+import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import {
   useUpdateProjectAgentSettings,
@@ -34,6 +39,14 @@ import {
 interface ProjectAgentsTabProps {
   organizationId: string;
   projectId: Id<'projects'>;
+}
+
+/** Staged agent/model access settings — edited locally, persisted on Save. */
+interface AgentsModelsForm {
+  agentMode: 'recommended' | 'restricted';
+  agentList: string[];
+  modelMode: 'recommended' | 'restricted';
+  modelList: string[];
 }
 
 /**
@@ -106,66 +119,98 @@ export function ProjectAgentsTab({
     return out;
   }, [providers, locale]);
 
-  if (!project) return null;
-  const canEdit = project.canEdit;
-
-  // The model is now a single ordered list per category; the mode picks how
-  // it behaves. Legacy `'all'` rows map to `'recommended'` (empty list =
-  // nothing pinned, same effective access).
-  const agentMode: ProjectModeRadioValue =
-    project.agentMode === 'restricted' ? 'restricted' : 'recommended';
-  const modelMode: ProjectModeRadioValue =
-    project.modelMode === 'restricted' ? 'restricted' : 'recommended';
-
   // Single source-of-truth list per category. In `restricted` mode the
   // canonical list lives in the allowed array (matches the legacy storage);
-  // in `recommended` mode it lives in the recommended array.
-  const agentList =
-    agentMode === 'restricted'
-      ? (project.allowedAgentSlugs ?? [])
-      : (project.recommendedAgentSlugs ?? []);
-  const modelList =
-    modelMode === 'restricted'
-      ? (project.allowedModels ?? [])
-      : (project.recommendedModels ?? []);
+  // in `recommended` mode it lives in the recommended array. Legacy `'all'`
+  // rows map to `'recommended'` (empty list = nothing pinned, same access).
+  const data = useMemo<AgentsModelsForm | undefined>(() => {
+    if (!project) return undefined;
+    const agentMode: ProjectModeRadioValue =
+      project.agentMode === 'restricted' ? 'restricted' : 'recommended';
+    const modelMode: ProjectModeRadioValue =
+      project.modelMode === 'restricted' ? 'restricted' : 'recommended';
+    return {
+      agentMode,
+      agentList:
+        agentMode === 'restricted'
+          ? (project.allowedAgentSlugs ?? [])
+          : (project.recommendedAgentSlugs ?? []),
+      modelMode,
+      modelList:
+        modelMode === 'restricted'
+          ? (project.allowedModels ?? [])
+          : (project.recommendedModels ?? []),
+    };
+  }, [project]);
 
-  const saveAgents = async (
-    nextMode: 'recommended' | 'restricted',
-    nextList: string[],
-  ) => {
-    try {
-      await updateAgents({
-        projectId,
-        agentMode: nextMode,
-        recommendedAgentSlugs: nextList,
-        // Mirror into the allowed slot only when restricted, so the
-        // server-side gate sees the same set as the UI's single list.
-        allowedAgentSlugs: nextMode === 'restricted' ? nextList : [],
-      });
-      toast({ title: t('agents.saveSuccess'), variant: 'success' });
-    } catch (error) {
-      console.error('updateProjectAgentSettings failed', error);
-      toast({ title: t('agents.saveError'), variant: 'destructive' });
-    }
-  };
+  // Last-saved baseline, used inside `save` to skip the mutation for the
+  // category that didn't change (each mutation is a separate write).
+  const baselineRef = useRef(data);
 
-  const saveModels = async (
-    nextMode: 'recommended' | 'restricted',
-    nextList: string[],
-  ) => {
-    try {
-      await updateModels({
-        projectId,
-        modelMode: nextMode,
-        recommendedModels: nextList,
-        allowedModels: nextMode === 'restricted' ? nextList : [],
-      });
-      toast({ title: t('agents.saveSuccess'), variant: 'success' });
-    } catch (error) {
-      console.error('updateProjectModelSettings failed', error);
-      toast({ title: t('agents.saveError'), variant: 'destructive' });
-    }
-  };
+  const save = useCallback(
+    async (next: AgentsModelsForm) => {
+      const base = baselineRef.current;
+      const agentChanged =
+        !base ||
+        base.agentMode !== next.agentMode ||
+        !structuralEqual(base.agentList, next.agentList);
+      const modelChanged =
+        !base ||
+        base.modelMode !== next.modelMode ||
+        !structuralEqual(base.modelList, next.modelList);
+      try {
+        // Fire both writes together so the save is all-or-nothing from the
+        // toast's perspective; each mutation is idempotent on retry.
+        const writes: Promise<unknown>[] = [];
+        if (agentChanged) {
+          writes.push(
+            updateAgents({
+              projectId,
+              agentMode: next.agentMode,
+              recommendedAgentSlugs: next.agentList,
+              // Mirror into the allowed slot only when restricted, so the
+              // server-side gate sees the same set as the UI's single list.
+              allowedAgentSlugs:
+                next.agentMode === 'restricted' ? next.agentList : [],
+            }),
+          );
+        }
+        if (modelChanged) {
+          writes.push(
+            updateModels({
+              projectId,
+              modelMode: next.modelMode,
+              recommendedModels: next.modelList,
+              allowedModels:
+                next.modelMode === 'restricted' ? next.modelList : [],
+            }),
+          );
+        }
+        await Promise.all(writes);
+        toast({ title: t('agents.saveSuccess'), variant: 'success' });
+      } catch (error) {
+        console.error('updateProject agent/model settings failed', error);
+        toast({ title: t('agents.saveError'), variant: 'destructive' });
+        throw error;
+      }
+    },
+    [projectId, t, updateAgents, updateModels],
+  );
+
+  const editor = useJsonConfigEditor<AgentsModelsForm>({ initial: data, save });
+
+  // Keep the baseline pointed at the latest saved value for the diff above.
+  useEffect(() => {
+    baselineRef.current = editor.savedConfig;
+  }, [editor.savedConfig]);
+
+  // Surface this editor to the project layout's Save/Discard cluster.
+  useRegisterActiveEditor(editor);
+
+  const config = editor.config;
+  if (!project || !config) return null;
+  const canEdit = project.canEdit;
+  const fieldsDisabled = !canEdit || editor.isSaving;
 
   const modeOptions = [
     {
@@ -181,8 +226,8 @@ export function ProjectAgentsTab({
   ];
 
   const showLockoutWarning =
-    (agentMode === 'restricted' && agentList.length === 0) ||
-    (modelMode === 'restricted' && modelList.length === 0);
+    (config.agentMode === 'restricted' && config.agentList.length === 0) ||
+    (config.modelMode === 'restricted' && config.modelList.length === 0);
 
   return (
     <ContentArea variant="narrow" gap={6}>
@@ -193,20 +238,20 @@ export function ProjectAgentsTab({
 
       <FormSection>
         <ProjectModeRadio
-          value={agentMode}
-          onChange={(next) => void saveAgents(next, agentList)}
+          value={config.agentMode}
+          onChange={(next) => editor.updateConfig({ agentMode: next })}
           options={modeOptions}
-          disabled={!canEdit}
+          disabled={fieldsDisabled}
           legend={t('agents.agentsHeading')}
         />
 
         <ProjectSlugListEditor
-          value={agentList}
-          onChange={(next) => void saveAgents(agentMode, next)}
+          value={config.agentList}
+          onChange={(next) => editor.updateConfig({ agentList: next })}
           options={agentOptions}
           addLabel={t('agents.addAgent')}
-          mode={agentMode}
-          disabled={!canEdit}
+          mode={config.agentMode}
+          disabled={fieldsDisabled}
         />
       </FormSection>
 
@@ -217,20 +262,20 @@ export function ProjectAgentsTab({
       >
         <FormSection>
           <ProjectModeRadio
-            value={modelMode}
-            onChange={(next) => void saveModels(next, modelList)}
+            value={config.modelMode}
+            onChange={(next) => editor.updateConfig({ modelMode: next })}
             options={modeOptions}
-            disabled={!canEdit}
+            disabled={fieldsDisabled}
             legend={t('agents.modelsHeading')}
           />
 
           <ProjectSlugListEditor
-            value={modelList}
-            onChange={(next) => void saveModels(modelMode, next)}
+            value={config.modelList}
+            onChange={(next) => editor.updateConfig({ modelList: next })}
             options={modelOptions}
             addLabel={t('agents.addModel')}
-            mode={modelMode}
-            disabled={!canEdit}
+            mode={config.modelMode}
+            disabled={fieldsDisabled}
           />
         </FormSection>
       </PageSection>

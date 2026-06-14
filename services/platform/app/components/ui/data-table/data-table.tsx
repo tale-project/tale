@@ -844,6 +844,7 @@ export function DataTable<TData, TValue = unknown>({
                     icon={emptyState?.icon}
                     title={emptyState?.title ?? ''}
                     description={emptyState?.description}
+                    action={emptyState?.action}
                   />
                 </div>
               </TableCell>

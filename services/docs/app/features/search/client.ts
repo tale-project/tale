@@ -46,6 +46,17 @@ export async function loadIndex(
     if (!response.ok) {
       throw new Error(`[search] failed to load ${url}: ${response.status}`);
     }
+    // A sub-path deploy (e.g. tale.dev/docs) that fetches this index without
+    // the base prefix hits the parent app's SPA fallback, which answers 200
+    // with `text/html`. Reject that here so it fails with a legible message
+    // instead of a cryptic "Unexpected token '<'" JSON parse error.
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.includes('json')) {
+      throw new Error(
+        `[search] ${url} returned non-JSON (${contentType || 'unknown'}) — ` +
+          `the index is likely missing or served from the wrong base path`,
+      );
+    }
     const payload = (await response.json()) as SerializedIndex;
     const json = JSON.stringify(payload.index);
     return (

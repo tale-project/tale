@@ -223,4 +223,16 @@ crons.cron(
   {},
 );
 
+// Config-cache reconcile — re-derive every org's `configCache` (governance
+// policies, etc.) from the source-of-truth JSON files. The cache is rebuilt on
+// org-create, on every governance write, and on reseed; this hourly sweep is a
+// cheap safety net that guarantees eventual convergence if any trigger is ever
+// missed (the DB mirror is never authoritative).
+crons.cron(
+  'reconcile config caches (hourly)',
+  '15 * * * *',
+  internal.lib.config_cache.sync_org.reconcileAllConfigCaches,
+  {},
+);
+
 export default crons;

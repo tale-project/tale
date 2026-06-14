@@ -6,6 +6,7 @@ import {
 } from '../../lib/shared/schemas/providers';
 import type { Id } from '../_generated/dataModel';
 import { type QueryCtx, internalQuery, query } from '../_generated/server';
+import { readConfigCacheRow } from '../lib/config_cache/read';
 import { getOrganizationMember } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
@@ -287,12 +288,12 @@ async function isVoiceOutputOrgEnabled(
   ctx: QueryCtx,
   organizationId: string,
 ): Promise<boolean> {
-  const policy = await ctx.db
-    .query('governancePolicies')
-    .withIndex('by_org_policyType', (q) =>
-      q.eq('organizationId', organizationId).eq('policyType', 'voice_output'),
-    )
-    .first();
+  const policy = await readConfigCacheRow(
+    ctx.db,
+    organizationId,
+    'governance',
+    'voice_output',
+  );
   if (!policy) return true;
   if (policy.enabled === false) return false;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `policy.config` is `Record<string, unknown>` per schema; we narrow to a specific shape and probe `enabled` defensively.

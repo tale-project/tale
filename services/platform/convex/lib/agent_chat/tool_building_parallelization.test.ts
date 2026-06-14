@@ -87,8 +87,8 @@ vi.mock('../../agents/workforce_ops', async (importOriginal) => {
   return {
     ...mod,
     readWorkforceRoster: vi.fn(async () => [
-      { slug: 'test-agent' },
-      { slug: 'writer-agent', reportsTo: 'test-agent' },
+      { slug: 'test-agent', delegates: ['writer-agent'] },
+      { slug: 'writer-agent' },
     ]),
   };
 });

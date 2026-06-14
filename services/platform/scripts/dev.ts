@@ -98,6 +98,17 @@ function envNormalizeCommon() {
   if (!process.env.PORT) process.env.PORT = '3000';
   if (!process.env.HOSTNAME) process.env.HOSTNAME = '0.0.0.0';
 
+  // Third-party telemetry opt-out for local dev, set in code so `.env` stays
+  // clean. DO_NOT_TRACK is the cross-tool standard (consoledonottrack.com);
+  // the rest are explicit per-tool toggles. `??=` lets an explicit override
+  // win. (CI sets these in .github/actions/setup-turbo, Docker at runtime,
+  // Storybook via its own config.)
+  process.env.DO_NOT_TRACK ??= '1';
+  process.env.TURBO_TELEMETRY_DISABLED ??= '1';
+  process.env.STORYBOOK_DISABLE_TELEMETRY ??= '1';
+  process.env.SCARF_ANALYTICS ??= 'false';
+  process.env.HF_HUB_DISABLE_TELEMETRY ??= '1';
+
   const port = process.env.PORT || '3000';
   const host = process.env.HOST || 'localhost';
 
@@ -222,75 +233,39 @@ function ensureLocalAdminKey() {
 }
 
 function loadEnvFiles() {
-  const repoEnvPath = join(repoRoot, '.env');
-  const repoEnvLocalPath = join(repoRoot, '.env.local');
-  const platformEnvPath = join(platformRoot, '.env');
-  const platformEnvLocalPath = join(platformRoot, '.env.local');
+  // Lowest → highest precedence; a later file's value wins on collision
+  // (platform overrides repo, `.local` overrides base).
+  const sources = [
+    { label: 'repo/.env', path: join(repoRoot, '.env') },
+    { label: 'repo/.env.local', path: join(repoRoot, '.env.local') },
+    { label: 'platform/.env', path: join(platformRoot, '.env') },
+    { label: 'platform/.env.local', path: join(platformRoot, '.env.local') },
+  ];
 
-  console.log('[dev] 📁 Loading environment variables...');
-  console.log(`[dev] 🔍 Checking paths:`);
-  console.log(
-    `[dev]   - Repo .env: ${repoEnvPath} (exists: ${existsSync(repoEnvPath)})`,
-  );
-  console.log(
-    `[dev]   - Repo .env.local: ${repoEnvLocalPath} (exists: ${existsSync(repoEnvLocalPath)})`,
-  );
-  console.log(
-    `[dev]   - Platform .env: ${platformEnvPath} (exists: ${existsSync(platformEnvPath)})`,
-  );
-  console.log(
-    `[dev]   - Platform .env.local: ${platformEnvLocalPath} (exists: ${existsSync(platformEnvLocalPath)})`,
-  );
+  const mergedEnv: Record<string, string> = {};
+  const contributors: string[] = [];
+  for (const { label, path } of sources) {
+    const vars = parseDotEnv(path);
+    const count = Object.keys(vars).length;
+    if (count > 0) contributors.push(`${label} (${count})`);
+    Object.assign(mergedEnv, vars);
+  }
 
-  const repoBaseEnv = parseDotEnv(repoEnvPath);
-  const repoLocalEnv = parseDotEnv(repoEnvLocalPath);
-  const platformBaseEnv = parseDotEnv(platformEnvPath);
-  const platformLocalEnv = parseDotEnv(platformEnvLocalPath);
-
-  console.log(`[dev] 📊 Loaded from files:`);
-  console.log(`[dev]   - Repo .env: ${Object.keys(repoBaseEnv).length} vars`);
-  console.log(
-    `[dev]   - Repo .env.local: ${Object.keys(repoLocalEnv).length} vars`,
-  );
-  console.log(
-    `[dev]   - Platform .env: ${Object.keys(platformBaseEnv).length} vars`,
-  );
-  console.log(
-    `[dev]   - Platform .env.local: ${Object.keys(platformLocalEnv).length} vars`,
-  );
-
-  const mergedEnv = {
-    ...repoBaseEnv,
-    ...repoLocalEnv,
-    ...platformBaseEnv,
-    ...platformLocalEnv,
-  };
-
-  console.log(
-    `[dev] 📦 Total unique vars after merge: ${Object.keys(mergedEnv).length}`,
-  );
-
+  // Pre-existing process.env wins over .env files — only fill the gaps.
   let loadedCount = 0;
   let skippedCount = 0;
   for (const [key, value] of Object.entries(mergedEnv)) {
-    if (!(key in process.env)) {
+    if (key in process.env) {
+      skippedCount++;
+    } else {
       process.env[key] = value;
       loadedCount++;
-    } else {
-      skippedCount++;
     }
   }
 
+  const from = contributors.length > 0 ? contributors.join(', ') : 'none';
   console.log(
-    `[dev] ✅ Loaded ${loadedCount} environment variables from .env files`,
-  );
-  if (skippedCount > 0) {
-    console.log(
-      `[dev] ⏭️  Skipped ${skippedCount} variables (already in process.env)`,
-    );
-  }
-  console.log(
-    `[dev] 📍 Priority: services/platform/.env.local > services/platform/.env > repo root/.env.local > repo root/.env`,
+    `[dev] 📁 Env from ${from} → ${loadedCount} applied, ${skippedCount} already set`,
   );
 }
 
@@ -475,6 +450,18 @@ async function waitForBifrostGateway(timeoutMs = 30_000): Promise<void> {
  *  Docker absent is NON-FATAL: warn with the concrete side-effects and let the
  *  app come up anyway (pure frontend/Convex work doesn't need the gateway). */
 async function ensureDockerDependencies(): Promise<void> {
+  // The hermetic E2E stack (playwright.config.ts) is anonymous-Convex + mock
+  // LLM with "no external services" — the backing images aren't built in the
+  // E2E CI job, so `docker compose up` can only ever fail there. Attempting it
+  // wastes the cold-boot budget and destabilizes the Convex pre-warm that
+  // follows. Let the E2E webServer opt out explicitly.
+  if (/^(1|true|yes|on)$/i.test(process.env.TALE_DEV_SKIP_DOCKER ?? '')) {
+    console.log(
+      '[dev] ⏭  Skipping docker backing services (TALE_DEV_SKIP_DOCKER set)',
+    );
+    return;
+  }
+
   const status = await probeDocker(10_000);
   if (status !== 'ok') {
     const why =

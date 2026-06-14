@@ -84,7 +84,6 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
 
   // Parse request body
   let body: {
-    workflowRootId?: string;
     input?: Record<string, unknown>;
     idempotencyKey?: string;
   };
@@ -138,7 +137,6 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
       internal.workflows.triggers.internal_mutations.createTriggerLog,
       {
         organizationId: apiKeyRecord.organizationId,
-        workflowRootId: apiKeyRecord.workflowRootId,
         workflowSlug: apiKeyRecord.workflowSlug,
         triggerType: 'api',
         status: 'accepted',

@@ -4,6 +4,21 @@ import { createContext, useContext, useMemo } from 'react';
 
 import { useConfigDirtyState } from '@/app/components/ui/editor/use-config-dirty-state';
 import type { AgentJsonConfig } from '@/convex/agents/file_utils';
+import { canonicalizeAgentConfig } from '@/lib/shared/utils/canonicalize-config';
+import { structuralEqual } from '@/lib/utils/structural-equal';
+
+/**
+ * Compare two agent configs by their canonical form so a set-like array that
+ * differs only in element order (tools, integrations, workflows, skills,
+ * delegates) never reads as a false-positive unsaved change. Object key order
+ * is already handled by {@link structuralEqual}.
+ */
+function agentConfigEqual(a: AgentJsonConfig, b: AgentJsonConfig): boolean {
+  return structuralEqual(
+    canonicalizeAgentConfig(a),
+    canonicalizeAgentConfig(b),
+  );
+}
 
 interface AgentConfigContextValue {
   agentName: string;
@@ -53,7 +68,10 @@ export function AgentConfigProvider({
     overrideConfig,
     markSaved,
     setIsSaving,
-  } = useConfigDirtyState<AgentJsonConfig>({ initial: initialConfig });
+  } = useConfigDirtyState<AgentJsonConfig>({
+    initial: initialConfig,
+    equals: agentConfigEqual,
+  });
 
   const value = useMemo<AgentConfigContextValue>(
     () => ({

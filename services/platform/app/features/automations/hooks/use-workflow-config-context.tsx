@@ -7,6 +7,23 @@ import type {
   WorkflowJsonConfig,
   WorkflowStep,
 } from '@/lib/shared/schemas/workflows';
+import { canonicalizeWorkflowConfig } from '@/lib/shared/utils/canonicalize-config';
+import { structuralEqual } from '@/lib/utils/structural-equal';
+
+/**
+ * Compare two workflow configs by their canonical form so a steps array
+ * reordered on disk (execution order is driven by `order`/`nextSteps`, not
+ * array index) never reads as a false-positive unsaved change.
+ */
+function workflowConfigEqual(
+  a: WorkflowJsonConfig,
+  b: WorkflowJsonConfig,
+): boolean {
+  return structuralEqual(
+    canonicalizeWorkflowConfig(a),
+    canonicalizeWorkflowConfig(b),
+  );
+}
 
 interface WorkflowConfigContextValue {
   workflowSlug: string;
@@ -58,7 +75,10 @@ export function WorkflowConfigProvider({
     resetConfig,
     markSaved,
     setIsSaving,
-  } = useConfigDirtyState<WorkflowJsonConfig>({ initial: initialConfig });
+  } = useConfigDirtyState<WorkflowJsonConfig>({
+    initial: initialConfig,
+    equals: workflowConfigEqual,
+  });
 
   const updateStep = useCallback(
     (stepSlug: string, updates: Partial<WorkflowStep>) => {

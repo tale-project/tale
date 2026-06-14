@@ -11,6 +11,7 @@ import {
   EditorActions,
   useActiveEditor,
 } from '@/app/components/ui/editor';
+import { SettingsMobileBackButton } from '@/app/features/settings/components/settings-mobile-back-button';
 import { SettingsRail } from '@/app/features/settings/components/settings-rail';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -47,6 +48,7 @@ function SettingsLayout() {
         organizationId={organizationId}
         header={
           <AdaptiveHeaderRoot showBorder standalone={false}>
+            <SettingsMobileBackButton organizationId={organizationId} />
             <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
             <SettingsEditorActionsSlot />
           </AdaptiveHeaderRoot>
@@ -98,7 +100,8 @@ function SettingsEditorActionsSlot() {
  * The desktop equivalent lives in the settings header (`SettingsEditorActionsSlot`),
  * which is `hidden md:flex` — so on small screens the Save/Discard buttons were
  * unreachable. Reads the active editor (set by each form page) and renders the
- * cluster only when one is present. Back navigation lives in the main nav header.
+ * cluster only when one is present. Back navigation lives in the settings header
+ * (`SettingsMobileBackButton`, rendered into the mobile top bar).
  */
 function SettingsMobileActionBar() {
   const controller = useActiveEditor();

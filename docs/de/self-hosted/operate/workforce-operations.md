@@ -9,7 +9,7 @@ Die Operator-Seite der KI-Workforce-Automatisierung. Die Produkt-Oberflächen li
 
 Das Paket wird pro Organisation mit klebrigen Opt-outs ausgerollt (Org-Änderungen gewinnen immer; ein erneuter Lauf reaktiviert keine von Admins deaktivierten Trigger):
 
-1. **Welle 0 — Dogfood**: für eine interne Organisation aktivieren (`migrations/provision_task_ops_pack` mit Aktivierung), eine Woche die Workforce-Gesundheitsleiste beobachten. Exit: null unquittierte Automatisierungs-Fehler.
+1. **Welle 0 — Dogfood**: für eine interne Organisation aktivieren (`provisioning/provision_task_ops_pack` mit Aktivierung), eine Woche die Workforce-Gesundheitsleiste beobachten. Exit: null unquittierte Automatisierungs-Fehler.
 2. **Welle 1 — ausgerollt, aus**: alle Organisationen erhalten das Paket inaktiv; Admins aktivieren selbst über den Workforce-Hauptschalter. Exit: Gesundheitsleiste 72 h sauber über die aktivierten Orgs.
 3. **Welle 2 — standardmäßig an**: Standard-Aktivierung für Organisationen, die nie umgeschaltet haben.
 

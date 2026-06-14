@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus, HardDrive, NotepadText } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -13,23 +13,45 @@ export type ImportMode = 'manual' | 'upload';
 
 interface VendorsActionMenuProps {
   organizationId: string;
+  /** Optionally lift dialog state so the empty-state CTA can open manual entry. */
+  createOpen?: boolean;
+  onCreateOpenChange?: (open: boolean) => void;
 }
 
-export function VendorsActionMenu({ organizationId }: VendorsActionMenuProps) {
+export function VendorsActionMenu({
+  organizationId,
+  createOpen: controlledCreateOpen,
+  onCreateOpenChange,
+}: VendorsActionMenuProps) {
   const { t: tVendors } = useT('vendors');
   const ability = useAbility();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isDialogOpen = controlledCreateOpen ?? internalOpen;
+  const setIsDialogOpen = onCreateOpenChange ?? setInternalOpen;
   const [importMode, setImportMode] = useState<ImportMode>('manual');
+  const openedViaMenuRef = useRef(false);
+
+  // The external empty-state CTA opens manual entry. The menu's own buttons set
+  // the mode themselves, so only reset when the open did NOT come from them —
+  // otherwise clicking "from device" would immediately flip back to manual.
+  useEffect(() => {
+    if (controlledCreateOpen && !openedViaMenuRef.current) {
+      setImportMode('manual');
+    }
+    if (!controlledCreateOpen) openedViaMenuRef.current = false;
+  }, [controlledCreateOpen]);
 
   const handleUploadClick = useCallback(() => {
+    openedViaMenuRef.current = true;
     setImportMode('upload');
     setIsDialogOpen(true);
-  }, []);
+  }, [setIsDialogOpen]);
 
   const handleManualEntryClick = useCallback(() => {
+    openedViaMenuRef.current = true;
     setImportMode('manual');
     setIsDialogOpen(true);
-  }, []);
+  }, [setIsDialogOpen]);
 
   if (ability.cannot('write', 'knowledgeWrite')) {
     return null;

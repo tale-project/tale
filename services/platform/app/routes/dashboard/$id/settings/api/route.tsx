@@ -16,7 +16,7 @@ import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
-import { API_NAV_ITEMS } from './nav-items';
+import { API_NAV_ITEMS } from './-nav-items';
 
 /**
  * "API" settings section. Consolidates the former top-level API keys, MCP and

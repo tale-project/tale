@@ -4,6 +4,7 @@ import { DEFAULT_TRUSTED_PROXIES } from '../../lib/shared/schemas/governance';
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
+import { readConfigCacheRow } from '../lib/config_cache/read';
 import { parseLoginPolicy } from './helpers';
 
 /**
@@ -47,12 +48,12 @@ export const getTrustedProxies = internalQuery({
     const orgId = getString(orgRow, '_id');
     if (!orgId) return [...DEFAULT_TRUSTED_PROXIES];
 
-    const row = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
-        q.eq('organizationId', orgId).eq('policyType', 'login_policy'),
-      )
-      .first();
+    const row = await readConfigCacheRow(
+      ctx.db,
+      orgId,
+      'governance',
+      'login_policy',
+    );
     const policy = parseLoginPolicy(row?.config);
     return policy.trustedProxies.length > 0
       ? policy.trustedProxies

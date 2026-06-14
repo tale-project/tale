@@ -6,11 +6,11 @@
 
 import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
-import type { Doc } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
 import { replaceVariables } from '../../../lib/variables/replace_variables';
+import type { StepType } from '../data_source/types';
 import { buildUserAnswers } from '../nodes/llm/utils/build_human_input_context';
 import { buildStepsMap } from '../step_execution/build_steps_map';
 import { executeStepByType } from '../step_execution/execute_step_by_type';
@@ -28,7 +28,7 @@ export type ExecuteStepArgs = {
   organizationId: string;
   executionId: string;
   stepSlug: string;
-  stepType: Doc<'wfStepDefs'>['stepType'];
+  stepType: StepType;
   stepName?: string;
   threadId?: string;
   initialInput?: unknown;

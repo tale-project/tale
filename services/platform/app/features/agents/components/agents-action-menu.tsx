@@ -17,10 +17,23 @@ import { CreateAgentDialog } from './agent-create-dialog';
 
 interface AgentsActionMenuProps {
   organizationId: string;
+  /**
+   * Optionally lift the create-dialog open state so another trigger (e.g. the
+   * list's empty-state CTA) can open the same dialog. Falls back to internal
+   * state when not provided.
+   */
+  createOpen?: boolean;
+  onCreateOpenChange?: (open: boolean) => void;
 }
 
-export function AgentsActionMenu({ organizationId }: AgentsActionMenuProps) {
-  const [createOpen, setCreateOpen] = useState(false);
+export function AgentsActionMenu({
+  organizationId,
+  createOpen: controlledCreateOpen,
+  onCreateOpenChange,
+}: AgentsActionMenuProps) {
+  const [internalCreateOpen, setInternalCreateOpen] = useState(false);
+  const createOpen = controlledCreateOpen ?? internalCreateOpen;
+  const setCreateOpen = onCreateOpenChange ?? setInternalCreateOpen;
   const [uploadOpen, setUploadOpen] = useState(false);
   const { t } = useT('settings');
   const { mutateAsync: saveAgent } = useSaveAgent();
@@ -43,7 +56,7 @@ export function AgentsActionMenu({ organizationId }: AgentsActionMenuProps) {
         onClick: () => setUploadOpen(true),
       },
     ],
-    [t],
+    [t, setCreateOpen],
   );
 
   return (

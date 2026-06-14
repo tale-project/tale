@@ -10,11 +10,29 @@ import { ApiKeyCreateDialog } from './api-key-create-dialog';
 
 interface ApiKeysActionMenuProps {
   organizationId: string;
+  /** Optionally lift create-dialog state so the list's empty-state CTA can open it. */
+  createOpen?: boolean;
+  onCreateOpenChange?: (open: boolean) => void;
 }
 
-export function ApiKeysActionMenu({ organizationId }: ApiKeysActionMenuProps) {
+export function ApiKeysActionMenu({
+  organizationId,
+  createOpen: controlledCreateOpen,
+  onCreateOpenChange,
+}: ApiKeysActionMenuProps) {
   const { t: tSettings } = useT('settings');
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [internalCreateOpen, setInternalCreateOpen] = useState(false);
+  // Controlled only when BOTH props are present. A lone `createOpen` would be
+  // read for rendering while writes still hit internal state — a dead path
+  // where clicks update state that no longer controls the dialog.
+  const controlled =
+    controlledCreateOpen !== undefined && onCreateOpenChange !== undefined;
+  const isCreateDialogOpen = controlled
+    ? (controlledCreateOpen ?? false)
+    : internalCreateOpen;
+  const setIsCreateDialogOpen = controlled
+    ? (onCreateOpenChange ?? setInternalCreateOpen)
+    : setInternalCreateOpen;
 
   return (
     <>

@@ -13,8 +13,8 @@ import {
   agentJsonSchema,
   type AgentRoutingConfig,
   type ResponseTuningConfig,
-  type SkillBindingResolvedEntry,
 } from '../../lib/shared/schemas/agents';
+import { canonicalizeAgentConfig } from '../../lib/shared/utils/canonicalize-config';
 import {
   getConfigRoot,
   safeJoinWithinDir,
@@ -68,11 +68,6 @@ export interface AgentJsonConfig {
    * pointing at non-existent skills are silently dropped.
    */
   skillBindings?: string[];
-  /**
-   * Legacy snapshot from the old transitive tool-grant model. No longer read
-   * at runtime — kept optional so historical agent JSON still validates.
-   */
-  skillBindingsResolved?: SkillBindingResolvedEntry[];
   supportedModels: string[];
   provider?: string;
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
@@ -117,13 +112,6 @@ export interface AgentJsonConfig {
    * `agentJsonSchema.delegates`.
    */
   delegates?: string[];
-  /**
-   * Legacy single-manager reporting line (slug of this agent's manager).
-   * Superseded by `delegates`; still read so pre-migration configs render,
-   * and migrated away on the next organigram write touching this agent.
-   * Mirrors `agentJsonSchema.reportsTo`.
-   */
-  reportsTo?: string;
   /**
    * Monthly spend guardrail: warn at `warnPct` (default 80), refuse new runs
    * at `pausePct` (default 100) of `monthlyCents`, measured against the
@@ -172,7 +160,7 @@ export function agentNameFromFileName(fileName: string): string {
 }
 
 export function serializeAgentJson(config: AgentJsonConfig): string {
-  return serializeJson(config);
+  return serializeJson(canonicalizeAgentConfig(config));
 }
 
 export function parseAgentJson(content: string): AgentJsonConfig {

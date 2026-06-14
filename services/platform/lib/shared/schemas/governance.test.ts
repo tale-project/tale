@@ -99,7 +99,8 @@ describe('passwordPolicyConfigSchema', () => {
   it('parses an empty object to built-in defaults', () => {
     const result = passwordPolicyConfigSchema.parse({});
     expect(result).toEqual({
-      minLength: 8,
+      // Production-secure default: 12-char floor (see schema comment).
+      minLength: 12,
       requireUpper: true,
       requireLower: true,
       requireDigit: true,

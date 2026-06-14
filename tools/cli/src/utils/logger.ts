@@ -73,3 +73,11 @@ export function table(rows: [string, string][]) {
     console.log(`  ${key.padEnd(maxKeyLength)}  ${DIM}${value}${RESET}`);
   }
 }
+
+/**
+ * A small, tasteful wordmark shown for bare `tale` and `--help`. Intentionally
+ * minimal — no heavy ASCII art, no extra deps.
+ */
+export function bannerText(version: string): string {
+  return `  ${BOLD}${CYAN}◆ Tale${RESET} ${DIM}v${version}${RESET}  ${DIM}— your self-hosted AI workforce${RESET}`;
+}

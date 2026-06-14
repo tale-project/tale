@@ -25,6 +25,7 @@
         {
           "label": "install",
           "pages": [
+            "self-hosted/install/index",
             "self-hosted/install/quickstart",
             "self-hosted/install/linux-server",
             "self-hosted/install/docker-compose-reference",
@@ -265,6 +266,7 @@
       "label": "develop",
       "pages": [
         "develop/overview",
+        "develop/contributor-setup",
         "develop/api-reference",
         "develop/webhooks",
         "develop/webdav-api",

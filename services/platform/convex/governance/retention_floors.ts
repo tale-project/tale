@@ -4,14 +4,15 @@
  * importable from V8 mutations / queries / actions.
  *
  * Resolution order:
- *   1. **Per-org file** at `$TALE_CONFIG_DIR/<orgSlug>/retention.json`
+ *   1. **Per-org file** at `$TALE_CONFIG_DIR/<orgSlug>/governance/retention.json`
  *      (org-first layout) provides the baseline `{ min, max, default }`
  *      per category. The
  *      file is the canonical source of truth (no in-code fallback).
  *      Loading the file is the caller's responsibility — Node-side
  *      callers (cleanup action) import the store directly; V8-side
  *      callers (the editor's V8 action wrapper) call `ctx.runAction(
- *      internal.lib.config_store.actions.readRetentionConfig, ...)`.
+ *      internal.lib.config_store.actions.readConfigArea,
+ *      { area: 'retention', orgSlug })`.
  *      If the org's own file is missing, the wrapper falls back to the
  *      `default` org's file. If both are missing, throws
  *      `RetentionConfigMissingError`.
@@ -317,7 +318,7 @@ export class RetentionConfigMissingError extends Error {
   readonly hint: string;
   constructor(category: RetentionCategory) {
     const hint =
-      'Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json';
+      'Copy examples/default/governance/retention.json to $TALE_CONFIG_DIR/default/governance/retention.json';
     super(`Retention config missing for category=${category}. ${hint}`);
     this.category = category;
     this.hint = hint;

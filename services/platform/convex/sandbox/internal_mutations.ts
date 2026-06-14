@@ -150,10 +150,9 @@ export const reserveSlotAndInsert = internalMutation({
     messageId: v.optional(v.string()),
     toolCallId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
-    artifactId: v.optional(v.string()),
-    /** For artifact-bound runs: which file in the project was executed. */
+    /** Which file in the project was executed. */
     path: v.optional(v.string()),
-    /** For skill_run invocations: the skill slug (mutually exclusive with artifactId). */
+    /** For skill_run invocations: the skill slug. */
     skillSlug: v.optional(v.string()),
     /** SHA-256 of SKILL.md at execution time, for skill_run forensics. */
     skillVersionHash: v.optional(v.string()),
@@ -235,7 +234,6 @@ export const reserveSlotAndInsert = internalMutation({
       ...(args.messageId !== undefined && { messageId: args.messageId }),
       ...(args.toolCallId !== undefined && { toolCallId: args.toolCallId }),
       ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
-      ...(args.artifactId !== undefined && { artifactId: args.artifactId }),
       ...(args.path !== undefined && { path: args.path }),
       ...(args.skillSlug !== undefined && { skillSlug: args.skillSlug }),
       ...(args.skillVersionHash !== undefined && {
@@ -479,8 +477,8 @@ export const recoverStuckSandboxes = internalMutation({
  * Used by the user-Stop cascade: when `cancel_generation` fires, the new
  * `cancelExecutionsForThread` action calls this to find what to kill, then
  * issues `spawnerCancel` + `cancelExecutionRecord` for each. Returns a
- * trimmed projection (id + artifactId) because the caller doesn't need
- * the full doc — keeps the query cheap.
+ * trimmed projection (id only) because the caller doesn't need the full
+ * doc — keeps the query cheap.
  */
 export const listNonTerminalByThread = internalQuery({
   // `threadId` is stored as `v.string()` on `sandboxExecutions` (the
@@ -491,7 +489,6 @@ export const listNonTerminalByThread = internalQuery({
   returns: v.array(
     v.object({
       _id: v.id('sandboxExecutions'),
-      artifactId: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -501,16 +498,10 @@ export const listNonTerminalByThread = internalQuery({
       .collect();
     const out: Array<{
       _id: Id<'sandboxExecutions'>;
-      artifactId?: string;
     }> = [];
     for (const row of rows) {
       if (sandboxTerminalStatuses.has(row.status)) continue;
-      const entry: {
-        _id: Id<'sandboxExecutions'>;
-        artifactId?: string;
-      } = { _id: row._id };
-      if (row.artifactId !== undefined) entry.artifactId = row.artifactId;
-      out.push(entry);
+      out.push({ _id: row._id });
     }
     return out;
   },

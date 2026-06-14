@@ -12,9 +12,9 @@
 import type { ParsedFilterExpression } from './types';
 
 export function mergeAndConditions(
-  left: Omit<ParsedFilterExpression, 'equalityConditions'>,
-  right: Omit<ParsedFilterExpression, 'equalityConditions'>,
-): Omit<ParsedFilterExpression, 'equalityConditions'> {
+  left: ParsedFilterExpression,
+  right: ParsedFilterExpression,
+): ParsedFilterExpression {
   return {
     conditions: [...left.conditions, ...right.conditions],
     hasComplexConditions:

@@ -15,7 +15,9 @@ default/                    — Canonical/template org (created by 'tale init')
   branding/                 — Branding config (branding.json + images/)
   providers/                — LLM provider configs (and *.secrets.json sidecars)
   skills/                   — Skill bundles (per-skill subdirs)
-  retention.json            — Per-org data-retention overrides
+  governance/               — Org governance policies (one <policyType>.json per
+                              policy), the retention.json bounds catalog, and
+                              *.secrets.json sidecars + sso/ provider configs
 <other-org>/                — Same shape; one tree per registered org
 .tale/reference/            — Read-only implementation source code (read before
                               creating or editing configs)
@@ -56,4 +58,54 @@ and \`**/.history/\` at all depths.
 
 export function buildRulesContent(): string {
   return RULES_CONTENT;
+}
+
+/**
+ * Body for the project's `CLAUDE.md`. Claude Code reads `CLAUDE.md` but not
+ * `AGENTS.md`, so this just points at the single source of truth rather than
+ * duplicating it.
+ */
+export function buildClaudeReference(agentsFile: string): string {
+  return [
+    '# Tale Project',
+    '',
+    `Agent instructions for this project live in [\`${agentsFile}\`](${agentsFile}).`,
+    'Read and follow them before creating or editing any configuration —',
+    `Claude Code does not load \`${agentsFile}\` automatically, so this file`,
+    'points to it.',
+  ].join('\n');
+}
+
+// HTML-comment markers delimit the section `tale init` owns. Everything
+// outside the markers is the user's and is preserved across re-runs.
+const SECTION_BEGIN =
+  '<!-- tale:begin — managed by `tale init`; content outside this block is preserved -->';
+const SECTION_END = '<!-- tale:end -->';
+
+/**
+ * Insert or update the Tale-managed section in an instructions file. When the
+ * file is absent/empty, returns just the managed block. When a prior managed
+ * block exists, replaces it in place. Otherwise appends the block, leaving the
+ * user's existing content untouched. Idempotent.
+ */
+export function upsertManagedSection(
+  existing: string | null,
+  body: string,
+): string {
+  const block = `${SECTION_BEGIN}\n\n${body.trim()}\n\n${SECTION_END}`;
+
+  if (existing === null || existing.trim() === '') {
+    return `${block}\n`;
+  }
+
+  const begin = existing.indexOf(SECTION_BEGIN);
+  const end = existing.indexOf(SECTION_END);
+  if (begin !== -1 && end !== -1 && end > begin) {
+    const before = existing.slice(0, begin).replace(/\s+$/, '');
+    const after = existing.slice(end + SECTION_END.length).replace(/^\s+/, '');
+    const parts = [before, block, after].filter((part) => part.length > 0);
+    return `${parts.join('\n\n')}\n`;
+  }
+
+  return `${existing.replace(/\s+$/, '')}\n\n${block}\n`;
 }

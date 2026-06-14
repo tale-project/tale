@@ -1,8 +1,8 @@
 {
   "seo": {
     "home": {
-      "title": "Tale : la couche d'orchestration pour agents IA",
-      "description": "Plateforme d'IA auto-hébergée pour les organisations sensibles aux données — modèles d'IA, agents et automatisations locaux sur ta propre infrastructure. Certifié ISO 27001 et SOC 2."
+      "title": "Tale : l'orchestrateur pour agents IA",
+      "description": "Connecte les agents IA et les CLI que ton équipe utilise déjà, mets en commun leurs connaissances et délègue le travail entre eux — auto-hébergé sur ta propre infrastructure. Certifié ISO 27001 et SOC 2."
     },
     "pricing": {
       "title": "Tarifs — simples et transparents",
@@ -69,10 +69,10 @@
   },
   "home": {
     "hero": {
-      "title": "Toute la puissance de l'IA. Sans le risque.",
-      "subtitle": "Tale est la plateforme d'IA open source pour le chat, les agents et les automatisations — tourne sur tes serveurs, entraînée sur tes données, conçue en Suisse.",
+      "title": "L'orchestrateur pour agents IA",
+      "subtitle": "Connecte les agents et CLI que ton équipe utilise déjà — Claude Code, Codex, Cursor et plus encore. Mets en commun leurs connaissances, délègue des tâches et fais tourner tout l'essaim sur ta propre infrastructure : tes données, tes règles, conçu en Suisse.",
       "ctaPrimary": "Demander une démo",
-      "ctaSecondary": "Lire la doc",
+      "ctaSecondary": "Démarrer",
       "footNote": "Nous nous intégrons avec {logos} et plus encore — notre expertise couvre le reste.",
       "integrationsPrefix": "Nous nous intégrons avec",
       "integrationsSuffix": "et plus encore — notre expertise couvre le reste.",
@@ -170,7 +170,7 @@
     },
     "cta": {
       "title": "Démarre avec Tale",
-      "description": "Fais tourner une stack d'IA souveraine sur ta propre infrastructure — contacte-nous.",
+      "description": "Orchestre tes agents IA sur une stack souveraine que tu fais tourner toi-même — contacte-nous, ou lance-la en trois commandes.",
       "primary": "Demander une démo",
       "secondary": "Voir comment ça marche"
     }

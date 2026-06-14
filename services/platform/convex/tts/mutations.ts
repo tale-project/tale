@@ -652,9 +652,8 @@ export const markChunkReadyAndRecordUsage = internalMutation({
       });
     }
 
-    // Note: we deliberately don't pre-resolve a storage URL. The
-    // `audioUrl` field on the schema is deprecated — subscribers fetch
-    // audio through the authenticated `/api/tts-audio` route keyed on
+    // Note: we deliberately don't pre-resolve a storage URL. Subscribers
+    // fetch audio through the authenticated `/api/tts-audio` route keyed on
     // `chunkId`. Skipping the URL pre-resolution saves one round-trip
     // per chunk write and matches the security model (per-request
     // membership check beats bearer-replayable URL).

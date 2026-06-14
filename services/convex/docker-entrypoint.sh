@@ -404,6 +404,29 @@ run_seed() {
     done
   fi
 
+  # --- Prompts (flat) ---
+  local prompts_dir="${data_dir}/default/prompts"
+  local prompts_builtin="/app/builtin/default/prompts"
+  mkdir -p "$prompts_dir"
+  if [ -d "$prompts_builtin" ] && [ "$(ls -A "$prompts_builtin" 2>/dev/null)" ]; then
+    for src in "$prompts_builtin"/*.json; do
+      [ -f "$src" ] || continue
+      local name="$(basename "$src")"
+      local slug="$(basename "$src" .json)"
+      local dest="$prompts_dir/$name"
+      local history_dir="$prompts_dir/.history/$slug"
+      if [ "$FORCE_SEED" = "true" ]; then
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded prompt $name (forced)"
+      elif [ -f "$dest" ]; then
+        echo "   ⏭ Skipping prompt $name (already exists)"
+      elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+        echo "   ⏭ Skipping prompt $name (user has modifications in .history)"
+      else
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded prompt $name"
+      fi
+    done
+  fi
+
   # --- Workflows (nested folder/name.json) ---
   local workflows_dir="${data_dir}/default/workflows"
   local workflows_builtin="/app/builtin/default/workflows"
@@ -566,104 +589,6 @@ if [ "$FORCE_SEED" = "true" ] || [ ! -f "$seed_marker" ]; then
   run_seed
 else
   log_info "Builtin seed already applied for version ${TALE_VERSION:-dev} (marker: $seed_marker)"
-fi
-
-# ----------------------------------------------------------------------------
-# Legacy flat-layout: self-heal provider secrets, warn about the rest
-# ----------------------------------------------------------------------------
-# The pre-orgfirst layout placed config at the data root
-# (`$data_dir/providers/`, `$data_dir/agents/`, …). The org-first runtime
-# reads ONLY `<root>/<org>/<domain>/`.
-#
-# Provider `*.secrets.json` are the one thing that can't be reconstructed from
-# the builtin catalog (non-secret config is reseeded by `run_seed` above and by
-# `tale deploy --override-all`). So we SELF-HEAL them here on every boot:
-# idempotently copy each legacy-path provider secret to its org-first home when
-# that home doesn't already hold it. This recovers deployments whose host dirs
-# were migrated but whose container secrets were stranded (e.g. an interrupted
-# `tale upgrade`) — without it the platform's resolver hits the new path,
-# finds nothing, and reports "No API key configured".
-#
-# `cp` (not `mv`) keeps the legacy copy as rollback insurance until the
-# operator runs `tale migrate config-layout --cleanup-old`. Runs as the `app`
-# user (the script re-execs as `app` above), before the backend starts — so
-# secrets are in place before any request reads them.
-#
-# Mapping mirrors tools/cli/src/lib/actions/migrate-config-layout.ts:
-#   $data_dir/providers/<name>.secrets.json       → $data_dir/default/providers/<name>.secrets.json
-#   $data_dir/providers/<org>/<name>.secrets.json → $data_dir/<org>/providers/<name>.secrets.json
-
-# Copy one secret only when the org-first dest is absent. The new path is
-# authoritative — never clobber a secret the UI may have written there since.
-heal_provider_secret() {
-  local src="$1" dst="$2"
-  [ -f "$src" ] || return 0
-  [ -e "$dst" ] && return 0
-  mkdir -p "$(dirname "$dst")"
-  if atomic_cp "$src" "$dst"; then
-    chmod 600 "$dst" 2>/dev/null || true
-    echo "   ✓ Migrated provider secret → ${dst#"${data_dir}"/}"
-    healed_secrets=$((healed_secrets + 1))
-  else
-    log_warn "Failed to migrate provider secret: $src → $dst"
-  fi
-}
-
-migrate_legacy_provider_secrets() {
-  [ -d "${data_dir}/providers" ] || return 0
-  # Default org: flat $data_dir/providers/*.secrets.json
-  for f in "${data_dir}"/providers/*.secrets.json; do
-    [ -f "$f" ] || continue
-    heal_provider_secret "$f" "${data_dir}/default/providers/$(basename "$f")"
-  done
-  # Non-default orgs: $data_dir/providers/<org>/*.secrets.json
-  for d in "${data_dir}"/providers/*/; do
-    [ -d "$d" ] || continue
-    local org; org="$(basename "$d")"
-    case "$org" in .*) continue ;; esac
-    # Validate the slug shape (keep in sync with ORG_SLUG_REGEX in
-    # services/platform/lib/shared/constants/org-slug.ts). No length cap —
-    # dropping a long-but-valid slug would lose its secrets.
-    if ! echo "$org" | grep -qE '^[a-z0-9][a-z0-9_-]*$'; then
-      log_warn "Skipping provider secrets under invalid org slug: providers/$org/"
-      continue
-    fi
-    for f in "${d}"*.secrets.json; do
-      [ -f "$f" ] || continue
-      heal_provider_secret "$f" "${data_dir}/${org}/providers/$(basename "$f")"
-    done
-  done
-}
-
-healed_secrets=0
-migrate_legacy_provider_secrets
-[ "$healed_secrets" -gt 0 ] && \
-  log_ok "Self-healed $healed_secrets legacy provider secret(s) into the org-first layout"
-
-# Warn about any remaining legacy flat trees. Non-secret edits there are not
-# loaded (builtin config is reseeded into `<org>/`); the kept secret copies are
-# rollback insurance.
-legacy_flat_dirs=()
-for d in agents workflows integrations branding providers skills; do
-  if [ -d "${data_dir}/${d}" ]; then
-    legacy_flat_dirs+=("${d}")
-  fi
-done
-if [ ${#legacy_flat_dirs[@]} -gt 0 ]; then
-  echo
-  echo "⚠ WARNING: legacy flat-layout config detected at:"
-  for d in "${legacy_flat_dirs[@]}"; do
-    echo "    ${data_dir}/${d}/"
-  done
-  echo
-  echo "  The org-first runtime reads only from '<root>/<org>/<domain>/'."
-  echo "  Provider *.secrets.json were auto-migrated and are live; the legacy"
-  echo "  copies are kept as rollback insurance. Custom NON-secret edits at the"
-  echo "  paths above are NOT loaded. To migrate host-side config and finalize,"
-  echo "  run on the operator host:"
-  echo "    tale deploy --override-all -y              # migrates host layout + reseeds"
-  echo "    tale migrate config-layout --cleanup-old   # after verifying health"
-  echo
 fi
 
 # ============================================================================

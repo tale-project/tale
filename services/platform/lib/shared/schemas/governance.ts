@@ -1,6 +1,7 @@
 import safe from 'safe-regex2';
 import { z } from 'zod/v4';
 
+import { piiConfigSchema } from '../../pii/schemas/config';
 import {
   DEFAULT_SESSION_IDLE_TIMEOUT_MINUTES,
   SESSION_IDLE_TIMEOUT_MAX_MINUTES,
@@ -30,9 +31,6 @@ export const POLICY_TYPES = [
   'moderation_provider',
   'custom_instructions',
   'user_memories',
-  // Legacy combined toggle; `migrations/split_personalization_toggle`
-  // drains rows of this type into the two split policies above.
-  'personalization',
   // Org-level default for the voice-output (TTS) feature. Missing row →
   // effective default ON; row with `config.enabled === false` is the
   // org-wide kill switch admins use to block voice for the whole tenant
@@ -91,14 +89,14 @@ export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
 // `userPreferences.customInstructionsEnabled` may override this default;
 // absent user preference falls back to this value. Missing row entirely →
 // effective default is OFF.
-export const customInstructionsConfigSchema = z.object({
+const customInstructionsConfigSchema = z.object({
   enabled: z.boolean(),
 });
 
 // Org-level default for the user-memories feature (memory injection +
 // the `propose_memory` agent tool). Per-user
 // `userPreferences.memoriesEnabled` may override; missing row → OFF.
-export const userMemoriesConfigSchema = z.object({
+const userMemoriesConfigSchema = z.object({
   enabled: z.boolean(),
 });
 
@@ -120,7 +118,7 @@ export const voiceOutputConfigSchema = z.object({
  * this policyType and read back without validation. Schema kept tight
  * (enabled flag + bounded prompt text) to fit the actual write surface.
  */
-export const systemPromptConfigSchema = z.object({
+const systemPromptConfigSchema = z.object({
   enabled: z.boolean(),
   prompt: z.string().max(20_000),
 });
@@ -211,7 +209,7 @@ export type UploadPolicyConfig = z.infer<typeof uploadPolicyConfigSchema>;
 /**
  * Per-org retention policy payload. Schema only validates structural
  * shape (integer + non-negative); category min/max bounds live in
- * `examples/default/retention.json` (or per-org override files) and are
+ * `examples/default/governance/retention.json` (or per-org override files) and are
  * enforced at write time by `assertWithinBounds` inside
  * `upsertRetentionPolicyAction`. Operators tighten or rename bounds by
  * editing the JSON file; the schema does not duplicate them.
@@ -308,7 +306,7 @@ export type FeatureFlagsConfig = z.infer<typeof featureFlagsConfigSchema>;
 // schema-only consumers (this file, guardrails-overview,
 // the mutation validator) don't need any of that. Many of those
 // consumers sit on hot routes where the cost shows up.
-export { piiConfigSchema } from '../../pii/schemas/config';
+export { piiConfigSchema };
 
 export const modelAccessRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'default']),
@@ -364,7 +362,12 @@ export const loginPolicyConfigSchema = z.object({
 export type LoginPolicyConfig = z.infer<typeof loginPolicyConfigSchema>;
 
 export const passwordPolicyConfigSchema = z.object({
-  minLength: z.number().int().min(6).max(128).default(8),
+  // Production-secure-by-default: a 12-char floor + all character classes is
+  // applied automatically (no admin action, no setup prompt). This only
+  // governs NEW password creation/validation — existing passwords are never
+  // invalidated — so raising the floor strengthens a fresh deployment without
+  // locking anyone out. Admins can still relax it per-org in Settings.
+  minLength: z.number().int().min(6).max(128).default(12),
   requireUpper: z.boolean().default(true),
   requireLower: z.boolean().default(true),
   requireDigit: z.boolean().default(true),
@@ -630,3 +633,72 @@ export const dsarGovernanceConfigSchema = z.object({
 export type DsarGovernanceConfig = z.infer<typeof dsarGovernanceConfigSchema>;
 export const DEFAULT_DSAR_GOVERNANCE: DsarGovernanceConfig =
   dsarGovernanceConfigSchema.parse({});
+
+// ---------------------------------------------------------------------------
+// Per-policy-type schema registry
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps each governance `PolicyType` to its config Zod schema. Single source
+ * of truth replacing the per-type `safeParse` switch that used to live in
+ * `governance/mutations.ts`. The file-based config store (`governance/file_utils.ts`)
+ * validates each `<policyType>.json` against `POLICY_SCHEMAS[policyType]`, and
+ * the cache-sync action uses it to validate before mirroring into Convex.
+ *
+ * `personalization` is intentionally absent — it is a legacy combined toggle
+ * being drained into `custom_instructions` + `user_memories`; it has no file
+ * representation and is never written through the new path.
+ */
+export const POLICY_SCHEMAS = {
+  system_prompt: systemPromptConfigSchema,
+  budgets: budgetConfigSchema,
+  default_models: defaultModelsConfigSchema,
+  upload_policy: uploadPolicyConfigSchema,
+  retention_policy: retentionPolicyConfigSchema,
+  feature_flags: featureFlagsConfigSchema,
+  pii_config: piiConfigSchema,
+  model_access: modelAccessConfigSchema,
+  login_policy: loginPolicyConfigSchema,
+  password_policy: passwordPolicyConfigSchema,
+  two_factor_policy: twoFactorPolicyConfigSchema,
+  session_idle_timeout: sessionIdleTimeoutConfigSchema,
+  chat_filter: chatFilterConfigSchema,
+  moderation_provider: moderationProviderConfigSchema,
+  custom_instructions: customInstructionsConfigSchema,
+  user_memories: userMemoriesConfigSchema,
+  voice_output: voiceOutputConfigSchema,
+  data_classification_notice: dataNoticeConfigSchema,
+  dsar_governance: dsarGovernanceConfigSchema,
+  agent_workforce: agentWorkforceConfigSchema,
+  task_automation: taskAutomationConfigSchema,
+} satisfies Partial<Record<PolicyType, z.ZodType>>;
+
+/** Policy types that have a file-based representation (every type except the
+ *  legacy `personalization` toggle). */
+export type FilePolicyType = keyof typeof POLICY_SCHEMAS;
+
+export const FILE_POLICY_TYPES = Object.keys(
+  POLICY_SCHEMAS,
+) as FilePolicyType[];
+
+export function isFilePolicyType(value: string): value is FilePolicyType {
+  return Object.prototype.hasOwnProperty.call(POLICY_SCHEMAS, value);
+}
+
+/**
+ * Policy types are snake_case internal identifiers (`agent_workforce`), but
+ * on-disk filenames are kebab-case to match the rest of the file-based config
+ * (`agents/`, `prompts/`, `workflows/`). Policy types never contain `-`, so
+ * the `_`↔`-` mapping is unambiguous and round-trips losslessly.
+ *
+ * V8-safe (no `node:*`) so the config-domain registry
+ * (`lib/shared/config/registry.ts`) can reference it directly.
+ */
+export function policyTypeToFileBase(policyType: FilePolicyType): string {
+  return policyType.replaceAll('_', '-');
+}
+
+export function fileBaseToPolicyType(fileBase: string): FilePolicyType | null {
+  const candidate = fileBase.replaceAll('-', '_');
+  return isFilePolicyType(candidate) ? candidate : null;
+}

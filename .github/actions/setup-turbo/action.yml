@@ -21,6 +21,20 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Disable third-party telemetry
+      shell: bash
+      # Persist to the job env so every later step (turbo runs, bun install,
+      # storybook builds, scarf) inherits the opt-out. DO_NOT_TRACK is the
+      # cross-tool standard (consoledonottrack.com); the rest are belt-and-braces.
+      run: |
+        {
+          echo "DO_NOT_TRACK=1"
+          echo "TURBO_TELEMETRY_DISABLED=1"
+          echo "STORYBOOK_DISABLE_TELEMETRY=1"
+          echo "SCARF_ANALYTICS=false"
+          echo "HF_HUB_DISABLE_TELEMETRY=1"
+        } >> "$GITHUB_ENV"
+
     - name: Setup Bun
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       with:

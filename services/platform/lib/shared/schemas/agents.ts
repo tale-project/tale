@@ -10,29 +10,6 @@ import { SKILL_NAME_REGEX } from './skills';
  */
 export const MAX_SKILL_BINDINGS_PER_AGENT = 10;
 
-/**
- * Canonical shape of one entry in an agent's `skillBindingsResolved`
- * array — the trusted snapshot the runtime reads at chat-turn start to
- * decide which tools / integrations / workflows a bound skill grants.
- *
- * A trust-boundary type consumed at several sites (Convex validator, the
- * runtime types, `agents/file_utils.ts`); sharing one schema makes drift a
- * build-time error instead of a runtime one.
- */
-export const skillBindingResolvedEntrySchema = z.object({
-  slug: z.string().min(1).max(64).regex(SKILL_NAME_REGEX),
-  versionHash: z.string().regex(/^[0-9a-f]{64}$/, {
-    message: 'versionHash must be a lowercase sha256 hex digest',
-  }),
-  toolNames: z.array(z.string().min(1)).default([]),
-  integrationBindings: z.array(z.string().min(1)).default([]),
-  workflowBindings: z.array(z.string().min(1)).default([]),
-});
-
-export type SkillBindingResolvedEntry = z.infer<
-  typeof skillBindingResolvedEntrySchema
->;
-
 const retrievalModeLiterals = ['off', 'tool', 'context', 'both'] as const;
 type RetrievalMode = (typeof retrievalModeLiterals)[number];
 
@@ -215,10 +192,6 @@ export const agentJsonSchema = z
       .array(z.string().min(1).max(64).regex(SKILL_NAME_REGEX))
       .max(MAX_SKILL_BINDINGS_PER_AGENT)
       .optional(),
-    skillBindingsResolved: z
-      .array(skillBindingResolvedEntrySchema)
-      .max(MAX_SKILL_BINDINGS_PER_AGENT)
-      .optional(),
     supportedModels: z
       .array(
         z.string().min(1).refine(isValidModelRef, {
@@ -273,18 +246,6 @@ export const agentJsonSchema = z
           .regex(/^[a-z0-9][a-z0-9_-]*$/),
       )
       .max(100)
-      .optional(),
-    /**
-     * Legacy single-manager reporting line (slug of this agent's manager).
-     * Superseded by `delegates` (the inverse edge); still read so
-     * pre-migration configs keep rendering, and migrated away on the next
-     * organigram write that touches this agent.
-     */
-    reportsTo: z
-      .string()
-      .min(1)
-      .max(64)
-      .regex(/^[a-z0-9][a-z0-9_-]*$/)
       .optional(),
     /**
      * Monthly spend guardrail (Paperclip-style). Month-to-date spend comes
@@ -403,10 +364,6 @@ export const agentJsonSchema = z
     // is left to runtime (a stale slug is silently dropped from the snapshot),
     // so an operator can list a skill that will be uploaded later without
     // tripping schema validation.
-    //
-    // `skillBindingsResolved` is a legacy snapshot from the old transitive
-    // tool-grant model and is no longer read at runtime; it remains optional
-    // for back-compat reading of historical agent JSON.
 
     // image-generation and external-agent both bypass the platform tool loop,
     // so the loop-only fields are meaningless for them — with one exception:

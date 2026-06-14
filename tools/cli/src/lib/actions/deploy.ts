@@ -1,10 +1,11 @@
 import { lstatSync } from 'node:fs';
-import { cp, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { runStepsInParallel } from '../../utils/progress';
 import { createSnapshot } from '../backup/create-snapshot';
 import { rotateSnapshots } from '../backup/rotate-snapshots';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
@@ -31,15 +32,12 @@ import { pullImage } from '../docker/pull-image';
 import { removeContainer } from '../docker/remove-container';
 import { stopContainer } from '../docker/stop-container';
 import { waitForHealthy } from '../docker/wait-for-healthy';
+import { discoverOrgs } from '../project/org-dirs';
 import { getCurrentColor } from '../state/get-current-color';
 import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
-import {
-  detectLegacyDirs,
-  legacyLayoutPreflight,
-} from './legacy-layout-preflight';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
 async function ensureInfrastructure(
@@ -162,12 +160,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const isFirstDeploy = currentColor === null;
 
       // Pre-mutation volume snapshot — the recovery point for forward-only
-      // migrations. Taken before `legacyLayoutPreflight` (the first step
-      // that can mutate state) whenever this deploy can change data: a
-      // version change (new images run implicit migrations on first boot),
-      // a host-config push, or a pending legacy-layout migration. First
-      // deploys have nothing to snapshot yet; snapshot failure aborts the
-      // deploy unless the operator opted out via --skip-backup.
+      // migrations. Taken whenever this deploy can change data: a version
+      // change (new images run implicit migrations on first boot) or a
+      // host-config push. First deploys have nothing to snapshot yet;
+      // snapshot failure aborts the deploy unless the operator opted out
+      // via --skip-backup.
       if (!isFirstDeploy) {
         const snapshotPrefix = `${getProjectId()}_`;
         const runningVersion = await getContainerVersion(
@@ -176,8 +173,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
         const wouldMutate =
           runningVersion !== version ||
           Boolean(options.override) ||
-          Boolean(options.overrideAll) ||
-          detectLegacyDirs(env.DEPLOY_DIR).length > 0;
+          Boolean(options.overrideAll);
         if (wouldMutate) {
           if (dryRun) {
             logger.info(
@@ -196,27 +192,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
             await rotateSnapshots({ prefix: snapshotPrefix });
           }
         }
-      }
-
-      // Detect-and-migrate on legacy flat layout. Only gates host
-      // pushes (`--override` / `--override-all`) — a plain container-
-      // rotation deploy has no host-config dependency. The preflight
-      // prompts (default-No) and runs `migrateConfigLayout` in place
-      // on accept; CI / `--yes` migrates without prompting. Replaces
-      // the prior hard-fail-with-runbook flow so legacy projects can
-      // be upgraded in one command. Snapshot policy: on non-first deploys
-      // the pre-deploy snapshot above already covers this path (a pending
-      // legacy layout is one of its triggers) — pass 'skip'. On a first
-      // deploy a dev stack may still own the convex container the
-      // migration rewrites, so let the preflight auto-resolve a prefix
-      // and snapshot if any data volumes exist.
-      if (options.override || options.overrideAll) {
-        await legacyLayoutPreflight({
-          projectDir: env.DEPLOY_DIR,
-          assumeYes: options.assumeYes ?? false,
-          context: 'deploy',
-          backup: !isFirstDeploy || options.skipBackup ? 'skip' : {},
-        });
       }
 
       // Determine which services to deploy
@@ -338,13 +313,24 @@ export async function deploy(options: DeployOptions): Promise<void> {
           );
         }
       } else {
-        const failedImages: string[] = [];
-        for (const image of imagesToPull) {
-          const success = await pullImage(image);
-          if (!success) {
-            failedImages.push(image);
-          }
-        }
+        // Pull all images CONCURRENTLY (docker dedups shared layers), but log
+        // each one's completion as a step so the terminal still reads like a
+        // sequential checklist. One failed pull doesn't cancel the others —
+        // we collect every failure and report them together.
+        const pullResults = await runStepsInParallel(
+          imagesToPull.map((image) => ({
+            label: image,
+            run: async () => {
+              if (!(await pullImage(image))) {
+                throw new Error(`pull failed: ${image}`);
+              }
+            },
+          })),
+          { title: `${prefix}Pulling images` },
+        );
+        const failedImages = pullResults
+          .filter((r) => !r.ok)
+          .map((r) => r.label);
         if (failedImages.length > 0) {
           throw new Error(
             `Failed to pull ${failedImages.length} image(s): ${failedImages.join(', ')}\n` +
@@ -720,63 +706,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
   }
 }
 
-// Org slug shape — must match ORG_SLUG_REGEX at
-// services/platform/lib/shared/constants/org-slug.ts and ORG_SLUG_RE at
-// packages/tale_shared/src/tale_shared/config/org_slug.py. The 64-char
-// cap (round-3 P1) aligns this file with the canonical validator;
-// without it, the deploy-side enumerator would accept slugs the platform
-// itself refuses to mint. Duplicated here because the CLI ships in a
-// single compiled binary that does not import convex sources at runtime.
-const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-
-// Top-level names under the project root that are legitimate per-domain
-// dirs from the OLD flat layout (`agents/`, `workflows/`, …). Under
-// org-first these don't belong at the root anymore — if any are present
-// it's a legacy project that hasn't been re-init'd. Refuse to push (would
-// silently land in `/app/data/agents/` etc., which the new resolvers don't
-// read) and point the operator at `tale init --force`.
-export const LEGACY_DOMAIN_DIR_NAMES = new Set([
-  'agents',
-  'workflows',
-  'integrations',
-  'branding',
-  'providers',
-  'skills',
-  'retention',
-]);
-
-function isValidOrgSlug(name: string): boolean {
-  // Mirrors `validateOrgSlug` in shared/constants/org-slug.ts — no length
-  // cap (the canonical validator imposes none, and adding one here would
-  // silently drop legitimate long slugs from compose mounts).
-  return name === 'default' || ORG_SLUG_REGEX.test(name);
-}
-
-async function findOrgDirs(
-  projectDir: string,
-): Promise<{ orgDirs: string[]; legacyDirs: string[] }> {
-  const orgDirs: string[] = [];
-  const legacyDirs: string[] = [];
-  let entries: import('node:fs').Dirent[];
-  try {
-    entries = await readdir(projectDir, { withFileTypes: true });
-  } catch {
-    return { orgDirs, legacyDirs };
-  }
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const name = entry.name;
-    if (name.startsWith('.')) continue; // skips .tale, .git, .vscode, .DS_Store etc.
-    if (LEGACY_DOMAIN_DIR_NAMES.has(name)) {
-      legacyDirs.push(name);
-      continue;
-    }
-    if (!isValidOrgSlug(name)) continue;
-    orgDirs.push(name);
-  }
-  return { orgDirs, legacyDirs };
-}
-
 async function syncProjectFiles(
   containerName: string,
   projectDir: string,
@@ -799,20 +728,23 @@ async function syncProjectFiles(
     return;
   }
 
-  const { orgDirs, legacyDirs } = await findOrgDirs(projectDir);
+  const { orgs, staleRootOrgDirs } = discoverOrgs(projectDir);
 
-  if (legacyDirs.length > 0) {
-    throw new Error(
-      `Legacy flat layout detected at project root (${legacyDirs.join(', ')}/). ` +
-        `Run 'tale migrate config-layout' then 'tale deploy --override-all -y' ` +
-        `(see docs/self-hosted/operate/upgrades.md).`,
+  if (staleRootOrgDirs.length > 0) {
+    // Pre-`.tale/orgs/` layout: orgs used to sit at the project root. They are
+    // no longer pushed from there — real orgs live under `.tale/orgs/<slug>/`.
+    logger.warn(
+      `${prefix}Found org-shaped ${staleRootOrgDirs.length === 1 ? 'directory' : 'directories'} at the project root (${staleRootOrgDirs.join(', ')}/). ` +
+        `Real organizations now live under .tale/orgs/<slug>/ and these will NOT be pushed. ` +
+        `Move them under .tale/orgs/ to deploy them.`,
     );
   }
 
-  if (orgDirs.length === 0) {
+  if (orgs.length === 0) {
     logger.blank();
     logger.info(
-      `${prefix}Nothing to push: no org directories found at host root (expected e.g. 'default/').`,
+      `${prefix}Nothing to push: no organizations found under .tale/orgs/. ` +
+        `Real orgs are created in-app; the container self-seeds from the builtin catalog.`,
     );
     return;
   }
@@ -847,23 +779,22 @@ async function syncProjectFiles(
   tempStageDirs.add(stageDir);
 
   try {
-    for (const orgName of orgDirs) {
-      const orgSrc = join(projectDir, orgName);
-      const orgDst = join(stageDir, orgName);
+    for (const org of orgs) {
+      const orgDst = join(stageDir, org.slug);
 
       if (dryRun) {
         logger.info(
-          `${prefix}Would push ${orgName}/ → ${containerName}:/app/data/${orgName}/ (excluding *.secrets.json, .history/, symlinks)`,
+          `${prefix}Would push .tale/orgs/${org.slug}/ → ${containerName}:/app/data/${org.slug}/ (excluding *.secrets.json, .history/, symlinks)`,
         );
         continue;
       }
 
-      await stageOrgIntoDir(orgSrc, orgDst);
+      await stageOrgIntoDir(org.srcDir, orgDst);
     }
 
     if (dryRun) {
       logger.info(
-        `${prefix}Skipped at root: tale.json, .tale/, .env, .git/, dotfiles, ${legacyDirs.length ? `legacy ${legacyDirs.join(', ')}/, ` : ''}any other non-org-shaped entries`,
+        `${prefix}Skipped: the default/ template, tale.json, .env, .git/, dotfiles, any non-org entries`,
       );
       return;
     }
@@ -910,7 +841,7 @@ async function syncProjectFiles(
     }
 
     logger.success(
-      `Overrode ${orgDirs.length} org${orgDirs.length === 1 ? '' : 's'}: ${orgDirs.join(', ')}`,
+      `Overrode ${orgs.length} org${orgs.length === 1 ? '' : 's'}: ${orgs.map((o) => o.slug).join(', ')}`,
     );
   } finally {
     tempStageDirs.delete(stageDir);

@@ -265,10 +265,6 @@
       "lockoutAdvisory": "Wiederholte Fehlversuche sperren das Konto vorübergehend."
     },
     "signup": {
-      "signupTitle": "Erstelle Dein Konto",
-      "creating": "Erstelle...",
-      "createButton": "Erstellen",
-      "accountCreated": "Konto erstellt!",
       "wrongCredentials": "Falsche E-Mail oder falsches Passwort"
     },
     "validation": {
@@ -572,6 +568,7 @@
       "title": "Automatisierung erstellen",
       "tabBlank": "Leer",
       "tabTemplate": "Aus Vorlage",
+      "nameTooltip": "Wird zur ID der Automatisierung in ihrer URL. Halte sie kurz — den Anzeigenamen kannst du später ändern.",
       "namePlaceholder": "z. B. Social-Media-Workflow",
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
       "creating": "Erstelle...",
@@ -598,7 +595,7 @@
         "apiNotWired": "Öffentliche APIs zum Bearbeiten von Workflow-Schritten sind noch nicht verbunden."
       },
       "banners": {
-        "hasActiveTriggers": "Diese Automatisierung hat aktive Trigger — Änderungen werden sofort wirksam."
+        "hasActiveTriggers": "Diese Automatisierung ist aktiv — gespeicherte Änderungen gelten für neue Ausführungen."
       },
       "toolbar": {
         "testAutomation": "Automatisierung testen",
@@ -634,6 +631,10 @@
       "loop": "Schleife",
       "action": "Aktion",
       "output": "Ausgabe"
+    },
+    "edges": {
+      "yes": "Ja",
+      "no": "Nein"
     },
     "step": {
       "openStep": "Schritt {name} öffnen",
@@ -1409,6 +1410,8 @@
       "close": "Schließen",
       "confirm": "Bestätigen",
       "back": "Zurück",
+      "next": "Weiter",
+      "skip": "Überspringen",
       "loading": "Lädt...",
       "done": "Fertig",
       "duplicate": "Duplizieren",
@@ -1509,6 +1512,7 @@
       "system": "System",
       "debug": "Debug"
     },
+    "stepProgress": "Schritt {current} von {total}: {label}",
     "validation": {
       "required": "{field} ist erforderlich",
       "email": "Bitte gib eine gültige E-Mail-Adresse ein",
@@ -1541,6 +1545,7 @@
       "agentsNavigation": "Agents-Navigation",
       "knowledgeNavigation": "Wissen-Navigation",
       "actionsMenu": "Aktionsmenü",
+      "moreInfo": "Weitere Informationen",
       "required": "erforderlich",
       "valid": "gültig",
       "invalid": "ungültig",
@@ -1809,6 +1814,7 @@
     },
     "editCustomer": "Kunde bearbeiten",
     "deleteCustomer": "Kunde löschen",
+    "addButton": "Kunde hinzufügen",
     "importMenu": {
       "importCustomers": "Kunden importieren",
       "fromDevice": "Von deinem Gerät",
@@ -2157,6 +2163,59 @@
       "sharePoint": "SharePoint",
       "sharePointSynced": "SharePoint (synchronisiert)",
       "uploaded": "Upload"
+    }
+  },
+  "onboarding": {
+    "title": "Richte deinen Arbeitsbereich ein",
+    "subtitle": "Ein paar schnelle Schritte und du bist startklar.",
+    "stepsAriaLabel": "Onboarding-Schritte",
+    "progress": "Schritt {current} von {total}: {label}",
+    "steps": {
+      "preferences": "Einstellungen",
+      "account": "Konto",
+      "workspace": "Arbeitsbereich",
+      "provider": "OpenRouter",
+      "finish": "Fertig"
+    },
+    "preferences": {
+      "heading": "Mach es zu deinem",
+      "why": "Wähle deine Sprache und dein Design. Du kannst beides jederzeit ändern.",
+      "languageLabel": "Sprache",
+      "themeLabel": "Design"
+    },
+    "account": {
+      "heading": "Erstelle dein Inhaberkonto",
+      "why": "Dies ist das erste Konto auf dieser Tale-Installation und erhält daher volle Administratorrechte. Teammitglieder fügst du später hinzu."
+    },
+    "workspace": {
+      "heading": "Benenne deinen Arbeitsbereich",
+      "why": "So erkennt dein Team diesen Arbeitsbereich.",
+      "languageDescription": "Die Standardsprache für die Inhalte dieses Arbeitsbereichs, etwa die Prompt-Bibliothek."
+    },
+    "provider": {
+      "heading": "OpenRouter verbinden",
+      "why": "Ein OpenRouter-Schlüssel schaltet Chat, Bildgenerierung & -bearbeitung, Sprachmodus und mehr über Hunderte Modelle aller großen Anbieter frei. Wir konfigurieren eine empfohlene Auswahl vor, damit du sofort loslegen kannst.",
+      "keyLabel": "OpenRouter-API-Schlüssel",
+      "keyPlaceholder": "sk-or-...",
+      "keyHelp": "Verschlüsselt gespeichert. Leer lassen, um dies später in den Einstellungen einzurichten.",
+      "hasKeyQuestion": "Noch keinen Schlüssel?",
+      "getKeyLink": "Bei OpenRouter erstellen",
+      "saveError": "Mit diesem Schlüssel konnten wir keine Verbindung zu OpenRouter herstellen. Prüfe ihn und versuche es erneut.",
+      "noModelsError": "Für diesen Schlüssel waren keine Modelle verfügbar.",
+      "invalidKeyError": "Das sieht nicht nach einem OpenRouter-Schlüssel aus — er sollte mit „sk-or-\" beginnen. Kopiere ihn von openrouter.ai/keys.",
+      "authError": "OpenRouter hat diesen Schlüssel abgelehnt. Prüfe, ob er vollständig kopiert wurde und noch aktiv ist.",
+      "networkError": "OpenRouter war nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."
+    },
+    "finish": {
+      "heading": "Alles bereit",
+      "subtitle": "Das kannst du als Nächstes tun:",
+      "providerItem": "Verbinde einen KI-Anbieter für Agenten und Chat.",
+      "agentItem": "Erstelle deinen ersten Agenten.",
+      "inviteItem": "Lade Teammitglieder zur Zusammenarbeit ein.",
+      "providerCta": "Anbieter verbinden",
+      "agentCta": "Agent erstellen",
+      "inviteCta": "Teammitglieder einladen",
+      "goToDashboard": "Zum Dashboard"
     }
   },
   "emptyStates": {
@@ -3878,6 +3937,8 @@
     "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.",
     "auditIntegrityFailed": "Integritätsprüfung des Audit-Logs fehlgeschlagen",
     "auditIntegrityFailedDetails": "Wir konnten die Integrität des Audit-Logs dieser Organisation nicht bestätigen: {reason}. Das kann auf Manipulation hindeuten — untersuche das so schnell wie möglich.",
+    "auditIntegrityUnverifiable": "Audit-Log-Signaturen können nicht überprüft werden",
+    "auditIntegrityUnverifiableDetails": "Die Audit-Log-Checkpoints dieser Organisation sind signiert, aber es ist kein Signaturschlüssel zur Überprüfung konfiguriert: {reason}. Setze TALE_AUDIT_SIGNING_KEY, um die Manipulationssicherheit wiederherzustellen — das ist eine Konfigurationslücke, keine festgestellte Manipulation.",
     "dsarScheduled": "Löschungsanfrage geplant",
     "dsarScheduledBody": "Eine Löschungsanfrage wurde für ein Mitglied dieser Organisation eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt — öffne den Beleg, um sie zu prüfen oder abzubrechen.",
     "dsarApprovalNeeded": "Löschungsanfrage wartet auf deine Freigabe",
@@ -4133,6 +4194,14 @@
         "success": "Produkt erstellt",
         "error": "Produkt konnte nicht erstellt werden"
       }
+    },
+    "createWizard": {
+      "steps": {
+        "basics": "Grundlagen",
+        "pricing": "Preis & Bestand",
+        "review": "Überprüfen"
+      },
+      "reviewHint": "Überprüfe die Angaben und erstelle dann das Produkt."
     },
     "import": {
       "uploadProducts": "Produkte hochladen",
@@ -4450,13 +4519,11 @@
       "addMember": "Mitglied hinzufügen",
       "createOrganization": "Organisation erstellen",
       "organizationName": "Organisationsname",
-      "companyNameRequired": "Firmenname ist erforderlich",
       "companyNameCharacterError": "Verwende nur Buchstaben, Ziffern, Leerzeichen, Bindestriche und Unterstriche und beginne mit einem Buchstaben oder einer Ziffer.",
       "nameReserved": "Dieser Name ist von der Plattform reserviert.",
       "identifierPreview": "Kennung: {slug}",
       "enterCompanyName": "Gib deinen Firmennamen ein",
       "organizationCreated": "Organisation erstellt!",
-      "creating": "Erstelle...",
       "switching": "Wird gewechselt…",
       "switchingTo": "Wechsle zu {name}…",
       "switchingLabel": "Organisation wird gewechselt",
@@ -4645,8 +4712,10 @@
         "name": "Name",
         "namePlaceholder": "mein-agent",
         "nameHelp": "Eindeutige Kennung (nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche)",
+        "nameTooltip": "Eine eindeutige, URL-sichere ID für Links und die API. Später nicht änderbar.",
         "namePatternError": "Muss mit einem Buchstaben oder einer Zahl beginnen und darf nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche enthalten",
         "displayName": "Anzeigename",
+        "displayNameTooltip": "Der freundliche Name, den andere im Chat sehen. Jederzeit änderbar.",
         "displayNamePlaceholder": "Mein Agent",
         "description": "Beschreibung",
         "descriptionPlaceholder": "Was macht dieser Agent?",
@@ -5223,6 +5292,7 @@
       "editProvider": "Anbieter bearbeiten",
       "deleteProvider": "Anbieter löschen",
       "apiKey": "API-Schlüssel",
+      "apiKeyTooltip": "Verschlüsselt gespeichert und nur zum Aufruf dieses Anbieters verwendet.",
       "apiKeyConfigured": "API-Schlüssel konfiguriert",
       "apiKeyNotConfigured": "Nicht konfiguriert",
       "models": "Modelle",
@@ -5236,6 +5306,7 @@
       "displayName": "Anzeigename",
       "description_field": "Beschreibung",
       "baseUrl": "Basis-URL",
+      "baseUrlTooltip": "Der OpenAI-kompatible API-Endpunkt, z. B. https://api.openai.com/v1",
       "tags": "Tags",
       "defaultModels": "Standardmodelle",
       "defaultModelsDescription": "Standardmodelle, die von Crawler, RAG und anderen Diensten für jede Fähigkeit verwendet werden.",
@@ -6394,6 +6465,7 @@
     },
     "editVendor": "Lieferant bearbeiten",
     "deleteVendor": "Lieferant löschen",
+    "addButton": "Lieferant hinzufügen",
     "importMenu": {
       "importVendors": "Lieferanten importieren",
       "fromDevice": "Von deinem Gerät",
@@ -6911,7 +6983,9 @@
     "humans": {
       "title": "Menschen",
       "subtitle": "Agenten der obersten Ebene: {count}"
-    }
+    },
+    "saved": "Delegation gespeichert",
+    "unsavedChanges": "Nicht gespeicherte Änderungen"
   },
   "workforce": {
     "title": "Workforce",

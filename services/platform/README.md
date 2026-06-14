@@ -29,10 +29,13 @@ Notable variables (canonical list in `compose.yml`, which is local-dev only — 
 
 ```bash
 docker compose up -d platform        # via Compose (recommended)
+bun run setup:check                  # pre-flight: Bun, Python, uv, ports, Convex CLI
 bun run dev                          # default: spawns an ephemeral local Convex backend
 CONVEX_EXTERNAL=true bun run dev     # connects Vite to the convex container (docker compose up convex)
 bun run check                        # format + lint + typecheck + tests
 ```
+
+For prerequisites, the pre-flight check, port-conflict handling, and the Python services, see the [contributor setup guide](../../docs/en/develop/contributor-setup.md).
 
 ## Layout
 

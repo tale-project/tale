@@ -90,7 +90,6 @@ export async function updateDocument(
     );
     cleanUpdateData.teamId = teamFields.teamId;
     cleanUpdateData.teamTags = teamFields.teamTags;
-    cleanUpdateData.sharedWithTeamIds = teamFields.sharedWithTeamIds;
   }
 
   await ctx.db.patch(args.documentId, cleanUpdateData);

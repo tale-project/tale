@@ -16,7 +16,8 @@ interface AgentOption {
 
 /** A bordered, scrollable checklist of agents — the panel's edit affordance
  *  for both the incoming ("reports to") and outgoing ("delegates to") edges.
- *  Toggling writes the COMPLETE next list immediately. */
+ *  Toggling stages the COMPLETE next list into the draft; nothing persists
+ *  until the canvas-level Save commits a new version. */
 function AgentChecklist({
   label,
   options,
@@ -78,8 +79,8 @@ function AgentChecklist({
  * agent's settings page) plus the two editable, many-to-many delegation
  * lists. "Reports to" is the agents that delegate to this one (incoming);
  * "Delegates to" is the agents it delegates to (outgoing). Self is excluded
- * (the only forbidden edge); writes land immediately with optimistic cache
- * updates.
+ * (the only forbidden edge); edits are staged into the draft and persisted
+ * only when the user saves.
  */
 export function OrganigramPanel({
   organizationId,

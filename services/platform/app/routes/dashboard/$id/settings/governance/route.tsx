@@ -16,7 +16,7 @@ import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
-import { GOVERNANCE_NAV_ITEMS } from './nav-items';
+import { GOVERNANCE_NAV_ITEMS } from './-nav-items';
 
 export const Route = createFileRoute('/dashboard/$id/settings/governance')({
   head: () => ({ meta: seo('governance') }),

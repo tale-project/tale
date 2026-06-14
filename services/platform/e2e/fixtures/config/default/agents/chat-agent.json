@@ -2,12 +2,13 @@
   "displayName": "E2E Assistant",
   "description": "Single deterministic chat agent for the Playwright E2E suite",
   "systemInstructions": "You are a test assistant. Reply briefly.",
-  "supportedModels": ["e2e-mock:e2e-chat-model"],
+  "supportedModels": ["e2e-mock:e2e-chat-model", "e2e-mock:e2e-chat-model-b"],
   "visibleInChat": true,
   "knowledgeMode": "off",
   "webSearchMode": "off",
   "personalizationMode": "off",
   "structuredResponsesEnabled": false,
+  "toolNames": ["request_human_input"],
   "maxSteps": 1,
   "timeoutMs": 120000
 }

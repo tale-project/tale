@@ -234,33 +234,6 @@ export async function rlsRules(
     },
 
     // Integrations - organization-scoped, Developer+ role required for modifications
-    integrations: {
-      read: async (_, integration) => {
-        if (!user) return false;
-        if (!userOrgIds.has(integration.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === integration.organizationId,
-        );
-        return authorizeRls(membership?.role, 'integrations', 'read');
-      },
-      modify: async (_, integration) => {
-        if (!user) return false;
-        if (!userOrgIds.has(integration.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === integration.organizationId,
-        );
-        return authorizeRls(membership?.role, 'integrations', 'write');
-      },
-      insert: async ({ user: ruleUser }, integration) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(integration.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === integration.organizationId,
-        );
-        return authorizeRls(membership?.role, 'integrations', 'write');
-      },
-    },
-
     // Integration Credentials - organization-scoped, Developer+ role required for modifications
     integrationCredentials: {
       read: async (_, cred) => {
@@ -378,62 +351,6 @@ export async function rlsRules(
           (m) => m.organizationId === message.organizationId,
         );
         return authorizeRls(membership?.role, 'conversationMessages', 'write');
-      },
-    },
-
-    // @deprecated — DB table deprecated; RLS rules kept for legacy data access only
-    wfDefinitions: {
-      read: async (_, wf) => {
-        if (!user) return false;
-        if (!userOrgIds.has(wf.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === wf.organizationId,
-        );
-        return authorizeRls(membership?.role, 'wfDefinitions', 'read');
-      },
-      modify: async (_, wf) => {
-        if (!user) return false;
-        if (!userOrgIds.has(wf.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === wf.organizationId,
-        );
-        return authorizeRls(membership?.role, 'wfDefinitions', 'write');
-      },
-      insert: async ({ user: ruleUser }, wf) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(wf.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === wf.organizationId,
-        );
-        return authorizeRls(membership?.role, 'wfDefinitions', 'write');
-      },
-    },
-
-    // @deprecated — DB table deprecated; RLS rules kept for legacy data access only
-    wfStepDefs: {
-      read: async (_, step) => {
-        if (!user) return false;
-        if (!userOrgIds.has(step.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === step.organizationId,
-        );
-        return authorizeRls(membership?.role, 'wfStepDefs', 'read');
-      },
-      modify: async (_, step) => {
-        if (!user) return false;
-        if (!userOrgIds.has(step.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === step.organizationId,
-        );
-        return authorizeRls(membership?.role, 'wfStepDefs', 'write');
-      },
-      insert: async ({ user: ruleUser }, step) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(step.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === step.organizationId,
-        );
-        return authorizeRls(membership?.role, 'wfStepDefs', 'write');
       },
     },
 
@@ -687,27 +604,6 @@ export async function rlsRules(
       },
       modify: async () => false,
       insert: async () => false,
-    },
-
-    // Workflow Step Audit Logs - organization-scoped, allow inserts for org members
-    wfStepAuditLogs: {
-      read: async (_, log) => {
-        if (!user) return false;
-        if (!userOrgIds.has(log.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === log.organizationId,
-        );
-        return authorizeRls(membership?.role, 'wfStepAuditLogs', 'read');
-      },
-      modify: async () => false, // Audit logs are immutable
-      insert: async ({ user: ruleUser }, log) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(log.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === log.organizationId,
-        );
-        return authorizeRls(membership?.role, 'wfStepAuditLogs', 'write');
-      },
     },
   } satisfies Rules<RLSRuleContext, DataModel>;
 }

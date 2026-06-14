@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root';
+import { Route as SetupRouteImport } from './routes/setup';
 import { Route as DocsRouteImport } from './routes/docs';
 import { Route as DashboardRouteImport } from './routes/dashboard';
 import { Route as ConvexDashboardRouteImport } from './routes/convex-dashboard';
@@ -119,6 +120,11 @@ import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute
 import { Route as DashboardIdProjectsProjectIdTasksListRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/list';
 import { Route as DashboardIdProjectsProjectIdTasksBoardRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/board';
 
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
@@ -753,6 +759,7 @@ export interface FileRoutesByFullPath {
   '/convex-dashboard': typeof ConvexDashboardRoute;
   '/dashboard': typeof DashboardRouteWithChildren;
   '/docs': typeof DocsRoute;
+  '/setup': typeof SetupRoute;
   '/2fa': typeof Auth2faRoute;
   '/log-in': typeof AuthLogInRoute;
   '/sign-up': typeof AuthSignUpRoute;
@@ -861,6 +868,7 @@ export interface FileRoutesByTo {
   '/2fa-enroll': typeof R2faEnrollRoute;
   '/convex-dashboard': typeof ConvexDashboardRoute;
   '/docs': typeof DocsRoute;
+  '/setup': typeof SetupRoute;
   '/2fa': typeof Auth2faRoute;
   '/log-in': typeof AuthLogInRoute;
   '/sign-up': typeof AuthSignUpRoute;
@@ -961,6 +969,7 @@ export interface FileRoutesById {
   '/convex-dashboard': typeof ConvexDashboardRoute;
   '/dashboard': typeof DashboardRouteWithChildren;
   '/docs': typeof DocsRoute;
+  '/setup': typeof SetupRoute;
   '/_auth/2fa': typeof Auth2faRoute;
   '/_auth/log-in': typeof AuthLogInRoute;
   '/_auth/sign-up': typeof AuthSignUpRoute;
@@ -1073,6 +1082,7 @@ export interface FileRouteTypes {
     | '/convex-dashboard'
     | '/dashboard'
     | '/docs'
+    | '/setup'
     | '/2fa'
     | '/log-in'
     | '/sign-up'
@@ -1181,6 +1191,7 @@ export interface FileRouteTypes {
     | '/2fa-enroll'
     | '/convex-dashboard'
     | '/docs'
+    | '/setup'
     | '/2fa'
     | '/log-in'
     | '/sign-up'
@@ -1280,6 +1291,7 @@ export interface FileRouteTypes {
     | '/convex-dashboard'
     | '/dashboard'
     | '/docs'
+    | '/setup'
     | '/_auth/2fa'
     | '/_auth/log-in'
     | '/_auth/sign-up'
@@ -1392,11 +1404,19 @@ export interface RootRouteChildren {
   ConvexDashboardRoute: typeof ConvexDashboardRoute;
   DashboardRoute: typeof DashboardRouteWithChildren;
   DocsRoute: typeof DocsRoute;
+  SetupRoute: typeof SetupRoute;
   ForcedChangePasswordIdRoute: typeof ForcedChangePasswordIdRoute;
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/setup': {
+      id: '/setup';
+      path: '/setup';
+      fullPath: '/setup';
+      preLoaderRoute: typeof SetupRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/docs': {
       id: '/docs';
       path: '/docs';
@@ -2601,6 +2621,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConvexDashboardRoute: ConvexDashboardRoute,
   DashboardRoute: DashboardRouteWithChildren,
   DocsRoute: DocsRoute,
+  SetupRoute: SetupRoute,
   ForcedChangePasswordIdRoute: ForcedChangePasswordIdRoute,
 };
 export const routeTree = rootRouteImport

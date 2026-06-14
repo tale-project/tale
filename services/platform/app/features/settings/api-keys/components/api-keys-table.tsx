@@ -3,7 +3,7 @@
 import { buttonVariants } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import type { RowSelectionState } from '@tanstack/react-table';
-import { BookOpen, Key } from 'lucide-react';
+import { BookOpen, Key, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -47,6 +47,8 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
   const { t: tSettings } = useT('settings');
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  // Lifted so the action menu and the empty-state CTA share one dialog.
+  const [createOpen, setCreateOpen] = useState(false);
   const revokeApiKey = useRevokeApiKey(organizationId);
 
   const handleClearSelection = useCallback(() => {
@@ -80,7 +82,13 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
         enableRowSelection
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
-        actionMenu={<ApiKeysActionMenu organizationId={organizationId} />}
+        actionMenu={
+          <ApiKeysActionMenu
+            organizationId={organizationId}
+            createOpen={createOpen}
+            onCreateOpenChange={setCreateOpen}
+          />
+        }
         emptyState={{
           icon: Key,
           title: tEmpty('apiKeys.title'),
@@ -90,6 +98,11 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
               <ApiDocsLink />
             </>
           ),
+          action: {
+            label: tSettings('apiKeys.createKey'),
+            icon: Plus,
+            onClick: () => setCreateOpen(true),
+          },
         }}
         footer={
           <BulkDeleteBar

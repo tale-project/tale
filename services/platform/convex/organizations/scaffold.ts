@@ -15,10 +15,11 @@
  *   - reseed path (`override:true`, called by `reseedAllOrgsFromBuiltin`):
  *     overwrites builtin-named files in place while always preserving
  *     `*.secrets.json` and `.history/` trails. Per-domain semantics —
- *     flat: per-file atomicWrite; dir-bundle (skills/integrations):
- *     `rm -rf <per-bundle>` then copy bundle; workflows + branding:
- *     per-file overwrite (preserves user-only folders / images);
- *     retention: single-file copy.
+ *     flat: per-file atomicWrite (agents/providers/prompts/governance —
+ *     governance also carries the `retention.json` bounds catalog as a
+ *     flat file); dir-bundle (skills/integrations): `rm -rf <per-bundle>`
+ *     then copy bundle; workflows + branding: per-file overwrite
+ *     (preserves user-only folders / images).
  *
  * `cleanupOrgFilesystem` removes the entire `<orgSlug>/` subtree (org is
  * one tree under org-first), guarded by validateOrgSlug + verifyPathWithinBase
@@ -42,10 +43,12 @@ import path from 'node:path';
 
 import { v } from 'convex/values';
 
+import {
+  CONFIG_DOMAINS,
+  type ConfigDomain,
+} from '../../lib/shared/config/registry';
 import { internalAction } from '../_generated/server';
-import { resolveAgentsDir } from '../agents/file_utils';
-import { resolveBrandingDir } from '../branding/file_utils';
-import { resolveIntegrationsDir } from '../integrations/file_utils';
+import { resolveDomainDir } from '../lib/config_store/resolvers';
 import {
   atomicWrite,
   atomicWriteBuffer,
@@ -53,11 +56,6 @@ import {
   validateOrgSlug,
   verifyPathWithinBase,
 } from '../lib/file_io';
-import { resolveProvidersDir } from '../providers/file_utils';
-import { resolveSkillsDir } from '../skills/file_utils';
-import { resolveWorkflowsDir } from '../workflows/file_utils';
-
-type DirResolver = (orgSlug: string) => string;
 
 export type DomainResult = {
   domain: string;
@@ -65,34 +63,21 @@ export type DomainResult = {
   error?: string;
 };
 
-type Domain = {
-  name: string;
-  resolve: DirResolver;
-  // 'flat' = one file per item, no subdirs in the catalog (agents/providers/branding).
-  //   override:true overwrites per-file via atomicWrite; user-added files survive,
-  //   secrets + .history at the dir level survive.
-  // 'bundle' = per-item directory bundle (skills/integrations). override:true
-  //   rm -rf's the per-bundle subdir then copies — wholesale bundle replace.
-  //   Dir-level `.history`/secrets at the domain root (siblings of bundles) survive.
-  // 'tree' = arbitrary nested files (workflows). override:true per-file overwrite;
-  //   user-only folders survive.
-  kind: 'flat' | 'bundle' | 'tree';
-};
-
-// `default` is the canonical template org in the catalog; the catalog tree
-// at `$TALE_CONFIG_BUILTIN_DIR/default/<domain>/` is the source for every
-// org including default itself.
-const DOMAINS: Domain[] = [
-  { name: 'agents', resolve: resolveAgentsDir, kind: 'flat' },
-  { name: 'providers', resolve: resolveProvidersDir, kind: 'flat' },
-  { name: 'integrations', resolve: resolveIntegrationsDir, kind: 'bundle' },
-  { name: 'workflows', resolve: resolveWorkflowsDir, kind: 'tree' },
-  { name: 'skills', resolve: resolveSkillsDir, kind: 'bundle' },
-  // Branding is logically a tree (branding.json + images/ subdir). Per-file
-  // overwrite is correct: catalog overwrites branding.json; uploaded
-  // `images/*.png` survive (they're neither secrets nor .history).
-  { name: 'branding', resolve: resolveBrandingDir, kind: 'tree' },
-];
+// The set of domains to seed comes from the single config-domain registry
+// (`lib/shared/config/registry.ts`); their on-disk dirs are resolved via the
+// `'use node'` Layer-B resolver map (`lib/config_store/resolvers.ts`). `default`
+// is the canonical template org in the catalog; the catalog tree at
+// `$TALE_CONFIG_BUILTIN_DIR/default/<domain>/` is the source for every org
+// including default itself. Copy semantics per `domain.scaffoldKind`:
+//   - 'flat'   = one file per item, no subdirs (agents/providers/prompts/
+//     governance). override:true overwrites per-file via atomicWrite; user-added
+//     files survive, secrets + .history at the dir level survive. (Governance
+//     also carries the `retention.json` bounds catalog + `*.secrets.json`
+//     sidecars + `sso/` subdir, which flat-mode copyTree skips.)
+//   - 'bundle' = per-item directory bundle (skills/integrations). override:true
+//     stages + atomic-renames per bundle; domain-root .history/secrets survive.
+//   - 'tree'   = arbitrary nested files (workflows + branding images).
+//     override:true per-file overwrite; user-only folders / uploaded images survive.
 
 const BUILTIN_ENV = 'TALE_CONFIG_BUILTIN_DIR';
 
@@ -245,15 +230,15 @@ async function copyTree(
  * errors are also logged here for operator visibility.
  */
 async function seedDomain(
-  domain: Domain,
+  domain: ConfigDomain,
   catalogRoot: string | undefined,
   orgSlug: string,
   override: boolean,
 ): Promise<DomainResult> {
   const sourceDir = catalogRoot
     ? path.join(catalogRoot, 'default', domain.name)
-    : domain.resolve('default');
-  const targetDir = domain.resolve(orgSlug);
+    : resolveDomainDir(domain.name, 'default');
+  const targetDir = resolveDomainDir(domain.name, orgSlug);
 
   if (catalogRoot) {
     // Operator-set catalog path must exist; missing = deploy misconfig
@@ -297,13 +282,13 @@ async function seedDomain(
   }
 
   try {
-    if (domain.kind === 'flat') {
+    if (domain.scaffoldKind === 'flat') {
       // Per-file atomicWrite. Overwrites only catalog-named files; user-added
       // files at the same dir survive (e.g., an org's custom agent). Dir-level
       // `.history`/secrets survive (copyTree skips them at the source side,
       // and per-file write doesn't touch siblings).
       await copyTree(sourceDir, targetDir, /* allowSubdirs */ false);
-    } else if (domain.kind === 'bundle') {
+    } else if (domain.scaffoldKind === 'bundle') {
       // For each catalog bundle subdir, rm -rf the corresponding target
       // bundle (if override) then copy. Domain-root siblings (.history/,
       // *.secrets.json at the domain dir level) survive — we only touch
@@ -379,93 +364,6 @@ async function seedDomain(
   }
 
   return { domain: domain.name, ok: true };
-}
-
-/**
- * Retention is one JSON object per org (`<orgSlug>/retention.json`), not a
- * subtree. Special-cased outside the DOMAINS loop. Returns a `DomainResult`
- * shaped like seedDomain's so the handler can aggregate uniformly.
- *
- * Assumes `TALE_CONFIG_DIR` is set + absolute (validated by the handler).
- */
-async function seedRetention(
-  catalogRoot: string | undefined,
-  configRoot: string,
-  orgSlug: string,
-  override: boolean,
-): Promise<DomainResult> {
-  const sourceFile = catalogRoot
-    ? path.join(catalogRoot, 'default', 'retention.json')
-    : path.join(configRoot, 'default', 'retention.json');
-  const targetFile = path.join(configRoot, orgSlug, 'retention.json');
-
-  let statErr: unknown;
-  const sourceExists = await stat(sourceFile)
-    .then(() => true)
-    .catch((err) => {
-      statErr = err;
-      return false;
-    });
-  if (!sourceExists) {
-    if (errnoCode(statErr) === 'ENOENT') {
-      // Missing catalog retention is expected in some test fixtures; treat
-      // as no-op (no error to propagate).
-      return { domain: 'retention', ok: true };
-    }
-    const msg = `stat ${sourceFile} failed: ${statErr instanceof Error ? statErr.message : String(statErr)}`;
-    console.warn('[scaffold] retention:', msg);
-    return { domain: 'retention', ok: false, error: msg };
-  }
-
-  if (await pathsOverlap(sourceFile, targetFile)) {
-    console.warn(`[scaffold] retention: source and target overlap; skipping`);
-    return { domain: 'retention', ok: true };
-  }
-
-  let targetStatErr: unknown;
-  const targetExists = await stat(targetFile)
-    .then(() => true)
-    .catch((err) => {
-      targetStatErr = err;
-      return false;
-    });
-  // Round-3 P2 R14-P2-a: non-ENOENT stat errors (EACCES on a chmod-locked
-  // file, EPERM on an immutable-bit attribute, ELOOP on a symlink cycle)
-  // previously fell through and silently overwrote whatever the operator
-  // had locked. Treat unknown stat failures as "target exists" so the
-  // override:false branch refuses, and bubble the error code through the
-  // result so a deploy can surface it instead of producing a silent
-  // clobber.
-  if (!targetExists && errnoCode(targetStatErr) !== 'ENOENT' && targetStatErr) {
-    const errDetail =
-      targetStatErr instanceof Error
-        ? targetStatErr.message
-        : JSON.stringify(targetStatErr);
-    const message = `[scaffold] retention: stat ${targetFile} failed: ${errDetail}`;
-    console.warn(message);
-    if (!override) {
-      return { domain: 'retention', ok: false, error: message };
-    }
-  }
-  if (targetExists && !override) {
-    console.warn(
-      `[scaffold] retention: target ${targetFile} exists, skipping (use override:true to reseed)`,
-    );
-    return { domain: 'retention', ok: true };
-  }
-
-  try {
-    const buf = await readFile(sourceFile);
-    await atomicWrite(targetFile, buf.toString('utf-8'));
-    return { domain: 'retention', ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[scaffold] retention: copy failed for org "${orgSlug}":`,
-      message,
-    );
-    return { domain: 'retention', ok: false, error: message };
-  }
 }
 
 /**
@@ -772,14 +670,11 @@ export const scaffoldNewOrganization = internalAction({
     const override = args.override ?? false;
 
     const results: DomainResult[] = [];
-    for (const domain of DOMAINS) {
+    for (const domain of CONFIG_DOMAINS) {
       results.push(
         await seedDomain(domain, catalogRoot, args.orgSlug, override),
       );
     }
-    results.push(
-      await seedRetention(catalogRoot, configRoot, args.orgSlug, override),
-    );
 
     const failed = results.filter((r) => !r.ok);
     if (failed.length > 0 && args.strict) {

@@ -30,11 +30,6 @@ export const GOVERNANCE_POLICY_TYPES = [
   // `propose_memory` tool). Per-user `userPreferences.memoriesEnabled`
   // may override.
   'user_memories',
-  // Legacy combined toggle retained so the schema validates pre-split
-  // rows during the deploy window in which
-  // `migrations/split_personalization_toggle` drains it into the
-  // `custom_instructions` and `user_memories` policies.
-  'personalization',
   // Org-level kill switch for the voice-output (TTS) feature. Missing row
   // → effective default ON (existing deployments keep their current
   // behaviour). `config.enabled === false` overrides every user's
@@ -65,36 +60,34 @@ const policyTypeValidator = v.union(
   ...GOVERNANCE_POLICY_TYPES.map((t) => v.literal(t)),
 );
 
-export const governancePoliciesTable = defineTable({
+// Governance policies are file-based: the per-org JSON tree under
+// `$TALE_CONFIG_DIR/<org>/governance/` is the source of truth, mirrored into the
+// generic `configCache` (domain `'governance'`, see `lib/config_cache/schema.ts`)
+// for V8 reads. Loosen-grace staging lives in the dedicated
+// `dsarPolicyPendingChanges` / `retentionPolicyPendingChanges` tables.
+// `policyTypeValidator` below is shared with `policyAcknowledgements`.
+
+/**
+ * Loosen-grace staging for `dsar_governance` (files are the source of truth, so
+ * the staged config can't live on a DB policy row anymore). Mirrors
+ * `retentionPolicyPendingChanges`: when an owner proposes a *weakening* change,
+ * the new config is staged here with a 24h `effectiveAt`; `getDsarPolicy`
+ * continues returning the live (file/cache) config until a scheduled action
+ * flips the file at `effectiveAt`, unless an admin cancels first. At most one
+ * pending row per org.
+ */
+export const dsarPolicyPendingChangesTable = defineTable({
   organizationId: v.string(),
-  policyType: policyTypeValidator,
-  config: jsonRecordValidator,
-  enabled: v.optional(v.boolean()),
-  updatedBy: v.optional(v.string()),
-  updatedAt: v.optional(v.number()),
-  // Timestamp at which the policy's active enforcement window began.
-  // Used by password_policy rotation to grant a grace window: credential
-  // expiry = max(passwordChangedAt, effectiveAt) + rotationDays. Set the
-  // first time an enforcement-bearing field transitions to an active
-  // value; preserved across unrelated edits.
-  effectiveAt: v.optional(v.number()),
-  // Loosen-grace fields. When an admin proposes a change that *weakens*
-  // the policy (e.g. shortening the DSAR cooling-off window, disabling
-  // dual approval, raising the daily limit), the change is staged here
-  // instead of writing through to `config`. A scheduled internal
-  // mutation flips `config = pendingConfig` at `pendingEffectiveAt`,
-  // unless any admin calls `cancelPendingPolicyChange` first.
-  // Tightening (stricter values) bypasses this and applies immediately.
-  // Today only `dsar_governance` uses this mechanism.
-  pendingConfig: v.optional(jsonRecordValidator),
-  pendingEffectiveAt: v.optional(v.number()),
-  pendingProposedBy: v.optional(v.string()),
-  pendingProposedByEmail: v.optional(v.string()),
-  pendingProposedAt: v.optional(v.number()),
-  pendingScheduledJobId: v.optional(v.id('_scheduled_functions')),
-})
-  .index('by_organizationId', ['organizationId'])
-  .index('by_org_policyType', ['organizationId', 'policyType']);
+  pendingConfig: jsonRecordValidator,
+  /** ms since epoch when the staged change becomes effective. */
+  effectiveAt: v.number(),
+  proposedBy: v.string(),
+  proposedByEmail: v.optional(v.string()),
+  proposedAt: v.number(),
+  /** Scheduler job that applies the change at `effectiveAt`; cancelled on
+   *  `cancelPendingDsarPolicyChange`. */
+  scheduledJobId: v.optional(v.id('_scheduled_functions')),
+}).index('by_organizationId', ['organizationId']);
 
 /**
  * Per-org encrypted secrets used by the guardrails pipeline. Deliberately a

@@ -1,10 +1,15 @@
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
 import * as logger from '../../../utils/logger';
+import {
+  discoverOrgs,
+  ORG_DOMAIN_DIRS,
+  ORGS_SUBDIR,
+} from '../../project/org-dirs';
 import { createConvexService } from '../services/create-convex-service';
 import { createCrawlerService } from '../services/create-crawler-service';
 import { createDbService } from '../services/create-db-service';
@@ -17,22 +22,6 @@ import type { ComposeConfig, ServiceConfig } from '../types';
 import { DEV_VOLUME_NAMES } from './constants';
 
 const DEV_COLOR = 'blue' as const;
-/** Domain dirs that the org-first layout uses under `<projectDir>/<org>/`. */
-const HOST_DOMAIN_DIRS = [
-  'agents',
-  'workflows',
-  'integrations',
-  'branding',
-  'providers',
-  'skills',
-] as const;
-/** Org-slug regex aligned with services/platform/lib/shared/constants/org-slug.ts
- *  and tools/cli/src/lib/actions/deploy.ts (round-3 P1 cap of 64 chars).
- *  Refuses dotfiles and any non-org-shaped dir at the project root
- *  (`.tale`, `.git`, etc.). Single source of truth lives in the platform
- *  package; duplicated here because the CLI binary doesn't import convex
- *  sources at runtime. */
-const ORG_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 interface DevComposeOptions {
   /** Project root, used to verify host bind-mount sources exist before
@@ -41,58 +30,55 @@ interface DevComposeOptions {
   projectDir?: string;
 }
 
-/** Discover org subdirectories (`<projectDir>/<org>/`) by enumerating the
- *  project root. Every direct subdir whose name matches the org-slug regex
- *  is an org. `tale init` always creates at least `default/`. */
-function findOrgDirs(projectDir: string): string[] {
-  let entries: string[];
-  try {
-    entries = readdirSync(projectDir);
-  } catch {
-    return [];
+/**
+ * Host org config sources to bind-mount in dev, as `{ slug, relBase }` pairs
+ * where the on-disk per-domain dir is `<relBase>/<slug>/<domain>`:
+ *   - the `default/` template at the project root (`relBase = '.'`), so
+ *     template edits hot-reload, and
+ *   - every real org under `.tale/orgs/<slug>/` (`relBase = '.tale/orgs'`).
+ */
+function orgMountSources(
+  projectDir: string,
+): { slug: string; relBase: string }[] {
+  const sources: { slug: string; relBase: string }[] = [];
+  if (existsSync(join(projectDir, 'default'))) {
+    sources.push({ slug: 'default', relBase: '.' });
   }
-  const orgs: string[] = [];
-  for (const name of entries) {
-    if (!ORG_SLUG_RE.test(name)) continue;
-    let stats: ReturnType<typeof statSync>;
-    try {
-      stats = statSync(join(projectDir, name));
-    } catch {
-      continue;
-    }
-    if (!stats.isDirectory()) continue;
-    orgs.push(name);
+  for (const org of discoverOrgs(projectDir).orgs) {
+    sources.push({ slug: org.slug, relBase: ORGS_SUBDIR });
   }
-  return orgs;
+  return sources;
 }
 
 /** Return host bind-mount fragments for the org-first layout.
  *
- *  For each org `<root>/<org>/`, emits one mount per domain dir that
- *  actually exists: `./<org>/<domain>:<containerBase>/<org>/<domain>{ro}`.
- *  Missing per-domain dirs are skipped silently (operators don't have to
- *  populate every domain), but a `tale init` workspace with no org dirs
- *  at all logs a single warning. */
+ *  For each org source, emits one mount per domain dir that actually exists:
+ *  `./<relBase>/<slug>/<domain>:<containerBase>/<slug>/<domain>{ro}`. The
+ *  container path is always `/app/data/<slug>/<domain>` regardless of where
+ *  the host dir lives. Missing per-domain dirs are skipped silently; a
+ *  workspace with no org sources at all logs a single warning. */
 function existingHostMounts(
   projectDir: string,
   containerBase: string,
   suffix = '',
 ): string[] {
-  const orgs = findOrgDirs(projectDir);
-  if (orgs.length === 0) {
+  const sources = orgMountSources(projectDir);
+  if (sources.length === 0) {
     logger.warn(
-      `No org directories found under ${projectDir}. Container will fall back to convex-data volume contents — host edits will not hot-reload.`,
+      `No org config found under ${projectDir}. Container will fall back to convex-data volume contents — host edits will not hot-reload.`,
     );
     return [];
   }
   const mounts: string[] = [];
-  for (const org of orgs) {
-    for (const domain of HOST_DOMAIN_DIRS) {
-      const src = join(projectDir, org, domain);
+  for (const { slug, relBase } of sources) {
+    for (const domain of ORG_DOMAIN_DIRS) {
+      const src = join(projectDir, relBase, slug, domain);
       if (existsSync(src)) {
-        mounts.push(
-          `./${org}/${domain}:${containerBase}/${org}/${domain}${suffix}`,
-        );
+        const hostPath =
+          relBase === '.'
+            ? `./${slug}/${domain}`
+            : `./${relBase}/${slug}/${domain}`;
+        mounts.push(`${hostPath}:${containerBase}/${slug}/${domain}${suffix}`);
       }
     }
   }

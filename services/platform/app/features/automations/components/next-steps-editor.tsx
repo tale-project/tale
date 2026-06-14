@@ -5,20 +5,19 @@ import { StopCircle } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
-import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { getStepIcon } from '../utils/step-icons';
+import { getStepIcon, type StepType } from '../utils/step-icons';
 
 interface AvailableStep {
   stepSlug: string;
   name: string;
-  stepType?: Doc<'wfStepDefs'>['stepType'];
+  stepType?: StepType;
   actionType?: string;
 }
 
 interface NextStepsEditorProps {
-  stepType: Doc<'wfStepDefs'>['stepType'];
+  stepType: StepType;
   value: Record<string, string>;
   onChange: (value: Record<string, string>) => void;
   stepOptions: AvailableStep[];
@@ -26,16 +25,15 @@ interface NextStepsEditorProps {
   disabled?: boolean;
 }
 
-const TRANSITION_KEYS_BY_TYPE: Record<Doc<'wfStepDefs'>['stepType'], string[]> =
-  {
-    start: ['success'],
-    trigger: ['success'],
-    llm: ['success', 'failure'],
-    condition: ['true', 'false'],
-    action: ['success', 'failure'],
-    loop: ['loop', 'done'],
-    output: [],
-  };
+const TRANSITION_KEYS_BY_TYPE: Record<StepType, string[]> = {
+  start: ['success'],
+  trigger: ['success'],
+  llm: ['success', 'failure'],
+  condition: ['true', 'false'],
+  action: ['success', 'failure'],
+  loop: ['loop', 'done'],
+  output: [],
+};
 
 export function NextStepsEditor({
   stepType,

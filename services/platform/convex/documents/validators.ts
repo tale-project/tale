@@ -34,25 +34,6 @@ export const ragStatusValidator = v.union(
   v.literal('stale'),
 );
 
-export const ragInfoStatusValidator = v.union(
-  v.literal('queued'),
-  v.literal('running'),
-  v.literal('completed'),
-  v.literal('failed'),
-);
-
-/**
- * @deprecated RAG status is canonical on `fileMetadata.ragStatus`. This shape
- * mirrors the retired `documents.ragInfo` field; read status via
- * `getDocumentRagProjection` instead.
- */
-export const ragInfoValidator = v.object({
-  status: ragInfoStatusValidator,
-  indexedAt: v.optional(v.number()),
-  indexedFileId: v.optional(v.id('_storage')),
-  error: v.optional(v.string()),
-});
-
 const documentTypeValidator = v.union(v.literal('file'), v.literal('folder'));
 
 const paginationValidator = v.object({
@@ -137,8 +118,6 @@ export const documentRecordValidator = v.object({
   metadata: v.optional(jsonRecordValidator),
   sourceProvider: v.optional(sourceProviderValidator),
   externalItemId: v.optional(v.string()),
-  ragInfo: v.optional(ragInfoValidator),
-  indexed: v.optional(v.boolean()),
   sourceCreatedAt: v.optional(v.number()),
   sourceModifiedAt: v.optional(v.number()),
 });

@@ -80,6 +80,17 @@ describe('loadIndex', () => {
     await expect(loadIndex('en')).rejects.toThrow(/failed to load .*: 404/);
   });
 
+  it('throws a legible error when a 200 returns HTML (SPA fallback)', async () => {
+    stubFetch(
+      () =>
+        new Response('<!doctype html><html></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        }),
+    );
+    await expect(loadIndex('en')).rejects.toThrow(/non-JSON \(text\/html\)/);
+  });
+
   it('drops the slot on failure so a retry can succeed', async () => {
     let attempt = 0;
     stubFetch(() => {

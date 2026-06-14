@@ -43,7 +43,9 @@ mock.module('../state/set-previous-version', () => ({
 mock.module('../docker/get-container-version', () => ({
   getContainerVersion: getContainerVersionMock,
 }));
-mock.module('../docker/pull-image', () => ({ pullImage: pullImageMock }));
+// pullImage is injected via rollback's `deps` arg (below), not mock.module:
+// it's a shared module imported for real by pull-image.test.ts, and Bun's
+// process-global module mock leaked into that suite and broke it on Windows.
 mock.module('../docker/docker-compose', () => ({
   dockerCompose: dockerComposeMock,
 }));
@@ -113,9 +115,9 @@ describe('rollback gate', () => {
     getPreviousVersionMock.mockResolvedValue('0.9.6');
     getContainerVersionMock.mockResolvedValue('0.10.1');
 
-    await expect(rollback({ env })).rejects.toThrow(
-      'Rollback refused: not a patch-level rollback',
-    );
+    await expect(
+      rollback({ env }, { pullImage: pullImageMock }),
+    ).rejects.toThrow('Rollback refused: not a patch-level rollback');
 
     expect(pullImageMock).not.toHaveBeenCalled();
     expect(setCurrentColorMock).not.toHaveBeenCalled();
@@ -126,7 +128,9 @@ describe('rollback gate', () => {
     getCurrentColorMock.mockResolvedValue('blue');
     getPreviousVersionMock.mockResolvedValue(null);
 
-    await expect(rollback({ env })).rejects.toThrow('No previous version');
+    await expect(
+      rollback({ env }, { pullImage: pullImageMock }),
+    ).rejects.toThrow('No previous version');
 
     expect(pullImageMock).not.toHaveBeenCalled();
     expectRunbookPrinted();
@@ -137,7 +141,9 @@ describe('rollback gate', () => {
     getPreviousVersionMock.mockResolvedValue('0.9.2');
     getContainerVersionMock.mockResolvedValue(null);
 
-    await expect(rollback({ env })).rejects.toThrow('Unknown running version');
+    await expect(
+      rollback({ env }, { pullImage: pullImageMock }),
+    ).rejects.toThrow('Unknown running version');
 
     expect(pullImageMock).not.toHaveBeenCalled();
     expectRunbookPrinted();
@@ -148,9 +154,9 @@ describe('rollback gate', () => {
     getPreviousVersionMock.mockResolvedValue('0.9.2');
     getContainerVersionMock.mockResolvedValue('latest');
 
-    await expect(rollback({ env })).rejects.toThrow(
-      'Rollback refused: cannot compare versions',
-    );
+    await expect(
+      rollback({ env }, { pullImage: pullImageMock }),
+    ).rejects.toThrow('Rollback refused: cannot compare versions');
 
     expect(pullImageMock).not.toHaveBeenCalled();
     expectRunbookPrinted();
@@ -173,7 +179,7 @@ describe('rollback gate', () => {
     stopContainerMock.mockResolvedValue(true);
     removeContainerMock.mockResolvedValue(true);
 
-    await rollback({ env });
+    await rollback({ env }, { pullImage: pullImageMock });
 
     // platform, rag, crawler — the rotatable services
     expect(pullImageMock).toHaveBeenCalledTimes(3);

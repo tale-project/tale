@@ -48,9 +48,8 @@ export const updateWebhookLastTriggered = internalMutation({
 export const createTriggerLog = internalMutation({
   args: {
     organizationId: v.string(),
-    workflowRootId: v.optional(v.id('wfDefinitions')),
     workflowSlug: v.optional(v.string()),
-    wfDefinitionId: v.optional(v.union(v.id('wfDefinitions'), v.string())),
+    wfDefinitionId: v.optional(v.string()),
     wfExecutionId: v.optional(v.id('wfExecutions')),
     triggerType: v.union(
       v.literal('manual'),
@@ -74,50 +73,6 @@ export const createTriggerLog = internalMutation({
     return await ctx.db.insert('wfTriggerLogs', {
       ...args,
       receivedAt: Date.now(),
-    });
-  },
-});
-
-export const provisionSchedule = internalMutation({
-  args: {
-    organizationId: v.string(),
-    workflowRootId: v.id('wfDefinitions'),
-    cronExpression: v.string(),
-    timezone: v.string(),
-    createdBy: v.string(),
-  },
-  returns: v.id('wfSchedules'),
-  handler: async (ctx, args): Promise<Id<'wfSchedules'>> => {
-    return await ctx.db.insert('wfSchedules', {
-      organizationId: args.organizationId,
-      workflowRootId: args.workflowRootId,
-      cronExpression: args.cronExpression,
-      timezone: args.timezone,
-      isActive: true,
-      createdAt: Date.now(),
-      createdBy: args.createdBy,
-    });
-  },
-});
-
-export const provisionEventSubscription = internalMutation({
-  args: {
-    organizationId: v.string(),
-    workflowRootId: v.id('wfDefinitions'),
-    eventType: v.string(),
-    eventFilter: v.optional(v.record(v.string(), v.string())),
-    createdBy: v.string(),
-  },
-  returns: v.id('wfEventSubscriptions'),
-  handler: async (ctx, args): Promise<Id<'wfEventSubscriptions'>> => {
-    return await ctx.db.insert('wfEventSubscriptions', {
-      organizationId: args.organizationId,
-      workflowRootId: args.workflowRootId,
-      eventType: args.eventType,
-      eventFilter: args.eventFilter,
-      isActive: true,
-      createdAt: Date.now(),
-      createdBy: args.createdBy,
     });
   },
 });

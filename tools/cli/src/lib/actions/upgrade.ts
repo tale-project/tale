@@ -457,7 +457,9 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   if (pinnedVersion && comparison < 0) {
     logger.warn(
       `Downgrading from ${currentVersion} to ${release.version}. ` +
-        `Schema changes from the newer version persist in the database — see the rollback notes in the docs.`,
+        `Data migrations from the newer version persist in the database — reverse ` +
+        `them FIRST with \`tale migrate down --to ${release.version}\` (check ` +
+        `\`tale migrate status\`), then deploy the older binary.`,
     );
   }
 

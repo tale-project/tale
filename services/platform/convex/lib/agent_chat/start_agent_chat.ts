@@ -17,7 +17,6 @@ import type { FunctionArgs } from 'convex/server';
 import { isAudioOrVideo, isSpreadsheet } from '../../../lib/shared/file-types';
 import { formatVideoLinkAttachmentMarkdown } from '../../../lib/shared/video-link-markdown';
 import { components, internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { checkAgentRunAllowedHelper } from '../../agents/guardrails/budget_guard';
 import { createAuditLog } from '../../audit_logs/helpers';
@@ -111,8 +110,6 @@ export interface StartAgentChatArgs {
   /** Auto-route reason; forwarded to message metadata. Set only by the Auto
    *  branch in `chatWithAgent`. Absent for a pinned agent. */
   autoRouteReason?: AutoRouteReason;
-  /** @deprecated Use agentSlug instead */
-  agentId?: Id<'agentBindings'>;
   /**
    * Org member role already resolved upstream (the consolidated governance
    * query, or `startChat`'s `getOrganizationMember`). Threaded into
@@ -281,7 +278,6 @@ export async function startAgentChat(
         cancelledAt: undefined,
         cancelledMessageId: undefined,
         ...(args.agentSlug ? { agentSlug: args.agentSlug } : {}),
-        ...(args.agentId ? { agentId: args.agentId } : {}),
       });
     }
   }
@@ -933,15 +929,13 @@ async function buildMessageWithAttachments(
         const durationNote = meta.transcriptionDurationSec
           ? `, ${Math.round(meta.transcriptionDurationSec)}s transcribed`
           : '';
-        // Video-link provenance: prefer videoLinkJobs row (canonical
-        // single-writer); fall back to legacy fileMetadata fields for
-        // rows written by older orchestrator builds.
-        const sourceUrl = videoLink?.sourceUrl ?? meta.sourceUrl;
-        const sourcePlatform = videoLink?.sourcePlatform ?? meta.sourcePlatform;
-        const videoTitle = videoLink?.videoTitle ?? meta.videoTitle;
-        const videoUploader = videoLink?.videoUploader ?? meta.videoUploader;
-        const videoDurationSec =
-          videoLink?.videoDurationSec ?? meta.videoDurationSec;
+        // Video-link provenance lives on `videoLinkJobs` (canonical
+        // single-writer); JOINed by storageId above.
+        const sourceUrl = videoLink?.sourceUrl;
+        const sourcePlatform = videoLink?.sourcePlatform;
+        const videoTitle = videoLink?.videoTitle;
+        const videoUploader = videoLink?.videoUploader;
+        const videoDurationSec = videoLink?.videoDurationSec;
 
         if (sourceUrl) {
           // Template lives in `lib/shared/video-link-markdown.ts`. This
@@ -951,10 +945,9 @@ async function buildMessageWithAttachments(
           // (use-message-processing.ts) before rendering — the bubble
           // shows the video as an attachment card built from
           // `attachments[]`. Inputs are still resolved here: provenance
-          // prefers `videoLinkJobs` over legacy `fileMetadata` fields,
-          // and duration falls back to `transcriptionDurationSec` for
-          // rows the server has but pre-yt-dlp-metadata builds wrote
-          // without `videoDurationSec`.
+          // comes from `videoLinkJobs` (single writer), and duration falls
+          // back to `transcriptionDurationSec` when the job row carries no
+          // `videoDurationSec`.
           //
           // Functional invariants preserved:
           //   - "View Transcript" button rendering (file-displays.tsx,

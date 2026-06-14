@@ -30,17 +30,18 @@ export const userPreferencesTable = defineTable({
   customInstructions: v.string(),
   customInstructionsEnabled: v.optional(v.boolean()),
   memoriesEnabled: v.optional(v.boolean()),
-  // Legacy slot retained so the schema validates pre-split rows during
-  // the deploy window in which
-  // `migrations/split_personalization_toggle` drains it into both
-  // `*Enabled` fields.
-  enabled: v.optional(v.boolean()),
   /**
    * Global default for voice-mode TTS output on new conversations.
    * `undefined` (or row missing) → off. Per-thread override lives on
    * `threadMetadata.voiceOutputOverride`.
    */
   voiceOutput: v.optional(v.boolean()),
+  /**
+   * Whether this user has finished the onboarding wizard for this org.
+   * `undefined` / row missing → not yet completed. Drives the "what's next"
+   * checklist and avoids re-nagging; we never force re-entry into the wizard.
+   */
+  onboardingCompleted: v.optional(v.boolean()),
   updatedAt: v.number(),
 })
   .index('by_userId_organizationId', ['userId', 'organizationId'])

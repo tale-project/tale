@@ -47,6 +47,9 @@ export interface ResolvedModelData {
   maxOutputTokens?: number;
   supportsStructuredOutputs: boolean;
   imageGenerationMode?: 'images-api' | 'chat-multimodal';
+  /** Transcription-only: HTTP request convention (`multipart` Whisper-style vs
+   * `json-base64` OpenRouter-style). Absent ⇒ `multipart`. */
+  transcriptionMode?: 'multipart' | 'json-base64';
   inputCentsPerMillion?: number;
   outputCentsPerMillion?: number;
   /** For per-image pricing (image-generation models). Complements the token
