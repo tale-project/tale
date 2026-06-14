@@ -172,11 +172,18 @@ export async function init(options: InitOptions): Promise<InitResult> {
     join(defaultOrgDir, 'integrations'),
   );
 
-  // Copy branding from embedded examples (keep an images/ dir for uploads)
+  // Copy the branding config from the embedded example (fall back to an empty
+  // object). Written directly rather than through writeEmbeddedFiles so this
+  // single root-level file always lands cross-platform (a Map-iteration copy
+  // dropped it on Windows). Keep an images/ dir for uploaded assets.
   logger.step('Copying branding configuration...');
-  const brandingFiles = getEmbeddedExamples('branding');
-  await writeEmbeddedFiles(brandingFiles, join(defaultOrgDir, 'branding'));
+  const brandingJson =
+    getEmbeddedExamples('branding').get('branding.json') ?? '{}\n';
   await mkdir(join(defaultOrgDir, 'branding', 'images'), { recursive: true });
+  await writeFile(
+    join(defaultOrgDir, 'branding', 'branding.json'),
+    brandingJson,
+  );
   await writeFile(join(defaultOrgDir, 'branding', 'images', '.gitkeep'), '');
 
   // Copy provider configs (public JSON only, not encrypted secrets)
@@ -247,12 +254,10 @@ export async function init(options: InitOptions): Promise<InitResult> {
       computeContentHash(content),
     );
   }
-  for (const [relPath, content] of brandingFiles) {
-    allFiles.set(
-      join('default', 'branding', relPath),
-      computeContentHash(content),
-    );
-  }
+  allFiles.set(
+    join('default', 'branding', 'branding.json'),
+    computeContentHash(brandingJson),
+  );
 
   const checksums: Checksums = {
     cliVersion: pkg.version,
