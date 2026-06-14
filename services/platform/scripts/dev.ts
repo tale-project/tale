@@ -39,10 +39,11 @@ const repoRoot = join(import.meta.dir, '..', '..', '..');
 // dev-irrelevant proxy/docs/controller. `bifrost` is the one with no published
 // port in base compose.yml — see DEV_COMPOSE_FILES.
 //
-// Note: rag/crawler `depends_on convex`, so compose transitively starts the
-// dockerized convex too. That's harmless here — the docker convex publishes NO
-// host port (internal network only), so it can't collide with the host bun-dev
-// backend on 3210/3211; it sits idle while the host backend serves the app.
+// Note: rag/crawler `depends_on convex` in base compose.yml only to wait for it
+// to seed the shared convex-data config volume. compose.bifrost-dev.yml (host
+// bun-dev only) drops that edge via `!override` — the host backend owns config
+// here, not the docker convex — so this bring-up does NOT pull up a redundant
+// convex container alongside the host one.
 const DEV_DOCKER_SERVICES = [
   'db',
   'bifrost',
