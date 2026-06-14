@@ -131,6 +131,21 @@ crons.cron(
   {},
 );
 
+// Sandbox SESSION slot reclamation — flip a leaked session row (a throw between
+// reserve and the spawner create returning, or a container reaped out-of-band)
+// past its hard lifetime to `expired` so it stops pinning the per-(org) and
+// per-owner active-session caps forever. Exempts `stopped` (hibernated, no
+// compute, workspace preserved) and any row with a RUNNING agent-run op (an
+// unbounded turn legitimately outlives the 24h TTL — guarded inside the
+// mutation). Same shape as the execution watchdog above; this is the row-level
+// counterpart the spawner's liveExecs reaper mirrors container-side.
+crons.cron(
+  'recover stuck sandbox sessions (every 5 min)',
+  '*/5 * * * *',
+  internal.sandbox.session_mutations.recoverStuckSessions,
+  {},
+);
+
 // External-agent turn recovery — the connection-independent counterpart. A
 // turn whose draining action died (crash / redeploy / 30min ceiling) without
 // finalizing is found by its stale heartbeat and finalized exactly-once

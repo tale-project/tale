@@ -383,7 +383,12 @@ export class SessionRoutes {
               stdoutBase64: concatBase64(stdoutChunks),
               stderrBase64: concatBase64(stderrChunks),
               truncated: e.truncated,
-              ...(e.timedOut ? { errorCode: 'TIMEOUT' as const } : {}),
+              // Only mark TIMEOUT when the exit wasn't clean: a process that
+              // raced the deadline and still exited 0 genuinely `completed`, so
+              // pairing it with errorCode:'TIMEOUT' is a contradictory result.
+              ...(e.timedOut && e.exitCode !== 0
+                ? { errorCode: 'TIMEOUT' as const }
+                : {}),
             };
             break;
           case 'fail':
@@ -781,7 +786,11 @@ function forwardExecEvent(
         stdoutBase64: '',
         stderrBase64: '',
         truncated: e.truncated,
-        ...(e.timedOut ? { errorCode: 'TIMEOUT' as const } : {}),
+        // See handleExec: a clean exit (0) that raced the deadline genuinely
+        // completed — don't pair it with a contradictory TIMEOUT marker.
+        ...(e.timedOut && e.exitCode !== 0
+          ? { errorCode: 'TIMEOUT' as const }
+          : {}),
       } satisfies SessionExecResponse);
       break;
     case 'fail':

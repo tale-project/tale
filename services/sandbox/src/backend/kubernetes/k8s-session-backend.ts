@@ -33,8 +33,11 @@ export class KubernetesSessionBackend implements SessionBackend {
   readonly kind = 'kubernetes' as const;
   private readonly client: K8sClient;
 
-  constructor(private readonly cfg: SpawnerConfig) {
-    this.client = makeK8sClient(cfg.k8s.namespace);
+  constructor(
+    private readonly cfg: SpawnerConfig,
+    client?: K8sClient,
+  ) {
+    this.client = client ?? makeK8sClient(cfg.k8s.namespace);
   }
 
   private tokenFor(sessionId: string): string {
@@ -64,12 +67,21 @@ export class KubernetesSessionBackend implements SessionBackend {
           : {}),
       },
     };
-    await withRetry('create-session-secret', () =>
-      this.client.core.createNamespacedSecret(
-        { namespace: this.cfg.k8s.namespace, body: secret },
-        apiTimeout(),
-      ),
-    );
+    try {
+      await withRetry('create-session-secret', () =>
+        this.client.core.createNamespacedSecret(
+          { namespace: this.cfg.k8s.namespace, body: secret },
+          apiTimeout(),
+        ),
+      );
+    } catch (err) {
+      // Same cleanup envelope as the Pod/readiness failures below: the PVC was
+      // already created above, so a Secret failure must not leak it (a fresh
+      // create has no ownerReference for K8s GC to cascade from). Resume keeps
+      // the PVC (stop), fresh destroys it.
+      await this.cleanupFailedCreate(spec.sessionId, preexisting);
+      throw err;
+    }
     try {
       await withRetry('create-session-pod', () =>
         this.client.core.createNamespacedPod(

@@ -332,22 +332,36 @@ export const insertSessionToken = internalMutation({
     }),
 });
 
-/** Revoke every token for a session (on destroy / watchdog reap). */
+/**
+ * Revoke every token for a session (on destroy / watchdog reap). Marks each
+ * unrevoked row `revokedAt` and returns the `bifrostKeyId`s it just revoked so
+ * the caller (a `'use node'` teardown action) can also delete the live Bifrost
+ * VK. This mark alone is bookkeeping — the VK stays a spendable credential on
+ * the gateway until that API delete runs. Teardown deletes the op rows that the
+ * per-turn finalize + recovery watchdog key on, so without this the destroy-
+ * during-a-live-turn race would orphan a still-valid VK.
+ */
 export const revokeTokensForSession = internalMutation({
   args: { sessionId: v.string() },
-  returns: v.number(),
+  returns: v.object({
+    revoked: v.number(),
+    bifrostKeyIds: v.array(v.string()),
+  }),
   handler: async (ctx, args) => {
     const now = Date.now();
     let revoked = 0;
+    const bifrostKeyIds: string[] = [];
     for await (const row of ctx.db
       .query('sandboxSessionTokens')
       .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
       if (row.revokedAt === undefined) {
         await ctx.db.patch(row._id, { revokedAt: now });
         revoked += 1;
+        if (row.bifrostKeyId !== undefined)
+          bifrostKeyIds.push(row.bifrostKeyId);
       }
     }
-    return revoked;
+    return { revoked, bifrostKeyIds };
   },
 });
 

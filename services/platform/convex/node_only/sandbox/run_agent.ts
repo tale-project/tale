@@ -457,6 +457,16 @@ export async function runAgentInSessionImpl(
     }>,
     threadId: string,
   ): Promise<void> => {
+    // Dedup across the two sets. `queuedRows` (listQueuedForDelivery) and the
+    // `fileRows` derived from listDeliveredForExec are read in a non-atomic
+    // Promise.all, so a concurrent file-channel deliverSteerMessages that flips
+    // a row queued→delivered BETWEEN the two snapshots lands the same row in
+    // both. The fileRows entry already carries that message into the stdin
+    // payload below and owns its file-channel bookkeeping, so drop it from the
+    // queued set — otherwise the same steer line is injected into the model's
+    // stdin (and marked delivered) twice.
+    const fileMessageIds = new Set(fileRows.map((r) => r.messageId));
+    const queued = queuedRows.filter((r) => !fileMessageIds.has(r.messageId));
     if (fileRows.length > 0) {
       // Tombstone = same path, empty text. The hook consumes empty-text files
       // silently (marker only, no injection); reconciliation ignores markers
@@ -477,7 +487,7 @@ export async function runAgentInSessionImpl(
         })),
       );
     }
-    const rows = [...fileRows, ...queuedRows].sort(
+    const rows = [...fileRows, ...queued].sort(
       (a, b) => a.createdAt - b.createdAt,
     );
     const line = buildSteerStdinPayload(rows);
@@ -490,7 +500,7 @@ export async function runAgentInSessionImpl(
       console.warn(
         `[run_agent] steer stdin write refused (${res.reason ?? 'unknown'}); falling back to file staging`,
       );
-      if (queuedRows.length > 0) {
+      if (queued.length > 0) {
         await ctx.scheduler.runAfter(
           0,
           internal.node_only.sandbox.steer_delivery.deliverSteerMessages,
@@ -499,10 +509,10 @@ export async function runAgentInSessionImpl(
       }
       return;
     }
-    if (queuedRows.length > 0) {
+    if (queued.length > 0) {
       await ctx.runMutation(internal.threads.message_queue.markDelivered, {
         threadId,
-        queueIds: queuedRows.map((r) => r.queueId),
+        queueIds: queued.map((r) => r.queueId),
         execId: args.execId,
         channel: 'stdin',
       });

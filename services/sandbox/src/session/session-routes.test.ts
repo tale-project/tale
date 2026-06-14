@@ -80,6 +80,9 @@ beforeAll(() => {
         // Echo-style script: a start, one stdout chunk, then exit 0.
         const text: string =
           body.command?.slice(1).join(' ') ?? body.shell ?? '';
+        // Sentinel: simulate a process that raced the deadline but still exited
+        // cleanly (exitCode 0 + timedOut) — the H8 wire-coherence case.
+        const cleanTimeout = text.includes('__timeout_clean__');
         return new Response(
           ndjson([
             { t: 'start', execId: 'e1', startedAtMs: 1 },
@@ -89,7 +92,7 @@ beforeAll(() => {
               exitCode: 0,
               durationMs: 5,
               truncated: { stdout: false, stderr: false },
-              timedOut: false,
+              timedOut: cleanTimeout,
               cancelled: false,
             },
           ]),
@@ -270,6 +273,25 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(destroyed.has('sess1')).toBe(true);
     // gone from registry
     expect((await routes.handleGet('sess1')).status).toBe(404);
+  });
+
+  test('a clean exit (0) that raced the deadline reports completed WITHOUT a TIMEOUT marker', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_to', organizationId: 'org_to' }),
+    );
+    const execRes = routes.handleExec(
+      new Request('http://x/v1/sessions/sess_to/exec', { method: 'POST' }),
+      'sess_to',
+      JSON.stringify({ execId: 'e1', command: ['echo', '__timeout_clean__'] }),
+    );
+    const { events } = await readSse(execRes);
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    // exitCode 0 → genuinely completed; the TIMEOUT errorCode must NOT be paired
+    // with it (the contradictory `completed` + `TIMEOUT` result, finding H8).
+    expect(payload.status).toBe('completed');
+    expect(payload.exitCode).toBe(0);
+    expect(payload.errorCode).toBeUndefined();
   });
 
   test('per-org session cap returns 429', async () => {

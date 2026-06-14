@@ -364,4 +364,117 @@ describe('recoverStuckSessions', () => {
     // The stuck active row is expired (leaked-row TTL backstop still works).
     expect(rows.find((r) => r._id === activeId)?.status).toBe('expired');
   });
+
+  it('never expires a stuck row that still has a RUNNING agent-run op', async () => {
+    const t = convexTest(schema, modules);
+    const liveId = await insertSession(t, { status: 'active', createdAt: 0 });
+    await t.run((ctx) =>
+      ctx.db.insert('sandboxSessionOps', {
+        organizationId: ORG,
+        sessionId: SID,
+        execId: 'exec_live',
+        kind: 'agent-run',
+        status: 'running',
+        startedAt: 0,
+      }),
+    );
+
+    await t.mutation(
+      internal.sandbox.session_mutations.recoverStuckSessions,
+      {},
+    );
+
+    // An unbounded turn legitimately outlives the 24h TTL — the row must survive
+    // so the cron-driven reaper can't orphan the live exec.
+    expect((await allSessions(t)).find((r) => r._id === liveId)?.status).toBe(
+      'active',
+    );
+  });
+
+  it('expires a stuck row whose agent-run op already finished', async () => {
+    const t = convexTest(schema, modules);
+    const liveId = await insertSession(t, { status: 'active', createdAt: 0 });
+    await t.run((ctx) =>
+      ctx.db.insert('sandboxSessionOps', {
+        organizationId: ORG,
+        sessionId: SID,
+        execId: 'exec_done',
+        kind: 'agent-run',
+        status: 'completed',
+        startedAt: 0,
+      }),
+    );
+
+    await t.mutation(
+      internal.sandbox.session_mutations.recoverStuckSessions,
+      {},
+    );
+
+    expect((await allSessions(t)).find((r) => r._id === liveId)?.status).toBe(
+      'expired',
+    );
+  });
+});
+
+describe('revokeTokensForSession', () => {
+  async function insertToken(
+    t: T,
+    overrides: { bifrostKeyId?: string; revokedAt?: number },
+  ) {
+    return t.run((ctx) =>
+      ctx.db.insert('sandboxSessionTokens', {
+        organizationId: ORG,
+        sessionId: SID,
+        tokenHash: `hash_${overrides.bifrostKeyId ?? 'none'}`,
+        ...(overrides.bifrostKeyId !== undefined && {
+          bifrostKeyId: overrides.bifrostKeyId,
+        }),
+        scope: {
+          agentKind: 'claude-code',
+          allowedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
+          integrationGrants: [],
+          budgetCents: 100,
+        },
+        createdAt: 0,
+        expiresAt: Date.now() + 86_400_000,
+        ...(overrides.revokedAt !== undefined && {
+          revokedAt: overrides.revokedAt,
+        }),
+      }),
+    );
+  }
+
+  it('marks unrevoked tokens revoked and returns their bifrostKeyIds (the gateway DELETE list)', async () => {
+    const t = convexTest(schema, modules);
+    await insertToken(t, { bifrostKeyId: 'vk_1' });
+    await insertToken(t, { bifrostKeyId: 'vk_2' });
+
+    const res = await t.mutation(
+      internal.sandbox.session_mutations.revokeTokensForSession,
+      { sessionId: SID },
+    );
+    expect(res.revoked).toBe(2);
+    expect([...res.bifrostKeyIds].sort()).toEqual(['vk_1', 'vk_2']);
+    const tokens = await t.run((ctx) =>
+      ctx.db.query('sandboxSessionTokens').collect(),
+    );
+    expect(tokens.every((r) => r.revokedAt !== undefined)).toBe(true);
+  });
+
+  it('skips already-revoked tokens and omits keyless tokens from the DELETE list', async () => {
+    const t = convexTest(schema, modules);
+    await insertToken(t, { bifrostKeyId: 'vk_live' });
+    await insertToken(t, { bifrostKeyId: 'vk_already', revokedAt: 5 });
+    await insertToken(t, {}); // a token row with no bifrostKeyId
+
+    const res = await t.mutation(
+      internal.sandbox.session_mutations.revokeTokensForSession,
+      { sessionId: SID },
+    );
+    // The keyless live token is still marked revoked (count 2), but only the one
+    // carrying a bifrostKeyId is returned for the gateway DELETE; the
+    // already-revoked one is untouched.
+    expect(res.revoked).toBe(2);
+    expect(res.bifrostKeyIds).toEqual(['vk_live']);
+  });
 });

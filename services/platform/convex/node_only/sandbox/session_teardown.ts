@@ -10,6 +10,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
+import { revokeVirtualKey } from './bifrost_admin';
 import { sessionDestroy } from './helpers/session_client';
 
 export const teardownThreadSessions = internalAction({
@@ -26,10 +27,21 @@ export const teardownThreadSessions = internalAction({
         );
       }
       try {
-        await ctx.runMutation(
+        const { bifrostKeyIds } = await ctx.runMutation(
           internal.sandbox.session_mutations.revokeTokensForSession,
           { sessionId },
         );
+        // Delete the live Bifrost VK(s), not just the bookkeeping mark — see
+        // destroySandbox: teardown deletes the op rows the per-turn finalize +
+        // recovery watchdog key on, so this is the only mid-turn revoke path.
+        for (const keyId of bifrostKeyIds) {
+          await revokeVirtualKey(keyId).catch((err) =>
+            console.warn(
+              `[teardownThreadSessions] revoke VK ${keyId} failed:`,
+              err,
+            ),
+          );
+        }
       } catch (err) {
         console.warn(
           `[teardownThreadSessions] revoke tokens ${sessionId} failed:`,
