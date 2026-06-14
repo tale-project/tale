@@ -24,6 +24,7 @@ import { v } from 'convex/values';
 import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
+import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../lib/untrusted_content';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import {
   applyGatewayConfig,
@@ -42,6 +43,7 @@ import {
   sessionIsAlive,
   sessionSetPinned,
 } from '../../node_only/sandbox/helpers/session_client';
+import { stageIntegrationSkills } from '../../node_only/sandbox/integration_skills';
 import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
 import {
@@ -75,10 +77,25 @@ const OWNER_TYPE_THREAD = 'thread';
 // into the container (same split as SANDBOX_STORAGE_INTERNAL_BASE_URL).
 const EXTERNAL_AGENT_GATEWAY_URL =
   process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://bifrost:8080';
-// v1 static grant set: external agents get the org's GitHub credential (when
-// one is active) so they can clone/push/open PRs. The broker audits every
-// fetch; a missing credential degrades to an anonymous session.
-const SESSION_GRANTS = ['github'];
+// Convex HTTP-ACTIONS base the in-sandbox MCP bridge calls for integration
+// dispatch (/api/integrations/*). Resolved on the SANDBOX network, so it must
+// be an on-net alias — the `--internal`, SSRF-locked agent container can reach
+// neither the host (host.docker.internal) nor :3210; only on-net dual-homed
+// aliases (like `bifrost`) work. Default `convex:3211` (the convex http-actions
+// port): in prod the convex container is dual-homed onto the sandbox net; in
+// dev a `convex` relay alias on the sandbox net forwards to the host-run convex.
+// Override per environment with EXTERNAL_AGENT_INTEGRATIONS_URL.
+const INTEGRATIONS_BASE_URL = (
+  process.env.EXTERNAL_AGENT_INTEGRATIONS_URL || 'http://convex:3211'
+).replace(/\/$/, '');
+// Tier-2 broker credentials that CAN be injected into the container env (for
+// CLIs like `git` that need a raw token in-process to clone/push/open PRs).
+// Which of these are actually injected for a run is gated by the agent's
+// integrationBindings (see the call site) — so binding an integration is the
+// single switch for BOTH in-container env use and the dispatch bridge; an
+// agent without `github` bound gets no GitHub token. The broker audits every
+// fetch and skips grants without an active credential (degrades to anonymous).
+const BROKERABLE_GRANTS = ['github'];
 // Per-turn LLM budget CEILING for an external-agent run (cents), used only when
 // the org has NO rolling cost cap (uncapped). When a cost cap IS configured the
 // VK is sized to the rolling-remaining instead (see the mint below), so a long
@@ -151,6 +168,10 @@ export const runExternalAgentTurn = internalAction({
     ),
     streamId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
+    /** The agent's integration allowlist — the session's dispatch grant set
+     * (which integrations `integration({slug})` may invoke). Enforced
+     * server-side by /api/integrations/execute; defaults to none-granted. */
+    integrationBindings: v.optional(v.array(v.string())),
     organizationId: v.string(),
     userId: v.optional(v.string()),
   },
@@ -336,7 +357,12 @@ export const runExternalAgentTurn = internalAction({
       // 2. Inject Tier-2 integration credentials. Per-turn (not just at
       // create) so reused sessions pick up rotations; the broker audits
       // every fetch and skips grants without an active credential.
-      let grantedSlugs: string[] = [];
+      // Gate on the agent's integrationBindings so the in-container env token
+      // is injected only for explicitly-bound integrations — the same grant
+      // set written to scope.integrationGrants for the dispatch bridge below.
+      const brokerGrants = BROKERABLE_GRANTS.filter((g) =>
+        (args.integrationBindings ?? []).includes(g),
+      );
       try {
         const creds = await ctx.runAction(
           internal.node_only.sandbox.session_credentials
@@ -344,11 +370,10 @@ export const runExternalAgentTurn = internalAction({
           {
             organizationId: args.organizationId,
             sessionId,
-            grants: SESSION_GRANTS,
+            grants: brokerGrants,
             kind: 'bootstrap',
           },
         );
-        grantedSlugs = creds.git.map((g) => g.slug);
         if (Object.keys(creds.env).length > 0) {
           const denied = await sessionEnvPatch(sessionId, { set: creds.env });
           if (denied.length > 0) {
@@ -362,6 +387,23 @@ export const runExternalAgentTurn = internalAction({
         console.warn(
           '[runExternalAgentTurn] credential injection failed (continuing without):',
           credErr,
+        );
+      }
+
+      // 2b. Materialize the org's integrations as CC-native skills so the agent
+      // knows what's available + how to call the dispatch tool (readiness-
+      // independent text; connection state comes from the tool result). Staged
+      // per-turn → a connect/disconnect/binding change shows up next turn.
+      // Best-effort: skill staging must never fail the turn.
+      try {
+        await stageIntegrationSkills(ctx, {
+          organizationId: args.organizationId,
+          sessionId,
+        });
+      } catch (skillErr) {
+        console.warn(
+          '[runExternalAgentTurn] integration skill staging failed (continuing):',
+          skillErr,
         );
       }
 
@@ -409,7 +451,10 @@ export const runExternalAgentTurn = internalAction({
           scope: {
             agentKind: args.agentKind,
             allowedModels: [args.modelRef],
-            integrationGrants: grantedSlugs,
+            // The session's dispatch grant set = the agent's integrationBindings
+            // (enforced by /api/integrations/execute). NOT the git-credential
+            // slugs — git uses env injection (creds.env above), not the dispatch.
+            integrationGrants: args.integrationBindings ?? [],
             budgetCents: vkBudgetCents,
           },
           expiresAt: Date.now() + 2 * 60 * 60 * 1000,
@@ -497,6 +542,10 @@ export const runExternalAgentTurn = internalAction({
       const systemPromptAppend = [
         args.systemInstructions,
         args.permissionMode === 'plan' ? PLAN_MODE_ADDENDUM : undefined,
+        // Integration + browser tools return untrusted external content (now
+        // flowing into the container). The TRUST RULES make the
+        // <untrusted_source> wrapping meaningful — the wrap is inert without it.
+        UNTRUSTED_CONTENT_SYSTEM_PROMPT,
       ]
         .filter((s): s is string => s !== undefined && s !== '')
         .join('\n\n');
@@ -527,6 +576,7 @@ export const runExternalAgentTurn = internalAction({
           }),
           gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
           gatewayToken: vk.key,
+          integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
           timeoutMs: EXEC_DEADLINE_MS,
           budgetDeadlineMs: actionDeadlineMs,
           // Durable per-flush mirror: patch the streaming message with the

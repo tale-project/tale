@@ -19,6 +19,7 @@ import {
 import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import {
+  deletePaths,
   listDir,
   readWorkspaceFile,
   stageFiles,
@@ -359,6 +360,19 @@ async function router(
     }
     touch();
     const result = await stageFiles(body.files ?? []);
+    sendJson(res, 200, result);
+    return;
+  }
+  if (req.method === 'POST' && path === '/files/delete') {
+    let body: { paths?: string[] };
+    try {
+      body = JSON.parse(await readBody(req));
+    } catch {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
+    touch();
+    const result = await deletePaths(body.paths ?? []);
     sendJson(res, 200, result);
     return;
   }

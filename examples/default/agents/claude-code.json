@@ -1,6 +1,7 @@
 {
   "primaryBehavior": "external-agent",
   "agentKind": "claude-code",
+  "integrationBindings": ["tavily", "github"],
   "supportedModels": [
     "openrouter:anthropic/claude-sonnet-4.6",
     "openrouter:anthropic/claude-opus-4.6",

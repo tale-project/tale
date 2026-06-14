@@ -34,6 +34,43 @@ import kill from 'tree-kill';
 const platformRoot = join(import.meta.dir, '..');
 const repoRoot = join(import.meta.dir, '..', '..', '..');
 
+// Docker backing services the HOST `bun dev` depends on (Convex + Vite run on
+// the host; these run in docker). Excludes the host-run convex/platform and the
+// dev-irrelevant proxy/docs/controller. `bifrost` is the one with no published
+// port in base compose.yml — see DEV_COMPOSE_FILES.
+//
+// Note: rag/crawler `depends_on convex` in base compose.yml only to wait for it
+// to seed the shared convex-data config volume. compose.bifrost-dev.yml (host
+// bun-dev only) drops that edge via `!override` — the host backend owns config
+// here, not the docker convex — so this bring-up does NOT pull up a redundant
+// convex container alongside the host one.
+const DEV_DOCKER_SERVICES = [
+  'db',
+  'bifrost',
+  'sandbox',
+  'sandbox-egress',
+  // socat relay aliased `convex` on the sandbox net → host-run convex :3211,
+  // so the in-container MCP integration bridge can reach convex http actions
+  // (the `--internal` sandbox net can't otherwise reach the host).
+  'convex-relay',
+  'rag',
+  'crawler',
+];
+// Overlay chain for local dev (matches docs/.../docker-compose-reference): base
+// + source-mounts/debug/extra_hosts (dev) + the loopback bifrost port publish
+// (bifrost-dev). compose.docs.yml is required because compose.dev.yml carries a
+// `docs` override whose base service lives only in compose.docs.yml — omit it
+// and compose rejects the whole project ("docs has neither an image nor a build
+// context"), even though we never start the docs service here. The base file
+// alone leaves bifrost unreachable from the host, which kills every
+// external-agent turn.
+const DEV_COMPOSE_FILES = [
+  'compose.yml',
+  'compose.dev.yml',
+  'compose.docs.yml',
+  'compose.bifrost-dev.yml',
+];
+
 function parseDotEnv(filePath: string): Record<string, string> {
   const result: Record<string, string> = {};
   if (!existsSync(filePath)) return result;
@@ -261,11 +298,12 @@ function runCommand(
   cmd: string,
   args: string[],
   env: Record<string, string> = {},
+  cwd: string = platformRoot,
 ) {
   return new Promise<void>((resolve, reject) => {
     const child = spawn(cmd, args, {
       stdio: 'inherit',
-      cwd: platformRoot,
+      cwd,
       env: { ...process.env, ...env },
     });
     child.on('exit', (code) => {
@@ -359,6 +397,132 @@ async function assertPortFree(port: number): Promise<void> {
       `   Or run the app on a different port:  PORT=3005 bun run dev`,
     ].join('\n'),
   );
+}
+
+/** Build `docker compose -f … -f …` argv with the dev overlay chain. */
+function dockerComposeArgs(rest: string[]): string[] {
+  return ['compose', ...DEV_COMPOSE_FILES.flatMap((f) => ['-f', f]), ...rest];
+}
+
+/** Non-fatal docker availability probe. Mirrors the CLI's assertDockerAvailable
+ *  (tools/cli/src/lib/actions/start.ts) but resolves a status instead of
+ *  throwing, so `bun dev` can warn-and-continue when docker is missing. */
+function probeDocker(
+  timeoutMs: number,
+): Promise<'ok' | 'no-binary' | 'no-daemon'> {
+  return new Promise((resolve) => {
+    const child = spawn('docker', ['info'], { stdio: 'ignore' });
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      resolve('no-daemon');
+    }, timeoutMs);
+    child.on('error', (err: NodeJS.ErrnoException) => {
+      clearTimeout(timer);
+      resolve(err.code === 'ENOENT' ? 'no-binary' : 'no-daemon');
+    });
+    child.on('exit', (code) => {
+      clearTimeout(timer);
+      resolve(code === 0 ? 'ok' : 'no-daemon');
+    });
+  });
+}
+
+/** Probe the bifrost gateway on its host-published loopback port until it
+ *  accepts connections — this is the axis that breaks when the dev overlay's
+ *  port binding is missing. Honours BIFROST_URL; warn-and-continue on timeout. */
+async function waitForBifrostGateway(timeoutMs = 30_000): Promise<void> {
+  let host = '127.0.0.1';
+  let port = 8080;
+  const raw = process.env.BIFROST_URL;
+  if (raw) {
+    try {
+      const u = new URL(raw);
+      host = u.hostname || host;
+      port = u.port ? Number(u.port) : port;
+    } catch {
+      console.warn(
+        `[dev] ⚠️  BIFROST_URL=${raw} is not a valid URL; probing ${host}:${port}`,
+      );
+    }
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await tcpProbe(host, port, 2_000)) {
+      console.log(`[dev] ✅ Bifrost gateway reachable at ${host}:${port}`);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  console.warn(
+    `[dev] ⚠️  Bifrost gateway not reachable at ${host}:${port} within ${timeoutMs / 1000}s — external-agent turns may fail with "fetch failed".`,
+  );
+}
+
+/** Bring up the docker backing services the host `bun dev` depends on, WITH the
+ *  dev overlays. Host bun dev runs Convex + Vite on the host, but the LLM
+ *  gateway (bifrost), sandbox spawner, db, rag and crawler run in docker. The
+ *  base compose.yml publishes NO bifrost port (prod posture) — only
+ *  compose.bifrost-dev.yml maps 127.0.0.1:8080 — so a plain `docker compose up`
+ *  silently drops the loopback binding and the host Convex action can't reach
+ *  the gateway (every external-agent turn then dies with "fetch failed"). Doing
+ *  the bring-up here, with the overlay chain, makes `bun dev` self-sufficient
+ *  and keeps the port from drifting.
+ *
+ *  Idempotent: an already-overlay stack recreates nothing; after a prior bare
+ *  `up` it recreates whatever config drifted (bifrost gains its port, the rest
+ *  gain source mounts / extra_hosts) — the intended convergence to dev config.
+ *
+ *  Docker absent is NON-FATAL: warn with the concrete side-effects and let the
+ *  app come up anyway (pure frontend/Convex work doesn't need the gateway). */
+async function ensureDockerDependencies(): Promise<void> {
+  const status = await probeDocker(10_000);
+  if (status !== 'ok') {
+    const why =
+      status === 'no-binary'
+        ? 'Docker is not installed'
+        : 'Docker daemon is not running / unreachable';
+    console.warn('');
+    console.warn(`[dev] ⚠️  ${why} — skipping docker backing services.`);
+    console.warn('[dev]    Side-effects until you start them:');
+    console.warn(
+      '[dev]      • LLM gateway (bifrost) unreachable → external agents / Claude Code chat fail with "fetch failed"',
+    );
+    console.warn(
+      '[dev]      • sandbox + sandbox-egress down → agent code execution / tool runs unavailable',
+    );
+    console.warn(
+      '[dev]      • db + rag + crawler down → knowledge base / RAG search / crawling unavailable',
+    );
+    console.warn('[dev]    Start them once Docker is available with:');
+    console.warn(
+      `[dev]      docker ${dockerComposeArgs(['up', '-d', ...DEV_DOCKER_SERVICES]).join(' ')}`,
+    );
+    console.warn('');
+    return;
+  }
+
+  console.log(
+    `[dev] 🐳 Bringing up docker backing services (${DEV_DOCKER_SERVICES.join(', ')})...`,
+  );
+  try {
+    await runCommand(
+      'docker',
+      dockerComposeArgs(['up', '-d', ...DEV_DOCKER_SERVICES]),
+      {},
+      repoRoot,
+    );
+    console.log('[dev] ✅ Docker backing services up');
+  } catch (err) {
+    console.warn(
+      `[dev] ⚠️  docker compose up failed (continuing): ${err instanceof Error ? err.message : String(err)}`,
+    );
+    console.warn(
+      `[dev]    If images are missing, build them: docker ${dockerComposeArgs(['up', '--build', '-d', ...DEV_DOCKER_SERVICES]).join(' ')}`,
+    );
+    return;
+  }
+
+  await waitForBifrostGateway();
 }
 
 /** Probe the Better Auth HTTP surface (served by the Convex site proxy on
@@ -558,6 +722,14 @@ async function main() {
     console.log(
       '[dev]    (Under `bun run dev`, the lighter web/docs servers come up first.)',
     );
+
+    // Bring up the docker backing stack (gateway, sandbox, db, rag, crawler)
+    // WITH the dev overlays before Convex/Vite. Host bun dev runs Convex+Vite on
+    // the host but depends on these in docker; the bifrost gateway in particular
+    // has no published port in base compose.yml, so without this an external
+    // agent turn dies with "fetch failed". Runs in BOTH local and external
+    // Convex modes; non-fatal if docker is absent (warns + continues).
+    await ensureDockerDependencies();
 
     // Inherits CONVEX_AGENT_MODE=anonymous from process.env (set above) in
     // local mode, so the spawned backend runs anonymous and stays quiet.

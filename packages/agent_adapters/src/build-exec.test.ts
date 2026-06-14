@@ -52,6 +52,15 @@ describe('ClaudeCodeAdapter.buildExec', () => {
       '--isolated',
       '--no-sandbox',
     ]);
+    // No integration bridge unless integrationsBaseUrl is set.
+    expect(mcpConfig.mcpServers.integrations).toBeUndefined();
+    // Built-in WebSearch AND WebFetch are denied — both are model-coupled and
+    // ungoverned, so ALL web access routes through a connected integration via
+    // the dispatch bridge (search op + extract/fetch op), audited and wrapped.
+    expect(argv).toContain('--disallowedTools');
+    expect(argv[argv.indexOf('--disallowedTools') + 1]).toBe(
+      'WebSearch,WebFetch',
+    );
     // prompt rides stdin as ONE stream-json user-message NDJSON line (a
     // malformed line kills the CLI's stream-json reader), never argv.
     expect(stdin).toBe(`${stdin?.trimEnd()}\n`);
@@ -79,6 +88,28 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('claude-sonnet-4-6');
     expect(env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('claude-sonnet-4-6');
     expect(cwd).toBe('/workspace/repo');
+  });
+
+  it('adds the integration MCP bridge (with URL + session key) when integrationsBaseUrl is set', () => {
+    const { argv } = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      integrationsBaseUrl: 'http://proxy/api/integrations',
+    });
+    const mcpConfig = JSON.parse(
+      argv[argv.indexOf('--mcp-config') + 1] ?? '{}',
+    );
+    // Merged into the SAME --mcp-config as Playwright.
+    expect(mcpConfig.mcpServers.playwright.command).toBe('tale-playwright-mcp');
+    expect(mcpConfig.mcpServers.integrations.command).toBe(
+      'tale-integrations-mcp',
+    );
+    expect(mcpConfig.mcpServers.integrations.env.TALE_INTEGRATIONS_URL).toBe(
+      'http://proxy/api/integrations',
+    );
+    // The bridge carries the per-session key to auth the dispatch callbacks.
+    expect(mcpConfig.mcpServers.integrations.env.TALE_INTEGRATIONS_TOKEN).toBe(
+      'sk-bf-test',
+    );
   });
 
   it('adds --resume when continuing a session and omits browser MCP when off', () => {

@@ -164,10 +164,17 @@ COPY services/sandbox-runtime/tale-git-credential /usr/local/bin/tale-git-creden
 # mcp-server-playwright. The agent adapters use this as the MCP command.
 COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright-mcp
 
+# Integration-dispatch MCP bridge: a dependency-free stdio MCP server the agent
+# adapters wire in via --mcp-config. Relays integration({slug,operation,args})
+# to the platform's /api/integrations/* endpoints (credentials stay
+# server-side). Runs under the image's node (global fetch).
+COPY services/sandbox-runtime/tale-integrations-mcp /usr/local/bin/tale-integrations-mcp
+
 COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
-      /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-steer-hook \
+      /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-integrations-mcp \
+      /usr/local/bin/tale-steer-hook \
       /usr/local/bin/tale-plan-gate
 
 # Session role runs as the `agent` user (uid 10001) — a real passwd entry so

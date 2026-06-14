@@ -111,6 +111,8 @@ export interface RunAgentInSessionArgs {
   /** Bifrost gateway root + the session virtual key. */
   gatewayBaseUrl: string;
   gatewayToken: string;
+  /** Platform base URL for the integration-dispatch bridge (/api/integrations). */
+  integrationsBaseUrl?: string;
   workdir?: string;
   timeoutMs?: number;
   /** Per-flush durable persistence hook. Called on the same throttle as the
@@ -237,6 +239,9 @@ export async function runAgentInSessionImpl(
           systemPromptAppend: args.systemPromptAppend,
         }),
         gateway: { baseUrl: args.gatewayBaseUrl, token: args.gatewayToken },
+        ...(args.integrationsBaseUrl !== undefined && {
+          integrationsBaseUrl: args.integrationsBaseUrl,
+        }),
         workdir: args.workdir ?? '/workspace/repo',
         // Mid-turn steering: keys the per-exec TALE_STEER_DIR the platform
         // stages queued user messages into (claude_code adapter only).
@@ -1182,6 +1187,7 @@ export const runAgentInSession = internalAction({
     /** Bifrost gateway root + the session virtual key. */
     gatewayBaseUrl: v.string(),
     gatewayToken: v.string(),
+    integrationsBaseUrl: v.optional(v.string()),
     workdir: v.optional(v.string()),
     timeoutMs: v.optional(v.number()),
   },

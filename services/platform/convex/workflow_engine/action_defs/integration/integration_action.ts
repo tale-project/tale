@@ -24,6 +24,7 @@ import {
   getOperationType,
 } from './helpers/detect_write_operation';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
+import { redactSecrets } from './helpers/redact_secrets';
 import { validateOperationScopes } from './helpers/validate_operation_scopes';
 import { validateRequiredParameters } from './helpers/validate_required_parameters';
 
@@ -230,7 +231,9 @@ export const integrationAction: ActionDefinition<{
     }
 
     if (!result.success) {
-      throw new Error(`Integration operation failed: ${result.error}`);
+      throw new Error(
+        `Integration operation failed: ${redactSecrets(result.error ?? '', secrets)}`,
+      );
     }
 
     // Note: execute_action_node wraps this in output: { type: 'action', data: result }

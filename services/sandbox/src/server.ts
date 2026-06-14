@@ -286,6 +286,9 @@ const SESSION_PIN_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/pin$`);
 const SESSION_FILES_STAGE_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/files/stage$`,
 );
+const SESSION_FILES_DELETE_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/files/delete$`,
+);
 const SESSION_FILES_CONTENT_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/files/content$`,
 );
@@ -411,6 +414,13 @@ async function handleSessionRoutes(
     const r = await readAndAuth(req);
     if ('error' in r) return r.error;
     return getSessionRoutes().handleFilesStage(stageMatch[1] ?? '', r.body);
+  }
+  // POST /v1/sessions/:id/files/delete
+  const deleteMatch = path.match(SESSION_FILES_DELETE_RE);
+  if (req.method === 'POST' && deleteMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleFilesDelete(deleteMatch[1] ?? '', r.body);
   }
   // GET /v1/sessions/:id/files/content?path=  (must precede the bare files RE)
   const fileContentMatch = path.match(SESSION_FILES_CONTENT_RE);

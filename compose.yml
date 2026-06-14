@@ -348,8 +348,13 @@ services:
         max-size: '10m'
         max-file: '3'
 
+    # Also on the sandbox network so the in-sandbox MCP integration bridge can
+    # reach convex http actions directly (http://convex:3211/api/integrations),
+    # mirroring how `bifrost` is dual-homed for the gateway. Safe: convex is
+    # single-instance/stateful (no LB) and the dispatch route is VK-authed.
     networks:
       - internal
+      - sandbox
 
   # ============================================================================
   # Tale Platform (TanStack Start + Convex)

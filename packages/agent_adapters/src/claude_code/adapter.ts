@@ -13,27 +13,17 @@ import { buildStdinUserMessage } from './stdin';
  * contents. tale-playwright-mcp is the image's launcher shim — it bridges the
  * container's HTTPS_PROXY/NO_PROXY into --proxy-server/--proxy-bypass
  * (Chromium ignores the env vars; the sandbox network is internal-only). */
-const PLAYWRIGHT_MCP_CONFIG = JSON.stringify({
-  mcpServers: {
-    playwright: {
-      command: 'tale-playwright-mcp',
-      // --browser chromium: the image ships chromium, not the default Google
-      //   Chrome channel.
-      // --isolated: in-memory profile — the default persistent profile dir
-      //   lives under PLAYWRIGHT_BROWSERS_PATH, read-only at runtime.
-      // --no-sandbox: the session container (cap-drop=ALL, no-new-privileges)
-      //   has no unprivileged userns, so Chromium's zygote sandbox aborts at
-      //   launch; the container itself is the isolation boundary.
-      args: [
-        '--headless',
-        '--browser',
-        'chromium',
-        '--isolated',
-        '--no-sandbox',
-      ],
-    },
-  },
-});
+const PLAYWRIGHT_MCP_SERVER = {
+  command: 'tale-playwright-mcp',
+  // --browser chromium: the image ships chromium, not the default Google
+  //   Chrome channel.
+  // --isolated: in-memory profile — the default persistent profile dir
+  //   lives under PLAYWRIGHT_BROWSERS_PATH, read-only at runtime.
+  // --no-sandbox: the session container (cap-drop=ALL, no-new-privileges)
+  //   has no unprivileged userns, so Chromium's zygote sandbox aborts at
+  //   launch; the container itself is the isolation boundary.
+  args: ['--headless', '--browser', 'chromium', '--isolated', '--no-sandbox'],
+};
 
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly slug = 'claude-code' as const;
@@ -68,9 +58,41 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     if (spec.systemPromptAppend) {
       argv.push('--append-system-prompt', spec.systemPromptAppend);
     }
+    // One merged --mcp-config (Playwright + the integration bridge), isolated
+    // from the repo's own .mcp.json via --strict-mcp-config so a run is
+    // reproducible regardless of repo contents.
+    const mcpServers: Record<string, unknown> = {};
     if (spec.browserMcp !== false) {
-      argv.push('--mcp-config', PLAYWRIGHT_MCP_CONFIG, '--strict-mcp-config');
+      mcpServers.playwright = PLAYWRIGHT_MCP_SERVER;
     }
+    if (spec.integrationsBaseUrl) {
+      // The integration-dispatch bridge — lets the agent use the org's connected
+      // integrations. The credential stays server-side; the bridge only relays
+      // {slug, operation, args} to the platform, authed by the session key.
+      mcpServers.integrations = {
+        command: 'tale-integrations-mcp',
+        env: {
+          TALE_INTEGRATIONS_URL: spec.integrationsBaseUrl,
+          TALE_INTEGRATIONS_TOKEN: spec.gateway.token,
+        },
+      };
+    }
+    if (Object.keys(mcpServers).length > 0) {
+      argv.push(
+        '--mcp-config',
+        JSON.stringify({ mcpServers }),
+        '--strict-mcp-config',
+      );
+    }
+    // Deny the built-in WebSearch AND WebFetch. Both are model-coupled and
+    // ungoverned: WebSearch is a provider-run search, and WebFetch pipes the
+    // fetched page through a model to extract the answer — neither flows
+    // through our integration audit / untrusted-source wrapping / metering, and
+    // on a non-Anthropic gateway model they behave inconsistently. ALL web
+    // access goes through a connected integration via the dispatch bridge:
+    // search via a search integration's `search` op (e.g. Tavily) and reading a
+    // specific page via its `extract`/fetch op — both audited and wrapped.
+    argv.push('--disallowedTools', 'WebSearch,WebFetch');
 
     const env: Record<string, string> = {
       // Anthropic Messages route on the gateway; the session key is a bearer

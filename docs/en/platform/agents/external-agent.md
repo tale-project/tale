@@ -19,7 +19,9 @@ Each chat thread is backed by one persistent sandbox session. Follow-up messages
 
 The sandbox starts from an empty working directory and is locked down by default. Outbound network is denied except for a small allowlist (package registries and GitHub), so the agent can install dependencies and clone public repositories but cannot reach arbitrary hosts. The model itself is reached through the workspace's gateway, never a raw provider key — the sandbox only ever holds a short-lived, budget-scoped key for that turn.
 
-If you have connected GitHub under [Integrations](/platform/integrations/overview) and the agent is granted access, the sandbox receives a scoped token so `git` and the `gh` CLI can clone, push, and open pull requests on your behalf. Credentials are injected per session, audited, and revoked when the session ends.
+Beyond that lockdown, the agent can reach any integration your org has connected — search the web through Tavily, call an API, query a database — as long as that integration is bound to the agent. You bind them the same way as for any other agent: open the agent's **Tools** tab and pick them under **Bound integrations**. The credential never enters the sandbox; when the agent calls an integration, the request is brokered back to Tale, which runs the call with the stored credential and hands back only the result, so a compromised container cannot read your keys. A write operation does not run silently — it surfaces as an approval card in the chat and proceeds once you approve it.
+
+GitHub is the exception that also places a token inside the sandbox, because `git` and the `gh` CLI need it locally: connect GitHub under [Integrations](/platform/integrations/overview) and bind it to the agent, and the session receives a scoped token so the agent can clone, push, and open pull requests on your behalf. Every credential — the in-sandbox GitHub token and the brokered ones alike — is scoped to the session, audited on each call, and revoked when the session ends.
 
 ## Engines and models
 
@@ -31,4 +33,4 @@ External-agent turns can be long and call the model many times, so they cost mor
 
 ## Where this fits
 
-An external agent turns a chat thread into a live session with a coding tool in a sandbox — you drive it in plain language, it works in an isolated workspace, and the session persists for follow-ups until you close the thread. The drift candidates here are the agent and model names; pair this page with the running [Providers](/platform/admin/providers) list rather than memorising specific model strings, and with [Integrations](/platform/integrations/overview) for the GitHub access that turns a scratch session into a real pull-request workflow.
+An external agent turns a chat thread into a live session with a coding tool in a sandbox — you drive it in plain language, it works in an isolated workspace, and the session persists for follow-ups until you close the thread. The drift candidates here are the agent and model names; pair this page with the running [Providers](/platform/admin/providers) list rather than memorising specific model strings, and with [Integrations](/platform/integrations/overview) for the connected integrations the agent can reach — from GitHub for a real pull-request workflow to a search or data integration that pulls outside facts into the work.

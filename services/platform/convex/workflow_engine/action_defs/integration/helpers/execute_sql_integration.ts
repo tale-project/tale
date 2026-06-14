@@ -19,6 +19,7 @@ import { getIntrospectColumnsQuery } from './get_introspect_columns_query';
 import { getIntrospectTablesQuery } from './get_introspect_tables_query';
 import { getIntrospectionOperations } from './get_introspection_operations';
 import { isIntrospectionOperation } from './is_introspection_operation';
+import { redactSecrets } from './redact_secrets';
 import { validateOperationScopes } from './validate_operation_scopes';
 import { validateRequiredParameters } from './validate_required_parameters';
 
@@ -240,7 +241,15 @@ export async function executeSqlIntegration(
   );
 
   if (!result.success) {
-    throw new Error(`SQL query failed: ${result.error}`);
+    // The driver error can echo the connection string / password; redact the
+    // decrypted SQL credentials before this Error propagates (for the sandbox
+    // dispatch path it crosses into the container).
+    throw new Error(
+      `SQL query failed: ${redactSecrets(result.error ?? '', {
+        password: credentials.password,
+        username: credentials.username,
+      })}`,
+    );
   }
 
   // For write operations, check if any rows were affected

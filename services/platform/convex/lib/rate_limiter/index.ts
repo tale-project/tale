@@ -75,6 +75,15 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 15,
   },
+  // Agent integration dispatch (in-sandbox MCP bridge → /api/integrations/execute).
+  // Per-session token bucket — the dispatch is otherwise unmetered.
+  'integrations:dispatch': {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 80,
+    shards: 4,
+  },
   'external:integration-test': {
     kind: 'token bucket',
     rate: 10,
