@@ -13,9 +13,7 @@ import { mergeAndConditions } from './merge_and_conditions';
 import type { ASTNode, ParsedFilterExpression } from './types';
 import { isBinaryExpression } from './types';
 
-export function traverseAST(
-  node: ASTNode,
-): Omit<ParsedFilterExpression, 'equalityConditions'> {
+export function traverseAST(node: ASTNode): ParsedFilterExpression {
   if (isBinaryExpression(node)) {
     const binaryNode = node;
 

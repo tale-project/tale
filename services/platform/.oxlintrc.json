@@ -34,6 +34,17 @@
       "rules": {
         "typescript/no-unsafe-type-assertion": "off"
       }
+    },
+    {
+      "files": [
+        "convex/migrations/versions/**/*.ts",
+        "convex/migrations/framework/runner.ts",
+        "convex/migrations/framework/entrypoints.ts"
+      ],
+      "rules": {
+        "typescript/no-unsafe-type-assertion": "off",
+        "typescript/no-explicit-any": "off"
+      }
     }
   ],
   "ignorePatterns": [

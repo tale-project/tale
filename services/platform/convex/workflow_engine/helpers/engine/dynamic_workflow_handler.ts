@@ -8,12 +8,13 @@ import { Infer, v } from 'convex/values';
 
 import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
-import type { Doc, Id } from '../../../_generated/dataModel';
+import type { Id } from '../../../_generated/dataModel';
 import { jsonValueValidator } from '../../../lib/validators/json';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
 import { createDebugLog } from '../../../lib/debug_log';
+import type { StepDefinition, WorkflowDefinition } from '../data_source/types';
 import {
   buildDebugWaitingFor,
   debugEventName,
@@ -61,10 +62,10 @@ export async function handleDynamicWorkflow(
   step: WorkflowCtx,
   args: DynamicWorkflowArgs,
 ): Promise<void> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexJsonValue from Convex scheduler; workflowDefinition is always serialized Doc<'wfDefinitions'>
-  const workflowDefinition = args.workflowDefinition as Doc<'wfDefinitions'>;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexJsonValue from Convex scheduler; steps is always serialized Array<Doc<'wfStepDefs'>>
-  const stepDefinitions = args.steps as Array<Doc<'wfStepDefs'>>;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexJsonValue from Convex scheduler; workflowDefinition is always a serialized WorkflowDefinition
+  const workflowDefinition = args.workflowDefinition as WorkflowDefinition;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexJsonValue from Convex scheduler; steps is always a serialized Array<StepDefinition>
+  const stepDefinitions = args.steps as Array<StepDefinition>;
 
   debugLog('dynamicWorkflow Starting workflow execution', {
     executionId: args.executionId,

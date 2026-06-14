@@ -18,17 +18,21 @@ import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useResizable } from '@/app/hooks/use-resizable';
 import { toast } from '@/app/hooks/use-toast';
-import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { structuralEqual } from '@/lib/utils/structural-equal';
 
-import { getStepIcon, getStepTypeColor } from '../utils/step-icons';
+import {
+  getStepIcon,
+  getStepTypeColor,
+  type StepDef,
+  type StepType,
+} from '../utils/step-icons';
 import { AutomationTester } from './automation-tester';
 import { NextStepsEditor } from './next-steps-editor';
 
 interface AutomationSidePanelProps {
-  step: Doc<'wfStepDefs'> | null;
+  step: StepDef | null;
   isOpen: boolean;
   onClose: () => void;
   showTestPanel?: boolean;
@@ -37,7 +41,7 @@ interface AutomationSidePanelProps {
   stepOptions?: Array<{
     stepSlug: string;
     name: string;
-    stepType?: Doc<'wfStepDefs'>['stepType'];
+    stepType?: StepType;
     actionType?: string;
   }>;
   panelWidth?: number;
@@ -105,7 +109,7 @@ const ValidationMessages = memo(function ValidationMessages({
 });
 
 interface StepEditorContentProps {
-  step: Doc<'wfStepDefs'>;
+  step: StepDef;
   editState: EditState;
   onConfigChange: (value: string) => void;
   onNextStepsChange: (value: Record<string, string>) => void;
@@ -118,7 +122,7 @@ interface StepEditorContentProps {
   stepOptions: Array<{
     stepSlug: string;
     name: string;
-    stepType?: Doc<'wfStepDefs'>['stepType'];
+    stepType?: StepType;
     actionType?: string;
   }>;
 }

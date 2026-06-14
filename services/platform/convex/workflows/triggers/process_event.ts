@@ -121,7 +121,6 @@ export async function processEventHandler(
       internal.workflows.triggers.internal_mutations.createTriggerLog,
       {
         organizationId: args.organizationId,
-        workflowRootId: sub.workflowRootId,
         workflowSlug,
         triggerType: 'event',
         status: 'accepted',

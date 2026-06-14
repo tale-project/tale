@@ -176,7 +176,7 @@ export const lookupVideoLinkSources = internalQuery({
       } = {
         storageId,
       };
-      const sourceUrl = job?.sourceUrl ?? meta.sourceUrl;
+      const sourceUrl = job?.sourceUrl;
       if (sourceUrl) entry.sourceUrl = sourceUrl;
       out.push(entry);
     }

@@ -11,10 +11,10 @@ import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
-import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { narrowStringUnion } from '@/lib/utils/type-guards';
 
+import { type StepConfig, type StepType } from '../utils/step-icons';
 import { NextStepsEditor } from './next-steps-editor';
 
 interface CreateStepDialogProps {
@@ -22,14 +22,14 @@ interface CreateStepDialogProps {
   onOpenChange: (open: boolean) => void;
   onCreateStep: (data: {
     name: string;
-    stepType: Doc<'wfStepDefs'>['stepType'];
-    config: Doc<'wfStepDefs'>['config'];
-    nextSteps?: Doc<'wfStepDefs'>['nextSteps'];
+    stepType: StepType;
+    config: StepConfig;
+    nextSteps?: Record<string, string>;
   }) => Promise<void>;
   stepOptions?: Array<{
     stepSlug: string;
     name: string;
-    stepType?: Doc<'wfStepDefs'>['stepType'];
+    stepType?: StepType;
     actionType?: string;
   }>;
 }
@@ -43,9 +43,7 @@ type FormData = {
   config: string;
 };
 
-const getDefaultTemplates = (
-  stepType: Doc<'wfStepDefs'>['stepType'],
-): { config: string } => {
+const getDefaultTemplates = (stepType: StepType): { config: string } => {
   switch (stepType) {
     case 'start': {
       const cfg = {};
@@ -165,7 +163,7 @@ export function CreateStepDialog({
   }, [stepType, setValue]);
 
   const onSubmit = async (data: FormData) => {
-    let parsedConfig: Doc<'wfStepDefs'>['config'] = {};
+    let parsedConfig: StepConfig = {};
 
     if (data.config.trim()) {
       try {

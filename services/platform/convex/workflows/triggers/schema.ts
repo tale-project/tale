@@ -5,8 +5,6 @@ import { jsonRecordValidator } from '../../lib/validators/json';
 
 export const wfSchedulesTable = defineTable({
   organizationId: v.string(),
-  /** @deprecated — Use workflowSlug for file-based workflows. Kept for legacy DB-backed triggers. */
-  workflowRootId: v.optional(v.id('wfDefinitions')),
   workflowSlug: v.optional(v.string()),
   cronExpression: v.string(),
   timezone: v.string(),
@@ -17,14 +15,11 @@ export const wfSchedulesTable = defineTable({
   variables: v.optional(jsonRecordValidator),
 })
   .index('by_org', ['organizationId'])
-  .index('by_workflowRoot', ['workflowRootId'])
   .index('by_workflowSlug', ['workflowSlug'])
   .index('by_org_active', ['organizationId', 'isActive']);
 
 export const wfWebhooksTable = defineTable({
   organizationId: v.string(),
-  /** @deprecated — Use workflowSlug for file-based workflows. Kept for legacy DB-backed triggers. */
-  workflowRootId: v.optional(v.id('wfDefinitions')),
   workflowSlug: v.optional(v.string()),
   token: v.string(),
   isActive: v.boolean(),
@@ -33,14 +28,11 @@ export const wfWebhooksTable = defineTable({
   createdBy: v.string(),
 })
   .index('by_org', ['organizationId'])
-  .index('by_workflowRoot', ['workflowRootId'])
   .index('by_workflowSlug', ['workflowSlug'])
   .index('by_token', ['token']);
 
 export const wfApiKeysTable = defineTable({
   organizationId: v.string(),
-  /** @deprecated — Use workflowSlug for file-based workflows. Kept for legacy DB-backed triggers. */
-  workflowRootId: v.optional(v.id('wfDefinitions')),
   workflowSlug: v.optional(v.string()),
   name: v.string(),
   keyHash: v.string(),
@@ -51,14 +43,11 @@ export const wfApiKeysTable = defineTable({
   createdBy: v.string(),
 })
   .index('by_org', ['organizationId'])
-  .index('by_workflowRoot', ['workflowRootId'])
   .index('by_workflowSlug', ['workflowSlug'])
   .index('by_keyHash', ['keyHash']);
 
 export const wfEventSubscriptionsTable = defineTable({
   organizationId: v.string(),
-  /** @deprecated — Use workflowSlug for file-based workflows. Kept for legacy DB-backed triggers. */
-  workflowRootId: v.optional(v.id('wfDefinitions')),
   workflowSlug: v.optional(v.string()),
   eventType: v.string(),
   eventFilter: v.optional(v.record(v.string(), v.string())),
@@ -68,16 +57,13 @@ export const wfEventSubscriptionsTable = defineTable({
   createdBy: v.string(),
 })
   .index('by_org', ['organizationId'])
-  .index('by_workflowRoot', ['workflowRootId'])
   .index('by_workflowSlug', ['workflowSlug'])
   .index('by_org_eventType', ['organizationId', 'eventType']);
 
 export const wfTriggerLogsTable = defineTable({
   organizationId: v.string(),
-  /** @deprecated — Use workflowSlug for file-based workflows. */
-  workflowRootId: v.optional(v.id('wfDefinitions')),
   workflowSlug: v.optional(v.string()),
-  wfDefinitionId: v.optional(v.union(v.id('wfDefinitions'), v.string())),
+  wfDefinitionId: v.optional(v.string()),
   wfExecutionId: v.optional(v.id('wfExecutions')),
   triggerType: v.union(
     v.literal('manual'),
@@ -98,6 +84,5 @@ export const wfTriggerLogsTable = defineTable({
   receivedAt: v.number(),
 })
   .index('by_org', ['organizationId'])
-  .index('by_workflowRoot', ['workflowRootId'])
   .index('by_workflowSlug', ['workflowSlug'])
   .index('by_idempotencyKey', ['organizationId', 'idempotencyKey']);

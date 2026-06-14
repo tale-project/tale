@@ -26,7 +26,37 @@ import {
   Settings,
 } from 'lucide-react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { StepType } from '@/lib/shared/schemas/workflows';
+
+export type { StepType } from '@/lib/shared/schemas/workflows';
+
+/**
+ * Free-form workflow step config as it comes off the file-based workflow JSON.
+ * `type` is the action discriminator (e.g. 'set_variables', 'rag') present on
+ * `action` steps; all other keys are step-shape-specific and read dynamically.
+ */
+export type StepConfig = Record<string, unknown> & { type?: string };
+
+/**
+ * Frontend-local mirror of a file-based workflow step. The automations UI maps
+ * the validated workflow JSON (`WorkflowStep` from the shared schema) into this
+ * shape — a superset that also carries the synthetic `_id`/`_creationTime`
+ * fields the components/list keys rely on. This replaces the former
+ * `Doc<'wfStepDefs'>` cast now that the legacy Convex tables are dropped.
+ */
+export interface StepDef {
+  _id: string;
+  _creationTime: number;
+  organizationId: string;
+  wfDefinitionId: string;
+  stepSlug: string;
+  name: string;
+  description?: string;
+  stepType: StepType;
+  order: number;
+  nextSteps: Record<string, string>;
+  config: StepConfig;
+}
 
 const ACTION_ICON_MAP: Record<string, LucideIcon> = {
   customer: Users,
@@ -62,7 +92,7 @@ export function getActionIconComponent(actionType?: string): LucideIcon {
 }
 
 export function getStepIconComponent(
-  stepType?: Doc<'wfStepDefs'>['stepType'],
+  stepType?: StepType,
   actionType?: string,
 ): LucideIcon | null {
   if (stepType === 'action') {
@@ -72,7 +102,7 @@ export function getStepIconComponent(
 }
 
 export function getStepIcon(
-  stepType?: Doc<'wfStepDefs'>['stepType'],
+  stepType?: StepType,
   actionType?: string,
   iconClass = 'size-4 shrink-0',
 ) {
@@ -85,7 +115,7 @@ export function getStepIcon(
 
 /** The `config.type` of an action step, or undefined for non-action steps. */
 export function getStepActionType(
-  step: Pick<Doc<'wfStepDefs'>, 'stepType' | 'config'>,
+  step: Pick<StepDef, 'stepType' | 'config'>,
 ): string | undefined {
   return step.stepType === 'action' && 'type' in step.config
     ? step.config.type

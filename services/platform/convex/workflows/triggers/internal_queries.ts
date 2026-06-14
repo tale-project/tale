@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 
-import type { Doc, Id } from '../../_generated/dataModel';
+import type { Doc } from '../../_generated/dataModel';
 import { internalQuery } from '../../_generated/server';
 
 export const checkIdempotencyQuery = internalQuery({
@@ -17,23 +17,6 @@ export const checkIdempotencyQuery = internalQuery({
           .eq('idempotencyKey', args.idempotencyKey),
       )
       .first();
-  },
-});
-
-export const getActiveVersion = internalQuery({
-  args: { workflowRootId: v.id('wfDefinitions') },
-  returns: v.union(v.id('wfDefinitions'), v.null()),
-  handler: async (ctx, args): Promise<Id<'wfDefinitions'> | null> => {
-    for await (const version of ctx.db
-      .query('wfDefinitions')
-      .withIndex('by_root_status', (q) =>
-        q.eq('rootVersionId', args.workflowRootId).eq('status', 'active'),
-      )) {
-      return version._id;
-    }
-    const root = await ctx.db.get(args.workflowRootId);
-    if (root?.status === 'active') return root._id;
-    return null;
   },
 });
 

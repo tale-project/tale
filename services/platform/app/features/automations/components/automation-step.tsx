@@ -5,7 +5,6 @@ import { Heading } from '@tale/ui/heading';
 import { Text } from '@tale/ui/text';
 import { Position } from '@xyflow/react';
 
-import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -13,6 +12,7 @@ import {
   getStepAccentBorder,
   getStepIconComponent,
   getStepTypeColor,
+  type StepType,
 } from '../utils/step-icons';
 import { useAutomationCallbacks } from './automation-callbacks-context';
 import { useNodeExecutionStatus } from './execution-status-context';
@@ -23,7 +23,7 @@ interface AutomationStepProps {
   data: {
     label: string;
     description?: string;
-    stepType: Doc<'wfStepDefs'>['stepType'];
+    stepType: StepType;
     stepSlug: string;
     actionType?: string;
     isLeafNode?: boolean;
@@ -49,10 +49,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
   const bottomTargetLeft = data.hasBidirectionalBottom ? '45%' : '50%';
   const bottomSourceLeft = data.hasBidirectionalBottom ? '55%' : '50%';
 
-  const getIcon = (
-    stepType: Doc<'wfStepDefs'>['stepType'],
-    actionType?: string,
-  ) => {
+  const getIcon = (stepType: StepType, actionType?: string) => {
     const baseClass = 'size-6 p-1 rounded-md shrink-0';
     const styleClass = getStepTypeColor(stepType);
 
@@ -63,7 +60,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
     return <IconComponent className={cn(baseClass, styleClass)} />;
   };
 
-  const getStepTypeLabel = (stepType: Doc<'wfStepDefs'>['stepType']) => {
+  const getStepTypeLabel = (stepType: StepType) => {
     const labels: Record<string, string> = {
       start: t('stepTypes.start'),
       llm: t('stepTypes.llm'),

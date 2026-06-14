@@ -1,7 +1,20 @@
 /**
  * Workflow Data Source Types
  */
-import type { Doc, Id } from '../../../_generated/dataModel';
+
+/**
+ * Workflow step type discriminant. Mirrors the step configs in
+ * `workflow_engine/types/nodes.ts`. Declared standalone here so workflow
+ * execution types no longer depend on the dropped `wfStepDefs` table doc.
+ */
+export type StepType =
+  | 'start'
+  | 'trigger'
+  | 'llm'
+  | 'condition'
+  | 'action'
+  | 'loop'
+  | 'output';
 
 /**
  * Abstract interface for workflow data sources
@@ -37,7 +50,7 @@ export interface WorkflowDataSource {
  * Used internally by execution logic regardless of source
  */
 export interface WorkflowDefinition {
-  _id: Id<'wfDefinitions'> | string;
+  _id: string;
   organizationId: string;
   name: string;
   description?: string;
@@ -65,12 +78,12 @@ export interface WorkflowDefinition {
  * Used internally by execution logic regardless of source
  */
 export interface StepDefinition {
-  _id: Id<'wfStepDefs'> | string;
+  _id: string;
   organizationId: string;
-  wfDefinitionId: Id<'wfDefinitions'> | string;
+  wfDefinitionId: string;
   stepSlug: string;
   name: string;
-  stepType: Doc<'wfStepDefs'>['stepType'];
+  stepType: StepType;
   order: number;
   config: unknown;
   nextSteps: Record<string, string>;

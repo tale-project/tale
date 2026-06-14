@@ -16,18 +16,7 @@ export function validateOutputStep(
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Backward compat: accept both "mapping" (new) and "outputMapping" (legacy)
-  if ('outputMapping' in config && !('mapping' in config)) {
-    warnings.push(
-      'Output step field "outputMapping" is deprecated. Use "mapping" instead.',
-    );
-  }
-  const mapping =
-    'mapping' in config
-      ? config.mapping
-      : 'outputMapping' in config
-        ? config.outputMapping
-        : undefined;
+  const mapping = 'mapping' in config ? config.mapping : undefined;
 
   if (mapping !== undefined) {
     if (!isRecord(mapping)) {

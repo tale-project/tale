@@ -15,6 +15,7 @@
     "convex:deploy": "CONVEX_AGENT_MODE=anonymous bunx convex deploy",
     "convex:codegen": "[ -z \"$CONVEX_DEPLOYMENT\" ] && echo 'Skipped convex codegen (no CONVEX_DEPLOYMENT)' || bunx convex codegen",
     "generate:openapi": "bun scripts/generate-openapi.ts",
+    "migrations:check": "bun scripts/check-migrations.ts",
     "admin:generate-password": "bun scripts/generate-admin-password.ts",
     "fixtures:gen": "bun scripts/pii-fixtures/gen/index.ts",
     "fixtures:verify": "bun scripts/pii-fixtures/gen/index.ts verify",

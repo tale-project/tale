@@ -45,16 +45,22 @@ interface RollbackDeps {
  */
 function printSnapshotRestoreRunbook(): void {
   logger.blank();
-  logger.info('Minor and major upgrades can run forward-only data migrations;');
   logger.info(
-    'redeploying an older binary on top of migrated data corrupts the',
+    'Minor and major upgrades can run data migrations. Redeploying an',
   );
-  logger.info('instance instead of recovering it. To recover:');
-  logger.info('  1. Restore the data-volume backup taken before the upgrade');
-  logger.info('     (see docs/self-hosted/operate/backups-and-restore.md).');
-  logger.info('  2. Re-deploy the version that matches the restored data:');
+  logger.info('older binary on top of migrated data corrupts the instance, so');
+  logger.info('reverse the migrations FIRST. To roll back across versions:');
+  logger.info('  1. Reverse the data migrations to the target version');
+  logger.info('     (interactive, snapshot-backed):');
+  logger.info('       tale migrate down --to <version> --step');
+  logger.info(
+    '  2. Re-deploy the version that matches the migrated-down data:',
+  );
   logger.info('       tale upgrade --version <version>');
   logger.info('       tale deploy --all');
+  logger.info('  If a migration is not reversible, restore the data-volume');
+  logger.info('  backup taken before the upgrade instead');
+  logger.info('  (see docs/self-hosted/operate/backups-and-restore.md).');
 }
 
 export async function rollback(
@@ -74,13 +80,14 @@ export async function rollback(
       throw new Error('No active deployment');
     }
 
-    // Forward-only migration gate: the only legal rollback target is the
-    // recorded previous version, and only when it is a patch-level step
-    // from the running version (the "patch = always safe" contract in
-    // docs/self-hosted/operate/upgrades.md). There is no applied-migrations
-    // ledger to consult, so anything beyond a patch difference must be
-    // treated as potentially migrated — refuse and point at the
-    // snapshot-restore runbook instead of corrupting the instance.
+    // Image-rollback gate: this command only swaps the running binary, so the
+    // only safe automatic target is a patch-level step from the running version
+    // (the "patch = always safe" contract in
+    // docs/self-hosted/operate/upgrades.md). Crossing a minor/major may have
+    // run data migrations; the migration ledger now makes those reversible, but
+    // the reverse must be done deliberately via `tale migrate down` BEFORE
+    // swapping the binary — so here we refuse and point at that runbook rather
+    // than rolling the image onto a forward-migrated schema.
     const rollbackVersion = await getPreviousVersion(env.DEPLOY_DIR);
     if (!rollbackVersion) {
       logger.error('No previous version recorded — nothing to roll back to.');

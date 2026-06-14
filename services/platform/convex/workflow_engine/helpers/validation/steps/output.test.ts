@@ -112,28 +112,4 @@ describe('validateOutputStep', () => {
     expect(result.valid).toBe(true);
     expect(result.warnings).toHaveLength(0);
   });
-
-  // Backward compatibility with legacy "outputMapping" field
-  it('accepts legacy outputMapping with deprecation warning', () => {
-    const result = validateOutputStep({
-      outputMapping: {
-        analysis: '{{steps.analyze.output.data}}',
-      },
-    });
-    expect(result.valid).toBe(true);
-    expect(result.warnings.some((w) => w.includes('deprecated'))).toBe(true);
-  });
-
-  it('prefers mapping over outputMapping when both present', () => {
-    const result = validateOutputStep({
-      mapping: {
-        analysis: '{{steps.analyze.output.data}}',
-      },
-      outputMapping: {
-        old: '{{steps.old.output.data}}',
-      },
-    });
-    expect(result.valid).toBe(true);
-    expect(result.warnings.some((w) => w.includes('deprecated'))).toBe(false);
-  });
 });

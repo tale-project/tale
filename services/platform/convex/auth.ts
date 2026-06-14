@@ -67,9 +67,7 @@ const platformResourceStatements = {
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
@@ -101,9 +99,7 @@ const admin = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
@@ -126,9 +122,7 @@ const developer = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
@@ -152,9 +146,7 @@ const editor = ac.newRole({
   onedriveSyncConfigs: ['read'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
   approvals: ['read', 'write'],
@@ -178,9 +170,7 @@ const member = ac.newRole({
   onedriveSyncConfigs: ['read'],
   conversations: ['read'],
   conversationMessages: ['read'],
-  wfDefinitions: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
   approvals: ['read'],
@@ -204,9 +194,7 @@ const disabled = ac.newRole({
   onedriveSyncConfigs: [],
   conversations: [],
   conversationMessages: [],
-  wfDefinitions: [], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: [], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: [], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: [], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: [],
   workflowProcessingRecords: [],
   approvals: [],
@@ -231,9 +219,7 @@ const owner = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
-  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],

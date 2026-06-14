@@ -47,7 +47,6 @@ import {
 } from './governance/schema';
 import { externalIdentitiesTable } from './identities/external_identities_schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
-import { integrationsTable } from './integrations/schema';
 import {
   slackEventDedupTable,
   slackThreadsTable,
@@ -60,6 +59,10 @@ import {
   loginBlockCountersTable,
 } from './login_attempts/schema';
 import { mcpServersTable } from './mcp_servers/schema';
+import {
+  migrationLedgerTable,
+  migrationSnapshotsTable,
+} from './migrations/framework/schema';
 import {
   modelCapabilityCacheTable,
   modelCatalogSyncTable,
@@ -121,11 +124,8 @@ import { webdavAppPasswordsTable, webdavLocksTable } from './webdav/schema';
 import { websitesTable } from './websites/schema';
 import {
   wfDefaultProvisionsTable,
-  wfDefinitionsTable,
   wfExecutionsTable,
   wfInstallationsTable,
-  wfStepAuditLogsTable,
-  wfStepDefsTable,
   workflowProcessingRecordsTable,
 } from './workflows/schema';
 import {
@@ -145,6 +145,12 @@ export default defineSchema({
   // `$TALE_CONFIG_DIR/<org>/governance/`; this table is re-derivable. See
   // `lib/config_cache/schema.ts`.
   configCache: configCacheTable,
+  // Versioned data-migration framework. `migrationLedger` records which
+  // migrations have applied (and their resume cursors); `migrationSnapshots`
+  // holds pre-`up` backups so destructive migrations can be rolled back. See
+  // `migrations/framework/`.
+  migrationLedger: migrationLedgerTable,
+  migrationSnapshots: migrationSnapshotsTable,
   governanceSecrets: governanceSecretsTable,
   legalHolds: legalHoldsTable,
   activeLegalHoldClaims: activeLegalHoldClaimsTable,
@@ -177,8 +183,6 @@ export default defineSchema({
   folders: foldersTable,
   knowledgeEntries: knowledgeEntriesTable,
   integrationCredentials: integrationCredentialsTable,
-  /** @deprecated Retained for backward compatibility with existing data. Use integrationCredentials + file-based config. */
-  integrations: integrationsTable,
   slackInstallations: slackInstallationsTable,
   slackThreads: slackThreadsTable,
   slackEventDedup: slackEventDedupTable,
@@ -240,14 +244,11 @@ export default defineSchema({
   webdavLocks: webdavLocksTable,
   websites: websitesTable,
   wfApiKeys: wfApiKeysTable,
-  wfDefinitions: wfDefinitionsTable,
   wfEventSubscriptions: wfEventSubscriptionsTable,
   wfExecutions: wfExecutionsTable,
   wfInstallations: wfInstallationsTable,
   wfDefaultProvisions: wfDefaultProvisionsTable,
   wfSchedules: wfSchedulesTable,
-  wfStepAuditLogs: wfStepAuditLogsTable,
-  wfStepDefs: wfStepDefsTable,
   wfTriggerLogs: wfTriggerLogsTable,
   wfWebhooks: wfWebhooksTable,
   workflowProcessingRecords: workflowProcessingRecordsTable,

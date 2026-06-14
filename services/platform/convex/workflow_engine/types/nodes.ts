@@ -227,14 +227,10 @@ export const loopNodeConfigValidator = v.object({
 
 export interface OutputNodeConfig {
   mapping?: Record<string, unknown>;
-  /** @deprecated Use `mapping` instead */
-  outputMapping?: Record<string, unknown>;
 }
 
 export const outputNodeConfigValidator = v.object({
   mapping: v.optional(v.record(v.string(), jsonValueValidator)),
-  // @deprecated — kept for backward compatibility with existing workflows
-  outputMapping: v.optional(v.record(v.string(), jsonValueValidator)),
 });
 
 // =============================================================================

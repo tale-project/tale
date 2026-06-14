@@ -6,10 +6,9 @@ import React, { useMemo } from 'react';
 
 import type { ElkLayoutOptions } from '@/app/components/flow/layout/elk-layout';
 import { useElkLayout } from '@/app/components/flow/layout/use-elk-layout';
-import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { getStepActionType } from '../utils/step-icons';
+import { getStepActionType, type StepDef } from '../utils/step-icons';
 
 // Loop containers are compound nodes — ELK sizes them to fit their children
 // (top padding leaves room for the loop header). These dimensions are only the
@@ -66,7 +65,7 @@ export function resolveConditionBranchEdge(key: string): {
   return { color: NEUTRAL_EDGE_COLOR, label: key };
 }
 
-export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
+export function useAutomationLayout(steps: StepDef[]) {
   const { t } = useT('automations');
   const { rawNodes, builtEdges } = useMemo<{
     rawNodes: Node[];

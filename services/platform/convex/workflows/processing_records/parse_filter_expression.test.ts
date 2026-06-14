@@ -12,7 +12,6 @@ describe('parseFilterExpression', () => {
       const result = parseFilterExpression('');
       expect(result.conditions).toEqual([]);
       expect(result.hasComplexConditions).toBe(false);
-      expect(result.equalityConditions).toEqual({});
     });
 
     it('should handle whitespace-only string', () => {
@@ -38,7 +37,6 @@ describe('parseFilterExpression', () => {
         value: 'open',
         isSimpleField: true,
       });
-      expect(result.equalityConditions).toEqual({ status: 'open' });
       expect(result.hasComplexConditions).toBe(false);
     });
 
@@ -146,10 +144,6 @@ describe('parseFilterExpression', () => {
         operator: '==',
         value: 'high',
         isSimpleField: true,
-      });
-      expect(result.equalityConditions).toEqual({
-        status: 'open',
-        priority: 'high',
       });
     });
 
@@ -288,7 +282,7 @@ describe('parseFilterExpression', () => {
       const result = parseFilterExpression('status == "closed"');
       expect(result.conditions).toHaveLength(1);
       expect(result.conditions[0].field).toBe('status');
-      expect(result.equalityConditions).toEqual({ status: 'closed' });
+      expect(result.conditions[0].value).toBe('closed');
     });
 
     it('should parse complex conversation filter', () => {
@@ -305,10 +299,20 @@ describe('parseFilterExpression', () => {
         'status == "pending" && resourceType == "document"',
       );
       expect(result.conditions).toHaveLength(2);
-      expect(result.equalityConditions).toEqual({
-        status: 'pending',
-        resourceType: 'document',
-      });
+      expect(result.conditions).toEqual([
+        {
+          field: 'status',
+          operator: '==',
+          value: 'pending',
+          isSimpleField: true,
+        },
+        {
+          field: 'resourceType',
+          operator: '==',
+          value: 'document',
+          isSimpleField: true,
+        },
+      ]);
     });
 
     it('should parse priority range filter', () => {
@@ -319,22 +323,25 @@ describe('parseFilterExpression', () => {
     });
   });
 
-  describe('backward compatibility', () => {
-    it('should maintain equalityConditions for == operators', () => {
+  describe('equality vs. non-equality conditions', () => {
+    it('should capture == conditions alongside range conditions', () => {
       const result = parseFilterExpression(
         'status == "open" && priority == 5 && count > 10',
       );
-      expect(result.equalityConditions).toEqual({
-        status: 'open',
-        priority: 5,
-      });
-      // count > 10 should not be in equalityConditions
-      expect(result.equalityConditions.count).toBeUndefined();
+      const equality = result.conditions.filter((c) => c.operator === '==');
+      expect(equality).toEqual([
+        { field: 'status', operator: '==', value: 'open', isSimpleField: true },
+        { field: 'priority', operator: '==', value: 5, isSimpleField: true },
+      ]);
+      // count > 10 is a range comparison, not an equality condition.
+      expect(result.conditions.find((c) => c.field === 'count')?.operator).toBe(
+        '>',
+      );
     });
 
-    it('should have empty equalityConditions when no == operators', () => {
+    it('should have no == conditions when only range operators are used', () => {
       const result = parseFilterExpression('count > 10 && age >= 18');
-      expect(result.equalityConditions).toEqual({});
+      expect(result.conditions.filter((c) => c.operator === '==')).toEqual([]);
       expect(result.conditions).toHaveLength(2);
     });
   });

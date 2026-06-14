@@ -17,9 +17,7 @@ type PlatformTable =
   | 'onedriveSyncConfigs'
   | 'conversations'
   | 'conversationMessages'
-  | 'wfDefinitions' // @deprecated — DB table deprecated; kept as permission subject for legacy data access
-  | 'wfStepDefs' // @deprecated — DB table deprecated; kept as permission subject for legacy data access
-  | 'wfStepAuditLogs' // @deprecated — DB table deprecated; kept as permission subject for legacy data access
+  | 'wfDefinitions' // file-based automations UI permission subject (DB-backed workflows removed)
   | 'wfExecutions'
   | 'approvals'
   | 'websites'
@@ -76,8 +74,6 @@ const platformPermissions: Record<
     conversations: ALL,
     conversationMessages: ALL,
     wfDefinitions: ALL,
-    wfStepDefs: ALL,
-    wfStepAuditLogs: ALL,
     wfExecutions: ALL,
     workflowProcessingRecords: ALL,
     approvals: ALL,
@@ -111,8 +107,6 @@ const platformPermissions: Record<
     conversations: ALL,
     conversationMessages: ALL,
     wfDefinitions: ALL,
-    wfStepDefs: ALL,
-    wfStepAuditLogs: ALL,
     wfExecutions: ALL,
     workflowProcessingRecords: ALL,
     approvals: ALL,
@@ -144,8 +138,6 @@ const platformPermissions: Record<
     conversations: ALL,
     conversationMessages: ALL,
     wfDefinitions: READ_ONLY,
-    wfStepDefs: READ_ONLY,
-    wfStepAuditLogs: READ_ONLY,
     wfExecutions: READ_ONLY,
     workflowProcessingRecords: READ_ONLY,
     approvals: ALL,
@@ -177,8 +169,6 @@ const platformPermissions: Record<
     conversations: READ_ONLY,
     conversationMessages: READ_ONLY,
     wfDefinitions: READ_ONLY,
-    wfStepDefs: READ_ONLY,
-    wfStepAuditLogs: READ_ONLY,
     wfExecutions: READ_ONLY,
     workflowProcessingRecords: READ_ONLY,
     approvals: READ_ONLY,
@@ -214,8 +204,6 @@ const platformPermissions: Record<
     conversations: NONE,
     conversationMessages: NONE,
     wfDefinitions: NONE,
-    wfStepDefs: NONE,
-    wfStepAuditLogs: NONE,
     wfExecutions: NONE,
     workflowProcessingRecords: NONE,
     approvals: NONE,
