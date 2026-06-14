@@ -36,8 +36,9 @@ export function isRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
-/** Parse one NDJSON line to an object, or null on malformed JSON (logged by
- * the caller's parser as a `raw`/skip — never throws into the stream loop). */
+/** Parse one NDJSON line to an object, or null on malformed JSON. Never throws
+ * into the stream loop; the caller's parser drops the line (and logs it) on
+ * null. */
 export function parseJsonLine(line: string): Record<string, unknown> | null {
   try {
     const v: unknown = JSON.parse(line);

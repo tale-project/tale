@@ -338,6 +338,12 @@ const server = createServer((req, res) => {
     }
   });
 });
+// Bound how long a client may take to send a request (headers + body) so a
+// slow/stalled client can't pin a connection for Node's 5-min default. These
+// cap request RECEIPT only — not the response, so long-lived exec NDJSON
+// streams are unaffected (their bodies are small JSON, read up front).
+server.requestTimeout = 30_000;
+server.headersTimeout = 10_000;
 
 // SIGTERM → graceful close (the container is being torn down; in-flight execs
 // get their process-group SIGTERM from the orchestrator's container stop).

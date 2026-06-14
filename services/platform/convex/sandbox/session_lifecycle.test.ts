@@ -190,6 +190,7 @@ describe('setSessionPinned', () => {
     });
 
     await t.mutation(internal.sandbox.session_mutations.setSessionPinned, {
+      organizationId: ORG,
       sessionId: SID,
       pinned: true,
     });
@@ -213,6 +214,7 @@ describe('setSessionPinned', () => {
     });
 
     await t.mutation(internal.sandbox.session_mutations.setSessionPinned, {
+      organizationId: ORG,
       sessionId: SID,
       pinned: false,
     });
@@ -222,6 +224,25 @@ describe('setSessionPinned', () => {
     expect(live?.pinned).toBe(false);
     expect(live?.pinnedAt).toBeUndefined();
     expect(live?.expiresAt).toBeLessThan(Date.now() + 2 * 86_400_000);
+  });
+
+  it('does not pin a same-id row owned by another org', async () => {
+    const t = convexTest(schema, modules);
+    const liveId = await insertSession(t, {
+      status: 'active',
+      createdAt: 0,
+      organizationId: OTHER_ORG,
+    });
+
+    await t.mutation(internal.sandbox.session_mutations.setSessionPinned, {
+      organizationId: ORG,
+      sessionId: SID,
+      pinned: true,
+    });
+
+    const rows = await allSessions(t);
+    const other = rows.find((r) => r._id === liveId);
+    expect(other?.pinned).toBeUndefined();
   });
 });
 

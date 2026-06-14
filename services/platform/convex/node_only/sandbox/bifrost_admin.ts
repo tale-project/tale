@@ -27,6 +27,7 @@
 
 import { createHash } from 'node:crypto';
 
+import { sanitizeError } from '../../lib/utils/sanitize_secrets';
 import { providerAttributionHeaders } from '../../providers/provider_attribution';
 
 function bifrostUrl(): string {
@@ -285,7 +286,15 @@ export async function getVirtualKeySpendCents(
       signal: AbortSignal.timeout(15_000),
     },
   );
-  if (!res.ok) return null;
+  if (!res.ok) {
+    // Degrade to the agent-stream spend, but make the gateway failure visible —
+    // a down gateway is otherwise indistinguishable from "key not found" and
+    // would silently stamp costEstimateCents:0. keyId is an id, not a secret.
+    console.warn(
+      `[bifrost] spend read failed (${res.status}) for key ${keyId}; degrading to agent-stream spend`,
+    );
+    return null;
+  }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as {
     virtual_key?: { budget?: { current_usage?: number } };
@@ -445,7 +454,15 @@ async function listProviderKeys(provider: string): Promise<GatewayKey[]> {
       signal: AbortSignal.timeout(15_000),
     },
   );
-  if (!res.ok) return [];
+  if (!res.ok) {
+    // Treat as "no keys" but log: a transient gateway failure here would
+    // otherwise look like a clean empty set (e.g. the mint path's fail-closed
+    // resolve), masking the real cause.
+    console.warn(
+      `[bifrost] list keys for provider ${provider} failed (${res.status}); treating as none`,
+    );
+    return [];
+  }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { keys?: GatewayKey[] | null };
   return parsed.keys ?? [];
@@ -478,7 +495,7 @@ async function deleteGatewayProvider(name: string): Promise<void> {
   );
   if (!res.ok && res.status !== 404) {
     throw new Error(
-      `bifrost delete provider ${name} failed (${res.status}): ${await res.text()}`,
+      `bifrost delete provider ${name} failed (${res.status}): ${sanitizeError(await res.text())}`,
     );
   }
 }
@@ -567,7 +584,7 @@ async function ensureProviderConfig(
   // cannot be changed from X to Y after creation"). This happens when a custom
   // provider's apiFormat flips (openai↔anthropic). Recreate: delete the record
   // (its keys go too — caller re-POSTs) then PUT fresh.
-  const errBody = await res.text();
+  const errBody = sanitizeError(await res.text());
   if (res.status === 400 && /cannot be (changed|removed)/i.test(errBody)) {
     console.warn(
       `[bifrost] provider '${p.name}' base type is immutable; recreating: ${errBody}`,
@@ -576,7 +593,7 @@ async function ensureProviderConfig(
     const retry = await putConfig();
     if (!retry.ok) {
       throw new Error(
-        `bifrost provider config ${p.name} failed after recreate (${retry.status}): ${await retry.text()}`,
+        `bifrost provider config ${p.name} failed after recreate (${retry.status}): ${sanitizeError(await retry.text())}`,
       );
     }
     return { recreated: true };
@@ -613,7 +630,7 @@ async function writeProviderKey(
   });
   if (!res.ok) {
     throw new Error(
-      `bifrost ${existing ? 'update' : 'create'} key for ${p.name}/org ${organizationId} failed (${res.status}): ${await res.text()}`,
+      `bifrost ${existing ? 'update' : 'create'} key for ${p.name}/org ${organizationId} failed (${res.status}): ${sanitizeError(await res.text())}`,
     );
   }
 }

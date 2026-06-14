@@ -101,10 +101,13 @@ export class DockerSessionBackend implements SessionBackend {
       // Clean up a half-created container before surfacing the failure. On a
       // resume (preexisting dir), preserve the workspace; only a fresh create
       // deletes its own empty dir.
-      await dockerRm(containerName).catch(() => {});
+      await dockerRm(containerName).catch((err) =>
+        console.warn('[sandbox.session] cleanup dockerRm failed:', err),
+      );
       if (!preexisting) {
         await rm(workspaceHostDir, { recursive: true, force: true }).catch(
-          () => {},
+          (err) =>
+            console.warn('[sandbox.session] cleanup workspace rm failed:', err),
         );
       }
       throw new Error(

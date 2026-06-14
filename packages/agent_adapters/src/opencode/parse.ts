@@ -49,7 +49,15 @@ export class OpenCodeParser implements AgentEventParser {
 
   private line(line: string): AgentEvent[] {
     const ev = parseJsonLine(line);
-    if (!ev) return [];
+    if (!ev) {
+      // Drop a malformed/truncated line, but log it so a real truncation
+      // (e.g. the process died mid-record) isn't silently lost.
+      console.warn('[opencode parse] dropping unparseable line', {
+        len: line.length,
+        head: line.slice(0, 120),
+      });
+      return [];
+    }
     const type = str(ev.type);
     const part = obj(ev.part);
 

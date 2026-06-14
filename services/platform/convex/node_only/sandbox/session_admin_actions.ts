@@ -188,6 +188,7 @@ export const setSandboxPinned = action({
     await requireSessionInOrg(ctx, args.organizationId, args.sessionId);
 
     await ctx.runMutation(internal.sandbox.session_mutations.setSessionPinned, {
+      organizationId: args.organizationId,
       sessionId: args.sessionId,
       pinned: args.pinned,
     });

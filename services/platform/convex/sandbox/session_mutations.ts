@@ -138,13 +138,21 @@ const PINNED_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1000;
  * The spawner-side reaper exemption is pushed separately (sessionSetPinned).
  */
 export const setSessionPinned = internalMutation({
-  args: { sessionId: v.string(), pinned: v.boolean() },
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    pinned: v.boolean(),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const now = Date.now();
     for await (const row of ctx.db
       .query('sandboxSessions')
       .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      // Org-scoped like its siblings (markSessionRowDestroyed/Stopped): the
+      // deterministic spawner sessionId travels through the browser, so never
+      // touch a row from another tenant even if the id were guessed.
+      if (row.organizationId !== args.organizationId) continue;
       // The deterministic per-(org,user) sessionId is reused across
       // create/destroy cycles, so `by_sessionId` returns many historical rows.
       // Pin only the LIVE one — pinning a stale `failed`/`destroyed` record is

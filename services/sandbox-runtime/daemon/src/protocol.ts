@@ -90,14 +90,6 @@ export type RunnerdExecEvent = (
     }
 ) & { seq?: number };
 
-/** @deprecated Superseded by the exec's SLIDING deadline (re-armed on every
- * /attach, see ExecManager.armDeadline): a dropped consumer no longer arms a
- * short grace-kill — the exec lives until the sliding deadline lapses with no
- * reconnect, which is the sole orphan reaper. Kept exported for one cycle. */
-export const RUNNERD_DETACH_GRACE_MS = Number(
-  process.env.RUNNERD_DETACH_GRACE_MS ?? 60_000,
-);
-
 export interface RunnerdCancelResponse {
   killed: boolean;
 }

@@ -8,6 +8,7 @@
 
 import { spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
+import type { Writable } from 'node:stream';
 
 import type { EnvStore } from './env-store.ts';
 import {
@@ -57,8 +58,9 @@ interface LiveExec {
   /** Set by the deadline timer so the terminal exit event reports timedOut. */
   timedOut: boolean;
   /** Held-open stdin pipe (stdinMode:'hold'), written via writeStdin(). Null
-   * for 'close'-mode execs and after EOF — writes then report STDIN_CLOSED. */
-  stdin: NodeJS.WritableStream | null;
+   * for 'close'-mode execs, after EOF, and after the pipe errors (a dead child)
+   * — writes then report STDIN_CLOSED instead of falsely confirming delivery. */
+  stdin: Writable | null;
 }
 
 /** A retained (exited) exec: its final ring for /attach replay plus the exit
@@ -311,6 +313,11 @@ export class ExecManager {
       // unhandled stream error can't crash the daemon.
       child.stdin.on('error', (err) => {
         console.warn('[runnerd] held stdin pipe error:', err.message);
+        // The pipe is now dead (EPIPE arrives here async — write() never throws
+        // synchronously for it). Null it so a subsequent writeStdin refuses with
+        // STDIN_CLOSED and the platform falls back to file staging, instead of
+        // reporting ok:true for a write the exited child never received.
+        record.stdin = null;
       });
       record.stdin = child.stdin;
       if (req.stdinBase64) {
@@ -351,6 +358,17 @@ export class ExecManager {
       }
       stderrBytes += chunk.byteLength;
       ringEmit({ t: 'stderr', b64: chunk.toString('base64') });
+    });
+    // The output pipes can emit 'error' (e.g. a rare pipe EIO). Without a
+    // listener Node throws it as an unhandled stream error and crashes the whole
+    // long-lived daemon — taking down every concurrent session, not just this
+    // exec. (child.on('error') above is the ChildProcess emitter, distinct from
+    // these stdio stream emitters.) Log and swallow to keep the daemon alive.
+    child.stdout.on('error', (err) => {
+      console.warn('[runnerd] stdout pipe error:', err.message);
+    });
+    child.stderr.on('error', (err) => {
+      console.warn('[runnerd] stderr pipe error:', err.message);
     });
 
     // Arm the SLIDING deadline (the sole orphan reaper). attach() re-arms it on
@@ -461,6 +479,16 @@ export class ExecManager {
     const rec = this.live.get(execId);
     if (!rec) return { ok: false, reason: 'NOT_FOUND' };
     if (!rec.stdin) return { ok: false, reason: 'STDIN_CLOSED' };
+    // A write to a broken pipe (the child exited but its record is still live —
+    // e.g. inside the EXIT_DRAIN_GRACE_MS window, or between cancel()'s SIGTERM
+    // and SIGKILL) returns false and emits 'error' asynchronously; it never
+    // throws synchronously, so the try/catch below cannot observe it. Returning
+    // ok:true there makes the platform mark a steer message delivered and skip
+    // its file-staging fallback, silently dropping it. Refuse on a stream that
+    // is no longer writable so the caller falls back instead.
+    if (!isStdinWritable(rec.stdin)) {
+      return { ok: false, reason: 'STDIN_CLOSED' };
+    }
     let buf: Buffer | null = null;
     if (req.b64 !== undefined && req.b64 !== '') {
       buf = Buffer.from(req.b64, 'base64');
@@ -479,6 +507,16 @@ export class ExecManager {
     this.onActivity();
     return { ok: true };
   }
+}
+
+/** A held-stdin pipe is still usable only while it can accept writes. Once it
+ * has ended, been destroyed, or errored (a dead child's pipe EPIPEs
+ * ASYNCHRONOUSLY — write() never throws synchronously, so a state check is the
+ * only way to refuse before falsely reporting ok:true), a write would be
+ * silently dropped. Exported for unit testing — the EPIPE path itself only
+ * surfaces under Node (the production runtime), not the Bun test harness. */
+export function isStdinWritable(stdin: Writable): boolean {
+  return !stdin.writableEnded && !stdin.destroyed && !stdin.errored;
 }
 
 /** Exactly one newline-terminated, interior-newline-free, valid-JSON line.

@@ -60,7 +60,15 @@ export class ClaudeCodeParser implements AgentEventParser {
 
   private line(line: string): AgentEvent[] {
     const ev = parseJsonLine(line);
-    if (!ev) return [];
+    if (!ev) {
+      // A malformed/truncated line (e.g. the process died mid-record on the
+      // end() flush) is dropped — but log it so a real truncation isn't silent.
+      console.warn('[claude-code parse] dropping unparseable line', {
+        len: line.length,
+        head: line.slice(0, 120),
+      });
+      return [];
+    }
     const type = str(ev.type);
 
     if (type === 'system') {

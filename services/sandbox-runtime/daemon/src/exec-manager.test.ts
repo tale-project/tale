@@ -6,9 +6,10 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { PassThrough } from 'node:stream';
 
 import { EnvStore } from './env-store.ts';
-import { ExecManager } from './exec-manager.ts';
+import { ExecManager, isStdinWritable } from './exec-manager.ts';
 import type { RunnerdExecEvent, RunnerdExecRequest } from './protocol.ts';
 
 // realpath the temp dir up front — macOS /tmp is a symlink to /private/tmp, so
@@ -378,6 +379,29 @@ describe('ExecManager stdinMode hold + writeStdin', () => {
       ok: false,
       reason: 'NOT_FOUND',
     });
+  });
+
+  // The real broken-pipe-while-live path (a dead child whose pipe EPIPEs
+  // asynchronously) only surfaces under Node, the production runtime — Bun's
+  // test harness never raises EPIPE on a child stdin write, so it can't drive
+  // that scenario through a real process. The writability predicate writeStdin
+  // uses to refuse such a write is unit-tested directly instead.
+  test('isStdinWritable refuses an ended/destroyed/errored stream (the broken-pipe guard)', () => {
+    const live = new PassThrough();
+    expect(isStdinWritable(live)).toBe(true);
+
+    const ended = new PassThrough();
+    ended.end();
+    expect(isStdinWritable(ended)).toBe(false);
+
+    const destroyed = new PassThrough();
+    destroyed.destroy();
+    expect(isStdinWritable(destroyed)).toBe(false);
+
+    const errored = new PassThrough();
+    errored.on('error', () => {}); // avoid an unhandled 'error' throw
+    errored.destroy(new Error('EPIPE'));
+    expect(isStdinWritable(errored)).toBe(false);
   });
 
   test('close-mode exec refuses writes (legacy semantics unchanged)', async () => {
