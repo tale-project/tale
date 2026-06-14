@@ -33,7 +33,11 @@ export function useProvidersTableConfig(): ProvidersTableConfig {
         id: 'baseUrl',
         header: t('providers.baseUrl'),
         cell: ({ row }) => (
-          <Text as="span" variant="muted" className="max-w-[300px] truncate">
+          <Text
+            as="span"
+            variant="muted"
+            className="block max-w-[300px] truncate"
+          >
             {row.original.baseUrl}
           </Text>
         ),
