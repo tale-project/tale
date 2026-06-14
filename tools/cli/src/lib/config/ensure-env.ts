@@ -260,13 +260,6 @@ export async function ensureEnv(
       ]);
     }
 
-    // .env-already-exists path → onboarding for OpenRouter happens elsewhere
-    // (`tale init` or the platform's Settings → AI providers UI). Avoid
-    // hijacking deploy/upgrade with an interactive prompt that was only
-    // supposed to fire on first install.
-    if (result.success) {
-      warnIfOpenrouterSecretMissing(options.deployDir);
-    }
     return result;
   }
 
@@ -472,25 +465,6 @@ async function runPartialEnvSetup(
 
   const agePublicKey = deriveAgePublicKey(sopsAgeKey);
   return { success: true, agePublicKey };
-}
-
-/**
- * Emit a one-line warning when the local OpenRouter secrets file is missing
- * on the `.env`-already-exists path. Intentionally non-fatal: the operator
- * may have configured OpenRouter through Settings → AI providers (which
- * writes to the platform DB, not this file), or be using a different
- * provider altogether. Re-prompting on every deploy/upgrade for users who
- * legitimately have no local file is the bug we're avoiding.
- */
-function warnIfOpenrouterSecretMissing(deployDir: string): void {
-  const secretsPath = join(deployDir, 'providers', 'openrouter.secrets.json');
-  if (existsSync(secretsPath)) return;
-  logger.warn(
-    'providers/openrouter.secrets.json not found. ' +
-      'If OpenRouter is already configured via Settings → AI providers or ' +
-      'another provider is in use, ignore this. ' +
-      "Otherwise run 'tale init' to provision a key.",
-  );
 }
 
 async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
