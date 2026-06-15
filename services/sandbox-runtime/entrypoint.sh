@@ -131,6 +131,41 @@ apply_inner_egress_fence() {
   fi
 }
 
+# cgroup v2 nesting. Without this, dockerd + PID 1 sit in the unified cgroup
+# *root*; cgroup v2's "no internal processes" rule then forces the subtree into
+# THREADED mode as soon as dockerd adds child cgroups, and threaded cgroups
+# reject *domain* controllers (memory, io). The result: any inner container
+# started with a memory/pids limit dies with
+#   "cannot enter cgroupv2 \"/sys/fs/cgroup/docker\" with domain controllers
+#    -- it is in threaded mode"
+# which silently breaks `docker compose up` for the very common case of services
+# that set mem_limit/pids_limit. Mirror what the official docker:dind entrypoint
+# does: move every process out of the cgroup root into a leaf so the root can
+# become an inner node, then delegate the available controllers into the root's
+# subtree. MUST run before dockerd so the /docker tree it creates is a domain
+# cgroup with memory/pids available. Best-effort: a failure only costs us the
+# pre-nesting behaviour, so warn rather than abort.
+setup_cgroup_nesting() {
+  _cg=/sys/fs/cgroup
+  # cgroup v1 (no unified controllers file) or already delegated → nothing to do.
+  [ -f "$_cg/cgroup.controllers" ] || return 0
+  grep -qw memory "$_cg/cgroup.subtree_control" 2>/dev/null && return 0
+  mkdir -p "$_cg/init" 2>/dev/null || true
+  # Relocate every process (including this shell / PID 1) into the leaf; the root
+  # must be process-free before it can carry subtree_control.
+  while read -r _pid; do
+    echo "$_pid" >"$_cg/init/cgroup.procs" 2>/dev/null || true
+  done <"$_cg/cgroup.procs"
+  # Delegate controllers one at a time so an un-enableable one (e.g. cpuset)
+  # doesn't block the critical memory/pids delegation.
+  for _ctl in cpu io memory pids cpuset hugetlb; do
+    grep -qw "$_ctl" "$_cg/cgroup.controllers" 2>/dev/null &&
+      echo "+$_ctl" >"$_cg/cgroup.subtree_control" 2>/dev/null || true
+  done
+  grep -qw memory "$_cg/cgroup.subtree_control" 2>/dev/null ||
+    echo "[entrypoint] WARN: could not delegate the cgroup memory controller; inner containers with mem_limit/pids_limit may fail to start (cgroupv2 threaded mode)" >&2
+}
+
 # Start an inner dockerd and block until it's ready. Fails closed (exit 1) on
 # any of: fence install failure, a non-remapped userns on the sysbox tier
 # (would mean container-root == host-root), dockerd dying, or a readiness
@@ -148,6 +183,10 @@ start_inner_dockerd() {
       exit 1
     fi
   fi
+
+  # Prepare cgroup v2 delegation BEFORE dockerd, so the /docker cgroup tree it
+  # creates is a domain cgroup that can carry memory/pids limits.
+  setup_cgroup_nesting
 
   mkdir -p /var/lib/docker /var/log
   # dockerd (and the iptables/modprobe it shells out to) need /usr/sbin on PATH,
