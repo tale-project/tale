@@ -1,5 +1,9 @@
+import { useMemo } from 'react';
+
+import type { ModelInfoCapabilities } from '@/app/features/chat/components/model-info-popover';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type {
   EnvSecretStatus,
@@ -92,4 +96,39 @@ export function useHasModelSecret(
     { organizationId, providerName, modelId },
     options,
   );
+}
+
+/**
+ * Cached OpenRouter/provider capabilities (cost, context window, reasoning,
+ * prompt-caching, tools/vision) for a set of model ids, keyed by id. Backs the
+ * `ModelInfoPopover` info button across every model selector. The daily cron
+ * and the live "Fetch models" action both populate `modelCapabilityCache`;
+ * ids without a cache row are simply absent from the map (the popover then
+ * hides those rows). Pass the currently-visible ids only — the query reads one
+ * row per id.
+ */
+export function useModelCapabilities(
+  organizationId: string,
+  modelIds: string[],
+): Map<string, ModelInfoCapabilities> {
+  const { data } = useConvexQuery(
+    api.model_catalog.queries.getModelCapabilities,
+    { organizationId, modelIds },
+  );
+  return useMemo(() => {
+    const map = new Map<string, ModelInfoCapabilities>();
+    for (const c of data ?? []) {
+      map.set(c.modelId, {
+        contextWindow: c.contextWindow,
+        maxOutputTokens: c.maxOutputTokens,
+        inputCentsPerMillion: c.inputCentsPerMillion,
+        outputCentsPerMillion: c.outputCentsPerMillion,
+        reasoning: c.reasoning,
+        promptCaching: c.promptCaching,
+        supportsTools: c.supportsTools,
+        supportsVision: c.supportsVision,
+      });
+    }
+    return map;
+  }, [data]);
 }

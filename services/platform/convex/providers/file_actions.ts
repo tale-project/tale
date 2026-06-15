@@ -24,6 +24,8 @@ import { parseModelRef } from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { resolveAgeRecipients } from '../lib/age_keygen';
+import type { NormalizedCapability } from '../lib/agent_response/model_capabilities/normalize';
+import { normalizeCatalogPayload } from '../lib/agent_response/model_capabilities/normalize';
 import {
   atomicWrite,
   atomicWriteSecret,
@@ -1575,13 +1577,29 @@ export const getAllProviderConfigs = action({
 // Model discovery
 // ---------------------------------------------------------------------------
 
+/** What a model-discovery action hands back to the UI: the raw id plus, when
+ *  the source reports it, a human-readable name so the fetched-row list isn't
+ *  stuck showing alias ids like `~anthropic/claude-opus-latest`. */
+interface FetchedModel {
+  id: string;
+  displayName?: string;
+}
+
 /**
- * Parse a `GET /v1/models` response body into a sorted list of model ids.
- * Throws `PROVIDER_FETCH_FAILED` on non-JSON bodies or any shape other than
- * `{ data: [{ id: string }, ...] }`. Shared by the connect-time and
- * already-configured model-discovery actions so their parsing can't drift.
+ * Parse a `GET /v1/models` response body via the same `normalizeCatalogPayload`
+ * the weekly catalog cron uses, so a rich OpenRouter-shaped response yields the
+ * full capability facts (cost, context window, reasoning, …) while a sparse
+ * OpenAI-compatible `{ id }` response degrades to id-only entries. Returns both
+ * the full normalized rows (for persisting to the capability cache) and the
+ * trimmed `{ id, displayName }` list the UI renders. Throws
+ * `PROVIDER_FETCH_FAILED` on non-JSON bodies or any shape that yields no ids.
+ * Shared by the connect-time and already-configured discovery actions so their
+ * parsing can't drift.
  */
-function parseProviderModelsList(body: string): Array<{ id: string }> {
+function parseProviderModelsList(body: string): {
+  models: FetchedModel[];
+  capabilities: NormalizedCapability[];
+} {
   let json: unknown;
   try {
     json = JSON.parse(body);
@@ -1591,28 +1609,57 @@ function parseProviderModelsList(body: string): Array<{ id: string }> {
       message: 'Provider returned non-JSON response',
     });
   }
-  if (
-    json == null ||
-    typeof json !== 'object' ||
-    !('data' in json) ||
-    !Array.isArray(json.data)
-  ) {
+  const isOpenAiShape =
+    json != null &&
+    typeof json === 'object' &&
+    'data' in json &&
+    Array.isArray(json.data);
+  // `normalizeCatalogPayload` accepts both `{ data: [...] }` and a bare array;
+  // reject anything else up front so the operator sees a clear shape error
+  // rather than a silent empty list.
+  if (!isOpenAiShape && !Array.isArray(json)) {
     throw new ConvexError({
       code: 'PROVIDER_FETCH_FAILED',
       message:
         'Unexpected response format: expected { data: [...] } from /v1/models',
     });
   }
-  return json.data
-    .filter(
-      (m): m is { id: string } =>
-        m != null &&
-        typeof m === 'object' &&
-        'id' in m &&
-        typeof m.id === 'string',
-    )
-    .map((m) => ({ id: m.id }))
+  const capabilities = normalizeCatalogPayload(json);
+  const models = capabilities
+    .map((c) => ({
+      id: c.modelId,
+      ...(c.displayName ? { displayName: c.displayName } : {}),
+    }))
     .sort((a, b) => a.id.localeCompare(b.id));
+  return { models, capabilities };
+}
+
+/** Persist freshly-fetched capability rows into `modelCapabilityCache`, exactly
+ *  as the weekly cron does (chunked, `displayName`/`isChat` projected off since
+ *  the cache table stores only runtime fields). Never throws — a cache write
+ *  failure must not fail the user-facing model-list fetch. */
+async function persistFetchedCapabilities(
+  ctx: ActionCtx,
+  source: string,
+  capabilities: NormalizedCapability[],
+  fetchedAt: number,
+): Promise<void> {
+  const CHUNK = 100;
+  try {
+    for (let i = 0; i < capabilities.length; i += CHUNK) {
+      const chunk = capabilities
+        .slice(i, i + CHUNK)
+        .map(({ displayName: _displayName, isChat: _isChat, ...row }) => row);
+      await ctx.runMutation(
+        internal.model_catalog.mutations.upsertCapabilities,
+        { source, fetchedAt, entries: chunk },
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[fetchProviderModels] failed to cache capabilities from ${source}: ${sanitizeError(err)}`,
+    );
+  }
 }
 
 /**
@@ -1625,8 +1672,10 @@ export const fetchProviderModels = action({
     baseUrl: v.string(),
     apiKey: v.string(),
   },
-  returns: v.array(v.object({ id: v.string() })),
-  handler: async (ctx, args): Promise<Array<{ id: string }>> => {
+  returns: v.array(
+    v.object({ id: v.string(), displayName: v.optional(v.string()) }),
+  ),
+  handler: async (ctx, args): Promise<FetchedModel[]> => {
     // Same gate as the rest of the provider mutations — operators with
     // developerSettings access only. Pre-this-fix, this action accepted any
     // authenticated user (`authComponent.getAuthUser`) and any baseUrl, which
@@ -1679,7 +1728,16 @@ export const fetchProviderModels = action({
       });
     }
 
-    return parseProviderModelsList(response.body);
+    const { models, capabilities } = parseProviderModelsList(response.body);
+    // Connect-time fetch isn't yet bound to a provider slug; stamp the cache
+    // with the canonical catalog source so these rows merge with the cron's.
+    await persistFetchedCapabilities(
+      ctx,
+      'openrouter',
+      capabilities,
+      Date.now(),
+    );
+    return models;
   },
 });
 
@@ -1689,8 +1747,10 @@ export const fetchProviderModels = action({
 
 export const fetchConfiguredProviderModels = action({
   args: { organizationId: v.string(), providerName: v.string() },
-  returns: v.array(v.object({ id: v.string() })),
-  handler: async (ctx, args): Promise<Array<{ id: string }>> => {
+  returns: v.array(
+    v.object({ id: v.string(), displayName: v.optional(v.string()) }),
+  ),
+  handler: async (ctx, args): Promise<FetchedModel[]> => {
     const { orgSlug } = await requireDeveloperSettingsAccessById(
       ctx,
       args.organizationId,
@@ -1783,7 +1843,14 @@ export const fetchConfiguredProviderModels = action({
       });
     }
 
-    return parseProviderModelsList(response.body);
+    const { models, capabilities } = parseProviderModelsList(response.body);
+    await persistFetchedCapabilities(
+      ctx,
+      args.providerName,
+      capabilities,
+      Date.now(),
+    );
+    return models;
   },
 });
 

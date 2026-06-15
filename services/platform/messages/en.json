@@ -904,7 +904,21 @@
       "noApiKey": "No API key configured for this model's provider — add one in Settings → AI providers.",
       "info": {
         "provider": "Provider",
-        "type": "Type"
+        "type": "Type",
+        "contextWindow": "Context",
+        "maxOutput": "Max output",
+        "inputCost": "Input cost",
+        "outputCost": "Output cost",
+        "reasoning": "Reasoning",
+        "promptCaching": "Prompt caching",
+        "tools": "Tools",
+        "vision": "Vision",
+        "supported": "Supported",
+        "notSupported": "Not supported",
+        "reasoningEffort": "Effort levels",
+        "reasoningBudget": "Token budget",
+        "cachingExplicit": "Manual breakpoints",
+        "cachingAuto": "Automatic"
       },
       "tags": {
         "chat": "Chat",
@@ -3658,7 +3672,7 @@
       "url": "URL",
       "command": "Command",
       "args": "Arguments",
-      "authType": "Authentication",
+      "authType": "Method",
       "apiKey": "API Key",
       "oauth2": "OAuth 2.0",
       "save": "Save server",

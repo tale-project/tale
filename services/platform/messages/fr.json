@@ -905,7 +905,21 @@
       "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → Fournisseurs d’IA.",
       "info": {
         "provider": "Fournisseur",
-        "type": "Type"
+        "type": "Type",
+        "contextWindow": "Contexte",
+        "maxOutput": "Sortie max.",
+        "inputCost": "Coût d'entrée",
+        "outputCost": "Coût de sortie",
+        "reasoning": "Raisonnement",
+        "promptCaching": "Mise en cache des prompts",
+        "tools": "Outils",
+        "vision": "Vision",
+        "supported": "Pris en charge",
+        "notSupported": "Non pris en charge",
+        "reasoningEffort": "Niveaux d'effort",
+        "reasoningBudget": "Budget de tokens",
+        "cachingExplicit": "Points de rupture manuels",
+        "cachingAuto": "Automatique"
       },
       "tags": {
         "chat": "Chat",
@@ -3659,7 +3673,7 @@
       "url": "URL",
       "command": "Commande",
       "args": "Arguments",
-      "authType": "Authentification",
+      "authType": "Méthode",
       "apiKey": "Clé API",
       "oauth2": "OAuth 2.0",
       "save": "Enregistrer le serveur",

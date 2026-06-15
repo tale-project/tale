@@ -4,7 +4,7 @@ import { Button } from '@tale/ui/button';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Plus } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -29,6 +29,8 @@ export interface ModelSelectorProps {
   getDisplayName: (modelId: string) => string;
   /** Resolve the provider name that will serve this model (optional). */
   getProviderName?: (modelId: string) => string | undefined;
+  /** Optional trailing affordance per selected model (e.g. an info popover). */
+  renderItemAction?: (modelId: string) => ReactNode;
   /** Minimum number of models required (default 1) */
   minModels?: number;
   /** When true, hides drag/reorder controls */
@@ -43,6 +45,7 @@ function ModelSelectorBase({
   availableOptions,
   getDisplayName,
   getProviderName,
+  renderItemAction,
   minModels = 1,
   readonlyOrder = false,
 }: ModelSelectorProps) {
@@ -114,13 +117,18 @@ function ModelSelectorBase({
         renderItem={({ item }) => {
           const providerName = getProviderName?.(item.modelId);
           return (
-            <div className="flex min-w-0 items-baseline gap-2">
+            <div className="flex min-w-0 flex-1 items-baseline gap-2">
               <code className="truncate text-sm">
                 {getDisplayName(item.modelId)}
               </code>
               {providerName ? (
                 <span className="text-muted-foreground flex-shrink-0 text-xs">
                   {providerName}
+                </span>
+              ) : null}
+              {renderItemAction ? (
+                <span className="ml-auto shrink-0">
+                  {renderItemAction(item.modelId)}
                 </span>
               ) : null}
             </div>

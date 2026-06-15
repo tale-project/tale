@@ -16,7 +16,10 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
-import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import {
+  useListProviders,
+  useModelCapabilities,
+} from '@/app/features/settings/providers/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import {
   expandModelVariants,
@@ -30,7 +33,7 @@ import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useChatAgents } from '../../hooks/queries';
 import { useEffectiveAgent } from '../../hooks/use-effective-agent';
-import { ModelTagIcons } from '../model-tag-icons';
+import { ModelInfoPopover } from '../model-info-popover';
 import { useArenaMode } from './arena-mode-context';
 
 interface ArenaModelSelectorProps {
@@ -91,13 +94,25 @@ export function ArenaModelSelector({
     return map;
   }, [providers, locale]);
 
-  const renderTagIcons = useCallback(
+  const capabilities = useModelCapabilities(organizationId, [
+    ...modelInfoMap.keys(),
+  ]);
+
+  const renderInfo = useCallback(
     (option: SearchableSelectOption): ReactNode => {
-      const info = modelInfoMap.get(stripModelRefQualifier(option.value));
-      if (!info?.tags.length) return null;
-      return <ModelTagIcons tags={info.tags} t={t} />;
+      const modelId = stripModelRefQualifier(option.value);
+      const info = modelInfoMap.get(modelId);
+      if (!info) return null;
+      return (
+        <ModelInfoPopover
+          description={info.description}
+          tags={info.tags}
+          capabilities={capabilities.get(modelId)}
+          organizationId={organizationId}
+        />
+      );
     },
-    [modelInfoMap, t],
+    [modelInfoMap, capabilities, organizationId],
   );
 
   const getDisplayName = useCallback(
@@ -207,7 +222,7 @@ export function ArenaModelSelector({
           searchPlaceholder={t('modelSelector.searchPlaceholder')}
           emptyText={t('modelSelector.noResults')}
           aria-label={t('arena.modelA')}
-          optionAction={renderTagIcons}
+          optionAction={renderInfo}
           trigger={
             <button
               type="button"
@@ -241,7 +256,7 @@ export function ArenaModelSelector({
           searchPlaceholder={t('modelSelector.searchPlaceholder')}
           emptyText={t('modelSelector.noResults')}
           aria-label={t('arena.modelB')}
-          optionAction={renderTagIcons}
+          optionAction={renderInfo}
           trigger={
             <button
               type="button"

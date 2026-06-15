@@ -5,11 +5,12 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Select } from '@/app/components/ui/forms/select';
+import { ModelInfoPopover } from '@/app/features/chat/components/model-info-popover';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useSaveProvider } from '../hooks/mutations';
-import { useReadProvider } from '../hooks/queries';
+import { useModelCapabilities, useReadProvider } from '../hooks/queries';
 import { modelTagLabel } from '../utils/model-tag-label';
 
 const NONE_VALUE = '__none__';
@@ -96,6 +97,11 @@ export function ProviderDefaultModelsPanel({
 
   const models = data?.ok ? data.config.models : [];
 
+  const capabilities = useModelCapabilities(
+    organizationId,
+    models.map((m) => m.id),
+  );
+
   return (
     <FormDialog
       open={open}
@@ -114,25 +120,44 @@ export function ProviderDefaultModelsPanel({
         const modelsWithTag = models.filter((m) =>
           (m.tags as readonly string[]).includes(tag),
         );
+        const selectedId = defaults[tag];
+        const selected =
+          selectedId && selectedId !== NONE_VALUE
+            ? modelsWithTag.find((m) => m.id === selectedId)
+            : undefined;
         return (
-          <Select
-            key={tag}
-            label={modelTagLabel(tag, t)}
-            options={[
-              {
-                value: NONE_VALUE,
-                label: t('providers.defaultNone'),
-              },
-              ...modelsWithTag.map((m) => ({
-                value: m.id,
-                label: m.displayName,
-              })),
-            ]}
-            value={defaults[tag] ?? NONE_VALUE}
-            onValueChange={(value) =>
-              setDefaults((d) => ({ ...d, [tag]: value }))
-            }
-          />
+          <div key={tag} className="flex items-end gap-2">
+            <Select
+              wrapperClassName="flex-1"
+              label={modelTagLabel(tag, t)}
+              options={[
+                {
+                  value: NONE_VALUE,
+                  label: t('providers.defaultNone'),
+                },
+                ...modelsWithTag.map((m) => ({
+                  value: m.id,
+                  label: m.displayName,
+                })),
+              ]}
+              value={defaults[tag] ?? NONE_VALUE}
+              onValueChange={(value) =>
+                setDefaults((d) => ({ ...d, [tag]: value }))
+              }
+            />
+            {/* Match the default trigger's height (h-10) so the info icon
+                centers against the select, not its label. */}
+            <div className="flex h-10 items-center">
+              {selected ? (
+                <ModelInfoPopover
+                  tags={selected.tags as string[]}
+                  capabilities={capabilities.get(selected.id)}
+                  organizationId={organizationId}
+                  triggerClassName="mt-0"
+                />
+              ) : null}
+            </div>
+          </div>
         );
       })}
     </FormDialog>

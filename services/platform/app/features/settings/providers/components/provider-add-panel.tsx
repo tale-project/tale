@@ -74,6 +74,11 @@ export function ProviderAddPanel({
 
   // Fetched model IDs from the provider endpoint
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  // Human-readable names the provider reported, keyed by id, so fetched rows
+  // show e.g. "Claude Opus (latest)" instead of the raw `~anthropic/...` id.
+  const [fetchedNames, setFetchedNames] = useState<Map<string, string>>(
+    () => new Map(),
+  );
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
@@ -199,6 +204,7 @@ export function ProviderAddPanel({
       fetchCredsApiKey !== fetchedCredentials.apiKey
     ) {
       setFetchedModels([]);
+      setFetchedNames(new Map());
       setHasFetched(false);
       setFetchError(null);
       setFetchedCredentials(null);
@@ -216,6 +222,13 @@ export function ProviderAddPanel({
       const result = await fetchModels({ organizationId, baseUrl, apiKey });
       const ids = result.map((m) => m.id);
       setFetchedModels(ids);
+      setFetchedNames(
+        new Map(
+          result.flatMap((m) =>
+            m.displayName ? [[m.id, m.displayName] as const] : [],
+          ),
+        ),
+      );
       // Fetched models default to UNCHECKED. Selecting a row IS the add
       // action, so we don't pre-append anything to the form here.
       setHasFetched(true);
@@ -238,12 +251,16 @@ export function ProviderAddPanel({
     (modelId: string, checked: boolean) => {
       const idx = watchedModels.findIndex((m) => m.id === modelId);
       if (checked && idx === -1) {
-        append({ id: modelId, displayName: modelId, tags: ['chat'] });
+        append({
+          id: modelId,
+          displayName: fetchedNames.get(modelId) ?? modelId,
+          tags: ['chat'],
+        });
       } else if (!checked && idx !== -1) {
         remove(idx);
       }
     },
-    [watchedModels, append, remove],
+    [watchedModels, fetchedNames, append, remove],
   );
 
   // Unified row list: fetched models (in provider order) followed by any
@@ -409,6 +426,7 @@ export function ProviderAddPanel({
       if (!isOpen) {
         reset();
         setFetchedModels([]);
+        setFetchedNames(new Map());
         setFetchError(null);
         setHasFetched(false);
         setModelSearch('');
@@ -553,6 +571,7 @@ export function ProviderAddPanel({
       onOpenChange={handleOpenChange}
       title={t('providers.addProvider')}
       size="md"
+      resize={{ storageKey: 'provider-add-panel-width' }}
       hideClose
       className="flex flex-col gap-0 overflow-hidden p-0"
     >
@@ -762,7 +781,9 @@ export function ProviderAddPanel({
                               />
                             )}
                             <Text className="truncate text-[13px] font-medium">
-                              {model?.displayName ?? row.id}
+                              {model?.displayName ??
+                                fetchedNames.get(row.id) ??
+                                row.id}
                             </Text>
                           </HStack>
                           <HStack gap={3} align="center" className="shrink-0">
