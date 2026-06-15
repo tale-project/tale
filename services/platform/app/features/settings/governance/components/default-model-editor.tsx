@@ -20,9 +20,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
-import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import { ModelInfoPopover } from '@/app/features/chat/components/model-info-popover';
+import {
+  useListProviders,
+  useModelCapabilities,
+} from '@/app/features/settings/providers/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -143,6 +150,7 @@ interface RuleDialogProps {
   teamOptions: { value: string; label: string }[];
   providerList: ProviderInfo[];
   accessConfig: ModelAccessConfig | null;
+  organizationId: string;
 }
 
 const PLACEHOLDER_ROW_COUNT = 3;
@@ -157,6 +165,7 @@ function RuleDialog({
   teamOptions,
   providerList,
   accessConfig,
+  organizationId,
 }: RuleDialogProps) {
   const { t } = useT('governance');
   const [draft, setDraft] = useState(initialRule);
@@ -204,16 +213,45 @@ function RuleDialog({
     [providerList],
   );
 
-  const modelOptions = useMemo(() => {
+  const chatModels = useMemo(() => {
     const provider = providerList.find((p) => p.name === draft.providerName);
-    if (!provider) return [];
-    return provider.models
-      .filter((m) => m.tags.includes('chat'))
-      .map((m) => ({
+    return provider?.models.filter((m) => m.tags.includes('chat')) ?? [];
+  }, [providerList, draft.providerName]);
+
+  const modelOptions = useMemo(
+    () =>
+      chatModels.map((m) => ({
         value: m.id,
         label: m.displayName || m.id,
-      }));
-  }, [providerList, draft.providerName]);
+      })),
+    [chatModels],
+  );
+
+  // Only subscribe to capabilities (a per-model indexed read fan-out) while the
+  // dialog is open — RuleDialog stays mounted when closed, so an ungated hook
+  // would keep a live subscription on this non-critical settings path.
+  const capabilities = useModelCapabilities(
+    organizationId,
+    useMemo(
+      () => (open ? chatModels.map((m) => m.id) : []),
+      [open, chatModels],
+    ),
+  );
+
+  const renderModelInfo = useCallback(
+    (option: SearchableSelectOption) => {
+      const model = chatModels.find((m) => m.id === option.value);
+      if (!model) return null;
+      return (
+        <ModelInfoPopover
+          tags={model.tags}
+          capabilities={capabilities.get(model.id)}
+          organizationId={organizationId}
+        />
+      );
+    },
+    [chatModels, capabilities, organizationId],
+  );
 
   const conflict = useMemo(
     () => computeAccessConflict(accessConfig, draft),
@@ -297,6 +335,7 @@ function RuleDialog({
           value={draft.modelId || null}
           onValueChange={(value) => updateDraft({ modelId: value })}
           options={modelOptions}
+          optionAction={renderModelInfo}
           searchPlaceholder={t('defaultModels.searchModels')}
           emptyText={t('defaultModels.noModelsFound')}
           aria-label={t('defaultModels.model')}
@@ -668,6 +707,7 @@ export function DefaultModelEditor({
           teamOptions={teamOptions}
           providerList={providerList}
           accessConfig={accessConfig}
+          organizationId={organizationId}
         />
 
         <ConfirmDialog

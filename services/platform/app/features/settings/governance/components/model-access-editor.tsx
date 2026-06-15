@@ -20,12 +20,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  type ModelInfoCapabilities,
+  ModelInfoPopover,
+} from '@/app/features/chat/components/model-info-popover';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
-import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import {
+  useListProviders,
+  useModelCapabilities,
+} from '@/app/features/settings/providers/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -145,7 +153,9 @@ interface RuleDialogProps {
   cannotManage: boolean;
   memberOptions: { value: string; label: string; description?: string }[];
   teamOptions: { value: string; label: string }[];
-  allModelOptions: { value: string; label: string }[];
+  allModelOptions: { value: string; label: string; tags: string[] }[];
+  modelCapabilities: Map<string, ModelInfoCapabilities>;
+  organizationId: string;
   mode: ModelAccessConfig['mode'];
 }
 
@@ -161,6 +171,8 @@ function RuleDialog({
   memberOptions,
   teamOptions,
   allModelOptions,
+  modelCapabilities,
+  organizationId,
   mode,
 }: RuleDialogProps) {
   const { t } = useT('governance');
@@ -267,22 +279,46 @@ function RuleDialog({
               ? t('modelAccess.allowedModels')
               : t('modelAccess.blockedModels')
           }
-          options={allModelOptions}
-          value={
-            mode === 'allowlist'
-              ? draft.allowedModels
-              : (draft.blockedModels ?? [])
-          }
-          onValueChange={(values) => {
-            if (mode === 'allowlist') {
-              updateDraft({ allowedModels: values });
-            } else {
-              updateDraft({ blockedModels: values });
-            }
-          }}
           disabled={cannotManage}
-          columns={2}
-        />
+        >
+          <div className="grid grid-cols-2 gap-2">
+            {allModelOptions.map((option) => {
+              const selected =
+                mode === 'allowlist'
+                  ? draft.allowedModels
+                  : (draft.blockedModels ?? []);
+              const checked = selected.includes(option.value);
+              const toggle = (next: boolean) => {
+                const values = next
+                  ? [...selected, option.value]
+                  : selected.filter((v) => v !== option.value);
+                if (mode === 'allowlist') {
+                  updateDraft({ allowedModels: values });
+                } else {
+                  updateDraft({ blockedModels: values });
+                }
+              };
+              return (
+                <div
+                  key={option.value}
+                  className="flex items-start justify-between gap-1"
+                >
+                  <Checkbox
+                    label={option.label}
+                    checked={checked}
+                    onCheckedChange={(c) => toggle(c === true)}
+                    disabled={cannotManage}
+                  />
+                  <ModelInfoPopover
+                    tags={option.tags}
+                    capabilities={modelCapabilities.get(option.value)}
+                    organizationId={organizationId}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </CheckboxGroup>
       </Stack>
     </FormDialog>
   );
@@ -339,7 +375,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   );
 
   const allModelOptions = useMemo(() => {
-    const options: { value: string; label: string }[] = [];
+    const options: { value: string; label: string; tags: string[] }[] = [];
     for (const provider of providers) {
       if (
         !provider ||
@@ -351,6 +387,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
         options.push({
           value: model.id,
           label: model.displayName || model.id,
+          tags: model.tags ?? [],
         });
       }
     }
@@ -371,6 +408,16 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dialogRule, setDialogRule] = useState(emptyRule());
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
+
+  // Capabilities power the per-model info popover inside the rule dialog only,
+  // so don't subscribe (a per-model indexed read fan-out) until it's open.
+  const modelCapabilities = useModelCapabilities(
+    organizationId,
+    useMemo(
+      () => (dialogOpen ? allModelOptions.map((o) => o.value) : []),
+      [dialogOpen, allModelOptions],
+    ),
+  );
 
   // Pending save + affected-defaults confirmation state.
   const [pendingSave, setPendingSave] = useState<{
@@ -707,6 +754,8 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
             memberOptions={memberOptions}
             teamOptions={teamOptions}
             allModelOptions={allModelOptions}
+            modelCapabilities={modelCapabilities}
+            organizationId={organizationId}
             mode={mode}
           />
         )}

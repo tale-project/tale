@@ -904,7 +904,21 @@
       "noApiKey": "Für den Anbieter dieses Modells ist kein API-Schlüssel konfiguriert — füge in Einstellungen → KI-Anbieter einen hinzu.",
       "info": {
         "provider": "Anbieter",
-        "type": "Typ"
+        "type": "Typ",
+        "contextWindow": "Kontext",
+        "maxOutput": "Max. Ausgabe",
+        "inputCost": "Eingabekosten",
+        "outputCost": "Ausgabekosten",
+        "reasoning": "Reasoning",
+        "promptCaching": "Prompt-Caching",
+        "tools": "Tools",
+        "vision": "Vision",
+        "supported": "Unterstützt",
+        "notSupported": "Nicht unterstützt",
+        "reasoningEffort": "Aufwandsstufen",
+        "reasoningBudget": "Token-Budget",
+        "cachingExplicit": "Manuelle Breakpoints",
+        "cachingAuto": "Automatisch"
       },
       "tags": {
         "chat": "Chat",
@@ -3658,7 +3672,7 @@
       "url": "URL",
       "command": "Befehl",
       "args": "Argumente",
-      "authType": "Authentifizierung",
+      "authType": "Methode",
       "apiKey": "API-Key",
       "oauth2": "OAuth 2.0",
       "save": "Server speichern",
@@ -3678,7 +3692,8 @@
     "tools": {
       "title": "Erkannte Tools",
       "noTools": "Keine Tools erkannt. Teste zuerst die Verbindung.",
-      "requiresApproval": "Genehmigung erforderlich"
+      "requiresApproval": "Genehmigung erforderlich",
+      "count": "{count, plural, one {# Tool} other {# Tools}}"
     },
     "saved": "MCP-Server gespeichert",
     "deleted": "MCP-Server gelöscht"

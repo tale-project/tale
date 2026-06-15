@@ -5,9 +5,9 @@ import { Card } from '@tale/ui/card';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Heading } from '@tale/ui/heading';
 import { IconButton } from '@tale/ui/icon-button';
-import { Center, HStack, Stack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Ellipsis, Pencil, Server, Trash2, Wrench } from 'lucide-react';
+import { Ellipsis, Pencil, Trash2, Wrench } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -26,20 +26,32 @@ function StatusBadge({ status }: { status: string }) {
 
   if (status === 'active') {
     return (
-      <Badge variant="green" dot>
+      <Badge variant="green" dot className="shrink-0">
         {t('connected')}
       </Badge>
     );
   }
   if (status === 'error') {
-    return <Badge variant="destructive">{t('error')}</Badge>;
+    return (
+      <Badge variant="destructive" className="shrink-0">
+        {t('error')}
+      </Badge>
+    );
   }
-  return <Badge variant="outline">{t('disconnected')}</Badge>;
+  return (
+    <Badge variant="outline" className="shrink-0">
+      {t('disconnected')}
+    </Badge>
+  );
 }
 
 function TransportBadge({ type }: { type: string }) {
   const label = type === 'stdio' ? 'stdio' : type === 'sse' ? 'SSE' : 'HTTP';
-  return <Badge variant="blue">{label}</Badge>;
+  return (
+    <Badge variant="blue" className="shrink-0">
+      {label}
+    </Badge>
+  );
 }
 
 export function McpServerCard({
@@ -102,13 +114,7 @@ export function McpServerCard({
           className="w-full p-5 text-left outline-none"
         >
           <Stack gap={3}>
-            <HStack justify="between" align="start">
-              <Center className="border-border size-11 rounded-lg border">
-                <Server className="text-muted-foreground size-6" />
-              </Center>
-              <StatusBadge status={server.status} />
-            </HStack>
-            <Stack gap={1}>
+            <Stack gap={2}>
               <Heading
                 level={3}
                 size="base"
@@ -117,30 +123,35 @@ export function McpServerCard({
               >
                 {server.displayName}
               </Heading>
-              {server.description && (
-                <Text variant="muted" className="line-clamp-2 leading-[1.43]">
-                  {server.description}
-                </Text>
-              )}
+              <HStack gap={2} align="center" wrap>
+                <StatusBadge status={server.status} />
+                <TransportBadge type={server.transportType} />
+              </HStack>
             </Stack>
-            <HStack gap={2} align="center">
-              <TransportBadge type={server.transportType} />
-              {server.authType !== 'none' && (
-                <Badge variant="outline">
-                  {server.authType === 'api_key'
-                    ? t('form.apiKey')
-                    : t('form.oauth2')}
-                </Badge>
-              )}
-              {toolCount > 0 && (
-                <HStack gap={1} align="center">
-                  <Wrench className="text-muted-foreground size-3.5" />
-                  <Text variant="muted" className="text-xs">
-                    {toolCount} {toolCount === 1 ? 'tool' : 'tools'}
-                  </Text>
-                </HStack>
-              )}
-            </HStack>
+            {server.description && (
+              <Text variant="muted" className="line-clamp-2 leading-[1.43]">
+                {server.description}
+              </Text>
+            )}
+            {(server.authType !== 'none' || toolCount > 0) && (
+              <HStack gap={2} align="center" className="pr-10">
+                {server.authType !== 'none' && (
+                  <Badge variant="outline">
+                    {server.authType === 'api_key'
+                      ? t('form.apiKey')
+                      : t('form.oauth2')}
+                  </Badge>
+                )}
+                {toolCount > 0 && (
+                  <HStack gap={1} align="center">
+                    <Wrench className="text-muted-foreground size-3.5" />
+                    <Text variant="muted" className="text-xs">
+                      {t('tools.count', { count: toolCount })}
+                    </Text>
+                  </HStack>
+                )}
+              </HStack>
+            )}
           </Stack>
         </button>
       </div>

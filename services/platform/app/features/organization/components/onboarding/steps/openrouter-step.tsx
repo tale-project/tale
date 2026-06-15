@@ -115,7 +115,7 @@ export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
       if (models.length === 0) {
         models = fetched.slice(0, FALLBACK_MODEL_CAP).map((m) => ({
           id: m.id,
-          displayName: m.id,
+          displayName: m.displayName ?? m.id,
           tags: ['chat' as const],
         }));
       }

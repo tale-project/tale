@@ -33,6 +33,7 @@ import type {
   StepDef,
 } from '@/app/features/automations/utils/step-icons';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import { api } from '@/convex/_generated/api';
@@ -364,7 +365,10 @@ function AutomationDetailInner({
     workflowSlug,
   );
   const [isAIChatOpen, setIsAIChatOpen] = useState(true);
-  const [panelWidth, setPanelWidth] = useState(384);
+  const [panelWidth, setPanelWidth] = usePersistedState(
+    'automation-side-panel-width',
+    384,
+  );
 
   const { state: panelState, clearAll: clearPanelUrlState } = useUrlState({
     definitions: AUTOMATION_PANEL_URL_DEFINITIONS,

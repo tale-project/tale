@@ -59,6 +59,7 @@ const STABLE_PROVIDERS = {
 };
 vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
   useListProviders: () => STABLE_PROVIDERS,
+  useModelCapabilities: () => new Map(),
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({

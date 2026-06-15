@@ -16,8 +16,12 @@ import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useTranslateAgentFields } from '@/app/features/agents/hooks/mutations';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
+import { ModelInfoPopover } from '@/app/features/chat/components/model-info-popover';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
-import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import {
+  useListProviders,
+  useModelCapabilities,
+} from '@/app/features/settings/providers/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
 import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
@@ -198,6 +202,27 @@ function InstructionsTab() {
     return map;
   }, [providers]);
 
+  // Capability tags per bare model id, for the info popover's "Type" row.
+  const modelTagsMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const provider of providers) {
+      if (
+        !provider ||
+        !('models' in provider) ||
+        !Array.isArray(provider.models)
+      )
+        continue;
+      for (const model of provider.models) map.set(model.id, model.tags ?? []);
+    }
+    return map;
+  }, [providers]);
+
+  // Cached catalog capabilities keyed by bare model id, for the info popover.
+  const capabilities = useModelCapabilities(
+    organizationId,
+    useMemo(() => [...modelTagsMap.keys()], [modelTagsMap]),
+  );
+
   const availableOptions = useMemo(() => {
     // Each entry is a *concrete* selectable ref — for models with a
     // `quantizations` array, that's one entry per declared variant. The base
@@ -318,6 +343,21 @@ function InstructionsTab() {
     [modelProvidersMap],
   );
 
+  const renderItemAction = useCallback(
+    (ref: string) => {
+      const { modelId } = parseModelRef(ref);
+      return (
+        <ModelInfoPopover
+          providerName={getProviderName(ref)}
+          tags={modelTagsMap.get(modelId) ?? []}
+          capabilities={capabilities.get(modelId)}
+          organizationId={organizationId}
+        />
+      );
+    },
+    [modelTagsMap, capabilities, organizationId, getProviderName],
+  );
+
   const handleModelsChange = useCallback(
     (models: string[]) => {
       updateConfig({ supportedModels: models });
@@ -404,6 +444,7 @@ function InstructionsTab() {
           availableOptions={availableOptions}
           getDisplayName={getDisplayName}
           getProviderName={getProviderName}
+          renderItemAction={renderItemAction}
         />
       </PageSection>
 

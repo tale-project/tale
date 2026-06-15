@@ -14,7 +14,11 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import { ModelInfoPopover } from '@/app/features/chat/components/model-info-popover';
+import {
+  useListProviders,
+  useModelCapabilities,
+} from '@/app/features/settings/providers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
@@ -64,8 +68,14 @@ export function CreateAgentDialog({
   // Every model across all configured providers, as qualified refs. Used both
   // to seed the default and to resolve display/provider names for the list.
   const modelCatalog = useMemo(() => {
-    const all: { ref: string; displayName: string; providerName: string }[] =
-      [];
+    const all: {
+      ref: string;
+      modelId: string;
+      displayName: string;
+      description?: string;
+      tags: string[];
+      providerName: string;
+    }[] = [];
     for (const provider of providers) {
       if (
         !provider ||
@@ -81,13 +91,40 @@ export function CreateAgentDialog({
         all.push({
           // Qualified form pins routing to this exact provider.
           ref: `${provider.name}:${model.id}`,
+          modelId: model.id,
           displayName: resolved.displayName || model.displayName,
+          description: resolved.description || undefined,
+          tags: model.tags ?? [],
           providerName: provider.name,
         });
       }
     }
     return all;
   }, [providers, locale]);
+
+  // Cached catalog capabilities keyed by bare model id (refs here are qualified
+  // `provider:id`), for the per-model info popover.
+  const capabilities = useModelCapabilities(
+    organizationId,
+    useMemo(() => modelCatalog.map((m) => m.modelId), [modelCatalog]),
+  );
+
+  const renderItemAction = useCallback(
+    (ref: string) => {
+      const entry = modelCatalog.find((m) => m.ref === ref);
+      if (!entry) return null;
+      return (
+        <ModelInfoPopover
+          providerName={entry.providerName}
+          description={entry.description}
+          tags={entry.tags}
+          capabilities={capabilities.get(entry.modelId)}
+          organizationId={organizationId}
+        />
+      );
+    },
+    [modelCatalog, capabilities, organizationId],
+  );
 
   // No models means no provider is configured (or none exposes a model).
   // An agent must reference a real model, so creation can't proceed until one
@@ -326,6 +363,7 @@ export function CreateAgentDialog({
             availableOptions={availableOptions}
             getDisplayName={getDisplayName}
             getProviderName={getProviderName}
+            renderItemAction={renderItemAction}
           />
           <Text variant="caption">
             {t('agents.createDialog.modelDefaultHint')}

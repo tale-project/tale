@@ -142,6 +142,7 @@ export function ProviderDetailDrawer({
       onOpenChange={onOpenChange}
       title={t('providers.details')}
       size="md"
+      resize={{ storageKey: 'provider-detail-drawer-width' }}
       hideClose
       className="flex flex-col gap-0 p-0"
     >
@@ -1023,6 +1024,11 @@ function ModelsSection({
   // endpoint. Configured models live in config.models — this list holds the
   // delta the user can opt into via checkbox.
   const [fetchedModelIds, setFetchedModelIds] = useState<string[]>([]);
+  // Human-readable names the provider reported alongside the ids, so fetched
+  // rows show "Claude Opus (latest)" instead of the raw `~anthropic/...` id.
+  const [fetchedNames, setFetchedNames] = useState<Map<string, string>>(
+    () => new Map(),
+  );
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [confirmAddModel, setConfirmAddModel] = useState<string | null>(null);
@@ -1037,6 +1043,13 @@ function ModelsSection({
         providerName,
       });
       setFetchedModelIds(result.map((m) => m.id));
+      setFetchedNames(
+        new Map(
+          result.flatMap((m) =>
+            m.displayName ? [[m.id, m.displayName] as const] : [],
+          ),
+        ),
+      );
       setHasFetched(true);
     } catch (err) {
       console.error('Failed to fetch provider models:', err);
@@ -1059,7 +1072,7 @@ function ModelsSection({
         ...config.models,
         {
           id: modelId,
-          displayName: modelId,
+          displayName: fetchedNames.get(modelId) ?? modelId,
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 'chat' is a valid modelTagLiterals member
           tags: ['chat'] as Array<(typeof modelTagLiterals)[number]>,
         },
@@ -1073,7 +1086,7 @@ function ModelsSection({
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
-    [config.models, saveConfig, t, tAccessDenied],
+    [config.models, fetchedNames, saveConfig, t, tAccessDenied],
   );
 
   // Cached OpenRouter capabilities for the configured models (+ the model
@@ -1728,7 +1741,9 @@ function ModelsSection({
                       </SkeletonBox>
                       <Text className="truncate text-[13px] font-medium">
                         <SkeletonBox>
-                          {model?.displayName ?? row.id}
+                          {model?.displayName ??
+                            fetchedNames.get(row.id) ??
+                            row.id}
                         </SkeletonBox>
                       </Text>
                     </HStack>

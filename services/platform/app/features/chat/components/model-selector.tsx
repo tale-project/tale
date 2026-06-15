@@ -24,7 +24,10 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
-import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import {
+  useListProviders,
+  useModelCapabilities,
+} from '@/app/features/settings/providers/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -143,6 +146,12 @@ export const ModelSelector = memo(function ModelSelector({
     return map;
   }, [providers, locale]);
 
+  // Cached catalog capabilities (cost, context, reasoning, …) for every model
+  // we might render, keyed by id — powers the info popover's detail rows.
+  const capabilities = useModelCapabilities(organizationId, [
+    ...modelInfoMap.keys(),
+  ]);
+
   // Return the provider's slug (its JSON filename without extension) — this
   // is the stable, machine-readable identifier users write in model refs,
   // not the cosmetic `displayName` from the provider JSON.
@@ -161,7 +170,8 @@ export const ModelSelector = memo(function ModelSelector({
   // capability-icon strip + sliders settings link with one consolidated control.
   const renderOptionAction = useCallback(
     (option: SearchableSelectOption): ReactNode => {
-      const info = modelInfoMap.get(stripModelRefQualifier(option.value));
+      const modelId = stripModelRefQualifier(option.value);
+      const info = modelInfoMap.get(modelId);
       const providerSlug = canSetUpProviders
         ? getProviderSlug(option.value)
         : undefined;
@@ -172,14 +182,20 @@ export const ModelSelector = memo(function ModelSelector({
             providerName={info.providerDisplayName}
             description={info.description}
             tags={info.tags}
+            capabilities={capabilities.get(modelId)}
             providerSlug={providerSlug}
             organizationId={organizationId}
-            t={t}
           />
         </div>
       );
     },
-    [modelInfoMap, canSetUpProviders, getProviderSlug, organizationId, t],
+    [
+      modelInfoMap,
+      capabilities,
+      canSetUpProviders,
+      getProviderSlug,
+      organizationId,
+    ],
   );
 
   const chatModels = useMemo(() => {

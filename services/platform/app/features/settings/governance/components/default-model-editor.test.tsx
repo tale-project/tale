@@ -53,6 +53,7 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
 }));
 
 vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
+  useModelCapabilities: () => new Map(),
   useListProviders: () => ({
     providers: [
       {

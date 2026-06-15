@@ -6,6 +6,9 @@ import { Link } from '@tanstack/react-router';
 import { Info } from 'lucide-react';
 import { useState } from 'react';
 
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
 const TAG_LABEL_KEYS: Record<string, string> = {
   chat: 'modelSelector.tags.chat',
   vision: 'modelSelector.tags.vision',
@@ -32,6 +35,20 @@ function InfoRow({ label, children }: InfoRowProps) {
   );
 }
 
+/** The capability fields surfaced in the popover — a structural subset of the
+ *  `getModelCapabilities` query row, so callers can pass that row straight
+ *  through. All optional: the source only reports what it knows. */
+export interface ModelInfoCapabilities {
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  inputCentsPerMillion?: number;
+  outputCentsPerMillion?: number;
+  reasoning?: { knob: 'effort' | 'budgetTokens' | 'none' };
+  promptCaching?: { mode: 'explicit-breakpoints' | 'auto-server' | 'none' };
+  supportsTools?: boolean;
+  supportsVision?: boolean;
+}
+
 interface ModelInfoPopoverProps {
   /** Human-readable provider name (the provider's displayName). */
   providerName?: string;
@@ -39,10 +56,35 @@ interface ModelInfoPopoverProps {
   description?: string;
   /** Capability tags for the model (chat, vision, …). */
   tags: string[];
+  /** Cached catalog capabilities (cost, context window, reasoning, …). When
+   *  present, each known field renders as its own row below provider/type. */
+  capabilities?: ModelInfoCapabilities;
   /** Provider slug for the settings link; omit to hide the link (non-admins). */
   providerSlug?: string;
   organizationId: string;
-  t: (key: string) => string;
+  /** Extra classes for the trigger button — e.g. `mt-0` to undo the default
+   *  list-baseline nudge when placed beside a form control instead of a row. */
+  triggerClassName?: string;
+}
+
+/** `1000000` → `1M`, `128000` → `128K`, smaller counts kept as-is. */
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+  }
+  if (n >= 1_000) {
+    const k = n / 1_000;
+    return `${Number.isInteger(k) ? k : k.toFixed(1)}K`;
+  }
+  return String(n);
+}
+
+/** Cents-per-million → a `$X/M` dollar string (the cache stores cents). */
+function formatCost(centsPerMillion: number): string {
+  const dollars = centsPerMillion / 100;
+  // Sub-dollar prices need cents precision; whole-dollar+ reads fine at 2dp.
+  return `$${dollars < 1 ? dollars.toFixed(3).replace(/0+$/, '').replace(/\.$/, '') : dollars.toFixed(2)}/M`;
 }
 
 /**
@@ -55,16 +97,31 @@ export function ModelInfoPopover({
   providerName,
   description,
   tags,
+  capabilities,
   providerSlug,
   organizationId,
-  t,
+  triggerClassName,
 }: ModelInfoPopoverProps) {
+  const { t } = useT('chat');
   const [open, setOpen] = useState(false);
 
   const typeLabels = tags
     .map((tag) => TAG_LABEL_KEYS[tag])
     .filter((key): key is string => Boolean(key))
     .map((key) => t(key));
+
+  const reasoningLabel =
+    capabilities?.reasoning && capabilities.reasoning.knob !== 'none'
+      ? capabilities.reasoning.knob === 'effort'
+        ? t('modelSelector.info.reasoningEffort')
+        : t('modelSelector.info.reasoningBudget')
+      : null;
+  const cachingLabel =
+    capabilities?.promptCaching && capabilities.promptCaching.mode !== 'none'
+      ? capabilities.promptCaching.mode === 'explicit-breakpoints'
+        ? t('modelSelector.info.cachingExplicit')
+        : t('modelSelector.info.cachingAuto')
+      : null;
 
   return (
     <Popover
@@ -79,7 +136,10 @@ export function ModelInfoPopover({
         <button
           type="button"
           aria-label={t('modelSelector.viewInfo')}
-          className="text-muted-foreground hover:text-foreground mt-0.5 flex items-center rounded-sm transition-colors"
+          className={cn(
+            'text-muted-foreground hover:text-foreground mt-0.5 flex items-center rounded-sm transition-colors',
+            triggerClassName,
+          )}
           // Stop the row's select-and-close handler: clicking info should open
           // the popover, not pick the model.
           onClick={(e) => e.stopPropagation()}
@@ -105,6 +165,66 @@ export function ModelInfoPopover({
         {typeLabels.length ? (
           <InfoRow label={t('modelSelector.info.type')}>
             <Text className="text-xs">{typeLabels.join(', ')}</Text>
+          </InfoRow>
+        ) : null}
+        {capabilities?.contextWindow ? (
+          <InfoRow label={t('modelSelector.info.contextWindow')}>
+            <Text className="text-xs">
+              {formatTokens(capabilities.contextWindow)}
+            </Text>
+          </InfoRow>
+        ) : null}
+        {capabilities?.maxOutputTokens ? (
+          <InfoRow label={t('modelSelector.info.maxOutput')}>
+            <Text className="text-xs">
+              {formatTokens(capabilities.maxOutputTokens)}
+            </Text>
+          </InfoRow>
+        ) : null}
+        {capabilities?.inputCentsPerMillion != null ? (
+          <InfoRow label={t('modelSelector.info.inputCost')}>
+            <Text className="text-xs">
+              {formatCost(capabilities.inputCentsPerMillion)}
+            </Text>
+          </InfoRow>
+        ) : null}
+        {capabilities?.outputCentsPerMillion != null ? (
+          <InfoRow label={t('modelSelector.info.outputCost')}>
+            <Text className="text-xs">
+              {formatCost(capabilities.outputCentsPerMillion)}
+            </Text>
+          </InfoRow>
+        ) : null}
+        {reasoningLabel ? (
+          <InfoRow label={t('modelSelector.info.reasoning')}>
+            <Text className="text-xs">{reasoningLabel}</Text>
+          </InfoRow>
+        ) : null}
+        {cachingLabel ? (
+          <InfoRow label={t('modelSelector.info.promptCaching')}>
+            <Text className="text-xs">{cachingLabel}</Text>
+          </InfoRow>
+        ) : null}
+        {capabilities?.supportsTools != null ? (
+          <InfoRow label={t('modelSelector.info.tools')}>
+            <Text className="text-xs">
+              {t(
+                capabilities.supportsTools
+                  ? 'modelSelector.info.supported'
+                  : 'modelSelector.info.notSupported',
+              )}
+            </Text>
+          </InfoRow>
+        ) : null}
+        {capabilities?.supportsVision != null ? (
+          <InfoRow label={t('modelSelector.info.vision')}>
+            <Text className="text-xs">
+              {t(
+                capabilities.supportsVision
+                  ? 'modelSelector.info.supported'
+                  : 'modelSelector.info.notSupported',
+              )}
+            </Text>
           </InfoRow>
         ) : null}
         {providerSlug ? (
