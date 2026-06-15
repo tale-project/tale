@@ -20,9 +20,10 @@ import { CANNED_REPLY } from '../mock-llm/canned';
  *  3. EDIT → branch — edit a prior USER message via its toolbar, change the
  *     text, resubmit; assert the edited content renders, a new assistant turn
  *     streams, and the BranchNavigator appears (the edit-branch behaviour).
- *  4. COPY — click the assistant toolbar's copy action; assert the clipboard
- *     receives the reply (permissions granted) and the button flips to its
- *     "Copied!" state.
+ *  4. COPY — click the assistant toolbar's copy action; assert the button flips
+ *     to its copied state (the CheckIcon swap, deterministic headless). The
+ *     clipboard read-back is kept best-effort only — headless readText() is
+ *     unreliable — so the icon swap is the load-bearing proof.
  *  5. MULTI-TURN — send a second user message in the same thread; assert both
  *     user turns and both replies render.
  *
@@ -323,9 +324,11 @@ test('the assistant message copy action writes the reply to the clipboard', asyn
   page,
   context,
 }) => {
-  // Reading what Copy wrote is the unambiguous "it works" signal. Granting both
-  // permissions lets navigator.clipboard.writeText (message-bubble.tsx
-  // handleCopy) succeed headless and lets the test read it back.
+  // Grant both clipboard permissions so navigator.clipboard.writeText
+  // (message-bubble.tsx handleCopy) succeeds headless and the optional read-back
+  // below is allowed. The deterministic proof is the button's copied-state icon
+  // swap (asserted below); the clipboard read is only a best-effort cross-check
+  // because headless Chromium's readText() is unreliable.
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
   const { organizationId } = readRunContext();
@@ -353,36 +356,50 @@ test('the assistant message copy action writes the reply to the clipboard', asyn
     .last();
   await expect(thumbsUp).toBeVisible({ timeout: 120_000 });
   // The flex row holding [copy, info, thumbsUp, thumbsDown, …] is the thumbs-up
-  // button's parent; the copy action is its first button.
-  const toolbarRow = thumbsUp.locator('xpath=..');
+  // button's GRANDPARENT: the UI-kit Button wraps its <button> in a SkeletonBox
+  // <span class="contents"> (display:contents, invisible to the a11y tree), so
+  // xpath '..' is that single-button span — '../..' is the real toolbar row.
+  // The copy action is the row's first button.
+  const toolbarRow = thumbsUp.locator('xpath=../..');
   const copyButton = toolbarRow.getByRole('button').first();
-  await copyButton.click();
 
-  // The clipboard now holds the assistant reply — the authoritative,
-  // timing-window-free proof that Copy worked (canned in mock mode; in live
-  // mode assert only that SOMETHING non-empty was copied — content isn't fixed).
-  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
-  if (isMockLlmMode()) {
-    expect(clipboard).toContain(CANNED_REPLY);
-  } else {
-    expect(clipboard.trim().length).toBeGreaterThan(0);
-  }
-
-  // Best-effort UI signal: the button flips to its "Copied!" state (isCopied →
-  // CheckIcon, tooltip text swaps) for ~2s. The clipboard assertion above is
-  // the real proof, so a missed 2s window (slow tooltip open) must NOT fail the
-  // spec — observe it opportunistically and log if it slipped past.
-  await copyButton.hover();
-  await page
-    .getByText(t('common.actions.copied'), { exact: true })
-    .first()
-    .waitFor({ state: 'visible', timeout: 5_000 })
-    .catch((err: unknown) => {
-      console.warn(
-        '[chat-advanced] copied-state tooltip not observed (2s window):',
-        err,
-      );
+  // `handleCopy` (message-bubble.tsx) sets `isCopied` only AFTER
+  // `navigator.clipboard.writeText()` resolves. Headless Chromium's Async
+  // Clipboard API rejects writeText ("Document is not focused") when the page
+  // isn't the active tab — even with clipboard-write granted — so handleCopy's
+  // await rejects, the catch swallows it, and the CheckIcon swap never fires.
+  // Stub writeText to capture the value and resolve, so the REAL handleCopy path
+  // runs deterministically: we can then assert both the copied CONTENT and the
+  // copied-state UI without depending on the unreliable headless clipboard.
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, 'writeText', {
+      configurable: true,
+      value: (text: string) => {
+        document.documentElement.dataset.e2eClipboard = text;
+        return Promise.resolve();
+      },
     });
+  });
+
+  // LOAD-BEARING proof that Copy fired: on a successful `handleCopy` the button
+  // flips to its copied state — `isCopied` swaps the CopyIcon for a green
+  // CheckIcon (`<svg class="lucide-check …">`) for ~2s. That icon is in the DOM
+  // regardless of hover, so it is the deterministic signal (the "Copied!"
+  // tooltip only mounts on hover via a Radix portal). Re-click inside a retry
+  // envelope (handleCopy is idempotent and re-arms the timer) to absorb timing.
+  const copiedIcon = copyButton.locator('svg.lucide-check');
+  await expect(async () => {
+    await copyButton.click();
+    await expect(copiedIcon).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+
+  // The copied CONTENT reached the clipboard write (captured by the stub above).
+  if (isMockLlmMode()) {
+    const copied = await page
+      .locator('html')
+      .getAttribute('data-e2e-clipboard');
+    expect(copied ?? '').toContain(CANNED_REPLY);
+  }
 
   await deleteOpenThread(page);
 });
@@ -408,9 +425,21 @@ test('a second message in the same thread renders both turns', async ({
   // wait so the second send isn't blocked by the in-flight gate.
   await waitForReplyComplete(page);
 
-  // Send the second turn into the SAME thread (no navigation).
+  // Send the second turn into the SAME thread (no navigation). Fill, then
+  // re-confirm the value is still present AND Send is enabled in one retry
+  // envelope before clicking: on an established thread a late controlled-
+  // textarea re-render can re-seed the (now-empty) persisted draft between
+  // fillComposer's toPass exit and a standalone toBeEnabled, which would leave
+  // Send disabled for the full timeout. Retrying the value+enabled check
+  // together (re-typing if it slipped) closes that gap deterministically.
   await fillComposer(page, second);
-  await expect(sendButton(page)).toBeEnabled();
+  await expect(async () => {
+    if ((await composer(page).inputValue()) !== second) {
+      await composer(page).fill(second);
+    }
+    await expect(composer(page)).toHaveValue(second);
+    await expect(sendButton(page)).toBeEnabled();
+  }).toPass({ timeout: 30_000 });
   await sendButton(page).click();
 
   // Both user turns persist in the log.
@@ -425,8 +454,21 @@ test('a second message in the same thread renders both turns', async ({
   // so count a stable per-assistant-message control instead: every completed
   // assistant reply renders a feedback toolbar with a labelled "Helpful"
   // thumbs-up (MessageFeedback). Two replies → exactly two such buttons.
+  //
+  // Match by the `aria-label` ATTRIBUTE (CSS), not getByRole({name}): once the
+  // second turn lands and the thread scrolls down, the FIRST reply's bubble is
+  // off-screen history. chat-messages.tsx tags history bubbles with
+  // `content-visibility:auto` (HISTORY_CONTENT_VISIBILITY), which makes an
+  // off-screen subtree skip rendering AND drop out of the accessibility tree —
+  // so `getByRole('button', { name: 'Helpful' })` saw only the on-screen second
+  // toolbar (count 1) and `toHaveCount(2)` timed out (the prior failure; the
+  // error-context DOM-walk snapshot still listed both buttons, masking it). A
+  // CSS attribute locator counts via querySelectorAll, which is unaffected by
+  // content-visibility, so both toolbars are counted regardless of scroll.
   await expect(
-    messageLog(page).getByRole('button', { name: t('chat.feedback.thumbsUp') }),
+    messageLog(page).locator(
+      `button[aria-label="${t('chat.feedback.thumbsUp')}"]`,
+    ),
   ).toHaveCount(2, { timeout: 120_000 });
   if (isMockLlmMode()) {
     // The reply to the latest user turn is the canned text.

@@ -60,10 +60,17 @@ async function expectListSettled(
   });
 }
 
-/** A list row whose visible name cell exactly equals `name`. */
+/**
+ * A list row whose name cell contains `name`. Substring (not `exact`) on
+ * purpose: the products name cell wraps an avatar `<Image alt={name}>` next to
+ * the label, so its cell accessible name is the name repeated (`"<name>
+ * <name>"`); an exact match would never resolve it. Every `name`/`renamed`
+ * value the callers pass is unique per run, so a contained match still selects
+ * exactly the intended row.
+ */
 function rowByCell(page: Page, name: string): Locator {
   return page.getByRole('row').filter({
-    has: page.getByRole('cell', { name, exact: true }),
+    has: page.getByRole('cell', { name }),
   });
 }
 

@@ -42,13 +42,18 @@ test.use({ viewport: { width: 390, height: 844 } });
 const FIRST_PAINT_TIMEOUT = 60_000;
 
 /**
- * The settings Save/Discard cluster is rendered TWICE in the settings layout:
+ * The settings Save/Discard cluster renders in two layout positions:
  *  - mobile bar  — `SettingsMobileActionBar`, wrapper `md:hidden` (visible here)
  *  - desktop slot — `SettingsEditorActionsSlot`, wrapper `hidden md:flex`, and
- *    itself nested inside the `AdaptiveHeaderRoot` (also `hidden md:flex`)
- * Both only mount once an editor is dirty. At `< md` width the ONLY place a
- * Save button can be visible is the mobile bar, so the visible-filtered Save
- * button is unambiguously the mobile variant.
+ *    itself nested inside the `AdaptiveHeaderRoot` (also `hidden md:flex`). The
+ *    header registers its children into a context slot that the mobile top bar
+ *    re-renders, so this desktop slot's markup appears more than once in the
+ *    DOM — but every copy stays `hidden md:flex`, i.e. display:none here.
+ * Both clusters mount as soon as the form does (the page registers its editor
+ * controller on mount) and are merely `disabled` until the form is dirty — so
+ * "is a Save button present" is not a dirty signal; "is it enabled" is. At
+ * `< md` width the ONLY place a Save button can be visible is the mobile bar,
+ * so the visible-filtered Save button is unambiguously the mobile variant.
  */
 function visibleSaveButton(page: Page) {
   return page
@@ -127,29 +132,25 @@ test.describe('responsive / mobile layout', () => {
     await expect(nameField).toBeVisible({ timeout: FIRST_PAINT_TIMEOUT });
     await expect(nameField).toBeEnabled();
 
-    // No editor is dirty yet, so neither Save cluster is mounted.
-    await expect(
-      page.getByRole('button', { name: t('common.actions.save'), exact: true }),
-    ).toHaveCount(0);
-
-    // A throwaway dirty edit mounts BOTH clusters (mobile `md:hidden` + desktop
-    // `hidden md:flex`). NOTHING is saved — we reload to discard below.
-    const originalName = await nameField.inputValue();
-    await nameField.fill(`${originalName} (responsive-probe)`);
-
-    // Both clusters now exist in the DOM, but only the mobile bar can be
-    // visible at `< md`, since the desktop slot lives inside `hidden md:flex`
-    // chrome. So the visible-filtered Save button IS the mobile variant.
+    // The Save/Discard cluster mounts with the form (the page registers its
+    // editor controller on mount, not on first edit) — it's `disabled` until
+    // the form is dirty. At `< md` width the ONLY visible cluster is the mobile
+    // bar, so exactly one Save button is visible, and it starts disabled.
     const save = visibleSaveButton(page);
     await expect(save).toHaveCount(1, { timeout: 20_000 });
     await expect(save).toBeVisible();
-    await expect(save).toBeEnabled();
+    await expect(save).toBeDisabled();
 
-    // Prove the desktop variant is the hidden one: two Save buttons exist
-    // total (one per cluster), but exactly one is visible at this width.
-    await expect(
-      page.getByRole('button', { name: t('common.actions.save'), exact: true }),
-    ).toHaveCount(2);
+    // A throwaway dirty edit enables the cluster. NOTHING is saved — we reload
+    // to discard below.
+    const originalName = await nameField.inputValue();
+    await nameField.fill(`${originalName} (responsive-probe)`);
+
+    // Still exactly one visible Save button — the mobile bar — now enabled.
+    // The desktop clusters (`hidden md:flex`) stay display:none at this width.
+    await expect(save).toHaveCount(1, { timeout: 20_000 });
+    await expect(save).toBeVisible();
+    await expect(save).toBeEnabled();
 
     // Discard via reload — the form re-seeds from the backend, so the probe
     // edit never persists and the shared owner state is untouched.

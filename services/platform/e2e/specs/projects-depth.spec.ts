@@ -136,8 +136,17 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   await saveInstructions.click();
 
   // The instructions editor surfaces no success toast (it toasts only on
-  // error), so prove the write landed by reloading and reading it back from the
-  // backend rather than from local form state.
+  // error). `click()` only awaits the event dispatch, not the async mutation,
+  // so reloading immediately would race the in-flight write and discard it.
+  // The cluster's Save button flips to a "Saved" indicator only after the
+  // mutation resolves (`EditorActions` flashes it on `save_success`), so wait
+  // for that before reloading, then read the value back from the backend.
+  await expect(
+    page.getByRole('button', {
+      name: t('common.actions.saved'),
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 20_000 });
   await page.reload();
   const reloadedInstructions = page.getByLabel(
     t('projects.instructions.label'),
@@ -163,11 +172,25 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   await expect(secretDialog).toBeVisible({ timeout: 60_000 });
   // Type defaults to "API key"; the name field upper-cases as you type (the
   // backend stores upper-cased env-var names), so we feed an already-upper name.
+  // Both fields are `required`, so `Label` renders a `*` whose ARIA `aria-label`
+  // is `common.aria.required` — making each input's *accessible name* the
+  // composed "Namerequired" / "API keyrequired" (the role-name honours the span's
+  // aria-label). We match by ROLE here, not `getByLabel`: Playwright's
+  // `getByLabel` resolves the `<label>` via `elementText`, which reads the
+  // VISIBLE "*" (not the aria-label), so the composed name never matches there —
+  // that mismatch is exactly what stalled the earlier `getByLabel` attempt.
+  const requiredMarker = t('common.aria.required');
   await secretDialog
-    .getByLabel(t('projectSecrets.nameLabel'), { exact: true })
+    .getByRole('textbox', {
+      name: `${t('projectSecrets.nameLabel')}${requiredMarker}`,
+      exact: true,
+    })
     .fill(secretName);
   await secretDialog
-    .getByLabel(t('projectSecrets.apiKeyValueLabel'), { exact: true })
+    .getByRole('textbox', {
+      name: `${t('projectSecrets.apiKeyValueLabel')}${requiredMarker}`,
+      exact: true,
+    })
     .fill('tale-e2e-depth-secret-value');
   // The FormDialog submit defaults to `common.actions.save`.
   await secretDialog
@@ -277,17 +300,18 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
 
   // (c) Label: add the predefined project-scoped "feature" label via the
   // multi-select picker (labels render lowercase in the DOM, capitalized via
-  // CSS). The option row nests a "Change color" button (also carrying the
-  // label name), so match non-exact and scope to the label listbox. The added
-  // chip carries a remove button labelled "<delete> feature".
+  // CSS). The option row nests a "Change color" button (also carrying the label
+  // name), so match non-exact. Task labels are a TOGGLE (not removable chips) —
+  // picking an option flips it to aria-selected; the chip then shows in the task
+  // dialog and the reload below proves it persisted to the server.
   await taskDialog
     .getByRole('button', { name: t('tasks.labels.add'), exact: true })
     .click();
-  await page.getByRole('option', { name: 'feature' }).click();
-  const removeLabelButton = taskDialog.getByRole('button', {
-    name: `${t('common.actions.delete')} feature`,
+  const featureOption = page.getByRole('option', { name: 'feature' });
+  await featureOption.click();
+  await expect(featureOption).toHaveAttribute('aria-selected', 'true', {
+    timeout: 20_000,
   });
-  await expect(removeLabelButton).toBeVisible({ timeout: 20_000 });
 
   // The label picker stays open after a pick (multi-select). Dismiss it first
   // — its search input is its tell — then close the modal. The live mutations
@@ -382,13 +406,13 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   ).toBeVisible({ timeout: 60_000 });
 
   // "Add agent" opens a searchable picker; pick the seeded agent by its display
-  // name, then Save through the tab-strip cluster.
+  // name, then Save through the tab-strip cluster. The option's accessible name
+  // is "<display name> <description>" (the row renders both), so match the
+  // display-name substring rather than exact.
   await page
     .getByRole('button', { name: t('projects.agents.addAgent'), exact: true })
     .click();
-  await page
-    .getByRole('option', { name: SEEDED_AGENT_DISPLAY_NAME, exact: true })
-    .click();
+  await page.getByRole('option', { name: SEEDED_AGENT_DISPLAY_NAME }).click();
   const saveAgents = visibleSaveButton(page);
   await expect(saveAgents).toBeEnabled({ timeout: 20_000 });
   await saveAgents.click();

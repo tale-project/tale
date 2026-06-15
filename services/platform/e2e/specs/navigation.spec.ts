@@ -120,17 +120,35 @@ function navCases(organizationId: string): readonly NavCase[] {
       // The rail links to the "open" status; the base route also redirects there.
       hrefSuffix: `/dashboard/${organizationId}/conversations/open`,
       urlPattern: /\/conversations\/open(?:[/?#]|$)/,
+      // Conversations layout header title (`AdaptiveHeaderTitle` → `<h1>`).
+      // Must target the heading ROLE (not `getByText`): the adaptive header
+      // registers its title into BOTH the desktop bar and the `md:hidden`
+      // mobile slot, so the title text exists twice in the DOM — `getByText`
+      // can resolve to the hidden mobile copy, but the heading role excludes
+      // accessibility-hidden nodes and lands on the visible desktop `<h1>`.
       anchor: (page) =>
-        page.getByText(t('conversations.title'), { exact: true }).first(),
+        page
+          .getByRole('heading', {
+            name: t('conversations.title'),
+            level: 1,
+          })
+          .first(),
     },
     {
       key: 'knowledge',
       // Knowledge's rail entry lands on the documents list.
       hrefSuffix: `/dashboard/${organizationId}/documents`,
       urlPattern: /\/documents(?:[/?#]|$)/,
-      // Documents empty-state title — the fixture seeds no documents, so this
-      // is the settled body; reading the route, it's an always-present anchor.
-      anchor: (page) => page.getByText(t('documents.emptyState.title')).first(),
+      // The documents list toolbar's search box — always rendered whether the
+      // list is empty or populated (the empty-state title is NOT a reliable
+      // anchor: the fixture seeds a default "Knowledge entries" folder, so the
+      // list is never empty and `documents.emptyState.title` never shows).
+      // Scoped to the main landmark; the placeholder names the textbox
+      // (snapshot: `textbox "Search documents"`).
+      anchor: (page) =>
+        page.getByRole('main').getByRole('textbox', {
+          name: t('documents.searchPlaceholder'),
+        }),
     },
     {
       key: 'agents',
@@ -283,9 +301,18 @@ test.describe('navigation: breadcrumbs', () => {
       name: t('settings.agents.title'),
     });
     await expect(agentsCrumb).toBeVisible({ timeout: FIRST_PAINT_TIMEOUT });
-    await expect(page.getByText(SEEDED_AGENT_DISPLAY_NAME).first()).toBeVisible(
-      { timeout: FIRST_PAINT_TIMEOUT },
-    );
+    // The leaf is the agent's display name inside the breadcrumb `<h1>`. The
+    // adaptive header registers the breadcrumb into BOTH the desktop bar and
+    // the `md:hidden` mobile slot, so the display name text exists twice in the
+    // DOM — a bare `getByText(...).first()` can resolve to the hidden mobile
+    // copy. Scope to the heading ROLE (level 1), which excludes
+    // accessibility-hidden nodes and matches the visible desktop crumb (the
+    // snapshot's `heading "Agents / E2E Assistant" [level=1]`).
+    await expect(
+      page
+        .getByRole('heading', { level: 1 })
+        .filter({ hasText: SEEDED_AGENT_DISPLAY_NAME }),
+    ).toBeVisible({ timeout: FIRST_PAINT_TIMEOUT });
 
     // Clicking the parent crumb navigates up to the agents list.
     await agentsCrumb.click();

@@ -53,7 +53,11 @@ const GOVERNANCE_BASE = (organizationId: string) =>
  * unambiguous and we only drive the system-prompt save.
  */
 function systemPromptSaveButton(page: Page) {
-  return page.locator('button[form="governance-system-prompt-form"]');
+  // EditorActions renders the Save twice (a `md:hidden` mobile action bar + the
+  // desktop slot), both bound via `form=`. At the desktop test viewport the
+  // mobile copy is hidden; clicking it is a no-op (the form never submits), so
+  // scope to the visible one.
+  return page.locator('button[form="governance-system-prompt-form"]:visible');
 }
 
 test('content-models: edits the system prompt, persists, and restores', async ({
@@ -69,8 +73,12 @@ test('content-models: edits the system prompt, persists, and restores', async ({
       .first(),
   ).toBeVisible({ timeout: 60_000 });
 
-  // The mandatory-prefix textarea is labelled via `aria-label`.
-  const prefixField = page.getByLabel(t('governance.systemPrompt.prefixLabel'));
+  // The mandatory-prefix textarea is labelled via `aria-label`. Its wrapping
+  // FormSection renders a `role=group` with the SAME accessible name, so
+  // `getByLabel` is ambiguous (group + textbox) — scope to the textbox role.
+  const prefixField = page.getByRole('textbox', {
+    name: t('governance.systemPrompt.prefixLabel'),
+  });
   await expect(prefixField).toBeVisible({ timeout: 60_000 });
   await expect(prefixField).toBeEnabled();
 
@@ -91,9 +99,9 @@ test('content-models: edits the system prompt, persists, and restores', async ({
 
   // Reload: the new value must come back from the backend, not local state.
   await page.reload();
-  const reloadedPrefix = page.getByLabel(
-    t('governance.systemPrompt.prefixLabel'),
-  );
+  const reloadedPrefix = page.getByRole('textbox', {
+    name: t('governance.systemPrompt.prefixLabel'),
+  });
   await expect(reloadedPrefix).toBeVisible({ timeout: 60_000 });
   await expect(reloadedPrefix).toHaveValue(marker, { timeout: 20_000 });
 

@@ -69,6 +69,19 @@ function sendButton(page: Page): Locator {
   return page.getByRole('button', { name: t('chat.send'), exact: true });
 }
 
+/**
+ * The same single button slot in its Stop state (in-flight turn). The Send⇄Stop
+ * toggle keeps one element and only flips its `aria-label` between
+ * `chat.send` ("Send message") and `chat.stopGenerating` ("Stop generating")
+ * (chat-input.tsx), so the turn is done exactly when this Stop affordance is gone.
+ */
+function stopButton(page: Page): Locator {
+  return page.getByRole('button', {
+    name: t('chat.stopGenerating'),
+    exact: true,
+  });
+}
+
 /** The role=log region that wraps the rendered message bubbles. */
 function messageLog(page: Page): Locator {
   return page.getByRole('log', { name: t('chat.aria.messageHistory') });
@@ -111,10 +124,15 @@ async function sendNewThreadMessage(
   expect(THREAD_URL.exec(page.url())?.[1]).toBeTruthy();
 }
 
-/** Wait for the in-flight turn to finish: the Stop affordance reverts to Send. */
+/**
+ * Wait for the in-flight turn to finish: the Stop affordance reverts to Send.
+ * NOT `toBeEnabled()` — Send is DISABLED while the composer is empty, which it
+ * is the moment the reply lands, so the button never enables on its own. The
+ * turn is done when the Stop control is gone and the Send control is present.
+ */
 async function waitForReplyComplete(page: Page): Promise<void> {
+  await expect(stopButton(page)).toBeHidden({ timeout: 120_000 });
   await expect(sendButton(page)).toBeVisible({ timeout: 120_000 });
-  await expect(sendButton(page)).toBeEnabled({ timeout: 120_000 });
 }
 
 /**
@@ -309,11 +327,20 @@ test('the message info dialog surfaces the seeded model name', async ({
   await waitForReplyComplete(page);
 
   // The info button is a ghost icon button with no accessible name (tooltip
-  // only). It's the SECOND control in the assistant toolbar row, which is the
-  // labelled thumbs-up's parent: [copy, info, thumbsUp, thumbsDown, …].
+  // only). It's the SECOND control in the assistant toolbar row, in DOM order
+  // [copy, info, thumbsUp, thumbsDown, fork, more].
+  //
+  // Each toolbar Button is wrapped by the UI kit's <SkeletonBox> — a
+  // `display:contents` <span> that is invisible to the accessibility tree (so
+  // the snapshot shows the buttons as direct children of the row) but is a REAL
+  // DOM node. So the labelled thumbs-up <button>'s xpath parent is its own
+  // SkeletonBox span, NOT the row — its xpath GRANDPARENT (`../..`) is the
+  // `flex` toolbar row that holds all six buttons. (chat-advanced.spec.ts's
+  // single-level `..` happens to still resolve a button because `.first()`
+  // matches the one button inside that span.)
   const up = thumbsUp(page);
   await expect(up).toBeVisible({ timeout: 120_000 });
-  const toolbarRow = up.locator('xpath=..');
+  const toolbarRow = up.locator('xpath=../..');
   const infoButton = toolbarRow.getByRole('button').nth(1);
   await infoButton.click();
 
@@ -322,15 +349,16 @@ test('the message info dialog surfaces the seeded model name', async ({
     has: page.getByText(t('chat.messageInfo.title'), { exact: true }),
   });
   await expect(infoDialog).toBeVisible({ timeout: 60_000 });
-  // ...and surfaces the seeded model name (rendered as a Badge from
-  // `metadata.model`). SEEDED_MODEL_DISPLAY_NAME is fixture content (from
-  // `fixtures/config/default/providers/e2e-mock.json`), so it stays a literal —
-  // same rationale as `chat-depth.spec.ts`. The metadata-bearing model field
-  // only exists in mock mode (the canned turn writes it); in live mode the
-  // model id is provider-dependent, so assert only that the dialog opened.
+  // ...and surfaces the seeded model id from `metadata.model`. The dialog's
+  // "Model" group renders the raw model id (`e2e-chat-model`), not a prettified
+  // display name — this is fixture content (from
+  // `fixtures/config/default/providers/e2e-mock.json`), so it stays a literal.
+  // The metadata-bearing model field only exists in mock mode (the canned turn
+  // writes it); in live mode the model id is provider-dependent, so assert only
+  // that the dialog opened.
   if (isMockLlmMode()) {
     await expect(
-      infoDialog.getByText('E2E Chat Model', { exact: true }).first(),
+      infoDialog.getByText('e2e-chat-model', { exact: true }).first(),
     ).toBeVisible({ timeout: 60_000 });
   }
   await page.keyboard.press('Escape');
@@ -384,7 +412,7 @@ test('saves a composer draft as a prompt, finds it in the library, then deletes 
     .click();
   await expect(saveDialog).toBeHidden({ timeout: 60_000 });
 
-  // Open the Prompt Library and search for the prompt by its unique content.
+  // Open the Prompt Library and locate the prompt by its unique content.
   await page
     .getByRole('button', { name: t('chat.savePromptMenu') })
     .first()
@@ -397,14 +425,12 @@ test('saves a composer draft as a prompt, finds it in the library, then deletes 
   });
   await expect(libraryDialog).toBeVisible({ timeout: 60_000 });
 
-  // Narrow the list to our prompt (the row renders the full content in a
-  // line-clamped span, so the search matches on content).
-  const search = libraryDialog.getByRole('textbox', {
-    name: t('prompts.library.searchPlaceholder'),
-  });
-  await search.fill(promptContent);
-
-  // The matching row (PromptListRow, role=listitem) carries our content.
+  // We DON'T search here: the library's `search` only matches title /
+  // description / category / tags — NOT content (convex/prompts/queries.ts) —
+  // and the saved prompt's title is the AI/fallback id we don't control. The
+  // default "All" tab is newest-first across scopes (queries.ts), so the
+  // freshly saved prompt is on the first page; locate its row directly by the
+  // content it renders (PromptListRow's line-clamped content span, role=listitem).
   const promptRow = libraryDialog
     .getByRole('listitem')
     .filter({ has: page.getByText(promptContent, { exact: true }) })
@@ -424,7 +450,7 @@ test('saves a composer draft as a prompt, finds it in the library, then deletes 
     .getByRole('button', { name: t('prompts.actions.delete'), exact: true })
     .click();
 
-  // The row is gone from the (still-filtered) list.
+  // The content-matched row is gone from the list.
   await expect(promptRow).toBeHidden({ timeout: 60_000 });
 });
 
