@@ -70,7 +70,14 @@ export function SandboxStateIndicator({
   const progress = useSessionProgress(gatedThreadId);
 
   if (!isExternal) return null;
-  const running = progress?.status === 'running';
+  // "Working" means a turn is actively running — NOT a finished turn whose
+  // process is merely lingering idle on held-open stdin (agentIdleAt set) to
+  // receive the next message. Subtracting the lingering marker keeps this pill
+  // in lockstep with the composer's running-state (see `agentActivelyWorking`
+  // in chat-interface): both read `status === 'running' && agentIdleAt == null`
+  // so the page never shows "Working" beside a "finished" composer.
+  const running =
+    progress?.status === 'running' && progress?.agentIdleAt == null;
 
   const Spinner = prefersReducedMotion ? Loader2 : SpinningLoader;
 

@@ -492,23 +492,37 @@ export function ChatInterface({
   // Client-side optimistic flag — set on send click, released when the
   // server subscription confirms or the send fails. Closes the ~200–550 ms
   // gap between click and `chatWithAgent` completing `markGenerating`
-  // (Node action cold start + round trips). VISUAL state only — the Stop
-  // button below reads real `isGenerating` via `onStopGenerating` gating.
+  // (Node action cold start + round trips). VISUAL state only.
   const isSendPending = useIsSendPending(dataThreadId);
-  const isLoading = (isGenerating ?? false) || isSendPending;
-
-  // Queue mode: external-agent thread with a server-confirmed in-flight turn.
-  // Keyed on real `isGenerating` (not the optimistic isSendPending) so an
-  // enqueue can only race a turn the server actually started — during the
-  // optimistic window the composer behaves exactly as before.
-  const queueModeActive = isExternalAgentThread && (isGenerating ?? false);
 
   // The agent emitted its result but the process lingers on held-open stdin to
-  // receive more messages. Still `isGenerating` (process alive, queue + Stop
-  // must work), so we only correct the composer COPY — not the running state.
+  // receive more messages. The process is still alive (so the steer queue can
+  // still deliver), but the TURN is over — so this is NOT "working".
   const sessionProgress = useSessionProgress(dataThreadId);
   const agentLingering =
     isExternalAgentThread && sessionProgress?.agentIdleAt != null;
+
+  // Canonical "Claude Code is actively working right now": a turn is in flight
+  // AND it is not merely lingering idle on held-open stdin after emitting its
+  // result. EVERY user-facing running-state indicator derives from this one
+  // rule — the composer spinner + Stop button (isLoading / onStopGenerating
+  // below), the message-stream thinking dots (ChatMessages `isLoading`), and
+  // the ambient Sandbox pill (sandbox-state-indicator, via the same
+  // `status === 'running' && agentIdleAt == null` test) — so the page always
+  // renders ONE consistent, real-time projection of the agent's state and the
+  // indicators can't drift (e.g. "finished" copy beside a live spinner). The
+  // lingering process is an instant-delivery mechanism, not "working".
+  const agentActivelyWorking = (isGenerating ?? false) && !agentLingering;
+
+  // VISUAL busy state: actively working, or the optimistic pre-confirm window.
+  const isLoading = agentActivelyWorking || isSendPending;
+
+  // Queue mode: external-agent thread with a server-confirmed in-flight turn.
+  // Keyed on real `isGenerating` (NOT `agentActivelyWorking`) so a message sent
+  // during the linger window still routes through the steer queue → held-open
+  // stdin (instant delivery), exactly as the steer machinery expects. Only the
+  // VISUAL state treats lingering as idle; delivery semantics are unchanged.
+  const queueModeActive = isExternalAgentThread && (isGenerating ?? false);
 
   const { mutateAsync: enqueueMessage } = useEnqueueMessage();
 
@@ -1335,7 +1349,9 @@ export function ChatInterface({
                 value={inputValue}
                 onChange={setInputValue}
                 onSendMessage={handleSendMessage}
-                onStopGenerating={isGenerating ? stopGenerating : undefined}
+                onStopGenerating={
+                  agentActivelyWorking ? stopGenerating : undefined
+                }
                 isLoading={isLoading}
                 queueModeActive={queueModeActive}
                 disabled={hasNoAgents || hasActiveApproval}
