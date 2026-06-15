@@ -75,8 +75,14 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 # Playwright browsers in a world-readable global path (the agent user reads
-# them; read-only root means no per-session download — the MCP runs with
-# --isolated so its profile stays in memory and never writes here). Telemetry
+# them; the baked browsers mean no per-session download — the MCP runs with
+# --isolated so its profile stays in memory). The directory itself is made
+# sticky-writable after install (see below) so the MCP's `browser_install`
+# tool — which an agent may call defensively even though the browser is
+# already present — can create its `__dirlock`/`.links` bookkeeping and
+# fast-exit as a no-op, instead of hanging for minutes retrying the lock and
+# then failing EACCES (which cascades into a redundant `playwright install`
+# download). The browser binaries stay root-owned and read-only. Telemetry
 # off.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
@@ -103,6 +109,7 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
       sh /tmp/install-playwright-browsers.sh \
       /opt/agents/lib/node_modules/@playwright/mcp/node_modules/.bin/playwright chromium \
     && node -e "const fs=require('fs'); const p=require('/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core'); fs.accessSync(p.chromium.executablePath(), fs.constants.X_OK)" \
+    && chmod 1777 /opt/ms-playwright \
     && rm /tmp/install-playwright-browsers.sh
 
 # OpenCode standalone binary (pinned). dpkg arch → release asset arch.
