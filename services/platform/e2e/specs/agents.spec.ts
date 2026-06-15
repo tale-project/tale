@@ -166,9 +166,15 @@ test('renders the organigram delegation graph', async ({ page }) => {
 
   await page.goto(`/dashboard/${organizationId}/agents/organigram`);
 
-  // Page title block (organigram route).
+  // Page title block (organigram route). `exact` — the app-shell breadcrumb
+  // renders its own level-1 heading ("Agents Organigram"), so a substring match
+  // on "Organigram" is ambiguous (strict-mode violation).
   await expect(
-    page.getByRole('heading', { name: t('organigram.title'), level: 1 }),
+    page.getByRole('heading', {
+      name: t('organigram.title'),
+      level: 1,
+      exact: true,
+    }),
   ).toBeVisible({ timeout: 60_000 });
 
   // The React Flow canvas chrome always renders inside FlowCanvas — the zoom

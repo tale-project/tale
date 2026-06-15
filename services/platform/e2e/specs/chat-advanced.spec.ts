@@ -115,8 +115,13 @@ async function sendNewThreadMessage(
 
 /** Wait for the in-flight turn to finish: the Stop affordance reverts to Send. */
 async function waitForReplyComplete(page: Page): Promise<void> {
+  // Send and Stop are one toggle (same <button>, aria-label flips). A finished
+  // turn is proven by the Stop affordance disappearing and Send returning — NOT
+  // by Send becoming *enabled*: Send is disabled whenever the composer is empty,
+  // which it is right after a reply, so asserting enabled here hangs the full
+  // timeout.
+  await expect(stopButton(page)).toBeHidden({ timeout: 120_000 });
   await expect(sendButton(page)).toBeVisible({ timeout: 120_000 });
-  await expect(sendButton(page)).toBeEnabled({ timeout: 120_000 });
 }
 
 /**

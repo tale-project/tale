@@ -32,13 +32,23 @@ concurrency:
 
 jobs:
   e2e:
-    name: Playwright
+    name: Playwright (shard ${{ matrix.shard }}/4)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Advisory during burn-in: a red E2E run annotates the PR but never blocks
     # it. Nightly and manual runs fail loudly.
     continue-on-error: ${{ github.event_name == 'pull_request' }}
+    # The suite outgrew a single serial 30-min run (workers:1 against one
+    # backend). Shard the specs across parallel runners so each shard finishes
+    # well inside the timeout instead of being cancelled mid-run. Each shard is
+    # an independent job: it boots its own hermetic stack and runs the `setup`
+    # auth project before its slice. fail-fast:false so one shard's failure
+    # doesn't cancel the others — we want every shard's result.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     permissions:
       contents: read
 
@@ -77,13 +87,14 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Run E2E suite
-        run: bun run --filter @tale/platform test:e2e
+        working-directory: services/platform
+        run: bunx playwright test --shard=${{ matrix.shard }}/4
 
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: |
             services/platform/playwright-report/
             services/platform/test-results/
