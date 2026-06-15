@@ -570,6 +570,9 @@ services:
     #                   `nobody`; without it the touch fails Permission denied.
     #   CHOWN         — chown that log file to nobody.
     #   SETUID/SETGID — tinyproxy drops privileges to nobody after bind.
+    #   NET_BIND_SERVICE — dnsmasq binds privileged port 53 to serve external
+    #                   DNS to the internal-only sandbox network (dnsmasq checks
+    #                   for this cap explicitly, even as root).
     # (NET_RAW / MKNOD / SETPCAP / SETFCAP / etc. are NOT needed.)
     cap_drop:
       - ALL
@@ -579,6 +582,7 @@ services:
       - CHOWN
       - SETUID
       - SETGID
+      - NET_BIND_SERVICE
     healthcheck:
       # Plain TCP-listen check: if tinyproxy is up the port answers. We
       # intentionally do NOT CONNECT-probe an external host (pypi/npm)

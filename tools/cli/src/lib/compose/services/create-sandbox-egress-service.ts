@@ -40,9 +40,18 @@ export function createSandboxEgressService(
     // installs the iptables SSRF firewall; DAC_OVERRIDE lets root touch/create
     // the tinyproxy log in the nobody-owned /var/log/tinyproxy; CHOWN chowns it
     // to nobody; SETUID/SETGID let tinyproxy drop privileges to nobody after
-    // bind. Keep in sync with the sandbox-egress service in compose.yml.
+    // bind; NET_BIND_SERVICE lets dnsmasq bind privileged port 53 to serve
+    // external DNS to the internal-only sandbox network (dnsmasq requires the
+    // cap explicitly, even as root). Keep in sync with sandbox-egress in compose.yml.
     cap_drop: ['ALL'],
-    cap_add: ['NET_ADMIN', 'DAC_OVERRIDE', 'CHOWN', 'SETUID', 'SETGID'],
+    cap_add: [
+      'NET_ADMIN',
+      'DAC_OVERRIDE',
+      'CHOWN',
+      'SETUID',
+      'SETGID',
+      'NET_BIND_SERVICE',
+    ],
     // tinyproxy + tail = trivial footprint; the cap is here to bound a
     // misbehaving allowlist-regex DoS that pegs CPU or floods the log.
     mem_limit: '512m',

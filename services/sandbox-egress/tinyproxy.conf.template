@@ -19,12 +19,17 @@ PidFile "/tmp/tinyproxy.pid"
 MaxClients 100
 ViaProxyName "tale-sandbox-egress"
 
-# CONNECT method (HTTPS tunneling) restricted to the standard TLS port in
-# both egress modes — non-443 HTTPS endpoints and SSH-over-CONNECT stay
-# blocked. Note ConnectPort constrains only the CONNECT method; plain
-# proxied HTTP (GET http://…) is forwarded regardless of port, subject to
-# the hostname filter below when one is rendered.
+# CONNECT method (tunneling) restricted to the standard HTTP/HTTPS ports in
+# both egress modes — other CONNECT targets (SSH-over-CONNECT, arbitrary
+# high ports) stay blocked. 443 is HTTPS; 80 is here because the sandbox
+# runtime tunnels nested containers' transparent egress through CONNECT for
+# BOTH ports (redsocks http-connect — http-relay is CVE-discouraged), so the
+# nested layer's plain-HTTP egress (apt/pip over http://) arrives as
+# CONNECT :80. Note ConnectPort constrains only the CONNECT method; plain
+# proxied HTTP (GET http://…) is still forwarded regardless of port, subject
+# to the hostname filter below when one is rendered.
 ConnectPort 443
+ConnectPort 80
 
 # Hostname filter — rendered by entrypoint.sh: omitted entirely for open
 # egress (the default), or a default-deny allowlist when the operator sets

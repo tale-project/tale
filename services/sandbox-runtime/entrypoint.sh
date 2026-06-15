@@ -51,7 +51,8 @@ set -e
 
 # Controlled address pool for the inner daemon's bridges (docker0 +
 # compose-created networks). Known so inner service-to-service traffic can be
-# kept OUT of the egress proxy via noProxy (see write_dind_docker_config).
+# left direct (matched as the source pool by the transparent-egress redirect,
+# see setup_inner_transparent_egress).
 TALE_DIND_INNER_POOL="172.31.0.0/16"
 
 # iptables/ip6tables live in /usr/sbin, which the image ENV PATH deliberately
@@ -59,14 +60,6 @@ TALE_DIND_INNER_POOL="172.31.0.0/16"
 _IPTABLES=/usr/sbin/iptables
 _IP6TABLES=/usr/sbin/ip6tables
 
-# Make nested `docker build` / `docker run` use the sandbox egress proxy. Inner
-# build RUN steps (apt/pip) and inner containers do NOT inherit the session's
-# proxy env, and the --internal network gives them no direct DNS — so without
-# this they can't reach the (otherwise open) internet, and `docker compose up
-# --build` fails on apt/pip. Writing the agent's docker client `proxies` makes
-# the CLI auto-inject HTTP(S)_PROXY into every build step + container. noProxy
-# keeps loopback, the inner pool, and the internal gateways (bifrost/convex)
-# direct so service-to-service and the LLM gateway aren't routed through tinyproxy.
 # Resolve a proxy URL's host to an IP. CRITICAL: the session reaches the egress
 # proxy by its Docker DNS name (e.g. http://sandbox-egress:3128), but INNER
 # build containers are on the inner docker network and can't resolve outer
@@ -95,19 +88,62 @@ _proxy_to_ip() {
   fi
 }
 
-write_dind_docker_config() {
-  _cfgdir=/workspace/.home/.docker
-  mkdir -p "$_cfgdir"
-  _http="$(_proxy_to_ip "${HTTP_PROXY:-}")"
-  _https="$(_proxy_to_ip "${HTTPS_PROXY:-}")"
-  cat >"$_cfgdir/config.json" <<EOF
-{ "proxies": { "default": {
-  "httpProxy": "${_http}",
-  "httpsProxy": "${_https}",
-  "noProxy": "${NO_PROXY:-localhost,127.0.0.1},::1,${TALE_DIND_INNER_POOL}"
-} } }
+# Egress proxy endpoint (IP + port), resolved once in the session netns. The
+# session reaches the proxy by Docker DNS name (sandbox-egress:3128); we resolve
+# it to an IP that inner containers can also route to. The same host also serves
+# DNS on :53. Sets TALE_EGRESS_IP / TALE_EGRESS_PORT (IP empty if unresolved).
+resolve_egress_endpoint() {
+  _u="$(_proxy_to_ip "${HTTP_PROXY:-${HTTPS_PROXY:-}}")"
+  _hp="${_u#*://}"
+  TALE_EGRESS_IP="${_hp%%:*}"
+  _p="${_hp#*:}"
+  TALE_EGRESS_PORT="${_p%%/*}"
+  case "${TALE_EGRESS_PORT}" in '' | *[!0-9]*) TALE_EGRESS_PORT=3128 ;; esac
+  case "${TALE_EGRESS_IP}" in '' | *[!0-9.]*) TALE_EGRESS_IP='' ;; esac
+}
+
+# Transparent egress for nested containers. We deliberately do NOT inject
+# HTTP(S)_PROXY env into inner containers: that hijacks ALL their HTTP traffic
+# including localhost/sibling — busybox wget (e.g. a Caddy self healthcheck
+# against 127.0.0.1) ignores no_proxy and proxies it, so the check can never
+# reach itself — and proxy env can't carry DNS at all. Instead redsocks tunnels
+# inner *public* TCP through the egress proxy transparently while internal /
+# private traffic stays direct, and the egress proxy's dnsmasq (wired via the
+# inner daemon's --dns) resolves external names. Inner apps then reach the
+# internet with zero proxy config and their internal healthchecks work
+# unchanged. Both :80 and :443 tunnel through CONNECT (redsocks http-connect;
+# http-relay is CVE-discouraged and mangles responses) — the egress tinyproxy
+# is configured with ConnectPort 80 + 443 to match.
+setup_inner_transparent_egress() {
+  if [ -z "${TALE_EGRESS_IP}" ]; then
+    echo "[entrypoint] WARN: no egress proxy IP resolved; nested containers will have no internet egress" >&2
+    return 0
+  fi
+  # A previous (proxy-injection era) session may have left a docker client config
+  # that sets HTTP(S)_PROXY on every inner container, persisted in the workspace;
+  # that hijacks inner localhost/sibling traffic (busybox ignores no_proxy). With
+  # transparent egress there must be no proxy env — drop the stale file.
+  rm -f /workspace/.home/.docker/config.json 2>/dev/null || true
+  cat >/etc/redsocks.conf <<EOF
+base { log_debug = off; log_info = off; log = "stderr"; daemon = off; redirector = iptables; }
+redsocks { local_ip = 0.0.0.0; local_port = 12346; ip = ${TALE_EGRESS_IP}; port = ${TALE_EGRESS_PORT}; type = http-connect; }
 EOF
-  chown -R 10001:10001 "$_cfgdir" 2>/dev/null || true
+  # redsocks lives in /usr/sbin, which the image PATH drops — call it absolute.
+  /usr/sbin/redsocks -c /etc/redsocks.conf >/var/log/redsocks.log 2>&1 &
+  # nat REDSOCKS chain: leave internal / private / link-local DIRECT (so inner
+  # service-to-service, localhost healthchecks and the inner embedded DNS are
+  # untouched), tunnel everything public through redsocks.
+  "$_IPTABLES" -t nat -N REDSOCKS 2>/dev/null || "$_IPTABLES" -t nat -F REDSOCKS
+  for _cidr in 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16; do
+    "$_IPTABLES" -t nat -A REDSOCKS -d "$_cidr" -j RETURN
+  done
+  "$_IPTABLES" -t nat -A REDSOCKS -p tcp -j REDIRECT --to-ports 12346
+  # Apply to every nested container regardless of which inner compose bridge it
+  # lands on (all draw from the inner pool); PREROUTING sees the original source
+  # before the inner daemon's MASQUERADE rewrites it.
+  "$_IPTABLES" -t nat -C PREROUTING -s "${TALE_DIND_INNER_POOL}" -p tcp -j REDSOCKS 2>/dev/null \
+    || "$_IPTABLES" -t nat -A PREROUTING -s "${TALE_DIND_INNER_POOL}" -p tcp -j REDSOCKS
+  echo "[entrypoint] transparent egress installed (redsocks -> ${TALE_EGRESS_IP}:${TALE_EGRESS_PORT}; nested public TCP tunneled, internal direct, DNS via egress :53)"
 }
 
 # Block inner containers from the cloud metadata endpoint (IMDS) + link-local —
@@ -116,8 +152,8 @@ EOF
 # effect (a plain FORWARD append is shadowed by Docker's rules and does nothing).
 # Must run AFTER dockerd starts (dockerd creates the DOCKER-USER chain). Egress
 # is otherwise OPEN: inner containers reach the internet through the egress proxy
-# (write_dind_docker_config). Broader internal lockdown (RFC1918 / cross-tenant)
-# is a follow-up tied to an egress allowlist and must exempt the proxy + pool.
+# (transparently, see setup_inner_transparent_egress). Broader internal lockdown
+# (RFC1918 / cross-tenant) is a follow-up tied to an egress allowlist.
 # Best-effort: IMDS is already unreachable via the --internal network, so a
 # failure here is not fatal.
 apply_inner_egress_fence() {
@@ -189,15 +225,25 @@ start_inner_dockerd() {
   setup_cgroup_nesting
 
   mkdir -p /var/lib/docker /var/log
+
+  # Resolve the egress proxy/DNS endpoint, then point the inner daemon's default
+  # DNS at the egress dnsmasq so nested containers resolve external names (the
+  # inner embedded DNS forwards external queries here; sibling names stay local).
+  resolve_egress_endpoint
+  _dns_flags=""
+  [ -n "${TALE_EGRESS_IP}" ] && _dns_flags="--dns=${TALE_EGRESS_IP}"
+
   # dockerd (and the iptables/modprobe it shells out to) need /usr/sbin on PATH,
   # which the image ENV drops. Scope the widened PATH to dockerd only — runnerd
   # is exec'd later with the unmodified (sbin-free) agent PATH.
+  # shellcheck disable=SC2086 # _dns_flags must word-split: empty, or one --dns flag
   PATH="/usr/sbin:/sbin:${PATH}" dockerd \
     --host=unix:///var/run/docker.sock \
     --data-root=/var/lib/docker \
     --bip=172.31.0.1/24 \
     --default-address-pool "base=${TALE_DIND_INNER_POOL},size=24" \
     --storage-driver=overlay2 \
+    ${_dns_flags} \
     >/var/log/dockerd.log 2>&1 &
   TALE_DOCKERD_PID=$!
 
@@ -209,8 +255,10 @@ start_inner_dockerd() {
       exit 1
     fi
     if docker info >/dev/null 2>&1; then
-      # DOCKER-USER exists now that dockerd is up — install the IMDS fence.
+      # DOCKER-USER exists now that dockerd is up — install the IMDS fence and
+      # the transparent-egress redirect (both need the daemon's chains/bridge).
       apply_inner_egress_fence
+      setup_inner_transparent_egress
       echo "[entrypoint] inner dockerd ready (tier=${TALE_RUNTIME_TIER:-?}, pid=${TALE_DOCKERD_PID})"
       return 0
     fi
@@ -273,7 +321,6 @@ if [ "$1" = "daemon" ]; then
   # already-backgrounded dockerd reparents to tini. setpriv drops to the agent
   # user so Claude Code's bypassPermissions (refused as root) still works.
   if [ "${TALE_DIND:-}" = "1" ]; then
-    write_dind_docker_config
     start_inner_dockerd
     exec tini -g -- \
       setpriv --reuid 10001 --regid 10001 --init-groups -- \

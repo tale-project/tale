@@ -122,35 +122,33 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 - **No host socket.** The host `/var/run/docker.sock` is never mounted into a
   tenant container; the inner daemon is a fresh `dockerd` in the container's own
   namespaces.
-- **Egress is open, and nested docker uses it automatically.** Egress is
+- **Egress is open, and nested docker reaches it transparently.** Egress is
   default-open (no `SANDBOX_EGRESS_ALLOWLIST`): the session — and through it the
-  inner daemon — reaches any host via the egress proxy. Inner **image pulls**
-  work because the inner `dockerd` inherits `HTTP(S)_PROXY`. Inner **`docker
-build` RUN steps and `docker run` containers do NOT inherit that env**, and the
-  `--internal` network gives them no direct DNS — so the entrypoint writes the
-  agent's `~/.docker/config.json` `proxies` block, which makes the docker CLI
-  auto-inject `HTTP(S)_PROXY`/`NO_PROXY` into every build step and container.
-  That's what lets `docker compose up --build` (apt/pip downloads) succeed.
-  `NO_PROXY` keeps loopback, the inner pool, and the internal gateways
-  (`bifrost`/`convex`) direct. The proxy is HTTPS-CONNECT (`:443`) for https and
-  forwards plain http; if you turn on `SANDBOX_EGRESS_ALLOWLIST`, include your
-  registry + package-mirror hosts.
+  inner daemon — reaches any host via the egress proxy. Inner containers get the
+  internet **transparently**, with **no proxy env injected**: the entrypoint runs
+  `redsocks` and an iptables `REDSOCKS` nat chain that REDIRECTs nested
+  containers' _public_ TCP (matched by the inner source pool `172.31.0.0/16`)
+  through the egress proxy via `CONNECT` (both `:80` and `:443`), while internal /
+  private / loopback traffic stays direct. External **DNS** is served by a
+  `dnsmasq` forwarder on the (dual-homed) egress proxy — the inner daemon is
+  pointed at it with `--dns`, so nested containers resolve public names even
+  though their bridge is `--internal`. That's what lets `docker compose up
+--build` (apt/pip) **and** runtime services that phone home (e.g. a gateway
+  fetching remote config) both work. Because nothing sets `HTTP(S)_PROXY` inside
+  the containers, app self-/sibling healthchecks (incl. busybox `wget` that
+  ignores `no_proxy`) are never hijacked. If you turn on
+  `SANDBOX_EGRESS_ALLOWLIST`, include your registry + package-mirror hosts; the
+  tinyproxy `ConnectPort` is `80` + `443`.
 - **IMDS fence.** The one always-on network rule blocks inner containers from
   the cloud metadata endpoint + link-local (`169.254.0.0/16`), installed in the
-  `DOCKER-USER` chain so it actually takes effect. (Broader internal lockdown —
-  RFC1918 / cross-tenant — is a follow-up tied to the egress allowlist; while
-  egress is open it would only block the sanctioned proxy, so it's intentionally
-  not enabled. Today the `--internal` network is what keeps inner containers off
-  any non-proxied route.)
-- **Known limitation:** because the proxy env is injected into runtime
-  containers too, an inner `docker compose` service that calls another service by
-  **hostname** over HTTP (e.g. `http://web`) may get proxy-routed and fail;
-  service-to-service by IP (the inner pool, in `NO_PROXY`) and non-HTTP
-  (postgres/redis) are unaffected. For app stacks that rely on HTTP-by-name, add
-  those names to the build/run `NO_PROXY`.
+  `DOCKER-USER` chain so it actually takes effect. (link-local also stays direct,
+  not redirected to the proxy.) Broader internal lockdown — RFC1918 /
+  cross-tenant — is a follow-up tied to the egress allowlist; today the
+  `--internal` network keeps inner containers off any non-proxied route.
 - **Secrets.** The session's own env (LLM key, `GITHUB_TOKEN`, …) is **not**
-  propagated into inner containers; only the proxy vars are. Don't `docker
-login` into a path that persists into the shared workspace.
+  propagated into inner containers (and with transparent egress, neither are
+  proxy vars). Don't `docker login` into a path that persists into the shared
+  workspace.
 
 ## Storage & lifecycle
 

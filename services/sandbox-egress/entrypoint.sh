@@ -49,6 +49,20 @@ fi
 echo "[sandbox-egress] config:"
 sed 's/^/  /' /etc/tinyproxy/tinyproxy.conf
 
+# DNS forwarder for the internal sandbox network. The runtime session and its
+# nested DinD containers live on `tale-sandbox-net` (internal-only) and cannot
+# resolve external hostnames — their embedded DNS forwards to public resolvers
+# that the internal bridge can't reach, so things like `getbifrost.ai` or
+# `deb.debian.org` fail to resolve. This proxy is dual-homed (also on a network
+# with real egress), so its own resolver (`/etc/resolv.conf` -> 127.0.0.11)
+# resolves the public internet. Run dnsmasq forwarding to it, listening on all
+# interfaces so the sandbox side can point its resolver here. `--bind-dynamic`
+# also binds interfaces that appear later; `-u root` since :53 is privileged and
+# the entrypoint still runs as root at this point.
+echo "[sandbox-egress] starting dnsmasq DNS forwarder on :53 (internal-network external resolution)"
+dnsmasq --keep-in-foreground --bind-dynamic --no-hosts -u root &
+DNSMASQ_PID=$!
+
 # tinyproxy logs to file by default; tail to stdout in foreground so docker
 # logs surfaces them. Chown to nobody so tinyproxy (which drops privs)
 # can write to it.
@@ -64,6 +78,6 @@ chown nobody:nobody /var/log/tinyproxy/tinyproxy.log
 # instead of SIGKILL when the container stops.
 tinyproxy -d -c /etc/tinyproxy/tinyproxy.conf &
 TINYPROXY_PID=$!
-trap 'kill -TERM "$TINYPROXY_PID" 2>/dev/null || true' INT TERM
+trap 'kill -TERM "$TINYPROXY_PID" "$DNSMASQ_PID" 2>/dev/null || true' INT TERM
 
 exec tail -n0 -F /var/log/tinyproxy/tinyproxy.log

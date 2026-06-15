@@ -146,6 +146,10 @@ RUN set -eux; \
 #   uidmap     = newuidmap/newgidmap (rootless/userns helpers)
 #   fuse-overlayfs + iptables = inner daemon storage + networking fence
 #   util-linux = setpriv, to drop dockerd's root back to uid 10001 for runnerd
+#   redsocks   = transparent egress: the entrypoint REDIRECTs nested containers'
+#                public TCP to redsocks, which tunnels it through the egress
+#                proxy — so inner apps reach the internet with NO proxy env (no
+#                hijacked localhost/sibling healthchecks)
 # Versions are the live Docker apt-repo stable channel; pin here if a build
 # needs to be byte-reproducible.
 RUN install -m 0755 -d /etc/apt/keyrings \
@@ -165,6 +169,7 @@ RUN install -m 0755 -d /etc/apt/keyrings \
       fuse-overlayfs \
       iptables \
       util-linux \
+      redsocks \
     && rm -rf /var/lib/apt/lists/* \
     # The image's dockerd is started per-session by the entrypoint in DinD mode,
     # never as a baked service — strip any auto-start unit (no-op without systemd).
