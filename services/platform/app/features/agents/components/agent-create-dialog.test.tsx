@@ -36,6 +36,7 @@ vi.mock('../hooks/mutations', () => ({
 }));
 
 vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
+  useModelCapabilities: () => new Map(),
   useListProviders: () => ({
     providers: [
       {
