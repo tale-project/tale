@@ -52,6 +52,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
       libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
       libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 \
+      # Live browser view (read-only mirror). INERT unless the session is
+      # launched with TALE_BROWSER_CDP=1 (operator flag SANDBOX_BROWSER_VIEW):
+      # Xvfb gives the headed Chromium a virtual display, x11vnc mirrors it
+      # view-only, and the fonts keep rendered pages legible. The CDP (9222)
+      # and VNC (5900) endpoints the entrypoint binds are LOOPBACK-ONLY
+      # (127.0.0.1) and the session container publishes NO ports — they are
+      # never EXPOSE'd and only reachable from inside the container.
+      xvfb \
+      x11vnc \
+      fonts-liberation \
+      fonts-noto-core \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -f \
     && ln -sf /usr/local/bin/python3 /usr/local/bin/python \

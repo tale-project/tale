@@ -124,6 +124,56 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(argv).not.toContain('--mcp-config');
   });
 
+  it('attaches Playwright MCP over CDP (no headless self-launch flags) when browserCdp is on', () => {
+    const { argv } = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      browserCdp: true,
+    });
+    const mcpConfig = JSON.parse(
+      argv[argv.indexOf('--mcp-config') + 1] ?? '{}',
+    );
+    // Still the same launcher shim, but now in CDP-attach mode: it connects to
+    // the externally-launched headed Chromium on loopback 9222 (the read-only
+    // mirror) instead of self-launching headless.
+    expect(mcpConfig.mcpServers.playwright.command).toBe('tale-playwright-mcp');
+    expect(mcpConfig.mcpServers.playwright.args).toEqual([
+      '--cdp-endpoint',
+      'http://127.0.0.1:9222',
+    ]);
+    // The self-launch flags belong to the now-externally-managed browser and
+    // must be gone (connectOverCDP ignores launch options).
+    const args: string[] = mcpConfig.mcpServers.playwright.args;
+    for (const dropped of [
+      '--headless',
+      '--browser',
+      'chromium',
+      '--isolated',
+      '--no-sandbox',
+      '--ignore-https-errors',
+    ]) {
+      expect(args).not.toContain(dropped);
+    }
+  });
+
+  it('keeps the headless self-launch args byte-identical when browserCdp is off/unset', () => {
+    // Explicit-false and unset are both the default headless shape — proves the
+    // CDP path is strictly additive and OFF is byte-identical to today.
+    for (const spec of [{ ...base, browserCdp: false }, base]) {
+      const { argv } = new ClaudeCodeAdapter().buildExec(spec);
+      const mcpConfig = JSON.parse(
+        argv[argv.indexOf('--mcp-config') + 1] ?? '{}',
+      );
+      expect(mcpConfig.mcpServers.playwright.args).toEqual([
+        '--headless',
+        '--browser',
+        'chromium',
+        '--isolated',
+        '--no-sandbox',
+        '--ignore-https-errors',
+      ]);
+    }
+  });
+
   it('runs plan turns under --permission-mode plan, execute/default under bypassPermissions', () => {
     const plan = new ClaudeCodeAdapter().buildExec({
       ...base,

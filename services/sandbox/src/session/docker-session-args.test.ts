@@ -15,6 +15,7 @@ const cfg: SpawnerConfig = {
   runtimeImage: 'tale-sandbox-runtime:test',
   runtimeTier: 'runc',
   dockerInContainer: false,
+  browserView: false,
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: null,
@@ -90,6 +91,32 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('NPM_CONFIG_CACHE=/cache/npm');
     expect(args).toContain('BUN_INSTALL_CACHE_DIR=/cache/bun');
     expect(args).toContain('type=volume,src=bun-org_456,dst=/cache/bun');
+  });
+
+  describe('live browser view (SANDBOX_BROWSER_VIEW)', () => {
+    test('off (default): no TALE_BROWSER_CDP env leaks in', () => {
+      const args = buildDockerSessionRunArgs(cfg, goodInput);
+      expect(args).not.toContain('TALE_BROWSER_CDP=1');
+    });
+
+    test('on: appends TALE_BROWSER_CDP=1, rest unchanged', () => {
+      const args = buildDockerSessionRunArgs(
+        { ...cfg, browserView: true },
+        goodInput,
+      );
+      // The browser-view signal is present (additive).
+      const envIdxs = args.reduce<number[]>((acc, a, i) => {
+        if (a === '--env') acc.push(i);
+        return acc;
+      }, []);
+      expect(envIdxs.some((i) => args[i + 1] === 'TALE_BROWSER_CDP=1')).toBe(
+        true,
+      );
+      // Everything else stays as the default hardened agent argv.
+      expect(args).toContain('--cap-drop=ALL');
+      expect(args).toContain('--read-only');
+      expect(args[args.length - 1]).toBe('daemon');
+    });
   });
 
   test('default profile: one-shot-equivalent caps + uid 65534', () => {

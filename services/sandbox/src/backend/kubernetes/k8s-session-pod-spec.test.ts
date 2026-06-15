@@ -21,6 +21,7 @@ const cfg: SpawnerConfig = {
   runtimeImage: 'tale-sandbox-runtime:test',
   runtimeTier: 'gvisor',
   dockerInContainer: false,
+  browserView: false,
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: 'gvisor',

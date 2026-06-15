@@ -1410,6 +1410,22 @@
       "truncated": "… weitere Einträge ausgeblendet (Liste gekürzt)",
       "ariaTree": "Arbeitsbereichsdateien",
       "paneClose": "Dateibereich schließen"
+    },
+    "liveBrowser": {
+      "title": "Live-Browser",
+      "toggleLabel": "Live-Browser",
+      "toggleTooltip": "Dem Browser des Agents live zusehen (nur ansehen)",
+      "viewOnly": "Nur ansehen",
+      "connecting": "Verbinden…",
+      "streaming": "Live",
+      "disconnected": "Übertragung beendet",
+      "reconnect": "Erneut verbinden",
+      "error": "Verbindung zur Live-Ansicht fehlgeschlagen.",
+      "retry": "Erneut versuchen",
+      "emptyTitle": "Der Agent surft gerade nicht",
+      "emptyHint": "Starte eine Anfrage — sobald der Agent einen Browser öffnet, siehst du es hier live.",
+      "paneClose": "Live-Browser schließen",
+      "ariaLabel": "Live-Ansicht des Browsers des Agents (schreibgeschützt)"
     }
   },
   "common": {

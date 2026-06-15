@@ -61,6 +61,9 @@ export interface RunnerdHealth {
    * across spawner restarts. */
   lastActivityAtMs: number;
   liveExecs: number;
+  /** Raw VNC tunnels (GET /screencast) currently piping. A freshly attached
+   * viewer also bumps lastActivityAtMs, so watching keeps a session alive. */
+  activeScreencasts: number;
 }
 
 // --- POST /execs (NDJSON response stream) ----------------------------------

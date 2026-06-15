@@ -22,6 +22,7 @@ import {
   runnerdWriteStdin,
 } from './runnerd-client.ts';
 import type { RunnerdExecEvent } from './runnerd-protocol.ts';
+import type { ScreencastTarget } from './screencast-relay.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
 import { SessionRegistry } from './session-registry.ts';
 import {
@@ -51,6 +52,35 @@ export class SessionRoutes {
   private tokenFor(sessionId: string): string {
     if (this.cfg.sandboxToken === null) return '';
     return deriveRunnerdToken(this.cfg.sandboxToken, sessionId);
+  }
+
+  /**
+   * Resolve where + how the screencast relay should dial runnerd for a session.
+   * Returns the runnerd host:port (parsed from the registry's cached endpoint
+   * URL) + the per-session token, or null when the session is unknown / the
+   * endpoint can't be parsed. Synchronous (registry-cache only): a WS upgrade
+   * already passed the HMAC gate, so a registry miss simply means "no session"
+   * and the relay closes the socket — no backend round-trip on the hot path.
+   */
+  resolveScreencastTarget(sessionId: string): ScreencastTarget | null {
+    const session = this.registry.get(sessionId);
+    if (!session) return null;
+    let url: URL;
+    try {
+      url = new URL(session.endpoint);
+    } catch (err) {
+      console.warn(
+        `[sandbox.session] screencast endpoint unparseable for ${sessionId} (${session.endpoint}):`,
+        err,
+      );
+      return null;
+    }
+    const port = Number(url.port) || (url.protocol === 'https:' ? 443 : 80);
+    return {
+      hostname: url.hostname,
+      port,
+      token: this.tokenFor(sessionId),
+    };
   }
 
   /**
@@ -119,6 +149,10 @@ export class SessionRoutes {
           token: this.tokenFor(s.sessionId),
         });
         if (health.liveExecs > 0) continue; // busy — spare from idle AND TTL
+        // A live browser viewer (raw VNC tunnel piping) keeps the session alive
+        // exactly like a live exec — never stop a session someone is actively
+        // watching, even if no exec is running. Mirrors the liveExecs skip.
+        if (health.activeScreencasts > 0) continue;
         if (!expired) {
           expired = nowMs - health.lastActivityAtMs > s.idleTimeoutMs;
         }

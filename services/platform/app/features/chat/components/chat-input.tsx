@@ -52,6 +52,7 @@ import {
 import { createDocumentsMentionSource } from './documents-mention-source';
 import { ExternalAgentModeToggle } from './external-agent-mode-toggle';
 import { KbMentionPopover } from './kb-mention-popover';
+import { LiveBrowserToggle } from './live-browser-toggle';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { QuotedReferenceChip } from './quoted-reference-chip';
@@ -1243,6 +1244,11 @@ export function ChatInput({
                       organizationId={organizationId}
                     />
                     <WorkspaceFilesToggle
+                      threadId={threadId}
+                      organizationId={organizationId}
+                      disabled={attachDisabled}
+                    />
+                    <LiveBrowserToggle
                       threadId={threadId}
                       organizationId={organizationId}
                       disabled={attachDisabled}

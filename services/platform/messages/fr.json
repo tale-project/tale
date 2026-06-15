@@ -1411,6 +1411,22 @@
       "truncated": "… autres éléments masqués (liste tronquée)",
       "ariaTree": "Fichiers de l'espace de travail",
       "paneClose": "Fermer le panneau des fichiers"
+    },
+    "liveBrowser": {
+      "title": "Navigateur en direct",
+      "toggleLabel": "Navigateur en direct",
+      "toggleTooltip": "Regarde le navigateur de l'agent en direct (lecture seule)",
+      "viewOnly": "Lecture seule",
+      "connecting": "Connexion…",
+      "streaming": "En direct",
+      "disconnected": "Diffusion terminée",
+      "reconnect": "Se reconnecter",
+      "error": "Impossible de se connecter à la vue en direct.",
+      "retry": "Réessayer",
+      "emptyTitle": "L'agent ne navigue pas en ce moment",
+      "emptyHint": "Lance une requête — dès que l'agent ouvre un navigateur, tu le verras ici, en direct.",
+      "paneClose": "Fermer le navigateur en direct",
+      "ariaLabel": "Vue en direct du navigateur de l'agent (lecture seule)"
     }
   },
   "common": {

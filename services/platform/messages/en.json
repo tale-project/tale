@@ -1410,7 +1410,23 @@
     "errorHintProviderError": "The AI provider is temporarily experiencing issues. Please try again in a moment.",
     "errorHintRateLimited": "Too many requests. Please wait a moment and try again.",
     "errorHintTokenLimit": "The model's output token limit was exceeded. Try a shorter request or ask your administrator to adjust the model settings.",
-    "errorHintToolFailure": "The agent encountered an error while accessing data. Try rephrasing your request or asking for a smaller set of data."
+    "errorHintToolFailure": "The agent encountered an error while accessing data. Try rephrasing your request or asking for a smaller set of data.",
+    "liveBrowser": {
+      "title": "Live browser",
+      "toggleLabel": "Live browser",
+      "toggleTooltip": "Watch the agent’s browser live (view only)",
+      "viewOnly": "View only",
+      "connecting": "Connecting…",
+      "streaming": "Live",
+      "disconnected": "Stream ended",
+      "reconnect": "Reconnect",
+      "error": "Couldn’t connect to the live view.",
+      "retry": "Retry",
+      "emptyTitle": "The agent isn’t browsing right now",
+      "emptyHint": "Start a turn — when the agent opens a browser you’ll see it here, live.",
+      "paneClose": "Close live browser",
+      "ariaLabel": "Live view of the agent’s browser (read-only)"
+    }
   },
   "common": {
     "optional": "optional",

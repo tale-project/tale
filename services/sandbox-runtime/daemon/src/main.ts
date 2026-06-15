@@ -34,6 +34,10 @@ import {
   type RunnerdExecRequest,
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
+import {
+  getActiveScreencasts,
+  handleScreencastUpgrade,
+} from './screencast-tunnel.ts';
 
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
 
@@ -278,6 +282,7 @@ async function router(
       bootedAtMs,
       lastActivityAtMs,
       liveExecs: execManager.liveCount(),
+      activeScreencasts: getActiveScreencasts(),
     });
     return;
   }
@@ -410,6 +415,19 @@ const server = createServer((req, res) => {
       // headers already sent on a streaming response
     }
   });
+});
+
+// HTTP/1.1 Upgrade → raw VNC tunnel. The spawner opens `GET /screencast` with
+// the per-session token; we relay raw bytes to the local x11vnc RFB port (no WS
+// framing here — that lives at the platform browser leg). Any other upgrade
+// path is closed outright.
+server.on('upgrade', (req, socket, head) => {
+  const path = new URL(req.url ?? '/', 'http://runnerd').pathname;
+  if (path !== '/screencast') {
+    socket.destroy();
+    return;
+  }
+  handleScreencastUpgrade(req, socket, head, { tokenOk, touch });
 });
 // Bound how long a client may take to send a request (headers + body) so a
 // slow/stalled client can't pin a connection for Node's 5-min default. These

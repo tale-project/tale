@@ -278,6 +278,13 @@ export interface SpawnerConfig {
   // keeps an isolation boundary (sysbox/kata) — loadConfig fails closed
   // otherwise. The one-shot /v1/execute path never enables this.
   dockerInContainer: boolean;
+  // Live browser view (env SANDBOX_BROWSER_VIEW; default false). When true the
+  // session container is launched with TALE_BROWSER_CDP=1, so the entrypoint
+  // brings up a headed Chromium with a loopback CDP endpoint mirrored read-only
+  // by x11vnc; the platform must also set its own SANDBOX_BROWSER_VIEW so the
+  // adapter attaches Playwright MCP over CDP (the two sides MUST agree — a
+  // deployment-level operator decision). Off ⇒ today's headless behavior.
+  browserView: boolean;
   // Kubernetes-backend settings (env SANDBOX_K8S_* / SANDBOX_CACHE). Always
   // populated by loadConfig; consumed only when backend === 'kubernetes'.
   k8s: {

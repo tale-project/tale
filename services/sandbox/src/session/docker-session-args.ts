@@ -194,6 +194,12 @@ export function buildDockerSessionRunArgs(
     ];
   }
 
+  // Live browser view (operator flag): signal the entrypoint to bring up the
+  // headed-Chromium + x11vnc read-only mirror (start_browser_stack). Additive
+  // and only present when enabled — off keeps today's argv byte-identical. The
+  // CDP (9222) / VNC (5900) endpoints are loopback-only; no port is published.
+  const browserViewEnv = cfg.browserView ? ['--env', 'TALE_BROWSER_CDP=1'] : [];
+
   // Per-org shared dep caches are DISABLED under DinD (sysbox userns shifting
   // makes a cross-session shared volume's ownership/integrity unsafe — a
   // same-org cache-poisoning vector). Cold caches are the safe default; installs
@@ -270,6 +276,8 @@ export function buildDockerSessionRunArgs(
     `TALE_RUNNERD_TOKEN=${inp.runnerdToken}`,
     // DinD signal + tier for the entrypoint (empty when DinD is off).
     ...dindEnv,
+    // Live browser view signal for the entrypoint (empty when off).
+    ...browserViewEnv,
     `--cpus=${profile.cpus}`,
     `--memory=${profile.memory}`,
     `--memory-swap=${profile.memory}`,

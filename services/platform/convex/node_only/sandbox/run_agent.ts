@@ -101,6 +101,13 @@ export interface RunAgentInSessionArgs {
   agentSessionId?: string;
   maxTurns?: number;
   browserMcp?: boolean;
+  /** Live browser view (read-only mirror). When true the adapter attaches
+   * Playwright MCP to the session's externally-launched headed Chromium over
+   * CDP instead of self-launching headless. Gated by the platform's
+   * SANDBOX_BROWSER_VIEW operator flag (see run_external_agent), which MUST be
+   * set together with the spawner's SANDBOX_BROWSER_VIEW (a deployment-level
+   * decision — the spawner is what actually launches the headed browser). */
+  browserCdp?: boolean;
   /** Turn permission posture (plan = read-only planning turn, execute =
    * default full access). Threaded to the adapter argv AND used by the plan
    * capture below: in execute mode a captured plan is discarded if any other
@@ -232,6 +239,7 @@ export async function runAgentInSessionImpl(
         }),
         ...(args.maxTurns !== undefined && { maxTurns: args.maxTurns }),
         ...(args.browserMcp !== undefined && { browserMcp: args.browserMcp }),
+        ...(args.browserCdp !== undefined && { browserCdp: args.browserCdp }),
         ...(args.permissionMode !== undefined && {
           permissionMode: args.permissionMode,
         }),

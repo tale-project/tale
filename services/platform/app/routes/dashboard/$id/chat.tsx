@@ -25,6 +25,10 @@ import { StreamingToolProvider } from '@/app/features/chat/context/streaming-too
 import { THREADS_PAGE_SIZE } from '@/app/features/chat/hooks/queries';
 import { CanvasPane } from '@/app/features/workspace/components/canvas-pane';
 import {
+  LiveBrowserProvider,
+  useLiveBrowser,
+} from '@/app/features/workspace/components/live-browser-context';
+import {
   WorkspaceProvider,
   useWorkspace,
 } from '@/app/features/workspace/components/workspace-context';
@@ -56,6 +60,22 @@ const WorkspaceFilesMobileBody = lazyComponent<{ threadId: string }>(() =>
   import('@/app/features/workspace/components/workspace-files-pane').then(
     (mod) => ({
       default: mod.WorkspaceFilesMobileBody,
+    }),
+  ),
+);
+
+const LiveBrowserPane = lazyComponent(() =>
+  import('@/app/features/workspace/components/live-browser-pane').then(
+    (mod) => ({
+      default: mod.LiveBrowserPane,
+    }),
+  ),
+);
+
+const LiveBrowserMobileBody = lazyComponent<{ threadId: string }>(() =>
+  import('@/app/features/workspace/components/live-browser-pane').then(
+    (mod) => ({
+      default: mod.LiveBrowserMobileBody,
     }),
   ),
 );
@@ -216,6 +236,8 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   const { isHistoryOpen, clearChatState } = useChatLayout();
   const { resetWorkspace } = useWorkspace();
   const { isOpen: isFilesOpen, close: closeFiles } = useWorkspaceFiles();
+  const { isOpen: isLiveBrowserOpen, close: closeLiveBrowser } =
+    useLiveBrowser();
   const { t: tChatFiles } = useT('chat');
 
   // Read threadId from URL — ChatInterface stays mounted across route changes.
@@ -244,9 +266,26 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
     if (hadThread && !threadId) {
       clearChatState();
       resetWorkspace();
+      closeFiles();
+      closeLiveBrowser();
       setNewChatCount((c) => c + 1);
     }
-  }, [threadId, clearChatState, resetWorkspace]);
+  }, [threadId, clearChatState, resetWorkspace, closeFiles, closeLiveBrowser]);
+
+  // The workspace-files and live-browser panes are both right-side panes —
+  // keep at most one open at a time (opening one closes the other) so the
+  // layout never tries to stack two resizable panes on the right edge.
+  useEffect(() => {
+    if (isFilesOpen && isLiveBrowserOpen) closeFiles();
+    // Intentionally not depending on the close callbacks: this fires when
+    // either open-state flips, and `isLiveBrowserOpen` going true (the more
+    // recent action when both are set on the same tick) wins.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLiveBrowserOpen]);
+  useEffect(() => {
+    if (isFilesOpen && isLiveBrowserOpen) closeLiveBrowser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFilesOpen]);
 
   // Render shared chat view when on shared route
   if (shareToken) {
@@ -316,6 +355,14 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
         <LayoutErrorBoundary organizationId={organizationId}>
           <WorkspaceFilesPane />
         </LayoutErrorBoundary>
+        {/* Read-only live-browser stream — independent right-side pane,
+            self-gated identically (external-agent thread with a live session).
+            At most one of it / workspace-files is open at a time (see the
+            mutual-exclusion effects above). Desktop only; the mobile Sheet
+            below carries it under `md`. */}
+        <LayoutErrorBoundary organizationId={organizationId}>
+          <LiveBrowserPane />
+        </LayoutErrorBoundary>
       </div>
 
       {/* Mobile: present the workspace-files pane in a right Sheet like the
@@ -336,6 +383,24 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
           </LayoutErrorBoundary>
         </Sheet>
       )}
+
+      {/* Mobile: live-browser stream in its own right Sheet (mirrors the
+          workspace-files mobile Sheet). */}
+      {threadId && (
+        <Sheet
+          open={isLiveBrowserOpen}
+          onOpenChange={(open) => {
+            if (!open) closeLiveBrowser();
+          }}
+          side="right"
+          title={tChatFiles('liveBrowser.title')}
+          className="w-full p-0 md:hidden"
+        >
+          <LayoutErrorBoundary organizationId={organizationId}>
+            <LiveBrowserMobileBody threadId={threadId} />
+          </LayoutErrorBoundary>
+        </Sheet>
+      )}
     </PageLayout>
   );
 }
@@ -348,9 +413,11 @@ function ChatLayout() {
       <ArenaModeProvider>
         <WorkspaceProvider>
           <WorkspaceFilesProvider>
-            <StreamingToolProvider>
-              <ChatLayoutContent organizationId={organizationId} />
-            </StreamingToolProvider>
+            <LiveBrowserProvider>
+              <StreamingToolProvider>
+                <ChatLayoutContent organizationId={organizationId} />
+              </StreamingToolProvider>
+            </LiveBrowserProvider>
           </WorkspaceFilesProvider>
         </WorkspaceProvider>
       </ArenaModeProvider>

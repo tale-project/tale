@@ -18,6 +18,10 @@ import {
 import { installSignalHandlers, startPeriodicSweep } from './cleanup.ts';
 import { loadConfig } from './config.ts';
 import { jsonResponse, readBodyCapped } from './http-util.ts';
+import {
+  createScreencastWebSocketHandler,
+  type ScreencastWsData,
+} from './session/screencast-relay.ts';
 import { SessionRoutes } from './session/session-routes.ts';
 import {
   cancelExecution,
@@ -267,6 +271,12 @@ const CANCEL_ROUTE_RE = /^\/v1\/cancel\/([a-zA-Z0-9_-]{1,64})$/;
 // session/session-routes.ts.
 const SESSION_ID = '([a-zA-Z0-9_-]{1,64})';
 const EXEC_ID = '([a-zA-Z0-9_-]{1,64})';
+// Read-only live browser view: a WebSocket the platform opens, bridged to the
+// session's runnerd raw-VNC tunnel (see session/screencast-relay.ts). Matched
+// BEFORE the bare :id matcher (it carries a trailing /screencast segment).
+const SESSION_BROWSER_SCREENCAST_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/screencast$`,
+);
 const SESSION_ONE_RE = new RegExp(`^/v1/sessions/${SESSION_ID}$`);
 const SESSION_EXEC_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/exec$`);
 const SESSION_EXEC_CANCEL_RE = new RegExp(
@@ -460,6 +470,38 @@ async function handleSessionRoutes(
   return null;
 }
 
+// The browser-facing WebSocket handler (one per process). It bridges each WS
+// to the session's runnerd raw-VNC tunnel; the resolver is the registry-cache
+// lookup the route layer owns (a WS that reached here already passed HMAC).
+const screencastWsHandler = createScreencastWebSocketHandler((sessionId) =>
+  getSessionRoutes().resolveScreencastTarget(sessionId),
+);
+
+/**
+ * GET /v1/sessions/:id/screencast — authenticate (HMAC over an EMPTY body,
+ * since the GET has no body), then hand the connection to Bun's WebSocket
+ * server. Returns:
+ *  - a 401/500 `Response` to send as-is (auth failed / upgrade refused), or
+ *  - `undefined` when `server.upgrade` succeeded and Bun has taken over the
+ *    socket (fetch must return undefined in that case).
+ *
+ * Lives in `fetch` rather than `router()` because `server.upgrade` needs the
+ * live `Server` instance, which only exists inside the Bun.serve callback.
+ */
+function handleScreencastUpgrade(
+  req: Request,
+  server: import('bun').Server<ScreencastWsData>,
+  sessionId: string,
+): Response | undefined {
+  // HMAC over the empty body — same gate as every other session route (the
+  // files/content GET signs sha256('') identically).
+  const authFail = authorize('', req);
+  if (authFail) return authFail;
+  const upgraded = server.upgrade(req, { data: { sessionId } });
+  if (upgraded) return undefined; // Bun owns the socket now.
+  return jsonResponse({ error: 'upgrade_failed' }, 500);
+}
+
 async function router(req: Request): Promise<Response> {
   const url = new URL(req.url);
   if (req.method === 'GET' && url.pathname === '/health') {
@@ -535,18 +577,36 @@ async function main(): Promise<void> {
     );
   }
 
-  const server = Bun.serve({
+  const server = Bun.serve<ScreencastWsData>({
     port: cfg.port,
     // Bun's default idleTimeout is 10 s, which kills long SSE streams during
     // silent install phases. 255 is Bun's max — combined with the in-stream
     // keepalive in /v1/execute, this gives a generous backstop without
     // disabling the timeout entirely.
     idleTimeout: 255,
-    fetch: (req) =>
-      router(req).catch((err) => {
+    fetch: (req, srv) => {
+      // Intercept the screencast WS upgrade before the generic router: the
+      // upgrade needs the live Server instance (only available here). Every
+      // other route flows through router() unchanged.
+      const url = new URL(req.url);
+      const screencastMatch =
+        req.method === 'GET'
+          ? url.pathname.match(SESSION_BROWSER_SCREENCAST_RE)
+          : null;
+      if (screencastMatch) {
+        try {
+          return handleScreencastUpgrade(req, srv, screencastMatch[1] ?? '');
+        } catch (err) {
+          console.error('[sandbox] screencast upgrade error:', err);
+          return jsonResponse({ error: 'internal', message: String(err) }, 500);
+        }
+      }
+      return router(req).catch((err) => {
         console.error('[sandbox] handler error:', err);
         return jsonResponse({ error: 'internal', message: String(err) }, 500);
-      }),
+      });
+    },
+    websocket: screencastWsHandler,
   });
 
   installSignalHandlers(() => {

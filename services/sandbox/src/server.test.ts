@@ -56,6 +56,80 @@ describe('cancel route regex', () => {
   });
 });
 
+// The screencast WS route regex in server.ts. This block is a regression gate
+// for the route ordering contract: SESSION_BROWSER_SCREENCAST_RE must be
+// matched BEFORE the bare SESSION_ONE_RE (it carries a trailing /screencast
+// segment), and must reject anything outside the id alphabet.
+const SESSION_ID = '([a-zA-Z0-9_-]{1,64})';
+const SESSION_BROWSER_SCREENCAST_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/screencast$`,
+);
+const SESSION_ONE_RE = new RegExp(`^/v1/sessions/${SESSION_ID}$`);
+
+describe('screencast route regex', () => {
+  test('matches /v1/sessions/:id/screencast and captures the id', () => {
+    const m = '/v1/sessions/sess_abc-123/screencast'.match(
+      SESSION_BROWSER_SCREENCAST_RE,
+    );
+    expect(m?.[1]).toBe('sess_abc-123');
+  });
+
+  test('does NOT match the bare session route (no /screencast suffix)', () => {
+    expect(
+      '/v1/sessions/sess_abc'.match(SESSION_BROWSER_SCREENCAST_RE),
+    ).toBeNull();
+  });
+
+  test('the bare :id matcher does NOT swallow a /screencast path', () => {
+    // Ordering safety: the screencast path must not be captured as a session id
+    // by the bare matcher (which would route it to handleGet instead).
+    expect('/v1/sessions/sess_abc/screencast'.match(SESSION_ONE_RE)).toBeNull();
+  });
+
+  test('rejects traversal / metacharacters in the id', () => {
+    for (const bad of [
+      '/v1/sessions/../escape/screencast',
+      '/v1/sessions/a;b/screencast',
+      '/v1/sessions//screencast',
+    ]) {
+      expect(bad.match(SESSION_BROWSER_SCREENCAST_RE)).toBeNull();
+    }
+  });
+});
+
+describe('screencast HMAC gate (empty-body GET)', () => {
+  // The screencast upgrade authorizes with an EMPTY body — the GET carries no
+  // body, so the signature is over sha256('') exactly like the files/content
+  // GET. A correctly-signed empty-body request verifies; a bad/missing one is
+  // rejected (the route then returns 401 and never calls server.upgrade).
+  const token = 'shared-secret';
+  const method = 'GET';
+  const path = '/v1/sessions/sess1/screencast';
+  const now = 1_700_000_000_000;
+  const ts = String(now);
+
+  test('accepts a correctly-signed empty-body GET', () => {
+    const sig = sign(method, path, ts, '', token);
+    expect(verify(method, path, '', sig, ts, token, now)).toEqual({ ok: true });
+  });
+
+  test('rejects a missing signature (→ route returns 401, no upgrade)', () => {
+    expect(verify(method, path, '', null, ts, token, now)).toEqual({
+      ok: false,
+      reason: 'missing_signature',
+    });
+  });
+
+  test('rejects a signature minted over a non-empty body', () => {
+    // An attacker signing some body can't pass the empty-body verify.
+    const sig = sign(method, path, ts, '{"x":1}', token);
+    expect(verify(method, path, '', sig, ts, token, now)).toEqual({
+      ok: false,
+      reason: 'bad_signature',
+    });
+  });
+});
+
 describe('loadConfig token defaults', () => {
   test('returns null token on a fresh env (opt-in verification)', () => {
     // server.ts main() only warns when sandboxToken is null; the wire path's

@@ -10,6 +10,17 @@
 # is a different container. Disable that so in-container dev servers stay
 # reachable from the browser.
 export PLAYWRIGHT_DISABLE_FORCED_CHROMIUM_PROXIED_LOOPBACK=1
-[ -n "${HTTPS_PROXY:-}" ] && set -- "$@" --proxy-server "$HTTPS_PROXY"
-[ -n "${NO_PROXY:-}" ] && set -- "$@" --proxy-bypass "$NO_PROXY"
+# Live-browser-view mode (--cdp-endpoint): the MCP connects over CDP to an
+# already-launched managed browser, so it never spawns Chromium here — the proxy
+# flags are launch-time only and meaningless to connectOverCDP (the managed
+# browser already carries the egress proxy, set by the entrypoint). Detect the
+# attach flag and skip the bridging.
+_cdp=0
+for _a in "$@"; do
+  case "$_a" in --cdp-endpoint) _cdp=1; break ;; esac
+done
+if [ "$_cdp" -eq 0 ]; then
+  [ -n "${HTTPS_PROXY:-}" ] && set -- "$@" --proxy-server "$HTTPS_PROXY"
+  [ -n "${NO_PROXY:-}" ] && set -- "$@" --proxy-bypass "$NO_PROXY"
+fi
 exec mcp-server-playwright "$@"

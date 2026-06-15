@@ -36,6 +36,8 @@ export interface RunnerdHealth {
   bootedAtMs: number;
   lastActivityAtMs: number;
   liveExecs: number;
+  /** Raw VNC tunnels (GET /screencast) currently piping. */
+  activeScreencasts: number;
 }
 
 export interface RunnerdExecRequest {

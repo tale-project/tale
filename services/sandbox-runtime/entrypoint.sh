@@ -271,6 +271,96 @@ start_inner_dockerd() {
 }
 
 # ---------------------------------------------------------------------------
+# Live browser view (read-only mirror). Used only when the spawner launches the
+# session with TALE_BROWSER_CDP=1 (operator flag SANDBOX_BROWSER_VIEW; see
+# config.ts + docker-session-args.ts). Brings up ONE managed HEADED Chromium
+# with a CDP endpoint on loopback 127.0.0.1:9222 that Playwright MCP attaches to
+# (instead of self-launching headless), mirrored read-only by x11vnc on loopback
+# 127.0.0.1:5900. Both ports are LOOPBACK-ONLY and the container publishes none —
+# the mirror is reachable only from inside the container. The agent drives the
+# browser over CDP; x11vnc runs -viewonly so the X side can never inject input —
+# that is the airtight read-only guarantee. Fail-open: any step failing logs a
+# WARN and continues so runnerd still starts (a session must work even if the
+# browser view didn't come up). Dead code on the default path (flag unset).
+# ---------------------------------------------------------------------------
+
+# Resolve the Chromium the MCP would launch — the SAME playwright-core bundled
+# under @playwright/mcp the Dockerfile build-verifies (see the executablePath()
+# check ~line 111). Prints the path or nothing.
+_resolve_chrome_bin() {
+  node -e "const p=require('/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core'); process.stdout.write(p.chromium.executablePath())" 2>/dev/null || true
+}
+
+# Supervise a command in a rate-limited restart loop (background). A crash is
+# auto-restarted after a 1s pause; the 1s also caps the restart rate. The whole
+# loop is detached so the entrypoint moves on to exec runnerd. In DinD mode the
+# caller passes $DROP (setpriv → uid 10001) as the first arg so these run as the
+# agent user, not root.
+_supervise() {
+  ( while true; do "$@"; sleep 1; done ) &
+}
+
+start_browser_stack() {
+  echo "[entrypoint] starting live browser view (TALE_BROWSER_CDP=1)"
+
+  # X11 socket dir on the writable tmpfs (read-only root otherwise).
+  $DROP mkdir -p /tmp/.X11-unix 2>/dev/null || true
+  $DROP chmod 1777 /tmp/.X11-unix 2>/dev/null || true
+
+  CHROME_BIN="$(_resolve_chrome_bin)"
+  if [ -z "${CHROME_BIN}" ] || [ ! -x "${CHROME_BIN}" ]; then
+    echo "[entrypoint] WARN: could not resolve a runnable Chromium for the browser view (got '${CHROME_BIN:-}'); skipping — runnerd will still start" >&2
+    return 0
+  fi
+
+  # Virtual display for the headed browser. -nolisten tcp keeps the X server off
+  # the network (loopback unix socket only); -ac disables host access control
+  # (only the in-container procs can reach the socket anyway).
+  # shellcheck disable=SC2086 # $DROP must word-split (empty, or the setpriv prefix)
+  _supervise $DROP Xvfb :99 -screen 0 1280x720x24 -nolisten tcp -ac
+  export DISPLAY=:99
+
+  # Read-only mirror. -localhost binds 127.0.0.1 only, -viewonly drops all X
+  # input from the VNC side (the agent drives via CDP, never via VNC). -nopw is
+  # acceptable because the port is loopback-only inside an isolated container.
+  # shellcheck disable=SC2086
+  _supervise $DROP x11vnc -display :99 -rfbport 5900 -localhost -viewonly \
+    -forever -shared -nopw -noxdamage
+
+  # Headed Chromium with a CDP endpoint on loopback. The proxy bridge mirrors
+  # the tale-playwright-mcp shim (Chromium ignores HTTPS_PROXY/NO_PROXY env):
+  # forward the egress proxy + bypass list as flags so the managed browser has
+  # the same egress posture the self-launched one would.
+  set -- "${CHROME_BIN}" \
+    --remote-debugging-port=9222 \
+    --remote-debugging-address=127.0.0.1 \
+    --user-data-dir=/tmp/cdp-profile \
+    --no-sandbox \
+    --disable-gpu \
+    --start-fullscreen \
+    --window-size=1280,720 \
+    --ignore-certificate-errors
+  [ -n "${HTTPS_PROXY:-}" ] && set -- "$@" --proxy-server="${HTTPS_PROXY}"
+  [ -n "${NO_PROXY:-}" ] && set -- "$@" --proxy-bypass-list="${NO_PROXY}"
+  # shellcheck disable=SC2086
+  _supervise $DROP "$@"
+
+  # Block on CDP readiness, fail-open. A failed curl must NOT abort the script
+  # (set -e) — the loop swallows it and the timeout path only WARNs.
+  _i=0
+  while [ "$_i" -lt 30 ]; do
+    if curl -fsS "http://127.0.0.1:9222/json/version" >/dev/null 2>&1; then
+      echo "[entrypoint] live browser view ready (CDP 127.0.0.1:9222, VNC 127.0.0.1:5900, view-only)"
+      return 0
+    fi
+    _i=$((_i + 1))
+    sleep 0.5
+  done
+  echo "[entrypoint] WARN: headed Chromium CDP not ready within ~15s; continuing (runnerd starts; Playwright MCP --cdp-endpoint will retry the connection)" >&2
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Session daemon dispatch (sessions plan). The spawner launches a long-lived
 # session container with a single positional arg `daemon` (see
 # session/docker-session-args.ts); everything else is the one-shot
@@ -313,6 +403,15 @@ if [ "$1" = "daemon" ]; then
   export NPM_CONFIG_PREFIX=/user/.runtime/deps/node
   export NODE_PATH=/user/.runtime/deps/node/lib/node_modules
   export PATH=/user/.runtime/deps/python/bin:/user/.runtime/deps/node/bin:$PATH
+
+  # Live browser view (operator flag): bring up the headed Chromium + Xvfb +
+  # x11vnc mirror BEFORE handing off to runnerd, so Playwright MCP can attach to
+  # the CDP endpoint on the first browser tool call. In DinD mode the supervisor
+  # loops run as uid 10001 via $DROP (set above); on the default path the
+  # container is already uid 10001 and $DROP is empty. Fail-open inside.
+  if [ "${TALE_BROWSER_CDP:-}" = "1" ]; then
+    start_browser_stack
+  fi
 
   # DinD: bring up the inner dockerd as root, then hand off. tini becomes PID 1
   # to reap the many short-lived shims native docker spawns (teardown is a
