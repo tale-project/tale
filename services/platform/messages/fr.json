@@ -974,11 +974,13 @@
     "generationStopped": "Génération arrêtée",
     "queue": {
       "placeholder": "L'agent travaille — les nouveaux messages sont mis en file d'attente…",
+      "placeholderIdle": "L'agent a terminé — votre message passe maintenant…",
       "full": "La file d'attente des messages est pleine",
       "status": {
         "queued": "En file d'attente — sera pris en compte après l'étape en cours",
         "queuedWithStep": "En file d'attente — sera pris en compte après l'étape en cours ({step})",
         "delivered": "Transmis — en attente de la réponse de l'agent",
+        "deliversNow": "Transmission en cours",
         "consumed": "Pris en compte"
       }
     },

@@ -47,6 +47,7 @@ import {
   ThreadMessageMetadataProvider,
   useChatAgents,
   useResolvedHumanInputRequests,
+  useSessionProgress,
 } from '../hooks/queries';
 import { useArenaThreadSetup } from '../hooks/use-arena-thread-setup';
 import { useChatScroll } from '../hooks/use-chat-scroll';
@@ -501,6 +502,13 @@ export function ChatInterface({
   // enqueue can only race a turn the server actually started — during the
   // optimistic window the composer behaves exactly as before.
   const queueModeActive = isExternalAgentThread && (isGenerating ?? false);
+
+  // The agent emitted its result but the process lingers on held-open stdin to
+  // receive more messages. Still `isGenerating` (process alive, queue + Stop
+  // must work), so we only correct the composer COPY — not the running state.
+  const sessionProgress = useSessionProgress(dataThreadId);
+  const agentLingering =
+    isExternalAgentThread && sessionProgress?.agentIdleAt != null;
 
   const { mutateAsync: enqueueMessage } = useEnqueueMessage();
 
@@ -1315,7 +1323,9 @@ export function ChatInterface({
                 className="mx-auto w-full max-w-(--chat-max-width)"
                 placeholder={
                   queueModeActive
-                    ? t('queue.placeholder')
+                    ? agentLingering
+                      ? t('queue.placeholderIdle')
+                      : t('queue.placeholder')
                     : isImageGenAgent
                       ? activeEditingImage && currentModelSupportsEdit
                         ? t('imageEdit.placeholder')

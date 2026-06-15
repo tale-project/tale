@@ -20,9 +20,15 @@ interface SteerStatusValue {
   /** The running turn's in-flight tool label (e.g. "Bash …"), surfaced so a
    *  queued steer message can say which step it's waiting behind. */
   currentStepLabel?: string;
+  /** The agent emitted its result and is lingering on held-open stdin — a
+   *  queued message is pushed via the linger loop within seconds, so it's
+   *  "delivering now" rather than waiting behind a long in-flight tool. */
+  agentLingering: boolean;
 }
 
-const SteerStatusContext = createContext<SteerStatusValue | null>(null);
+// Exported for unit tests to drive `SteerStatusLine` with a controlled value
+// (the provider itself depends on live Convex subscriptions).
+export const SteerStatusContext = createContext<SteerStatusValue | null>(null);
 
 /**
  * Subscribes once per thread to the mid-turn steer queue (chatMessageQueue) and
@@ -85,12 +91,17 @@ export function SteerStatusProvider({
     return undefined;
   }, [hasPending, progress?.status, progress?.recentEvents, t]);
 
+  // Agent has finished its result and is lingering (idle) — set on the op when
+  // the process stays alive on held-open stdin to receive more messages.
+  const agentLingering = progress?.agentIdleAt != null;
+
   const value = useMemo<SteerStatusValue>(
     () => ({
       byMessageId,
+      agentLingering,
       ...(currentStepLabel !== undefined && { currentStepLabel }),
     }),
-    [byMessageId, currentStepLabel],
+    [byMessageId, agentLingering, currentStepLabel],
   );
 
   return (
@@ -117,6 +128,11 @@ export function SteerStatusLine({ messageId }: { messageId: string }) {
     text = t('queue.status.delivered');
   } else if (status === 'consumed') {
     text = t('queue.status.consumed');
+  } else if (ctx?.agentLingering) {
+    // queued / claimed while the agent is idle-lingering — the linger loop
+    // pushes it via stdin within seconds, so it's delivering now, not waiting
+    // behind a long in-flight tool.
+    text = t('queue.status.deliversNow');
   } else {
     // queued / claimed — still waiting for a boundary to pick it up.
     text = ctx?.currentStepLabel
