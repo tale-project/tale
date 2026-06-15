@@ -498,9 +498,16 @@ export function ChatInterface({
   // The agent emitted its result but the process lingers on held-open stdin to
   // receive more messages. The process is still alive (so the steer queue can
   // still deliver), but the TURN is over — so this is NOT "working".
+  //
+  // Thread-based, and deliberately NOT gated on `isExternalAgentThread`: the
+  // lingering turn belongs to the THREAD, so the running-state must stay
+  // correct even when the user switches the composer to a DIFFERENT agent
+  // (e.g. a non-external one) while an external turn is still lingering —
+  // otherwise the Stop button / spinner / thinking dots would wrongly reappear.
+  // `useSessionProgress` returns null for threads with no sandbox op (normal
+  // chat), so this is simply false there.
   const sessionProgress = useSessionProgress(dataThreadId);
-  const agentLingering =
-    isExternalAgentThread && sessionProgress?.agentIdleAt != null;
+  const agentLingering = sessionProgress?.agentIdleAt != null;
 
   // Canonical "Claude Code is actively working right now": a turn is in flight
   // AND it is not merely lingering idle on held-open stdin after emitting its
