@@ -27,9 +27,15 @@ test('lists conversations and routes between status tabs', async ({ page }) => {
     timeout: 60_000,
   });
 
-  // Page title (header) renders.
+  // Page title (header) renders. The adaptive header dual-renders the title:
+  // once in the desktop header inside <main> and once in the `md:hidden` mobile
+  // top bar (which sits earlier in the DOM). `.first()` would resolve to that
+  // hidden mobile copy at the Desktop Chrome viewport, so scope to the visible
+  // <main> region's level-1 heading instead.
   await expect(
-    page.getByText(t('conversations.title'), { exact: true }).first(),
+    page
+      .getByRole('main')
+      .getByRole('heading', { name: t('conversations.title'), level: 1 }),
   ).toBeVisible({ timeout: 60_000 });
 
   // All four status tabs render as navigation links.

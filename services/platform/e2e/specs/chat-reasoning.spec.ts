@@ -17,13 +17,20 @@ import {
  * deterministic ONLY under the mock, so the whole file is skipped on a live
  * stack.
  *
- * Product behavior (project memory + `inline-reasoning.tsx`): the reasoning
- * block is COLLAPSED by default and user-controlled — it never auto-expands.
- * So the test asserts the collapsed disclosure, CLICKS it, then asserts the
- * reasoning prose. The disclosure is a `<button>` (`aria-expanded`) whose
- * accessible name is `chat.thoughtProcess.thinking` ("Thinking"); the
- * always-visible thought-header status strip (`thought-header.tsx`) is a plain
- * `<div>`, not a button, so the button role disambiguates the two.
+ * Product behavior (project memory + `message-thought-header.tsx` /
+ * `thought-header.tsx`): the per-message thought header is the SINGLE reasoning
+ * control. It is COLLAPSED by default and user-controlled — it never
+ * auto-expands. So the test asserts the collapsed disclosure, CLICKS it, then
+ * asserts the reasoning prose. The disclosure is a `<button>` (`aria-expanded`)
+ * whose accessible name is the live "Thinking" label only WHILE streaming; once
+ * the turn ends it latches the "·"-separated summary
+ * (`chat.thoughtProcess.durationLabel` "Thought for {seconds}s" first, then tool/
+ * token counts) — e.g. "Thought for 1s · 16 tokens". The test waits for the
+ * final answer first (turn done), so it matches the settled summary by the
+ * locale-derived "Thought for" prefix (`durationLabel` minus its placeholder
+ * tail). The seconds/token values are non-deterministic, hence a prefix regex.
+ * When the header is NOT expandable it renders as a plain `<div>`, not a button,
+ * so the button role still disambiguates from any non-reasoning header.
  *
  * Idempotent: creates its own thread and deletes it (the delete flow mirrors
  * `chat-threads.spec.ts`).
@@ -83,11 +90,22 @@ test('streams a reasoning block, expands it on click, then deletes the thread', 
     timeout: 120_000,
   });
 
-  // The reasoning disclosure is a button labelled "Thinking". It is COLLAPSED
-  // by default (`aria-expanded="false"`) — the reasoning prose must NOT be
-  // visible until it is clicked.
+  // The reasoning disclosure is the per-message thought header button. The turn
+  // has finished (the answer above is visible), so its accessible name has
+  // latched to the settled summary ("Thought for Ns · M tokens"), NOT the live
+  // "Thinking" verb. Match the locale-derived "Thought for" prefix — the seconds
+  // and token counts are non-deterministic. It is COLLAPSED by default
+  // (`aria-expanded="false"`); the reasoning prose must NOT be visible until it
+  // is clicked.
+  //
+  // `t('chat.thoughtProcess.durationLabel')` is the raw ICU string
+  // "Thought for {seconds}s"; everything before the placeholder is the stable
+  // prefix to anchor on.
+  const durationPrefix = t('chat.thoughtProcess.durationLabel').split('{')[0];
   const reasoningToggle = page
-    .getByRole('button', { name: t('chat.thoughtProcess.thinking') })
+    .getByRole('button', {
+      name: new RegExp(`^${durationPrefix.replace(/\s+$/, '')}`),
+    })
     .first();
   await expect(reasoningToggle).toBeVisible({ timeout: 60_000 });
   await expect(reasoningToggle).toHaveAttribute('aria-expanded', 'false');

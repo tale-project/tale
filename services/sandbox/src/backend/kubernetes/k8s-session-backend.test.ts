@@ -20,10 +20,11 @@ const cfg: SpawnerConfig = {
   port: 8003,
   sandboxToken: 'test',
   runtimeImage: 'tale-sandbox-runtime:test',
-  runtime: 'runc',
+  runtimeTier: 'runc',
+  dockerInContainer: false,
   k8s: {
     namespace: 'tale-sandbox',
-    runtimeClassName: 'gvisor',
+    runtimeClassName: null,
     spawnerImage: 'tale-sandbox:test',
     cacheMode: 'none',
     workspaceSizeLimit: '4Gi',

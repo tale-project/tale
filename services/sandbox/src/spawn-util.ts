@@ -236,7 +236,10 @@ export async function dockerKill(
 }
 
 export async function dockerRm(containerName: string): Promise<void> {
-  await runDocker(['rm', '--force', containerName]);
+  // Bounded: a wedged inner dockerd (DinD) with stuck mounts could otherwise
+  // hang teardown indefinitely. SIGKILL of PID 1 normally collapses everything
+  // fast, so 30s is generous slack, not a routine wait.
+  await runDocker(['rm', '--force', containerName], { timeoutMs: 30_000 });
 }
 
 /**

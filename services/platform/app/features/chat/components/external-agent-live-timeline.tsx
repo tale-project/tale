@@ -6,7 +6,6 @@ import { useSessionProgress } from '../hooks/queries';
 import { buildExternalAgentParts } from '../utils/build-external-agent-parts';
 import {
   buildMessageSegments,
-  deriveActivity,
   type MessageSegment,
 } from '../utils/build-message-segments';
 import type { RouteReason } from '../utils/route-reason';
@@ -75,7 +74,6 @@ export function ExternalAgentLiveTimeline({
           toolCount={toolCount}
           skillCount={skillCount}
           hasReasoning={hasReasoning}
-          activity={deriveActivity(segments)}
           reasoningSteps={reasoningSteps}
           {...(turnStartMs !== undefined && { turnStartMs })}
         />

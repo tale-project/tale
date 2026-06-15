@@ -42,6 +42,10 @@ export const getActiveSessionOp = query({
       startedAt: v.number(),
       finishedAt: v.optional(v.number()),
       lastEventAt: v.optional(v.number()),
+      // Set when the agent has emitted its turn result but the process lingers
+      // on held-open stdin (so we can still inject queued/steer messages). Lets
+      // the UI distinguish "lingering/ready" from "actively working".
+      agentIdleAt: v.optional(v.number()),
     }),
     v.null(),
   ),
@@ -63,6 +67,7 @@ export const getActiveSessionOp = query({
       startedAt: number;
       finishedAt?: number;
       lastEventAt?: number;
+      agentIdleAt?: number;
     } | null = null;
     for await (const row of ctx.db
       .query('sandboxSessionOps')
@@ -84,6 +89,9 @@ export const getActiveSessionOp = query({
           ...(row.finishedAt !== undefined && { finishedAt: row.finishedAt }),
           ...(row.lastEventAt !== undefined && {
             lastEventAt: row.lastEventAt,
+          }),
+          ...(row.agentIdleAt !== undefined && {
+            agentIdleAt: row.agentIdleAt,
           }),
         };
       }

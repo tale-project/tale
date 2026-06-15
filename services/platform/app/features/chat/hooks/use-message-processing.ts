@@ -13,6 +13,7 @@ import {
 import { useChatLayout } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
 import { hasInFlightTool } from '../utils/thought-predicates';
+import { useSessionProgress } from './queries';
 
 const INTERNAL_ATTACHMENT_MARKER =
   /\n?\n?\[ATTACHED FILES - Pre-analysis was not available\. Use your tools to process these files\.\]/;
@@ -140,6 +141,20 @@ export function useMessageProcessing(
   // undefined during that gap.
   const isGenerating = threadMeta?.isGenerating;
 
+  // After an external-agent (Claude Code / OpenCode) turn emits its result, the
+  // process LINGERS on held-open stdin for instant next-message delivery, so
+  // `isGenerating`/generationStatus stay true even though the turn is over.
+  // Subtract that lingering window: the canonical "the agent is actively
+  // producing this message right now" is generating AND not lingering-idle.
+  // Without this, the last assistant bubble below latches its streaming
+  // affordances (the "Thinking" header + trailing dots) for the whole linger.
+  // Same `agentIdleAt` signal the composer + Sandbox pill read, so all surfaces
+  // agree. `useSessionProgress` is null for normal-chat threads (no sandbox
+  // op), so `effectiveGenerating` collapses to plain `isGenerating` there.
+  const sessionProgress = useSessionProgress(threadId);
+  const agentLingering = sessionProgress?.agentIdleAt != null;
+  const effectiveGenerating = !!isGenerating && !agentLingering;
+
   // Client-side pending-send signal. When the user has just clicked send
   // but the new user message hasn't been persisted yet, `pendingMessage` is
   // non-null on the same thread. During that narrow window, isGenerating is
@@ -250,7 +265,7 @@ export function useMessageProcessing(
     //     file-only reply. Otherwise it's intra-turn — DO hide.
     //   - maxAssistant > maxUser: intra-turn with strict advance — hide.
     let activeTurnOrder: number | undefined;
-    if (isGenerating) {
+    if (effectiveGenerating) {
       let maxUserOrder = -Infinity;
       let maxAssistantOrder = -Infinity;
       for (const m of uiMessages) {
@@ -377,7 +392,7 @@ export function useMessageProcessing(
           isStreaming =
             streamingKeysRef.current.has(m.key) ||
             (m.role === 'assistant' &&
-              !!isGenerating &&
+              effectiveGenerating &&
               (m.key === lastAssistantKey || messageHasInFlightTool));
         }
 
@@ -521,7 +536,7 @@ export function useMessageProcessing(
           return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
         })
     );
-  }, [uiMessages, messageErrors, isGenerating, hasPendingSendForThread]);
+  }, [uiMessages, messageErrors, effectiveGenerating, hasPendingSendForThread]);
 
   // Find active assistant message (streaming or pending tool execution).
   // Unified lookup ensures ThinkingAnimation receives tool parts during both phases.

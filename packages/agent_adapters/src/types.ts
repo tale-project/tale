@@ -69,4 +69,11 @@ export interface AgentAdapter {
   createParser(): AgentEventParser;
 }
 
-export const DEFAULT_MAX_TURNS = 40;
+// Per-turn tool-iteration cap passed to the CLI (`claude --max-turns`). This is
+// a runaway-loop backstop, NOT a work budget: real autonomous tasks — browser
+// automation (every click/snapshot/retry is a turn), multi-service bring-ups,
+// long debugging sessions — routinely need well over the old value of 40, and
+// hitting the cap ends the turn mid-task (looks like a silent freeze). A high
+// ceiling keeps the platform a duration-independent I/O conduit (it never
+// proactively kills a healthy agent) while still bounding a true infinite loop.
+export const DEFAULT_MAX_TURNS = 200;

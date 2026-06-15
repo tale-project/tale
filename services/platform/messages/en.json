@@ -973,7 +973,15 @@
     "generationStopped": "Generation stopped",
     "queue": {
       "placeholder": "The agent is working — new messages are queued for it…",
-      "full": "Message queue is full"
+      "placeholderIdle": "The agent finished — your message goes through now…",
+      "full": "Message queue is full",
+      "status": {
+        "queued": "Queued — will be picked up after the current step",
+        "queuedWithStep": "Queued — will be picked up after the current step ({step})",
+        "delivered": "Delivered — waiting for the agent to respond",
+        "deliversNow": "Delivering now",
+        "consumed": "Picked up"
+      }
     },
     "errorGenerating": "Something went wrong",
     "retryGeneration": "Try again",

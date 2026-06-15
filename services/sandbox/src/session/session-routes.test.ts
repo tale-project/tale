@@ -27,10 +27,11 @@ const cfg: SpawnerConfig = {
   port: 8003,
   sandboxToken: null, // unsigned dev mode — runnerd token is '' on the wire
   runtimeImage: 'tale-sandbox-runtime:test',
-  runtime: 'runc',
+  runtimeTier: 'runc',
+  dockerInContainer: false,
   k8s: {
     namespace: 'tale-sandbox',
-    runtimeClassName: 'gvisor',
+    runtimeClassName: null,
     spawnerImage: 'tale-sandbox:test',
     cacheMode: 'none',
     workspaceSizeLimit: '4Gi',

@@ -7,6 +7,7 @@
 // spawn.ts:stageWorkspace). Only typed identifiers (UUID, orgId after
 // validation, language, image) reach argv positions.
 
+import { dockerRuntimeFor } from './runtime-tier.ts';
 import type { Language, SpawnerConfig } from './types.ts';
 
 interface DockerRunInput {
@@ -81,7 +82,7 @@ export function buildDockerRunArgs(
   // harvesting outputs from the host bind-mounted workspace dir.
   return [
     'run',
-    `--runtime=${cfg.runtime}`,
+    `--runtime=${dockerRuntimeFor(cfg.runtimeTier)}`,
     '--name',
     containerName,
     '--label',

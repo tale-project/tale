@@ -24,7 +24,6 @@ import { v } from 'convex/values';
 import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
-import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../lib/untrusted_content';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import {
   applyGatewayConfig,
@@ -51,6 +50,7 @@ import {
   sessionIdForUser,
   userOwnerId,
 } from '../../sandbox/session_naming';
+import { buildSystemPromptAppend } from './system_prompt';
 import {
   finalizeTurnSideEffects,
   handleTurnOutcome,
@@ -115,16 +115,6 @@ const TURN_BUDGET_CENTS = Number(
 const EXEC_DEADLINE_MS = Number(
   process.env.EXTERNAL_AGENT_EXEC_DEADLINE_MS ?? String(60 * 60 * 1000),
 );
-// Appended to the system prompt of a PLAN turn (composed with the agent's own
-// instructions, never replacing them). The in-image tale-plan-gate hook is the
-// hard stop — this just steers the model toward one clean ExitPlanMode call.
-const PLAN_MODE_ADDENDUM =
-  'This is a read-only planning turn. Explore as needed, then call ' +
-  'ExitPlanMode exactly once with the complete plan as the `plan` argument. ' +
-  'The call will be denied — that is expected: present the complete plan in ' +
-  'your final message and end your turn. The user reviews and approves the ' +
-  'plan in the chat UI before any execution happens. Do not retry ' +
-  'ExitPlanMode and do not start executing.';
 // Per-ACTION window: how long one action drains before handing off to a fresh
 // continuation action. MUST sit safely below the runtime's hard action ceiling
 // (measured: the local convex-local-backend hard-kills Node actions at 600s,
@@ -537,18 +527,12 @@ export const runExternalAgentTurn = internalAction({
         });
       await stampTurnOpRow(execId);
 
-      // Plan turns append the plan-mode addendum to the agent's own
-      // instructions (composed, never clobbered).
-      const systemPromptAppend = [
-        args.systemInstructions,
-        args.permissionMode === 'plan' ? PLAN_MODE_ADDENDUM : undefined,
-        // Integration + browser tools return untrusted external content (now
-        // flowing into the container). The TRUST RULES make the
-        // <untrusted_source> wrapping meaningful — the wrap is inert without it.
-        UNTRUSTED_CONTENT_SYSTEM_PROMPT,
-      ]
-        .filter((s): s is string => s !== undefined && s !== '')
-        .join('\n\n');
+      // Compose the agent's own instructions with the plan-mode/steering
+      // addendum + trust rules (pure, unit-tested in system_prompt.ts).
+      const systemPromptAppend = buildSystemPromptAppend({
+        systemInstructions: args.systemInstructions,
+        permissionMode: args.permissionMode,
+      });
 
       // Both attempts share ONE absolute action deadline — a fresh window for
       // the retry could cross the 30-min action ceiling, whose hard kill

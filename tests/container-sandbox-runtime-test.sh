@@ -179,5 +179,38 @@ done
 if [ "$ready" = true ]; then pass "runnerd /readyz answers under daemon mode"; else fail "runnerd did not become ready"; fi
 
 echo ""
+echo "--- docker-in-container tooling present (inert unless DinD enabled) ---"
+# These ship in every image (single-image decision) but only activate in DinD
+# mode; assert they're installed + on PATH so a sysbox/kata deployment works.
+assert_ok "docker CLI present" 10001 "command -v docker"
+assert_contains "docker compose v2 plugin present" 10001 "Docker Compose" "docker compose version"
+assert_ok "dockerd present" 10001 "command -v dockerd"
+assert_ok "containerd present" 10001 "command -v containerd"
+assert_ok "tini present (PID-1 reaper)" 10001 "command -v tini"
+assert_ok "setpriv present (priv-drop)" 10001 "command -v setpriv"
+assert_ok "fuse-overlayfs present" 10001 "command -v fuse-overlayfs"
+# iptables lives in /usr/sbin, intentionally OFF the agent PATH; the DinD
+# entrypoint invokes it by absolute path and gives dockerd /usr/sbin on PATH.
+assert_ok "iptables present (in /usr/sbin)" 10001 "test -x /usr/sbin/iptables"
+assert_contains "agent subuid range present" 10001 "agent:100000:65536" "cat /etc/subuid"
+
+echo ""
+echo "--- image size budget ---"
+# Report the image size and guard against a runaway. The threshold is generous
+# (the base already carries Chromium/Playwright); it exists to catch an
+# accidental order-of-magnitude blowup, not to pin a tight budget. NOTE: the
+# reported size is uncompressed on overlay2, compressed under the containerd
+# snapshotter — so treat the number as indicative.
+size_bytes="$(docker image inspect -f '{{.Size}}' "$IMAGE" 2>/dev/null || echo 0)"
+size_mb=$((size_bytes / 1024 / 1024))
+SIZE_BUDGET_MB="${SANDBOX_IMAGE_SIZE_BUDGET_MB:-6000}"
+echo "  image size: ${size_mb} MB (budget: ${SIZE_BUDGET_MB} MB)"
+if [ "$size_bytes" -gt 0 ] && [ "$size_mb" -le "$SIZE_BUDGET_MB" ]; then
+  pass "image within size budget (${size_mb} MB ≤ ${SIZE_BUDGET_MB} MB)"
+else
+  fail "image size ${size_mb} MB exceeds budget ${SIZE_BUDGET_MB} MB"
+fi
+
+echo ""
 echo -e "${BOLD}Passed: $PASSED  Failed: $FAILED${NC}"
 [ "$FAILED" -eq 0 ]

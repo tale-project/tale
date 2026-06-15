@@ -42,6 +42,235 @@
 set -e
 
 # ---------------------------------------------------------------------------
+# Docker-in-container (DinD) helpers — used only when the spawner launches the
+# session with TALE_DIND=1 (a sysbox/kata tier with SANDBOX_DOCKER_IN_CONTAINER;
+# see config.ts + docker-session-args.ts). The container then starts as root
+# (--user 0:0) so it can run an inner dockerd; we drop back to uid 10001 for
+# runnerd. Everything here is dead code on the default (non-DinD) path.
+# ---------------------------------------------------------------------------
+
+# Controlled address pool for the inner daemon's bridges (docker0 +
+# compose-created networks). Known so inner service-to-service traffic can be
+# left direct (matched as the source pool by the transparent-egress redirect,
+# see setup_inner_transparent_egress).
+TALE_DIND_INNER_POOL="172.31.0.0/16"
+
+# iptables/ip6tables live in /usr/sbin, which the image ENV PATH deliberately
+# drops (keeps sbin tools off the agent PATH); call them by absolute path.
+_IPTABLES=/usr/sbin/iptables
+_IP6TABLES=/usr/sbin/ip6tables
+
+# Resolve a proxy URL's host to an IP. CRITICAL: the session reaches the egress
+# proxy by its Docker DNS name (e.g. http://sandbox-egress:3128), but INNER
+# build containers are on the inner docker network and can't resolve outer
+# Docker names — so a hostname proxy makes every inner apt/apk/pip fail with
+# "temporary error" / "connection closed prematurely". Rewriting the host to its
+# IP (resolved here, in the session netns) makes the proxy reachable from inner
+# containers (the IP routes via the inner NAT to tale-sandbox-net). Falls back to
+# the original URL if it's already an IP or resolution fails.
+_proxy_to_ip() {
+  _url="$1"
+  [ -n "$_url" ] || return 0
+  _hostport="${_url#*://}"            # sandbox-egress:3128
+  _scheme="${_url%%://*}"             # http
+  _host="${_hostport%%:*}"            # sandbox-egress
+  _rest="${_hostport#"$_host"}"       # :3128 (preserve port if any)
+  # Already an IP? leave it.
+  case "$_host" in
+    *[!0-9.]*) ;; # has non-digit/dot → a hostname, resolve it
+    *) printf '%s' "$_url"; return 0 ;;
+  esac
+  _ip="$(getent hosts "$_host" 2>/dev/null | awk 'NR==1{print $1}')"
+  if [ -n "$_ip" ]; then
+    printf '%s://%s%s' "$_scheme" "$_ip" "$_rest"
+  else
+    printf '%s' "$_url"
+  fi
+}
+
+# Egress proxy endpoint (IP + port), resolved once in the session netns. The
+# session reaches the proxy by Docker DNS name (sandbox-egress:3128); we resolve
+# it to an IP that inner containers can also route to. The same host also serves
+# DNS on :53. Sets TALE_EGRESS_IP / TALE_EGRESS_PORT (IP empty if unresolved).
+resolve_egress_endpoint() {
+  _u="$(_proxy_to_ip "${HTTP_PROXY:-${HTTPS_PROXY:-}}")"
+  _hp="${_u#*://}"
+  TALE_EGRESS_IP="${_hp%%:*}"
+  _p="${_hp#*:}"
+  TALE_EGRESS_PORT="${_p%%/*}"
+  case "${TALE_EGRESS_PORT}" in '' | *[!0-9]*) TALE_EGRESS_PORT=3128 ;; esac
+  case "${TALE_EGRESS_IP}" in '' | *[!0-9.]*) TALE_EGRESS_IP='' ;; esac
+}
+
+# Transparent egress for nested containers. We deliberately do NOT inject
+# HTTP(S)_PROXY env into inner containers: that hijacks ALL their HTTP traffic
+# including localhost/sibling — busybox wget (e.g. a Caddy self healthcheck
+# against 127.0.0.1) ignores no_proxy and proxies it, so the check can never
+# reach itself — and proxy env can't carry DNS at all. Instead redsocks tunnels
+# inner *public* TCP through the egress proxy transparently while internal /
+# private traffic stays direct, and the egress proxy's dnsmasq (wired via the
+# inner daemon's --dns) resolves external names. Inner apps then reach the
+# internet with zero proxy config and their internal healthchecks work
+# unchanged. Both :80 and :443 tunnel through CONNECT (redsocks http-connect;
+# http-relay is CVE-discouraged and mangles responses) — the egress tinyproxy
+# is configured with ConnectPort 80 + 443 to match.
+setup_inner_transparent_egress() {
+  if [ -z "${TALE_EGRESS_IP}" ]; then
+    echo "[entrypoint] WARN: no egress proxy IP resolved; nested containers will have no internet egress" >&2
+    return 0
+  fi
+  # A previous (proxy-injection era) session may have left a docker client config
+  # that sets HTTP(S)_PROXY on every inner container, persisted in the workspace;
+  # that hijacks inner localhost/sibling traffic (busybox ignores no_proxy). With
+  # transparent egress there must be no proxy env — drop the stale file.
+  rm -f /workspace/.home/.docker/config.json 2>/dev/null || true
+  cat >/etc/redsocks.conf <<EOF
+base { log_debug = off; log_info = off; log = "stderr"; daemon = off; redirector = iptables; }
+redsocks { local_ip = 0.0.0.0; local_port = 12346; ip = ${TALE_EGRESS_IP}; port = ${TALE_EGRESS_PORT}; type = http-connect; }
+EOF
+  # redsocks lives in /usr/sbin, which the image PATH drops — call it absolute.
+  /usr/sbin/redsocks -c /etc/redsocks.conf >/var/log/redsocks.log 2>&1 &
+  # nat REDSOCKS chain: leave internal / private / link-local DIRECT (so inner
+  # service-to-service, localhost healthchecks and the inner embedded DNS are
+  # untouched), tunnel everything public through redsocks.
+  "$_IPTABLES" -t nat -N REDSOCKS 2>/dev/null || "$_IPTABLES" -t nat -F REDSOCKS
+  for _cidr in 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16; do
+    "$_IPTABLES" -t nat -A REDSOCKS -d "$_cidr" -j RETURN
+  done
+  "$_IPTABLES" -t nat -A REDSOCKS -p tcp -j REDIRECT --to-ports 12346
+  # Apply to every nested container regardless of which inner compose bridge it
+  # lands on (all draw from the inner pool); PREROUTING sees the original source
+  # before the inner daemon's MASQUERADE rewrites it.
+  "$_IPTABLES" -t nat -C PREROUTING -s "${TALE_DIND_INNER_POOL}" -p tcp -j REDSOCKS 2>/dev/null \
+    || "$_IPTABLES" -t nat -A PREROUTING -s "${TALE_DIND_INNER_POOL}" -p tcp -j REDSOCKS
+  echo "[entrypoint] transparent egress installed (redsocks -> ${TALE_EGRESS_IP}:${TALE_EGRESS_PORT}; nested public TCP tunneled, internal direct, DNS via egress :53)"
+}
+
+# Block inner containers from the cloud metadata endpoint (IMDS) + link-local —
+# never legitimate; cheap defense-in-depth. Installed in DOCKER-USER, which
+# Docker evaluates BEFORE its own per-bridge ACCEPT rules, so it actually takes
+# effect (a plain FORWARD append is shadowed by Docker's rules and does nothing).
+# Must run AFTER dockerd starts (dockerd creates the DOCKER-USER chain). Egress
+# is otherwise OPEN: inner containers reach the internet through the egress proxy
+# (transparently, see setup_inner_transparent_egress). Broader internal lockdown
+# (RFC1918 / cross-tenant) is a follow-up tied to an egress allowlist.
+# Best-effort: IMDS is already unreachable via the --internal network, so a
+# failure here is not fatal.
+apply_inner_egress_fence() {
+  "$_IPTABLES" -I DOCKER-USER -d 169.254.0.0/16 -j REJECT \
+    --reject-with icmp-host-prohibited 2>/dev/null ||
+    echo "[entrypoint] WARN: could not install inner IMDS egress fence (non-fatal; --internal already blocks it)" >&2
+  if [ -x "$_IP6TABLES" ]; then
+    for _c6 in fe80::/10 ::ffff:169.254.0.0/112; do
+      "$_IP6TABLES" -I DOCKER-USER -d "$_c6" -j REJECT 2>/dev/null || true
+    done
+  fi
+}
+
+# cgroup v2 nesting. Without this, dockerd + PID 1 sit in the unified cgroup
+# *root*; cgroup v2's "no internal processes" rule then forces the subtree into
+# THREADED mode as soon as dockerd adds child cgroups, and threaded cgroups
+# reject *domain* controllers (memory, io). The result: any inner container
+# started with a memory/pids limit dies with
+#   "cannot enter cgroupv2 \"/sys/fs/cgroup/docker\" with domain controllers
+#    -- it is in threaded mode"
+# which silently breaks `docker compose up` for the very common case of services
+# that set mem_limit/pids_limit. Mirror what the official docker:dind entrypoint
+# does: move every process out of the cgroup root into a leaf so the root can
+# become an inner node, then delegate the available controllers into the root's
+# subtree. MUST run before dockerd so the /docker tree it creates is a domain
+# cgroup with memory/pids available. Best-effort: a failure only costs us the
+# pre-nesting behaviour, so warn rather than abort.
+setup_cgroup_nesting() {
+  _cg=/sys/fs/cgroup
+  # cgroup v1 (no unified controllers file) or already delegated → nothing to do.
+  [ -f "$_cg/cgroup.controllers" ] || return 0
+  grep -qw memory "$_cg/cgroup.subtree_control" 2>/dev/null && return 0
+  mkdir -p "$_cg/init" 2>/dev/null || true
+  # Relocate every process (including this shell / PID 1) into the leaf; the root
+  # must be process-free before it can carry subtree_control.
+  while read -r _pid; do
+    echo "$_pid" >"$_cg/init/cgroup.procs" 2>/dev/null || true
+  done <"$_cg/cgroup.procs"
+  # Delegate controllers one at a time so an un-enableable one (e.g. cpuset)
+  # doesn't block the critical memory/pids delegation.
+  for _ctl in cpu io memory pids cpuset hugetlb; do
+    grep -qw "$_ctl" "$_cg/cgroup.controllers" 2>/dev/null &&
+      echo "+$_ctl" >"$_cg/cgroup.subtree_control" 2>/dev/null || true
+  done
+  grep -qw memory "$_cg/cgroup.subtree_control" 2>/dev/null ||
+    echo "[entrypoint] WARN: could not delegate the cgroup memory controller; inner containers with mem_limit/pids_limit may fail to start (cgroupv2 threaded mode)" >&2
+}
+
+# Start an inner dockerd and block until it's ready. Fails closed (exit 1) on
+# any of: fence install failure, a non-remapped userns on the sysbox tier
+# (would mean container-root == host-root), dockerd dying, or a readiness
+# timeout — so a broken DinD session never silently serves with a dead/unsafe
+# daemon. dockerd inherits HTTP(S)_PROXY/NO_PROXY from the container env so
+# image pulls traverse the egress proxy.
+start_inner_dockerd() {
+  # Sysbox must remap the userns (container-root -> unprivileged host subuid).
+  # If it didn't, we'd be granting a daemon real host-root; refuse. Kata is
+  # VM-isolated, so an identity map there is expected and fine.
+  if [ "${TALE_RUNTIME_TIER:-}" = "sysbox" ]; then
+    _host0="$(awk 'NR==1{print $2}' /proc/self/uid_map 2>/dev/null || echo 0)"
+    if [ "${_host0:-0}" = "0" ]; then
+      echo "[entrypoint] FATAL: sysbox tier but container-root maps to host-root (uid_map: $(cat /proc/self/uid_map 2>/dev/null)); not a remapped userns — refusing dockerd" >&2
+      exit 1
+    fi
+  fi
+
+  # Prepare cgroup v2 delegation BEFORE dockerd, so the /docker cgroup tree it
+  # creates is a domain cgroup that can carry memory/pids limits.
+  setup_cgroup_nesting
+
+  mkdir -p /var/lib/docker /var/log
+
+  # Resolve the egress proxy/DNS endpoint, then point the inner daemon's default
+  # DNS at the egress dnsmasq so nested containers resolve external names (the
+  # inner embedded DNS forwards external queries here; sibling names stay local).
+  resolve_egress_endpoint
+  _dns_flags=""
+  [ -n "${TALE_EGRESS_IP}" ] && _dns_flags="--dns=${TALE_EGRESS_IP}"
+
+  # dockerd (and the iptables/modprobe it shells out to) need /usr/sbin on PATH,
+  # which the image ENV drops. Scope the widened PATH to dockerd only — runnerd
+  # is exec'd later with the unmodified (sbin-free) agent PATH.
+  # shellcheck disable=SC2086 # _dns_flags must word-split: empty, or one --dns flag
+  PATH="/usr/sbin:/sbin:${PATH}" dockerd \
+    --host=unix:///var/run/docker.sock \
+    --data-root=/var/lib/docker \
+    --bip=172.31.0.1/24 \
+    --default-address-pool "base=${TALE_DIND_INNER_POOL},size=24" \
+    --storage-driver=overlay2 \
+    ${_dns_flags} \
+    >/var/log/dockerd.log 2>&1 &
+  TALE_DOCKERD_PID=$!
+
+  _i=0
+  while [ "$_i" -lt 60 ]; do
+    if ! kill -0 "$TALE_DOCKERD_PID" 2>/dev/null; then
+      echo "[entrypoint] FATAL: inner dockerd exited during startup:" >&2
+      tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
+      exit 1
+    fi
+    if docker info >/dev/null 2>&1; then
+      # DOCKER-USER exists now that dockerd is up — install the IMDS fence and
+      # the transparent-egress redirect (both need the daemon's chains/bridge).
+      apply_inner_egress_fence
+      setup_inner_transparent_egress
+      echo "[entrypoint] inner dockerd ready (tier=${TALE_RUNTIME_TIER:-?}, pid=${TALE_DOCKERD_PID})"
+      return 0
+    fi
+    _i=$((_i + 1))
+    sleep 0.5
+  done
+  echo "[entrypoint] FATAL: inner dockerd not ready within 30s:" >&2
+  tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
+  exit 1
+}
+
+# ---------------------------------------------------------------------------
 # Session daemon dispatch (sessions plan). The spawner launches a long-lived
 # session container with a single positional arg `daemon` (see
 # session/docker-session-args.ts); everything else is the one-shot
@@ -49,11 +278,20 @@ set -e
 # so we `exec` it (SIGTERM from container-stop must reach it directly).
 # ---------------------------------------------------------------------------
 if [ "$1" = "daemon" ]; then
+  # In DinD mode the container starts as root (so it can run an inner dockerd),
+  # so the workspace skeleton + steer cleanup must be done AS the agent (uid
+  # 10001) — otherwise the dirs would be root-owned and runnerd couldn't write
+  # them. On the default path the container is already uid 10001 (--user), so
+  # DROP is empty and these run directly, exactly as before.
+  DROP=""
+  [ "${TALE_DIND:-}" = "1" ] &&
+    DROP="setpriv --reuid 10001 --regid 10001 --init-groups --"
+
   # Bootstrap the persistent workspace skeleton. HOME lives here so agent
   # state (~/.claude, ~/.config/opencode, ~/.gitconfig) survives every exec
   # and container restart within the session. Idempotent — the dirs already
   # exist on a container restart against the same workspace volume.
-  mkdir -p \
+  $DROP mkdir -p \
     /workspace/repo \
     /workspace/uploads \
     /workspace/output \
@@ -65,7 +303,7 @@ if [ "$1" = "daemon" ]; then
   # (re)start means no exec is live, so leftover steer/consumed files are
   # garbage from a previous incarnation — drop them. The platform re-queues
   # anything it hadn't reconciled.
-  rm -rf /workspace/.tale/steer
+  $DROP rm -rf /workspace/.tale/steer
   # Same install env the one-shot path exports, so inline pip/npm from a
   # session exec lands in the writable, on-PYTHONPATH/NODE_PATH location.
   export HOME=/workspace/.home
@@ -76,6 +314,21 @@ if [ "$1" = "daemon" ]; then
   export NPM_CONFIG_PREFIX=/workspace/.deps/node
   export NODE_PATH=/workspace/.deps/node/lib/node_modules
   export PATH=/workspace/.deps/python/bin:/workspace/.deps/node/bin:$PATH
+
+  # DinD: bring up the inner dockerd as root, then hand off. tini becomes PID 1
+  # to reap the many short-lived shims native docker spawns (teardown is a
+  # SIGKILL to PID 1, so runnerd no longer needs to be PID 1 itself); the
+  # already-backgrounded dockerd reparents to tini. setpriv drops to the agent
+  # user so Claude Code's bypassPermissions (refused as root) still works.
+  if [ "${TALE_DIND:-}" = "1" ]; then
+    start_inner_dockerd
+    exec tini -g -- \
+      setpriv --reuid 10001 --regid 10001 --init-groups -- \
+      node /usr/local/lib/tale/runnerd.mjs
+  fi
+
+  # Default (non-DinD) path: runnerd is PID 1 at the container's --user, exactly
+  # as before — SIGTERM from container-stop reaches it directly.
   exec node /usr/local/lib/tale/runnerd.mjs
 fi
 

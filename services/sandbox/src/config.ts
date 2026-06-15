@@ -1,7 +1,79 @@
 // Spawner configuration — parsed from env at boot. Defaults match the plan;
 // every knob is overridable so an operator can tune without rebuilding.
 
+import { readFileSync } from 'node:fs';
+
+import {
+  dindDefaultEnabled,
+  dindExperimental,
+  dindIsPrivileged,
+  isRuntimeTier,
+  k8sRuntimeClassFor,
+  RUNTIME_TIERS,
+  type RuntimeTier,
+} from './runtime-tier.ts';
 import type { SpawnerConfig } from './types.ts';
+
+// Parse a boolean env, returning undefined when UNSET/empty so a caller can
+// distinguish "operator didn't set it" (apply a default) from an explicit
+// true/false. 'true'/'1'/'yes'/'on' ⇒ true; everything else ⇒ false. Trimmed
+// so '  true  ' works. Used for SANDBOX_DOCKER_IN_CONTAINER (tier-aware default).
+function boolEnvOpt(name: string): boolean | undefined {
+  const v = process.env[name]?.trim().toLowerCase();
+  if (v === undefined || v === '') return undefined;
+  return v === 'true' || v === '1' || v === 'yes' || v === 'on';
+}
+
+/**
+ * The `sandboxRuntime` section of the deployment config, if present. The
+ * spawner mounts the shared platform-config dir read-only (see compose.yml);
+ * deployment.json is the operator's higher-level source of truth and OVERRIDES
+ * the SANDBOX_RUNTIME / SANDBOX_DOCKER_IN_CONTAINER env when it sets them.
+ * Absent file ⇒ env defaults (the common case). Present-but-unparseable ⇒ fail
+ * closed (matches the rag/convex boot convention), since silently ignoring a
+ * config the operator wrote reads as a misconfiguration.
+ */
+function deploymentSandboxRuntime(): {
+  tier?: string;
+  dockerInContainer?: boolean;
+} {
+  const dir =
+    process.env.TALE_PLATFORM_SHARED_CONFIG_DIR ?? '/app/platform-config';
+  const path = `${dir}/deployment.json`;
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch (err) {
+    // ENOENT (no deployment config) is the common case → fall back to env.
+    if (
+      err !== null &&
+      typeof err === 'object' &&
+      'code' in err &&
+      err.code === 'ENOENT'
+    ) {
+      return {};
+    }
+    throw new Error(`could not read ${path}`, { cause: err });
+  }
+  let json: {
+    sandboxRuntime?: { tier?: unknown; dockerInContainer?: unknown };
+  };
+  try {
+    json = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`${path} is present but not valid JSON (fail-closed)`, {
+      cause: err,
+    });
+  }
+  const sr = json.sandboxRuntime;
+  if (!sr || typeof sr !== 'object') return {};
+  const out: { tier?: string; dockerInContainer?: boolean } = {};
+  if (typeof sr.tier === 'string') out.tier = sr.tier;
+  if (typeof sr.dockerInContainer === 'boolean') {
+    out.dockerInContainer = sr.dockerInContainer;
+  }
+  return out;
+}
 
 function numEnv(
   name: string,
@@ -59,13 +131,54 @@ function userEnv(
 }
 
 export function loadConfig(): SpawnerConfig {
-  const rawRuntime = process.env.SANDBOX_RUNTIME ?? 'runc';
-  if (rawRuntime !== 'runc' && rawRuntime !== 'runsc') {
+  // Runtime tier (default 'runc'). The deployment config (deployment.json,
+  // operator's higher-level source of truth) overrides SANDBOX_RUNTIME when set;
+  // 'runsc' is accepted as a back-compat alias for the 'gvisor' tier. The tier
+  // is the deployment-wide, uniform isolation choice; it resolves to the docker
+  // --runtime value and k8s runtimeClassName via runtime-tier.ts.
+  const deployment = deploymentSandboxRuntime();
+  const rawRuntime = (
+    deployment.tier ??
+    process.env.SANDBOX_RUNTIME ??
+    'runc'
+  ).trim();
+  const aliased = rawRuntime === 'runsc' ? 'gvisor' : rawRuntime;
+  if (!isRuntimeTier(aliased)) {
     throw new Error(
-      `SANDBOX_RUNTIME must be 'runc' or 'runsc'; got: ${JSON.stringify(rawRuntime)}`,
+      `SANDBOX_RUNTIME must be one of ${RUNTIME_TIERS.join(', ')} (or 'runsc' for gvisor); got: ${JSON.stringify(rawRuntime)}`,
     );
   }
-  const runtime: 'runc' | 'runsc' = rawRuntime;
+  const runtimeTier: RuntimeTier = aliased;
+  // Native docker-in-container inside session containers. NOT policy-blocked on
+  // any tier — the operator chooses the host posture; we surface the trade-offs
+  // as loud warnings. Resolution precedence: deployment.json > explicit env >
+  // tier-aware default. The default is ON for boundary-keeping tiers (sysbox
+  // userns / kata VM — docker "just works" once the runtime is set up) and OFF
+  // for runc (privileged host-root — opt-in only) and gvisor (flaky).
+  //   runc  → PRIVILEGED inner daemon, no boundary (host-root): trusted-only.
+  //   gvisor→ contained by runsc but nested docker networking is unreliable.
+  //   sysbox/kata → the recommended, isolated paths.
+  const dockerInContainer =
+    deployment.dockerInContainer ??
+    boolEnvOpt('SANDBOX_DOCKER_IN_CONTAINER') ??
+    dindDefaultEnabled(runtimeTier);
+  if (dockerInContainer) {
+    if (dindIsPrivileged(runtimeTier)) {
+      console.warn(
+        `[sandbox.config] WARNING: docker-in-container on the '${runtimeTier}' tier runs a ` +
+          `PRIVILEGED inner daemon with NO isolation boundary — in-container root IS host root. ` +
+          `Use this ONLY for fully-trusted / single-tenant deployments. For untrusted multi-tenant, ` +
+          `set SANDBOX_RUNTIME=sysbox (or kata) so in-container root maps to an unprivileged host uid.`,
+      );
+    } else if (dindExperimental(runtimeTier)) {
+      console.warn(
+        `[sandbox.config] WARNING: docker-in-container on the '${runtimeTier}' tier is EXPERIMENTAL — ` +
+          `gVisor's user-space netstack + partial iptables commonly break nested-container networking ` +
+          `(inner bridge/DNS/port publishing and the in-pod egress fence). Security is fine (runsc ` +
+          `contains it); functionality is not guaranteed. Use SANDBOX_RUNTIME=sysbox (or kata) for reliable DinD.`,
+      );
+    }
+  }
   const rawBackend = process.env.SANDBOX_BACKEND ?? 'docker';
   if (rawBackend !== 'docker' && rawBackend !== 'kubernetes') {
     throw new Error(
@@ -128,7 +241,15 @@ export function loadConfig(): SpawnerConfig {
     backend,
     k8s: {
       namespace: process.env.SANDBOX_K8S_NAMESPACE ?? 'tale-sandbox',
-      runtimeClassName: process.env.SANDBOX_RUNTIME_CLASS ?? 'gvisor',
+      // Resolved per tier (runc → null = omit). For tiers that DO carry a class,
+      // SANDBOX_RUNTIME_CLASS overrides the default name (clusters that register
+      // e.g. 'kata-qemu' instead of 'kata'). It can never conjure a class for
+      // runc (null stays null), keeping runc pods runtimeClass-free.
+      runtimeClassName:
+        k8sRuntimeClassFor(runtimeTier) === null
+          ? null
+          : (process.env.SANDBOX_RUNTIME_CLASS ??
+            k8sRuntimeClassFor(runtimeTier)),
       spawnerImage: process.env.SANDBOX_SPAWNER_IMAGE ?? 'tale-sandbox:latest',
       cacheMode,
       workspaceSizeLimit: process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT ?? '4Gi',
@@ -140,7 +261,8 @@ export function loadConfig(): SpawnerConfig {
     sandboxToken: rawToken && rawToken.length > 0 ? rawToken : null,
     runtimeImage:
       process.env.SANDBOX_RUNTIME_IMAGE ?? 'tale-sandbox-runtime:latest',
-    runtime,
+    runtimeTier,
+    dockerInContainer,
     defaultTimeoutMs: numEnv('SANDBOX_DEFAULT_TIMEOUT_MS', 30_000, { min: 1 }),
     maxTimeoutMs: numEnv('SANDBOX_MAX_TIMEOUT_MS', 300_000, { min: 1 }),
     maxConcurrent: numEnv('SANDBOX_MAX_CONCURRENT', 4, { min: 1 }),
@@ -219,7 +341,18 @@ export function loadConfig(): SpawnerConfig {
       ),
       agentProfile: {
         cpus: numEnv('SANDBOX_AGENT_CPUS', 2, { min: 1 }),
-        memory: process.env.SANDBOX_AGENT_MEMORY ?? '4g',
+        // Memory is a real resource budget (the session cgroup is shared by the
+        // agent and, under DinD, the inner dockerd + every nested build/run).
+        // Unlike the pids/fsize *guards* (lifted unconditionally under DinD),
+        // this is a deliberate allocation — but 4g is too low to host a real
+        // `docker compose up --build`: a heavy frontend bundle (e.g. vite) is
+        // OOM-killed mid-build (exit 137). `--memory` is a ceiling, not a
+        // reservation (idle sessions don't consume it), so DinD gets a larger
+        // default headroom while staying operator-tunable — an explicit
+        // SANDBOX_AGENT_MEMORY always wins, and the operator sizes host RAM for
+        // the concurrent-session peak.
+        memory:
+          process.env.SANDBOX_AGENT_MEMORY ?? (dockerInContainer ? '8g' : '4g'),
         pidsLimit: numEnv('SANDBOX_AGENT_PIDS', 512, { min: 64 }),
         nofileSoft: numEnv('SANDBOX_AGENT_NOFILE_SOFT', 4096, { min: 256 }),
         nofileHard: numEnv('SANDBOX_AGENT_NOFILE_HARD', 8192, { min: 256 }),

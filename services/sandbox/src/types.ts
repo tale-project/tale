@@ -5,6 +5,7 @@
 // file imports them as type aliases so existing call sites in spawn.ts,
 // server.ts, docker-args.ts, etc. keep working unchanged.
 
+import type { RuntimeTier } from './runtime-tier.ts';
 import type {
   SandboxErrorCode,
   SandboxLanguage,
@@ -268,14 +269,25 @@ export interface SpawnerConfig {
   // at boot from `SANDBOX_TOKEN`; empty-string is treated as null.
   sandboxToken: string | null;
   runtimeImage: string;
-  runtime: 'runc' | 'runsc';
+  // Deployment-level container runtime tier (env SANDBOX_RUNTIME; default
+  // 'runc'). Resolves to the docker `--runtime` value and the k8s
+  // runtimeClassName via runtime-tier.ts. Uniform across all tenants.
+  runtimeTier: RuntimeTier;
+  // Native docker/docker compose inside SESSION containers (env
+  // SANDBOX_DOCKER_IN_CONTAINER; default false). Only valid on a tier that
+  // keeps an isolation boundary (sysbox/kata) — loadConfig fails closed
+  // otherwise. The one-shot /v1/execute path never enables this.
+  dockerInContainer: boolean;
   // Kubernetes-backend settings (env SANDBOX_K8S_* / SANDBOX_CACHE). Always
   // populated by loadConfig; consumed only when backend === 'kubernetes'.
   k8s: {
     // Namespace the per-execution runtime Pods are created in.
     namespace: string;
-    // RuntimeClass applied to runtime Pods when runtime === 'runsc' (gVisor).
-    runtimeClassName: string;
+    // RuntimeClass applied to runtime Pods, resolved per tier (gVisor →
+    // 'gvisor', sysbox → 'sysbox-runc', kata → 'kata', runc → null = omit the
+    // field). An operator may override the non-null value via
+    // SANDBOX_RUNTIME_CLASS for clusters that name the class differently.
+    runtimeClassName: string | null;
     // The SPAWNER's own image ref, used for the per-exec Pod's `stage`
     // initContainer + `harvest` sidecar (which run the spawner image's in-Pod
     // entry modes to do presigned-URL workspace I/O). Defaults to a dev tag;

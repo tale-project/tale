@@ -267,11 +267,15 @@ test.describe.serial('automation editor', () => {
     await page.goto(`/dashboard/${organizationId}/automations/metrics`);
 
     // The metrics page title (an <h1>) and the first summary card prove the
-    // org-level metrics route mounted and resolved its aggregate query.
+    // org-level metrics route mounted and resolved its aggregate query. `exact`
+    // — the app-shell breadcrumb renders its own level-1 heading ("Automations
+    // Automation metrics"), so a substring match is ambiguous (strict-mode
+    // violation).
     await expect(
       page.getByRole('heading', {
         name: t('automations.metrics.title'),
         level: 1,
+        exact: true,
       }),
     ).toBeVisible({ timeout: 60_000 });
     await expect(

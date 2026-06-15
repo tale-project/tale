@@ -570,6 +570,9 @@ services:
     #                   `nobody`; without it the touch fails Permission denied.
     #   CHOWN         — chown that log file to nobody.
     #   SETUID/SETGID — tinyproxy drops privileges to nobody after bind.
+    #   NET_BIND_SERVICE — dnsmasq binds privileged port 53 to serve external
+    #                   DNS to the internal-only sandbox network (dnsmasq checks
+    #                   for this cap explicitly, even as root).
     # (NET_RAW / MKNOD / SETPCAP / SETFCAP / etc. are NOT needed.)
     cap_drop:
       - ALL
@@ -579,6 +582,7 @@ services:
       - CHOWN
       - SETUID
       - SETGID
+      - NET_BIND_SERVICE
     healthcheck:
       # Plain TCP-listen check: if tinyproxy is up the port answers. We
       # intentionally do NOT CONNECT-probe an external host (pypi/npm)
@@ -642,6 +646,11 @@ services:
       - .env
     environment:
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runc}
+      # Native docker/docker compose inside session containers. Unset here so the
+      # spawner applies its tier-aware default (on for sysbox/kata, off for
+      # runc/gvisor); set SANDBOX_DOCKER_IN_CONTAINER=true/false (or the
+      # deployment.json sandboxRuntime section) to force it.
+      SANDBOX_DOCKER_IN_CONTAINER: ${SANDBOX_DOCKER_IN_CONTAINER:-}
       SANDBOX_RUNTIME_IMAGE: ${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
@@ -654,6 +663,9 @@ services:
       # docker daemon resolves --mount source paths against the host fs,
       # so the spawner and the daemon must agree on the path).
       - /var/lib/tale-sandbox:/var/lib/tale-sandbox
+      # Read-only deployment config so loadConfig can read the sandboxRuntime
+      # tier from deployment.json (same convex-data volume as rag/platform).
+      - ${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro
     restart: unless-stopped
     # Resource caps mirror the CLI compose generator
     # (`tools/cli/src/lib/compose/services/create-sandbox-service.ts`). The

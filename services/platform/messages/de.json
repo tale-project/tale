@@ -973,7 +973,15 @@
     "generationStopped": "Generierung gestoppt",
     "queue": {
       "placeholder": "Der Agent arbeitet — neue Nachrichten werden für ihn eingereiht…",
-      "full": "Die Nachrichten-Warteschlange ist voll"
+      "placeholderIdle": "Der Agent ist fertig — deine Nachricht geht jetzt durch…",
+      "full": "Die Nachrichten-Warteschlange ist voll",
+      "status": {
+        "queued": "Eingereiht — wird nach dem aktuellen Schritt übernommen",
+        "queuedWithStep": "Eingereiht — wird nach dem aktuellen Schritt übernommen ({step})",
+        "delivered": "Übermittelt — warte auf die Antwort des Agenten",
+        "deliversNow": "Wird gerade zugestellt",
+        "consumed": "Übernommen"
+      }
     },
     "errorGenerating": "Etwas ist schiefgelaufen",
     "retryGeneration": "Erneut versuchen",

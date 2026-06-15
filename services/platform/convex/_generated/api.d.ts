@@ -156,6 +156,7 @@ import type * as agents_config from "../agents/config.js";
 import type * as agents_external_agent_continue_external_agent_turn from "../agents/external_agent/continue_external_agent_turn.js";
 import type * as agents_external_agent_recover_external_agent_turns from "../agents/external_agent/recover_external_agent_turns.js";
 import type * as agents_external_agent_run_external_agent from "../agents/external_agent/run_external_agent.js";
+import type * as agents_external_agent_system_prompt from "../agents/external_agent/system_prompt.js";
 import type * as agents_external_agent_turn_lifecycle from "../agents/external_agent/turn_lifecycle.js";
 import type * as agents_file_actions from "../agents/file_actions.js";
 import type * as agents_file_utils from "../agents/file_utils.js";
@@ -1579,6 +1580,7 @@ declare const fullApi: ApiFromModules<{
   "agents/external_agent/continue_external_agent_turn": typeof agents_external_agent_continue_external_agent_turn;
   "agents/external_agent/recover_external_agent_turns": typeof agents_external_agent_recover_external_agent_turns;
   "agents/external_agent/run_external_agent": typeof agents_external_agent_run_external_agent;
+  "agents/external_agent/system_prompt": typeof agents_external_agent_system_prompt;
   "agents/external_agent/turn_lifecycle": typeof agents_external_agent_turn_lifecycle;
   "agents/file_actions": typeof agents_file_actions;
   "agents/file_utils": typeof agents_file_utils;

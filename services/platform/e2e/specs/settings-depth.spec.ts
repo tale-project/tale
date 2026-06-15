@@ -113,8 +113,11 @@ test.describe('settings depth — API keys', () => {
     const { organizationId } = readRunContext();
     await page.goto(settingsUrl(organizationId, 'api/rest'));
 
+    // The page renders the `api/rest` route, but its SettingsSection heading is
+    // the "API keys" section title (`navigation.apiKeys`), not the rail's "REST"
+    // sub-item label (`navigation.apiRest`).
     await expect(
-      page.getByRole('heading', { name: t('navigation.apiRest'), level: 2 }),
+      page.getByRole('heading', { name: t('navigation.apiKeys'), level: 2 }),
     ).toBeVisible({ timeout: 60_000 });
 
     const keyName = `e2e-key-${Date.now().toString(36)}`;
@@ -146,8 +149,13 @@ test.describe('settings depth — API keys', () => {
       name: t('settings.apiKeys.keyCreated'),
     });
     await expect(createdDialog).toBeVisible({ timeout: 20_000 });
+    // `keyCreatedDescription` ("Make sure to copy your API key now…") contains
+    // "Your API key" as a case-insensitive substring, so a non-exact getByText
+    // matches both that paragraph AND the reveal label. Match the label exactly.
     await expect(
-      createdDialog.getByText(t('settings.apiKeys.yourApiKey')),
+      createdDialog.getByText(t('settings.apiKeys.yourApiKey'), {
+        exact: true,
+      }),
     ).toBeVisible();
     await createdDialog
       .getByRole('button', { name: t('common.actions.done'), exact: true })

@@ -22,7 +22,21 @@ const PLAYWRIGHT_MCP_SERVER = {
   // --no-sandbox: the session container (cap-drop=ALL, no-new-privileges)
   //   has no unprivileged userns, so Chromium's zygote sandbox aborts at
   //   launch; the container itself is the isolation boundary.
-  args: ['--headless', '--browser', 'chromium', '--isolated', '--no-sandbox'],
+  // --ignore-https-errors: this browser exists to test the apps the agent
+  //   builds, which routinely serve over localhost with a self-signed cert
+  //   (e.g. Caddy's internal CA) or no TLS at all; without this, navigating
+  //   to such a dev server fails closed with ERR_CERT_AUTHORITY_INVALID and
+  //   there is no per-navigation override (it's a launch-time context
+  //   option). The sandbox is isolated and egress-filtered, so this is not a
+  //   general-purpose secure browser.
+  args: [
+    '--headless',
+    '--browser',
+    'chromium',
+    '--isolated',
+    '--no-sandbox',
+    '--ignore-https-errors',
+  ],
 };
 
 export class ClaudeCodeAdapter implements AgentAdapter {

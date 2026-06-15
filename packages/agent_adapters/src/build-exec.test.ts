@@ -34,7 +34,7 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     ]);
     // stdin is held open for mid-run steering pushes; the drain closes it.
     expect(stdinMode).toBe('hold');
-    expect(argv).toContain('40'); // default max turns
+    expect(argv).toContain('200'); // default max turns (runaway backstop)
     expect(argv).toContain('--model');
     expect(argv).toContain('claude-sonnet-4-6');
     // browser MCP on by default: launcher shim + chromium + in-memory
@@ -51,6 +51,7 @@ describe('ClaudeCodeAdapter.buildExec', () => {
       'chromium',
       '--isolated',
       '--no-sandbox',
+      '--ignore-https-errors',
     ]);
     // No integration bridge unless integrationsBaseUrl is set.
     expect(mcpConfig.mcpServers.integrations).toBeUndefined();
@@ -181,6 +182,7 @@ describe('OpenCodeAdapter.buildExec', () => {
       'chromium',
       '--isolated',
       '--no-sandbox',
+      '--ignore-https-errors',
     ]);
     expect(cwd).toBe('/workspace/repo');
   });
