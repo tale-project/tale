@@ -67,13 +67,43 @@ _IP6TABLES=/usr/sbin/ip6tables
 # the CLI auto-inject HTTP(S)_PROXY into every build step + container. noProxy
 # keeps loopback, the inner pool, and the internal gateways (bifrost/convex)
 # direct so service-to-service and the LLM gateway aren't routed through tinyproxy.
+# Resolve a proxy URL's host to an IP. CRITICAL: the session reaches the egress
+# proxy by its Docker DNS name (e.g. http://sandbox-egress:3128), but INNER
+# build containers are on the inner docker network and can't resolve outer
+# Docker names — so a hostname proxy makes every inner apt/apk/pip fail with
+# "temporary error" / "connection closed prematurely". Rewriting the host to its
+# IP (resolved here, in the session netns) makes the proxy reachable from inner
+# containers (the IP routes via the inner NAT to tale-sandbox-net). Falls back to
+# the original URL if it's already an IP or resolution fails.
+_proxy_to_ip() {
+  _url="$1"
+  [ -n "$_url" ] || return 0
+  _hostport="${_url#*://}"            # sandbox-egress:3128
+  _scheme="${_url%%://*}"             # http
+  _host="${_hostport%%:*}"            # sandbox-egress
+  _rest="${_hostport#"$_host"}"       # :3128 (preserve port if any)
+  # Already an IP? leave it.
+  case "$_host" in
+    *[!0-9.]*) ;; # has non-digit/dot → a hostname, resolve it
+    *) printf '%s' "$_url"; return 0 ;;
+  esac
+  _ip="$(getent hosts "$_host" 2>/dev/null | awk 'NR==1{print $1}')"
+  if [ -n "$_ip" ]; then
+    printf '%s://%s%s' "$_scheme" "$_ip" "$_rest"
+  else
+    printf '%s' "$_url"
+  fi
+}
+
 write_dind_docker_config() {
   _cfgdir=/workspace/.home/.docker
   mkdir -p "$_cfgdir"
+  _http="$(_proxy_to_ip "${HTTP_PROXY:-}")"
+  _https="$(_proxy_to_ip "${HTTPS_PROXY:-}")"
   cat >"$_cfgdir/config.json" <<EOF
 { "proxies": { "default": {
-  "httpProxy": "${HTTP_PROXY:-}",
-  "httpsProxy": "${HTTPS_PROXY:-}",
+  "httpProxy": "${_http}",
+  "httpsProxy": "${_https}",
   "noProxy": "${NO_PROXY:-localhost,127.0.0.1},::1,${TALE_DIND_INNER_POOL}"
 } } }
 EOF
