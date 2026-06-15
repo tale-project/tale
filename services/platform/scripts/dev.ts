@@ -462,6 +462,22 @@ async function ensureDockerDependencies(): Promise<void> {
     return;
   }
 
+  // Stop spurious container churn on every `bun dev`. The db/sandbox/
+  // sandbox-egress services have `build:` blocks with `pull_policy: build`, so
+  // `docker compose up` runs their build step on every bring-up. Under buildx
+  // with the containerd image store (Docker Desktop default), BuildKit attaches
+  // a provenance attestation by default — its metadata is non-deterministic, so
+  // even a 100%-cached build re-exports a NEW image manifest digest. compose
+  // then sees the service image no longer matches the running container's image
+  // and recreates the container — every single run. (External-image services
+  // like bifrost/convex-relay are never built, so they stay put — which is why
+  // only the build-services churned.) Disabling the default attestation makes
+  // the cached build reproduce a stable image ID, so an already-up stack
+  // converges to a no-op. Scoped to dev: CI/release builds run in their own
+  // processes and keep provenance for supply-chain integrity. Explicit override
+  // still wins.
+  process.env.BUILDX_NO_DEFAULT_ATTESTATIONS ??= '1';
+
   const status = await probeDocker(10_000);
   if (status !== 'ok') {
     const why =
