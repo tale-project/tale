@@ -22,9 +22,9 @@ export type RuntimeTier = 'runc' | 'gvisor' | 'sysbox' | 'kata';
 //                  (sysbox userns; gvisor runsc — but gvisor is flaky for DinD)
 //   'vm'         — inner dockerd inside a guest VM, VM-contained (kata)
 //   'none'       — reserved (no tier currently uses it)
-export type DindCapability = 'none' | 'privileged' | 'native' | 'vm';
+type DindCapability = 'none' | 'privileged' | 'native' | 'vm';
 
-export interface TierResolution {
+interface TierResolution {
   /** docker `--runtime=` value. */
   dockerRuntime: string;
   /** Default pod `runtimeClassName` (null = omit the field entirely). */
