@@ -26,12 +26,14 @@
         "mode": "explicit-breakpoints",
         "maxBreakpoints": 4
       },
-      "contextWindow": 200000,
       "qualityScore": 0.98,
+      "contextWindow": 1000000,
       "cost": {
-        "inputCentsPerMillion": 500,
+        "inputCentsPerMillion": 500.00000000000006,
         "outputCentsPerMillion": 2500
-      }
+      },
+      "maxOutputTokens": 128000,
+      "hidden": true
     },
     {
       "id": "anthropic/claude-sonnet-4.6",
@@ -46,12 +48,13 @@
         "mode": "explicit-breakpoints",
         "maxBreakpoints": 4
       },
-      "contextWindow": 200000,
       "qualityScore": 0.92,
+      "contextWindow": 1000000,
       "cost": {
         "inputCentsPerMillion": 300,
         "outputCentsPerMillion": 1500
-      }
+      },
+      "maxOutputTokens": 128000
     },
     {
       "id": "anthropic/claude-haiku-4.5",
@@ -59,18 +62,20 @@
       "description": "Fast, lightweight Anthropic model",
       "tags": ["chat"],
       "reasoning": {
-        "knob": "none"
+        "knob": "budgetTokens",
+        "minBudgetTokens": 1024
       },
       "promptCaching": {
         "mode": "explicit-breakpoints",
         "maxBreakpoints": 4
       },
-      "contextWindow": 200000,
       "qualityScore": 0.8,
+      "contextWindow": 200000,
       "cost": {
         "inputCentsPerMillion": 100,
-        "outputCentsPerMillion": 500
-      }
+        "outputCentsPerMillion": 500.00000000000006
+      },
+      "maxOutputTokens": 64000
     },
     {
       "id": "openai/gpt-5.2-pro",
@@ -78,18 +83,19 @@
       "description": "OpenAI's most advanced model for the hardest reasoning tasks",
       "tags": ["chat", "vision"],
       "reasoning": {
-        "knob": "effort",
-        "supportsMinimal": true
+        "knob": "effort"
       },
       "promptCaching": {
         "mode": "auto-server"
       },
-      "contextWindow": 400000,
       "qualityScore": 0.97,
+      "contextWindow": 400000,
       "cost": {
         "inputCentsPerMillion": 2100,
         "outputCentsPerMillion": 16800
-      }
+      },
+      "maxOutputTokens": 128000,
+      "hidden": true
     },
     {
       "id": "openai/gpt-5.2",
@@ -97,18 +103,19 @@
       "description": "OpenAI's flagship general-purpose model",
       "tags": ["chat", "vision"],
       "reasoning": {
-        "knob": "effort",
-        "supportsMinimal": true
+        "knob": "effort"
       },
       "promptCaching": {
         "mode": "auto-server"
       },
-      "contextWindow": 400000,
       "qualityScore": 0.95,
+      "contextWindow": 400000,
       "cost": {
         "inputCentsPerMillion": 175,
         "outputCentsPerMillion": 1400
-      }
+      },
+      "maxOutputTokens": 128000,
+      "hidden": true
     },
     {
       "id": "openai/gpt-5.2-chat",
@@ -118,12 +125,14 @@
       "promptCaching": {
         "mode": "auto-server"
       },
-      "contextWindow": 400000,
       "qualityScore": 0.85,
+      "contextWindow": 128000,
       "cost": {
         "inputCentsPerMillion": 175,
         "outputCentsPerMillion": 1400
-      }
+      },
+      "maxOutputTokens": 16384,
+      "hidden": true
     },
     {
       "id": "openai/gpt-oss-120b",
@@ -136,10 +145,10 @@
       "promptCaching": {
         "mode": "auto-server"
       },
-      "contextWindow": 131072,
       "qualityScore": 0.72,
+      "contextWindow": 131072,
       "cost": {
-        "inputCentsPerMillion": 4,
+        "inputCentsPerMillion": 3.9,
         "outputCentsPerMillion": 18
       }
     },
@@ -155,12 +164,13 @@
         "mode": "explicit-breakpoints",
         "maxBreakpoints": 4
       },
-      "contextWindow": 1000000,
       "qualityScore": 0.94,
+      "contextWindow": 1048576,
       "cost": {
         "inputCentsPerMillion": 200,
         "outputCentsPerMillion": 1200
-      }
+      },
+      "maxOutputTokens": 65536
     },
     {
       "id": "google/gemini-3-flash-preview",
@@ -174,23 +184,28 @@
         "mode": "explicit-breakpoints",
         "maxBreakpoints": 4
       },
-      "contextWindow": 1000000,
       "qualityScore": 0.86,
+      "contextWindow": 1048576,
       "cost": {
         "inputCentsPerMillion": 50,
         "outputCentsPerMillion": 300
-      }
+      },
+      "maxOutputTokens": 65536
     },
     {
       "id": "google/gemma-4-31b-it",
       "displayName": "Gemma 4 31B IT",
       "description": "Google open-weight 31B Instruct, multimodal, 262K context",
       "tags": ["chat", "vision"],
-      "contextWindow": 262144,
       "qualityScore": 0.66,
+      "contextWindow": 262144,
       "cost": {
-        "inputCentsPerMillion": 13,
-        "outputCentsPerMillion": 38
+        "inputCentsPerMillion": 11.999999999999998,
+        "outputCentsPerMillion": 35
+      },
+      "maxOutputTokens": 262144,
+      "reasoning": {
+        "knob": "effort"
       }
     },
     {
@@ -198,11 +213,14 @@
       "displayName": "Gemma 4 26B A4B IT",
       "description": "Smaller Gemma 4 MoE variant, multimodal",
       "tags": ["chat", "vision"],
-      "contextWindow": 131072,
       "qualityScore": 0.62,
+      "contextWindow": 262144,
       "cost": {
-        "inputCentsPerMillion": 6,
+        "inputCentsPerMillion": 5.999999999999999,
         "outputCentsPerMillion": 33
+      },
+      "reasoning": {
+        "knob": "effort"
       }
     },
     {
@@ -212,7 +230,15 @@
       "tags": ["image-generation", "image-edit"],
       "imageGenerationMode": "chat-multimodal",
       "cost": {
-        "imageCentsPerImage": 4
+        "imageCentsPerImage": 4,
+        "inputCentsPerMillion": 30,
+        "outputCentsPerMillion": 250.00000000000003
+      },
+      "contextWindow": 32768,
+      "maxOutputTokens": 32768,
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
       }
     },
     {
@@ -223,17 +249,21 @@
       "promptCaching": {
         "mode": "auto-server"
       },
-      "contextWindow": 131072,
       "qualityScore": 0.88,
       "routingTags": ["code"],
+      "contextWindow": 1048576,
       "cost": {
-        "inputCentsPerMillion": 44,
+        "inputCentsPerMillion": 43.5,
         "outputCentsPerMillion": 87
       },
       "providerOptions": {
         "provider": {
           "quantizations": ["fp8", "fp4"]
         }
+      },
+      "maxOutputTokens": 384000,
+      "reasoning": {
+        "knob": "effort"
       }
     },
     {
@@ -244,17 +274,21 @@
       "promptCaching": {
         "mode": "auto-server"
       },
-      "contextWindow": 131072,
       "qualityScore": 0.8,
       "routingTags": ["code"],
+      "contextWindow": 1048576,
       "cost": {
-        "inputCentsPerMillion": 14,
-        "outputCentsPerMillion": 28
+        "inputCentsPerMillion": 9,
+        "outputCentsPerMillion": 18
       },
       "providerOptions": {
         "provider": {
           "quantizations": ["fp8", "fp4"]
         }
+      },
+      "maxOutputTokens": 65536,
+      "reasoning": {
+        "knob": "effort"
       }
     },
     {
@@ -262,16 +296,20 @@
       "displayName": "Kimi K2.6",
       "description": "Moonshot K2.6 — multimodal, 262K context",
       "tags": ["chat", "vision"],
-      "contextWindow": 262144,
       "qualityScore": 0.84,
+      "contextWindow": 262144,
       "cost": {
-        "inputCentsPerMillion": 75,
-        "outputCentsPerMillion": 350
+        "inputCentsPerMillion": 68,
+        "outputCentsPerMillion": 341
       },
       "providerOptions": {
         "provider": {
           "quantizations": ["bf16", "fp8", "fp4"]
         }
+      },
+      "maxOutputTokens": 262142,
+      "reasoning": {
+        "knob": "effort"
       }
     },
     {
@@ -279,11 +317,14 @@
       "displayName": "Kimi K2.5",
       "description": "High-performance Moonshot general-purpose model",
       "tags": ["chat"],
-      "contextWindow": 131072,
       "qualityScore": 0.8,
+      "contextWindow": 262144,
       "cost": {
-        "inputCentsPerMillion": 44,
-        "outputCentsPerMillion": 200
+        "inputCentsPerMillion": 37.5,
+        "outputCentsPerMillion": 202.5
+      },
+      "reasoning": {
+        "knob": "effort"
       }
     },
     {
@@ -294,17 +335,19 @@
       "reasoning": {
         "knob": "effort"
       },
-      "contextWindow": 200000,
       "qualityScore": 0.78,
+      "contextWindow": 204800,
       "cost": {
-        "inputCentsPerMillion": 30,
-        "outputCentsPerMillion": 120
+        "inputCentsPerMillion": 25,
+        "outputCentsPerMillion": 100
       },
       "providerOptions": {
         "provider": {
           "quantizations": ["fp8", "fp4"]
         }
-      }
+      },
+      "maxOutputTokens": 131072,
+      "hidden": true
     },
     {
       "id": "nvidia/nemotron-3-super-120b-a12b",
@@ -314,8 +357,8 @@
       "reasoning": {
         "knob": "effort"
       },
-      "contextWindow": 131072,
       "qualityScore": 0.76,
+      "contextWindow": 1000000,
       "cost": {
         "inputCentsPerMillion": 9,
         "outputCentsPerMillion": 45
@@ -329,35 +372,45 @@
       "reasoning": {
         "knob": "effort"
       },
-      "contextWindow": 262144,
       "qualityScore": 0.86,
+      "contextWindow": 262144,
       "cost": {
         "inputCentsPerMillion": 104,
         "outputCentsPerMillion": 624
-      }
+      },
+      "maxOutputTokens": 65536
     },
     {
       "id": "qwen/qwen3.6-plus",
       "displayName": "Qwen3.6 Plus",
       "description": "Multimodal Qwen with 1M context",
       "tags": ["chat", "vision"],
-      "contextWindow": 131072,
       "qualityScore": 0.82,
+      "contextWindow": 1000000,
       "cost": {
-        "inputCentsPerMillion": 33,
+        "inputCentsPerMillion": 32.5,
         "outputCentsPerMillion": 195
-      }
+      },
+      "maxOutputTokens": 65536,
+      "reasoning": {
+        "knob": "effort"
+      },
+      "hidden": true
     },
     {
       "id": "qwen/qwen3.6-flash",
       "displayName": "Qwen3.6 Flash",
       "description": "Fastest Qwen 1M-context variant, multimodal",
       "tags": ["chat", "vision"],
-      "contextWindow": 131072,
       "qualityScore": 0.74,
+      "contextWindow": 1000000,
       "cost": {
-        "inputCentsPerMillion": 25,
-        "outputCentsPerMillion": 150
+        "inputCentsPerMillion": 18.75,
+        "outputCentsPerMillion": 112.5
+      },
+      "maxOutputTokens": 65536,
+      "reasoning": {
+        "knob": "effort"
       }
     },
     {
@@ -365,11 +418,15 @@
       "displayName": "Qwen3.6 35B A3B",
       "description": "Compact Qwen3.6 MoE, multimodal",
       "tags": ["chat", "vision"],
-      "contextWindow": 131072,
       "qualityScore": 0.72,
+      "contextWindow": 262144,
       "cost": {
         "inputCentsPerMillion": 15,
         "outputCentsPerMillion": 100
+      },
+      "maxOutputTokens": 262144,
+      "reasoning": {
+        "knob": "effort"
       }
     },
     {
@@ -380,8 +437,8 @@
       "reasoning": {
         "knob": "effort"
       },
-      "contextWindow": 262144,
       "qualityScore": 0.84,
+      "contextWindow": 262144,
       "cost": {
         "inputCentsPerMillion": 39,
         "outputCentsPerMillion": 234
@@ -390,20 +447,22 @@
         "provider": {
           "quantizations": ["fp8", "fp4"]
         }
-      }
+      },
+      "maxOutputTokens": 65536
     },
     {
       "id": "qwen/qwen3-coder",
       "displayName": "Qwen3 Coder 480B",
       "description": "Qwen3-Coder MoE (480B / 35B active) tuned for agentic coding, 262K context",
       "tags": ["chat"],
-      "contextWindow": 262144,
       "qualityScore": 0.8,
       "routingTags": ["code"],
+      "contextWindow": 1048576,
       "cost": {
         "inputCentsPerMillion": 22,
         "outputCentsPerMillion": 180
-      }
+      },
+      "maxOutputTokens": 65536
     },
     {
       "id": "qwen/qwen3-235b-a22b-2507",
@@ -413,24 +472,26 @@
       "reasoning": {
         "knob": "effort"
       },
-      "contextWindow": 131072,
       "qualityScore": 0.78,
+      "contextWindow": 262144,
       "cost": {
-        "inputCentsPerMillion": 7,
+        "inputCentsPerMillion": 9,
         "outputCentsPerMillion": 10
-      }
+      },
+      "maxOutputTokens": 16384
     },
     {
       "id": "qwen/qwen3-vl-32b-instruct",
       "displayName": "Qwen3 VL 32B",
       "description": "Qwen vision-language model for image understanding",
       "tags": ["chat", "vision"],
-      "contextWindow": 131072,
       "qualityScore": 0.74,
+      "contextWindow": 262144,
       "cost": {
-        "inputCentsPerMillion": 10,
-        "outputCentsPerMillion": 42
-      }
+        "inputCentsPerMillion": 10.4,
+        "outputCentsPerMillion": 41.6
+      },
+      "maxOutputTokens": 32768
     },
     {
       "id": "qwen/qwen3-embedding-8b",
@@ -451,11 +512,11 @@
       "reasoning": {
         "knob": "effort"
       },
-      "contextWindow": 200000,
       "qualityScore": 0.84,
+      "contextWindow": 202752,
       "cost": {
-        "inputCentsPerMillion": 105,
-        "outputCentsPerMillion": 350
+        "inputCentsPerMillion": 98,
+        "outputCentsPerMillion": 308
       },
       "providerOptions": {
         "provider": {
@@ -468,11 +529,15 @@
       "displayName": "GLM 5 Turbo",
       "description": "Fast 202K-context Z.ai GLM 5",
       "tags": ["chat"],
-      "contextWindow": 131072,
       "qualityScore": 0.78,
+      "contextWindow": 262144,
       "cost": {
         "inputCentsPerMillion": 120,
         "outputCentsPerMillion": 400
+      },
+      "maxOutputTokens": 131072,
+      "reasoning": {
+        "knob": "effort"
       }
     },
     {
@@ -480,8 +545,8 @@
       "displayName": "GLM 5V Turbo",
       "description": "Multimodal Z.ai GLM 5 Turbo",
       "tags": ["chat", "vision"],
-      "contextWindow": 131072,
       "qualityScore": 0.76,
+      "contextWindow": 131072,
       "cost": {
         "inputCentsPerMillion": 120,
         "outputCentsPerMillion": 400
@@ -493,8 +558,8 @@
       "description": "Mistral's flagship large model",
       "tags": ["chat"],
       "maxOutputTokens": 8192,
-      "contextWindow": 131072,
       "qualityScore": 0.8,
+      "contextWindow": 262144,
       "cost": {
         "inputCentsPerMillion": 50,
         "outputCentsPerMillion": 150
@@ -506,12 +571,13 @@
       "description": "Mid-tier Mistral for general tasks",
       "tags": ["chat"],
       "maxOutputTokens": 8192,
-      "contextWindow": 131072,
       "qualityScore": 0.74,
+      "contextWindow": 131072,
       "cost": {
         "inputCentsPerMillion": 40,
         "outputCentsPerMillion": 200
-      }
+      },
+      "hidden": true
     },
     {
       "id": "xiaomi/mimo-v2.5-pro",
@@ -521,41 +587,44 @@
       "reasoning": {
         "knob": "effort"
       },
-      "contextWindow": 131072,
       "qualityScore": 0.72,
+      "contextWindow": 1048576,
       "cost": {
-        "inputCentsPerMillion": 100,
-        "outputCentsPerMillion": 300
+        "inputCentsPerMillion": 43.5,
+        "outputCentsPerMillion": 87
       },
       "providerOptions": {
         "provider": {
           "quantizations": ["fp8"]
         }
-      }
+      },
+      "maxOutputTokens": 131072
     },
     {
       "id": "meta-llama/llama-4-maverick",
       "displayName": "LLaMA 4 Maverick",
       "description": "Meta's powerful open-source LLM",
       "tags": ["chat"],
-      "contextWindow": 1000000,
       "qualityScore": 0.78,
+      "contextWindow": 1048576,
       "cost": {
         "inputCentsPerMillion": 15,
         "outputCentsPerMillion": 60
-      }
+      },
+      "maxOutputTokens": 16384
     },
     {
       "id": "meta-llama/llama-4-scout",
       "displayName": "LLaMA 4 Scout",
       "description": "Meta's efficient open-source LLM",
       "tags": ["chat"],
-      "contextWindow": 1000000,
       "qualityScore": 0.7,
+      "contextWindow": 10000000,
       "cost": {
-        "inputCentsPerMillion": 8,
+        "inputCentsPerMillion": 10,
         "outputCentsPerMillion": 30
-      }
+      },
+      "maxOutputTokens": 16384
     },
     {
       "id": "black-forest-labs/flux.2-max",
@@ -593,14 +662,18 @@
       "description": "Speech-to-text for voice dictation and audio-file transcription. transcriptionMode 'json-base64' selects OpenRouter's audio-transcription request shape (JSON input_audio); leave it off only when pointing this provider at a multipart OpenAI-compatible server. To swap models, browse openrouter.ai/models (Speech-to-Text) and update the id + defaults.transcription.",
       "tags": ["transcription"],
       "transcriptionMode": "json-base64",
-      "cost": { "centsPerAudioMinute": 0.6 }
+      "cost": {
+        "centsPerAudioMinute": 0.6
+      }
     },
     {
       "id": "openai/gpt-4o-mini-tts-2025-12-15",
       "displayName": "GPT-4o mini TTS",
       "description": "Low-cost voice-mode speech synthesis, locale-mapped voices. Verify the current model id at openrouter.ai/models (Text-to-Speech) — TTS model versions are dated and rotate; update the id + defaults.text-to-speech together if it changes. NOTE: the cost below is a per-character approximation used only by Tale's budget/ledger; the upstream meters per token, so recalibrate against your own usage mix (CJK and other high-audio-token scripts under-estimate most).",
       "tags": ["text-to-speech"],
-      "audioFormat": "mp3",
+      "cost": {
+        "centsPerMillionCharacters": 1500
+      },
       "defaultVoice": "alloy",
       "voicesByLocale": {
         "en": "alloy",
@@ -615,8 +688,114 @@
         "de-CH": "Sprich in einem warmen, natürlichen Gesprächston mit ruhigem, gleichmäßigem Tempo. Klinge wie eine freundliche Person, nicht wie ein Nachrichtensprecher.",
         "fr": "Parle d'une voix chaleureuse et naturelle, avec un rythme régulier et posé. Sois comme une personne amicale qui parle, pas comme un présentateur de journal télévisé."
       },
+      "audioFormat": "mp3"
+    },
+    {
+      "id": "qwen/qwen3.7-plus",
+      "displayName": "Qwen: Qwen3.7 Plus",
+      "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
       "cost": {
-        "centsPerMillionCharacters": 1500
+        "inputCentsPerMillion": 32,
+        "outputCentsPerMillion": 128
+      }
+    },
+    {
+      "id": "minimax/minimax-m3",
+      "displayName": "MiniMax: MiniMax M3",
+      "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "contextWindow": 1048576,
+      "maxOutputTokens": 512000,
+      "cost": {
+        "inputCentsPerMillion": 30,
+        "outputCentsPerMillion": 120
+      }
+    },
+    {
+      "id": "anthropic/claude-opus-4.8",
+      "displayName": "Anthropic: Claude Opus 4.8",
+      "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "budgetTokens",
+        "minBudgetTokens": 1024
+      },
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
+      },
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "cost": {
+        "inputCentsPerMillion": 500.00000000000006,
+        "outputCentsPerMillion": 2500
+      }
+    },
+    {
+      "id": "mistralai/mistral-medium-3-5",
+      "displayName": "Mistral: Mistral Medium 3.5",
+      "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "contextWindow": 262144,
+      "cost": {
+        "inputCentsPerMillion": 150,
+        "outputCentsPerMillion": 750
+      }
+    },
+    {
+      "id": "openai/gpt-5.5-pro",
+      "displayName": "OpenAI: GPT-5.5 Pro",
+      "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "promptCaching": {
+        "mode": "auto-server"
+      },
+      "contextWindow": 1050000,
+      "maxOutputTokens": 128000,
+      "cost": {
+        "inputCentsPerMillion": 3000,
+        "outputCentsPerMillion": 18000
+      }
+    },
+    {
+      "id": "openai/gpt-5.5",
+      "displayName": "OpenAI: GPT-5.5",
+      "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "promptCaching": {
+        "mode": "auto-server"
+      },
+      "contextWindow": 1050000,
+      "maxOutputTokens": 128000,
+      "cost": {
+        "inputCentsPerMillion": 500.00000000000006,
+        "outputCentsPerMillion": 3000
+      }
+    },
+    {
+      "id": "openai/gpt-5.3-chat",
+      "displayName": "OpenAI: GPT-5.3 Chat",
+      "tags": ["chat", "vision"],
+      "promptCaching": {
+        "mode": "auto-server"
+      },
+      "contextWindow": 128000,
+      "maxOutputTokens": 16384,
+      "cost": {
+        "inputCentsPerMillion": 175,
+        "outputCentsPerMillion": 1400
       }
     }
   ],
