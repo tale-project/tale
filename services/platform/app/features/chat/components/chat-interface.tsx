@@ -83,6 +83,7 @@ import { ChatMessagesSkeleton } from './chat-messages-skeleton';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
 import { SelectionQuoteButton } from './selection-quote-button';
+import { SteerStatusProvider } from './steer-status';
 import { WelcomeView } from './welcome-view';
 
 const SavePromptDialog = lazyComponent<
@@ -1166,72 +1167,77 @@ export function ChatInterface({
                   liveRoute={liveRoute ?? null}
                   generationStartMs={effectiveGenerationStartMs}
                 >
-                  <ChatMessages
-                    items={itemsForRender}
+                  <SteerStatusProvider
                     threadId={dataThreadId}
                     organizationId={organizationId}
-                    canLoadMore={canLoadMore}
-                    isLoadingMore={isLoadingMore}
-                    loadMore={handleLoadMore}
-                    isLoading={isLoading}
-                    isSendPending={isSendPending}
-                    isAutoRoute={isAutoRoute}
-                    liveRoute={liveRoute}
-                    generationStartMs={effectiveGenerationStartMs}
-                    lastUserMessageRef={lastUserMessageRef}
-                    containerRef={containerRef}
-                    activeApproval={activeApproval}
-                    activeApprovalInline={activeApprovalInline}
-                    forkedMessageCount={
-                      forkInfo?.forkedMessageCount ?? undefined
-                    }
-                    lastForkedMessageOrder={
-                      forkInfo?.lastForkedMessageOrder ?? undefined
-                    }
-                    forkedAt={forkInfo?.forkedAt ?? undefined}
-                    forkedFromShare={forkInfo?.forkedFromShare}
-                    onHumanInputResponseSubmitted={
-                      handleHumanInputResponseSubmitted
-                    }
-                    onSendFollowUp={
-                      isArchived || readOnly ? undefined : handleSendFollowUp
-                    }
-                    onSendMessage={
-                      isArchived || readOnly
-                        ? undefined
-                        : handleSendMessageDirect
-                    }
-                    onEditMessage={
-                      isArchived || readOnly ? undefined : handleEditClick
-                    }
-                    onForkAtMessage={
-                      isArchived || readOnly ? undefined : handleForkAtMessage
-                    }
-                    onSavePrompt={handleSavePromptFromMessage}
-                    onUnsavePrompt={handleUnsavePrompt}
-                    savedMessageMap={savedMessageMap}
-                    onRetry={isArchived || readOnly ? undefined : handleRetry}
-                    onRegenerate={
-                      isArchived || readOnly
-                        ? undefined
-                        : handleRegenerateMessage
-                    }
-                    editingMessageId={
-                      isArchived || readOnly ? undefined : editingMessage?.id
-                    }
-                    editingMessageContent={
-                      isArchived || readOnly
-                        ? undefined
-                        : editingMessage?.content
-                    }
-                    onEditSubmit={
-                      isArchived || readOnly ? undefined : handleEditSubmit
-                    }
-                    onEditCancel={
-                      isArchived || readOnly ? undefined : handleEditCancel
-                    }
-                    hideFeedback={isArchived}
-                  />
+                  >
+                    <ChatMessages
+                      items={itemsForRender}
+                      threadId={dataThreadId}
+                      organizationId={organizationId}
+                      canLoadMore={canLoadMore}
+                      isLoadingMore={isLoadingMore}
+                      loadMore={handleLoadMore}
+                      isLoading={isLoading}
+                      isSendPending={isSendPending}
+                      isAutoRoute={isAutoRoute}
+                      liveRoute={liveRoute}
+                      generationStartMs={effectiveGenerationStartMs}
+                      lastUserMessageRef={lastUserMessageRef}
+                      containerRef={containerRef}
+                      activeApproval={activeApproval}
+                      activeApprovalInline={activeApprovalInline}
+                      forkedMessageCount={
+                        forkInfo?.forkedMessageCount ?? undefined
+                      }
+                      lastForkedMessageOrder={
+                        forkInfo?.lastForkedMessageOrder ?? undefined
+                      }
+                      forkedAt={forkInfo?.forkedAt ?? undefined}
+                      forkedFromShare={forkInfo?.forkedFromShare}
+                      onHumanInputResponseSubmitted={
+                        handleHumanInputResponseSubmitted
+                      }
+                      onSendFollowUp={
+                        isArchived || readOnly ? undefined : handleSendFollowUp
+                      }
+                      onSendMessage={
+                        isArchived || readOnly
+                          ? undefined
+                          : handleSendMessageDirect
+                      }
+                      onEditMessage={
+                        isArchived || readOnly ? undefined : handleEditClick
+                      }
+                      onForkAtMessage={
+                        isArchived || readOnly ? undefined : handleForkAtMessage
+                      }
+                      onSavePrompt={handleSavePromptFromMessage}
+                      onUnsavePrompt={handleUnsavePrompt}
+                      savedMessageMap={savedMessageMap}
+                      onRetry={isArchived || readOnly ? undefined : handleRetry}
+                      onRegenerate={
+                        isArchived || readOnly
+                          ? undefined
+                          : handleRegenerateMessage
+                      }
+                      editingMessageId={
+                        isArchived || readOnly ? undefined : editingMessage?.id
+                      }
+                      editingMessageContent={
+                        isArchived || readOnly
+                          ? undefined
+                          : editingMessage?.content
+                      }
+                      onEditSubmit={
+                        isArchived || readOnly ? undefined : handleEditSubmit
+                      }
+                      onEditCancel={
+                        isArchived || readOnly ? undefined : handleEditCancel
+                      }
+                      hideFeedback={isArchived}
+                    />
+                  </SteerStatusProvider>
                 </ThreadMessageMetadataProvider>
               </ChatMessagesErrorBoundary>
             )}
