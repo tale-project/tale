@@ -161,6 +161,26 @@ async function promptProductionDomain(): Promise<DomainTlsConfig> {
   return deriveDomainTls({ mode: 'production', host, email });
 }
 
+/**
+ * Set (update or append) plain `KEY=value` pairs in `<deployDir>/.env`,
+ * preserving everything else. For non-secret operator toggles like
+ * SANDBOX_DOCKER_IN_CONTAINER that `tale init` writes from a prompt. No-op if
+ * the .env doesn't exist yet (ensureEnv creates it first).
+ */
+export async function setEnvVars(
+  deployDir: string,
+  updates: Record<string, string>,
+): Promise<void> {
+  const envPath = join(deployDir, '.env');
+  let existing: Record<string, string>;
+  try {
+    existing = parseEnvFile(await readFile(envPath, 'utf-8'));
+  } catch {
+    return; // no .env — nothing to update
+  }
+  await applyEnvUpdates(envPath, existing, updates);
+}
+
 /** Update or append `KEY=value` lines in an .env file, preserving the rest. */
 async function applyEnvUpdates(
   envPath: string,

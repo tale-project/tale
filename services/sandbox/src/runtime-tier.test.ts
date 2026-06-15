@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   dindCapabilityOf,
+  dindDefaultEnabled,
   dindExperimental,
   dindIsPrivileged,
   dockerRuntimeFor,
@@ -61,6 +62,13 @@ describe('runtime-tier', () => {
     expect(dindExperimental('runc')).toBe(false);
     expect(dindExperimental('sysbox')).toBe(false);
     expect(dindExperimental('kata')).toBe(false);
+  });
+
+  test('dindDefaultEnabled: on for boundary-keeping tiers only', () => {
+    expect(dindDefaultEnabled('sysbox')).toBe(true);
+    expect(dindDefaultEnabled('kata')).toBe(true);
+    expect(dindDefaultEnabled('runc')).toBe(false);
+    expect(dindDefaultEnabled('gvisor')).toBe(false);
   });
 
   test('resolveTier returns the full resolution', () => {

@@ -44,15 +44,29 @@ explicit decision, informed by these warnings.
 
 ## Enabling it
 
-You need two things: select a supported tier + enable the flag, **and** install
-the matching runtime on the host/cluster.
+`SANDBOX_DOCKER_IN_CONTAINER` has a **tier-aware default**, so the safe path is
+zero-config:
+
+| Tier             | Default | Why                                                             |
+| ---------------- | ------- | --------------------------------------------------------------- |
+| `sysbox`, `kata` | **on**  | boundary-keeping → docker just works once the runtime is set up |
+| `runc`, `gvisor` | **off** | runc = privileged host-root (opt-in only); gvisor = flaky       |
+
+So on `sysbox`/`kata` you only need to select the tier + install the runtime —
+DinD is on automatically. On `runc` you additionally set the flag (an explicit,
+warned opt-in into the host-root path). An explicit value always wins over the
+default.
 
 ### Configuration
 
 Either env (on the `sandbox` service):
 
 ```
+# sysbox: DinD is on by default — just select the tier
 SANDBOX_RUNTIME=sysbox
+
+# runc: privileged host-root, must opt in explicitly
+SANDBOX_RUNTIME=runc
 SANDBOX_DOCKER_IN_CONTAINER=true
 ```
 

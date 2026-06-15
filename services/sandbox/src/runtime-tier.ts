@@ -93,6 +93,19 @@ export function dindExperimental(tier: RuntimeTier): boolean {
   return tier === 'gvisor';
 }
 
+/**
+ * Tier-aware DEFAULT for SANDBOX_DOCKER_IN_CONTAINER when the operator hasn't
+ * set it explicitly: on for the tiers where DinD is both safe AND reliable
+ * (`sysbox` userns, `kata` VM), off for the rest. The point is "docker just
+ * works once you've set up a boundary-keeping runtime" — while `runc` (the only
+ * zero-config option, and privileged host-root) and `gvisor` (functionally
+ * flaky) stay opt-in so neither is silently enabled on, say, a multi-tenant
+ * deployment. An explicit env / deployment.json value always overrides this.
+ */
+export function dindDefaultEnabled(tier: RuntimeTier): boolean {
+  return tier === 'sysbox' || tier === 'kata';
+}
+
 // No fail-closed policy gate for DinD: per the "one codebase, operator
 // configures the host to their needs" model, every tier may enable it. The
 // trade-offs (runc = host-root, gvisor = likely-broken) are surfaced as loud

@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 
 import {
+  dindDefaultEnabled,
   dindExperimental,
   dindIsPrivileged,
   isRuntimeTier,
@@ -13,11 +14,13 @@ import {
 } from './runtime-tier.ts';
 import type { SpawnerConfig } from './types.ts';
 
-// Parse a boolean env. Unset/empty ⇒ fallback; 'true'/'1'/'yes'/'on' ⇒ true;
-// everything else ⇒ false. Trimmed so '  true  ' works.
-function boolEnv(name: string, fallback: boolean): boolean {
+// Parse a boolean env, returning undefined when UNSET/empty so a caller can
+// distinguish "operator didn't set it" (apply a default) from an explicit
+// true/false. 'true'/'1'/'yes'/'on' ⇒ true; everything else ⇒ false. Trimmed
+// so '  true  ' works. Used for SANDBOX_DOCKER_IN_CONTAINER (tier-aware default).
+function boolEnvOpt(name: string): boolean | undefined {
   const v = process.env[name]?.trim().toLowerCase();
-  if (v === undefined || v === '') return fallback;
+  if (v === undefined || v === '') return undefined;
   return v === 'true' || v === '1' || v === 'yes' || v === 'on';
 }
 
@@ -146,15 +149,19 @@ export function loadConfig(): SpawnerConfig {
     );
   }
   const runtimeTier: RuntimeTier = aliased;
-  // Native docker-in-container inside session containers (opt-in; deployment
-  // config overrides the env). NOT policy-blocked on any tier — the operator
-  // chooses the host posture; we surface the trade-offs as loud warnings.
+  // Native docker-in-container inside session containers. NOT policy-blocked on
+  // any tier — the operator chooses the host posture; we surface the trade-offs
+  // as loud warnings. Resolution precedence: deployment.json > explicit env >
+  // tier-aware default. The default is ON for boundary-keeping tiers (sysbox
+  // userns / kata VM — docker "just works" once the runtime is set up) and OFF
+  // for runc (privileged host-root — opt-in only) and gvisor (flaky).
   //   runc  → PRIVILEGED inner daemon, no boundary (host-root): trusted-only.
   //   gvisor→ contained by runsc but nested docker networking is unreliable.
   //   sysbox/kata → the recommended, isolated paths.
   const dockerInContainer =
     deployment.dockerInContainer ??
-    boolEnv('SANDBOX_DOCKER_IN_CONTAINER', false);
+    boolEnvOpt('SANDBOX_DOCKER_IN_CONTAINER') ??
+    dindDefaultEnabled(runtimeTier);
   if (dockerInContainer) {
     if (dindIsPrivileged(runtimeTier)) {
       console.warn(

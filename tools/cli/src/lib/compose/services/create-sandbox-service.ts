@@ -47,10 +47,11 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
     env_file: ['.env'],
     environment: {
       SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',
-      // Native docker/docker compose inside session containers (off by default;
-      // only valid on a sysbox/kata tier — the spawner fails closed otherwise).
-      // The deployment.json sandboxRuntime section overrides both of these.
-      SANDBOX_DOCKER_IN_CONTAINER: '${SANDBOX_DOCKER_IN_CONTAINER:-false}',
+      // Native docker/docker compose inside session containers. Unset so the
+      // spawner applies its tier-aware default (on for sysbox/kata, off for
+      // runc/gvisor); set SANDBOX_DOCKER_IN_CONTAINER (or the deployment.json
+      // sandboxRuntime section) to force it.
+      SANDBOX_DOCKER_IN_CONTAINER: '${SANDBOX_DOCKER_IN_CONTAINER:-}',
       SANDBOX_RUNTIME_IMAGE:
         '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}',
       SANDBOX_EGRESS_NETWORK: 'tale-sandbox-net',

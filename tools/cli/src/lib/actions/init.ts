@@ -273,7 +273,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
     try {
       existingProject = await readProject(target);
     } catch (err) {
-      logger.debug(`Could not read existing tale.json: ${err}`);
+      logger.debug(`Could not read existing tale.json: ${String(err)}`);
     }
   }
   const projectId = existingProject?.id ?? generateProjectId(basename(target));
@@ -300,8 +300,31 @@ export async function init(options: InitOptions): Promise<InitResult> {
 
   // .env setup — local defaults (production domain/TLS is chosen at deploy).
   if (!options.noEnv) {
-    const { ensureEnv } = await import('../config/ensure-env');
+    const { ensureEnv, setEnvVars } = await import('../config/ensure-env');
     await ensureEnv({ deployDir: target });
+
+    // Offer docker-in-sandbox (lets agents run `docker` / `docker compose`).
+    // Off unless asked: on the default `runc` runtime it means a PRIVILEGED
+    // inner daemon (in-container root = host root) — fine for a single-user /
+    // trusted install, but not something to enable silently for a multi-tenant
+    // operator. Sysbox/kata get it automatically (the spawner's tier-aware
+    // default), so this prompt is really the runc opt-in.
+    if (process.stdin.isTTY && process.stdout.isTTY) {
+      const { confirm } = await import('@inquirer/prompts');
+      const enableDocker = await confirm({
+        message:
+          'Let agents run docker / docker compose inside sandboxes? ' +
+          '(single-user: yes — runs a privileged inner Docker; ' +
+          'untrusted multi-tenant: install Sysbox instead)',
+        default: false,
+      });
+      if (enableDocker) {
+        await setEnvVars(target, { SANDBOX_DOCKER_IN_CONTAINER: 'true' });
+        logger.info(
+          '  Enabled docker-in-sandbox (SANDBOX_DOCKER_IN_CONTAINER=true).',
+        );
+      }
+    }
   }
 
   logger.blank();

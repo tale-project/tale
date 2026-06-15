@@ -110,9 +110,32 @@ describe('loadConfig — docker-in-container gating', () => {
     expect(loadConfig().dockerInContainer).toBe(true);
   });
 
-  test('DinD flag off by default even on sysbox', () => {
-    process.env.SANDBOX_RUNTIME = 'sysbox';
-    expect(loadConfig().dockerInContainer).toBe(false);
+  describe('tier-aware default (unset SANDBOX_DOCKER_IN_CONTAINER)', () => {
+    test('sysbox / kata default ON (boundary-keeping → docker just works)', () => {
+      process.env.SANDBOX_RUNTIME = 'sysbox';
+      expect(loadConfig().dockerInContainer).toBe(true);
+      process.env.SANDBOX_RUNTIME = 'kata';
+      expect(loadConfig().dockerInContainer).toBe(true);
+    });
+
+    test('runc / gvisor default OFF (privileged host-root / flaky → opt-in only)', () => {
+      process.env.SANDBOX_RUNTIME = 'runc';
+      expect(loadConfig().dockerInContainer).toBe(false);
+      process.env.SANDBOX_RUNTIME = 'runsc';
+      expect(loadConfig().dockerInContainer).toBe(false);
+    });
+
+    test('explicit env overrides the tier default (force off on sysbox)', () => {
+      process.env.SANDBOX_RUNTIME = 'sysbox';
+      process.env.SANDBOX_DOCKER_IN_CONTAINER = 'false';
+      expect(loadConfig().dockerInContainer).toBe(false);
+    });
+
+    test('empty-string env is treated as unset → tier default applies', () => {
+      process.env.SANDBOX_RUNTIME = 'sysbox';
+      process.env.SANDBOX_DOCKER_IN_CONTAINER = '';
+      expect(loadConfig().dockerInContainer).toBe(true);
+    });
   });
 });
 
