@@ -178,7 +178,25 @@ login` into a path that persists into the shared workspace.
   as session activity; an idle session is stopped and its inner containers go
   with it. Keep an exec live, or pin the session.
 - **Resources.** Inner containers share the session's cgroup budget
-  (cpu/memory/pids). Usage attribution stays at session granularity.
+  (cpu/memory/pids). Usage attribution stays at session granularity. The inner
+  `dockerd` and every nested build/run **inherit the session's ulimits and
+  cgroup caps**, and the per-coding-agent defaults are too tight to host a real
+  `docker compose up --build`, so DinD adjusts them:
+  - **`fsize`** is lifted to unlimited (the 512 MiB per-file cap otherwise fails
+    layer extraction of any image shipping a larger file — e.g. paradedb's
+    ~885 MiB debug symbols — with `EFBIG`). The disk bound is the
+    `/var/lib/docker` volume quota above, not a per-file ceiling. `nofile` is
+    raised to a daemon-class range.
+  - **`pids`** is raised to 16384 (a parallel multi-service build's
+    dockerd + buildkit + N executors blow past the 512 agent default and tools
+    die with opaque `fork()`/`dpkg unexpectedly exited` errors). Still a
+    fork-bomb ceiling.
+  - **memory** default is **8 GiB under DinD** (vs 4 GiB) — a heavy frontend
+    bundle (vite) peaks ~7 GiB and is OOM-killed (`exit 137`) at 4 GiB. This is
+    a _ceiling, not a reservation_: idle/steady-state DinD sessions sit at
+    ~1.5 GiB (mostly reclaimable page cache; ~0.85 GiB real working set), so the
+    higher default costs no idle RAM — it only bites during a build. Override
+    with `SANDBOX_AGENT_MEMORY`; size host RAM for the concurrent-session peak.
 - **K8s** sysbox/kata DinD is implemented but must be validated on a real node
   with the runtime installed (kind nodes can't host it).
 

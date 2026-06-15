@@ -12,6 +12,7 @@ const KEYS = [
   'SANDBOX_DOCKER_IN_CONTAINER',
   'SANDBOX_RUNTIME_CLASS',
   'SANDBOX_BACKEND',
+  'SANDBOX_AGENT_MEMORY',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -108,6 +109,30 @@ describe('loadConfig — docker-in-container gating', () => {
     process.env.SANDBOX_RUNTIME = 'kata';
     process.env.SANDBOX_DOCKER_IN_CONTAINER = 'true';
     expect(loadConfig().dockerInContainer).toBe(true);
+  });
+
+  // The session cgroup memory is shared with the inner dockerd + nested builds
+  // under DinD; 4g OOM-kills a real `docker compose up --build` (e.g. a vite
+  // bundle peaks ~7g), so DinD raises the default ceiling to 8g — but it stays
+  // a default, overridable by SANDBOX_AGENT_MEMORY.
+  describe('DinD memory default', () => {
+    test('non-DinD keeps the 4g default', () => {
+      process.env.SANDBOX_RUNTIME = 'runc';
+      expect(loadConfig().session.agentProfile.memory).toBe('4g');
+    });
+
+    test('DinD raises the default to 8g', () => {
+      process.env.SANDBOX_RUNTIME = 'sysbox';
+      process.env.SANDBOX_DOCKER_IN_CONTAINER = 'true';
+      expect(loadConfig().session.agentProfile.memory).toBe('8g');
+    });
+
+    test('explicit SANDBOX_AGENT_MEMORY wins over the DinD default', () => {
+      process.env.SANDBOX_RUNTIME = 'sysbox';
+      process.env.SANDBOX_DOCKER_IN_CONTAINER = 'true';
+      process.env.SANDBOX_AGENT_MEMORY = '12g';
+      expect(loadConfig().session.agentProfile.memory).toBe('12g');
+    });
   });
 
   describe('tier-aware default (unset SANDBOX_DOCKER_IN_CONTAINER)', () => {

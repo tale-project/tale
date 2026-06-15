@@ -341,7 +341,18 @@ export function loadConfig(): SpawnerConfig {
       ),
       agentProfile: {
         cpus: numEnv('SANDBOX_AGENT_CPUS', 2, { min: 1 }),
-        memory: process.env.SANDBOX_AGENT_MEMORY ?? '4g',
+        // Memory is a real resource budget (the session cgroup is shared by the
+        // agent and, under DinD, the inner dockerd + every nested build/run).
+        // Unlike the pids/fsize *guards* (lifted unconditionally under DinD),
+        // this is a deliberate allocation — but 4g is too low to host a real
+        // `docker compose up --build`: a heavy frontend bundle (e.g. vite) is
+        // OOM-killed mid-build (exit 137). `--memory` is a ceiling, not a
+        // reservation (idle sessions don't consume it), so DinD gets a larger
+        // default headroom while staying operator-tunable — an explicit
+        // SANDBOX_AGENT_MEMORY always wins, and the operator sizes host RAM for
+        // the concurrent-session peak.
+        memory:
+          process.env.SANDBOX_AGENT_MEMORY ?? (dockerInContainer ? '8g' : '4g'),
         pidsLimit: numEnv('SANDBOX_AGENT_PIDS', 512, { min: 64 }),
         nofileSoft: numEnv('SANDBOX_AGENT_NOFILE_SOFT', 4096, { min: 256 }),
         nofileHard: numEnv('SANDBOX_AGENT_NOFILE_HARD', 8192, { min: 256 }),

@@ -125,6 +125,48 @@ export function buildDockerSessionRunArgs(
   // docker is a dedicated volume (below). Non-dind keeps the read-only root.
   const readOnlyFlag = dind ? [] : ['--read-only'];
 
+  // Ulimits. The inner dockerd inherits these from the session container, so the
+  // agent profile's per-file `fsize` cap (512 MiB) would make layer extraction
+  // fail with EFBIG on any image shipping a single file larger than the cap —
+  // e.g. paradedb's >512 MiB `pg_search.so.dbg` debug symbols. Under DinD the
+  // per-file ceiling is also the wrong disk-DoS lever (the real bound is the
+  // dedicated /var/lib/docker volume quota), so drop it entirely; and dockerd
+  // needs a daemon-class fd budget, so raise `nofile` to its customary range.
+  // Non-DinD keeps today's caps verbatim (the byte-identical-argv unit test
+  // depends on this branch staying unchanged).
+  // NO `--ulimit cpu` on either branch: a cumulative CPU-time cap would kill a
+  // long-lived session daemon mid-build; runaway CPU is bounded by --cpus shares
+  // + per-exec timeouts + session TTL instead.
+  const ulimitFlags = dind
+    ? [
+        '--ulimit',
+        `nofile=${Math.max(profile.nofileSoft, 65536)}:${Math.max(profile.nofileHard, 1048576)}`,
+        '--ulimit',
+        'core=0:0',
+      ]
+    : [
+        '--ulimit',
+        `nofile=${profile.nofileSoft}:${profile.nofileHard}`,
+        '--ulimit',
+        `fsize=${profile.fsizeBytes}`,
+        '--ulimit',
+        'core=0:0',
+      ];
+
+  // pids cap. Like the ulimits above, the inner dockerd + every nested build
+  // step and container share the session's pids cgroup, so the agent profile's
+  // 512-pid guard (sized for a single coding agent) is far too low once the
+  // session hosts a parallel `docker compose build`: dockerd + containerd +
+  // buildkit + N concurrent runc executors each fork apt/dpkg/bun/pip subtrees
+  // and blow past 512, at which point fork() returns EAGAIN and tools die with
+  // opaque "sub-process dpkg unexpectedly exited" / fork errors. Under DinD,
+  // raise it to a daemon-class ceiling that still bounds a fork bomb. cpu/memory
+  // stay the operator-tunable resource budget (a heavy build is slow, not
+  // broken, when they're tight). Non-DinD keeps today's 512 verbatim.
+  const pidsLimitValue = dind
+    ? Math.max(profile.pidsLimit, 16384)
+    : profile.pidsLimit;
+
   // Inner dockerd storage: a dedicated, ephemeral, size-bounded volume so the
   // image/layer store never lands on the overlay-backed workspace bind mount
   // (nested overlay is rejected by the kernel) and can't fill the host disk.
@@ -231,21 +273,13 @@ export function buildDockerSessionRunArgs(
     `--cpus=${profile.cpus}`,
     `--memory=${profile.memory}`,
     `--memory-swap=${profile.memory}`,
-    `--pids-limit=${profile.pidsLimit}`,
+    `--pids-limit=${pidsLimitValue}`,
     '--log-driver=json-file',
     '--log-opt',
     'max-size=10m',
     '--log-opt',
     'max-file=1',
-    '--ulimit',
-    `nofile=${profile.nofileSoft}:${profile.nofileHard}`,
-    '--ulimit',
-    `fsize=${profile.fsizeBytes}`,
-    // NO `--ulimit cpu`: a cumulative CPU-time cap would kill a long-lived
-    // session daemon mid-build. Runaway CPU is bounded by --cpus shares +
-    // per-exec timeouts + session TTL instead.
-    '--ulimit',
-    'core=0:0',
+    ...ulimitFlags,
     '--oom-score-adj=500',
     // Read-only root unless DinD (dockerd needs a writable rootfs; its store is
     // the dedicated /var/lib/docker volume below).
