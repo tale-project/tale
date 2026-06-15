@@ -37,7 +37,7 @@ interface SpawnerExecuteBody {
   organizationId: string;
   language: SandboxLanguage;
   /**
-   * Files staged at /workspace/code/<path>. Required for both single-script
+   * Files staged at /user/code/<path>. Required for both single-script
    * and multi-script modes. Mirrors `services/sandbox/src/types.ts:ExecuteRequest.files`.
    * The cross-service wire-shape stays in sync via this duplicated
    * declaration — any drift surfaces as a typecheck mismatch in the
@@ -77,7 +77,7 @@ interface SpawnerExecuteBody {
   timeoutMs?: number;
   /**
    * Prior-run output downloads. Each entry carries a name (filename to
-   * write inside /workspace/output/) and a URL the spawner GETs to pull
+   * write inside /user/output/) and a URL the spawner GETs to pull
    * the bytes. URLs are pre-rewritten through `toSandboxStorageUrl()` so
    * they target the internal Caddy alias (`http://proxy/...`) and never
    * have to round-trip through the public hostname. Replaces the legacy
@@ -86,7 +86,7 @@ interface SpawnerExecuteBody {
   priorOutputDownloads?: Array<{ name: string; url: string }>;
   /**
    * User-upload downloads. Each entry's bytes are fetched by the spawner
-   * and written to `/workspace/uploads/<name>`. Separate from
+   * and written to `/user/uploads/<name>`. Separate from
    * `priorOutputDownloads` so the agent reads user-uploaded raw assets
    * from a dedicated dir, never confused with files produced by previous
    * `run_code` invocations.
@@ -176,7 +176,7 @@ interface SpawnerExecuteResponse {
   /**
    * Pre-stage attestation (crispy-curry plan §3). For every entry in
    * `priorOutputDownloads` the spawner reports back whether it landed on
-   * `/workspace/output/` (`staged[]`) or was skipped (`skipped[]` with a
+   * `/user/output/` (`staged[]`) or was skipped (`skipped[]` with a
    * structured reason). The action diffs `staged[]` against the manifest
    * it sent and aborts the run with `PRE_STAGE_FAILED` if any expected
    * file is missing — BEFORE the spawner's outputFiles are promoted to

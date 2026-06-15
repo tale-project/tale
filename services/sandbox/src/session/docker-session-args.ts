@@ -21,7 +21,7 @@ interface DockerSessionRunInput {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
-  /** Host dir bind-mounted 1:1 at /workspace (survives container death). */
+  /** Host dir bind-mounted 1:1 at /user (survives container death). */
   workspaceHostDir: string;
   /** Per-org pip/npm/bun cache volume names (pip/npm reused from one-shot). */
   pipCacheVolume: string;
@@ -263,7 +263,7 @@ export function buildDockerSessionRunArgs(
     // HOME on the persistent workspace volume so agent state (~/.claude,
     // ~/.config/opencode, ~/.gitconfig) survives every exec + restart.
     '--env',
-    `HOME=/workspace/.home`,
+    `HOME=/user/.runtime/home`,
     // Per-session runnerd auth. Empty in unsigned dev mode (runnerd skips the
     // check); a real hex token otherwise.
     '--env',
@@ -289,7 +289,7 @@ export function buildDockerSessionRunArgs(
     // /dev/shm: Docker's 64m default crashes Chromium under Playwright.
     `--shm-size=${profile.shmSize}`,
     '--mount',
-    `type=bind,src=${inp.workspaceHostDir},dst=/workspace`,
+    `type=bind,src=${inp.workspaceHostDir},dst=/user`,
     // Inner dockerd storage volume (empty when DinD is off).
     ...dockerStorageMount,
     // Hardening: cap-drop/no-new-privileges/apparmor=docker-default when !dind;

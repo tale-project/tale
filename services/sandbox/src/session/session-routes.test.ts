@@ -300,7 +300,7 @@ describe('SessionRoutes (fake runnerd)', () => {
       JSON.stringify({
         execId: 'e1',
         command: ['echo', 'hi'],
-        cwd: '/workspace/repo',
+        cwd: '/user/workspace',
       }),
     );
     expect(execRes.headers.get('content-type')).toContain('text/event-stream');

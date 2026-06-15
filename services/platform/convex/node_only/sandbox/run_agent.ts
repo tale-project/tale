@@ -242,7 +242,7 @@ export async function runAgentInSessionImpl(
         ...(args.integrationsBaseUrl !== undefined && {
           integrationsBaseUrl: args.integrationsBaseUrl,
         }),
-        workdir: args.workdir ?? '/workspace/repo',
+        workdir: args.workdir ?? '/user/workspace',
         // Mid-turn steering: keys the per-exec TALE_STEER_DIR the platform
         // stages queued user messages into (claude_code adapter only).
         execId: args.execId,

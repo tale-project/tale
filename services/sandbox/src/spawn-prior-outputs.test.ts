@@ -1,6 +1,6 @@
 // Unit tests for `stagePriorOutputDownloads` — the spawner-side helper
 // that fetches the artifact's previous run outputs (as URLs) and writes
-// them back into `/workspace/output/` before the container starts.
+// them back into `/user/output/` before the container starts.
 //
 // We exercise the path-traversal guard end-to-end against a real temp
 // directory and a real ephemeral HTTP server (no mocks). Bad names and

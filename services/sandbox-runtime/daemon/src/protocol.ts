@@ -132,5 +132,5 @@ export interface RunnerdError {
   message?: string;
 }
 
-export const WORKSPACE_ROOT = '/workspace';
+export const WORKSPACE_ROOT = '/user';
 export const ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,64}$/;

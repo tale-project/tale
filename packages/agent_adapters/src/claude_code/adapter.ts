@@ -116,14 +116,14 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       // Blank the API key so it never conflicts with the bearer token
       // (documented Claude Code gotcha → model-not-found otherwise).
       ANTHROPIC_API_KEY: '',
-      CLAUDE_CONFIG_DIR: '/workspace/.home/.claude',
+      CLAUDE_CONFIG_DIR: '/user/.runtime/home/.claude',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     };
     if (spec.execId) {
       // Mid-turn steering: the in-image tale-steer-hook (registered via
       // managed-settings PostToolUse/Stop hooks) reads this per-exec dir and
       // injects any platform-staged user messages at the next boundary.
-      env.TALE_STEER_DIR = `/workspace/.tale/steer/${spec.execId}`;
+      env.TALE_STEER_DIR = `/user/.runtime/tale/steer/${spec.execId}`;
     }
     if (spec.model) {
       // The CLI's own default, ahead of the per-tier aliases: internal paths

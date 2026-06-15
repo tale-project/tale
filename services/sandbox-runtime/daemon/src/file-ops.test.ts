@@ -38,7 +38,7 @@ describe('file-ops', () => {
   test('stageFiles writes inline contentBase64 without a fetch', async () => {
     const result = await stageFiles([
       {
-        path: '.tale/steer/exec-1/steer-1.json',
+        path: '.runtime/tale/steer/exec-1/steer-1.json',
         contentBase64: Buffer.from('{"text":"hi"}', 'utf8').toString('base64'),
       },
       { path: 'no-source.txt' },
@@ -48,7 +48,7 @@ describe('file-ops', () => {
       },
     ]);
     expect(result.staged).toEqual([
-      { path: '.tale/steer/exec-1/steer-1.json', bytes: 13 },
+      { path: '.runtime/tale/steer/exec-1/steer-1.json', bytes: 13 },
     ]);
     expect(result.skipped).toEqual([
       { path: 'no-source.txt', reason: 'no_source' },
@@ -56,7 +56,10 @@ describe('file-ops', () => {
     ]);
     expect(
       (
-        await readWorkspaceFile('.tale/steer/exec-1/steer-1.json', 1_000)
+        await readWorkspaceFile(
+          '.runtime/tale/steer/exec-1/steer-1.json',
+          1_000,
+        )
       )?.toString(),
     ).toBe('{"text":"hi"}');
   });

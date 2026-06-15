@@ -322,7 +322,7 @@ export class KubernetesBackend implements ExecutionBackend {
     // Resolve the path the runtime entrypoint will exec — same rule as docker.
     const entryPath =
       req.steps !== undefined
-        ? `/workspace/.tale/${
+        ? `/user/.runtime/tale/${
             req.language === 'python' || req.language === 'polyglot'
               ? 'runner.py'
               : 'runner.js'

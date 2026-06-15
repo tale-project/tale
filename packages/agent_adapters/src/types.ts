@@ -34,7 +34,7 @@ export interface AgentRunSpec {
    * When set, buildExec adds an `integrations` MCP server the agent uses to
    * call the org's connected integrations (credentials resolved server-side). */
   integrationsBaseUrl?: string;
-  /** Working directory inside the session (e.g. /workspace/repo). */
+  /** Working directory inside the session (e.g. /user/workspace). */
   workdir: string;
   /** Enable the in-container Playwright MCP server. Default true for the
    * agent profile; entry points pass false for headless/no-browser tasks to
@@ -42,7 +42,7 @@ export interface AgentRunSpec {
   browserMcp?: boolean;
   /** Platform exec id of this run. When set, adapters that support mid-turn
    * steering (Claude Code via tale-steer-hook) export a per-exec queue dir
-   * (TALE_STEER_DIR=/workspace/.tale/steer/<execId>) the platform stages
+   * (TALE_STEER_DIR=/user/.runtime/tale/steer/<execId>) the platform stages
    * queued user messages into; the in-image hook injects them at the next
    * tool-use / stop boundary. execId-keyed so concurrent turns from other
    * threads sharing the workspace never see each other's messages. */

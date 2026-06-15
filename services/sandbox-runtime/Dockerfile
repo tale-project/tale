@@ -194,7 +194,7 @@ COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
 
 # Claude Code managed settings (highest precedence on Linux): disable
 # auto-update + telemetry, and register the steer hook (mid-turn message
-# injection — hooks merge across settings sources, so /workspace configs
+# injection — hooks merge across settings sources, so /user configs
 # can't shadow it). NOT permission rules — those are per-run flags.
 COPY services/sandbox-runtime/managed-settings.json /etc/claude-code/managed-settings.json
 
@@ -237,7 +237,7 @@ RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-creden
 # profile); this is just the named account the session profile selects.
 # Absolute paths: the ENV PATH override above drops /usr/sbin.
 RUN /usr/sbin/groupadd --gid 10001 agent \
-    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /workspace/.home \
+    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /user/.runtime/home \
        --shell /bin/bash --no-create-home agent \
     # docker-in-container: the inner dockerd creates /var/run/docker.sock as
     # root:docker (660), so the agent (uid 10001, runs `docker` after the
@@ -250,6 +250,6 @@ RUN /usr/sbin/groupadd --gid 10001 agent \
 # (65534 one-shot, 10001 session-agent).
 USER 65534:65534
 
-WORKDIR /workspace
+WORKDIR /user
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

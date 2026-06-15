@@ -1,7 +1,7 @@
 // In-Pod `stage` initContainer entry mode (runs the SPAWNER image).
 //
 // initContainers run to completion before the runner/harvest app containers
-// start, so by the time user code runs the shared /workspace emptyDir is fully
+// start, so by the time user code runs the shared /user emptyDir is fully
 // staged — no sentinel handshake needed. This reads the per-exec Secret, runs
 // the SAME `stageWorkspace` the docker path uses (downloads code/inputs from
 // presigned URLs, writes packages.json/options.json + the multi-step wrapper),
@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   const spec = parseExecSpec(raw);
 
   const startedAt = Date.now();
-  const { priorStage } = await stageWorkspace('/workspace', spec.req);
+  const { priorStage } = await stageWorkspace('/user', spec.req);
   const stageMs = Date.now() - startedAt;
 
   // Persist for the harvest container (it forwards priorStage + stageMs into

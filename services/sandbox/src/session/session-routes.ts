@@ -718,7 +718,7 @@ export class SessionRoutes {
     return jsonResponse({ ok: true, pinned }, 200);
   }
 
-  /** POST /v1/sessions/:id/files/stage — write files into /workspace (inline
+  /** POST /v1/sessions/:id/files/stage — write files into /user (inline
    * base64 content, or presigned URLs the daemon fetches). */
   async handleFilesStage(sessionId: string, body: string): Promise<Response> {
     const session = this.registry.get(sessionId);
@@ -757,7 +757,7 @@ export class SessionRoutes {
   }
 
   /** POST /v1/sessions/:id/files/delete — remove paths (file or dir) from
-   * /workspace. Idempotent reconcile primitive (e.g. pruning stale skills). */
+   * /user. Idempotent reconcile primitive (e.g. pruning stale skills). */
   async handleFilesDelete(sessionId: string, body: string): Promise<Response> {
     const session = this.registry.get(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);

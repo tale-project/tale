@@ -12,7 +12,7 @@ const base = {
   prompt: 'Fix issue #1 and open a PR',
   model: 'claude-sonnet-4-6',
   gateway: { baseUrl: 'http://bifrost:8080', token: 'sk-bf-test' },
-  workdir: '/workspace/repo',
+  workdir: '/user/workspace',
 } satisfies AgentRunSpec;
 
 describe('ClaudeCodeAdapter.buildExec', () => {
@@ -77,7 +77,7 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(env.ANTHROPIC_BASE_URL).toBe('http://bifrost:8080/anthropic');
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-bf-test');
     expect(env.ANTHROPIC_API_KEY).toBe('');
-    expect(env.CLAUDE_CONFIG_DIR).toBe('/workspace/.home/.claude');
+    expect(env.CLAUDE_CONFIG_DIR).toBe('/user/.runtime/home/.claude');
     // Every alias tier plus the subagent override pins to the selected model:
     // the session VK only allows that one model, so any other resolution
     // would be rejected at the gateway. ANTHROPIC_MODEL covers the CLI's
@@ -88,7 +88,7 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-sonnet-4-6');
     expect(env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('claude-sonnet-4-6');
     expect(env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('claude-sonnet-4-6');
-    expect(cwd).toBe('/workspace/repo');
+    expect(cwd).toBe('/user/workspace');
   });
 
   it('adds the integration MCP bridge (with URL + session key) when integrationsBaseUrl is set', () => {
@@ -156,7 +156,7 @@ describe('OpenCodeAdapter.buildExec', () => {
       '--format',
       'json',
       '--dir',
-      '/workspace/repo',
+      '/user/workspace',
     ]);
     expect(argv).toContain('-m');
     expect(argv).toContain('tale/claude-sonnet-4-6');
@@ -184,7 +184,7 @@ describe('OpenCodeAdapter.buildExec', () => {
       '--no-sandbox',
       '--ignore-https-errors',
     ]);
-    expect(cwd).toBe('/workspace/repo');
+    expect(cwd).toBe('/user/workspace');
   });
 
   it('continues a session with -s and drops MCP when browserMcp is false', () => {
