@@ -497,6 +497,139 @@ http.route({
   }),
 });
 
+/**
+ * Read-only download of a single file from a thread's live external-agent
+ * sandbox workspace. Powers the chat workspace file explorer's "open /
+ * download" affordance. Cookie-authenticated (a `<a download>` / direct fetch
+ * can't attach a Bearer header but does send same-origin cookies — same
+ * pattern as `/api/tts-audio`).
+ *
+ * Authorization is the canAccessThread boundary: identity from the Better Auth
+ * session cookie → `resolveBrowsableSessionForUser`, which runs the SAME thread
+ * RLS as the message queries. A threadId from another org throws there
+ * (UnauthorizedError) → 403; cross-org workspace access is impossible.
+ *
+ * Query params: `threadId` (required), `path` (required), `download` (=1 forces
+ * an attachment Content-Disposition). Statuses: 400 missing params, 401 no
+ * session, 403 no thread access, 409 no running session, 404 missing/over-cap
+ * file, 200 bytes.
+ */
+http.route({
+  path: '/api/sandbox/workspace_file',
+  method: 'GET',
+  handler: httpAction(async (ctx, req) => {
+    const url = new URL(req.url);
+    const threadId = url.searchParams.get('threadId');
+    const path = url.searchParams.get('path');
+    const download = url.searchParams.get('download') === '1';
+    if (!threadId || !path) {
+      return new Response('Missing threadId or path', { status: 400 });
+    }
+    // Reject path traversal / NUL defensively (runnerd validates too).
+    if (path.includes('..') || path.includes('\u0000')) {
+      return new Response('Invalid path', { status: 400 });
+    }
+
+    // Rate-limit BEFORE the session lookup so an anonymous flood can't force a
+    // Better Auth DB session-query per request (mirrors /api/tts-audio).
+    const trusted = await loadTrustedProxies(ctx);
+    const ip = getClientIp(req.headers, trusted);
+    try {
+      await checkIpRateLimit(ctx, 'security:workspace-file', ip);
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return new Response('Rate limit exceeded', {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
+          },
+        });
+      }
+      throw error;
+    }
+
+    const auth = createAuth(ctx);
+    const session = await auth.api.getSession({ headers: req.headers });
+    if (!session?.user) {
+      return new Response('Unauthenticated', {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store',
+          Vary: 'Cookie',
+          'WWW-Authenticate': 'Cookie',
+        },
+      });
+    }
+
+    // SAME canAccessThread boundary as the list action, keyed by the Better
+    // Auth userId (httpActions don't get identity from ctx.auth via the
+    // cookie). Cross-org / no-access throws UnauthorizedError → 403.
+    let sessionId: string | null;
+    let status: string | null;
+    try {
+      const sess = await ctx.runQuery(
+        internal.sandbox.workspace_files.resolveBrowsableSessionForUser,
+        { threadId, userId: session.user.id, email: session.user.email },
+      );
+      sessionId = sess.sessionId;
+      status = sess.status;
+    } catch (error) {
+      // UnauthorizedError = thread missing OR access denied (conflated by
+      // canAccessThread). 403 reveals nothing beyond "you can't have it".
+      console.debug('[http /api/sandbox/workspace_file] access denied', {
+        threadId,
+        userId: session.user.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return new Response('Forbidden', {
+        status: 403,
+        headers: { 'Cache-Control': 'no-store', Vary: 'Cookie' },
+      });
+    }
+
+    if (!sessionId || status !== 'active') {
+      // No running session to read from — the browser shows "resume to browse".
+      return new Response(JSON.stringify({ error: 'session_not_running' }), {
+        status: 409,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          Vary: 'Cookie',
+        },
+      });
+    }
+
+    const file = await ctx.runAction(
+      internal.node_only.sandbox.workspace_files.readWorkspaceFileBytes,
+      { sessionId, path },
+    );
+    if (!file) {
+      // null ⇒ the spawner returned 404 for a missing/unsafe path OR a file
+      // over runnerd's 20 MB read cap — the two are indistinguishable here, so
+      // 404 (a 413 would require the spawner to surface the cap separately).
+      return new Response('Not found', {
+        status: 404,
+        headers: { 'Cache-Control': 'no-store', Vary: 'Cookie' },
+      });
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': file.contentType || 'application/octet-stream',
+      'Cache-Control': 'no-store',
+      Vary: 'Cookie',
+    };
+    if (download) {
+      // Basename for the attachment filename; sanitize to a quoted-string-safe
+      // token plus an RFC 5987 fallback for non-ASCII names.
+      const base = path.split('/').pop() || 'download';
+      const safe = base.replace(/[^\w\s.-]/g, '_');
+      headers['Content-Disposition'] =
+        `attachment; filename="${safe}"; filename*=UTF-8''${encodeURIComponent(base)}`;
+    }
+    return new Response(file.bytes, { status: 200, headers });
+  }),
+});
+
 authComponent.registerRoutes(http, createAuth);
 
 // Integration OAuth2 Callback

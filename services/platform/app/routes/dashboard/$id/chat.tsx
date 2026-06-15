@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
 import { PageLayout } from '@/app/components/layout/page-layout';
+import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
 import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
@@ -27,6 +28,10 @@ import {
   WorkspaceProvider,
   useWorkspace,
 } from '@/app/features/workspace/components/workspace-context';
+import {
+  WorkspaceFilesProvider,
+  useWorkspaceFiles,
+} from '@/app/features/workspace/components/workspace-files-context';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -37,6 +42,22 @@ const PlanPane = lazyComponent(() =>
   import('@/app/features/chat/components/plan-pane/plan-pane').then((mod) => ({
     default: mod.PlanPane,
   })),
+);
+
+const WorkspaceFilesPane = lazyComponent(() =>
+  import('@/app/features/workspace/components/workspace-files-pane').then(
+    (mod) => ({
+      default: mod.WorkspaceFilesPane,
+    }),
+  ),
+);
+
+const WorkspaceFilesMobileBody = lazyComponent<{ threadId: string }>(() =>
+  import('@/app/features/workspace/components/workspace-files-pane').then(
+    (mod) => ({
+      default: mod.WorkspaceFilesMobileBody,
+    }),
+  ),
 );
 
 /**
@@ -194,6 +215,8 @@ function ThreadGate({
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   const { isHistoryOpen, clearChatState } = useChatLayout();
   const { resetWorkspace } = useWorkspace();
+  const { isOpen: isFilesOpen, close: closeFiles } = useWorkspaceFiles();
+  const { t: tChatFiles } = useT('chat');
 
   // Read threadId from URL — ChatInterface stays mounted across route changes.
   const threadMatch = useMatch({
@@ -287,7 +310,32 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
         <PlanPane />
         <CanvasPane organizationId={organizationId} />
+        {/* Read-only workspace-files explorer — only renders (self-gated) on
+            external-agent threads with a live session. Desktop only; the
+            mobile Sheet below carries it under `md`. */}
+        <LayoutErrorBoundary organizationId={organizationId}>
+          <WorkspaceFilesPane />
+        </LayoutErrorBoundary>
       </div>
+
+      {/* Mobile: present the workspace-files pane in a right Sheet like the
+          mobile history sidebar, so the desktop split-pane never breaks the
+          narrow layout. */}
+      {threadId && (
+        <Sheet
+          open={isFilesOpen}
+          onOpenChange={(open) => {
+            if (!open) closeFiles();
+          }}
+          side="right"
+          title={tChatFiles('workspaceFiles.title')}
+          className="w-full p-0 md:hidden"
+        >
+          <LayoutErrorBoundary organizationId={organizationId}>
+            <WorkspaceFilesMobileBody threadId={threadId} />
+          </LayoutErrorBoundary>
+        </Sheet>
+      )}
     </PageLayout>
   );
 }
@@ -299,9 +347,11 @@ function ChatLayout() {
     <ChatLayoutProvider organizationId={organizationId}>
       <ArenaModeProvider>
         <WorkspaceProvider>
-          <StreamingToolProvider>
-            <ChatLayoutContent organizationId={organizationId} />
-          </StreamingToolProvider>
+          <WorkspaceFilesProvider>
+            <StreamingToolProvider>
+              <ChatLayoutContent organizationId={organizationId} />
+            </StreamingToolProvider>
+          </WorkspaceFilesProvider>
         </WorkspaceProvider>
       </ArenaModeProvider>
     </ChatLayoutProvider>

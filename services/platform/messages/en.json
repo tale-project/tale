@@ -1025,6 +1025,23 @@
       "pinned": "Always on",
       "pinnedTooltip": "This sandbox is pinned to stay always-on."
     },
+    "workspaceFiles": {
+      "title": "Workspace files",
+      "toggleLabel": "Workspace files",
+      "toggleTooltip": "Browse the agent’s workspace files (read-only)",
+      "showHidden": "Show hidden files",
+      "refresh": "Refresh",
+      "download": "Download",
+      "emptyDir": "This folder is empty.",
+      "sessionStopped": "Workspace not running",
+      "resumeHint": "Send a message to resume the session and browse files.",
+      "tooLarge": "Can’t preview this file (missing or too large) — download it instead.",
+      "error": "Could not load this file.",
+      "retry": "Retry",
+      "truncated": "… more items hidden (list truncated)",
+      "ariaTree": "Workspace files",
+      "paneClose": "Close files panel"
+    },
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
     "fileSizeExceededMultiple": "{names} exceeded the {maxSize}MB file size limit.",

@@ -830,6 +830,7 @@ import type * as node_only_sandbox_session_credentials from "../node_only/sandbo
 import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
 import type * as node_only_sandbox_steer_delivery from "../node_only/sandbox/steer_delivery.js";
 import type * as node_only_sandbox_steer_files from "../node_only/sandbox/steer_files.js";
+import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
 import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
 import type * as node_only_sql_helpers_execute_postgres_query from "../node_only/sql/helpers/execute_postgres_query.js";
@@ -962,6 +963,7 @@ import type * as sandbox_session_queries from "../sandbox/session_queries.js";
 import type * as sandbox_session_queries_public from "../sandbox/session_queries_public.js";
 import type * as sandbox_sessions_schema from "../sandbox/sessions_schema.js";
 import type * as sandbox_wire from "../sandbox/wire.js";
+import type * as sandbox_workspace_files from "../sandbox/workspace_files.js";
 import type * as skills_audit_mutations from "../skills/audit_mutations.js";
 import type * as skills_file_actions from "../skills/file_actions.js";
 import type * as skills_file_utils from "../skills/file_utils.js";
@@ -2254,6 +2256,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
   "node_only/sandbox/steer_delivery": typeof node_only_sandbox_steer_delivery;
   "node_only/sandbox/steer_files": typeof node_only_sandbox_steer_files;
+  "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
   "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
   "node_only/sql/helpers/execute_postgres_query": typeof node_only_sql_helpers_execute_postgres_query;
@@ -2386,6 +2389,7 @@ declare const fullApi: ApiFromModules<{
   "sandbox/session_queries_public": typeof sandbox_session_queries_public;
   "sandbox/sessions_schema": typeof sandbox_sessions_schema;
   "sandbox/wire": typeof sandbox_wire;
+  "sandbox/workspace_files": typeof sandbox_workspace_files;
   "skills/audit_mutations": typeof skills_audit_mutations;
   "skills/file_actions": typeof skills_file_actions;
   "skills/file_utils": typeof skills_file_utils;

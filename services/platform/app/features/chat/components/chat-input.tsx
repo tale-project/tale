@@ -59,6 +59,7 @@ import { SandboxStateIndicator } from './sandbox-state-indicator';
 import { SavePromptMenu } from './save-prompt-menu';
 import { VideoLinkChip } from './video-link-chip';
 import { VoiceModeToggle } from './voice-mode-toggle';
+import { WorkspaceFilesToggle } from './workspace-files-toggle';
 
 // Web Speech requires a fully-qualified BCP-47 tag. Already-regional codes
 // (`de-CH`, future `fr-CA`) pass through; bare base locales pick the most
@@ -1240,6 +1241,11 @@ export function ChatInput({
                     <SandboxStateIndicator
                       threadId={threadId}
                       organizationId={organizationId}
+                    />
+                    <WorkspaceFilesToggle
+                      threadId={threadId}
+                      organizationId={organizationId}
+                      disabled={attachDisabled}
                     />
                   </HStack>
                 ))}

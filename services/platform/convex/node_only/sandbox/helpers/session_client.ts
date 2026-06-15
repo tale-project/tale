@@ -409,6 +409,33 @@ export async function sessionListFiles(
   return parsed.entries ?? [];
 }
 
+/** GET /v1/sessions/:id/files/content?path= — raw bytes of a single workspace
+ * file. Returns null on 404, which the spawner emits for a missing/unsafe path
+ * AND for an over-cap file (runnerd's /fs/read caps at 20 MB and returns null →
+ * 404) — the two are indistinguishable here, so callers treat null as "can't
+ * serve" (a 404/413 at the boundary). The spawner serves
+ * `application/octet-stream`; the returned contentType reflects whatever the
+ * response carried so the caller can fall back when it's the generic type. */
+export async function sessionReadFile(
+  sessionId: string,
+  filePath: string,
+): Promise<{ bytes: ArrayBuffer; contentType: string } | null> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/content?path=${encodeURIComponent(filePath)}`;
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'GET',
+    headers: signedHeaders('GET', path, ''),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`sandbox session file read failed (${res.status})`);
+  }
+  const bytes = await res.arrayBuffer();
+  const contentType =
+    res.headers.get('content-type') ?? 'application/octet-stream';
+  return { bytes, contentType };
+}
+
 export interface SessionExecBody {
   execId: string;
   command?: string[];

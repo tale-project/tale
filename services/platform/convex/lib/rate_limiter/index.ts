@@ -291,6 +291,19 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 120,
   },
+  // Per-IP throttle on the read-only sandbox workspace file download route
+  // (`/api/sandbox/workspace_file`). Same shape/rationale as
+  // `security:tts-audio-fetch`: anonymous flooding forces a Better Auth
+  // session read per request, and an authenticated browser could otherwise
+  // hammer spawner file reads on a workspace it's already entitled to (cost,
+  // not data — the route gates on canAccessThread). Token bucket so a file
+  // browser issuing several quick reads doesn't hit a minute-boundary cliff.
+  'security:workspace-file': {
+    kind: 'token bucket',
+    rate: 120,
+    period: MINUTE,
+    capacity: 240,
+  },
   'security:login-ip': {
     kind: 'fixed window',
     rate: 30,

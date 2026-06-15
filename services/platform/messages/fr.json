@@ -1394,7 +1394,24 @@
     "errorHintProviderError": "Le fournisseur d'IA rencontre temporairement des problèmes. Merci de réessayer dans un instant.",
     "errorHintRateLimited": "Trop de requêtes. Merci de patienter un moment et réessayer.",
     "errorHintTokenLimit": "La limite de tokens en sortie du modèle a été dépassée. Essaie une requête plus courte ou demande à ton administrateur d'ajuster les paramètres du modèle.",
-    "errorHintToolFailure": "L'agent a rencontré une erreur lors de l'accès aux données. Essaie de reformuler ta demande ou de demander un ensemble de données plus restreint."
+    "errorHintToolFailure": "L'agent a rencontré une erreur lors de l'accès aux données. Essaie de reformuler ta demande ou de demander un ensemble de données plus restreint.",
+    "workspaceFiles": {
+      "title": "Fichiers de l'espace de travail",
+      "toggleLabel": "Fichiers de l'espace de travail",
+      "toggleTooltip": "Parcourir les fichiers de l'espace de travail de l'agent (lecture seule)",
+      "showHidden": "Afficher les fichiers cachés",
+      "refresh": "Actualiser",
+      "download": "Télécharger",
+      "emptyDir": "Ce dossier est vide.",
+      "sessionStopped": "Espace de travail inactif",
+      "resumeHint": "Envoie un message pour reprendre la session et parcourir les fichiers.",
+      "tooLarge": "Impossible d'afficher ce fichier (introuvable ou trop volumineux) — télécharge-le à la place.",
+      "error": "Impossible de charger ce fichier.",
+      "retry": "Réessayer",
+      "truncated": "… autres éléments masqués (liste tronquée)",
+      "ariaTree": "Fichiers de l'espace de travail",
+      "paneClose": "Fermer le panneau des fichiers"
+    }
   },
   "common": {
     "optional": "facultatif",
