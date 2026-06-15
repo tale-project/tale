@@ -146,7 +146,7 @@ export function McpServerCard({
                   <HStack gap={1} align="center">
                     <Wrench className="text-muted-foreground size-3.5" />
                     <Text variant="muted" className="text-xs">
-                      {toolCount} {toolCount === 1 ? 'tool' : 'tools'}
+                      {t('tools.count', { count: toolCount })}
                     </Text>
                   </HStack>
                 )}

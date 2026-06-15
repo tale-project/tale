@@ -1662,6 +1662,20 @@ async function persistFetchedCapabilities(
   }
 }
 
+/** Pick the capability-cache `source` for a connect-time fetch by its base URL.
+ *  OpenRouter responses are catalog-grade, so they share the cron's `openrouter`
+ *  source; any other host gets a `discovery:<host>` source so it can't overwrite
+ *  the shared catalog with partial/sparse rows. Falls back to a generic source
+ *  if the URL doesn't parse. */
+function capabilitySourceForBaseUrl(baseUrl: string): string {
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    return host.includes('openrouter.ai') ? 'openrouter' : `discovery:${host}`;
+  } catch {
+    return 'discovery:unknown';
+  }
+}
+
 /**
  * Fetch available models from an OpenAI-compatible /v1/models endpoint.
  * Used by the "Add provider" panel to auto-populate models.
@@ -1729,11 +1743,13 @@ export const fetchProviderModels = action({
     }
 
     const { models, capabilities } = parseProviderModelsList(response.body);
-    // Connect-time fetch isn't yet bound to a provider slug; stamp the cache
-    // with the canonical catalog source so these rows merge with the cron's.
+    // Connect-time fetch isn't yet bound to a provider slug. Only OpenRouter
+    // rows are catalog-grade, so merge those with the cron's `openrouter`
+    // source; anything else is stamped with a host-scoped source so a
+    // non-OpenRouter provider can't overwrite the shared catalog.
     await persistFetchedCapabilities(
       ctx,
-      'openrouter',
+      capabilitySourceForBaseUrl(args.baseUrl),
       capabilities,
       Date.now(),
     );

@@ -394,11 +394,6 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     return options;
   }, [providers]);
 
-  const modelCapabilities = useModelCapabilities(
-    organizationId,
-    useMemo(() => allModelOptions.map((o) => o.value), [allModelOptions]),
-  );
-
   const savedConfig = useMemo(
     () => parseModelAccessConfig(policy?.config),
     [policy],
@@ -413,6 +408,16 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dialogRule, setDialogRule] = useState(emptyRule());
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
+
+  // Capabilities power the per-model info popover inside the rule dialog only,
+  // so don't subscribe (a per-model indexed read fan-out) until it's open.
+  const modelCapabilities = useModelCapabilities(
+    organizationId,
+    useMemo(
+      () => (dialogOpen ? allModelOptions.map((o) => o.value) : []),
+      [dialogOpen, allModelOptions],
+    ),
+  );
 
   // Pending save + affected-defaults confirmation state.
   const [pendingSave, setPendingSave] = useState<{

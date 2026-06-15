@@ -3693,7 +3693,8 @@
     "tools": {
       "title": "Outils découverts",
       "noTools": "Aucun outil découvert. Teste d'abord la connexion.",
-      "requiresApproval": "Nécessite une approbation"
+      "requiresApproval": "Nécessite une approbation",
+      "count": "{count, plural, one {# outil} other {# outils}}"
     },
     "saved": "Serveur MCP enregistré",
     "deleted": "Serveur MCP supprimé"

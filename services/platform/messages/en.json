@@ -3692,7 +3692,8 @@
     "tools": {
       "title": "Discovered Tools",
       "noTools": "No tools discovered. Test the connection first.",
-      "requiresApproval": "Requires approval"
+      "requiresApproval": "Requires approval",
+      "count": "{count, plural, one {# tool} other {# tools}}"
     },
     "saved": "MCP server saved",
     "deleted": "MCP server deleted"

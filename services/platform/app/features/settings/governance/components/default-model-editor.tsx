@@ -227,9 +227,15 @@ function RuleDialog({
     [chatModels],
   );
 
+  // Only subscribe to capabilities (a per-model indexed read fan-out) while the
+  // dialog is open — RuleDialog stays mounted when closed, so an ungated hook
+  // would keep a live subscription on this non-critical settings path.
   const capabilities = useModelCapabilities(
     organizationId,
-    useMemo(() => chatModels.map((m) => m.id), [chatModels]),
+    useMemo(
+      () => (open ? chatModels.map((m) => m.id) : []),
+      [open, chatModels],
+    ),
   );
 
   const renderModelInfo = useCallback(

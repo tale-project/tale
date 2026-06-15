@@ -3692,7 +3692,8 @@
     "tools": {
       "title": "Erkannte Tools",
       "noTools": "Keine Tools erkannt. Teste zuerst die Verbindung.",
-      "requiresApproval": "Genehmigung erforderlich"
+      "requiresApproval": "Genehmigung erforderlich",
+      "count": "{count, plural, one {# Tool} other {# Tools}}"
     },
     "saved": "MCP-Server gespeichert",
     "deleted": "MCP-Server gelöscht"
