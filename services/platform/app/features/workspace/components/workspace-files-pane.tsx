@@ -47,7 +47,9 @@ import { useWorkspaceFiles } from './workspace-files-context';
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 720;
-const DEFAULT_WIDTH = 480;
+// Wider default than a single-column pane: the body is a two-column tree+viewer
+// split on desktop, so give both columns room.
+const DEFAULT_WIDTH = 560;
 const STRIP_WIDTH = 48;
 
 /** The agent's working area — the explorer root (matches the backend). Rooted
@@ -875,8 +877,10 @@ function WorkspaceFilesBody({
       {!sessionRunning ? (
         <SessionStoppedState />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="border-border max-h-[45%] min-h-0 shrink-0 overflow-y-auto border-b p-2">
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          {/* Tree: stacked on top under `md` (narrow), left sidebar on desktop
+              (the conventional file-explorer left/right layout). */}
+          <div className="border-border max-h-[45%] min-h-0 w-full shrink-0 overflow-y-auto border-b p-2 md:h-full md:max-h-none md:w-1/3 md:max-w-[280px] md:min-w-[160px] md:border-r md:border-b-0">
             <WorkspaceFileTree
               threadId={threadId}
               showHidden={showHidden}
