@@ -2229,6 +2229,7 @@
   "onboarding": {
     "title": "Set up your workspace",
     "subtitle": "A few quick steps and you're ready to go.",
+    "backToApp": "Back to app",
     "stepsAriaLabel": "Onboarding steps",
     "progress": "Step {current} of {total}: {label}",
     "steps": {
@@ -2262,7 +2263,6 @@
       "hasKeyQuestion": "Don't have a key yet?",
       "getKeyLink": "Create one at OpenRouter",
       "saveError": "We couldn't connect to OpenRouter with that key. Check it and try again.",
-      "noModelsError": "No models were available for that key.",
       "invalidKeyError": "That doesn't look like an OpenRouter key — it should start with \"sk-or-\". Copy it from openrouter.ai/keys.",
       "authError": "OpenRouter rejected that key. Check it was copied in full and is still active.",
       "networkError": "Couldn't reach OpenRouter. Check your connection and try again."
@@ -4850,9 +4850,11 @@
       "switching": "Switching…",
       "switchingTo": "Switching to {name}…",
       "switchingLabel": "Switching organization",
-      "deleteAriaLabel": "Delete {name}",
       "deleteDialogTitle": "Delete organization",
       "deleteDialogDescription": "Delete \"{name}\"? This removes its agents, workflows, providers, and integrations. Members will lose access. This cannot be undone.",
+      "dangerZoneTitle": "Danger zone",
+      "dangerZoneDescription": "Irreversible actions that affect the entire organization.",
+      "deleteSectionHelp": "Permanently delete this organization and everything in it. This cannot be undone.",
       "deleteConfirmAction": "Delete organization",
       "deleteLoading": "Deleting…",
       "deleteSuccess": "Organization deleted",

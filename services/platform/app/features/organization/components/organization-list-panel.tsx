@@ -1,16 +1,10 @@
 'use client';
 
-import { useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import { useMutation } from 'convex/react';
-import { Check, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Check, Loader2, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
-import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -34,20 +28,10 @@ export function OrganizationListPanel({
   const { t: tNav } = useT('navigation');
   const navigate = useNavigate();
   const location = useLocation();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const { organizations: userOrgs } = useUserOrganizationsWithDetails();
-  const prepareOrganizationDeletion = useMutation(
-    api.organizations.delete_cleanup.prepareOrganizationDeletion,
-  );
 
   const [switchingOrgId, setSwitchingOrgId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{
-    organizationId: string;
-    name: string;
-  } | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const switchToOrg = useCallback(
     (nextOrgId: string) => {
@@ -68,69 +52,6 @@ export function OrganizationListPanel({
     [currentOrganizationId, navigate, location.href, onAfterAction],
   );
 
-  const deleteOrganization = useCallback(async () => {
-    if (!deleteTarget) return;
-    const { organizationId: targetId } = deleteTarget;
-    const isDeletingCurrent = targetId === currentOrganizationId;
-    setIsDeleting(true);
-    try {
-      await prepareOrganizationDeletion({ organizationId: targetId });
-
-      const result = await authClient.organization.delete({
-        organizationId: targetId,
-      });
-      if (result?.error) {
-        throw new Error(result.error.message ?? 'Delete failed');
-      }
-
-      toast({
-        title: tSettings('organization.deleteSuccess'),
-        variant: 'success',
-      });
-
-      setDeleteTarget(null);
-
-      if (isDeletingCurrent) {
-        const next = (userOrgs ?? []).find(
-          (o) => o.organizationId !== targetId,
-        )?.organizationId;
-        if (next) {
-          void navigate({
-            to: '/dashboard/switching',
-            search: { to: next },
-            replace: true,
-          });
-        } else {
-          await queryClient.invalidateQueries({
-            queryKey: ['auth', 'session'],
-          });
-          void navigate({
-            to: '/dashboard/create-organization',
-            replace: true,
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Failed to delete organization:', err);
-      toast({
-        title: tSettings('organization.deleteFailed'),
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [
-    deleteTarget,
-    currentOrganizationId,
-    prepareOrganizationDeletion,
-    toast,
-    userOrgs,
-    queryClient,
-    navigate,
-    tSettings,
-  ]);
-
   const orgs = userOrgs ?? [];
 
   return (
@@ -144,10 +65,9 @@ export function OrganizationListPanel({
       <ul className="max-h-72 overflow-y-auto py-1">
         {orgs.map((org) => {
           const isCurrent = org.organizationId === currentOrganizationId;
-          const canDelete = org.role === 'owner' && org.slug !== 'default';
           const isSwitching = switchingOrgId === org.organizationId;
           return (
-            <li key={org.organizationId} className="group/org relative">
+            <li key={org.organizationId}>
               <button
                 type="button"
                 onClick={() => switchToOrg(org.organizationId)}
@@ -180,32 +100,9 @@ export function OrganizationListPanel({
                 ) : isCurrent ? (
                   <Check className="text-foreground size-4 shrink-0" />
                 ) : (
-                  // Reserve space so the trash icon doesn't shift other rows.
                   <span className="size-4 shrink-0" aria-hidden="true" />
                 )}
               </button>
-              {canDelete && (
-                <button
-                  type="button"
-                  aria-label={tSettings('organization.deleteAriaLabel', {
-                    name: org.name,
-                  })}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleteTarget({
-                      organizationId: org.organizationId,
-                      name: org.name,
-                    });
-                  }}
-                  className={cn(
-                    'absolute top-1/2 right-2 flex size-11 -translate-y-1/2 items-center justify-center rounded transition-opacity sm:size-8',
-                    'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
-                    'opacity-100 sm:opacity-0 sm:group-hover/org:opacity-100 sm:focus-visible:opacity-100',
-                  )}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              )}
             </li>
           );
         })}
@@ -224,26 +121,6 @@ export function OrganizationListPanel({
           <span>{tSettings('organization.createOrganization')}</span>
         </button>
       </div>
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open && !isDeleting) setDeleteTarget(null);
-        }}
-        title={tSettings('organization.deleteDialogTitle')}
-        description={
-          deleteTarget
-            ? tSettings('organization.deleteDialogDescription', {
-                name: deleteTarget.name,
-              })
-            : ''
-        }
-        variant="destructive"
-        confirmText={tSettings('organization.deleteConfirmAction')}
-        loadingText={tSettings('organization.deleteLoading')}
-        isLoading={isDeleting}
-        onConfirm={() => void deleteOrganization()}
-      />
     </div>
   );
 }

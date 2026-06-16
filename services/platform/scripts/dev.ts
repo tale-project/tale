@@ -146,6 +146,19 @@ function envNormalizeCommon() {
   if (!process.env.TALE_CONFIG_DIR) {
     process.env.TALE_CONFIG_DIR = join(repoRoot, 'examples');
   }
+
+  // Immutable seed catalog for new-org scaffolding. Prod sets this in the
+  // Docker image (services/convex/Dockerfile copies examples/default →
+  // /app/builtin/default; services/platform/Dockerfile sets the env to
+  // /app/builtin). Dev has no build step, so default it to the repo `examples`
+  // dir — the SAME source the image bakes in. Without this, `seedDomain` falls
+  // back to seeding new orgs from the LIVE `default` org's mutable dir, so an
+  // agent deleted in `default` (or a custom TALE_CONFIG_DIR pointing away from
+  // the repo) wrongly propagates to every new org. Pointing at the repo
+  // baseline makes dev use the identical seed-from-catalog path as prod.
+  if (!process.env.TALE_CONFIG_BUILTIN_DIR) {
+    process.env.TALE_CONFIG_BUILTIN_DIR = join(repoRoot, 'examples');
+  }
 }
 
 function ensureInstanceSecret() {
@@ -948,6 +961,21 @@ async function main() {
           `TALE_CONFIG_DIR=${taleConfigDir}`,
         ]);
         console.log(`[dev] ✅ TALE_CONFIG_DIR=${taleConfigDir}`);
+      }
+
+      // Same treatment for the seed catalog (set dynamically in
+      // envNormalizeCommon, not in .env files). The scaffold reads it from the
+      // Convex deployment env, so it must be pushed here too — otherwise dev
+      // new-org seeding silently falls back to the live `default` org.
+      const taleBuiltinDir = process.env.TALE_CONFIG_BUILTIN_DIR;
+      if (taleBuiltinDir) {
+        await runCommand('npx', [
+          'convex',
+          'env',
+          'set',
+          `TALE_CONFIG_BUILTIN_DIR=${taleBuiltinDir}`,
+        ]);
+        console.log(`[dev] ✅ TALE_CONFIG_BUILTIN_DIR=${taleBuiltinDir}`);
       }
 
       // Convex derives AGENTS_DIR / WORKFLOWS_DIR / INTEGRATIONS_DIR /
