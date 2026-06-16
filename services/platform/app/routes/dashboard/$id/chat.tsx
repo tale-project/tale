@@ -37,6 +37,7 @@ import {
   useWorkspaceFiles,
 } from '@/app/features/workspace/components/workspace-files-context';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -238,6 +239,11 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   const { isOpen: isFilesOpen, close: closeFiles } = useWorkspaceFiles();
   const { isOpen: isLiveBrowserOpen, close: closeLiveBrowser } =
     useLiveBrowser();
+  // Desktop renders the docked panes; mobile (< md) renders the Sheet variants.
+  // The two must be mutually gated: a Sheet's `md:hidden` only hides its content
+  // via CSS, but Radix still portals the Dialog backdrop on desktop (it covers
+  // the screen + intercepts clicks). Gate each surface on the viewport.
+  const isMobile = useIsMobile();
   const { t: tChatFiles } = useT('chat');
 
   // Read threadId from URL — ChatInterface stays mounted across route changes.
@@ -352,23 +358,27 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
         {/* Read-only workspace-files explorer — only renders (self-gated) on
             external-agent threads with a live session. Desktop only; the
             mobile Sheet below carries it under `md`. */}
-        <LayoutErrorBoundary organizationId={organizationId}>
-          <WorkspaceFilesPane />
-        </LayoutErrorBoundary>
+        {!isMobile && (
+          <LayoutErrorBoundary organizationId={organizationId}>
+            <WorkspaceFilesPane />
+          </LayoutErrorBoundary>
+        )}
         {/* Read-only live-browser stream — independent right-side pane,
             self-gated identically (external-agent thread with a live session).
             At most one of it / workspace-files is open at a time (see the
             mutual-exclusion effects above). Desktop only; the mobile Sheet
             below carries it under `md`. */}
-        <LayoutErrorBoundary organizationId={organizationId}>
-          <LiveBrowserPane />
-        </LayoutErrorBoundary>
+        {!isMobile && (
+          <LayoutErrorBoundary organizationId={organizationId}>
+            <LiveBrowserPane />
+          </LayoutErrorBoundary>
+        )}
       </div>
 
       {/* Mobile: present the workspace-files pane in a right Sheet like the
           mobile history sidebar, so the desktop split-pane never breaks the
           narrow layout. */}
-      {threadId && (
+      {threadId && isMobile && (
         <Sheet
           open={isFilesOpen}
           onOpenChange={(open) => {
@@ -386,7 +396,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
       {/* Mobile: live-browser stream in its own right Sheet (mirrors the
           workspace-files mobile Sheet). */}
-      {threadId && (
+      {threadId && isMobile && (
         <Sheet
           open={isLiveBrowserOpen}
           onOpenChange={(open) => {

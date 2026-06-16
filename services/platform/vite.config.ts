@@ -7,6 +7,7 @@ import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectEnv } from './vite-plugins/inject-env';
 import { serveBrandingImages } from './vite-plugins/serve-branding-images';
 import { serveCanvasPreview } from './vite-plugins/serve-canvas-preview';
+import { serveScreencast } from './vite-plugins/serve-screencast';
 import { serveStatus } from './vite-plugins/serve-status';
 import { serveWebdav } from './vite-plugins/serve-webdav';
 import { stubSSRImports } from './vite-plugins/stub-ssr';
@@ -196,6 +197,7 @@ export default defineConfig({
     serveCanvasPreview(),
     serveStatus(),
     serveWebdav(),
+    serveScreencast(),
     createPwaPlugin({
       name: 'Tale',
       shortName: 'Tale',
