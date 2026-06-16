@@ -7,25 +7,15 @@ import type { SteerStatus } from './steer-status';
 
 // Echo the i18n key so we can assert which copy variant was chosen.
 vi.mock('@/lib/i18n/client', () => ({
-  useT: () => ({
-    t: (key: string, params?: Record<string, string>) =>
-      params?.step ? `${key}:${params.step}` : key,
-  }),
+  useT: () => ({ t: (key: string) => key }),
 }));
 
-function renderLine(opts: {
-  status?: SteerStatus;
-  agentLingering: boolean;
-  currentStepLabel?: string;
-}) {
+function renderLine(opts: { status?: SteerStatus; agentLingering: boolean }) {
   const byMessageId = new Map<string, SteerStatus>();
   if (opts.status) byMessageId.set('m1', opts.status);
   const value = {
     byMessageId,
     agentLingering: opts.agentLingering,
-    ...(opts.currentStepLabel !== undefined && {
-      currentStepLabel: opts.currentStepLabel,
-    }),
   };
   return render(
     // renderLine is a test helper, not a re-rendering component — a fresh value
@@ -51,18 +41,7 @@ describe('SteerStatusLine', () => {
     expect(container.textContent).toBe('queue.status.deliversNow');
   });
 
-  it('queued mid-step (not lingering) → "queued behind step"', () => {
-    const { container } = renderLine({
-      status: 'queued',
-      agentLingering: false,
-      currentStepLabel: 'Bash docker compose up',
-    });
-    expect(container.textContent).toBe(
-      'queue.status.queuedWithStep:Bash docker compose up',
-    );
-  });
-
-  it('queued with no step + not lingering → plain "queued"', () => {
+  it('queued + not lingering → plain "queued"', () => {
     const { container } = renderLine({
       status: 'queued',
       agentLingering: false,

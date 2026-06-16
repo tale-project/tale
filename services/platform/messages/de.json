@@ -979,7 +979,6 @@
       "full": "Die Nachrichten-Warteschlange ist voll",
       "status": {
         "queued": "Eingereiht — wird nach dem aktuellen Schritt übernommen",
-        "queuedWithStep": "Eingereiht — wird nach dem aktuellen Schritt übernommen ({step})",
         "delivered": "Übermittelt — warte auf die Antwort des Agenten",
         "deliversNow": "Wird gerade zugestellt",
         "consumed": "Übernommen"
