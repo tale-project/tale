@@ -6,10 +6,13 @@ import { Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useMatch } from '@tanstack/react-router';
-import { MonitorPlay, MonitorOff, RefreshCw, X } from 'lucide-react';
+import { useAction } from 'convex/react';
+import { MonitorPlay, MonitorOff, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -248,6 +251,29 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
     progress?.status === 'running' && progress?.agentIdleAt == null;
   const sessionActive = running || state?.status === 'active';
 
+  // Manual "Reset browser" — the last-resort recovery for a wedged browser the
+  // automatic self-heal (lock hygiene + recycle) couldn't unstick. It WIPES the
+  // persistent profile, so the agent is signed out of every site it had logged
+  // into — hence the destructive confirm. Auto-recovery preserves logins; this
+  // does not.
+  const resetBrowser = useAction(
+    api.node_only.sandbox.workspace_files.resetThreadBrowser,
+  );
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const handleReset = useCallback(async () => {
+    setResetting(true);
+    try {
+      await resetBrowser({ threadId });
+      setConfirmOpen(false);
+    } catch (err) {
+      // Surface, don't swallow — the dialog stays open so the user can retry.
+      console.error('[live-browser] reset failed', err);
+    } finally {
+      setResetting(false);
+    }
+  }, [resetBrowser, threadId]);
+
   return (
     <>
       <div className="border-border flex items-center justify-between gap-2 border-b p-3">
@@ -268,6 +294,28 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
             top-right close (suppressed via `hideClose`) so the close affordance
             stays aligned with this header row. */}
         <div className="flex shrink-0 items-center gap-1">
+          {/* Reset browser — only while a session is live (nothing to reset
+              otherwise). Recovery of last resort; wipes saved logins. */}
+          {sessionActive && (
+            <Tooltip
+              content={t('liveBrowser.reset', {
+                defaultValue: 'Reset browser (clears logins)',
+              })}
+              side="bottom"
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={() => setConfirmOpen(true)}
+                aria-label={t('liveBrowser.reset', {
+                  defaultValue: 'Reset browser (clears logins)',
+                })}
+              >
+                <RotateCcw className="size-3.5" />
+              </Button>
+            </Tooltip>
+          )}
           <Tooltip
             content={t('liveBrowser.paneClose', {
               defaultValue: 'Close live browser',
@@ -292,6 +340,24 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
       <div className="flex min-h-0 flex-1 flex-col">
         <ScreencastViewport threadId={threadId} sessionActive={sessionActive} />
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        variant="destructive"
+        title={t('liveBrowser.resetConfirmTitle', {
+          defaultValue: 'Reset browser?',
+        })}
+        description={t('liveBrowser.resetConfirmBody', {
+          defaultValue:
+            'Restarts the browser with a clean profile and signs out of every site the agent logged into. Use this only if the browser is stuck and won’t recover on its own.',
+        })}
+        confirmText={t('liveBrowser.resetConfirmAction', {
+          defaultValue: 'Reset browser',
+        })}
+        isLoading={resetting}
+        onConfirm={handleReset}
+      />
     </>
   );
 }

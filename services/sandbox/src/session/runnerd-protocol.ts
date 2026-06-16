@@ -64,6 +64,28 @@ export interface RunnerdHealth {
   /** Raw VNC tunnels (GET /screencast) currently piping. A freshly attached
    * viewer also bumps lastActivityAtMs, so watching keeps a session alive. */
   activeScreencasts: number;
+  /** Managed live-browser CDP liveness — present only on browser-view sessions
+   * (TALE_BROWSER_CDP=1). `cdpHealthy` is a real CDP session round-trip, not
+   * just "HTTP answers", so the idle reaper won't pin a dead-CDP-but-watched
+   * session and the pane can surface a "recovering" state. */
+  browser?: { cdpHealthy: boolean; tabs: number };
+}
+
+// --- POST /browser/{restart,reset,close-pages} (browser-view sessions) -------
+
+/** restart (recycle, PRESERVES logins via lock hygiene) /
+ * reset (wipe the persistent profile, LOSES logins). */
+export interface RunnerdBrowserRecycle {
+  /** A managed browser process was found and signalled (SIGKILL → respawn). */
+  signalled: boolean;
+  /** A CDP session attached again within the bounded wait window. */
+  ready: boolean;
+  tabs: number;
+}
+
+/** close-pages — open tabs closed; cookies/localStorage untouched. */
+export interface RunnerdBrowserClosePages {
+  closed: number;
 }
 
 // --- POST /execs (NDJSON response stream) ----------------------------------

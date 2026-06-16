@@ -300,8 +300,106 @@ _supervise() {
   ( while true; do "$@"; sleep 1; done ) &
 }
 
+# Persistent managed-Chromium profile, on the /user bind/PVC so it survives
+# turns, idle-stop+resume, and container restart — site logins are remembered
+# across sessions (the old /tmp/cdp-profile was ephemeral tmpfs, wiped every
+# restart). Hidden under .runtime like HOME so it stays out of the user-facing
+# workspace file listing. The control dir (live pid + reset flag) is the channel
+# runnerd uses to recycle a wedged browser; it lives on tmpfs (transient state).
+TALE_BROWSER_PROFILE=/user/.runtime/browser-profile
+TALE_BROWSER_CTRL=/tmp/tale-browser
+
+# Self-heal a persistent Chromium profile before each (re)launch. A stale
+# SingletonLock/Socket/Cookie from an unclean exit makes every connectOverCDP
+# attach hang; a "didn't shut down cleanly" flag pops a restore bubble that can
+# block the attach. Clear the locks and mark the last session clean WITHOUT
+# touching cookies/localStorage, so logins persist. Runs as the agent uid
+# ($DROP) so the files stay agent-owned (the supervisor is root under DinD).
+_browser_hygiene() {
+  # shellcheck disable=SC2086
+  $DROP rm -f \
+    "$TALE_BROWSER_PROFILE/SingletonLock" \
+    "$TALE_BROWSER_PROFILE/SingletonSocket" \
+    "$TALE_BROWSER_PROFILE/SingletonCookie" 2>/dev/null || true
+  _prefs="$TALE_BROWSER_PROFILE/Default/Preferences"
+  [ -f "$_prefs" ] || return 0
+  # NOTE: stderr is intentionally NOT redirected to /dev/null — a hygiene
+  # failure must be visible. `|| true` keeps a node hiccup from aborting (set -e)
+  # without hiding the diagnostic.
+  # shellcheck disable=SC2086
+  $DROP node -e '
+    const fs = require("node:fs");
+    const p = process.argv[1];
+    try {
+      const j = JSON.parse(fs.readFileSync(p, "utf8"));
+      j.profile = j.profile || {};
+      j.profile.exit_type = "Normal";
+      j.profile.exited_cleanly = true;
+      fs.writeFileSync(p, JSON.stringify(j));
+    } catch (e) {
+      // A corrupt/partially-written Preferences keeps popping the crash-restore
+      // bubble (which blocks the CDP attach), so DROP it — Chromium regenerates
+      // a clean one on launch. Cookies/localStorage live in separate files and
+      // are untouched, so logins survive.
+      process.stderr.write("[entrypoint] browser Preferences unreadable; resetting it (logins preserved): " + (e && e.message) + "\n");
+      try { fs.rmSync(p); } catch (e2) {
+        process.stderr.write("[entrypoint] could not remove corrupt Preferences: " + (e2 && e2.message) + "\n");
+      }
+    }
+  ' "$_prefs" || true
+}
+
+# Supervise the managed Chromium with self-healing + a control channel runnerd
+# uses to recycle a wedged-but-alive browser. Like _supervise (rate-limited
+# restart loop), but each (re)launch: (1) honors a reset flag — runnerd's "Reset
+# browser" wipes the profile while the browser is DOWN (atomic, no relaunch
+# race; loses logins, by design); (2) clears the singleton lock + crash-restore
+# state (_browser_hygiene, preserves logins); (3) records the live pid so
+# runnerd can SIGKILL it to force a fresh, self-healed restart. $@ = chrome argv.
+_browser_supervise() {
+  (
+    while true; do
+      if [ -f "$TALE_BROWSER_CTRL/reset" ]; then
+        # shellcheck disable=SC2086
+        $DROP rm -rf "$TALE_BROWSER_PROFILE" 2>/dev/null || true
+        rm -f "$TALE_BROWSER_CTRL/reset" 2>/dev/null || true
+        # shellcheck disable=SC2086
+        $DROP mkdir -p "$TALE_BROWSER_PROFILE" 2>/dev/null || true
+      fi
+      _browser_hygiene
+      # shellcheck disable=SC2086
+      $DROP "$@" &
+      _bpid=$!
+      # Record the live pid for runnerd's restart/reset. If the write fails,
+      # REMOVE any stale pidfile rather than leaving an old pid the daemon might
+      # SIGKILL by mistake (a wrong/reused process); runnerd then reads "no pid"
+      # and treats the browser as uncontrollable this cycle (logged) instead.
+      if ! echo "$_bpid" >"$TALE_BROWSER_CTRL/pid" 2>/dev/null; then
+        rm -f "$TALE_BROWSER_CTRL/pid" 2>/dev/null || true
+        echo "[entrypoint] WARN: browser pidfile write failed; runnerd restart/reset disabled this cycle" >&2
+      fi
+      wait "$_bpid"
+      sleep 1
+    done
+  ) &
+}
+
 start_browser_stack() {
   echo "[entrypoint] starting live browser view (TALE_BROWSER_CDP=1)"
+
+  # Profile (persistent, agent-owned). Created as the agent uid so Chromium
+  # (uid 10001) owns its own profile even under DinD (root supervisor).
+  # shellcheck disable=SC2086
+  $DROP mkdir -p "$TALE_BROWSER_PROFILE" 2>/dev/null || true
+  # Control dir (tmpfs): the pid file is written by the supervisor (ROOT under
+  # DinD) and the reset flag by runnerd (uid 10001). Make it 1777 (sticky,
+  # world-writable — same as /tmp/.X11-unix below) so both can create their file
+  # and read the other's regardless of who owns the dir, even under a strict
+  # umask. Single-tenant container, so world-writable here is not a leak.
+  # shellcheck disable=SC2086
+  $DROP mkdir -p "$TALE_BROWSER_CTRL" 2>/dev/null || true
+  # shellcheck disable=SC2086
+  $DROP chmod 1777 "$TALE_BROWSER_CTRL" 2>/dev/null || true
 
   # X11 socket dir on the writable tmpfs (read-only root otherwise).
   $DROP mkdir -p /tmp/.X11-unix 2>/dev/null || true
@@ -334,7 +432,7 @@ start_browser_stack() {
   set -- "${CHROME_BIN}" \
     --remote-debugging-port=9222 \
     --remote-debugging-address=127.0.0.1 \
-    --user-data-dir=/tmp/cdp-profile \
+    --user-data-dir="${TALE_BROWSER_PROFILE}" \
     --no-sandbox \
     --disable-gpu \
     --start-fullscreen \
@@ -342,25 +440,33 @@ start_browser_stack() {
     --ignore-certificate-errors \
     --test-type \
     --disable-infobars \
+    --disable-session-crashed-bubble \
+    --hide-crash-restore-bubble \
     --no-first-run \
     --no-default-browser-check
   [ -n "${HTTPS_PROXY:-}" ] && set -- "$@" --proxy-server="${HTTPS_PROXY}"
   [ -n "${NO_PROXY:-}" ] && set -- "$@" --proxy-bypass-list="${NO_PROXY}"
-  # shellcheck disable=SC2086
-  _supervise $DROP "$@"
+  # Self-healing supervisor (lock hygiene + restart/reset control), not the
+  # blind _supervise — a persistent profile must never wedge on a stale lock,
+  # and runnerd must be able to recycle a hung-but-alive browser.
+  _browser_supervise "$@"
 
-  # Block on CDP readiness, fail-open. A failed curl must NOT abort the script
-  # (set -e) — the loop swallows it and the timeout path only WARNs.
+  # Wait for Chromium's CDP HTTP server to come up — a "process launched" signal,
+  # NOT a health authority: /json/version answers even when the browser is wedged
+  # and no CDP *session* can attach. runnerd's pre-flight probe does the real
+  # liveness check (a CDP round-trip) and recycles the browser before each exec.
+  # Fail-open: a failed curl must NOT abort the script (set -e) — the loop
+  # swallows it and the timeout path only WARNs.
   _i=0
   while [ "$_i" -lt 30 ]; do
     if curl -fsS "http://127.0.0.1:9222/json/version" >/dev/null 2>&1; then
-      echo "[entrypoint] live browser view ready (CDP 127.0.0.1:9222, VNC 127.0.0.1:5900, view-only)"
+      echo "[entrypoint] live browser view ready (CDP 127.0.0.1:9222, VNC 127.0.0.1:5900, view-only; profile ${TALE_BROWSER_PROFILE})"
       return 0
     fi
     _i=$((_i + 1))
     sleep 0.5
   done
-  echo "[entrypoint] WARN: headed Chromium CDP not ready within ~15s; continuing (runnerd starts; Playwright MCP --cdp-endpoint will retry the connection)" >&2
+  echo "[entrypoint] WARN: headed Chromium CDP not ready within ~15s; continuing (runnerd starts; its pre-flight probe will recycle/attach)" >&2
   return 0
 }
 

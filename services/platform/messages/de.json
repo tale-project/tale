@@ -1427,7 +1427,11 @@
       "emptyTitle": "Der Agent surft gerade nicht",
       "emptyHint": "Starte eine Anfrage — sobald der Agent einen Browser öffnet, siehst du es hier live.",
       "paneClose": "Live-Browser schließen",
-      "ariaLabel": "Live-Ansicht des Browsers des Agents (schreibgeschützt)"
+      "ariaLabel": "Live-Ansicht des Browsers des Agents (schreibgeschützt)",
+      "reset": "Browser zurücksetzen (meldet von allen Seiten ab)",
+      "resetConfirmTitle": "Browser zurücksetzen?",
+      "resetConfirmBody": "Startet den Browser mit einem leeren Profil neu und meldet dich von allen Seiten ab, bei denen der Agent angemeldet war. Nutze dies nur, wenn der Browser hängt und sich nicht von selbst erholt.",
+      "resetConfirmAction": "Browser zurücksetzen"
     }
   },
   "common": {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BROWSER_VIEW_RECOVERY_ADDENDUM,
   buildSystemPromptAppend,
   PLAN_MODE_ADDENDUM,
   STEERING_RESPONSIVENESS_ADDENDUM,
@@ -37,5 +38,30 @@ describe('buildSystemPromptAppend', () => {
     const out = buildSystemPromptAppend({ systemInstructions: 'X' });
     expect(out).toContain(STEERING_RESPONSIVENESS_ADDENDUM);
     expect(out).not.toContain(PLAN_MODE_ADDENDUM);
+  });
+
+  it('appends the browser-recovery addendum only when browserCdp is set', () => {
+    const withBrowser = buildSystemPromptAppend({
+      systemInstructions: 'X',
+      permissionMode: 'execute',
+      browserCdp: true,
+    });
+    expect(withBrowser).toContain(BROWSER_VIEW_RECOVERY_ADDENDUM);
+
+    const withoutBrowser = buildSystemPromptAppend({
+      systemInstructions: 'X',
+      permissionMode: 'execute',
+    });
+    expect(withoutBrowser).not.toContain(BROWSER_VIEW_RECOVERY_ADDENDUM);
+  });
+
+  it('the browser addendum rides on plan turns too when browserCdp is set', () => {
+    const out = buildSystemPromptAppend({
+      systemInstructions: 'X',
+      permissionMode: 'plan',
+      browserCdp: true,
+    });
+    expect(out).toContain(PLAN_MODE_ADDENDUM);
+    expect(out).toContain(BROWSER_VIEW_RECOVERY_ADDENDUM);
   });
 });

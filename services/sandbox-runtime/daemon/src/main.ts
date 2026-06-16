@@ -16,6 +16,12 @@ import {
   type ServerResponse,
 } from 'node:http';
 
+import {
+  closePages,
+  probeCdp,
+  resetBrowser,
+  restartBrowser,
+} from './browser-control.ts';
 import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import {
@@ -40,6 +46,61 @@ import {
 } from './screencast-tunnel.ts';
 
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
+
+/** Live-browser view is on (operator flag, set by the spawner via the session
+ * container env). Gates the CDP health field, the /browser/* recycle routes,
+ * and the per-exec pre-flight self-heal. */
+const BROWSER_VIEW = process.env.TALE_BROWSER_CDP === '1';
+/** Short probe inside /healthz — the idle reaper polls it with a 5s budget. */
+const HEALTHZ_PROBE_TIMEOUT_MS = 1_500;
+/** How long the per-exec pre-flight waits for a recycled browser to come back
+ * before starting the exec anyway (a never-ready browser must not block it). */
+const PREFLIGHT_WAIT_MS = 10_000;
+
+/** De-dupe concurrent pre-flights: up to RUNNERD_MAX_LIVE_EXECS execs can start
+ * at once, and on a wedged browser each would otherwise fire its own probe +
+ * 10s recycle in parallel (amplified, slower). They share this one in-flight
+ * promise instead, so a single recycle serves the whole burst. */
+let preflightInFlight: Promise<void> | null = null;
+
+/** Before an agent exec on a browser-view session, ensure the managed Chromium
+ * can actually accept a CDP session — recycle it if wedged. This turns the
+ * per-turn "fresh Playwright MCP against the same hung browser" loop into a
+ * self-healing one, so the wedge is gone before the agent ever attaches.
+ * Best-effort + bounded: any failure just proceeds (the agent has guidance). */
+async function preflightBrowser(): Promise<void> {
+  // A recycle is already running — wait for it rather than starting another.
+  if (preflightInFlight) {
+    await preflightInFlight;
+    return;
+  }
+  const run = (async () => {
+    try {
+      const health = await probeCdp();
+      if (health.healthy) return;
+      console.warn(
+        '[runnerd] pre-flight: managed browser CDP unhealthy — recycling before exec',
+      );
+      const r = await restartBrowser(PREFLIGHT_WAIT_MS);
+      if (!r.ready) {
+        console.warn(
+          '[runnerd] pre-flight: browser still not ready after recycle — proceeding',
+        );
+      }
+    } catch (err) {
+      console.warn(
+        '[runnerd] pre-flight browser check failed (continuing):',
+        err,
+      );
+    }
+  })();
+  preflightInFlight = run;
+  try {
+    await run;
+  } finally {
+    preflightInFlight = null;
+  }
+}
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
 const bootedAtMs = Date.now();
@@ -165,6 +226,9 @@ async function handleExec(
     res.end(`${JSON.stringify(fail)}\n`);
     return;
   }
+  // Self-heal a wedged managed browser before the agent attaches to it (no-op
+  // on non-browser sessions). Bounded; never blocks the exec on failure.
+  if (BROWSER_VIEW) await preflightBrowser();
   res.writeHead(200, {
     'content-type': 'application/x-ndjson',
     'cache-control': 'no-cache, no-transform',
@@ -277,13 +341,50 @@ async function router(
   }
 
   if (req.method === 'GET' && path === '/healthz') {
-    sendJson(res, 200, {
+    const body: Record<string, unknown> = {
       ok: true,
       bootedAtMs,
       lastActivityAtMs,
       liveExecs: execManager.liveCount(),
       activeScreencasts: getActiveScreencasts(),
-    });
+    };
+    // Real CDP health (not just "HTTP up") so the spawner's idle reaper doesn't
+    // pin a session whose VNC tunnel is open but whose browser is dead, and the
+    // pane can show a "recovering" state. Only on browser-view sessions.
+    if (BROWSER_VIEW) {
+      const health = await probeCdp(HEALTHZ_PROBE_TIMEOUT_MS);
+      body.browser = { cdpHealthy: health.healthy, tabs: health.tabs };
+    }
+    sendJson(res, 200, body);
+    return;
+  }
+  // Managed-browser recycle controls (browser-view sessions only). restart
+  // preserves logins (lock hygiene + respawn); reset wipes the profile (manual
+  // recovery); close-pages resets tabs on turn-stop without clearing cookies.
+  if (req.method === 'POST' && path.startsWith('/browser/')) {
+    if (!BROWSER_VIEW) {
+      sendJson(res, 200, {
+        signalled: false,
+        ready: false,
+        tabs: 0,
+        closed: 0,
+      });
+      return;
+    }
+    touch();
+    if (path === '/browser/restart') {
+      sendJson(res, 200, await restartBrowser());
+      return;
+    }
+    if (path === '/browser/reset') {
+      sendJson(res, 200, await resetBrowser());
+      return;
+    }
+    if (path === '/browser/close-pages') {
+      sendJson(res, 200, await closePages());
+      return;
+    }
+    sendJson(res, 404, { error: 'not_found' });
     return;
   }
   if (req.method === 'POST' && path === '/execs') {

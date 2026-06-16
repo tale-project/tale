@@ -38,7 +38,10 @@ import {
   type SandboxErrorCode,
   type SandboxStepResult,
 } from '../../sandbox/wire';
-import { sessionCancelExec } from './helpers/session_client';
+import {
+  sessionBrowserClosePages,
+  sessionCancelExec,
+} from './helpers/session_client';
 import { spawnerCancel, spawnerExecute } from './helpers/spawner_client';
 
 type ExecuteCodeResult = {
@@ -607,15 +610,39 @@ export const cancelSessionExecsForThread = internalAction({
       { threadId: args.threadId },
     );
     let cancelled = 0;
+    const cancelledSessions = new Set<string>();
     for (const op of ops) {
       try {
         await sessionCancelExec(op.sessionId, op.execId);
         cancelled += 1;
+        cancelledSessions.add(op.sessionId);
       } catch (err) {
         console.warn(
           `[sandbox.cancelSessionExecsForThread] sessionCancelExec(${op.sessionId}/${op.execId}) failed (continuing):`,
           err,
         );
+      }
+    }
+    // On a browser-view deployment, reset the stopped turn's tabs so a
+    // runaway/hung page can't wedge the next turn's CDP attach. Tabs only —
+    // cookies/logins are preserved (close-pages, not reset). Best-effort: a
+    // no-managed-browser session no-ops spawner-side, and any failure is logged
+    // (the Stop itself already succeeded above).
+    if (process.env.SANDBOX_BROWSER_VIEW === '1') {
+      for (const sessionId of cancelledSessions) {
+        try {
+          const closed = await sessionBrowserClosePages(sessionId);
+          if (closed > 0) {
+            console.info(
+              `[sandbox.cancelSessionExecsForThread] closed ${closed} browser tab(s) for ${sessionId} on stop`,
+            );
+          }
+        } catch (err) {
+          console.warn(
+            `[sandbox.cancelSessionExecsForThread] browser close-pages(${sessionId}) failed (continuing):`,
+            err,
+          );
+        }
       }
     }
     return cancelled;

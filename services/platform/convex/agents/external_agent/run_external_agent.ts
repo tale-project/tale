@@ -545,6 +545,7 @@ export const runExternalAgentTurn = internalAction({
       const systemPromptAppend = buildSystemPromptAppend({
         systemInstructions: args.systemInstructions,
         permissionMode: args.permissionMode,
+        browserCdp: BROWSER_VIEW_ENABLED,
       });
 
       // Both attempts share ONE absolute action deadline — a fresh window for

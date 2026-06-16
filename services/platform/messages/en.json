@@ -1427,7 +1427,11 @@
       "emptyTitle": "The agent isn’t browsing right now",
       "emptyHint": "Start a turn — when the agent opens a browser you’ll see it here, live.",
       "paneClose": "Close live browser",
-      "ariaLabel": "Live view of the agent’s browser (read-only)"
+      "ariaLabel": "Live view of the agent’s browser (read-only)",
+      "reset": "Reset browser (clears logins)",
+      "resetConfirmTitle": "Reset browser?",
+      "resetConfirmBody": "Restarts the browser with a clean profile and signs out of every site the agent logged into. Use this only if the browser is stuck and won’t recover on its own.",
+      "resetConfirmAction": "Reset browser"
     }
   },
   "common": {

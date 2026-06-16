@@ -7,6 +7,8 @@
 
 import {
   RUNNERD_TOKEN_HEADER,
+  type RunnerdBrowserClosePages,
+  type RunnerdBrowserRecycle,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
   type RunnerdExecStatus,
@@ -169,6 +171,26 @@ export async function runnerdCancelExec(
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const body = (await res.json()) as { killed?: boolean };
   return body.killed === true;
+}
+
+/** POST /browser/{restart,reset,close-pages} — recycle/reset the managed
+ * live-browser Chromium, or close its tabs. Returns the daemon's JSON body
+ * (RunnerdBrowserRecycle | RunnerdBrowserClosePages) verbatim for the route to
+ * forward to the platform. Throws on transport failure. */
+export async function runnerdBrowserControl(
+  opts: RunnerdClientOptions,
+  action: 'restart' | 'reset' | 'close-pages',
+): Promise<RunnerdBrowserRecycle | RunnerdBrowserClosePages> {
+  const res = await fetch(`${opts.baseUrl}/browser/${action}`, {
+    method: 'POST',
+    headers: authHeaders(opts.token),
+    signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`runnerd /browser/${action} ${res.status}`);
+  // Trusted peer; shape fixed by runnerd-protocol.ts (restart/reset →
+  // RunnerdBrowserRecycle, close-pages → RunnerdBrowserClosePages).
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as RunnerdBrowserRecycle | RunnerdBrowserClosePages;
 }
 
 /** GET /execs/:id — per-exec status WITHOUT consuming the stream. Returns the

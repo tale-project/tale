@@ -299,6 +299,11 @@ const SESSION_EXEC_STATUS_RE = new RegExp(
 );
 const SESSION_ENV_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/env$`);
 const SESSION_PIN_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/pin$`);
+// Managed live-browser recycle: restart (preserve logins), reset (wipe
+// profile), close-pages (reset tabs on turn-stop). Browser-view sessions only.
+const SESSION_BROWSER_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/browser/(restart|reset|close-pages)$`,
+);
 const SESSION_FILES_STAGE_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/files/stage$`,
 );
@@ -423,6 +428,16 @@ async function handleSessionRoutes(
     const r = await readAndAuth(req);
     if ('error' in r) return r.error;
     return getSessionRoutes().handleSetPinned(pinMatch[1] ?? '', r.body);
+  }
+  // POST /v1/sessions/:id/browser/{restart,reset,close-pages}
+  const browserMatch = path.match(SESSION_BROWSER_RE);
+  if (req.method === 'POST' && browserMatch) {
+    const r = await readAndAuth(req);
+    if ('error' in r) return r.error;
+    return getSessionRoutes().handleBrowserControl(
+      browserMatch[1] ?? '',
+      browserMatch[2] ?? '',
+    );
   }
   // POST /v1/sessions/:id/files/stage
   const stageMatch = path.match(SESSION_FILES_STAGE_RE);

@@ -12,6 +12,7 @@ import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
 import { action, internalAction } from '../../_generated/server';
 import {
+  sessionBrowserReset,
   sessionIsAlive,
   sessionListFiles,
   sessionReadFile,
@@ -114,6 +115,35 @@ export const listWorkspaceDir = action({
     );
 
     return { sessionRunning: true, entries, truncated };
+  },
+});
+
+/**
+ * Reset the thread's live-browser to a clean profile (the "Reset browser"
+ * affordance). This WIPES the persistent browser profile — saved logins are
+ * lost — and is the user-driven last resort for a genuinely corrupt/wedged
+ * browser that auto-recovery (lock hygiene) couldn't unstick.
+ *
+ * Same `resolveBrowsableSession` (canAccessThread) boundary as the file
+ * explorer, so a threadId from another org throws before any spawner call. A
+ * no-running-session thread returns `sessionRunning: false` (nothing to reset).
+ */
+export const resetThreadBrowser = action({
+  args: { threadId: v.string() },
+  returns: v.object({
+    sessionRunning: v.boolean(),
+    ready: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const sess = await ctx.runQuery(
+      internal.sandbox.workspace_files.resolveBrowsableSession,
+      { threadId: args.threadId },
+    );
+    if (!sess.sessionId || sess.status !== 'active') {
+      return { sessionRunning: false, ready: false };
+    }
+    const r = await sessionBrowserReset(sess.sessionId);
+    return { sessionRunning: true, ready: r.ready };
   },
 });
 
