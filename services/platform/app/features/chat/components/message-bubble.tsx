@@ -11,7 +11,6 @@ import {
   Pencil,
   Bookmark,
   BookmarkCheck,
-  TriangleAlert,
   RotateCcw,
   Square,
   Volume2,
@@ -55,9 +54,9 @@ import {
   type MessageSegment,
 } from '../utils/build-message-segments';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
-import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import { hasThoughtSteps } from '../utils/thought-predicates';
 import { BlockedNotice } from './blocked-notice';
+import { ChatErrorDisplay } from './chat-error-display';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
@@ -842,87 +841,13 @@ function MessageBubbleComponent({
               </div>
             )}
             {message.isFailed && (
-              <div
-                className="mt-3 flex flex-col gap-2"
-                role="alert"
-                aria-live="polite"
-              >
-                <div className="text-destructive flex items-center gap-2">
-                  <TriangleAlert className="size-4 shrink-0" />
-                  <span className="text-sm font-medium">
-                    {tChat('errorGenerating')}
-                  </span>
-                </div>
-                {(() => {
-                  const sanitized = sanitizeChatError(message.error);
-                  return (
-                    <>
-                      <p className="text-muted-foreground text-[13px]">
-                        {tChat(sanitized.i18nKey)}
-                      </p>
-                      {sanitized.rawMessage && (
-                        <p className="text-muted-foreground text-xs break-all whitespace-pre-wrap opacity-70">
-                          {sanitized.rawMessage}
-                        </p>
-                      )}
-                    </>
-                  );
-                })()}
-                {onRetry && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="text-foreground w-fit gap-1.5 rounded-lg border-[#E5E7EB] bg-transparent px-3 py-1.5 text-[13px] font-medium"
-                    onClick={onRetry}
-                  >
-                    <RotateCcw className="size-3.5" />
-                    {tChat('retryGeneration')}
-                  </Button>
-                )}
-              </div>
+              <ChatErrorDisplay error={message.error} onRetry={onRetry} />
             )}
           </div>
         ) : (
           message.isAborted &&
           (message.error ? (
-            <div
-              className="mt-3 flex flex-col gap-2"
-              role="alert"
-              aria-live="polite"
-            >
-              <div className="text-destructive flex items-center gap-2">
-                <TriangleAlert className="size-4 shrink-0" />
-                <span className="text-sm font-medium">
-                  {tChat('errorGenerating')}
-                </span>
-              </div>
-              {(() => {
-                const sanitized = sanitizeChatError(message.error);
-                return (
-                  <>
-                    <p className="text-muted-foreground text-[13px]">
-                      {tChat(sanitized.i18nKey)}
-                    </p>
-                    {sanitized.rawMessage && (
-                      <p className="text-muted-foreground text-xs break-all whitespace-pre-wrap opacity-70">
-                        {sanitized.rawMessage}
-                      </p>
-                    )}
-                  </>
-                );
-              })()}
-              {onRetry && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="text-foreground w-fit gap-1.5 rounded-lg border-[#E5E7EB] bg-transparent px-3 py-1.5 text-[13px] font-medium"
-                  onClick={onRetry}
-                >
-                  <RotateCcw className="size-3.5" />
-                  {tChat('retryGeneration')}
-                </Button>
-              )}
-            </div>
+            <ChatErrorDisplay error={message.error} onRetry={onRetry} />
           ) : (
             <div className="text-muted-foreground flex items-center gap-1.5 text-sm italic">
               <Square className="size-3" />

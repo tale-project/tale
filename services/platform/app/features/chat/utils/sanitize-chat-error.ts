@@ -3,6 +3,7 @@ type ErrorCategory =
   | 'creditExhausted'
   | 'authError'
   | 'modelNotFound'
+  | 'unsupportedParameter'
   | 'tokenLimit'
   | 'rateLimited'
   | 'contentFilter'
@@ -40,6 +41,17 @@ const ERROR_PATTERNS: { pattern: RegExp; category: ErrorCategory }[] = [
     pattern: /model.*not found|model.*not available|invalid model|\b404\b/i,
     category: 'modelNotFound',
   },
+  // A provider/model rejecting a request PARAMETER (e.g. Azure reasoning
+  // deployments returning "Unsupported parameter: 'max_tokens' ... Use
+  // 'max_completion_tokens' instead") is an operator-config mismatch, not an
+  // end-user token-limit problem. This must precede `tokenLimit` below, whose
+  // broad `max_tokens` match would otherwise mislabel it as "output token
+  // limit exceeded".
+  {
+    pattern:
+      /unsupported parameter|is not supported with this model|unsupported_parameter|unknown parameter|unrecognized request argument/i,
+    category: 'unsupportedParameter',
+  },
   {
     pattern: /fewer max_tokens|token.*limit|max_tokens/i,
     category: 'tokenLimit',
@@ -72,6 +84,7 @@ const CATEGORY_I18N_KEY: Record<ErrorCategory, string> = {
   creditExhausted: 'errorHintCreditExhausted',
   authError: 'errorHintAuthError',
   modelNotFound: 'errorHintModelNotFound',
+  unsupportedParameter: 'errorHintUnsupportedParameter',
   tokenLimit: 'errorHintTokenLimit',
   rateLimited: 'errorHintRateLimited',
   contentFilter: 'errorHintContentFilter',

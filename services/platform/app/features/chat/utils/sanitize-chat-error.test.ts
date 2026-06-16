@@ -220,6 +220,51 @@ describe('sanitizeChatError', () => {
         i18nKey: 'errorHintTokenLimit',
       });
     });
+
+    it('still classifies a genuine output-limit error as tokenLimit', () => {
+      expect(
+        sanitizeChatError(
+          'max_tokens is too large: 200000. This model supports at most 128000 completion tokens.',
+        ),
+      ).toEqual({
+        category: 'tokenLimit',
+        i18nKey: 'errorHintTokenLimit',
+      });
+    });
+  });
+
+  describe('unsupported parameter errors', () => {
+    it('classifies an Azure reasoning-model max_tokens rejection as unsupportedParameter, not tokenLimit', () => {
+      // GPT-5 / o-series reasoning deployments reject `max_tokens` and require
+      // `max_completion_tokens`. The verbatim 400 body contains "max_tokens",
+      // which must NOT be mislabeled as an output-token-limit problem.
+      const raw =
+        "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.";
+      expect(sanitizeChatError(raw)).toEqual({
+        category: 'unsupportedParameter',
+        i18nKey: 'errorHintUnsupportedParameter',
+      });
+    });
+
+    it('matches "is not supported with this model" phrasing', () => {
+      expect(
+        sanitizeChatError(
+          "Unsupported value: 'temperature' is not supported with this model.",
+        ),
+      ).toEqual({
+        category: 'unsupportedParameter',
+        i18nKey: 'errorHintUnsupportedParameter',
+      });
+    });
+
+    it('matches an unrecognized request argument error', () => {
+      expect(
+        sanitizeChatError('Unrecognized request argument supplied: foo'),
+      ).toEqual({
+        category: 'unsupportedParameter',
+        i18nKey: 'errorHintUnsupportedParameter',
+      });
+    });
   });
 
   describe('context length errors', () => {
