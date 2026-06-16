@@ -52,7 +52,6 @@ import {
 import { createDocumentsMentionSource } from './documents-mention-source';
 import { ExternalAgentModeToggle } from './external-agent-mode-toggle';
 import { KbMentionPopover } from './kb-mention-popover';
-import { LiveBrowserToggle } from './live-browser-toggle';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { QuotedReferenceChip } from './quoted-reference-chip';
@@ -60,7 +59,6 @@ import { SandboxStateIndicator } from './sandbox-state-indicator';
 import { SavePromptMenu } from './save-prompt-menu';
 import { VideoLinkChip } from './video-link-chip';
 import { VoiceModeToggle } from './voice-mode-toggle';
-import { WorkspaceFilesToggle } from './workspace-files-toggle';
 
 // Web Speech requires a fully-qualified BCP-47 tag. Already-regional codes
 // (`de-CH`, future `fr-CA`) pass through; bare base locales pick the most
@@ -1244,16 +1242,10 @@ export function ChatInput({
                       threadId={threadId}
                       organizationId={organizationId}
                     />
-                    <WorkspaceFilesToggle
-                      threadId={threadId}
-                      organizationId={organizationId}
-                      disabled={attachDisabled}
-                    />
-                    <LiveBrowserToggle
-                      threadId={threadId}
-                      organizationId={organizationId}
-                      disabled={attachDisabled}
-                    />
+                    {/* No Workspace-files / Live-browser pills here: on desktop
+                        the right-edge pane strips are the open affordance, and
+                        on mobile the `+` menu carries them — a composer pill
+                        would be redundant and crowd this row. */}
                   </HStack>
                 ))}
               {variant === 'full' && (

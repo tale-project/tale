@@ -23,6 +23,7 @@ import {
 } from '@/app/features/chat/context/chat-layout-context';
 import { StreamingToolProvider } from '@/app/features/chat/context/streaming-tool-context';
 import { THREADS_PAGE_SIZE } from '@/app/features/chat/hooks/queries';
+import { useSandboxPanesAvailable } from '@/app/features/chat/hooks/use-sandbox-panes';
 import { CanvasPane } from '@/app/features/workspace/components/canvas-pane';
 import {
   LiveBrowserProvider,
@@ -253,6 +254,15 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   });
   const threadId = threadMatch?.params?.threadId;
 
+  // The read-only sandbox panes (Workspace files + Live browser) only apply to
+  // external-agent threads with a session. On desktop the collapsed strips are
+  // the open affordance; on mobile the `+`-menu entries are. Gate the mounts so
+  // a normal chat thread never shows a stray strip / backdrop.
+  const sandboxPanesAvailable = useSandboxPanesAvailable(
+    organizationId,
+    threadId,
+  );
+
   // Check if we're on the shared chat route
   const sharedMatch = useMatch({
     from: '/dashboard/$id/chat/shared/$shareToken',
@@ -355,20 +365,19 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
         <PlanPane />
         <CanvasPane organizationId={organizationId} />
-        {/* Read-only workspace-files explorer — only renders (self-gated) on
-            external-agent threads with a live session. Desktop only; the
-            mobile Sheet below carries it under `md`. */}
-        {!isMobile && (
+        {/* Read-only workspace-files explorer — gated to external-agent threads
+            with a session. On desktop the collapsed strip IS the open affordance
+            (no composer pill); the mobile Sheet below carries it under `md`. */}
+        {!isMobile && sandboxPanesAvailable && (
           <LayoutErrorBoundary organizationId={organizationId}>
             <WorkspaceFilesPane />
           </LayoutErrorBoundary>
         )}
-        {/* Read-only live-browser stream — independent right-side pane,
-            self-gated identically (external-agent thread with a live session).
-            At most one of it / workspace-files is open at a time (see the
-            mutual-exclusion effects above). Desktop only; the mobile Sheet
-            below carries it under `md`. */}
-        {!isMobile && (
+        {/* Read-only live-browser stream — independent right-side pane, gated
+            identically. At most one of it / workspace-files is open at a time
+            (see the mutual-exclusion effects above). Desktop only; the mobile
+            Sheet below carries it under `md`. */}
+        {!isMobile && sandboxPanesAvailable && (
           <LayoutErrorBoundary organizationId={organizationId}>
             <LiveBrowserPane />
           </LayoutErrorBoundary>
@@ -377,8 +386,8 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
       {/* Mobile: present the workspace-files pane in a right Sheet like the
           mobile history sidebar, so the desktop split-pane never breaks the
-          narrow layout. */}
-      {threadId && isMobile && (
+          narrow layout. Opened from the `+`-menu (same gate). */}
+      {threadId && isMobile && sandboxPanesAvailable && (
         <Sheet
           open={isFilesOpen}
           onOpenChange={(open) => {
@@ -399,8 +408,8 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
       )}
 
       {/* Mobile: live-browser stream in its own right Sheet (mirrors the
-          workspace-files mobile Sheet). */}
-      {threadId && isMobile && (
+          workspace-files mobile Sheet). Opened from the `+`-menu (same gate). */}
+      {threadId && isMobile && sandboxPanesAvailable && (
         <Sheet
           open={isLiveBrowserOpen}
           onOpenChange={(open) => {

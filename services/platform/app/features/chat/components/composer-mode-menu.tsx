@@ -23,7 +23,7 @@ import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
-import { useChatAgents, useThreadSandboxState } from '../hooks/queries';
+import { useChatAgents } from '../hooks/queries';
 import {
   getAgentMissingIntegrations,
   resolveCapabilityIcon,
@@ -31,6 +31,7 @@ import {
   useIntegrationReadiness,
 } from '../hooks/use-composer-capabilities';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import { useSandboxPanesAvailable } from '../hooks/use-sandbox-panes';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 
 interface ComposerModeMenuProps {
@@ -55,31 +56,24 @@ export function ComposerModeMenu({
   const { t } = useT('composer');
   const { t: tChat } = useT('chat');
   const navigate = useNavigate();
-  const {
-    setSelectedAgent,
-    selectedAgent,
-    enabledCapabilities,
-    setCapabilityEnabled,
-  } = useChatLayout();
+  const { setSelectedAgent, enabledCapabilities, setCapabilityEnabled } =
+    useChatLayout();
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents } = useChatAgents(organizationId);
 
-  // Mobile-only: the composer's pill row (incl. the Workspace-files / Live-browser
-  // toggles) overflows off-screen under `md`, so surface those sandbox-view
-  // toggles here in the always-reachable `+` menu. Same gate as the pills:
-  // external-agent thread + a session that exists.
+  // Mobile-only: the desktop sandbox panes are right-edge strips, but there's no
+  // room for them under `md`, so surface the Workspace-files / Live-browser
+  // toggles here in the always-reachable `+` menu (the composer has no pill for
+  // them anymore). Same gate as the desktop strips, via the shared hook.
   const isMobile = useIsMobile();
   const files = useWorkspaceFilesOptional();
   const live = useLiveBrowserOptional();
-  const sandboxAgent = selectedAgent
-    ? agents?.find((a) => a.name === selectedAgent.name)
-    : undefined;
-  const isExternalAgent = sandboxAgent?.primaryBehavior === 'external-agent';
-  const sandboxState = useThreadSandboxState(
-    isMobile && isExternalAgent ? threadId : undefined,
+  const sandboxPanesAvailable = useSandboxPanesAvailable(
+    organizationId,
+    threadId,
   );
   const showSandboxViews =
-    isMobile && isExternalAgent && Boolean(sandboxState) && !!files && !!live;
+    isMobile && sandboxPanesAvailable && !!files && !!live;
   const capabilities = useComposerCapabilities(organizationId);
   const readiness = useIntegrationReadiness(organizationId);
   const arenaContext = useArenaModeOptional();

@@ -311,9 +311,10 @@ export function LiveBrowserMobileBody({ threadId }: { threadId: string }) {
  * Read-only right-side pane streaming the live external-agent browser over
  * noVNC. Clones the WorkspaceFilesPane shell: resizable 320–720px (default
  * ~480), a collapse-to-48px strip with a vertical label, a `border-l` left
- * edge, a drag handle, and `React.memo`. Self-gated at the toggle + mount site
- * (chat-input self-gates the toggle; chat.tsx only mounts this where it makes
- * sense). The noVNC bundle is code-split via `lazyComponent` at the import site.
+ * edge, a drag handle, and `React.memo`. Gated at the mount site: chat.tsx only
+ * mounts this when `useSandboxPanesAvailable` is true (external-agent thread
+ * with a session). The noVNC bundle is code-split via `lazyComponent` at the
+ * import site.
  */
 function LiveBrowserPaneComponent() {
   const { t } = useT('chat');
@@ -356,7 +357,7 @@ function LiveBrowserPaneComponent() {
     document.addEventListener('mouseup', handleMouseUp);
   }, []);
 
-  // No threadId → nothing to stream (gated at the toggle + mount site too).
+  // No threadId → nothing to stream (the mount site also gates availability).
   if (!threadId) return null;
 
   // Collapsed: hidden on mobile (the Sheet takes over below `md`), a vertical
