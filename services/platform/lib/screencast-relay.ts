@@ -18,34 +18,39 @@
 // no re-encoding (RFB is binary; any reframing would corrupt the protocol).
 //
 // Auth to the spawner reproduces session_client.ts's HMAC contract exactly:
-//   signedString = `${METHOD}\n${path}\n${timestamp}\n${sha256Hex(body)}`
+//   signedString = `${METHOD}\n${path}\n${timestamp}\n${nonce}\n${sha256Hex(body)}`
 //   signature    = HMAC-SHA256(SANDBOX_TOKEN, signedString)
 // on a GET to `/v1/sessions/<sessionId>/screencast` with an EMPTY body (the GET
 // has no body, so sha256('')). Headers: x-tale-sandbox-signature +
-// x-tale-sandbox-timestamp. The spawner's `authorize()` verifies over
-// `pathname + search`; this path has no query, so signing the bare path is
-// identical. When SANDBOX_TOKEN is unset we send no signature (dev mode,
-// matching the spawner's opt-in HMAC verification).
+// x-tale-sandbox-timestamp + x-tale-sandbox-nonce (a fresh per-request nonce so
+// repeated handshakes don't collide in the spawner's replay cache). The
+// spawner's `authorize()` verifies over `pathname + search`; this path has no
+// query, so signing the bare path is identical. When SANDBOX_TOKEN is unset we
+// send no signature (dev mode, matching the spawner's opt-in HMAC verification).
 
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
+const NONCE_HEADER = 'x-tale-sandbox-nonce';
 
 /**
  * Reproduce session_client.ts `signRequest`: HMAC-SHA256 over
- * `${METHOD}\n${path}\n${timestamp}\n${sha256Hex(body)}`. Exported for the unit
- * test that pins byte-for-byte parity with the spawner's `sign()`.
+ * `${METHOD}\n${path}\n${timestamp}\n${nonce}\n${sha256Hex(body)}`. The nonce
+ * binds a per-request random value so this empty-body GET can't false-positive
+ * against the spawner's replay cache. Exported for the unit test that pins
+ * byte-for-byte parity with the spawner's `sign()`.
  */
 export function signScreencastRequest(
   method: string,
   path: string,
   timestamp: string,
+  nonce: string,
   body: string,
   token: string,
 ): string {
   const bodyHash = createHash('sha256').update(body).digest('hex');
-  const signedString = `${method.toUpperCase()}\n${path}\n${timestamp}\n${bodyHash}`;
+  const signedString = `${method.toUpperCase()}\n${path}\n${timestamp}\n${nonce}\n${bodyHash}`;
   return createHmac('sha256', token).update(signedString).digest('hex');
 }
 
@@ -62,15 +67,18 @@ export function buildScreencastAuthHeaders(
 ): Record<string, string> {
   if (token === null) return {};
   const timestamp = String(Date.now());
+  const nonce = randomUUID();
   return {
     [SIGNATURE_HEADER]: signScreencastRequest(
       'GET',
       path,
       timestamp,
+      nonce,
       '',
       token,
     ),
     [TIMESTAMP_HEADER]: timestamp,
+    [NONCE_HEADER]: nonce,
   };
 }
 

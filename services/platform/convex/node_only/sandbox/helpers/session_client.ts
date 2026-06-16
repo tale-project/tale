@@ -5,23 +5,31 @@
 // env), adds the session verbs. Lives in node_only because it streams SSE.
 //
 // Signature contract (services/sandbox/src/auth.ts):
-//   signedString = `${METHOD}\n${path}\n${timestamp}\n${sha256Hex(body)}`
+//   signedString = `${METHOD}\n${path}\n${timestamp}\n${nonce}\n${sha256Hex(body)}`
 //   signature    = HMAC-SHA256(SANDBOX_TOKEN, signedString)
+// The per-request nonce keeps byte-identical requests (e.g. the empty-body
+// sessionIsAlive GET) from colliding in the spawner's replay cache.
 
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
+const NONCE_HEADER = 'x-tale-sandbox-nonce';
 
+// Mirror of the spawner's auth.ts signed-string format. The per-request nonce
+// makes byte-identical requests (notably the empty-body `sessionIsAlive` GET)
+// sign distinct strings, so two probes in the same millisecond don't
+// false-positive against the spawner's replay cache.
 function signRequest(
   method: string,
   path: string,
   timestamp: string,
+  nonce: string,
   body: string,
   token: string,
 ): string {
   const bodyHash = createHash('sha256').update(body).digest('hex');
-  const signedString = `${method.toUpperCase()}\n${path}\n${timestamp}\n${bodyHash}`;
+  const signedString = `${method.toUpperCase()}\n${path}\n${timestamp}\n${nonce}\n${bodyHash}`;
   return createHmac('sha256', token).update(signedString).digest('hex');
 }
 
@@ -84,14 +92,17 @@ function signedHeaders(
   const token = getSpawnerToken();
   if (token !== null) {
     const timestamp = String(Date.now());
+    const nonce = randomUUID();
     headers[SIGNATURE_HEADER] = signRequest(
       method,
       path,
       timestamp,
+      nonce,
       body,
       token,
     );
     headers[TIMESTAMP_HEADER] = timestamp;
+    headers[NONCE_HEADER] = nonce;
   }
   return headers;
 }

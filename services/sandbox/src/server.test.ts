@@ -110,11 +110,13 @@ describe('screencast HMAC gate (empty-body GET)', () => {
 
   test('accepts a correctly-signed empty-body GET', () => {
     const sig = sign(method, path, ts, '', token);
-    expect(verify(method, path, '', sig, ts, token, now)).toEqual({ ok: true });
+    expect(verify(method, path, '', sig, ts, null, token, now)).toEqual({
+      ok: true,
+    });
   });
 
   test('rejects a missing signature (→ route returns 401, no upgrade)', () => {
-    expect(verify(method, path, '', null, ts, token, now)).toEqual({
+    expect(verify(method, path, '', null, ts, null, token, now)).toEqual({
       ok: false,
       reason: 'missing_signature',
     });
@@ -123,7 +125,7 @@ describe('screencast HMAC gate (empty-body GET)', () => {
   test('rejects a signature minted over a non-empty body', () => {
     // An attacker signing some body can't pass the empty-body verify.
     const sig = sign(method, path, ts, '{"x":1}', token);
-    expect(verify(method, path, '', sig, ts, token, now)).toEqual({
+    expect(verify(method, path, '', sig, ts, null, token, now)).toEqual({
       ok: false,
       reason: 'bad_signature',
     });
@@ -168,14 +170,14 @@ describe('HMAC verify (method+path+ts+body binding)', () => {
 
   test('accepts a correctly-signed request', () => {
     const sig = sign(method, path, ts, body, token);
-    expect(verify(method, path, body, sig, ts, token, now)).toEqual({
+    expect(verify(method, path, body, sig, ts, null, token, now)).toEqual({
       ok: true,
     });
   });
 
   test('rejects a wrong signature', () => {
     const sig = sign(method, path, ts, body, 'other-secret');
-    expect(verify(method, path, body, sig, ts, token, now)).toEqual({
+    expect(verify(method, path, body, sig, ts, null, token, now)).toEqual({
       ok: false,
       reason: 'bad_signature',
     });
@@ -183,31 +185,33 @@ describe('HMAC verify (method+path+ts+body binding)', () => {
 
   test('rejects a tampered body', () => {
     const sig = sign(method, path, ts, body, token);
-    expect(verify(method, path, `${body} `, sig, ts, token, now)).toEqual({
-      ok: false,
-      reason: 'bad_signature',
-    });
+    expect(verify(method, path, `${body} `, sig, ts, null, token, now)).toEqual(
+      {
+        ok: false,
+        reason: 'bad_signature',
+      },
+    );
   });
 
   test('rejects a captured signature replayed against a different path', () => {
     // The whole point of binding the path: a leaked /v1/execute signature
     // must not authenticate /v1/cancel/<id>.
     const sig = sign(method, '/v1/execute', ts, body, token);
-    expect(verify(method, '/v1/cancel/abc', body, sig, ts, token, now)).toEqual(
-      { ok: false, reason: 'bad_signature' },
-    );
+    expect(
+      verify(method, '/v1/cancel/abc', body, sig, ts, null, token, now),
+    ).toEqual({ ok: false, reason: 'bad_signature' });
   });
 
   test('rejects a captured signature replayed with a different method', () => {
     const sig = sign('POST', path, ts, body, token);
-    expect(verify('GET', path, body, sig, ts, token, now)).toEqual({
+    expect(verify('GET', path, body, sig, ts, null, token, now)).toEqual({
       ok: false,
       reason: 'bad_signature',
     });
   });
 
   test('rejects a missing signature header', () => {
-    expect(verify(method, path, body, null, ts, token, now)).toEqual({
+    expect(verify(method, path, body, null, ts, null, token, now)).toEqual({
       ok: false,
       reason: 'missing_signature',
     });
@@ -215,7 +219,7 @@ describe('HMAC verify (method+path+ts+body binding)', () => {
 
   test('rejects a missing timestamp header', () => {
     const sig = sign(method, path, ts, body, token);
-    expect(verify(method, path, body, sig, null, token, now)).toEqual({
+    expect(verify(method, path, body, sig, null, null, token, now)).toEqual({
       ok: false,
       reason: 'missing_timestamp',
     });
@@ -224,12 +228,12 @@ describe('HMAC verify (method+path+ts+body binding)', () => {
   test('rejects timestamps outside the tolerance window', () => {
     const sig = sign(method, path, ts, body, token);
     const tooLate = now + TIMESTAMP_TOLERANCE_MS + 1;
-    expect(verify(method, path, body, sig, ts, token, tooLate)).toEqual({
+    expect(verify(method, path, body, sig, ts, null, token, tooLate)).toEqual({
       ok: false,
       reason: 'timestamp_skew',
     });
     const tooEarly = now - TIMESTAMP_TOLERANCE_MS - 1;
-    expect(verify(method, path, body, sig, ts, token, tooEarly)).toEqual({
+    expect(verify(method, path, body, sig, ts, null, token, tooEarly)).toEqual({
       ok: false,
       reason: 'timestamp_skew',
     });
@@ -237,17 +241,19 @@ describe('HMAC verify (method+path+ts+body binding)', () => {
 
   test('rejects a non-numeric timestamp', () => {
     const sig = sign(method, path, ts, body, token);
-    expect(verify(method, path, body, sig, 'not-a-number', token, now)).toEqual(
-      { ok: false, reason: 'bad_timestamp' },
-    );
+    expect(
+      verify(method, path, body, sig, 'not-a-number', null, token, now),
+    ).toEqual({ ok: false, reason: 'bad_timestamp' });
   });
 
   test('rejects a signature of the wrong length (timing-safe length check)', () => {
     const sig = sign(method, path, ts, body, token);
     expect(
-      verify(method, path, body, sig.slice(0, -1), ts, token, now),
+      verify(method, path, body, sig.slice(0, -1), ts, null, token, now),
     ).toEqual({ ok: false, reason: 'bad_signature' });
-    expect(verify(method, path, body, `${sig}aa`, ts, token, now)).toEqual({
+    expect(
+      verify(method, path, body, `${sig}aa`, ts, null, token, now),
+    ).toEqual({
       ok: false,
       reason: 'bad_signature',
     });

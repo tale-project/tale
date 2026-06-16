@@ -17,13 +17,15 @@ describe('signScreencastRequest — parity with the spawner', () => {
     const token = 'shared-secret';
     const path = '/v1/sessions/sess1/screencast';
     const ts = '1700000000000';
-    const ours = signScreencastRequest('GET', path, ts, '', token);
-    const theirs = spawnerSign('GET', path, ts, '', token);
+    const nonce = 'fixed-nonce';
+    const ours = signScreencastRequest('GET', path, ts, nonce, '', token);
+    // The spawner threads the nonce as the last arg of sign().
+    const theirs = spawnerSign('GET', path, ts, '', token, nonce);
     expect(ours).toBe(theirs);
     // Pin the exact digest so a refactor on either side that still agrees with
     // itself but changes the wire format is caught.
     expect(ours).toBe(
-      '94ea6da8656c6d76c865a6273ea2cf555d0da309f4d6fd056bc679bc77924f3c',
+      '993534d91e4f8ad6f7ef8af3890014662dbdd47519f8590bd32c335d62ee1ad5',
     );
   });
 
@@ -31,23 +33,26 @@ describe('signScreencastRequest — parity with the spawner', () => {
     const token = 't';
     const path = '/v1/sessions/s/screencast';
     const ts = '1';
-    expect(signScreencastRequest('get', path, ts, '', token)).toBe(
-      spawnerSign('GET', path, ts, '', token),
+    const nonce = 'n';
+    expect(signScreencastRequest('get', path, ts, nonce, '', token)).toBe(
+      spawnerSign('GET', path, ts, '', token, nonce),
     );
   });
 });
 
 describe('buildScreencastAuthHeaders', () => {
-  test('emits signature + timestamp headers when a token is present', () => {
+  test('emits signature + timestamp + nonce headers when a token is present', () => {
     const path = spawnerScreencastPath('sess1');
     const headers = buildScreencastAuthHeaders(path, 'shared-secret');
     expect(headers['x-tale-sandbox-signature']).toBeDefined();
     expect(headers['x-tale-sandbox-timestamp']).toBeDefined();
+    expect(headers['x-tale-sandbox-nonce']).toBeDefined();
     // The emitted signature must verify against the spawner signer for the
-    // exact timestamp it chose.
+    // exact timestamp + nonce it chose.
     const ts = headers['x-tale-sandbox-timestamp'];
+    const nonce = headers['x-tale-sandbox-nonce'];
     expect(headers['x-tale-sandbox-signature']).toBe(
-      spawnerSign('GET', path, ts, '', 'shared-secret'),
+      spawnerSign('GET', path, ts, '', 'shared-secret', nonce),
     );
   });
 

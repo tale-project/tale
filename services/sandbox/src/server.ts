@@ -9,7 +9,12 @@
 //
 // Concurrency: in-process semaphore at SANDBOX_MAX_CONCURRENT. 429 over cap.
 
-import { verify, SIGNATURE_HEADER, TIMESTAMP_HEADER } from './auth.ts';
+import {
+  verify,
+  SIGNATURE_HEADER,
+  TIMESTAMP_HEADER,
+  NONCE_HEADER,
+} from './auth.ts';
 import {
   createBackend,
   createSessionBackend,
@@ -71,6 +76,7 @@ function authorize(body: string, req: Request): Response | null {
     body,
     req.headers.get(SIGNATURE_HEADER),
     req.headers.get(TIMESTAMP_HEADER),
+    req.headers.get(NONCE_HEADER),
     cfg.sandboxToken,
   );
   if (!result.ok) {
