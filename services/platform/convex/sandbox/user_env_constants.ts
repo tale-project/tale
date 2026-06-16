@@ -39,3 +39,15 @@ export function validateEnvValue(value: string): Validation {
 
 /** Fixed mask shown for secrets in the read API (plaintext is never exposed). */
 export const SECRET_MASK = '••••••••';
+
+/**
+ * True when the value contains whitespace AFTER trimming its ends — i.e. an
+ * interior space, tab, or line break. Credentials (tokens / API keys) never
+ * contain these; the usual cause is pasting a token that wrapped across lines
+ * in a terminal (a silent, painful-to-debug corruption → 401). The editor warns
+ * on this. It does NOT block, because legitimately multi-line secrets (PEM
+ * keys, etc.) contain interior newlines.
+ */
+export function hasInteriorWhitespace(value: string): boolean {
+  return /\s/.test(value.trim());
+}

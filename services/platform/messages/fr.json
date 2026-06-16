@@ -4098,6 +4098,7 @@
       "valuePlaceholder": "Valeur",
       "secretLabel": "Secret",
       "secretHelp": "Lorsque activé, la valeur est chiffrée et en écriture seule — elle n'est plus jamais affichée après l'enregistrement.",
+      "whitespaceWarning": "Cette valeur contient des espaces ou des sauts de ligne. Les identifiants ne devraient pas en avoir — si vous avez collé un jeton coupé sur plusieurs lignes dans votre terminal, supprimez-les. (Les secrets multilignes comme les clés PEM peuvent les conserver.)",
       "submit": "Ajouter"
     },
     "list": {

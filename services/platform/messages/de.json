@@ -4097,6 +4097,7 @@
       "valuePlaceholder": "Wert",
       "secretLabel": "Geheimnis",
       "secretHelp": "Wenn aktiviert, wird der Wert verschlüsselt und ist nur beschreibbar — nach dem Speichern wird er nie wieder angezeigt.",
+      "whitespaceWarning": "Dieser Wert enthält Leerzeichen oder Zeilenumbrüche. Anmeldedaten sollten das nicht — falls du ein Token eingefügt hast, das im Terminal über mehrere Zeilen umgebrochen wurde, entferne sie. (Mehrzeilige Geheimnisse wie PEM-Schlüssel dürfen sie behalten.)",
       "submit": "Hinzufügen"
     },
     "list": {

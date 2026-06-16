@@ -113,6 +113,12 @@ function AddEnvVarForm({ organizationId }: { organizationId: string }) {
     value.length <= VALUE_MAX &&
     (!isSecret || value.length > 0) &&
     !isPending;
+  // Interior whitespace (space/tab/newline after trimming the ends) almost
+  // always means a token wrapped across terminal lines was pasted — a silent,
+  // painful-to-debug corruption. Warn loudly but don't block: legitimately
+  // multi-line secrets (PEM keys) contain interior newlines. Leading/trailing
+  // whitespace is fine (the backend trims it on save).
+  const showWhitespaceWarning = value.length > 0 && /\s/.test(value.trim());
 
   const reset = useCallback(() => {
     setKey('');
@@ -182,6 +188,14 @@ function AddEnvVarForm({ organizationId }: { organizationId: string }) {
           spellCheck={false}
         />
       </div>
+      {showWhitespaceWarning && (
+        <Text
+          role="alert"
+          className="text-sm text-amber-600 dark:text-amber-500"
+        >
+          {t('add.whitespaceWarning')}
+        </Text>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Switch
           checked={isSecret}

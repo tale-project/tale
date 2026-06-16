@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  hasInteriorWhitespace,
   MAX_ENV_KEY_LEN,
   MAX_ENV_VALUE_LEN,
   SECRET_MASK,
@@ -41,5 +42,20 @@ describe('validateEnvValue', () => {
 describe('SECRET_MASK', () => {
   it('is a non-empty fixed mask (never the plaintext)', () => {
     expect(SECRET_MASK.length).toBeGreaterThan(0);
+  });
+});
+
+describe('hasInteriorWhitespace', () => {
+  it('is false for clean single-line values (leading/trailing space ignored)', () => {
+    expect(hasInteriorWhitespace('sk-ant-oat01-abcDEF_123')).toBe(false);
+    expect(hasInteriorWhitespace('  sk-ant-oat01-abc  ')).toBe(false);
+    expect(hasInteriorWhitespace('')).toBe(false);
+  });
+
+  it('is true for an interior space, tab, or newline (wrapped-paste artifact)', () => {
+    expect(hasInteriorWhitespace('sk-ant-oat01-abc def')).toBe(true);
+    expect(hasInteriorWhitespace('sk-ant\toat01')).toBe(true);
+    // The exact failure mode: token wrapped across two terminal lines.
+    expect(hasInteriorWhitespace('sk-ant-oat01-PC0Ia\n yW3M')).toBe(true);
   });
 });

@@ -4097,6 +4097,7 @@
       "valuePlaceholder": "Value",
       "secretLabel": "Secret",
       "secretHelp": "When on, the value is encrypted and write-only — it is never shown again after saving.",
+      "whitespaceWarning": "This value contains spaces or line breaks. Credentials shouldn't — if you pasted a token that wrapped across lines in your terminal, remove them. (Multi-line secrets like PEM keys can keep them.)",
       "submit": "Add"
     },
     "list": {
