@@ -41,11 +41,16 @@ export const upsertMyEnvVar = action({
     if (!keyCheck.ok) {
       throw new ConvexError({ code: 'invalid', message: keyCheck.reason });
     }
-    const valueCheck = validateEnvValue(args.value);
+    // Trim surrounding whitespace — a pasted token/secret very commonly carries
+    // a trailing newline (or leading indentation) that silently corrupts it
+    // (e.g. a bearer token → 401). Interior whitespace is left intact so
+    // legitimately multi-line secrets (PEM keys, etc.) survive.
+    const value = args.value.trim();
+    const valueCheck = validateEnvValue(value);
     if (!valueCheck.ok) {
       throw new ConvexError({ code: 'invalid', message: valueCheck.reason });
     }
-    if (args.isSecret && args.value.length === 0) {
+    if (args.isSecret && value.length === 0) {
       throw new ConvexError({
         code: 'invalid',
         message: 'Secret value must not be empty.',
@@ -53,7 +58,7 @@ export const upsertMyEnvVar = action({
     }
 
     const encryptedValue = args.isSecret
-      ? await encryptString(args.value)
+      ? await encryptString(value)
       : undefined;
 
     await ctx.runMutation(internal.sandbox.user_env.upsertUserEnvInternal, {
@@ -61,7 +66,7 @@ export const upsertMyEnvVar = action({
       userId: authUser.userId,
       key: args.key,
       isSecret: args.isSecret,
-      ...(args.isSecret ? {} : { value: args.value }),
+      ...(args.isSecret ? {} : { value }),
       ...(encryptedValue !== undefined && { encryptedValue }),
       updatedBy: authUser.userId,
     });
