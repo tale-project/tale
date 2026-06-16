@@ -150,14 +150,16 @@ function envNormalizeCommon() {
   // Immutable seed catalog for new-org scaffolding. Prod sets this in the
   // Docker image (services/convex/Dockerfile copies examples/default →
   // /app/builtin/default; services/platform/Dockerfile sets the env to
-  // /app/builtin). Dev has no build step, so default it to the repo `examples`
-  // dir — the SAME source the image bakes in. Without this, `seedDomain` falls
-  // back to seeding new orgs from the LIVE `default` org's mutable dir, so an
-  // agent deleted in `default` (or a custom TALE_CONFIG_DIR pointing away from
-  // the repo) wrongly propagates to every new org. Pointing at the repo
-  // baseline makes dev use the identical seed-from-catalog path as prod.
+  // /app/builtin). Dev has no build step, so default it to whatever
+  // TALE_CONFIG_DIR points at — the same tree dev already serves. Without this,
+  // `seedDomain` falls back to seeding new orgs from the LIVE `default` org's
+  // mutable dir, so an agent deleted in `default` wrongly propagates to every
+  // new org. Deriving from TALE_CONFIG_DIR (not a hardcoded `examples`) keeps
+  // hermetic setups intact: the E2E stack points TALE_CONFIG_DIR at its own
+  // fixtures, and the builtin catalog must follow it rather than leaking the
+  // real `examples` agents/providers into freshly scaffolded test orgs.
   if (!process.env.TALE_CONFIG_BUILTIN_DIR) {
-    process.env.TALE_CONFIG_BUILTIN_DIR = join(repoRoot, 'examples');
+    process.env.TALE_CONFIG_BUILTIN_DIR = process.env.TALE_CONFIG_DIR;
   }
 }
 
