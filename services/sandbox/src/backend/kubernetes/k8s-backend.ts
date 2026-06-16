@@ -251,12 +251,27 @@ export class KubernetesBackend implements ExecutionBackend {
     }
     // Egress isolation is operator-applied (NetworkPolicy + egress proxy), not
     // enforced by this code — surface a one-line reminder so an unconfigured
-    // cluster isn't silently wide-open to SSRF/IMDS.
+    // cluster isn't silently wide-open to SSRF/IMDS. Selects BOTH pod roles:
+    // one-shot pods are tale.sandbox/role=runtime, sessions are role=session.
     console.warn(
       '[sandbox.k8s] egress isolation requires an operator-applied default-deny ' +
-        'NetworkPolicy on tale.sandbox/role=runtime pods + the egress proxy; ' +
-        'verify before running untrusted workloads.',
+        'NetworkPolicy on tale.sandbox/role in (runtime, session) pods + the egress ' +
+        'proxy; verify before running untrusted workloads.',
     );
+    // Docker-in-container on K8s is not silently shipped: it requires a node-
+    // level runtime (sysbox-deploy-k8s / kata-deploy) registering the
+    // RuntimeClass `${runtimeClassName}`, and the in-pod egress fence
+    // (entrypoint, needs NET_ADMIN — sysbox/kata provide it) — a pod
+    // NetworkPolicy alone does NOT contain a nested dockerd's bridge. This path
+    // is unvalidated on a cluster until the operator confirms those prereqs.
+    if (this.cfg.dockerInContainer) {
+      console.warn(
+        `[sandbox.k8s] DOCKER-IN-CONTAINER enabled (tier=${this.cfg.runtimeTier}): ` +
+          `requires RuntimeClass '${this.cfg.k8s.runtimeClassName}' installed on the nodes ` +
+          `(sysbox-deploy-k8s / kata-deploy) + the in-pod egress fence; UNVALIDATED until ` +
+          `the operator confirms node prereqs. Pod NetworkPolicy does not contain inner DinD egress.`,
+      );
+    }
   }
 
   async shutdown(): Promise<void> {
@@ -307,7 +322,7 @@ export class KubernetesBackend implements ExecutionBackend {
     // Resolve the path the runtime entrypoint will exec — same rule as docker.
     const entryPath =
       req.steps !== undefined
-        ? `/workspace/.tale/${
+        ? `/user/.runtime/tale/${
             req.language === 'python' || req.language === 'polyglot'
               ? 'runner.py'
               : 'runner.js'

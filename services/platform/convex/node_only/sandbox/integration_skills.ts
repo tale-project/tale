@@ -24,7 +24,7 @@ import {
   type SessionStageFile,
 } from './helpers/session_client';
 
-const SKILLS_DIR = '.home/.claude/skills';
+const SKILLS_DIR = '.runtime/home/.claude/skills';
 const INTEGRATION_SKILL_PREFIX = 'integration-';
 
 function yamlInline(value: string): string {
@@ -87,7 +87,7 @@ substitute; if no suitable integration is connected, guide the user to add one.
 
 /**
  * Stage every org integration as a CC-native skill into the session's
- * CLAUDE_CONFIG_DIR (/workspace/.home/.claude/skills/<name>/SKILL.md). Run
+ * CLAUDE_CONFIG_DIR (/user/.runtime/home/.claude/skills/<name>/SKILL.md). Run
  * per-turn so a connect/disconnect/binding change is reflected next turn.
  * Best-effort — callers swallow failures so skill staging never fails a turn.
  */

@@ -88,9 +88,20 @@ export class DockerSessionBackend implements SessionBackend {
     const pip = pipCacheVolumeName(this.cfg, spec.organizationId);
     const npm = npmCacheVolumeName(this.cfg, spec.organizationId);
     const bun = bunCacheVolumeName(this.cfg, spec.organizationId);
-    await ensureCacheVolume(pip);
-    await ensureCacheVolume(npm);
-    await ensureCacheVolume(bun);
+    // Shared per-org dep caches are NOT mounted under DinD (sysbox userns
+    // shifting makes a cross-session shared volume unsafe — see
+    // docker-session-args.ts), so don't bother creating them either.
+    if (!this.cfg.dockerInContainer) {
+      await ensureCacheVolume(pip);
+      await ensureCacheVolume(npm);
+      await ensureCacheVolume(bun);
+    }
+    // Fresh, ephemeral /var/lib/docker volume for the inner dockerd (DinD only).
+    // Recreated each start so a SIGKILLed dockerd's dirty overlay2 never wedges
+    // resume; reaped on stop + destroy.
+    const dockerStorageVolume = this.cfg.dockerInContainer
+      ? await this.ensureFreshDindVolume(spec.sessionId)
+      : undefined;
 
     const token = this.tokenFor(spec.sessionId);
     const argv = buildDockerSessionRunArgs(this.cfg, {
@@ -103,6 +114,7 @@ export class DockerSessionBackend implements SessionBackend {
       bunCacheVolume: bun,
       runnerdToken: token,
       createdAtMs: spec.createdAtMs,
+      dockerStorageVolume,
     });
     // The seed env is NOT passed on the `docker run` argv. A `--env
     // TALE_SESSION_ENV=…` would be readable by anyone with host Docker access
@@ -125,6 +137,9 @@ export class DockerSessionBackend implements SessionBackend {
         await dockerRm(containerName).catch((err) =>
           console.warn('[sandbox.session] cleanup dockerRm failed:', err),
         );
+        if (this.cfg.dockerInContainer) {
+          await this.removeDindVolume(spec.sessionId);
+        }
         if (!preexisting) {
           await rm(workspaceHostDir, { recursive: true, force: true }).catch(
             (err) =>
@@ -229,8 +244,50 @@ export class DockerSessionBackend implements SessionBackend {
     return existed;
   }
 
+  /** Per-session inner-dockerd storage volume (DinD only), mounted at
+   * /var/lib/docker. Ephemeral — recreated fresh each start, reaped on stop +
+   * destroy. */
+  private dindStorageVolumeName(sessionId: string): string {
+    return `tale-dind-${sessionId}`;
+  }
+
+  /** Remove any existing dind storage volume, then create a clean one. Returns
+   * the volume name for the argv builder. */
+  private async ensureFreshDindVolume(sessionId: string): Promise<string> {
+    await this.removeDindVolume(sessionId);
+    const name = this.dindStorageVolumeName(sessionId);
+    const res = await runDocker(
+      [
+        'volume',
+        'create',
+        '--label',
+        'tale.sandbox-dind=1',
+        '--label',
+        `tale.session=${sessionId}`,
+        name,
+      ],
+      { timeoutMs: 10_000 },
+    );
+    if (res.exitCode !== 0) {
+      throw new Error(
+        `docker volume create (dind) failed: ${res.stderr.trim() || res.stdout.trim()}`,
+      );
+    }
+    return name;
+  }
+
+  private async removeDindVolume(sessionId: string): Promise<void> {
+    const name = this.dindStorageVolumeName(sessionId);
+    await runDocker(['volume', 'rm', '--force', name], {
+      timeoutMs: 10_000,
+    }).catch((err) => {
+      console.warn(`[sandbox.session] dind volume rm ${name} failed:`, err);
+    });
+  }
+
   async destroySession(sessionId: string): Promise<boolean> {
     const existed = await this.removeContainer(sessionId);
+    if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
     await rm(this.workspaceDir(sessionId), {
       recursive: true,
       force: true,
@@ -245,8 +302,11 @@ export class DockerSessionBackend implements SessionBackend {
 
   async stopSession(sessionId: string): Promise<boolean> {
     // Release compute but PRESERVE the host workspace dir — a later
-    // createSession with the same sessionId re-mounts it (resume).
-    return this.removeContainer(sessionId);
+    // createSession with the same sessionId re-mounts it (resume). The inner
+    // docker store is ephemeral, so reap it (resume rebuilds the image cache).
+    const existed = await this.removeContainer(sessionId);
+    if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
+    return existed;
   }
 
   async listSessions(organizationId?: string): Promise<BackendSession[]> {

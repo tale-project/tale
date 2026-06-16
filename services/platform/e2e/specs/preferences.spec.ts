@@ -84,15 +84,24 @@ function chatUrl(organizationId: string): string {
   return `/dashboard/${organizationId}/chat`;
 }
 
-/** Open the account (user-button) dropdown from the sidebar. */
-async function openAccountMenu(page: Page): Promise<void> {
-  // The trigger carries the "Manage account" tooltip as its accessible name.
+/**
+ * Open the account (user-button) dropdown from the sidebar.
+ *
+ * The trigger's accessible name is the LOCALE-DEPENDENT "Manage account"
+ * string. Once the language test switches the UI to German, the trigger reads
+ * "Konto verwalten" (de.json) — not the English `t()` value — because the app's
+ * `detectLocale` reads `localStorage['user-locale']` BEFORE the Playwright-pinned
+ * browser locale (see `locale-provider.tsx`). Callers that re-open the menu
+ * AFTER switching locale must therefore pass the active locale's translation of
+ * `auth.userButton.manageAccount`; it defaults to English for the common case.
+ */
+async function openAccountMenu(
+  page: Page,
+  accountButtonName: string = t('auth.userButton.manageAccount'),
+): Promise<void> {
   // `.first()` guards against the desktop sidebar vs mobile-header copies both
   // being in the tree (only the desktop one is visible at this viewport).
-  await page
-    .getByRole('button', { name: t('auth.userButton.manageAccount') })
-    .first()
-    .click();
+  await page.getByRole('button', { name: accountButtonName }).first().click();
   // The dropdown content is `role="menu"`; wait for it before interacting.
   await expect(page.getByRole('menu').first()).toBeVisible({
     timeout: 60_000,
@@ -216,22 +225,31 @@ test.describe('user preferences', () => {
     // visible label is now German. The account menu's own "Language" row label
     // is the anchor — its German translation comes from de.json (justified
     // in-test read), and it must differ from the English string `t()` returns.
+    //
+    // From here until we restore English, the WHOLE shell renders German: the
+    // app's `detectLocale` (locale-provider.tsx) reads the just-written
+    // `localStorage['user-locale']='de'` ahead of the Playwright-pinned browser
+    // locale, so every accessible name — including the account-button trigger —
+    // is the de.json string, NOT the English `t()` value. Re-opening the menu by
+    // the English "Manage account" name would never match (the trigger now reads
+    // "Konto verwalten") and time out — the failure this fix addresses.
     const germanLanguageLabel = de('auth.userButton.language');
     expect(germanLanguageLabel).not.toBe(t('auth.userButton.language'));
-    await openAccountMenu(page);
+    const germanAccountLabel = de('auth.userButton.manageAccount');
+    expect(germanAccountLabel).not.toBe(t('auth.userButton.manageAccount'));
+    await openAccountMenu(page, germanAccountLabel);
     await expect(
       page.getByRole('menuitem', { name: germanLanguageLabel }),
     ).toBeVisible({ timeout: 20_000 });
     await closeMenu(page);
 
-    // Reload: the locale must be re-detected from localStorage and stay German.
+    // Reload: the locale must be re-detected from localStorage and stay German,
+    // so the trigger keeps its German accessible name across the reload too.
     await page.reload();
     await expect(
-      page
-        .getByRole('button', { name: t('auth.userButton.manageAccount') })
-        .first(),
+      page.getByRole('button', { name: germanAccountLabel }).first(),
     ).toBeVisible({ timeout: 60_000 });
-    await openAccountMenu(page);
+    await openAccountMenu(page, germanAccountLabel);
     await expect(
       page.getByRole('menuitem', { name: germanLanguageLabel }),
     ).toBeVisible({ timeout: 20_000 });

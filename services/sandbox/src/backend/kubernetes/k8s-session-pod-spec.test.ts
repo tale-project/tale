@@ -19,7 +19,9 @@ const cfg: SpawnerConfig = {
   port: 8003,
   sandboxToken: 'test',
   runtimeImage: 'tale-sandbox-runtime:test',
-  runtime: 'runsc',
+  runtimeTier: 'gvisor',
+  dockerInContainer: false,
+  browserView: false,
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: 'gvisor',
@@ -98,7 +100,7 @@ describe('buildSessionPod', () => {
   test('workspace is a per-session PVC (survives stop), not emptyDir', () => {
     const pod = buildSessionPod(cfg, input);
     const ws = pod.spec?.volumes?.find((v) => v.name === 'workspace');
-    // PVC-backed so a stop (Pod delete, PVC kept) preserves /workspace for
+    // PVC-backed so a stop (Pod delete, PVC kept) preserves /user for
     // resume; emptyDir would die with the Pod.
     expect(ws?.emptyDir).toBeUndefined();
     expect(ws?.persistentVolumeClaim?.claimName).toBe(
@@ -108,9 +110,7 @@ describe('buildSessionPod', () => {
       `${sessionPodNameFor('sess-abc-123')}-ws`,
     );
     const c = pod.spec?.containers[0];
-    expect(c?.volumeMounts?.some((m) => m.mountPath === '/workspace')).toBe(
-      true,
-    );
+    expect(c?.volumeMounts?.some((m) => m.mountPath === '/user')).toBe(true);
   });
 
   test('default profile maps to uid 65534', () => {
@@ -134,5 +134,62 @@ describe('buildSessionPod', () => {
     expect(() =>
       buildSessionPod(cfg, { ...input, organizationId: 'bad org!' }),
     ).toThrow(/organizationId/);
+  });
+
+  describe('docker-in-container (sysbox tier)', () => {
+    const dindCfg = {
+      ...cfg,
+      runtimeTier: 'sysbox' as const,
+      dockerInContainer: true,
+      k8s: { ...cfg.k8s, runtimeClassName: 'sysbox-runc' },
+    };
+
+    test('inverts the securityContext + adds an ephemeral docker-storage emptyDir', () => {
+      const pod = buildSessionPod(dindCfg, input);
+      expect(pod.spec?.runtimeClassName).toBe('sysbox-runc');
+      const sc = pod.spec?.containers[0]?.securityContext;
+      expect(sc?.runAsUser).toBe(0);
+      expect(sc?.runAsNonRoot).toBe(false);
+      expect(sc?.readOnlyRootFilesystem).toBe(false);
+      expect(sc?.allowPrivilegeEscalation).toBe(true);
+      expect(sc?.capabilities?.drop).toBeUndefined();
+      expect(sc?.seccompProfile?.type).toBe('Unconfined');
+      // Inner docker store: ephemeral, size-bounded emptyDir at /var/lib/docker.
+      const ds = pod.spec?.volumes?.find((v) => v.name === 'docker-storage');
+      expect(ds?.emptyDir?.sizeLimit).toBe(cfg.k8s.workspaceSizeLimit);
+      expect(ds?.persistentVolumeClaim).toBeUndefined();
+      expect(
+        pod.spec?.containers[0]?.volumeMounts?.some(
+          (m) => m.mountPath === '/var/lib/docker',
+        ),
+      ).toBe(true);
+      // DinD signal + tier + apparmor unconfined annotation.
+      const env = pod.spec?.containers[0]?.env ?? [];
+      expect(env.find((e) => e.name === 'TALE_DIND')?.value).toBe('1');
+      expect(env.find((e) => e.name === 'TALE_RUNTIME_TIER')?.value).toBe(
+        'sysbox',
+      );
+      expect(
+        pod.metadata?.annotations?.[
+          'container.apparmor.security.beta.kubernetes.io/runner'
+        ],
+      ).toBe('unconfined');
+    });
+
+    test('DinD-off keeps the hardened securityContext and no docker-storage', () => {
+      const pod = buildSessionPod(cfg, input);
+      const sc = pod.spec?.containers[0]?.securityContext;
+      expect(sc?.runAsNonRoot).toBe(true);
+      expect(sc?.readOnlyRootFilesystem).toBe(true);
+      expect(sc?.capabilities?.drop).toEqual(['ALL']);
+      expect(pod.spec?.volumes?.some((v) => v.name === 'docker-storage')).toBe(
+        false,
+      );
+      expect(
+        (pod.spec?.containers[0]?.env ?? []).some(
+          (e) => e.name === 'TALE_DIND',
+        ),
+      ).toBe(false);
+    });
   });
 });

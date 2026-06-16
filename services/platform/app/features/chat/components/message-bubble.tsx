@@ -52,7 +52,6 @@ import {
 } from '../hooks/use-voice-output';
 import {
   buildMessageSegments,
-  deriveActivity,
   type MessageSegment,
 } from '../utils/build-message-segments';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
@@ -72,6 +71,7 @@ import { MessageFeedback } from './message-feedback';
 import { MessageInfoDialog } from './message-info-dialog';
 import { MessageSegments } from './message-segments';
 import { SourceCards } from './source-cards';
+import { SteerStatusLine } from './steer-status';
 import { MessageThoughtHeader, ThinkingDots } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
@@ -412,11 +412,6 @@ function MessageBubbleComponent({
     () => buildMessageSegments(stableParts),
     [stableParts],
   );
-  // The current live activity (drives the header's state-based label).
-  const activity = useMemo(
-    () => deriveActivity(messageSegments.segments),
-    [messageSegments.segments],
-  );
   // `hasAnswerStarted` is the boolean `!!displayContent`, which flips once
   // (empty → non-empty) and then stays stable through the answer stream.
   const hasAnswerStarted = !!displayContent;
@@ -560,7 +555,6 @@ function MessageBubbleComponent({
           skillCount={messageSegments.skillCount}
           hasReasoning={messageSegments.hasReasoning}
           turnStartMs={turnStartMs}
-          activity={activity}
           reasoningSteps={reasoningSteps}
         />
       ) : null,
@@ -573,7 +567,6 @@ function MessageBubbleComponent({
       outputTokens,
       messageSegments,
       turnStartMs,
-      activity,
       reasoningSteps,
     ],
   );
@@ -1133,6 +1126,10 @@ function MessageBubbleComponent({
           routedAgentName={routedAgentName}
         />
       </div>
+      {/* Mid-turn steer status (queued → delivered → picked up). Renders only
+          for a user message that's actually in the steer queue; right-aligned
+          under the bubble (parent is `items-end`). */}
+      {isUser && <SteerStatusLine messageId={message.id} />}
       {isUser && (onEdit || onSavePrompt || toolbarExtra) && (
         // Own-message toolbar: hover/focus-revealed (opacity-only, so no
         // layout shift) — matches the calmer history-toolbar behavior. Touch

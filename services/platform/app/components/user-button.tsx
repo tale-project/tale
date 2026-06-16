@@ -601,7 +601,11 @@ export function UserButton({
   ]);
 
   const triggerContent = (
-    <div
+    <button
+      type="button"
+      aria-label={
+        label ? undefined : (tooltipText ?? t('userButton.manageAccount'))
+      }
       className={cn(
         'relative flex items-center rounded-lg transition-colors hover:bg-muted cursor-pointer',
         label ? 'gap-3 px-3 py-2 w-full' : 'justify-center p-2',
@@ -624,7 +628,7 @@ export function UserButton({
           {label}
         </Text>
       )}
-    </div>
+    </button>
   );
 
   const signOutConfirmDialog = (

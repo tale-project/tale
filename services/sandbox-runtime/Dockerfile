@@ -52,6 +52,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
       libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
       libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 \
+      # Live browser view (read-only mirror). INERT unless the session is
+      # launched with TALE_BROWSER_CDP=1 (operator flag SANDBOX_BROWSER_VIEW):
+      # Xvfb gives the headed Chromium a virtual display, x11vnc mirrors it
+      # view-only, and the fonts keep rendered pages legible. The CDP (9222)
+      # and VNC (5900) endpoints the entrypoint binds are LOOPBACK-ONLY
+      # (127.0.0.1) and the session container publishes NO ports — they are
+      # never EXPOSE'd and only reachable from inside the container.
+      xvfb \
+      x11vnc \
+      fonts-liberation \
+      fonts-noto-core \
+      # CJK + emoji so real-world pages (e.g. google.com.hk, any non-Latin
+      # site) render glyphs instead of tofu boxes in the live browser view.
+      fonts-noto-cjk \
+      fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -f \
     && ln -sf /usr/local/bin/python3 /usr/local/bin/python \
@@ -75,8 +90,14 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 # Playwright browsers in a world-readable global path (the agent user reads
-# them; read-only root means no per-session download — the MCP runs with
-# --isolated so its profile stays in memory and never writes here). Telemetry
+# them; the baked browsers mean no per-session download — the MCP runs with
+# --isolated so its profile stays in memory). The directory itself is made
+# sticky-writable after install (see below) so the MCP's `browser_install`
+# tool — which an agent may call defensively even though the browser is
+# already present — can create its `__dirlock`/`.links` bookkeeping and
+# fast-exit as a no-op, instead of hanging for minutes retrying the lock and
+# then failing EACCES (which cascades into a redundant `playwright install`
+# download). The browser binaries stay root-owned and read-only. Telemetry
 # off.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
@@ -103,6 +124,7 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
       sh /tmp/install-playwright-browsers.sh \
       /opt/agents/lib/node_modules/@playwright/mcp/node_modules/.bin/playwright chromium \
     && node -e "const fs=require('fs'); const p=require('/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core'); fs.accessSync(p.chromium.executablePath(), fs.constants.X_OK)" \
+    && chmod 1777 /opt/ms-playwright \
     && rm /tmp/install-playwright-browsers.sh
 
 # OpenCode standalone binary (pinned). dpkg arch → release asset arch.
@@ -134,13 +156,60 @@ RUN set -eux; \
     rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}"; \
     gh --version
 
+# --- docker-in-container tooling (sysbox/kata tiers) ------------------------
+# Native `docker` / `docker compose` INSIDE a session container. Present in
+# every image but INERT unless the session is launched in DinD mode
+# (SANDBOX_DOCKER_IN_CONTAINER + a sysbox/kata tier): the binaries are not
+# setuid and cannot start a daemon without caps the one-shot/non-DinD paths
+# drop, so adding them does not change the one-shot (uid 65534) attack surface.
+# The session entrypoint starts an inner dockerd only in DinD mode.
+#   docker-ce/cli + compose/buildx plugins + containerd = the engine
+#   tini       = PID-1 reaper (DinD spawns many short-lived containerd-shims)
+#   uidmap     = newuidmap/newgidmap (rootless/userns helpers)
+#   fuse-overlayfs + iptables = inner daemon storage + networking fence
+#   util-linux = setpriv, to drop dockerd's root back to uid 10001 for runnerd
+#   redsocks   = transparent egress: the entrypoint REDIRECTs nested containers'
+#                public TCP to redsocks, which tunnels it through the egress
+#                proxy — so inner apps reach the internet with NO proxy env (no
+#                hijacked localhost/sibling healthchecks)
+# Versions are the live Docker apt-repo stable channel; pin here if a build
+# needs to be byte-reproducible.
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" \
+        > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+      docker-ce \
+      docker-ce-cli \
+      containerd.io \
+      docker-compose-plugin \
+      docker-buildx-plugin \
+      tini \
+      uidmap \
+      fuse-overlayfs \
+      iptables \
+      util-linux \
+      redsocks \
+    && rm -rf /var/lib/apt/lists/* \
+    # The image's dockerd is started per-session by the entrypoint in DinD mode,
+    # never as a baked service — strip any auto-start unit (no-op without systemd).
+    && rm -f /etc/systemd/system/multi-user.target.wants/docker.service 2>/dev/null || true
+
+# subuid/subgid ranges for the agent user. Sysbox handles userns mapping at the
+# container boundary; these are here for any rootless inner tooling and are inert
+# otherwise.
+RUN echo 'agent:100000:65536' >> /etc/subuid \
+    && echo 'agent:100000:65536' >> /etc/subgid
+
 # runnerd — the session control daemon, bundled to a single file in the
 # daemon-build stage and run by the image's Node 24 (session mode only).
 COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
 
 # Claude Code managed settings (highest precedence on Linux): disable
 # auto-update + telemetry, and register the steer hook (mid-turn message
-# injection — hooks merge across settings sources, so /workspace configs
+# injection — hooks merge across settings sources, so /user configs
 # can't shadow it). NOT permission rules — those are per-run flags.
 COPY services/sandbox-runtime/managed-settings.json /etc/claude-code/managed-settings.json
 
@@ -183,13 +252,19 @@ RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-creden
 # profile); this is just the named account the session profile selects.
 # Absolute paths: the ENV PATH override above drops /usr/sbin.
 RUN /usr/sbin/groupadd --gid 10001 agent \
-    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /workspace/.home \
-       --shell /bin/bash --no-create-home agent
+    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /user/.runtime/home \
+       --shell /bin/bash --no-create-home agent \
+    # docker-in-container: the inner dockerd creates /var/run/docker.sock as
+    # root:docker (660), so the agent (uid 10001, runs `docker` after the
+    # entrypoint drops privileges) must be in the `docker` group to reach it.
+    # Inert on non-DinD tiers (no socket exists). The `docker` group is created
+    # by the docker-ce install above.
+    && /usr/sbin/usermod -aG docker agent
 
 # Default user is nobody; spawner pins --user per profile at the call site
 # (65534 one-shot, 10001 session-agent).
 USER 65534:65534
 
-WORKDIR /workspace
+WORKDIR /user
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

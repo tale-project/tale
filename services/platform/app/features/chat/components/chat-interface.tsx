@@ -47,6 +47,7 @@ import {
   ThreadMessageMetadataProvider,
   useChatAgents,
   useResolvedHumanInputRequests,
+  useSessionProgress,
 } from '../hooks/queries';
 import { useArenaThreadSetup } from '../hooks/use-arena-thread-setup';
 import { useChatScroll } from '../hooks/use-chat-scroll';
@@ -83,6 +84,7 @@ import { ChatMessagesSkeleton } from './chat-messages-skeleton';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
 import { SelectionQuoteButton } from './selection-quote-button';
+import { SteerStatusProvider } from './steer-status';
 import { WelcomeView } from './welcome-view';
 
 const SavePromptDialog = lazyComponent<
@@ -490,15 +492,43 @@ export function ChatInterface({
   // Client-side optimistic flag — set on send click, released when the
   // server subscription confirms or the send fails. Closes the ~200–550 ms
   // gap between click and `chatWithAgent` completing `markGenerating`
-  // (Node action cold start + round trips). VISUAL state only — the Stop
-  // button below reads real `isGenerating` via `onStopGenerating` gating.
+  // (Node action cold start + round trips). VISUAL state only.
   const isSendPending = useIsSendPending(dataThreadId);
-  const isLoading = (isGenerating ?? false) || isSendPending;
+
+  // The agent emitted its result but the process lingers on held-open stdin to
+  // receive more messages. The process is still alive (so the steer queue can
+  // still deliver), but the TURN is over — so this is NOT "working".
+  //
+  // Thread-based, and deliberately NOT gated on `isExternalAgentThread`: the
+  // lingering turn belongs to the THREAD, so the running-state must stay
+  // correct even when the user switches the composer to a DIFFERENT agent
+  // (e.g. a non-external one) while an external turn is still lingering —
+  // otherwise the Stop button / spinner / thinking dots would wrongly reappear.
+  // `useSessionProgress` returns null for threads with no sandbox op (normal
+  // chat), so this is simply false there.
+  const sessionProgress = useSessionProgress(dataThreadId);
+  const agentLingering = sessionProgress?.agentIdleAt != null;
+
+  // Canonical "Claude Code is actively working right now": a turn is in flight
+  // AND it is not merely lingering idle on held-open stdin after emitting its
+  // result. EVERY user-facing running-state indicator derives from this one
+  // rule — the composer spinner + Stop button (isLoading / onStopGenerating
+  // below), the message-stream thinking dots (ChatMessages `isLoading`), and
+  // the ambient Sandbox pill (sandbox-state-indicator, via the same
+  // `status === 'running' && agentIdleAt == null` test) — so the page always
+  // renders ONE consistent, real-time projection of the agent's state and the
+  // indicators can't drift (e.g. "finished" copy beside a live spinner). The
+  // lingering process is an instant-delivery mechanism, not "working".
+  const agentActivelyWorking = (isGenerating ?? false) && !agentLingering;
+
+  // VISUAL busy state: actively working, or the optimistic pre-confirm window.
+  const isLoading = agentActivelyWorking || isSendPending;
 
   // Queue mode: external-agent thread with a server-confirmed in-flight turn.
-  // Keyed on real `isGenerating` (not the optimistic isSendPending) so an
-  // enqueue can only race a turn the server actually started — during the
-  // optimistic window the composer behaves exactly as before.
+  // Keyed on real `isGenerating` (NOT `agentActivelyWorking`) so a message sent
+  // during the linger window still routes through the steer queue → held-open
+  // stdin (instant delivery), exactly as the steer machinery expects. Only the
+  // VISUAL state treats lingering as idle; delivery semantics are unchanged.
   const queueModeActive = isExternalAgentThread && (isGenerating ?? false);
 
   const { mutateAsync: enqueueMessage } = useEnqueueMessage();
@@ -1166,72 +1196,77 @@ export function ChatInterface({
                   liveRoute={liveRoute ?? null}
                   generationStartMs={effectiveGenerationStartMs}
                 >
-                  <ChatMessages
-                    items={itemsForRender}
+                  <SteerStatusProvider
                     threadId={dataThreadId}
                     organizationId={organizationId}
-                    canLoadMore={canLoadMore}
-                    isLoadingMore={isLoadingMore}
-                    loadMore={handleLoadMore}
-                    isLoading={isLoading}
-                    isSendPending={isSendPending}
-                    isAutoRoute={isAutoRoute}
-                    liveRoute={liveRoute}
-                    generationStartMs={effectiveGenerationStartMs}
-                    lastUserMessageRef={lastUserMessageRef}
-                    containerRef={containerRef}
-                    activeApproval={activeApproval}
-                    activeApprovalInline={activeApprovalInline}
-                    forkedMessageCount={
-                      forkInfo?.forkedMessageCount ?? undefined
-                    }
-                    lastForkedMessageOrder={
-                      forkInfo?.lastForkedMessageOrder ?? undefined
-                    }
-                    forkedAt={forkInfo?.forkedAt ?? undefined}
-                    forkedFromShare={forkInfo?.forkedFromShare}
-                    onHumanInputResponseSubmitted={
-                      handleHumanInputResponseSubmitted
-                    }
-                    onSendFollowUp={
-                      isArchived || readOnly ? undefined : handleSendFollowUp
-                    }
-                    onSendMessage={
-                      isArchived || readOnly
-                        ? undefined
-                        : handleSendMessageDirect
-                    }
-                    onEditMessage={
-                      isArchived || readOnly ? undefined : handleEditClick
-                    }
-                    onForkAtMessage={
-                      isArchived || readOnly ? undefined : handleForkAtMessage
-                    }
-                    onSavePrompt={handleSavePromptFromMessage}
-                    onUnsavePrompt={handleUnsavePrompt}
-                    savedMessageMap={savedMessageMap}
-                    onRetry={isArchived || readOnly ? undefined : handleRetry}
-                    onRegenerate={
-                      isArchived || readOnly
-                        ? undefined
-                        : handleRegenerateMessage
-                    }
-                    editingMessageId={
-                      isArchived || readOnly ? undefined : editingMessage?.id
-                    }
-                    editingMessageContent={
-                      isArchived || readOnly
-                        ? undefined
-                        : editingMessage?.content
-                    }
-                    onEditSubmit={
-                      isArchived || readOnly ? undefined : handleEditSubmit
-                    }
-                    onEditCancel={
-                      isArchived || readOnly ? undefined : handleEditCancel
-                    }
-                    hideFeedback={isArchived}
-                  />
+                  >
+                    <ChatMessages
+                      items={itemsForRender}
+                      threadId={dataThreadId}
+                      organizationId={organizationId}
+                      canLoadMore={canLoadMore}
+                      isLoadingMore={isLoadingMore}
+                      loadMore={handleLoadMore}
+                      isLoading={isLoading}
+                      isSendPending={isSendPending}
+                      isAutoRoute={isAutoRoute}
+                      liveRoute={liveRoute}
+                      generationStartMs={effectiveGenerationStartMs}
+                      lastUserMessageRef={lastUserMessageRef}
+                      containerRef={containerRef}
+                      activeApproval={activeApproval}
+                      activeApprovalInline={activeApprovalInline}
+                      forkedMessageCount={
+                        forkInfo?.forkedMessageCount ?? undefined
+                      }
+                      lastForkedMessageOrder={
+                        forkInfo?.lastForkedMessageOrder ?? undefined
+                      }
+                      forkedAt={forkInfo?.forkedAt ?? undefined}
+                      forkedFromShare={forkInfo?.forkedFromShare}
+                      onHumanInputResponseSubmitted={
+                        handleHumanInputResponseSubmitted
+                      }
+                      onSendFollowUp={
+                        isArchived || readOnly ? undefined : handleSendFollowUp
+                      }
+                      onSendMessage={
+                        isArchived || readOnly
+                          ? undefined
+                          : handleSendMessageDirect
+                      }
+                      onEditMessage={
+                        isArchived || readOnly ? undefined : handleEditClick
+                      }
+                      onForkAtMessage={
+                        isArchived || readOnly ? undefined : handleForkAtMessage
+                      }
+                      onSavePrompt={handleSavePromptFromMessage}
+                      onUnsavePrompt={handleUnsavePrompt}
+                      savedMessageMap={savedMessageMap}
+                      onRetry={isArchived || readOnly ? undefined : handleRetry}
+                      onRegenerate={
+                        isArchived || readOnly
+                          ? undefined
+                          : handleRegenerateMessage
+                      }
+                      editingMessageId={
+                        isArchived || readOnly ? undefined : editingMessage?.id
+                      }
+                      editingMessageContent={
+                        isArchived || readOnly
+                          ? undefined
+                          : editingMessage?.content
+                      }
+                      onEditSubmit={
+                        isArchived || readOnly ? undefined : handleEditSubmit
+                      }
+                      onEditCancel={
+                        isArchived || readOnly ? undefined : handleEditCancel
+                      }
+                      hideFeedback={isArchived}
+                    />
+                  </SteerStatusProvider>
                 </ThreadMessageMetadataProvider>
               </ChatMessagesErrorBoundary>
             )}
@@ -1309,7 +1344,9 @@ export function ChatInterface({
                 className="mx-auto w-full max-w-(--chat-max-width)"
                 placeholder={
                   queueModeActive
-                    ? t('queue.placeholder')
+                    ? agentLingering
+                      ? t('queue.placeholderIdle')
+                      : t('queue.placeholder')
                     : isImageGenAgent
                       ? activeEditingImage && currentModelSupportsEdit
                         ? t('imageEdit.placeholder')
@@ -1319,7 +1356,9 @@ export function ChatInterface({
                 value={inputValue}
                 onChange={setInputValue}
                 onSendMessage={handleSendMessage}
-                onStopGenerating={isGenerating ? stopGenerating : undefined}
+                onStopGenerating={
+                  agentActivelyWorking ? stopGenerating : undefined
+                }
                 isLoading={isLoading}
                 queueModeActive={queueModeActive}
                 disabled={hasNoAgents || hasActiveApproval}

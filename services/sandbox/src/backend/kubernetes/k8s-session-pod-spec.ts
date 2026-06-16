@@ -19,6 +19,7 @@ import { createHash } from 'node:crypto';
 
 import type { V1Pod, V1EnvFromSource } from '@kubernetes/client-node';
 
+import { dindCapabilityOf } from '../../runtime-tier.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../../types.ts';
 import type { SandboxSessionProfile } from '../../wire.ts';
@@ -30,7 +31,7 @@ interface SessionPodInput {
   createdAtMs: number;
 }
 
-const WORKSPACE_MOUNT = '/workspace';
+const WORKSPACE_MOUNT = '/user';
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 
@@ -55,7 +56,7 @@ export function sessionSecretNameFor(sessionId: string): string {
 }
 
 /** Per-session workspace PVC name. The PVC outlives the Pod (a stop deletes the
- * Pod but keeps the PVC), so /workspace data survives idle-stop + resume and is
+ * Pod but keeps the PVC), so /user data survives idle-stop + resume and is
  * removed only by destroySession. */
 export function sessionWorkspacePvcNameFor(sessionId: string): string {
   return `${sessionPodNameFor(sessionId)}-ws`;
@@ -92,6 +93,29 @@ export function buildSessionPod(
     seccompProfile: { type: 'RuntimeDefault' },
   };
 
+  // Docker-in-container. The inner dockerd starts as root (the entrypoint drops
+  // to uid 10001 for runnerd) and needs a writable rootfs + seccomp/AppArmor
+  // latitude. HOW the boundary is kept depends on the tier:
+  //   sysbox/kata ('native'/'vm') — userns / guest VM is the boundary; run as
+  //     root-in-userns, NOT privileged.
+  //   runc ('privileged') — privileged: true; NO boundary (in-pod root = node
+  //     root). config allows this only with a loud trusted-only warning, and on
+  //     a shared node it is genuinely dangerous — operator's single-tenant call.
+  const dind = cfg.dockerInContainer;
+  const dindPrivileged = dindCapabilityOf(cfg.runtimeTier) === 'privileged';
+  const dindSecurityContext = {
+    runAsUser: 0,
+    runAsGroup: 0,
+    runAsNonRoot: false,
+    readOnlyRootFilesystem: false,
+    allowPrivilegeEscalation: true,
+    seccompProfile: { type: 'Unconfined' },
+    ...(dindPrivileged ? { privileged: true } : {}),
+  };
+  const runnerSecurityContext = dind
+    ? dindSecurityContext
+    : hardenedSecurityContext;
+
   // runnerd token + seed env arrive via the per-session Secret, not the Pod
   // spec (so `kubectl get pod` never shows them). envFrom maps every Secret
   // key to an env var (TALE_RUNNERD_TOKEN, TALE_SESSION_ENV).
@@ -116,6 +140,11 @@ export function buildSessionPod(
         'tale.dev/organization-id': inp.organizationId,
         'tale.dev/profile': inp.profile,
         'tale.dev/created-at': String(inp.createdAtMs),
+        // AppArmor unconfined for the inner dockerd (the userns/VM is the real
+        // boundary). Annotation form for broad node-version compatibility.
+        ...(dind && {
+          'container.apparmor.security.beta.kubernetes.io/runner': 'unconfined',
+        }),
       },
     },
     spec: {
@@ -125,12 +154,13 @@ export function buildSessionPod(
       restartPolicy: 'Always',
       automountServiceAccountToken: false,
       enableServiceLinks: false,
-      ...(cfg.runtime === 'runsc' && {
+      // RuntimeClass resolved per tier (null for runc → field omitted).
+      ...(cfg.k8s.runtimeClassName !== null && {
         runtimeClassName: cfg.k8s.runtimeClassName,
       }),
       securityContext: {
         fsGroup: gid,
-        seccompProfile: { type: 'RuntimeDefault' },
+        seccompProfile: { type: dind ? 'Unconfined' : 'RuntimeDefault' },
       },
       volumes: [
         {
@@ -142,6 +172,18 @@ export function buildSessionPod(
         { name: 'tmp', emptyDir: { medium: 'Memory', sizeLimit: '512Mi' } },
         // /dev/shm — Chromium (Playwright) crashes on the 64Mi default.
         { name: 'dshm', emptyDir: { medium: 'Memory', sizeLimit: '512Mi' } },
+        // Inner dockerd store (DinD only): ephemeral emptyDir, size-bounded so a
+        // runaway `docker build` can't fill the node. NOT the PVC workspace —
+        // overlay-on-overlay is rejected, and image cache shouldn't persist
+        // (dirty-overlay2 on a crash would wedge the restart-in-place).
+        ...(dind
+          ? [
+              {
+                name: 'docker-storage',
+                emptyDir: { sizeLimit: cfg.k8s.workspaceSizeLimit },
+              },
+            ]
+          : []),
       ],
       containers: [
         {
@@ -156,6 +198,13 @@ export function buildSessionPod(
             { name: 'HTTP_PROXY', value: cfg.egressProxy },
             // Gateway reached directly on the cluster network, not via proxy.
             { name: 'NO_PROXY', value: '127.0.0.1,localhost,bifrost' },
+            // DinD signal + tier for the entrypoint (sysbox/kata only).
+            ...(dind
+              ? [
+                  { name: 'TALE_DIND', value: '1' },
+                  { name: 'TALE_RUNTIME_TIER', value: cfg.runtimeTier },
+                ]
+              : []),
           ],
           ports: [{ containerPort: RUNNERD_PORT }],
           // Unauthenticated probe endpoint (returns no session data).
@@ -168,11 +217,14 @@ export function buildSessionPod(
             requests: { cpu: '500m', memory: '1Gi' },
             limits: { cpu: String(profile.cpus), memory: memLimit },
           },
-          securityContext: hardenedSecurityContext,
+          securityContext: runnerSecurityContext,
           volumeMounts: [
             { name: 'workspace', mountPath: WORKSPACE_MOUNT },
             { name: 'tmp', mountPath: '/tmp' },
             { name: 'dshm', mountPath: '/dev/shm' },
+            ...(dind
+              ? [{ name: 'docker-storage', mountPath: '/var/lib/docker' }]
+              : []),
           ],
         },
       ],

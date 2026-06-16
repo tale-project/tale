@@ -974,7 +974,15 @@
     "generationStopped": "Génération arrêtée",
     "queue": {
       "placeholder": "L'agent travaille — les nouveaux messages sont mis en file d'attente…",
-      "full": "La file d'attente des messages est pleine"
+      "placeholderIdle": "L'agent a terminé — votre message passe maintenant…",
+      "full": "La file d'attente des messages est pleine",
+      "status": {
+        "queued": "En file d'attente — sera pris en compte après l'étape en cours",
+        "queuedWithStep": "En file d'attente — sera pris en compte après l'étape en cours ({step})",
+        "delivered": "Transmis — en attente de la réponse de l'agent",
+        "deliversNow": "Transmission en cours",
+        "consumed": "Pris en compte"
+      }
     },
     "errorGenerating": "Une erreur s'est produite",
     "retryGeneration": "Réessayer",
@@ -1386,7 +1394,46 @@
     "errorHintProviderError": "Le fournisseur d'IA rencontre temporairement des problèmes. Merci de réessayer dans un instant.",
     "errorHintRateLimited": "Trop de requêtes. Merci de patienter un moment et réessayer.",
     "errorHintTokenLimit": "La limite de tokens en sortie du modèle a été dépassée. Essaie une requête plus courte ou demande à ton administrateur d'ajuster les paramètres du modèle.",
-    "errorHintToolFailure": "L'agent a rencontré une erreur lors de l'accès aux données. Essaie de reformuler ta demande ou de demander un ensemble de données plus restreint."
+    "errorHintToolFailure": "L'agent a rencontré une erreur lors de l'accès aux données. Essaie de reformuler ta demande ou de demander un ensemble de données plus restreint.",
+    "workspaceFiles": {
+      "title": "Fichiers de l'espace de travail",
+      "toggleLabel": "Fichiers de l'espace de travail",
+      "showHidden": "Afficher les fichiers cachés",
+      "refresh": "Actualiser",
+      "download": "Télécharger",
+      "preview": "Aperçu",
+      "previewHint": "Sélectionne Aperçu pour afficher ce fichier.",
+      "previewUnavailable": "Ce type de fichier ne peut pas être prévisualisé — utilise Télécharger.",
+      "emptyDir": "Ce dossier est vide.",
+      "selectFile": "Sélectionne un fichier pour l’afficher.",
+      "sessionStopped": "Espace de travail inactif",
+      "resumeHint": "Envoie un message pour reprendre la session et parcourir les fichiers.",
+      "tooLarge": "Impossible d'afficher ce fichier (introuvable ou trop volumineux) — télécharge-le à la place.",
+      "error": "Impossible de charger ce fichier.",
+      "retry": "Réessayer",
+      "truncated": "… autres éléments masqués (liste tronquée)",
+      "ariaTree": "Fichiers de l'espace de travail",
+      "paneClose": "Fermer le panneau des fichiers"
+    },
+    "liveBrowser": {
+      "title": "Navigateur en direct",
+      "toggleLabel": "Navigateur en direct",
+      "viewOnly": "Lecture seule",
+      "connecting": "Connexion…",
+      "streaming": "En direct",
+      "disconnected": "Diffusion terminée",
+      "reconnect": "Se reconnecter",
+      "error": "Impossible de se connecter à la vue en direct.",
+      "retry": "Réessayer",
+      "emptyTitle": "L'agent ne navigue pas en ce moment",
+      "emptyHint": "Lance une requête — dès que l'agent ouvre un navigateur, tu le verras ici, en direct.",
+      "paneClose": "Fermer le navigateur en direct",
+      "ariaLabel": "Vue en direct du navigateur de l'agent (lecture seule)",
+      "reset": "Réinitialiser le navigateur (efface les connexions)",
+      "resetConfirmTitle": "Réinitialiser le navigateur ?",
+      "resetConfirmBody": "Redémarre le navigateur avec un profil vierge et te déconnecte de tous les sites où l'agent s'était connecté. À n'utiliser que si le navigateur est bloqué et ne se rétablit pas tout seul.",
+      "resetConfirmAction": "Réinitialiser le navigateur"
+    }
   },
   "common": {
     "optional": "facultatif",

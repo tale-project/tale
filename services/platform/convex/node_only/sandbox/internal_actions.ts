@@ -4,7 +4,7 @@
 //
 // `executeCode` is invoked by the `run_code` LLM tool. It:
 //   1. Reads the calling thread's workspace files (threadFiles table) and
-//      mounts each one at /workspace/code/<path> in the sandbox container.
+//      mounts each one at /user/code/<path> in the sandbox container.
 //   2. Reserves a sandboxExecutions audit row (atomic quota + insert).
 //   3. Hands the spawner pre-signed `_storage` upload URLs so it can POST
 //      harvested output files directly into Convex storage.
@@ -38,7 +38,10 @@ import {
   type SandboxErrorCode,
   type SandboxStepResult,
 } from '../../sandbox/wire';
-import { sessionCancelExec } from './helpers/session_client';
+import {
+  sessionBrowserClosePages,
+  sessionCancelExec,
+} from './helpers/session_client';
 import { spawnerCancel, spawnerExecute } from './helpers/spawner_client';
 
 type ExecuteCodeResult = {
@@ -138,7 +141,7 @@ export const executeCode = internalAction({
     agentSlug: v.optional(v.string()),
     language: sandboxLanguageValidator,
     /**
-     * Files staged at /workspace/code/<path>. Each entry carries an
+     * Files staged at /user/code/<path>. Each entry carries an
      * internal Caddy URL the spawner GETs to fetch the bytes — keeps the
      * wire binary-safe (PPTX / XLSX / PNG etc. survive intact) and bypasses
      * the spawner body cap. Caller mints URLs via `ctx.storage.getUrl` +
@@ -146,7 +149,7 @@ export const executeCode = internalAction({
      */
     files: v.array(v.object({ path: v.string(), url: v.string() })),
     /**
-     * Files staged at /workspace/output/<name>. Reserved for thread files
+     * Files staged at /user/output/<name>. Reserved for thread files
      * with `source: 'run_output'` (i.e. produced by previous `run_code`
      * invocations); the spawner pre-populates them so the agent can read
      * historical artifacts from a stable path.
@@ -155,7 +158,7 @@ export const executeCode = internalAction({
       v.array(v.object({ name: v.string(), url: v.string() })),
     ),
     /**
-     * Files staged at /workspace/uploads/<name>. Reserved for thread files
+     * Files staged at /user/uploads/<name>. Reserved for thread files
      * with `source: 'user_upload'`. Kept disjoint from
      * `priorOutputDownloads` so user-uploaded raw assets never get mixed
      * with code-output artifacts.
@@ -447,7 +450,7 @@ export const executeCode = internalAction({
     // Upsert each harvested output into the thread workspace so the
     // canvas + future `file_read` see it. New files go under their name;
     // since the spawner's harvest names are POSIX paths relative to
-    // /workspace/output/, we treat them as workspace paths verbatim.
+    // /user/output/, we treat them as workspace paths verbatim.
     const upserted: Array<{
       path: string;
       storageId: Id<'_storage'>;
@@ -607,15 +610,39 @@ export const cancelSessionExecsForThread = internalAction({
       { threadId: args.threadId },
     );
     let cancelled = 0;
+    const cancelledSessions = new Set<string>();
     for (const op of ops) {
       try {
         await sessionCancelExec(op.sessionId, op.execId);
         cancelled += 1;
+        cancelledSessions.add(op.sessionId);
       } catch (err) {
         console.warn(
           `[sandbox.cancelSessionExecsForThread] sessionCancelExec(${op.sessionId}/${op.execId}) failed (continuing):`,
           err,
         );
+      }
+    }
+    // On a browser-view deployment, reset the stopped turn's tabs so a
+    // runaway/hung page can't wedge the next turn's CDP attach. Tabs only —
+    // cookies/logins are preserved (close-pages, not reset). Best-effort: a
+    // no-managed-browser session no-ops spawner-side, and any failure is logged
+    // (the Stop itself already succeeded above).
+    if (process.env.SANDBOX_BROWSER_VIEW === '1') {
+      for (const sessionId of cancelledSessions) {
+        try {
+          const closed = await sessionBrowserClosePages(sessionId);
+          if (closed > 0) {
+            console.info(
+              `[sandbox.cancelSessionExecsForThread] closed ${closed} browser tab(s) for ${sessionId} on stop`,
+            );
+          }
+        } catch (err) {
+          console.warn(
+            `[sandbox.cancelSessionExecsForThread] browser close-pages(${sessionId}) failed (continuing):`,
+            err,
+          );
+        }
       }
     }
     return cancelled;

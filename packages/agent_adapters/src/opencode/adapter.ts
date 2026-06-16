@@ -57,7 +57,11 @@ export class OpenCodeAdapter implements AgentAdapter {
           // chromium (the image ships no Google Chrome channel) + --isolated
           // (in-memory profile; PLAYWRIGHT_BROWSERS_PATH is read-only) +
           // --no-sandbox (no unprivileged userns under cap-drop=ALL; the
-          // container is the isolation boundary).
+          // container is the isolation boundary) + --ignore-https-errors (the
+          // apps the agent tests serve over localhost with a self-signed cert
+          // or no TLS; without it navigation fails closed with
+          // ERR_CERT_AUTHORITY_INVALID and there is no per-navigation
+          // override).
           command: [
             'tale-playwright-mcp',
             '--headless',
@@ -65,6 +69,7 @@ export class OpenCodeAdapter implements AgentAdapter {
             'chromium',
             '--isolated',
             '--no-sandbox',
+            '--ignore-https-errors',
           ],
           enabled: true,
         },

@@ -3,7 +3,7 @@
 //   - the in-Pod `stage` / `harvest` entry modes of the KubernetesBackend
 //     (which run the spawner image inside the runtime Pod).
 //
-// Everything here is pure or operates on a LOCAL `/workspace`-shaped directory
+// Everything here is pure or operates on a LOCAL `/user`-shaped directory
 // + the presigned-URL callbacks (sandbox-callback.ts). No docker/k8s specifics.
 
 import { createHash } from 'node:crypto';
@@ -38,7 +38,7 @@ import type {
   SandboxStepStatus,
 } from './wire.ts';
 
-// Hidden directory inside /workspace/output/ where the multi-step wrapper
+// Hidden directory inside /user/output/ where the multi-step wrapper
 // writes its per-step bookkeeping. The harvest path filters anything under
 // this prefix so the bookkeeping never appears in the user-visible output
 // file chips.
@@ -170,12 +170,12 @@ export function createStreamScanner(
 }
 
 /**
- * Generate the multi-step wrapper script that lands at /workspace/.tale/
+ * Generate the multi-step wrapper script that lands at /user/.runtime/tale/
  * runner.{py,js} in steps mode. Each step is invoked as a child process with
  * the same cwd and inherited stdio so the user's stdout / stderr stream
  * through unchanged; the wrapper prints a banner around each step. Per-step
  * `{path, exitCode, durationMs, status}` records are written to
- * /workspace/output/.tale-steps/results.json (after every step, so a SIGKILL
+ * /user/output/.tale-steps/results.json (after every step, so a SIGKILL
  * mid-flight still leaves partial state). Fail-fast: a non-zero exit aborts
  * the remaining steps (recorded `skipped`) and the wrapper exits with the
  * first non-zero code, surfacing to classifyFailure().
@@ -194,7 +194,7 @@ import sys
 import time
 
 STEPS = ${stepsJson}
-RESULTS_DIR = "/workspace/output/${STEPS_INTERNAL_DIR}"
+RESULTS_DIR = "/user/output/${STEPS_INTERNAL_DIR}"
 RESULTS_PATH = os.path.join(RESULTS_DIR, "${STEPS_RESULTS_FILENAME}")
 
 os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -235,7 +235,7 @@ for i, path in enumerate(STEPS):
         try:
             completed = subprocess.run(
                 [interp, path],
-                cwd="/workspace/code",
+                cwd="/user/code",
             )
             exit_code = completed.returncode
         except FileNotFoundError as exc:
@@ -288,7 +288,7 @@ import sys
 import time
 
 STEPS = ${stepsJson}
-RESULTS_DIR = "/workspace/output/${STEPS_INTERNAL_DIR}"
+RESULTS_DIR = "/user/output/${STEPS_INTERNAL_DIR}"
 RESULTS_PATH = os.path.join(RESULTS_DIR, "${STEPS_RESULTS_FILENAME}")
 
 os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -314,7 +314,7 @@ for i, path in enumerate(STEPS):
     try:
         completed = subprocess.run(
             [sys.executable, path],
-            cwd="/workspace/code",
+            cwd="/user/code",
         )
         exit_code = completed.returncode
     except FileNotFoundError as exc:
@@ -365,7 +365,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const STEPS = ${stepsJson};
-const RESULTS_DIR = '/workspace/output/${STEPS_INTERNAL_DIR}';
+const RESULTS_DIR = '/user/output/${STEPS_INTERNAL_DIR}';
 const RESULTS_PATH = path.join(RESULTS_DIR, '${STEPS_RESULTS_FILENAME}');
 
 fs.mkdirSync(RESULTS_DIR, { recursive: true });
@@ -391,7 +391,7 @@ for (let i = 0; i < STEPS.length; i++) {
   let exitCode;
   try {
     const child = spawnSync(process.execPath, [step], {
-      cwd: '/workspace/code',
+      cwd: '/user/code',
       stdio: 'inherit',
     });
     if (child.error) {
@@ -645,7 +645,7 @@ async function stageUserUploadDownloads(
 }
 
 /**
- * Stage code/ + inputs into a `/workspace`-shaped `hostDir` (downloads from
+ * Stage code/ + inputs into a `/user`-shaped `hostDir` (downloads from
  * presigned URLs, writes packages.json/options.json + the multi-step wrapper).
  * Used by the docker path (on the bind-mounted host dir) AND the k8s in-Pod
  * `stage` mode (on the Pod's emptyDir). Returns the prior-stage attestation.
@@ -705,7 +705,7 @@ export async function stageWorkspace(
         'spawn: language=bash + steps[] should have been rejected by validate-request',
       );
     }
-    const taleDir = join(hostDir, '.tale');
+    const taleDir = join(hostDir, '.runtime', 'tale');
     await mkdir(taleDir, { recursive: true });
     const wrapperName =
       req.language === 'python' || req.language === 'polyglot'
@@ -762,7 +762,7 @@ interface HarvestResult {
 }
 
 /**
- * Walk `/workspace/output/`, POST each file to a presigned upload slot, and
+ * Walk `/user/output/`, POST each file to a presigned upload slot, and
  * report each storageId via EP2. Slots come from the pre-allocated pool first,
  * then lazily from EP1. Errors accumulate into `uploadStats.failures` rather
  * than throwing. Used by the docker path AND the k8s in-Pod `harvest` mode.
@@ -855,7 +855,7 @@ export async function harvestOutputDir(
         continue;
       }
       // Per-entry guards: on the k8s timeout path the harvest deliberately
-      // walks /workspace/output while the runner is still alive, so files can
+      // walks /user/output while the runner is still alive, so files can
       // vanish (tmp-then-rename writes) between readdir / stat / read. One
       // racing file must not abort the whole harvest.
       let st;
@@ -982,7 +982,7 @@ export async function harvestOutputDir(
 
 /**
  * Read per-step results written by the wrapper into
- * `/workspace/output/.tale-steps/results.json`. Returns `null` if missing or
+ * `/user/output/.tale-steps/results.json`. Returns `null` if missing or
  * malformed. Validates each entry's shape.
  */
 export async function readStepResults(

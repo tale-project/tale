@@ -10,9 +10,9 @@
 // identifiers (execution id, org id, language, image, entry path) reach the
 // runner's spec.
 //
-// Exec-free Pod shape (one Pod, shared `/workspace` emptyDir, no PVC required):
+// Exec-free Pod shape (one Pod, shared `/user` emptyDir, no PVC required):
 //   - initContainer `stage` (the SPAWNER image, k8s-stage.ts): downloads
-//     inputs from presigned URLs into /workspace and writes the multi-step
+//     inputs from presigned URLs into /user and writes the multi-step
 //     wrapper + the prior-stage attestation. initContainers complete before
 //     app containers, so the runner finds a fully-staged workspace — no
 //     sentinel handshake. A required-input failure exits non-zero → Pod fails
@@ -24,7 +24,7 @@
 //     keeping stderr on disk leaves the runner's logs clean stdout for phase
 //     parsing). No runtime-image change, no credentials, no callbacks.
 //   - container `harvest` (the SPAWNER image, k8s-harvest.ts): waits for the
-//     runner's exit code, uploads /workspace/output via presigned slots +
+//     runner's exit code, uploads /user/output via presigned slots +
 //     EP1/EP2, and prints the result line the spawner reads back from its logs.
 //
 // Every spawner↔Pod interaction is plain HTTP (createNamespacedPod,
@@ -57,7 +57,7 @@ interface SandboxPodInput {
 
 const RUNTIME_UID = 65534;
 const RUNTIME_GID = 65534;
-const WORKSPACE_MOUNT = '/workspace';
+const WORKSPACE_MOUNT = '/user';
 
 // In-Pod entry-mode scripts (the spawner image's WORKDIR is /app).
 const STAGE_ENTRY = '/app/src/backend/kubernetes/k8s-stage.ts';
@@ -68,7 +68,7 @@ const HARVEST_ENTRY = '/app/src/backend/kubernetes/k8s-harvest.ts';
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const ENTRY_PATH_RE =
-  /^(?:\/workspace\/(?:code|\.tale)\/(?!.*\.\.)[A-Za-z0-9_./-]{1,256}|(?!.*\.\.)[A-Za-z0-9_-][A-Za-z0-9_./-]{0,255})$/;
+  /^(?:\/user\/(?:code|\.runtime\/tale)\/(?!.*\.\.)[A-Za-z0-9_./-]{1,256}|(?!.*\.\.)[A-Za-z0-9_-][A-Za-z0-9_./-]{0,255})$/;
 
 function assertSafe(name: string, value: string, re: RegExp): void {
   if (!re.test(value)) {
@@ -188,7 +188,7 @@ export function buildSandboxPod(
   };
 
   // The trusted helper containers (stage/harvest) run the spawner image as the
-  // same non-root uid, sharing /workspace via fsGroup, with the per-exec Secret
+  // same non-root uid, sharing /user via fsGroup, with the per-exec Secret
   // mounted read-only + a writable HOME/TMPDIR for Bun (the root fs is
   // read-only). They hold the token but run no user code, so they don't need
   // gVisor containment (the Pod-level RuntimeClass still covers them when runsc
@@ -235,8 +235,9 @@ export function buildSandboxPod(
       // docker --runtime path. The spawner only deletes after reading the
       // harvest result, so output isn't lost.
       terminationGracePeriodSeconds: 0,
-      // gVisor: the RuntimeClass replaces docker's --runtime=runsc.
-      ...(cfg.runtime === 'runsc' && {
+      // RuntimeClass replaces docker's --runtime; resolved per tier (null for
+      // runc → field omitted, e.g. gvisor → 'gvisor', sysbox → 'sysbox-runc').
+      ...(cfg.k8s.runtimeClassName !== null && {
         runtimeClassName: cfg.k8s.runtimeClassName,
       }),
       securityContext: {
@@ -274,8 +275,8 @@ export function buildSandboxPod(
           // args, identical to the docker path (docker-args.ts trailer).
           args: [
             inp.language,
-            '/workspace/code/packages.json',
-            '/workspace/code/options.json',
+            '/user/code/packages.json',
+            '/user/code/options.json',
             inp.entryPath,
           ],
           env: runnerEnv,

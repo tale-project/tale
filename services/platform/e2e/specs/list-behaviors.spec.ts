@@ -64,6 +64,19 @@ function searchBox(page: Page): Locator {
   return page.getByPlaceholder(t('customers.searchPlaceholder'));
 }
 
+/**
+ * Set the search query. `SearchInput` ships `readOnly` until it receives focus
+ * (an anti-autofill trick: the `onFocus` handler removes the `readonly`
+ * attribute), so a bare `.fill()` would hang on Playwright's editability check —
+ * which never focuses the element. Click to focus first (clearing `readonly`),
+ * then fill. Works for both setting a query and clearing it (`''`).
+ */
+async function fillSearch(page: Page, value: string): Promise<void> {
+  const box = searchBox(page);
+  await box.click();
+  await box.fill(value);
+}
+
 /** The customers-list row whose Name cell exactly equals `name`. */
 function customerRow(page: Page, name: string): Locator {
   return page.getByRole('row').filter({
@@ -72,10 +85,17 @@ function customerRow(page: Page, name: string): Locator {
 }
 
 /**
+ * Client-side page size of the customers `DataTable` (`displayMode:
+ * 'pagination'` → `DEFAULT_TABLE_PAGE_SIZE`). Only rows on the current page
+ * exist in the DOM; rows beyond it render only after a page change.
+ */
+const PAGE_SIZE = 20;
+
+/**
  * Create customers via the manual-entry import dialog. Each line is a
  * header-less `email,name` CSV row → exactly one `manual_import` customer
  * (the only `source` whose rows expose edit/delete row actions). Returns once
- * every created row is visible in the list.
+ * the batch is settled in the list.
  */
 async function importCustomers(
   page: Page,
@@ -100,15 +120,23 @@ async function importCustomers(
     .getByRole('button', { name: t('customers.import.import'), exact: true })
     .click();
 
-  // Optimistic + reactive subscription surface the new rows; wait for the
-  // first and last so the whole batch is settled before asserting on it.
-  const firstRow = rows[0];
-  const lastRow = rows[rows.length - 1];
-  if (!firstRow || !lastRow) throw new Error('importCustomers needs ≥1 row');
-  await expect(customerRow(page, firstRow.name)).toBeVisible({
+  // One bulk mutation inserts the whole batch in array order, so the rows land
+  // in a single reactive update — newest `_creationTime` first (the list orders
+  // `desc`). Under `displayMode: 'pagination'` only the current page's rows
+  // exist in the DOM, so the oldest rows of a >PAGE_SIZE batch sit on page 2
+  // and are NOT visible. Anchor the settle on rows guaranteed to be on page 1:
+  // the newest (`rows[len-1]`, top of the list) and the oldest that still fits
+  // the first page (`rows[len - PAGE_SIZE]`, clamped). For batches ≤ PAGE_SIZE
+  // that clamps to `rows[0]`, so every row is asserted as before.
+  const newestRow = rows[rows.length - 1];
+  const oldestOnPage1 = rows[Math.max(0, rows.length - PAGE_SIZE)];
+  if (!newestRow || !oldestOnPage1) {
+    throw new Error('importCustomers needs ≥1 row');
+  }
+  await expect(customerRow(page, newestRow.name)).toBeVisible({
     timeout: 60_000,
   });
-  await expect(customerRow(page, lastRow.name)).toBeVisible({
+  await expect(customerRow(page, oldestOnPage1.name)).toBeVisible({
     timeout: 60_000,
   });
 }
@@ -156,12 +184,12 @@ test('search filters the customers list and clearing restores it', async ({
   await expect(otherRow).toBeVisible();
 
   // Filter to the match row by its unique name (substring, case-insensitive).
-  await searchBox(page).fill(matchName);
+  await fillSearch(page, matchName);
   await expect(matchRow).toBeVisible({ timeout: 20_000 });
   await expect(otherRow).toHaveCount(0, { timeout: 20_000 });
 
   // Clearing the query brings the full list back.
-  await searchBox(page).fill('');
+  await fillSearch(page, '');
   await expect(matchRow).toBeVisible({ timeout: 20_000 });
   await expect(otherRow).toBeVisible({ timeout: 20_000 });
 
@@ -188,7 +216,7 @@ test('shows the no-results empty state for an unmatched search', async ({
 
   // A query that matches nothing flips the body to the `filtered-empty` state,
   // which renders the shared `common.search.*` no-results copy.
-  await searchBox(page).fill(`zzz-no-match-${token}-zzz`);
+  await fillSearch(page, `zzz-no-match-${token}-zzz`);
   await expect(row).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByText(t('common.search.noResults'))).toBeVisible({
     timeout: 20_000,
@@ -196,7 +224,7 @@ test('shows the no-results empty state for an unmatched search', async ({
   await expect(page.getByText(t('common.search.tryAdjusting'))).toBeVisible();
 
   // Clearing the query returns the row (and re-enables a clean list).
-  await searchBox(page).fill('');
+  await fillSearch(page, '');
   await expect(row).toBeVisible({ timeout: 20_000 });
 
   await deleteCustomerRow(page, name);
@@ -206,11 +234,10 @@ test('paginates a filtered customers list across pages', async ({ page }) => {
   const { organizationId } = readRunContext();
   await gotoCustomers(page, organizationId);
 
-  // DEFAULT_TABLE_PAGE_SIZE is 20, so 21 rows guarantee a second page. All 21
-  // share one token; searching by it filters the table to EXACTLY these rows,
-  // making the per-page counts deterministic regardless of any other customers
-  // on the shared backend (and regardless of sort order).
-  const PAGE_SIZE = 20;
+  // `PAGE_SIZE` (DEFAULT_TABLE_PAGE_SIZE) is 20, so 21 rows guarantee a second
+  // page. All 21 share one token; searching by it filters the table to EXACTLY
+  // these rows, making the per-page counts deterministic regardless of any
+  // other customers on the shared backend (and regardless of sort order).
   const TOTAL = PAGE_SIZE + 1;
   const token = Date.now().toString(36);
   const tokenRe = new RegExp(token);
@@ -225,7 +252,7 @@ test('paginates a filtered customers list across pages', async ({ page }) => {
   await importCustomers(page, rows);
 
   // Scope to just this run's rows so counts/assertions ignore other data.
-  await searchBox(page).fill(token);
+  await fillSearch(page, token);
   const tokenRows = page.getByRole('row').filter({
     has: page.getByRole('cell', { name: tokenRe }),
   });

@@ -11,6 +11,11 @@ const mockLoadMore = vi.fn();
 const FUNCTION_NAME = Symbol.for('functionName');
 const queryResults = new Map<string, unknown>();
 
+// Drives the mocked `useSessionProgress` (the thread's live sandbox op).
+// null = no sandbox op / no linger (the normal-chat + actively-generating
+// cases); set `agentIdleAt` to simulate an external-agent turn lingering.
+let mockSessionProgress: { agentIdleAt?: number } | null = null;
+
 function functionPath(queryRef: unknown): string {
   if (typeof queryRef === 'object' && queryRef !== null) {
     const name = (queryRef as Record<symbol, unknown>)[FUNCTION_NAME];
@@ -37,6 +42,18 @@ vi.mock('convex/react', () => ({
   useQuery: vi.fn((queryRef: unknown) =>
     queryResults.get(functionPath(queryRef)),
   ),
+}));
+
+// getThreadMeta now flows through the non-throwing useConvexQuery wrapper
+// (returns `{ data }`), so mirror the registry into its shape.
+vi.mock('@/app/hooks/use-convex-query', () => ({
+  useConvexQuery: vi.fn((queryRef: unknown) => ({
+    data: queryResults.get(functionPath(queryRef)),
+  })),
+}));
+
+vi.mock('./queries', () => ({
+  useSessionProgress: vi.fn(() => mockSessionProgress),
 }));
 
 const mockChatLayout: { pendingMessage: unknown } = { pendingMessage: null };
@@ -77,6 +94,7 @@ describe('useMessageProcessing', () => {
     vi.clearAllMocks();
     queryResults.clear();
     mockChatLayout.pendingMessage = null;
+    mockSessionProgress = null;
   });
 
   describe('streamingMessage', () => {
@@ -668,6 +686,35 @@ describe('useMessageProcessing', () => {
       // A genuinely-running external turn is NOT the typewriter-mount
       // carry-over — trailing dots may show.
       expect(liveMsg?.isFinalReveal).toBe(false);
+    });
+
+    it('does NOT keep the last pending assistant streaming while the agent lingers idle (generationStatus still on)', () => {
+      // External-agent turn finished and its process lingers on held-open
+      // stdin (agentIdleAt set) while generationStatus stays 'generating'. The
+      // bubble must read as DONE — no latched "Thinking"/streaming affordance.
+      setGenerating(true);
+      mockSessionProgress = { agentIdleAt: 1_700_000_000_000 };
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({ id: 'msg-1', order: 0, role: 'user', text: 'Go' }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: 'Done.',
+            status: 'pending',
+            parts: settledToolParts,
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const lingeringMsg = result.current.messages.find(
+        (m) => m.key === 'msg-2',
+      );
+      expect(lingeringMsg?.isStreaming).toBe(false);
     });
 
     it('does not treat the last pending assistant as streaming once generation stops', () => {

@@ -4,6 +4,7 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useAction, useQuery } from 'convex/react';
 import { useCallback, useEffect, useRef } from 'react';
 
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import {
   MAX_TTS_CHUNK_CHARS,
@@ -122,10 +123,13 @@ export interface VoiceModeState {
 export function useVoiceModeEffective(
   threadId: string | undefined,
 ): VoiceModeState {
-  const data = useQuery(
+  const { data, error } = useConvexQuery(
     api.tts.queries.getVoiceModeEffective,
     threadId ? { threadId } : 'skip',
   );
+  useEffect(() => {
+    if (error) console.warn('[voice] getVoiceModeEffective failed; off', error);
+  }, [error]);
   return data ?? { enabled: false, userDefault: false, source: 'default' };
 }
 

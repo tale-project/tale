@@ -12,7 +12,7 @@ const base = {
   prompt: 'Fix issue #1 and open a PR',
   model: 'claude-sonnet-4-6',
   gateway: { baseUrl: 'http://bifrost:8080', token: 'sk-bf-test' },
-  workdir: '/workspace/repo',
+  workdir: '/user/workspace',
 } satisfies AgentRunSpec;
 
 describe('ClaudeCodeAdapter.buildExec', () => {
@@ -34,7 +34,7 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     ]);
     // stdin is held open for mid-run steering pushes; the drain closes it.
     expect(stdinMode).toBe('hold');
-    expect(argv).toContain('40'); // default max turns
+    expect(argv).toContain('200'); // default max turns (runaway backstop)
     expect(argv).toContain('--model');
     expect(argv).toContain('claude-sonnet-4-6');
     // browser MCP on by default: launcher shim + chromium + in-memory
@@ -51,6 +51,7 @@ describe('ClaudeCodeAdapter.buildExec', () => {
       'chromium',
       '--isolated',
       '--no-sandbox',
+      '--ignore-https-errors',
     ]);
     // No integration bridge unless integrationsBaseUrl is set.
     expect(mcpConfig.mcpServers.integrations).toBeUndefined();
@@ -76,7 +77,7 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(env.ANTHROPIC_BASE_URL).toBe('http://bifrost:8080/anthropic');
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-bf-test');
     expect(env.ANTHROPIC_API_KEY).toBe('');
-    expect(env.CLAUDE_CONFIG_DIR).toBe('/workspace/.home/.claude');
+    expect(env.CLAUDE_CONFIG_DIR).toBe('/user/.runtime/home/.claude');
     // Every alias tier plus the subagent override pins to the selected model:
     // the session VK only allows that one model, so any other resolution
     // would be rejected at the gateway. ANTHROPIC_MODEL covers the CLI's
@@ -87,7 +88,7 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-sonnet-4-6');
     expect(env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('claude-sonnet-4-6');
     expect(env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('claude-sonnet-4-6');
-    expect(cwd).toBe('/workspace/repo');
+    expect(cwd).toBe('/user/workspace');
   });
 
   it('adds the integration MCP bridge (with URL + session key) when integrationsBaseUrl is set', () => {
@@ -123,6 +124,56 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(argv).not.toContain('--mcp-config');
   });
 
+  it('attaches Playwright MCP over CDP (no headless self-launch flags) when browserCdp is on', () => {
+    const { argv } = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      browserCdp: true,
+    });
+    const mcpConfig = JSON.parse(
+      argv[argv.indexOf('--mcp-config') + 1] ?? '{}',
+    );
+    // Still the same launcher shim, but now in CDP-attach mode: it connects to
+    // the externally-launched headed Chromium on loopback 9222 (the read-only
+    // mirror) instead of self-launching headless.
+    expect(mcpConfig.mcpServers.playwright.command).toBe('tale-playwright-mcp');
+    expect(mcpConfig.mcpServers.playwright.args).toEqual([
+      '--cdp-endpoint',
+      'http://127.0.0.1:9222',
+    ]);
+    // The self-launch flags belong to the now-externally-managed browser and
+    // must be gone (connectOverCDP ignores launch options).
+    const args: string[] = mcpConfig.mcpServers.playwright.args;
+    for (const dropped of [
+      '--headless',
+      '--browser',
+      'chromium',
+      '--isolated',
+      '--no-sandbox',
+      '--ignore-https-errors',
+    ]) {
+      expect(args).not.toContain(dropped);
+    }
+  });
+
+  it('keeps the headless self-launch args byte-identical when browserCdp is off/unset', () => {
+    // Explicit-false and unset are both the default headless shape — proves the
+    // CDP path is strictly additive and OFF is byte-identical to today.
+    for (const spec of [{ ...base, browserCdp: false }, base]) {
+      const { argv } = new ClaudeCodeAdapter().buildExec(spec);
+      const mcpConfig = JSON.parse(
+        argv[argv.indexOf('--mcp-config') + 1] ?? '{}',
+      );
+      expect(mcpConfig.mcpServers.playwright.args).toEqual([
+        '--headless',
+        '--browser',
+        'chromium',
+        '--isolated',
+        '--no-sandbox',
+        '--ignore-https-errors',
+      ]);
+    }
+  });
+
   it('runs plan turns under --permission-mode plan, execute/default under bypassPermissions', () => {
     const plan = new ClaudeCodeAdapter().buildExec({
       ...base,
@@ -155,7 +206,7 @@ describe('OpenCodeAdapter.buildExec', () => {
       '--format',
       'json',
       '--dir',
-      '/workspace/repo',
+      '/user/workspace',
     ]);
     expect(argv).toContain('-m');
     expect(argv).toContain('tale/claude-sonnet-4-6');
@@ -181,8 +232,9 @@ describe('OpenCodeAdapter.buildExec', () => {
       'chromium',
       '--isolated',
       '--no-sandbox',
+      '--ignore-https-errors',
     ]);
-    expect(cwd).toBe('/workspace/repo');
+    expect(cwd).toBe('/user/workspace');
   });
 
   it('continues a session with -s and drops MCP when browserMcp is false', () => {

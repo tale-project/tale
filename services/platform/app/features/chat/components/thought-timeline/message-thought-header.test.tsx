@@ -47,18 +47,31 @@ describe('MessageThoughtHeader', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('shows the live state-based label while streaming pre-answer', () => {
+  it('shows a stable "Thinking" verb while streaming pre-answer', () => {
     render(
       <MessageThoughtHeader
         {...base}
         isStreaming
         hasAnswerStarted={false}
-        activity={{ type: 'thinking' }}
         toolCount={1}
       />,
     );
-    // Live label leads with the verb; the timer suffix is appended.
+    // The verb is a constant "Thinking" (+ timer); the header no longer mirrors
+    // the trailing segment, so it never flips to a tool label mid-stream.
     expect(screen.getByText(/Thinking/)).toBeInTheDocument();
+  });
+
+  it('keeps the "Thinking" verb mid-answer instead of flipping to a tool label', () => {
+    render(
+      <MessageThoughtHeader
+        {...base}
+        isStreaming
+        hasAnswerStarted
+        toolCount={2}
+      />,
+    );
+    // Mid-answer (active, answer started): still the steady verb, no timer.
+    expect(screen.getByText('Thinking')).toBeInTheDocument();
   });
 
   it('latches the duration + tool summary once the turn ends', () => {

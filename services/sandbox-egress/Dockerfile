@@ -29,7 +29,13 @@ FROM alpine:3.20
 # - ca-certificates: tinyproxy TLS validation when filtering
 # - iptables:       SSRF firewall (IMDS + RFC1918 REJECT rules in entrypoint)
 # - curl:           healthcheck CONNECT probe
-RUN apk add --no-cache tinyproxy gettext ca-certificates iptables curl && \
+# - dnsmasq:        DNS forwarder for the internal sandbox network. The runtime
+#                   session + its nested DinD containers sit on an internal-only
+#                   bridge and cannot resolve external names (their embedded DNS
+#                   forwards to public resolvers it can't reach). This proxy is
+#                   dual-homed (also on a network with real egress), so it serves
+#                   resolution on :53 for the whole sandbox side.
+RUN apk add --no-cache tinyproxy gettext ca-certificates iptables curl dnsmasq && \
     mkdir -p /etc/tinyproxy /var/log/tinyproxy && \
     chown -R nobody:nobody /var/log/tinyproxy
 
@@ -39,6 +45,7 @@ COPY services/sandbox-egress/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
 
 EXPOSE 3128
+EXPOSE 53/udp
 
 # Local readiness probe only — confirms tinyproxy is bound and accepting
 # TCP. We deliberately do NOT call out to an external host every 10s on

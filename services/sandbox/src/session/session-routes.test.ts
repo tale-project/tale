@@ -27,10 +27,12 @@ const cfg: SpawnerConfig = {
   port: 8003,
   sandboxToken: null, // unsigned dev mode — runnerd token is '' on the wire
   runtimeImage: 'tale-sandbox-runtime:test',
-  runtime: 'runc',
+  runtimeTier: 'runc',
+  dockerInContainer: false,
+  browserView: false,
   k8s: {
     namespace: 'tale-sandbox',
-    runtimeClassName: 'gvisor',
+    runtimeClassName: null,
     spawnerImage: 'tale-sandbox:test',
     cacheMode: 'none',
     workspaceSizeLimit: '4Gi',
@@ -67,8 +69,13 @@ const execRequests: Array<{
   stdoutMaxBytes?: number;
   stderrMaxBytes?: number;
 }> = [];
-// Mutable so the sweepExpired tests can drive runnerd's reported activity/liveExecs.
-const fakeHealth = { lastActivityAtMs: 0, liveExecs: 0 };
+// Mutable so the sweepExpired tests can drive runnerd's reported
+// activity/liveExecs/activeScreencasts.
+const fakeHealth = {
+  lastActivityAtMs: 0,
+  liveExecs: 0,
+  activeScreencasts: 0,
+};
 
 function ndjson(lines: object[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
@@ -85,6 +92,7 @@ beforeAll(() => {
           bootedAtMs: 0,
           lastActivityAtMs: fakeHealth.lastActivityAtMs,
           liveExecs: fakeHealth.liveExecs,
+          activeScreencasts: fakeHealth.activeScreencasts,
         });
       }
       if (url.pathname === '/execs' && req.method === 'POST') {
@@ -264,6 +272,7 @@ beforeEach(() => {
   backendCheckThrows = false;
   fakeHealth.lastActivityAtMs = 0;
   fakeHealth.liveExecs = 0;
+  fakeHealth.activeScreencasts = 0;
 });
 
 describe('SessionRoutes (fake runnerd)', () => {
@@ -299,7 +308,7 @@ describe('SessionRoutes (fake runnerd)', () => {
       JSON.stringify({
         execId: 'e1',
         command: ['echo', 'hi'],
-        cwd: '/workspace/repo',
+        cwd: '/user/workspace',
       }),
     );
     expect(execRes.headers.get('content-type')).toContain('text/event-stream');
@@ -554,6 +563,30 @@ describe('SessionRoutes (fake runnerd)', () => {
     routes.handleSetPinned('pin1', JSON.stringify({ pinned: false }));
     expect(await routes.sweepExpired()).toBe(1);
     expect((await routes.handleGet('pin1')).status).toBe(404);
+    fakeHealth.lastActivityAtMs = 0;
+  });
+
+  test('sweepExpired skips a session with a live browser viewer (activeScreencasts > 0)', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'watched1', organizationId: 'org_watch' }),
+    );
+
+    // No live exec + stale activity → would normally idle-reap, but a live raw
+    // VNC tunnel (someone is actively watching) keeps it alive, mirroring the
+    // liveExecs skip.
+    fakeHealth.liveExecs = 0;
+    fakeHealth.activeScreencasts = 1;
+    fakeHealth.lastActivityAtMs = 0; // epoch → far past the idle window
+    expect(await routes.sweepExpired()).toBe(0);
+    expect((await routes.handleGet('watched1')).status).toBe(200);
+
+    // Viewer disconnects → reaped on the next sweep.
+    fakeHealth.activeScreencasts = 0;
+    expect(await routes.sweepExpired()).toBe(1);
+    expect(stopped.has('watched1')).toBe(true);
+    expect(destroyed.has('watched1')).toBe(false);
+    expect((await routes.handleGet('watched1')).status).toBe(404);
     fakeHealth.lastActivityAtMs = 0;
   });
 

@@ -24,7 +24,6 @@ import { v } from 'convex/values';
 import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
-import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../lib/untrusted_content';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import {
   applyGatewayConfig,
@@ -51,6 +50,7 @@ import {
   sessionIdForUser,
   userOwnerId,
 } from '../../sandbox/session_naming';
+import { buildSystemPromptAppend } from './system_prompt';
 import {
   finalizeTurnSideEffects,
   handleTurnOutcome,
@@ -115,16 +115,6 @@ const TURN_BUDGET_CENTS = Number(
 const EXEC_DEADLINE_MS = Number(
   process.env.EXTERNAL_AGENT_EXEC_DEADLINE_MS ?? String(60 * 60 * 1000),
 );
-// Appended to the system prompt of a PLAN turn (composed with the agent's own
-// instructions, never replacing them). The in-image tale-plan-gate hook is the
-// hard stop — this just steers the model toward one clean ExitPlanMode call.
-const PLAN_MODE_ADDENDUM =
-  'This is a read-only planning turn. Explore as needed, then call ' +
-  'ExitPlanMode exactly once with the complete plan as the `plan` argument. ' +
-  'The call will be denied — that is expected: present the complete plan in ' +
-  'your final message and end your turn. The user reviews and approves the ' +
-  'plan in the chat UI before any execution happens. Do not retry ' +
-  'ExitPlanMode and do not start executing.';
 // Per-ACTION window: how long one action drains before handing off to a fresh
 // continuation action. MUST sit safely below the runtime's hard action ceiling
 // (measured: the local convex-local-backend hard-kills Node actions at 600s,
@@ -135,6 +125,19 @@ const PLAN_MODE_ADDENDUM =
 const ACTION_WINDOW_MS = Number(
   process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(480 * 1000),
 );
+// Live browser view (read-only mirror), operator-gated and default OFF. When
+// '1', the adapter attaches Playwright MCP to the session's externally-launched
+// HEADED Chromium over CDP (instead of self-launching headless) so the browser
+// can be mirrored read-only by x11vnc. This MUST be set together with the
+// SPAWNER's SANDBOX_BROWSER_VIEW: the spawner is what actually launches the
+// session container with TALE_BROWSER_CDP=1 (the entrypoint's start_browser_-
+// stack), so a one-sided flag is a misconfig — platform-on/spawner-off attaches
+// to a CDP endpoint that was never started (the MCP retries and the browser
+// tools fail); spawner-on/platform-off wastes a headed browser the agent never
+// attaches to. Read here because this node action is where the exec spec is
+// built. NOTE (deployment): keep this and the spawner's SANDBOX_BROWSER_VIEW in
+// lockstep — it is a single deployment-level operator decision.
+const BROWSER_VIEW_ENABLED = process.env.SANDBOX_BROWSER_VIEW === '1';
 
 /**
  * Append a failure note to the timeline-so-far WITHOUT discarding it. On an
@@ -537,18 +540,13 @@ export const runExternalAgentTurn = internalAction({
         });
       await stampTurnOpRow(execId);
 
-      // Plan turns append the plan-mode addendum to the agent's own
-      // instructions (composed, never clobbered).
-      const systemPromptAppend = [
-        args.systemInstructions,
-        args.permissionMode === 'plan' ? PLAN_MODE_ADDENDUM : undefined,
-        // Integration + browser tools return untrusted external content (now
-        // flowing into the container). The TRUST RULES make the
-        // <untrusted_source> wrapping meaningful — the wrap is inert without it.
-        UNTRUSTED_CONTENT_SYSTEM_PROMPT,
-      ]
-        .filter((s): s is string => s !== undefined && s !== '')
-        .join('\n\n');
+      // Compose the agent's own instructions with the plan-mode/steering
+      // addendum + trust rules (pure, unit-tested in system_prompt.ts).
+      const systemPromptAppend = buildSystemPromptAppend({
+        systemInstructions: args.systemInstructions,
+        permissionMode: args.permissionMode,
+        browserCdp: BROWSER_VIEW_ENABLED,
+      });
 
       // Both attempts share ONE absolute action deadline — a fresh window for
       // the retry could cross the 30-min action ceiling, whose hard kill
@@ -563,6 +561,11 @@ export const runExternalAgentTurn = internalAction({
           execId: id,
           agentSlug: args.agentKind,
           prompt: args.rawPrompt,
+          // Live browser view (operator flag, default off): attach Playwright
+          // MCP over CDP to the session's headed Chromium so it can be mirrored
+          // read-only. Only set when on so the adapter's headless self-launch
+          // stays byte-identical to today otherwise.
+          ...(BROWSER_VIEW_ENABLED && { browserCdp: true }),
           // The agent CLI sends this verbatim to the gateway. Use the canonical
           // gateway routing so the request hits the SAME Bifrost record the VK
           // is bound to (per-model `<slug>__<modelId>` for custom providers;

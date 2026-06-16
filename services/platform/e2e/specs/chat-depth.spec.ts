@@ -242,6 +242,25 @@ test('creates a share link, opens the shared read-only view, then revokes it', a
   const threadId = THREAD_URL.exec(page.url())?.[1];
   expect(threadId).toBeTruthy();
 
+  // Wait for the turn to actually PERSIST before sharing. The bubble asserted
+  // above is the OPTIMISTIC local message (pendingMessage) — the real message
+  // is saved far downstream in the async generation pipeline
+  // (chatWithAgentTurn schedules runChatTurnGeneration → startChat →
+  // saveMessage). `getSharedThread` snapshots messages to
+  // `_creationTime <= sharedAt` (set the instant sharing is enabled), so
+  // enabling sharing before the message is saved permanently excludes it from
+  // the immutable snapshot → an empty shared view (a reload can't recover it).
+  // Gate on turn completion (mirrors the attachment test): the canned reply in
+  // mock mode, or the Send button reappearing once generation ends otherwise —
+  // by which point both the user and assistant messages are persisted.
+  if (isMockLlmMode()) {
+    await expect(page.getByText(CANNED_REPLY).first()).toBeVisible({
+      timeout: 120_000,
+    });
+  } else {
+    await expect(sendButton(page)).toBeVisible({ timeout: 120_000 });
+  }
+
   // The header Share action (only rendered once a thread exists) opens the
   // share dialog.
   await page

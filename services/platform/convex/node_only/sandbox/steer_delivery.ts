@@ -1,7 +1,7 @@
 'use node';
 
 // Mid-turn steering delivery: stage queued chat messages into the RUNNING
-// external-agent exec's steer dir (TALE_STEER_DIR=/workspace/.tale/steer/
+// external-agent exec's steer dir (TALE_STEER_DIR=/user/.runtime/tale/steer/
 // <execId>). The in-image tale-steer-hook injects them into the running turn
 // at the next tool-use / stop boundary.
 //

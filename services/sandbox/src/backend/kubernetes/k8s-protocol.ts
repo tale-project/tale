@@ -1,7 +1,7 @@
 // The in-Pod ↔ spawner contract for the exec-free transport.
 //
-// The runner, stage, and harvest containers share the `/workspace` emptyDir
-// and coordinate through well-known files under `/workspace/.tale`:
+// The runner, stage, and harvest containers share the `/user` emptyDir
+// and coordinate through well-known files under `/user/.runtime/tale`:
 //   - the runner writes its exit code to EXIT_CODE_PATH and redirects its
 //     stderr to STDERR_PATH (the K8s log API merges stdout+stderr, so stderr
 //     stays on disk and the runner's logs are clean stdout for phase parsing).
@@ -14,7 +14,7 @@
 import type { OutputFile, PriorStageResult, UploadStats } from '../../types.ts';
 import type { SandboxStepResult } from '../../wire.ts';
 
-export const TALE_DIR = '/workspace/.tale';
+export const TALE_DIR = '/user/.runtime/tale';
 export const EXIT_CODE_PATH = `${TALE_DIR}/exit-code`;
 export const STDERR_PATH = `${TALE_DIR}/stderr.log`;
 export const PRESTAGE_PATH = `${TALE_DIR}/prestage.json`;

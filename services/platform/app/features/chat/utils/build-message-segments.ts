@@ -197,34 +197,15 @@ export function buildMessageSegments(
 }
 
 /**
- * The current live activity of a streaming turn — drives the state-based header
- * label ("Routing…" / "Thinking…" / "Calling {tool}…" / "Responding…") instead
- * of a single generic "Thinking". Derived from the TRAILING segment, since the
- * SDK appends parts chronologically so the last one reflects what the model is
- * doing right now. Delegation folds into `tool` (formatToolDetail renders a
- * `delegate_*` call as "Asking {agent}").
+ * The live activity of a streaming turn, localized by `activityLabel`. Only the
+ * gap-shell `ThinkingIndicator` constructs it now (phase-based "Routing"/
+ * "Thinking"): the in-bubble header renders a STABLE "Thinking" and lets the
+ * inline rows carry the tool/routing detail, so it no longer derives a label
+ * from the trailing segment (which flipped confusingly as each step settled).
+ * The `tool`/`responding` variants are retained for `activityLabel` coverage.
  */
 export type ThoughtActivity =
   | { type: 'routing' }
   | { type: 'thinking' }
   | { type: 'tool'; toolName: string; input?: Record<string, unknown> }
   | { type: 'responding' };
-
-export function deriveActivity(
-  segments: readonly MessageSegment[],
-  opts?: { optimistic?: boolean; phase?: 'routing' | 'thinking' },
-): ThoughtActivity | undefined {
-  // Pre-part optimistic shell: the router is still deciding.
-  if (opts?.optimistic && opts.phase === 'routing') return { type: 'routing' };
-  const last = segments[segments.length - 1];
-  if (!last) return undefined;
-  if (last.kind === 'reasoning') {
-    return last.state === 'streaming' ? { type: 'thinking' } : undefined;
-  }
-  if (last.kind === 'tool') {
-    return last.state === 'input-streaming' || last.state === 'input-available'
-      ? { type: 'tool', toolName: last.toolName, input: last.input }
-      : undefined;
-  }
-  return last.state === 'streaming' ? { type: 'responding' } : undefined;
-}

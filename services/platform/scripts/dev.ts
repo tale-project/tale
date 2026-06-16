@@ -207,6 +207,23 @@ function ensureWebdavHmacKey() {
     .digest('hex');
 }
 
+// Project-secret + guardrails encryption key. `secret_box.ts` /
+// `get_secret_key.ts` require a 32-byte hex key (ENCRYPTION_SECRET_HEX) on the
+// Convex deployment; without it `setProjectSecret` and guardrails encryption
+// throw "ENCRYPTION_SECRET_HEX environment variable is not set". Derive a stable
+// 32-byte (64-hex) key from INSTANCE_SECRET — same approach as
+// ensureWebdavHmacKey — so dev + E2E exercise secrets with zero setup and the
+// key survives restarts (so already-encrypted rows still decrypt). An explicit
+// .env value wins; production must set a real key. Run after
+// ensureInstanceSecret() so INSTANCE_SECRET is populated.
+function ensureEncryptionSecret() {
+  if (process.env.ENCRYPTION_SECRET_HEX) return;
+  const secret = process.env.INSTANCE_SECRET ?? '';
+  process.env.ENCRYPTION_SECRET_HEX = createHash('sha256')
+    .update(`${secret}:encryption-secret:v1`)
+    .digest('hex');
+}
+
 // WebDAV's dev route (vite-plugins/serve-webdav.ts) talks to Convex with the
 // deployment ADMIN_KEY to call internal functions; without it the plugin
 // disables /dav/* and every request returns 503. Prod derives the key with the
@@ -475,6 +492,22 @@ async function ensureDockerDependencies(): Promise<void> {
     return;
   }
 
+  // Stop spurious container churn on every `bun dev`. The db/sandbox/
+  // sandbox-egress services have `build:` blocks with `pull_policy: build`, so
+  // `docker compose up` runs their build step on every bring-up. Under buildx
+  // with the containerd image store (Docker Desktop default), BuildKit attaches
+  // a provenance attestation by default — its metadata is non-deterministic, so
+  // even a 100%-cached build re-exports a NEW image manifest digest. compose
+  // then sees the service image no longer matches the running container's image
+  // and recreates the container — every single run. (External-image services
+  // like bifrost/convex-relay are never built, so they stay put — which is why
+  // only the build-services churned.) Disabling the default attestation makes
+  // the cached build reproduce a stable image ID, so an already-up stack
+  // converges to a no-op. Scoped to dev: CI/release builds run in their own
+  // processes and keep provenance for supply-chain integrity. Explicit override
+  // still wins.
+  process.env.BUILDX_NO_DEFAULT_ATTESTATIONS ??= '1';
+
   const status = await probeDocker(10_000);
   if (status !== 'ok') {
     const why =
@@ -670,6 +703,7 @@ async function main() {
     ensureInstanceSecret();
     ensureBetterAuthSecret();
     ensureWebdavHmacKey();
+    ensureEncryptionSecret();
     const deployment = process.env.CONVEX_DEPLOYMENT;
     const hasLocalDeployment = deployment?.startsWith('anonymous:');
     if (deployment && !hasLocalDeployment) {

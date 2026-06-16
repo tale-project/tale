@@ -178,8 +178,8 @@ const PAGE_LOADS: ReadonlyArray<{
     path: 'personalization',
     heading: t('personalization.page.title'),
   },
-  { name: 'api index (→ rest)', path: 'api', heading: t('navigation.apiRest') },
-  { name: 'api rest', path: 'api/rest', heading: t('navigation.apiRest') },
+  { name: 'api index (→ rest)', path: 'api', heading: t('navigation.apiKeys') },
+  { name: 'api rest', path: 'api/rest', heading: t('navigation.apiKeys') },
   { name: 'api mcp', path: 'api/mcp', heading: t('navigation.mcp') },
   {
     name: 'api webdav',

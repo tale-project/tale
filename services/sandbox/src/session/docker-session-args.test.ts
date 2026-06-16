@@ -13,10 +13,12 @@ const cfg: SpawnerConfig = {
   port: 8003,
   sandboxToken: 'test',
   runtimeImage: 'tale-sandbox-runtime:test',
-  runtime: 'runc',
+  runtimeTier: 'runc',
+  dockerInContainer: false,
+  browserView: false,
   k8s: {
     namespace: 'tale-sandbox',
-    runtimeClassName: 'gvisor',
+    runtimeClassName: null,
     spawnerImage: 'tale-sandbox:test',
     cacheMode: 'none',
     workspaceSizeLimit: '4Gi',
@@ -82,13 +84,39 @@ describe('buildDockerSessionRunArgs', () => {
     // Container + workspace mount.
     expect(args).toContain('tale-sbx-ses-ses-abc-123');
     expect(args).toContain(
-      'type=bind,src=/var/lib/tale-sandbox/sessions/ses-ses-abc-123,dst=/workspace',
+      'type=bind,src=/var/lib/tale-sandbox/sessions/ses-ses-abc-123,dst=/user',
     );
     // Shared per-org caches on disk volumes — bun alongside pip/npm so its
     // cache doesn't fall to ~/.bun in the per-user workspace.
     expect(args).toContain('NPM_CONFIG_CACHE=/cache/npm');
     expect(args).toContain('BUN_INSTALL_CACHE_DIR=/cache/bun');
     expect(args).toContain('type=volume,src=bun-org_456,dst=/cache/bun');
+  });
+
+  describe('live browser view (SANDBOX_BROWSER_VIEW)', () => {
+    test('off (default): no TALE_BROWSER_CDP env leaks in', () => {
+      const args = buildDockerSessionRunArgs(cfg, goodInput);
+      expect(args).not.toContain('TALE_BROWSER_CDP=1');
+    });
+
+    test('on: appends TALE_BROWSER_CDP=1, rest unchanged', () => {
+      const args = buildDockerSessionRunArgs(
+        { ...cfg, browserView: true },
+        goodInput,
+      );
+      // The browser-view signal is present (additive).
+      const envIdxs = args.reduce<number[]>((acc, a, i) => {
+        if (a === '--env') acc.push(i);
+        return acc;
+      }, []);
+      expect(envIdxs.some((i) => args[i + 1] === 'TALE_BROWSER_CDP=1')).toBe(
+        true,
+      );
+      // Everything else stays as the default hardened agent argv.
+      expect(args).toContain('--cap-drop=ALL');
+      expect(args).toContain('--read-only');
+      expect(args[args.length - 1]).toBe('daemon');
+    });
   });
 
   test('default profile: one-shot-equivalent caps + uid 65534', () => {
@@ -136,5 +164,75 @@ describe('buildDockerSessionRunArgs', () => {
       runnerdToken: '',
     });
     expect(args).toContain('TALE_RUNNERD_TOKEN=');
+  });
+
+  describe('docker-in-container (sysbox tier)', () => {
+    const dindCfg = {
+      ...cfg,
+      runtimeTier: 'sysbox' as const,
+      dockerInContainer: true,
+    };
+    const dindInput = {
+      ...goodInput,
+      dockerStorageVolume: 'tale-dind-ses-abc-123',
+    };
+
+    test('relaxes hardening, runs as root, mounts the docker store, signals the entrypoint', () => {
+      const args = buildDockerSessionRunArgs(dindCfg, dindInput);
+      // sysbox runtime + DinD signal/tier for the entrypoint.
+      expect(args).toContain('--runtime=sysbox-runc');
+      expect(args).toContain('TALE_DIND=1');
+      expect(args).toContain('TALE_RUNTIME_TIER=sysbox');
+      // Container starts as root (entrypoint drops to 10001 after dockerd).
+      const userIdx = args.indexOf('--user');
+      expect(args[userIdx + 1]).toBe('0:0');
+      // Relaxations the inner dockerd needs — the userns is the real boundary.
+      expect(args).toContain('apparmor=unconfined');
+      expect(args).not.toContain('--cap-drop=ALL');
+      expect(args).not.toContain('no-new-privileges');
+      expect(args).not.toContain('--read-only');
+      // Dedicated, ephemeral inner-docker store.
+      expect(args).toContain(
+        'type=volume,src=tale-dind-ses-abc-123,dst=/var/lib/docker',
+      );
+      // Shared per-org caches are OFF under DinD (userns shifting safety).
+      expect(args).not.toContain('type=volume,src=bun-org_456,dst=/cache/bun');
+      expect(args.some((a) => a.startsWith('PIP_CACHE_DIR='))).toBe(false);
+    });
+
+    test('throws if the docker storage volume is missing', () => {
+      expect(() => buildDockerSessionRunArgs(dindCfg, goodInput)).toThrow(
+        /dockerStorageVolume is required/,
+      );
+    });
+
+    test('DinD-off output is unchanged (no DinD flags leak in)', () => {
+      const args = buildDockerSessionRunArgs(cfg, goodInput);
+      expect(args).not.toContain('TALE_DIND=1');
+      expect(args).not.toContain('apparmor=unconfined');
+      expect(args).toContain('--cap-drop=ALL');
+      expect(args).toContain('--read-only');
+      expect(args.some((a) => a.includes('dst=/var/lib/docker'))).toBe(false);
+    });
+
+    test('runc tier uses --privileged (no boundary; trusted-only)', () => {
+      const runcDind = {
+        ...cfg,
+        runtimeTier: 'runc' as const,
+        dockerInContainer: true,
+      };
+      const args = buildDockerSessionRunArgs(runcDind, dindInput);
+      expect(args).toContain('--runtime=runc');
+      expect(args).toContain('--privileged');
+      expect(args).toContain('TALE_RUNTIME_TIER=runc');
+      const userIdx = args.indexOf('--user');
+      expect(args[userIdx + 1]).toBe('0:0');
+      // privileged path doesn't bother with the per-flag relaxations.
+      expect(args).not.toContain('--cap-drop=ALL');
+      expect(args).not.toContain('--read-only');
+      expect(args).toContain(
+        'type=volume,src=tale-dind-ses-abc-123,dst=/var/lib/docker',
+      );
+    });
   });
 });

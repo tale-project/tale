@@ -5,9 +5,7 @@ import { useId, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import type { ThoughtActivity } from '../../utils/build-message-segments';
 import type { ThoughtStep } from '../../utils/thought-step-types';
-import { activityLabel } from './activity-label';
 import { ReasoningStepRow, STEP_INDENT } from './step-rows';
 import { ThoughtHeader } from './thought-header';
 import { toSeconds, useThinkingTimer } from './use-thinking-timer';
@@ -21,8 +19,6 @@ interface MessageThoughtHeaderProps {
   skillCount: number;
   hasReasoning: boolean;
   turnStartMs?: number;
-  /** The current live activity (drives the state-based label while streaming). */
-  activity?: ThoughtActivity;
   /** The turn's reasoning blocks, in chronological order. When present this
    *  header becomes the SINGLE thinking control: a chevron reveals all of them
    *  below (collapsed by default), so they're no longer rendered inline among
@@ -53,7 +49,6 @@ export function MessageThoughtHeader({
   skillCount,
   hasReasoning,
   turnStartMs,
-  activity,
   reasoningSteps,
   className,
 }: MessageThoughtHeaderProps) {
@@ -87,14 +82,16 @@ export function MessageThoughtHeader({
   }
   const meta = segments.join(' · ');
 
-  // Live: state-based verb. Pre-answer also carries the ticking timer; mid-answer
-  // (the model paused to think / call a tool between output) shows just the verb
-  // so the latched "Thought for Ns" summary never visibly drops. Done: the stat
-  // summary, or the honest reasoning-only fallback so it's never empty.
+  // Live: a STABLE "Thinking" verb (+ ticking timer pre-answer). The header no
+  // longer mirrors the trailing segment — doing so flipped the label to a tool
+  // name and back to "Thinking" as each step settled, which read as random
+  // jitter. Every step's detail already renders as an inline row below (tools
+  // via ToolStepRow, routing via RoutingStepRow), so the header carries only the
+  // steady thinking affordance. Done: the stat summary, or the honest
+  // reasoning-only fallback so it's never empty.
   let headerText: string;
   if (active) {
-    const live = activity ?? { type: 'thinking' as const };
-    const label = activityLabel(t, live);
+    const label = t('thoughtProcess.thinking');
     headerText =
       thinking && liveElapsedMs != null
         ? `${label} · ${t('thoughtProcess.seconds', { seconds: toSeconds(liveElapsedMs) })}`

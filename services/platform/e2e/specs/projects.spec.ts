@@ -90,7 +90,15 @@ test('creates a project with a task shown in both views, then deletes it', async
   // The detail header shows the new project's name and the sub-tab nav. Verify
   // every real sub-tab renders (scoped to the project nav so the assertion
   // never picks up a same-named link elsewhere in the shell).
-  await expect(page.getByText(projectName).first()).toBeVisible({
+  //
+  // The project name renders in several places, and `AdaptiveHeaderRoot`
+  // mirrors the breadcrumb heading into the mobile header bar (rendered FIRST
+  // in DOM order, outside `<main>`, and `md:hidden` so it's NOT visible at the
+  // Desktop Chrome viewport). An unscoped `getByText(...).first()` resolves
+  // that hidden mobile copy and fails the visibility check, so scope to the
+  // `<main>` region where the breadcrumb (and Overview heading) actually paint.
+  const mainRegion = page.getByRole('main');
+  await expect(mainRegion.getByText(projectName).first()).toBeVisible({
     timeout: 60_000,
   });
   const projectNav = page.getByRole('navigation', {
@@ -154,9 +162,17 @@ test('creates a project with a task shown in both views, then deletes it', async
   await projectRow
     .getByRole('button', { name: t('common.actions.openMenu') })
     .click();
-  await page
-    .getByRole('menuitem', { name: t('projects.rowActions.delete') })
-    .click();
+  // The row-actions menu is a portalled dropdown; wait for its Delete item to
+  // commit before clicking it. Clicking the trigger and chaining straight into
+  // the menuitem races the menu open against the clickable row's own
+  // navigation — if the row wins, the page leaves for the project detail view
+  // and the menuitem never appears. Asserting the open menu first keeps the
+  // delete step deterministic (and pins the failure here if the row navigates).
+  const deleteMenuItem = page.getByRole('menuitem', {
+    name: t('projects.rowActions.delete'),
+  });
+  await expect(deleteMenuItem).toBeVisible({ timeout: 30_000 });
+  await deleteMenuItem.click();
 
   // The delete dialog defaults to detach mode (cascade unchecked), so no
   // confirm phrase is required — the delete button is enabled immediately.

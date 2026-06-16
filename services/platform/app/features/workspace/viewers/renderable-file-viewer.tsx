@@ -23,28 +23,36 @@ interface RenderableFileViewerProps {
    * this path. While streaming, we force the source view (via CodeViewer's
    * debounced shiki path) so the user sees a smooth, syntax-highlighted
    * stream instead of the rendered viewer flickering on every delta.
+   * Defaults to `false` for static contexts (e.g. the workspace file explorer).
    */
-  isStreaming: boolean;
+  isStreaming?: boolean;
+  /**
+   * Which view to show initially (and to reset to on `path` change). The
+   * streaming canvas wants `source` (watch the bytes arrive); a static reader
+   * like the workspace file explorer passes `preview` so a Markdown file opens
+   * rendered/user-friendly. Defaults to `source`.
+   */
+  defaultMode?: 'source' | 'preview';
 }
 
 /**
  * Owns the Source/Preview toggle for file kinds that have a "rendered"
- * presentation (html/svg/mermaid/markdown). Default is always Source — the
- * user opts into Preview manually. While streaming, Preview is disabled and
- * the source view is forced to keep the stream flicker-free.
+ * presentation (html/svg/mermaid/markdown). While streaming, Preview is
+ * disabled and the source view is forced to keep the stream flicker-free.
  */
 function RenderableFileViewerComponent({
   kind,
   path,
   content,
-  isStreaming,
+  isStreaming = false,
+  defaultMode = 'source',
 }: RenderableFileViewerProps) {
   const { t } = useT('chat');
-  const [viewMode, setViewMode] = useState<'source' | 'preview'>('source');
+  const [viewMode, setViewMode] = useState<'source' | 'preview'>(defaultMode);
 
   useEffect(() => {
-    setViewMode('source');
-  }, [path]);
+    setViewMode(defaultMode);
+  }, [path, defaultMode]);
 
   const effectiveMode: 'source' | 'preview' = isStreaming ? 'source' : viewMode;
 

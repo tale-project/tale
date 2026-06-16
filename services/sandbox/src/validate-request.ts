@@ -84,7 +84,7 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
   // `entryPath` (single-script) and `steps` (multi-script) are mutually
   // exclusive — exactly one must be present. Single-script mode exec()s
   // the file at `entryPath` directly; multi-script mode generates a
-  // wrapper at /workspace/.tale/runner.{py,js} that subprocess-invokes
+  // wrapper at /user/.runtime/tale/runner.{py,js} that subprocess-invokes
   // each step. Allowing both would let a caller shadow the wrapper's
   // entry semantics; rejecting neither prevents a no-op container spawn.
   const entryProvided = r.entryPath !== undefined;
@@ -242,7 +242,7 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
 
   // steps: multi-script execution list. Each step path must reference an
   // entry in `files[]` and be safe-relative. The wrapper lives at
-  // /workspace/.tale/runner.{py,js} (a dir unreachable from user paths),
+  // /user/.runtime/tale/runner.{py,js} (a dir unreachable from user paths),
   // so step names like "main.py" do not collide with anything.
   let steps: string[] | undefined;
   if (stepsProvided) {
@@ -348,7 +348,7 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
   }
 
   // userUploadDownloads: same shape as priorOutputDownloads. Spawner
-  // writes the bytes to `/workspace/uploads/<name>` (a distinct dir so
+  // writes the bytes to `/user/uploads/<name>` (a distinct dir so
   // user uploads never get confused with prior `run_code` outputs).
   let userUploadDownloads: ExecuteRequest['userUploadDownloads'];
   if (r.userUploadDownloads !== undefined) {
@@ -422,7 +422,7 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
 }
 
 /**
- * Reject relative paths that could escape `/workspace/code/` or step on
+ * Reject relative paths that could escape `/user/code/` or step on
  * runtime conventions. Mirrors the subset of platform-side validatePath
  * that matters at the spawner boundary; the platform's full 16-rule
  * pipeline (NFC, BiDi, zero-width, Windows-reserved) runs server-side

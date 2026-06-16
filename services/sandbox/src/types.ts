@@ -5,6 +5,7 @@
 // file imports them as type aliases so existing call sites in spawn.ts,
 // server.ts, docker-args.ts, etc. keep working unchanged.
 
+import type { RuntimeTier } from './runtime-tier.ts';
 import type {
   SandboxErrorCode,
   SandboxLanguage,
@@ -16,7 +17,7 @@ export type ErrorCode = SandboxErrorCode;
 
 export interface SandboxFile {
   /**
-   * POSIX-style relative path within /workspace/code/. Validated against
+   * POSIX-style relative path within /user/code/. Validated against
    * the path-safety rules in validate-request.ts (no traversal, no NUL,
    * no backslash, etc). Nested directories allowed; spawner mkdirs the
    * parent on write.
@@ -39,19 +40,19 @@ export interface ExecuteRequest {
   organizationId: string;
   language: Language;
   /**
-   * Files to stage under /workspace/code/<path>. Required: in single-script
+   * Files to stage under /user/code/<path>. Required: in single-script
    * mode the entry file lives here; in multi-script mode all steps + their
    * siblings live here. Each entry carries a URL the spawner GETs to fetch
    * the bytes (binary-safe; replaces the legacy inline `content: string`).
    * Per-file path validated against MAX_PATH_LENGTH + POSIX-traversal rules.
    * Path segments starting with `.` are rejected, so user files can never
-   * land inside `/workspace/.tale/` where the multi-step wrapper goes.
+   * land inside `/user/.runtime/tale/` where the multi-step wrapper goes.
    */
   files?: SandboxFile[];
   /**
    * Single-script mode: relative path inside `files[]` to exec. The
    * runtime image's entrypoint receives this as a positional arg and
-   * exec()s `/workspace/code/<entryPath>` directly — no synthetic mirror,
+   * exec()s `/user/code/<entryPath>` directly — no synthetic mirror,
    * so user filenames (including `main.py`) flow through unchanged and
    * appear verbatim in tracebacks. Must reference an existing entry in
    * `files[]` with non-empty content. Mutually exclusive with `steps`:
@@ -60,8 +61,8 @@ export interface ExecuteRequest {
   entryPath?: string;
   /**
    * Multi-script mode: paths inside `files[]` to execute in sequence
-   * within the same container, sharing /workspace/. Spawner writes a
-   * generated wrapper to `/workspace/.tale/runner.{py,js}` (a dir
+   * within the same container, sharing /user/. Spawner writes a
+   * generated wrapper to `/user/.runtime/tale/runner.{py,js}` (a dir
    * unreachable from user paths) and the entrypoint exec()s that wrapper,
    * which subprocess-invokes each step path. Fail-fast on first non-zero
    * exit. Per-step results (exit code, duration, status) come back in
@@ -70,7 +71,7 @@ export interface ExecuteRequest {
   steps?: string[];
   /**
    * Prior-run output downloads. Spawner fetches each URL during
-   * `stageWorkspace` and writes the bytes to `/workspace/output/<name>`.
+   * `stageWorkspace` and writes the bytes to `/user/output/<name>`.
    * Replaces the legacy inline-base64 `priorOutputFiles[]` field
    * (sandbox-wobbly-origami plan §1). Names are validated against the
    * same POSIX-traversal rules; rejects skip (logged, not fatal).
@@ -78,7 +79,7 @@ export interface ExecuteRequest {
    * Semantically distinct from `userUploadDownloads`: prior outputs are
    * files produced by **previous** `run_code` invocations that the
    * platform harvested and is now re-injecting. The dedicated
-   * `/workspace/output/` directory keeps them separate from scripts and
+   * `/user/output/` directory keeps them separate from scripts and
    * user uploads.
    */
   priorOutputDownloads?: Array<{
@@ -87,10 +88,10 @@ export interface ExecuteRequest {
   }>;
   /**
    * User-upload downloads. Spawner fetches each URL during
-   * `stageWorkspace` and writes the bytes to `/workspace/uploads/<name>`.
+   * `stageWorkspace` and writes the bytes to `/user/uploads/<name>`.
    * Reserved for files the user uploaded into the thread (source
    * `'user_upload'` on the platform side) so the agent reads them from
-   * a dedicated directory, never mixed with `/workspace/output/`
+   * a dedicated directory, never mixed with `/user/output/`
    * (which is for previous `run_code` outputs only). Same fetch path /
    * skip-on-failure semantics as `priorOutputDownloads`; no attestation
    * shape in the response — uploads don't chain across runs.
@@ -146,7 +147,7 @@ export interface ExecuteRequest {
  * `sha256` (hex) is the digest of the raw bytes computed during harvest.
  * Used for the cumulative `artifactOutputs` manifest (crispy-curry plan §1)
  * and for pre-stage attestation when the same file is later re-injected
- * into another run's `/workspace/output/`.
+ * into another run's `/user/output/`.
  */
 export interface OutputFile {
   name: string;
@@ -244,7 +245,7 @@ export interface ExecuteResponse {
   /**
    * Pre-stage attestation (crispy-curry plan §3). For every entry in
    * `ExecuteRequest.priorOutputDownloads` the spawner reports back whether
-   * it landed on `/workspace/output/` (`staged[]`, with bytes + sha256) or
+   * it landed on `/user/output/` (`staged[]`, with bytes + sha256) or
    * was skipped (`skipped[]`, with a structured reason).
    *
    * The platform diffs `staged[]` against the manifest it sent and aborts
@@ -268,14 +269,32 @@ export interface SpawnerConfig {
   // at boot from `SANDBOX_TOKEN`; empty-string is treated as null.
   sandboxToken: string | null;
   runtimeImage: string;
-  runtime: 'runc' | 'runsc';
+  // Deployment-level container runtime tier (env SANDBOX_RUNTIME; default
+  // 'runc'). Resolves to the docker `--runtime` value and the k8s
+  // runtimeClassName via runtime-tier.ts. Uniform across all tenants.
+  runtimeTier: RuntimeTier;
+  // Native docker/docker compose inside SESSION containers (env
+  // SANDBOX_DOCKER_IN_CONTAINER; default false). Only valid on a tier that
+  // keeps an isolation boundary (sysbox/kata) — loadConfig fails closed
+  // otherwise. The one-shot /v1/execute path never enables this.
+  dockerInContainer: boolean;
+  // Live browser view (env SANDBOX_BROWSER_VIEW; default false). When true the
+  // session container is launched with TALE_BROWSER_CDP=1, so the entrypoint
+  // brings up a headed Chromium with a loopback CDP endpoint mirrored read-only
+  // by x11vnc; the platform must also set its own SANDBOX_BROWSER_VIEW so the
+  // adapter attaches Playwright MCP over CDP (the two sides MUST agree — a
+  // deployment-level operator decision). Off ⇒ today's headless behavior.
+  browserView: boolean;
   // Kubernetes-backend settings (env SANDBOX_K8S_* / SANDBOX_CACHE). Always
   // populated by loadConfig; consumed only when backend === 'kubernetes'.
   k8s: {
     // Namespace the per-execution runtime Pods are created in.
     namespace: string;
-    // RuntimeClass applied to runtime Pods when runtime === 'runsc' (gVisor).
-    runtimeClassName: string;
+    // RuntimeClass applied to runtime Pods, resolved per tier (gVisor →
+    // 'gvisor', sysbox → 'sysbox-runc', kata → 'kata', runc → null = omit the
+    // field). An operator may override the non-null value via
+    // SANDBOX_RUNTIME_CLASS for clusters that name the class differently.
+    runtimeClassName: string | null;
     // The SPAWNER's own image ref, used for the per-exec Pod's `stage`
     // initContainer + `harvest` sidecar (which run the spawner image's in-Pod
     // entry modes to do presigned-URL workspace I/O). Defaults to a dev tag;
@@ -286,7 +305,7 @@ export interface SpawnerConfig {
     // 'pvc' mounts per-org ReadWriteMany cache PVCs (operator must provide
     // an RWX storage class).
     cacheMode: 'none' | 'pvc';
-    // sizeLimit on the per-exec /workspace emptyDir (K8s quantity string,
+    // sizeLimit on the per-exec /user emptyDir (K8s quantity string,
     // env SANDBOX_K8S_WORKSPACE_SIZE_LIMIT). Everything the execution
     // writes — dependency installs, temp files, outputs — lands on this
     // volume, so without a limit a runaway run can fill the node disk.

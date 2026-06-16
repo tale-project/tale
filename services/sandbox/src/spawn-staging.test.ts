@@ -1,5 +1,5 @@
 // Unit tests for the `stageWorkspace` helper — the part that lays out
-// /workspace/code/<files> and /workspace/.tale/runner.{py,js} on the host
+// /user/code/<files> and /user/.runtime/tale/runner.{py,js} on the host
 // bind-mounted dir before the container starts.
 //
 // Files are now URL-fetched (no inline content on the wire). The tests
@@ -155,23 +155,23 @@ describe('stageWorkspace', () => {
       }),
     );
 
-    // Files land at /workspace/code/<path>.
+    // Files land at /user/code/<path>.
     const main = await readFile(join(hostDir, 'code', 'main.py'), 'utf8');
     expect(main).toBe('print("user main")');
     const helpers = await readFile(join(hostDir, 'code', 'helpers.py'), 'utf8');
     expect(helpers).toBe('X = 1');
 
-    // No /workspace/.tale/ in single-script mode.
+    // No /user/.runtime/tale/ in single-script mode.
     let taleExists = true;
     try {
-      await stat(join(hostDir, '.tale'));
+      await stat(join(hostDir, '.runtime', 'tale'));
     } catch {
       taleExists = false;
     }
     expect(taleExists).toBe(false);
   });
 
-  test('multi-step mode writes the wrapper at /workspace/.tale/runner.py and leaves user files untouched', async () => {
+  test('multi-step mode writes the wrapper at /user/.runtime/tale/runner.py and leaves user files untouched', async () => {
     await stageIgnoringChown(
       hostDir,
       baseReq({
@@ -198,19 +198,22 @@ describe('stageWorkspace', () => {
     const userTest = await readFile(join(hostDir, 'code', 'test.py'), 'utf8');
     expect(userTest).toBe('print("user validator")');
 
-    // Wrapper lands in /workspace/.tale/, NOT /workspace/code/.
-    const wrapper = await readFile(join(hostDir, '.tale', 'runner.py'), 'utf8');
+    // Wrapper lands in /user/.runtime/tale/, NOT /user/code/.
+    const wrapper = await readFile(
+      join(hostDir, '.runtime', 'tale', 'runner.py'),
+      'utf8',
+    );
     expect(wrapper).toContain('Tale multi-step wrapper');
     expect(wrapper).toContain('"main.py"');
     expect(wrapper).toContain('"test.py"');
 
-    // /workspace/code/ only contains user files + packages.json + options.json.
+    // /user/code/ only contains user files + packages.json + options.json.
     const codeEntries = await readdir(join(hostDir, 'code'));
     expect(codeEntries.sort()).toEqual(
       ['main.py', 'options.json', 'packages.json', 'test.py'].sort(),
     );
-    // /workspace/.tale/ only contains the wrapper.
-    const taleEntries = await readdir(join(hostDir, '.tale'));
+    // /user/.runtime/tale/ only contains the wrapper.
+    const taleEntries = await readdir(join(hostDir, '.runtime', 'tale'));
     expect(taleEntries).toEqual(['runner.py']);
   });
 
@@ -234,7 +237,10 @@ describe('stageWorkspace', () => {
       }),
     );
 
-    const wrapper = await readFile(join(hostDir, '.tale', 'runner.js'), 'utf8');
+    const wrapper = await readFile(
+      join(hostDir, '.runtime', 'tale', 'runner.js'),
+      'utf8',
+    );
     expect(wrapper).toContain('Tale multi-step wrapper');
     expect(wrapper).toContain('"main.js"');
   });
@@ -258,7 +264,10 @@ describe('stageWorkspace', () => {
     );
 
     // Polyglot uses the Python-hosted dispatcher.
-    const wrapper = await readFile(join(hostDir, '.tale', 'runner.py'), 'utf8');
+    const wrapper = await readFile(
+      join(hostDir, '.runtime', 'tale', 'runner.py'),
+      'utf8',
+    );
     expect(wrapper).toContain('Tale polyglot multi-step wrapper');
     expect(wrapper).toContain('interpreter_for');
     expect(wrapper).toContain('"gen.js"');
@@ -280,7 +289,7 @@ describe('stageWorkspace', () => {
     expect(legacy).toEqual([]);
   });
 
-  test('packages.json and options.json land in /workspace/code/ alongside user files', async () => {
+  test('packages.json and options.json land in /user/code/ alongside user files', async () => {
     await stageIgnoringChown(
       hostDir,
       baseReq({
@@ -349,7 +358,7 @@ describe('stageWorkspace', () => {
     expect(threw).toBe(true);
   });
 
-  test('stages userUploadDownloads under /workspace/uploads/ byte-for-byte', async () => {
+  test('stages userUploadDownloads under /user/uploads/ byte-for-byte', async () => {
     // Binary fixture (ZIP magic + non-UTF-8 bytes) to also catch any
     // future UTF-8 mangle regression on this newer ingress path.
     const zipFixture = Buffer.from([
@@ -379,7 +388,7 @@ describe('stageWorkspace', () => {
       hostDir,
       baseReq({
         files: [
-          // agent_write → /workspace/code/
+          // agent_write → /user/code/
           {
             path: 'qa.py',
             url: registerText('qa.py', 'print("qa")'),
@@ -387,14 +396,14 @@ describe('stageWorkspace', () => {
         ],
         entryPath: 'qa.py',
         priorOutputDownloads: [
-          // run_output → /workspace/output/
+          // run_output → /user/output/
           {
             name: 'deck.pptx',
             url: registerText('deck.pptx', 'deck-bytes'),
           },
         ],
         userUploadDownloads: [
-          // user_upload → /workspace/uploads/
+          // user_upload → /user/uploads/
           {
             name: 'data.csv',
             url: registerText('data.csv', 'csv-bytes'),

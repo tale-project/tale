@@ -94,6 +94,13 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   const { organizationId } = readRunContext();
   const suffix = Date.now().toString(36);
   const projectName = `E2E Depth ${suffix}`;
+  // The auto-derived key (deriveProjectKey takes only each word's first letter:
+  // "E2E Depth <suffix>" → "EDL") drops the suffix, so every run would collide on
+  // the same key in the SHARED org → PROJECT_KEY_TAKEN. Supply an explicit unique
+  // key from the suffix's fast-changing low-order base36 digits, with a fixed
+  // letter prefix so it always satisfies isValidProjectKey (/^[A-Z][A-Z0-9]{1,5}$/):
+  // uppercase, alnum-only, letter-start, length 6.
+  const projectKey = `E${suffix.slice(-5)}`.toUpperCase();
   const renamedProjectName = `E2E Depth Renamed ${suffix}`;
   const taskTitle = `E2E Depth Task ${suffix}`;
   const secretName = `E2E_DEPTH_SECRET_${suffix.toUpperCase()}`;
@@ -111,6 +118,13 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   await createDialog
     .getByRole('textbox', { name: t('projects.create.nameLabel') })
     .fill(projectName);
+  // Override the auto-derived (collision-prone) key with our unique one. Filling
+  // this field flips the dialog's keyEditedRef true, so the name-derivation
+  // effect no longer overwrites it. The value is already normalized, so the
+  // dialog's onChange normalize is a no-op.
+  await createDialog
+    .getByLabel(t('projects.create.keyLabel'), { exact: true })
+    .fill(projectKey);
   await createDialog
     .getByRole('button', { name: t('projects.create.submit') })
     .click();
@@ -136,8 +150,17 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   await saveInstructions.click();
 
   // The instructions editor surfaces no success toast (it toasts only on
-  // error), so prove the write landed by reloading and reading it back from the
-  // backend rather than from local form state.
+  // error). `click()` only awaits the event dispatch, not the async mutation,
+  // so reloading immediately would race the in-flight write and discard it.
+  // The cluster's Save button flips to a "Saved" indicator only after the
+  // mutation resolves (`EditorActions` flashes it on `save_success`), so wait
+  // for that before reloading, then read the value back from the backend.
+  await expect(
+    page.getByRole('button', {
+      name: t('common.actions.saved'),
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 20_000 });
   await page.reload();
   const reloadedInstructions = page.getByLabel(
     t('projects.instructions.label'),
@@ -163,34 +186,58 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   await expect(secretDialog).toBeVisible({ timeout: 60_000 });
   // Type defaults to "API key"; the name field upper-cases as you type (the
   // backend stores upper-cased env-var names), so we feed an already-upper name.
+  // Both fields are `required`, so `Label` renders a `*` whose ARIA `aria-label`
+  // is `common.aria.required` — making each input's *accessible name* the
+  // composed "Namerequired" / "API keyrequired" (the role-name honours the span's
+  // aria-label). We match by ROLE here, not `getByLabel`: Playwright's
+  // `getByLabel` resolves the `<label>` via `elementText`, which reads the
+  // VISIBLE "*" (not the aria-label), so the composed name never matches there —
+  // that mismatch is exactly what stalled the earlier `getByLabel` attempt.
+  const requiredMarker = t('common.aria.required');
   await secretDialog
-    .getByLabel(t('projectSecrets.nameLabel'), { exact: true })
+    .getByRole('textbox', {
+      name: `${t('projectSecrets.nameLabel')}${requiredMarker}`,
+      exact: true,
+    })
     .fill(secretName);
   await secretDialog
-    .getByLabel(t('projectSecrets.apiKeyValueLabel'), { exact: true })
+    .getByRole('textbox', {
+      name: `${t('projectSecrets.apiKeyValueLabel')}${requiredMarker}`,
+      exact: true,
+    })
     .fill('tale-e2e-depth-secret-value');
-  // The FormDialog submit defaults to `common.actions.save`.
-  await secretDialog
-    .getByRole('button', { name: t('common.actions.save'), exact: true })
-    .click();
-
-  await expect(
-    page.getByText(t('projectSecrets.saveSuccess')).first(),
-  ).toBeVisible({ timeout: 20_000 });
+  // The FormDialog submit defaults to `common.actions.save`. Saving a secret is
+  // a Convex ACTION (encrypt-then-upsert) which — unlike a mutation — is NOT
+  // re-sent when the WS drops mid-flight; the CI backend intermittently 1011s
+  // under load, losing the action and leaving the dialog open with no success
+  // toast. Retry the submit until the dialog closes (success). The upsert is
+  // keyed by (project, name), so a re-click cannot duplicate; the persisted row
+  // asserted below is the durable success signal — the toast is too ephemeral
+  // to depend on once the socket has blipped.
+  const saveSecret = secretDialog.getByRole('button', {
+    name: t('common.actions.save'),
+    exact: true,
+  });
+  await expect(async () => {
+    await saveSecret.click();
+    await expect(secretDialog).toBeHidden({ timeout: 15_000 });
+  }).toPass({ timeout: 90_000 });
 
   // The new secret shows in the list (font-mono name). Scope the delete to its
   // row so we never touch another secret.
   const secretRow = page.getByRole('listitem').filter({ hasText: secretName });
   await expect(secretRow).toBeVisible({ timeout: 20_000 });
-  await secretRow
-    .getByRole('button', { name: t('common.actions.delete'), exact: true })
-    .click();
-  await expect(
-    page.getByText(t('projectSecrets.deleteSuccess')).first(),
-  ).toBeVisible({ timeout: 20_000 });
-  await expect(
-    page.getByRole('listitem').filter({ hasText: secretName }),
-  ).toHaveCount(0, { timeout: 20_000 });
+  // Deleting is also a non-retried Convex action — if the WS drops mid-flight
+  // the row stays. Retry the (idempotent) delete until the row is gone, the
+  // durable signal, rather than the easily-missed success toast.
+  const deleteSecret = secretRow.getByRole('button', {
+    name: t('common.actions.delete'),
+    exact: true,
+  });
+  await expect(async () => {
+    if (await secretRow.count()) await deleteSecret.click();
+    await expect(secretRow).toHaveCount(0, { timeout: 15_000 });
+  }).toPass({ timeout: 90_000 });
 
   // ── Settings (folded into Overview): rename → Save → reload → assert ─────
   await page.goto(base);
@@ -277,17 +324,18 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
 
   // (c) Label: add the predefined project-scoped "feature" label via the
   // multi-select picker (labels render lowercase in the DOM, capitalized via
-  // CSS). The option row nests a "Change color" button (also carrying the
-  // label name), so match non-exact and scope to the label listbox. The added
-  // chip carries a remove button labelled "<delete> feature".
+  // CSS). The option row nests a "Change color" button (also carrying the label
+  // name), so match non-exact. Task labels are a TOGGLE (not removable chips) —
+  // picking an option flips it to aria-selected; the chip then shows in the task
+  // dialog and the reload below proves it persisted to the server.
   await taskDialog
     .getByRole('button', { name: t('tasks.labels.add'), exact: true })
     .click();
-  await page.getByRole('option', { name: 'feature' }).click();
-  const removeLabelButton = taskDialog.getByRole('button', {
-    name: `${t('common.actions.delete')} feature`,
+  const featureOption = page.getByRole('option', { name: 'feature' });
+  await featureOption.click();
+  await expect(featureOption).toHaveAttribute('aria-selected', 'true', {
+    timeout: 20_000,
   });
-  await expect(removeLabelButton).toBeVisible({ timeout: 20_000 });
 
   // The label picker stays open after a pick (multi-select). Dismiss it first
   // — its search input is its tell — then close the modal. The live mutations
@@ -382,13 +430,13 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   ).toBeVisible({ timeout: 60_000 });
 
   // "Add agent" opens a searchable picker; pick the seeded agent by its display
-  // name, then Save through the tab-strip cluster.
+  // name, then Save through the tab-strip cluster. The option's accessible name
+  // is "<display name> <description>" (the row renders both), so match the
+  // display-name substring rather than exact.
   await page
     .getByRole('button', { name: t('projects.agents.addAgent'), exact: true })
     .click();
-  await page
-    .getByRole('option', { name: SEEDED_AGENT_DISPLAY_NAME, exact: true })
-    .click();
+  await page.getByRole('option', { name: SEEDED_AGENT_DISPLAY_NAME }).click();
   const saveAgents = visibleSaveButton(page);
   await expect(saveAgents).toBeEnabled({ timeout: 20_000 });
   await saveAgents.click();

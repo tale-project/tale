@@ -47,6 +47,11 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
     env_file: ['.env'],
     environment: {
       SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',
+      // Native docker/docker compose inside session containers. Unset so the
+      // spawner applies its tier-aware default (on for sysbox/kata, off for
+      // runc/gvisor); set SANDBOX_DOCKER_IN_CONTAINER (or the deployment.json
+      // sandboxRuntime section) to force it.
+      SANDBOX_DOCKER_IN_CONTAINER: '${SANDBOX_DOCKER_IN_CONTAINER:-}',
       SANDBOX_RUNTIME_IMAGE:
         '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}',
       SANDBOX_EGRESS_NETWORK: 'tale-sandbox-net',
@@ -58,6 +63,10 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       // visible to the docker daemon at the same host path when it mounts
       // them into the runtime container.
       '/var/lib/tale-sandbox:/var/lib/tale-sandbox',
+      // Read-only deployment config so loadConfig reads the sandboxRuntime tier
+      // from deployment.json (same shared volume as rag/platform; R2-B11 lockstep
+      // with compose.yml).
+      '${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro',
     ],
     restart: 'unless-stopped',
     healthcheck: {

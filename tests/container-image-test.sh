@@ -48,10 +48,15 @@ declare -A SIZE_BUDGETS=(
     # Persistent agent sessions (single-image decision) bundle the full coding
     # stack into this one image: Node 24 + bun + uv on the python:3.12-slim base,
     # the pinned Claude Code + OpenCode CLIs, the Playwright MCP, a Chromium
-    # build (~400 MB) with its system libs, and gh. That lands ~1.87 GB in CI;
-    # budget = that measured size + ~10% headroom. (The one-shot /v1/execute role
-    # uses the same image — size is a one-time per-node pull cost.)
-    [sandbox-runtime]=2100
+    # build (~400 MB) with its system libs, and gh. Docker-in-container support
+    # (sysbox/kata tiers) adds the docker-ce engine + cli + containerd + buildx
+    # + compose plugins plus tini/uidmap/fuse-overlayfs/iptables/redsocks
+    # (~340 MB). The read-only live browser view adds Xvfb + x11vnc and the
+    # Noto CJK/emoji font set (~250 MB) so non-Latin pages render glyphs, not
+    # tofu. That lands ~2.56 GB in CI; budget = that measured size + ~10%
+    # headroom. (The one-shot /v1/execute role uses the same image — size is a
+    # one-time per-node pull cost.)
+    [sandbox-runtime]=2820
 )
 
 header() {

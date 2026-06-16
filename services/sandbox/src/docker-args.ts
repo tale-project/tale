@@ -3,10 +3,11 @@
 // Pure function so the unit test (R1.22 #1 regression gate) can snapshot the
 // argv without invoking docker. CRITICAL: user code is NEVER passed via argv
 // — it's staged via a host bind-mount that maps /var/lib/tale-sandbox/
-// sessions/<id>/ into /workspace inside the container (see
+// sessions/<id>/ into /user inside the container (see
 // spawn.ts:stageWorkspace). Only typed identifiers (UUID, orgId after
 // validation, language, image) reach argv positions.
 
+import { dockerRuntimeFor } from './runtime-tier.ts';
 import type { Language, SpawnerConfig } from './types.ts';
 
 interface DockerRunInput {
@@ -16,16 +17,16 @@ interface DockerRunInput {
   timeoutMs: number;
   pipCacheVolume: string;
   npmCacheVolume: string;
-  // Host path (1:1 mounted into the spawner) that becomes /workspace inside
+  // Host path (1:1 mounted into the spawner) that becomes /user inside
   // the runtime container. Used instead of --tmpfs because docker cp cannot
-  // read from tmpfs mounts and we need to harvest files from /workspace/output
+  // read from tmpfs mounts and we need to harvest files from /user/output
   // after the container exits.
   workspaceHostDir: string;
   startedAtMs: number;
   /**
    * Path the runtime entrypoint will exec(). Either a relative POSIX path
-   * resolved under /workspace/code/ (single-script mode, points at the
-   * user's file), or an absolute path under /workspace/.tale/ (multi-step
+   * resolved under /user/code/ (single-script mode, points at the
+   * user's file), or an absolute path under /user/.runtime/tale/ (multi-step
    * mode, points at the spawner-generated wrapper). The entrypoint
    * rejects anything outside those two roots.
    */
@@ -39,12 +40,12 @@ const UUID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const VOL_RE = /^[a-zA-Z0-9_.-]{1,128}$/;
 const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
-// Relative POSIX-safe path (under /workspace/code/) OR an absolute path
-// under one of the two roots the runtime entrypoint accepts. The negative
-// lookahead bans `..` segments — defense-in-depth, the spawner-side
-// validator already strips these.
+// Relative POSIX-safe path (under /user/code/) OR an absolute path
+// under one of the two roots the runtime entrypoint accepts
+// (/user/code/ or /user/.runtime/tale/). The negative lookahead bans `..`
+// segments — defense-in-depth, the spawner-side validator already strips these.
 const ENTRY_PATH_RE =
-  /^(?:\/workspace\/(?:code|\.tale)\/(?!.*\.\.)[A-Za-z0-9_./-]{1,256}|(?!.*\.\.)[A-Za-z0-9_-][A-Za-z0-9_./-]{0,255})$/;
+  /^(?:\/user\/(?:code|\.runtime\/tale)\/(?!.*\.\.)[A-Za-z0-9_./-]{1,256}|(?!.*\.\.)[A-Za-z0-9_-][A-Za-z0-9_./-]{0,255})$/;
 
 function assertSafe(name: string, value: string, re: RegExp): void {
   if (!re.test(value)) {
@@ -81,7 +82,7 @@ export function buildDockerRunArgs(
   // harvesting outputs from the host bind-mounted workspace dir.
   return [
     'run',
-    `--runtime=${cfg.runtime}`,
+    `--runtime=${dockerRuntimeFor(cfg.runtimeTier)}`,
     '--name',
     containerName,
     '--label',
@@ -144,7 +145,7 @@ export function buildDockerRunArgs(
     // post-run cleanup in spawn.ts. Trades the tmpfs ENOSPC cap (R2.2) for
     // workable harvest semantics; see plan §"Trade-offs explicitly chosen".
     '--mount',
-    `type=bind,src=${inp.workspaceHostDir},dst=/workspace`,
+    `type=bind,src=${inp.workspaceHostDir},dst=/user`,
     '--cap-drop=ALL',
     '--security-opt',
     'no-new-privileges',
@@ -164,8 +165,8 @@ export function buildDockerRunArgs(
     // path the entrypoint will exec — see services/sandbox-runtime/entrypoint.sh.
     cfg.runtimeImage,
     inp.language,
-    '/workspace/code/packages.json',
-    '/workspace/code/options.json',
+    '/user/code/packages.json',
+    '/user/code/options.json',
     inp.entryPath,
   ];
 }

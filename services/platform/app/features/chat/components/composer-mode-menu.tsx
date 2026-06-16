@@ -7,9 +7,19 @@ import {
   type DropdownMenuItem,
 } from '@tale/ui/dropdown-menu';
 import { useNavigate } from '@tanstack/react-router';
-import { Camera, Paperclip, Plus, Swords } from 'lucide-react';
+import {
+  Camera,
+  FolderOpen,
+  MonitorPlay,
+  Paperclip,
+  Plus,
+  Swords,
+} from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
+import { useLiveBrowserOptional } from '@/app/features/workspace/components/live-browser-context';
+import { useWorkspaceFilesOptional } from '@/app/features/workspace/components/workspace-files-context';
+import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
@@ -21,10 +31,13 @@ import {
   useIntegrationReadiness,
 } from '../hooks/use-composer-capabilities';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import { useSandboxPanesAvailable } from '../hooks/use-sandbox-panes';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 
 interface ComposerModeMenuProps {
   organizationId: string;
+  /** Current thread (gates the mobile sandbox-view entries). */
+  threadId?: string;
   onAttachFile?: () => void;
   /** Capture a screenshot and attach it. Omitted when unsupported/disabled. */
   onTakeScreenshot?: () => void;
@@ -34,6 +47,7 @@ interface ComposerModeMenuProps {
 
 export function ComposerModeMenu({
   organizationId,
+  threadId,
   onAttachFile,
   onTakeScreenshot,
   fileUploadDisabled = false,
@@ -46,6 +60,20 @@ export function ComposerModeMenu({
     useChatLayout();
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents } = useChatAgents(organizationId);
+
+  // Mobile-only: the desktop sandbox panes are right-edge strips, but there's no
+  // room for them under `md`, so surface the Workspace-files / Live-browser
+  // toggles here in the always-reachable `+` menu (the composer has no pill for
+  // them anymore). Same gate as the desktop strips, via the shared hook.
+  const isMobile = useIsMobile();
+  const files = useWorkspaceFilesOptional();
+  const live = useLiveBrowserOptional();
+  const sandboxPanesAvailable = useSandboxPanesAvailable(
+    organizationId,
+    threadId,
+  );
+  const showSandboxViews =
+    isMobile && sandboxPanesAvailable && !!files && !!live;
   const capabilities = useComposerCapabilities(organizationId);
   const readiness = useIntegrationReadiness(organizationId);
   const arenaContext = useArenaModeOptional();
@@ -205,8 +233,35 @@ export function ComposerModeMenu({
       groups.push(capabilityGroup);
     }
 
+    if (showSandboxViews && files && live) {
+      groups.push([
+        { type: 'label', content: tChat('sandbox.label') },
+        {
+          type: 'item',
+          label: tChat('workspaceFiles.toggleLabel', {
+            defaultValue: 'Workspace files',
+          }),
+          icon: FolderOpen,
+          selected: files.isOpen,
+          onClick: () => files.toggle(),
+        },
+        {
+          type: 'item',
+          label: tChat('liveBrowser.toggleLabel', {
+            defaultValue: 'Live browser',
+          }),
+          icon: MonitorPlay,
+          selected: live.isOpen,
+          onClick: () => live.toggle(),
+        },
+      ]);
+    }
+
     return groups;
   }, [
+    showSandboxViews,
+    files,
+    live,
     fileUploadDisabled,
     onAttachFile,
     onTakeScreenshot,

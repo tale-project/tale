@@ -111,16 +111,23 @@ export const voiceOutputConfigSchema = z.object({
 });
 
 /**
- * Org-wide system prompt override that gets prepended to every agent's
- * generated system prompt. Round-2 review CRITICAL #24 / E.1.3:
- * `upsertPolicy` had a Zod safeParse branch for every other policy type
- * but `system_prompt` — meaning arbitrary JSON could be persisted under
- * this policyType and read back without validation. Schema kept tight
- * (enabled flag + bounded prompt text) to fit the actual write surface.
+ * Org-wide system prompt override: a mandatory PREFIX and/or SUFFIX wrapped
+ * around every agent's generated system prompt. Round-2 review CRITICAL #24 /
+ * E.1.3: `upsertPolicy` had a Zod safeParse branch for every other policy type
+ * but `system_prompt` — meaning arbitrary JSON could be persisted under this
+ * policyType and read back without validation.
+ *
+ * Shape MUST match both the writer (SystemPromptEditor sends
+ * `{ mandatoryPrefixPrompt, mandatorySuffixPrompt }`) and the readers
+ * (`lib/agent_chat/internal_actions` + `openai_compat/internal_actions` read
+ * `config.mandatoryPrefixPrompt` / `config.mandatorySuffixPrompt`). The
+ * row-level `enabled` flag (checked as `policy.enabled !== false`) lives on the
+ * policy row, NOT inside config — so it is not part of this config schema. Both
+ * fields are optional/bounded so an empty side persists cleanly.
  */
 const systemPromptConfigSchema = z.object({
-  enabled: z.boolean(),
-  prompt: z.string().max(20_000),
+  mandatoryPrefixPrompt: z.string().max(20_000).optional(),
+  mandatorySuffixPrompt: z.string().max(20_000).optional(),
 });
 
 /**
