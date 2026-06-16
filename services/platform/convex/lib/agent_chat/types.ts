@@ -32,7 +32,8 @@ export interface SerializableAgentConfig {
    * Credential/auth mode for `primaryBehavior: 'external-agent'`. 'managed'
    * (default) routes through the platform gateway with a minted virtual key;
    * 'byo' bypasses the gateway and uses the user-injected sandbox credentials
-   * with a raw model passthrough. Gated by the org `external_agent_byo` policy.
+   * with a raw model passthrough. The per-agent authMode is the sole control;
+   * there is no separate org-level gate.
    */
   authMode?: 'managed' | 'byo';
   /** System instructions for the agent (empty for image-generation agents with no style prefix) */

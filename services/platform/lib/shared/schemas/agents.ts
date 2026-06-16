@@ -192,7 +192,8 @@ export const agentJsonSchema = z
      * the agent authenticates with whatever credentials the user injected into
      * the sandbox env, the model is a raw provider passthrough (no platform
      * slug resolution / catalog), and native web tools are not force-disabled.
-     * Requires the org `external_agent_byo` policy to be enabled at run time.
+     * The per-agent authMode is the sole control — configuring an agent is
+     * already a privileged action, so there is no separate org-level gate.
      */
     authMode: z.enum(['managed', 'byo']).optional(),
     systemInstructions: z.string().optional(),

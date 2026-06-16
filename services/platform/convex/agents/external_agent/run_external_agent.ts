@@ -166,8 +166,8 @@ export const runExternalAgentTurn = internalAction({
     systemInstructions: v.optional(v.string()),
     agentKind: v.union(v.literal('claude-code'), v.literal('opencode')),
     /** Credential mode (default 'managed'). 'byo' bypasses the gateway / VK and
-     * uses the user-injected sandbox credentials; gated by the org
-     * `external_agent_byo` policy. */
+     * uses the user-injected sandbox credentials. The per-agent authMode is the
+     * sole control; there is no separate org-level gate. */
     authMode: v.optional(v.union(v.literal('managed'), v.literal('byo'))),
     /** Turn posture from the thread's plan/act toggle ('execute' when absent). */
     permissionMode: v.optional(
