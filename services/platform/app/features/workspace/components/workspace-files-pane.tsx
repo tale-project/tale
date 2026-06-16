@@ -39,10 +39,14 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { getFileExtensionLower } from '@/lib/utils/text-file-types';
+import {
+  getFileExtensionLower,
+  isTextBasedFile,
+} from '@/lib/utils/text-file-types';
 
 import { CodeViewer } from '../viewers/code-viewer';
 import { ImageViewer } from '../viewers/image-viewer';
+import { RenderableFileViewer } from '../viewers/renderable-file-viewer';
 import { useWorkspaceFiles } from './workspace-files-context';
 
 const MIN_WIDTH = 320;
@@ -68,6 +72,10 @@ const IMAGE_EXTS = new Set([
   'avif',
   'svg',
 ]);
+
+/** Text files that read far better rendered than as raw source — previewed via
+ *  the RenderableFileViewer (which still offers a Source toggle). */
+const MARKDOWN_EXTS = new Set(['md', 'mdx', 'markdown']);
 
 function iconForPath(name: string): typeof File {
   const lower = name.toLowerCase();
@@ -599,6 +607,7 @@ function TreeRowButton({
 }
 
 type ViewerState =
+  | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'text'; content: string }
   | { kind: 'image'; objectUrl: string }
@@ -612,14 +621,19 @@ interface WorkspaceFileViewerProps {
 }
 
 /**
- * Fetches a single workspace file from the same-origin httpAction and renders
- * it: text → CodeViewer, image → object URL via ImageViewer, anything else (or
- * a 404 = missing/too-large) → a download-only card. The object URL is created
- * in an effect and revoked on cleanup / path change / unmount.
+ * A selected workspace file: a persistent header toolbar (filename + an
+ * always-available Download + a Preview action for previewable types) over a
+ * content area. Preview is an EXPLICIT action — clicking it fetches the file
+ * from the same-origin httpAction and renders it (text → CodeViewer, image →
+ * object URL via ImageViewer; binary / 404 missing-or-too-large → a notice).
+ * Download is a direct link that works for ANY file regardless of size/type.
+ * The object URL is revoked on reload / path change / unmount.
  */
 function WorkspaceFileViewer({ threadId, path }: WorkspaceFileViewerProps) {
   const { t } = useT('chat');
-  const [state, setState] = useState<ViewerState>({ kind: 'loading' });
+  const [state, setState] = useState<ViewerState>({ kind: 'idle' });
+  const objectUrlRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fileUrl = useMemo(() => {
     const params = new URLSearchParams({ threadId, path });
@@ -633,67 +647,169 @@ function WorkspaceFileViewer({ threadId, path }: WorkspaceFileViewerProps) {
 
   const ext = getFileExtensionLower(path);
   const isImage = IMAGE_EXTS.has(ext);
-
-  useEffect(() => {
-    let cancelled = false;
-    let createdObjectUrl: string | null = null;
-    setState({ kind: 'loading' });
-
-    void (async () => {
-      try {
-        const res = await fetch(fileUrl, { credentials: 'same-origin' });
-        if (cancelled) return;
-        if (res.status === 409) {
-          setState({ kind: 'session_stopped' });
-          return;
-        }
-        if (res.status === 404) {
-          // Missing OR over the 20 MB preview cap — can't preview, offer download.
-          setState({ kind: 'download', reason: 'too_large' });
-          return;
-        }
-        if (!res.ok) {
-          setState({ kind: 'error' });
-          return;
-        }
-        const contentType = res.headers.get('Content-Type') ?? '';
-        if (isImage || contentType.startsWith('image/')) {
-          const blob = await res.blob();
-          if (cancelled) return;
-          createdObjectUrl = URL.createObjectURL(blob);
-          setState({ kind: 'image', objectUrl: createdObjectUrl });
-          return;
-        }
-        const isText =
-          contentType.startsWith('text/') ||
-          contentType.includes('json') ||
-          contentType.includes('xml') ||
-          contentType.includes('javascript') ||
-          contentType.includes('yaml') ||
-          contentType === '' ||
-          contentType === 'application/octet-stream';
-        if (isText) {
-          const text = await res.text();
-          if (cancelled) return;
-          setState({ kind: 'text', content: text });
-          return;
-        }
-        // Known non-text binary (PDF, archive, …) — download only.
-        setState({ kind: 'download' });
-      } catch (err) {
-        if (cancelled) return;
-        console.error('[workspace-files] file fetch failed', err);
-        setState({ kind: 'error' });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (createdObjectUrl) URL.revokeObjectURL(createdObjectUrl);
-    };
-  }, [fileUrl, isImage]);
-
+  // Whether to OFFER preview (by extension/name) — the fetch still has the final
+  // say (a too-large/binary file falls back to the download notice).
+  const previewable = isImage || isTextBasedFile(path);
   const filename = path.split('/').pop() ?? path;
+
+  const revokeObjectUrl = useCallback(() => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  }, []);
+
+  // Reset to the idle (toolbar-only) state on file change — never auto-fetch;
+  // preview is explicit. Abort an in-flight load + revoke a prior object URL.
+  useEffect(() => {
+    setState({ kind: 'idle' });
+    return () => {
+      abortRef.current?.abort();
+      revokeObjectUrl();
+    };
+  }, [path, revokeObjectUrl]);
+
+  const loadPreview = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    revokeObjectUrl();
+    setState({ kind: 'loading' });
+    try {
+      const res = await fetch(fileUrl, {
+        credentials: 'same-origin',
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      if (res.status === 409) {
+        setState({ kind: 'session_stopped' });
+        return;
+      }
+      if (res.status === 404) {
+        // Missing OR over the 20 MB preview cap — can't preview, offer download.
+        setState({ kind: 'download', reason: 'too_large' });
+        return;
+      }
+      if (!res.ok) {
+        setState({ kind: 'error' });
+        return;
+      }
+      const contentType = res.headers.get('Content-Type') ?? '';
+      if (isImage || contentType.startsWith('image/')) {
+        const blob = await res.blob();
+        if (controller.signal.aborted) return;
+        const url = URL.createObjectURL(blob);
+        objectUrlRef.current = url;
+        setState({ kind: 'image', objectUrl: url });
+        return;
+      }
+      const isText =
+        contentType.startsWith('text/') ||
+        contentType.includes('json') ||
+        contentType.includes('xml') ||
+        contentType.includes('javascript') ||
+        contentType.includes('yaml') ||
+        contentType === '' ||
+        contentType === 'application/octet-stream';
+      if (isText) {
+        const text = await res.text();
+        if (controller.signal.aborted) return;
+        setState({ kind: 'text', content: text });
+        return;
+      }
+      // Known non-text binary (PDF, archive, …) — download only.
+      setState({ kind: 'download' });
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      console.error('[workspace-files] file fetch failed', err);
+      setState({ kind: 'error' });
+    }
+  }, [fileUrl, isImage, revokeObjectUrl]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Toolbar: filename + actions. Download is ALWAYS available (any file,
+          any size/type); Preview is offered only for previewable types. */}
+      <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
+        <Text variant="caption" className="truncate font-mono" title={path}>
+          {filename}
+        </Text>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Preview is the idle CTA; once a file is shown, the content area
+              (and, for markdown/html, its own Source/Preview toggle) takes
+              over, so the toolbar button hides to avoid a duplicate control. */}
+          {previewable &&
+            (state.kind === 'idle' ||
+              state.kind === 'loading' ||
+              state.kind === 'error') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={Eye}
+                className="h-7"
+                onClick={() => void loadPreview()}
+                disabled={state.kind === 'loading'}
+              >
+                {t('workspaceFiles.preview', { defaultValue: 'Preview' })}
+              </Button>
+            )}
+          {/* Always available — any file, any size/type. The icon lives inside
+              the <a> (not Button's `icon` prop) because `asChild` + `icon`
+              makes Button forward className onto a Fragment (React warning). */}
+          <Button asChild variant="secondary" size="sm" className="h-7">
+            <a href={downloadUrl} download={filename}>
+              <Download className="mr-2 size-4" aria-hidden="true" />
+              {t('workspaceFiles.download', { defaultValue: 'Download' })}
+            </a>
+          </Button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <WorkspaceFileViewerContent
+          state={state}
+          path={path}
+          filename={filename}
+          previewable={previewable}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Renders the viewer's content area for the current {@link ViewerState}. The
+ *  surrounding toolbar (download/preview) lives in {@link WorkspaceFileViewer}. */
+function WorkspaceFileViewerContent({
+  state,
+  path,
+  filename,
+  previewable,
+}: {
+  state: ViewerState;
+  path: string;
+  filename: string;
+  previewable: boolean;
+}) {
+  const { t } = useT('chat');
+
+  if (state.kind === 'idle') {
+    return (
+      <Stack
+        gap={2}
+        className="h-full items-center justify-center p-8 text-center"
+      >
+        <Text variant="muted" className="text-sm">
+          {previewable
+            ? t('workspaceFiles.previewHint', {
+                defaultValue: 'Select Preview to view this file.',
+              })
+            : t('workspaceFiles.previewUnavailable', {
+                defaultValue:
+                  "This file type can't be previewed — use Download.",
+              })}
+        </Text>
+      </Stack>
+    );
+  }
 
   if (state.kind === 'loading') {
     return (
@@ -729,31 +845,39 @@ function WorkspaceFileViewer({ threadId, path }: WorkspaceFileViewerProps) {
   }
 
   if (state.kind === 'text') {
+    // Markdown reads better rendered: open in the RenderableFileViewer's
+    // Preview mode (it still exposes a Source toggle). Everything else is
+    // shown as syntax-highlighted source.
+    if (MARKDOWN_EXTS.has(getFileExtensionLower(path))) {
+      return (
+        <RenderableFileViewer
+          kind="markdown"
+          path={path}
+          content={state.content}
+          defaultMode="preview"
+        />
+      );
+    }
     return <CodeViewer path={path} content={state.content} showWrapToggle />;
   }
 
-  // download-only card (binary, or 404 missing/too-large)
+  // download-only notice (binary, or 404 missing/too-large) — the Download
+  // button itself lives in the toolbar above.
   return (
     <Stack
-      gap={3}
+      gap={2}
       className="h-full items-center justify-center p-8 text-center"
     >
-      <Text variant="caption" className="font-mono break-all">
-        {path}
+      <Text variant="muted" className="text-sm">
+        {state.reason === 'too_large'
+          ? t('workspaceFiles.tooLarge', {
+              defaultValue:
+                "Can't preview this file (missing or too large) — download it instead.",
+            })
+          : t('workspaceFiles.previewUnavailable', {
+              defaultValue: "This file type can't be previewed — use Download.",
+            })}
       </Text>
-      {state.reason === 'too_large' && (
-        <Text variant="muted" className="text-sm">
-          {t('workspaceFiles.tooLarge', {
-            defaultValue:
-              "Can't preview this file (missing or too large) — download it instead.",
-          })}
-        </Text>
-      )}
-      <Button asChild icon={Download} variant="secondary">
-        <a href={downloadUrl} download={filename}>
-          {t('workspaceFiles.download', { defaultValue: 'Download' })}
-        </a>
-      </Button>
     </Stack>
   );
 }
@@ -899,8 +1023,8 @@ function WorkspaceFilesBody({ threadId }: { threadId: string }) {
                 className="h-full items-center justify-center p-8 text-center"
               >
                 <Text variant="muted" className="text-sm">
-                  {t('workspaceFiles.emptyDir', {
-                    defaultValue: 'Select a file to preview it.',
+                  {t('workspaceFiles.selectFile', {
+                    defaultValue: 'Select a file to preview.',
                   })}
                 </Text>
               </Stack>
@@ -971,9 +1095,9 @@ function WorkspaceFilesPaneComponent() {
     document.addEventListener('mouseup', handleMouseUp);
   }, []);
 
-  // The pane is gated on the external-agent session at the toggle + mount site
-  // (chat-input self-gates the toggle; chat.tsx only mounts this on threads
-  // that have a session). With no threadId there's nothing to browse.
+  // Gating lives at the mount site: chat.tsx only mounts this pane when
+  // `useSandboxPanesAvailable` is true (external-agent thread with a session).
+  // With no threadId there's nothing to browse.
   if (!threadId) return null;
 
   // Collapsed: hidden on mobile (the Sheet takes over below `md`), a vertical
