@@ -986,6 +986,7 @@
       }
     },
     "errorGenerating": "Etwas ist schiefgelaufen",
+    "errorDetailsSummary": "Technische Details",
     "retryGeneration": "Erneut versuchen",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
@@ -1396,6 +1397,7 @@
     "errorHintRateLimited": "Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.",
     "errorHintTokenLimit": "Das Token-Limit des Modells wurde überschritten. Versuche eine kürzere Anfrage oder bitte deinen Administrator, die Modelleinstellungen anzupassen.",
     "errorHintToolFailure": "Der Agent hat beim Datenzugriff einen Fehler festgestellt. Versuche, deine Anfrage umzuformulieren oder weniger Daten anzufordern.",
+    "errorHintUnsupportedParameter": "Das Modell hat einen der Anfrageparameter abgelehnt. Das deutet meist auf eine falsch konfigurierte Anbieter- oder Modelleinstellung hin – prüfe die Modelleinstellungen oder öffne die Details unten.",
     "workspaceFiles": {
       "title": "Arbeitsbereichsdateien",
       "toggleLabel": "Arbeitsbereichsdateien",

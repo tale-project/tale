@@ -987,6 +987,7 @@
       }
     },
     "errorGenerating": "Une erreur s'est produite",
+    "errorDetailsSummary": "Détails techniques",
     "retryGeneration": "Réessayer",
     "showMore": "Voir plus",
     "showLess": "Voir moins",
@@ -1397,6 +1398,7 @@
     "errorHintRateLimited": "Trop de requêtes. Merci de patienter un moment et réessayer.",
     "errorHintTokenLimit": "La limite de tokens en sortie du modèle a été dépassée. Essaie une requête plus courte ou demande à ton administrateur d'ajuster les paramètres du modèle.",
     "errorHintToolFailure": "L'agent a rencontré une erreur lors de l'accès aux données. Essaie de reformuler ta demande ou de demander un ensemble de données plus restreint.",
+    "errorHintUnsupportedParameter": "Le modèle a rejeté l'un des paramètres de la requête. Cela indique généralement une mauvaise configuration du fournisseur ou du modèle — vérifie les paramètres du modèle ou ouvre les détails ci-dessous.",
     "workspaceFiles": {
       "title": "Fichiers de l'espace de travail",
       "toggleLabel": "Fichiers de l'espace de travail",

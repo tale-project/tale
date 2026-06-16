@@ -986,6 +986,7 @@
       }
     },
     "errorGenerating": "Something went wrong",
+    "errorDetailsSummary": "Technical details",
     "retryGeneration": "Try again",
     "showMore": "Show more",
     "showLess": "Show less",
@@ -1416,6 +1417,7 @@
     "errorHintRateLimited": "Too many requests. Please wait a moment and try again.",
     "errorHintTokenLimit": "The model's output token limit was exceeded. Try a shorter request or ask your administrator to adjust the model settings.",
     "errorHintToolFailure": "The agent encountered an error while accessing data. Try rephrasing your request or asking for a smaller set of data.",
+    "errorHintUnsupportedParameter": "The model rejected one of the request parameters. This usually means a provider or model configuration mismatch — check the model settings, or expand the details below.",
     "liveBrowser": {
       "title": "Live browser",
       "toggleLabel": "Live browser",
