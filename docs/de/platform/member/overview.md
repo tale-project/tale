@@ -16,7 +16,7 @@ Die Mitglieder-Oberfläche ist bewusst eng. Die vier Kübel sind:
 - **Konversationen** — die Inbox-Threads lesen, die dir zugewiesen sind. Mitglieder antworten, wenn ein Agent eine Konversation zurückgibt; sie können Threads, die anderen gehören, nicht neu zuweisen oder schliessen.
 - **Genehmigungen** — die Genehmigungs-Karten lesen, die zu dir geroutet wurden. Klick auf Genehmigen, Ablehnen oder Änderungen anfordern; hinterlass einen Kommentar, wenn die Regel danach fragt.
 
-Das Einstellungs-Menü ist für Mitglieder ausgeblendet; alles in der Oberfläche ist die Arbeits-Oberfläche, nicht die Konfigurations-Oberfläche.
+Die Org-Konfigurationseinstellungen — Anbieter, Integrationen, Agents, Governance — sind für Mitglieder ausgeblendet; was bleibt, ist zum Grossteil die Arbeits-Oberfläche. Die Ausnahme ist eine kleine persönliche Einstellungs-Gruppe, die jede Rolle trägt: Konto, Personalisierung und [Umgebung & Geheimnisse](/de/platform/member/environment), die Schlüssel und Variablen, die in die Sandboxes injiziert werden, die du fährst.
 
 ## Seiten in diesem Bereich
 
