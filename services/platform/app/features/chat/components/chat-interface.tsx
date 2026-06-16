@@ -83,6 +83,7 @@ import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { ChatMessagesSkeleton } from './chat-messages-skeleton';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
+import { HumanControlCard } from './human-control-card';
 import { SelectionQuoteButton } from './selection-quote-button';
 import { SteerStatusProvider } from './steer-status';
 import { WelcomeView } from './welcome-view';
@@ -452,11 +453,20 @@ export function ChatInterface({
     documentWriteApprovals,
     knowledgeWriteApprovals,
     planApprovals,
-    humanControlRequests,
   });
 
   // Block input when any pending or executing approval exists
   const hasActiveApproval = activeApproval !== null;
+
+  // External-agent browser handoff: while the agent is parked waiting for a
+  // human to drive the live browser, REPLACE the composer with the take-control
+  // card (the agent is stopped — typing does nothing useful). At most one is
+  // pending at a time (createHumanControlRequest supersedes older ones). Not
+  // anchored to a message: it lives in the composer slot, so a long thread that
+  // has paginated the requesting message out still shows it.
+  const pendingHumanControl = humanControlRequests.find(
+    (r) => r.status === 'pending' || r.status === 'executing',
+  );
 
   // Whole-page drag & drop: a file dropped ANYWHERE in the chat (not just the
   // composer's drop zone) attaches to the message being composed. Gate it
@@ -1342,81 +1352,92 @@ export function ChatInterface({
                   />
                 </div>
               )}
-              <ChatInput
-                className="mx-auto w-full max-w-(--chat-max-width)"
-                placeholder={
-                  queueModeActive
-                    ? agentLingering
-                      ? t('queue.placeholderIdle')
-                      : t('queue.placeholder')
-                    : isImageGenAgent
-                      ? activeEditingImage && currentModelSupportsEdit
-                        ? t('imageEdit.placeholder')
-                        : t('imageEdit.placeholderCreate')
-                      : t('placeholder')
-                }
-                value={inputValue}
-                onChange={setInputValue}
-                onSendMessage={handleSendMessage}
-                onStopGenerating={
-                  agentActivelyWorking ? stopGenerating : undefined
-                }
-                isLoading={isLoading}
-                queueModeActive={queueModeActive}
-                disabled={hasNoAgents || hasActiveApproval}
-                disabledReason={
-                  hasNoAgents
-                    ? 'no-agents'
-                    : hasActiveApproval
-                      ? 'pending-approval'
-                      : undefined
-                }
-                organizationId={organizationId}
-                projectId={currentProjectId}
-                threadId={dataThreadId}
-                onComposerActivate={prewarmChatCache}
-                attachments={attachments}
-                uploadingFiles={uploadingFiles}
-                uploadFiles={uploadFiles}
-                removeAttachment={removeAttachment}
-                clearAttachments={clearAttachments}
-                fileUploadDisabled={fileUploadDisabled}
-                isIndexing={isIndexing}
-                indexingStatuses={indexingStatuses}
-                isTranscribing={isTranscribing || isTranscriptionQueryLoading}
-                transcriptionStatuses={transcriptionStatuses}
-                hasFailedAudioJobs={hasFailedAudioJobs}
-                retryAudioTranscription={retryAttachmentTranscription}
-                videoLinkJobs={videoLinkJobs}
-                isProcessingVideo={isProcessingVideo}
-                hasFailedVideoJobs={hasFailedVideoJobs}
-                ingestVideoUrlsFromText={ingestVideoUrlsFromText}
-                cancelVideoJob={cancelVideoJob}
-                retryVideoJob={retryVideoJob}
-                sendBlocked={
-                  (isImageGenAgent &&
+              {pendingHumanControl ? (
+                <div className="mx-auto w-full max-w-(--chat-max-width) pb-3">
+                  <HumanControlCard
+                    approvalId={pendingHumanControl._id}
+                    organizationId={organizationId}
+                    status={pendingHumanControl.status}
+                    metadata={pendingHumanControl.metadata}
+                  />
+                </div>
+              ) : (
+                <ChatInput
+                  className="mx-auto w-full max-w-(--chat-max-width)"
+                  placeholder={
+                    queueModeActive
+                      ? agentLingering
+                        ? t('queue.placeholderIdle')
+                        : t('queue.placeholder')
+                      : isImageGenAgent
+                        ? activeEditingImage && currentModelSupportsEdit
+                          ? t('imageEdit.placeholder')
+                          : t('imageEdit.placeholderCreate')
+                        : t('placeholder')
+                  }
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSendMessage={handleSendMessage}
+                  onStopGenerating={
+                    agentActivelyWorking ? stopGenerating : undefined
+                  }
+                  isLoading={isLoading}
+                  queueModeActive={queueModeActive}
+                  disabled={hasNoAgents || hasActiveApproval}
+                  disabledReason={
+                    hasNoAgents
+                      ? 'no-agents'
+                      : hasActiveApproval
+                        ? 'pending-approval'
+                        : undefined
+                  }
+                  organizationId={organizationId}
+                  projectId={currentProjectId}
+                  threadId={dataThreadId}
+                  onComposerActivate={prewarmChatCache}
+                  attachments={attachments}
+                  uploadingFiles={uploadingFiles}
+                  uploadFiles={uploadFiles}
+                  removeAttachment={removeAttachment}
+                  clearAttachments={clearAttachments}
+                  fileUploadDisabled={fileUploadDisabled}
+                  isIndexing={isIndexing}
+                  indexingStatuses={indexingStatuses}
+                  isTranscribing={isTranscribing || isTranscriptionQueryLoading}
+                  transcriptionStatuses={transcriptionStatuses}
+                  hasFailedAudioJobs={hasFailedAudioJobs}
+                  retryAudioTranscription={retryAttachmentTranscription}
+                  videoLinkJobs={videoLinkJobs}
+                  isProcessingVideo={isProcessingVideo}
+                  hasFailedVideoJobs={hasFailedVideoJobs}
+                  ingestVideoUrlsFromText={ingestVideoUrlsFromText}
+                  cancelVideoJob={cancelVideoJob}
+                  retryVideoJob={retryVideoJob}
+                  sendBlocked={
+                    (isImageGenAgent &&
+                      !!activeEditingImage &&
+                      !currentModelSupportsEdit) ||
+                    activeModelMissingApiKey
+                  }
+                  sendBlockedReason={
+                    isImageGenAgent &&
                     !!activeEditingImage &&
-                    !currentModelSupportsEdit) ||
-                  activeModelMissingApiKey
-                }
-                sendBlockedReason={
-                  isImageGenAgent &&
-                  !!activeEditingImage &&
-                  !currentModelSupportsEdit
-                    ? t('imageEdit.modelCannotEdit')
-                    : activeModelMissingApiKey
-                      ? t('modelSelector.noApiKey')
-                      : undefined
-                }
-                onSavePrompt={(content) =>
-                  setSavePromptData({ messageId: '', content })
-                }
-                onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
-                kbMentions={kbMentions}
-                addKbMention={addKbMention}
-                removeKbMention={removeKbMention}
-                clearKbMentions={clearKbMentions}
-              />
+                    !currentModelSupportsEdit
+                      ? t('imageEdit.modelCannotEdit')
+                      : activeModelMissingApiKey
+                        ? t('modelSelector.noApiKey')
+                        : undefined
+                  }
+                  onSavePrompt={(content) =>
+                    setSavePromptData({ messageId: '', content })
+                  }
+                  onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
+                  kbMentions={kbMentions}
+                  addKbMention={addKbMention}
+                  removeKbMention={removeKbMention}
+                  clearKbMentions={clearKbMentions}
+                />
+              )}
             </div>
           </FileUpload.Root>
         )}

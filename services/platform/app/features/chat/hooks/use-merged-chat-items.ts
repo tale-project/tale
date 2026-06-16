@@ -4,7 +4,6 @@ import { SYSTEM_MSG_TAG } from '@/lib/shared/constants/system-message-tags';
 
 import type {
   DocumentWriteApproval,
-  HumanControlRequest,
   HumanInputRequest,
   IntegrationApproval,
   KnowledgeWriteApproval,
@@ -26,8 +25,7 @@ export type ChatItem =
   | { type: 'document_write_approval'; data: DocumentWriteApproval }
   | { type: 'knowledge_write_approval'; data: KnowledgeWriteApproval }
   | { type: 'location_request'; data: LocationRequest }
-  | { type: 'plan_approval'; data: PlanApproval }
-  | { type: 'human_control_request'; data: HumanControlRequest };
+  | { type: 'plan_approval'; data: PlanApproval };
 
 type ApprovalChatItem = Exclude<ChatItem, { type: 'message' }>;
 
@@ -51,10 +49,6 @@ interface UseMergedChatItemsParams {
    *  message and deliberately EXCLUDED from `activeApproval`: a pending plan
    *  must never disable the composer (typing below = refining the plan). */
   planApprovals?: PlanApproval[];
-  /** External-agent browser handoffs — rendered INLINE anchored to their source
-   *  message and EXCLUDED from `activeApproval` (same rationale as plans: the
-   *  composer stays usable while the agent waits for a human to take control). */
-  humanControlRequests?: HumanControlRequest[];
 }
 
 export interface MergedChatItemsResult {
@@ -170,44 +164,6 @@ export function mergePlanApprovalItems(
 }
 
 /**
- * Splice human-control (browser handoff) cards inline after their source
- * assistant message — the turn that called request_human_control. Same shape as
- * mergePlanApprovalItems: skip handoffs whose source message isn't loaded yet.
- * Pure + exported for unit testing.
- */
-export function mergeHumanControlItems(
-  messageItems: ChatItem[],
-  requests: HumanControlRequest[],
-): ChatItem[] {
-  if (requests.length === 0) return messageItems;
-
-  const byMessageId = new Map<string, HumanControlRequest[]>();
-  for (const request of requests) {
-    if (!request.messageId) continue;
-    const bucket = byMessageId.get(request.messageId);
-    if (bucket) bucket.push(request);
-    else byMessageId.set(request.messageId, [request]);
-  }
-  for (const bucket of byMessageId.values()) {
-    bucket.sort((a, b) => a._creationTime - b._creationTime);
-  }
-
-  const merged: ChatItem[] = [];
-  let insertedAny = false;
-  for (const item of messageItems) {
-    merged.push(item);
-    if (item.type !== 'message') continue;
-    const bucket = byMessageId.get(item.data.id);
-    if (!bucket) continue;
-    for (const request of bucket) {
-      merged.push({ type: 'human_control_request', data: request });
-      insertedAny = true;
-    }
-  }
-  return insertedAny ? merged : messageItems;
-}
-
-/**
  * Hook to merge messages with approvals.
  * Messages are returned chronologically.
  * The latest active (pending/executing) approval is returned separately;
@@ -228,7 +184,6 @@ export function useMergedChatItems({
   documentWriteApprovals,
   knowledgeWriteApprovals,
   planApprovals,
-  humanControlRequests,
 }: UseMergedChatItemsParams): MergedChatItemsResult {
   return useMemo((): MergedChatItemsResult => {
     // Build message items
@@ -276,14 +231,6 @@ export function useMergedChatItems({
     const itemsWithPlans = mergePlanApprovalItems(
       itemsWithHumanInput,
       planApprovals ?? [],
-    );
-
-    // Human-control (browser handoff) cards: same inline, never-footer
-    // treatment as plans — the composer stays usable while the agent waits for
-    // the user to take control of the live browser.
-    const itemsWithHumanControl = mergeHumanControlItems(
-      itemsWithPlans,
-      humanControlRequests ?? [],
     );
 
     // Collect active approvals (pending/executing only, linked to loaded messages)
@@ -380,7 +327,7 @@ export function useMergedChatItems({
       loadedMessageIds.has(activeApproval.data.messageId);
 
     return {
-      messages: itemsWithHumanControl,
+      messages: itemsWithPlans,
       activeApproval,
       activeApprovalInline,
     };
@@ -396,6 +343,5 @@ export function useMergedChatItems({
     documentWriteApprovals,
     knowledgeWriteApprovals,
     planApprovals,
-    humanControlRequests,
   ]);
 }
