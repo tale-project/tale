@@ -35,6 +35,11 @@ export const approvalsTable = defineTable({
     // External-agent (Claude Code) plan proposal awaiting the user's
     // approve-and-execute in chat (plan/act workflow).
     v.literal('external_agent_plan'),
+    // External-agent browser handoff: the agent called request_human_control
+    // and parked its turn; a human takes control of the live browser (CAPTCHA/
+    // login/2FA) and returns it to resume the same session. resourceId =
+    // threadId. metadata carries reason + the single-controller control lease.
+    v.literal('external_agent_human_control'),
   ),
   resourceId: v.string(),
   threadId: v.optional(v.string()),

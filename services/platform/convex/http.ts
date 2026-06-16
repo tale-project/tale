@@ -739,7 +739,29 @@ http.route({
       });
     }
 
-    return new Response(JSON.stringify({ sessionId }), {
+    // Writable control (`?control=1`) is a SEPARATE, stricter grant than view:
+    // the human gets a writable VNC only while the agent has a pending
+    // request_human_control handoff, only if they OWN the thread, and only one
+    // controller at a time (the single-controller lease). A denied control
+    // request still streams read-only (control:false) — the pane just stays a
+    // mirror — so a second viewer can watch while one person drives.
+    let control = false;
+    if (url.searchParams.get('control') === '1') {
+      try {
+        const lease = await ctx.runMutation(
+          internal.approvals.human_control_mutations.claimHumanControlLease,
+          { threadId, userId: session.user.id },
+        );
+        control = lease.ok;
+      } catch (error) {
+        console.warn('[http /api/sandbox/screencast-auth] lease claim failed', {
+          threadId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return new Response(JSON.stringify({ sessionId, control }), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',

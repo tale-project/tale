@@ -42,7 +42,10 @@ import {
   sessionIsAlive,
   sessionSetPinned,
 } from '../../node_only/sandbox/helpers/session_client';
-import { stageIntegrationSkills } from '../../node_only/sandbox/integration_skills';
+import {
+  stageBrowserControlSkill,
+  stageIntegrationSkills,
+} from '../../node_only/sandbox/integration_skills';
 import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
 import {
@@ -479,6 +482,11 @@ export const runExternalAgentTurn = internalAction({
           organizationId: args.organizationId,
           sessionId,
         });
+        // The browser-human-control skill only applies when the live headed
+        // browser is on (the request_human_control tool is wired in that mode).
+        if (BROWSER_VIEW_ENABLED) {
+          await stageBrowserControlSkill(ctx, { sessionId });
+        }
       } catch (skillErr) {
         console.warn(
           '[runExternalAgentTurn] integration skill staging failed (continuing):',

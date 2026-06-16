@@ -102,6 +102,47 @@ describe('spawnerScreencastUrl / spawnerScreencastPath', () => {
     // No query → signing the bare path equals signing pathname+search.
     expect(url.search).toBe('');
   });
+
+  test('control=true appends ?control=1 to BOTH the url and the signed path', () => {
+    process.env.SANDBOX_URL = 'http://sandbox:8003';
+    expect(spawnerScreencastUrl('sess1', true)).toBe(
+      'ws://sandbox:8003/v1/sessions/sess1/screencast?control=1',
+    );
+    expect(spawnerScreencastPath('sess1', true)).toBe(
+      '/v1/sessions/sess1/screencast?control=1',
+    );
+    // The query MUST ride the signed path: the spawner verifies the HMAC over
+    // pathname+search, so a url-only query would fail the upgrade.
+    const url = new URL(spawnerScreencastUrl('sess1', true));
+    expect(`${url.pathname}${url.search}`).toBe(
+      spawnerScreencastPath('sess1', true),
+    );
+  });
+});
+
+describe('buildScreencastAuthHeaders — control query is signed', () => {
+  test('the signature covers the ?control=1 path (parity with the spawner)', () => {
+    const path = spawnerScreencastPath('sess1', true);
+    expect(path).toContain('?control=1');
+    const headers = buildScreencastAuthHeaders(path, 'shared-secret');
+    const ts = headers['x-tale-sandbox-timestamp'];
+    const nonce = headers['x-tale-sandbox-nonce'];
+    // Signing the control path differs from signing the bare path — i.e. the
+    // query is genuinely part of the signed string.
+    expect(headers['x-tale-sandbox-signature']).toBe(
+      spawnerSign('GET', path, ts, '', 'shared-secret', nonce),
+    );
+    expect(headers['x-tale-sandbox-signature']).not.toBe(
+      spawnerSign(
+        'GET',
+        spawnerScreencastPath('sess1'),
+        ts,
+        '',
+        'shared-secret',
+        nonce,
+      ),
+    );
+  });
 });
 
 describe('resolveSandboxToken', () => {

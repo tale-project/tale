@@ -100,6 +100,9 @@ export const continueExternalAgentTurn = internalAction({
             ...(checkpoint.planText !== undefined && {
               planText: checkpoint.planText,
             }),
+            ...(checkpoint.humanControlReason !== undefined && {
+              humanControlReason: checkpoint.humanControlReason,
+            }),
             ...(checkpoint.toolNames !== undefined && {
               toolNames: checkpoint.toolNames,
             }),
