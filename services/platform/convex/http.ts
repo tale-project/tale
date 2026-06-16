@@ -603,10 +603,22 @@ http.route({
       internal.node_only.sandbox.workspace_files.readWorkspaceFileBytes,
       { sessionId, path },
     );
-    if (!file) {
-      // null ⇒ the spawner returned 404 for a missing/unsafe path OR a file
-      // over runnerd's 20 MB read cap — the two are indistinguishable here, so
-      // 404 (a 413 would require the spawner to surface the cap separately).
+    if (file.status === 'gone') {
+      // The session's backend is gone (phantom row read 'active'). Tell the
+      // browser to show "resume to browse", not "file missing" — same 409 the
+      // session-not-active gate above returns.
+      return new Response(JSON.stringify({ error: 'session_not_running' }), {
+        status: 409,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          Vary: 'Cookie',
+        },
+      });
+    }
+    if (file.status === 'missing') {
+      // Spawner 404 with a live session: missing/unsafe path OR a file over
+      // runnerd's 20 MB read cap (indistinguishable here, so 404).
       return new Response('Not found', {
         status: 404,
         headers: { 'Cache-Control': 'no-store', Vary: 'Cookie' },

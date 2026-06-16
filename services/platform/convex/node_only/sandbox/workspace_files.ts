@@ -11,7 +11,11 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { action, internalAction } from '../../_generated/server';
-import { sessionListFiles, sessionReadFile } from './helpers/session_client';
+import {
+  sessionIsAlive,
+  sessionListFiles,
+  sessionReadFile,
+} from './helpers/session_client';
 
 /** The agent's working area (Part C) and the explorer's root. We deliberately
  * root at `/user/workspace`, NOT the `/user` data root: the panel is "Workspace
@@ -74,11 +78,15 @@ export const listWorkspaceDir = action({
     }
 
     const raw = await sessionListFiles(sess.sessionId, dirPath);
-    // null ⇒ path (or session) gone spawner-side. The session itself is active,
-    // so this is "this directory disappeared", not "no sandbox": still
-    // sessionRunning, just an empty listing.
     if (raw === null) {
-      return { sessionRunning: true, entries: [], truncated: false };
+      // null ⇒ the spawner 404'd: either this directory vanished while the
+      // session is still alive, OR the session's backend is gone (the Convex
+      // row can read 'active' for a short window after an eviction, before the
+      // reconcile sweep flips it). Probe liveness so a dead session surfaces as
+      // sessionRunning:false ("resume to browse") instead of a misleading empty
+      // listing.
+      const alive = await sessionIsAlive(sess.sessionId);
+      return { sessionRunning: alive, entries: [], truncated: false };
     }
 
     const showHidden = args.showHidden === true;
@@ -114,15 +122,37 @@ export const listWorkspaceDir = action({
  * signing). The CALLER (the `/api/sandbox/workspace_file` httpAction, V8
  * runtime) has already authorized the (thread → session → org) access via
  * `resolveBrowsableSessionForUser` and passes the vetted `sessionId` — this
- * action does NOT re-authorize, so it must never be exposed publicly. Returns
- * null when the path is missing OR over runnerd's 20 MB cap (the spawner
- * conflates both into a 404 → null); the httpAction maps null to 404.
+ * action does NOT re-authorize, so it must never be exposed publicly.
+ *
+ * Returns a discriminated status: `ok` (bytes), `missing` (the spawner 404'd
+ * but the session is alive — path gone OR over runnerd's 20 MB cap, which the
+ * spawner conflates), or `gone` (the session backend is gone — phantom row).
+ * The httpAction maps gone→409 (resume to browse) and missing→404 so the UI
+ * doesn't tell the user a file is "missing" when the sandbox simply stopped.
  */
 export const readWorkspaceFileBytes = internalAction({
   args: { sessionId: v.string(), path: v.string() },
   returns: v.union(
-    v.object({ bytes: v.bytes(), contentType: v.string() }),
-    v.null(),
+    v.object({
+      status: v.literal('ok'),
+      bytes: v.bytes(),
+      contentType: v.string(),
+    }),
+    v.object({ status: v.literal('missing') }),
+    v.object({ status: v.literal('gone') }),
   ),
-  handler: async (_ctx, args) => sessionReadFile(args.sessionId, args.path),
+  handler: async (_ctx, args) => {
+    const file = await sessionReadFile(args.sessionId, args.path);
+    if (file) {
+      return {
+        status: 'ok' as const,
+        bytes: file.bytes,
+        contentType: file.contentType,
+      };
+    }
+    // null ⇒ spawner 404. Probe liveness to tell "file missing/too large"
+    // (session alive) apart from "sandbox stopped" (backend gone).
+    const alive = await sessionIsAlive(args.sessionId);
+    return { status: alive ? ('missing' as const) : ('gone' as const) };
+  },
 });
