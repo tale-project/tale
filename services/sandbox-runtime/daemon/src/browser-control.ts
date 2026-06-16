@@ -60,7 +60,7 @@ const PROBE_TIMEOUT_MS = 3_000;
 const RECYCLE_WAIT_MS = 15_000;
 const RECYCLE_POLL_MS = 500;
 
-export interface CdpHealth {
+interface CdpHealth {
   /** True only when a CDP session attached AND answered a protocol round-trip. */
   healthy: boolean;
   /** Open page targets (tabs) at probe time; 0 when unhealthy. */
