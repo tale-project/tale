@@ -197,6 +197,13 @@ export const runChatTurnGeneration = internalAction({
         modelId: args.modelId,
       });
       const agentConfig = configResult.config;
+      // BYO external agents bypass platform model governance entirely: their
+      // model is a raw provider id (or empty = the credential's default), not a
+      // catalog entry subject to default-model resolution or model-access RBAC.
+      // Auth, billing, and model choice all move to the user's credentials.
+      const isByoExternal =
+        agentConfig.primaryBehavior === 'external-agent' &&
+        agentConfig.authMode === 'byo';
 
       const [guardrails, governance] = await Promise.all([
         loadGuardrailsSnapshot(ctx, args.organizationId),
@@ -218,7 +225,7 @@ export const runChatTurnGeneration = internalAction({
       ]);
 
       // 4. Governance default model (implicit path only).
-      if (!args.modelId && governance.defaultModel?.modelId) {
+      if (!isByoExternal && !args.modelId && governance.defaultModel?.modelId) {
         const qualifiedRef = governance.defaultModel.providerName
           ? `${governance.defaultModel.providerName}:${governance.defaultModel.modelId}`
           : governance.defaultModel.modelId;
@@ -230,8 +237,9 @@ export const runChatTurnGeneration = internalAction({
       }
 
       // 5. Implicit model-access RBAC (no explicit modelId) — accessible set
-      //    came back in the consolidated governance query above.
-      if (!args.modelId) {
+      //    came back in the consolidated governance query above. Skipped for
+      //    BYO (no platform catalog to police).
+      if (!isByoExternal && !args.modelId) {
         const accessibleSet = new Set(governance.accessibleModelIds);
         const accessibleRefs = configResult.supportedModels.filter((ref) =>
           accessibleSet.has(stripModelRefQualifier(ref)),
@@ -289,8 +297,9 @@ export const runChatTurnGeneration = internalAction({
       const message = sanitized.text;
 
       // 7. Explicit model-access RBAC (explicit modelId only) — access result
-      //    came back in the consolidated governance query above.
-      if (args.modelId) {
+      //    came back in the consolidated governance query above. Skipped for
+      //    BYO (the raw model id isn't a catalog entry).
+      if (!isByoExternal && args.modelId) {
         const accessCheck = governance.explicitAccess;
         if (accessCheck && !accessCheck.allowed) {
           // Audit the denial, but never let an audit-log failure skip the

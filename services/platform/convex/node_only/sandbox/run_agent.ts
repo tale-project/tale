@@ -115,9 +115,12 @@ export interface RunAgentInSessionArgs {
   permissionMode?: 'plan' | 'execute';
   /** Extra system-prompt text appended to the agent CLI's own prompt. */
   systemPromptAppend?: string;
-  /** Bifrost gateway root + the session virtual key. */
-  gatewayBaseUrl: string;
-  gatewayToken: string;
+  /** Credential mode (default 'managed'). 'byo' skips the gateway entirely. */
+  authMode?: 'managed' | 'byo';
+  /** Bifrost gateway root + the session virtual key. Present for managed runs;
+   * omitted for byo (the agent uses user-injected session credentials). */
+  gatewayBaseUrl?: string;
+  gatewayToken?: string;
   /** Platform base URL for the integration-dispatch bridge (/api/integrations). */
   integrationsBaseUrl?: string;
   workdir?: string;
@@ -246,7 +249,14 @@ export async function runAgentInSessionImpl(
         ...(args.systemPromptAppend !== undefined && {
           systemPromptAppend: args.systemPromptAppend,
         }),
-        gateway: { baseUrl: args.gatewayBaseUrl, token: args.gatewayToken },
+        ...(args.authMode !== undefined && { authMode: args.authMode }),
+        ...(args.gatewayBaseUrl !== undefined &&
+          args.gatewayToken !== undefined && {
+            gateway: {
+              baseUrl: args.gatewayBaseUrl,
+              token: args.gatewayToken,
+            },
+          }),
         ...(args.integrationsBaseUrl !== undefined && {
           integrationsBaseUrl: args.integrationsBaseUrl,
         }),
@@ -1192,9 +1202,11 @@ export const runAgentInSession = internalAction({
     agentSessionId: v.optional(v.string()),
     maxTurns: v.optional(v.number()),
     browserMcp: v.optional(v.boolean()),
-    /** Bifrost gateway root + the session virtual key. */
-    gatewayBaseUrl: v.string(),
-    gatewayToken: v.string(),
+    authMode: v.optional(v.union(v.literal('managed'), v.literal('byo'))),
+    /** Bifrost gateway root + the session virtual key. Present for managed
+     * runs; omitted for byo. */
+    gatewayBaseUrl: v.optional(v.string()),
+    gatewayToken: v.optional(v.string()),
     integrationsBaseUrl: v.optional(v.string()),
     workdir: v.optional(v.string()),
     timeoutMs: v.optional(v.number()),

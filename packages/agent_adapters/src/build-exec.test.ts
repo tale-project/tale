@@ -197,6 +197,72 @@ describe('ClaudeCodeAdapter.buildExec', () => {
   });
 });
 
+describe('ClaudeCodeAdapter.buildExec — BYO mode', () => {
+  // BYO carries NO gateway: the agent authenticates with the user-injected
+  // session credentials, so the platform injects none of the gateway env.
+  const byoBase: AgentRunSpec = {
+    prompt: 'Fix issue #1',
+    model: 'claude-opus-4-8',
+    authMode: 'byo',
+    workdir: '/user/workspace',
+  };
+
+  it('injects no gateway / key env and passes the model through raw', () => {
+    const { argv, env } = new ClaudeCodeAdapter().buildExec(byoBase);
+    expect(env.ANTHROPIC_BASE_URL).toBeUndefined();
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
+    // Not blanked to '' either — the user's own ANTHROPIC_API_KEY (if set in
+    // the session env) must win via Claude Code's own credential precedence.
+    expect(env.ANTHROPIC_API_KEY).toBeUndefined();
+    // Raw model passthrough (no gateway slug resolution); --model still set.
+    expect(env.ANTHROPIC_MODEL).toBe('claude-opus-4-8');
+    expect(argv).toContain('--model');
+    expect(argv[argv.indexOf('--model') + 1]).toBe('claude-opus-4-8');
+    // Box config still set; nonessential traffic still disabled.
+    expect(env.CLAUDE_CONFIG_DIR).toBe('/user/.runtime/home/.claude');
+  });
+
+  it('does not pin the alias / subagent model slots (no VK allowlist to satisfy)', () => {
+    const { env } = new ClaudeCodeAdapter().buildExec(byoBase);
+    expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBeUndefined();
+    expect(env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBeUndefined();
+    expect(env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBeUndefined();
+    expect(env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBeUndefined();
+    expect(env.CLAUDE_CODE_SUBAGENT_MODEL).toBeUndefined();
+  });
+
+  it('lifts the governance-motivated WebSearch/WebFetch denial (native tools enabled)', () => {
+    const { argv } = new ClaudeCodeAdapter().buildExec(byoBase);
+    expect(argv).not.toContain('--disallowedTools');
+  });
+
+  it('omits the integration bridge even if integrationsBaseUrl is set (no session key to auth it)', () => {
+    const { argv } = new ClaudeCodeAdapter().buildExec({
+      ...byoBase,
+      integrationsBaseUrl: 'http://proxy/api/integrations',
+    });
+    const mcpConfig = JSON.parse(
+      argv[argv.indexOf('--mcp-config') + 1] ?? '{}',
+    );
+    expect(mcpConfig.mcpServers?.integrations).toBeUndefined();
+  });
+
+  it('managed mode is unaffected — gateway env injected and web tools denied', () => {
+    const { argv, env } = new ClaudeCodeAdapter().buildExec({
+      ...byoBase,
+      authMode: 'managed',
+      gateway: { baseUrl: 'http://bifrost:8080', token: 'sk-bf-test' },
+    });
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-bf-test');
+    expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-8');
+    expect(argv).toContain('--disallowedTools');
+  });
+
+  it('OpenCode rejects BYO (managed-only — needs the gateway)', () => {
+    expect(() => new OpenCodeAdapter().buildExec(byoBase)).toThrow(/byo/i);
+  });
+});
+
 describe('OpenCodeAdapter.buildExec', () => {
   it('builds run --format json with injected gateway provider config', () => {
     const { argv, env, cwd } = new OpenCodeAdapter().buildExec(base);

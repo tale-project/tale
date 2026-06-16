@@ -9,6 +9,7 @@ import {
   Sparkles,
   User,
   Users,
+  Variable,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -51,6 +52,11 @@ export function useSettingsMenuGroups(
         key: 'personalization',
         icon: SlidersHorizontal,
         path: 'personalization',
+      },
+      {
+        key: 'environment',
+        icon: Variable,
+        path: 'environment',
       },
     ];
 

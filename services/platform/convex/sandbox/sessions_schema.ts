@@ -268,3 +268,29 @@ export function isLiveSessionStatus(
 ): status is (typeof SANDBOX_SESSION_LIVE_STATUSES)[number] {
   return (SANDBOX_SESSION_LIVE_STATUSES as readonly string[]).includes(status);
 }
+
+/**
+ * User-level environment variables + secrets, auto-attached to all of this
+ * user's sandbox sessions in the org. One row per (organizationId, userId,
+ * key). Non-secret vars keep `value` in plaintext; secrets keep
+ * `encryptedValue` (a compact JWE from `lib/crypto/encryptString`) and never
+ * expose the value back through the read API (write-only). Injected into the
+ * running container via `sessionEnvPatch` at turn start (managed AND byo
+ * sessions) — it's the user's box environment, and where a BYO agent's own
+ * credentials (e.g. its own API key) live.
+ */
+export const sandboxUserEnvTable = defineTable({
+  organizationId: v.string(),
+  userId: v.string(),
+  /** Environment variable name (validated `^[A-Za-z_][A-Za-z0-9_]*$`). */
+  key: v.string(),
+  isSecret: v.boolean(),
+  /** Plaintext value for non-secret vars; omitted for secrets. */
+  value: v.optional(v.string()),
+  /** Compact JWE ciphertext for secrets; omitted for non-secret vars. */
+  encryptedValue: v.optional(v.string()),
+  updatedAt: v.number(),
+  updatedBy: v.string(),
+})
+  .index('by_org_user', ['organizationId', 'userId'])
+  .index('by_org_user_key', ['organizationId', 'userId', 'key']);

@@ -95,6 +95,13 @@ export const ModelSelector = memo(function ModelSelector({
     [agents, effectiveAgent?.name],
   );
 
+  // A BYO external agent authenticates with the user's own credentials and uses
+  // a raw model id — there is no platform catalog to pick from, so the picker
+  // shows a calm indicator instead of the catalog dropdown / "no models" warning.
+  const isByoExternal =
+    activeAgent?.primaryBehavior === 'external-agent' &&
+    activeAgent?.authMode === 'byo';
+
   const supportedModels = useMemo(() => {
     return activeAgent?.supportedModels ?? [];
   }, [activeAgent]);
@@ -363,6 +370,26 @@ export const ModelSelector = memo(function ModelSelector({
         </Skeletonize>
         <ChevronDown className="size-3" aria-hidden="true" />
       </Button>
+    );
+  }
+
+  if (isByoExternal) {
+    // BYO: the model is the agent's raw provider id (or the credential's own
+    // default) — not a catalog choice. Show a calm, non-interactive indicator
+    // rather than the catalog dropdown or the red "no models" warning.
+    const rawModel = supportedModels[0];
+    return (
+      <span
+        className="text-muted-foreground flex items-center gap-1.5 text-sm"
+        title={t('modelSelector.byoTooltip')}
+      >
+        <Cpu className="size-3.5" aria-hidden="true" />
+        <span className="truncate">
+          {rawModel
+            ? getModelShortName(stripModelRefQualifier(rawModel))
+            : t('modelSelector.byoDefault')}
+        </span>
+      </span>
     );
   }
 

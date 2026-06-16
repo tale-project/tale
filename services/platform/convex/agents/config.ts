@@ -100,16 +100,16 @@ export function toSerializableConfig(
     name: agentName,
     primaryBehavior: config.primaryBehavior,
     agentKind: config.agentKind,
+    authMode: config.authMode,
     instructions: resolveInstructions(config, locale),
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are validated on file read; always valid ToolName values
     convexToolNames: config.toolNames as ToolName[],
     integrationBindings: config.integrationBindings,
     workflowBindings: config.workflows,
-    model:
-      config.supportedModels[0] ??
-      (() => {
-        throw new Error('supportedModels must not be empty');
-      })(),
+    // Optional: a BYO external agent may have no model (empty supportedModels)
+    // — the runtime then lets Claude Code use the credential's own default. The
+    // schema's superRefine guarantees ≥1 model for every other agent kind.
+    model: config.supportedModels[0],
     provider: config.provider,
     maxSteps: config.maxSteps,
     knowledgeMode,

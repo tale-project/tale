@@ -893,6 +893,8 @@
       "noResults": "Keine Modelle gefunden",
       "auto": "Auto",
       "autoDescription": "Tale wählt für jede Nachricht das passende Modell — abgewogen zwischen Qualität, Geschwindigkeit und Kosten.",
+      "byoDefault": "Standardmodell",
+      "byoTooltip": "Dieser Agent verwendet deine eigenen Anmeldedaten (BYO) — Modell, Abrechnung und Limits liegen bei dir.",
       "noModelsAvailable": "Keine Modelle verfügbar",
       "noModelsAdminHint": "Es ist noch kein KI-Anbieter eingerichtet. Klicke, um Einstellungen → KI-Anbieter zu öffnen, und füge einen hinzu, um zu chatten.",
       "noModelsAgentHint": "Dieser Assistent hat kein nutzbares Modell. Prüfe, ob seine zugelassenen Modelle zu einem konfigurierten Anbieter passen — klicke, um die KI-Anbieter zu öffnen.",
@@ -3816,6 +3818,10 @@
       "title": "Personalisierung",
       "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken."
     },
+    "environment": {
+      "title": "Umgebung & Geheimnisse",
+      "description": "Umgebungsvariablen und Geheimnisse, die in deine Agent-Sandboxes eingespeist werden."
+    },
     "organization": {
       "title": "Organisation",
       "description": "deine Organisationseinstellungen verwalten."
@@ -3964,6 +3970,7 @@
     "branding": "Branding",
     "governance": "Richtlinien",
     "personalization": "Personalisierung",
+    "environment": "Umgebung",
     "account": "Konto",
     "agents": "Agenten",
     "skills": "Skills",
@@ -4076,6 +4083,40 @@
       "deleted": "Gelöscht.",
       "preferencesUpdated": "Einstellungen aktualisiert.",
       "voiceOutputEnabledButProviderMissing": "Sprachausgabe ist aktiviert, aber kein Text-zu-Sprache-Anbieter ist konfiguriert. Bitte eine admin-berechtigte Person, einen Anbieter unter Einstellungen → KI-Anbieter hinzuzufügen."
+    }
+  },
+  "userEnv": {
+    "page": {
+      "title": "Umgebung & Geheimnisse",
+      "description": "Variablen und Geheimnisse, die in alle deine Agent-Sandboxes eingespeist werden.",
+      "note": "Geheimnisse werden verschlüsselt und sind nur beschreibbar — nach dem Speichern werden sie nie wieder angezeigt. Diese Variablen werden in alle deine Sandboxes eingespeist."
+    },
+    "add": {
+      "keyLabel": "Name",
+      "keyPlaceholder": "z. B. MY_API_KEY",
+      "keyInvalid": "Muss mit einem Buchstaben oder Unterstrich beginnen und darf nur Buchstaben, Zahlen und Unterstriche enthalten.",
+      "valueLabel": "Wert",
+      "valuePlaceholder": "Wert",
+      "secretLabel": "Geheimnis",
+      "secretHelp": "Wenn aktiviert, wird der Wert verschlüsselt und ist nur beschreibbar — nach dem Speichern wird er nie wieder angezeigt.",
+      "whitespaceWarning": "Dieser Wert enthält Leerzeichen oder Zeilenumbrüche. Anmeldedaten sollten das nicht — falls du ein Token eingefügt hast, das im Terminal über mehrere Zeilen umgebrochen wurde, entferne sie. (Mehrzeilige Geheimnisse wie PEM-Schlüssel dürfen sie behalten.)",
+      "submit": "Hinzufügen"
+    },
+    "list": {
+      "empty": "Noch keine Umgebungsvariablen.",
+      "secretBadge": "Geheimnis",
+      "updatedHint": "Aktualisiert {when}",
+      "delete": "Löschen",
+      "deleteConfirmTitle": "Variable löschen?",
+      "deleteConfirmDescription": "\"{key}\" löschen? Dadurch wird sie aus allen deinen Sandboxes entfernt."
+    },
+    "toasts": {
+      "saved": "Gespeichert.",
+      "deleted": "Gelöscht."
+    },
+    "errors": {
+      "saveFailed": "Speichern fehlgeschlagen. Bitte erneut versuchen.",
+      "deleteFailed": "Löschen fehlgeschlagen. Bitte erneut versuchen."
     }
   },
   "piiConfigPanel": {
@@ -4502,6 +4543,9 @@
       "personalization": {
         "description": "Wie Tale sich an dich anpasst — Gedächtnis, Instruktionen und Stimme."
       },
+      "environment": {
+        "description": "Umgebungsvariablen und Geheimnisse, die in deine Sandboxes eingespeist werden."
+      },
       "organization": {
         "description": "Name des Arbeitsbereichs, Mitglieder und Identifikatoren."
       },
@@ -4815,7 +4859,19 @@
         },
         "structuredResponsesInjectedPrompt": "Die folgenden Anweisungen werden automatisch an den System-Prompt angehängt:",
         "browsePrompts": "Prompts durchsuchen",
-        "systemInstructionsCharCount": "{count, plural, one {# Zeichen} other {# Zeichen}}"
+        "systemInstructionsCharCount": "{count, plural, one {# Zeichen} other {# Zeichen}}",
+        "byo": {
+          "sectionTitle": "Anmeldedaten",
+          "sectionDescription": "Wie sich dieser Agent beim Modellanbieter authentifiziert.",
+          "managedLabel": "Verwaltet (Plattform-Gateway)",
+          "managedDescription": "Über das Plattform-Gateway mit einem erzeugten virtuellen Schlüssel leiten. Modellauswahl, Abrechnung und Nutzungssteuerung bleiben bei der Plattform.",
+          "byoLabel": "Eigene Anmeldedaten (BYO)",
+          "byoDescription": "Das Gateway umgehen und die unter Umgebung & Geheimnisse hinterlegten Anmeldedaten mit direkter Modellweitergabe verwenden.",
+          "modelSectionDescription": "Rohe Anbieter-Modell-IDs, die unverändert weitergegeben werden. Das erste Modell ist das primäre; die übrigen sind Ausweichmodelle.",
+          "modelLabel": "Anbieter-Modell-ID",
+          "modelPlaceholder": "z. B. claude-opus-4-20250514",
+          "modelNote": "BYO leitet über deine eigenen Anmeldedaten unter Umgebung & Geheimnisse — Modellauswahl, Abrechnung und Nutzungssteuerung gehen auf deine Anmeldedaten über; die Plattform stellt nur die Laufzeitumgebung bereit."
+        }
       },
       "delegation": {
         "title": "Delegation",

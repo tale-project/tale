@@ -57,6 +57,11 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   readonly slug = 'claude-code' as const;
 
   buildExec(spec: AgentRunSpec): SessionExecSpec {
+    // BYO ("bring your own credentials") opts out of the platform gateway: no
+    // virtual key, no gateway base URL, a raw model passthrough, and the
+    // governance-motivated native-tool denials lifted. Managed (default) keeps
+    // today's gateway + governance behavior.
+    const byo = spec.authMode === 'byo';
     const argv = [
       'claude',
       '-p',
@@ -98,10 +103,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
           ? PLAYWRIGHT_MCP_CDP_SERVER
           : PLAYWRIGHT_MCP_SERVER;
     }
-    if (spec.integrationsBaseUrl) {
+    if (spec.integrationsBaseUrl && spec.gateway) {
       // The integration-dispatch bridge — lets the agent use the org's connected
       // integrations. The credential stays server-side; the bridge only relays
       // {slug, operation, args} to the platform, authed by the session key.
+      // The bridge is authed by the minted session key, so it is managed-only:
+      // BYO runs carry no gateway/session key and therefore no bridge.
       mcpServers.integrations = {
         command: 'tale-integrations-mcp',
         env: {
@@ -125,19 +132,31 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // access goes through a connected integration via the dispatch bridge:
     // search via a search integration's `search` op (e.g. Tavily) and reading a
     // specific page via its `extract`/fetch op — both audited and wrapped.
-    argv.push('--disallowedTools', 'WebSearch,WebFetch');
+    // BYO opts out of platform governance, so this governance-motivated denial
+    // is lifted — the agent runs with its native toolset (web tools work on the
+    // user's own credential). The container + egress policy stay the isolation
+    // boundary.
+    if (!byo) {
+      argv.push('--disallowedTools', 'WebSearch,WebFetch');
+    }
 
     const env: Record<string, string> = {
-      // Anthropic Messages route on the gateway; the session key is a bearer
-      // token (ANTHROPIC_AUTH_TOKEN takes precedence over X-Api-Key).
-      ANTHROPIC_BASE_URL: `${spec.gateway.baseUrl}/anthropic`,
-      ANTHROPIC_AUTH_TOKEN: spec.gateway.token,
-      // Blank the API key so it never conflicts with the bearer token
-      // (documented Claude Code gotcha → model-not-found otherwise).
-      ANTHROPIC_API_KEY: '',
       CLAUDE_CONFIG_DIR: '/user/.runtime/home/.claude',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     };
+    if (!byo && spec.gateway) {
+      // MANAGED: Anthropic Messages route on the platform gateway; the session
+      // key is a bearer token (ANTHROPIC_AUTH_TOKEN takes precedence over
+      // X-Api-Key). Blank the API key so it never conflicts with the bearer
+      // (documented Claude Code gotcha → model-not-found otherwise).
+      env.ANTHROPIC_BASE_URL = `${spec.gateway.baseUrl}/anthropic`;
+      env.ANTHROPIC_AUTH_TOKEN = spec.gateway.token;
+      env.ANTHROPIC_API_KEY = '';
+    }
+    // BYO: inject NO gateway / key / API-key-blanking env. The agent
+    // authenticates with the user-injected session credentials
+    // (CLAUDE_CODE_OAUTH_TOKEN or their own ANTHROPIC_API_KEY), per Claude
+    // Code's own credential precedence, and talks directly to the provider.
     if (spec.execId) {
       // Mid-turn steering: the in-image tale-steer-hook (registered via
       // managed-settings PostToolUse/Stop hooks) reads this per-exec dir and
@@ -153,16 +172,20 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       // 2.1.173: the replayed turn requested sonnet through the gateway and
       // the org's open-models-only key 403'd the whole turn.
       env.ANTHROPIC_MODEL = spec.model;
-      // Set every default-model slot to the gateway model so Claude Code
-      // doesn't intermittently 404 resolving opus/sonnet/haiku/fable aliases.
-      env.ANTHROPIC_DEFAULT_OPUS_MODEL = spec.model;
-      env.ANTHROPIC_DEFAULT_SONNET_MODEL = spec.model;
-      env.ANTHROPIC_DEFAULT_HAIKU_MODEL = spec.model;
-      env.ANTHROPIC_DEFAULT_FABLE_MODEL = spec.model;
-      // The session VK only allows the selected model, so a subagent whose
-      // frontmatter names a concrete model id would be rejected at the
-      // gateway; this slot outranks frontmatter and pins them all.
-      env.CLAUDE_CODE_SUBAGENT_MODEL = spec.model;
+      if (!byo) {
+        // MANAGED: pin every default-model slot to the gateway model so Claude
+        // Code doesn't 404 resolving opus/sonnet/haiku/fable aliases against the
+        // VK's single-model allowlist. BYO has no such allowlist, so leave the
+        // alias + subagent slots to the CLI / credential defaults.
+        env.ANTHROPIC_DEFAULT_OPUS_MODEL = spec.model;
+        env.ANTHROPIC_DEFAULT_SONNET_MODEL = spec.model;
+        env.ANTHROPIC_DEFAULT_HAIKU_MODEL = spec.model;
+        env.ANTHROPIC_DEFAULT_FABLE_MODEL = spec.model;
+        // The session VK only allows the selected model, so a subagent whose
+        // frontmatter names a concrete model id would be rejected at the
+        // gateway; this slot outranks frontmatter and pins them all.
+        env.CLAUDE_CODE_SUBAGENT_MODEL = spec.model;
+      }
     }
 
     return {

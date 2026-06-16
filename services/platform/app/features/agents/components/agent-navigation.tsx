@@ -61,6 +61,7 @@ const AGENT_TAB_DIRTY_KEYS = {
     'systemInstructions',
     'supportedModels',
     'provider',
+    'authMode',
     'structuredResponsesEnabled',
     'maxSteps',
     'timeoutMs',

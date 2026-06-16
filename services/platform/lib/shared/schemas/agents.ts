@@ -184,6 +184,18 @@ export const agentJsonSchema = z
      * runtime handles the turn. Defaults to 'claude-code' at runtime.
      */
     agentKind: agentKindSchema.optional(),
+    /**
+     * For `primaryBehavior: 'external-agent'` only — credential / auth mode.
+     * 'managed' (default): the platform mints a Bifrost virtual key, routes the
+     * agent through the gateway, and enforces allowed_models + usage metering +
+     * the budget gate. 'byo': the platform injects no virtual key or gateway;
+     * the agent authenticates with whatever credentials the user injected into
+     * the sandbox env, the model is a raw provider passthrough (no platform
+     * slug resolution / catalog), and native web tools are not force-disabled.
+     * The per-agent authMode is the sole control — configuring an agent is
+     * already a privileged action, so there is no separate org-level gate.
+     */
+    authMode: z.enum(['managed', 'byo']).optional(),
     systemInstructions: z.string().optional(),
     toolNames: z.array(z.string()).optional(),
     integrationBindings: z.array(z.string().min(1)).optional(),
@@ -192,13 +204,19 @@ export const agentJsonSchema = z
       .array(z.string().min(1).max(64).regex(SKILL_NAME_REGEX))
       .max(MAX_SKILL_BINDINGS_PER_AGENT)
       .optional(),
+    // At least one model is required for every agent EXCEPT a BYO external
+    // agent (its model is an optional raw passthrough — empty means "use the
+    // credential's default"). The ≥1 rule is enforced conditionally in the
+    // superRefine below rather than as a field-level `.min(1)`.
     supportedModels: z
       .array(
         z.string().min(1).refine(isValidModelRef, {
           message: 'Invalid model ref (expected "[provider:]model-id")',
         }),
       )
-      .min(1),
+      // Defaults to [] when absent so a BYO agent file with no model still
+      // parses; the superRefine below enforces ≥1 for every non-BYO agent.
+      .default([]),
     provider: z
       .string()
       .min(1)
@@ -401,6 +419,32 @@ export const agentJsonSchema = z
         path: ['agentKind'],
         message:
           'agentKind is only valid when primaryBehavior is "external-agent".',
+      });
+    }
+
+    // authMode only applies to external-agent.
+    if (
+      data.authMode !== undefined &&
+      data.primaryBehavior !== 'external-agent'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['authMode'],
+        message:
+          'authMode is only valid when primaryBehavior is "external-agent".',
+      });
+    }
+
+    // Every agent needs at least one model — EXCEPT a BYO external agent, whose
+    // model is an optional raw passthrough (empty = use the credential's own
+    // default), so it may be saved with no model.
+    const isByoExternal =
+      data.primaryBehavior === 'external-agent' && data.authMode === 'byo';
+    if (!isByoExternal && data.supportedModels.length < 1) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['supportedModels'],
+        message: 'At least one model is required.',
       });
     }
   });

@@ -29,7 +29,15 @@ export interface AgentRunSpec {
   permissionMode?: 'plan' | 'execute';
   /** Extra system-prompt text appended to the agent's defaults. */
   systemPromptAppend?: string;
-  gateway: GatewayTarget;
+  /**
+   * Credential mode. 'managed' (default / absent): route through the platform
+   * gateway with the minted virtual key. 'byo': no gateway — the agent uses the
+   * credentials the user injected into the session env, with a raw model
+   * passthrough and native web tools enabled.
+   */
+  authMode?: 'managed' | 'byo';
+  /** Platform LLM gateway. Present for managed runs; ABSENT for byo. */
+  gateway?: GatewayTarget;
   /** Platform base URL for the integration-dispatch bridge (/api/integrations).
    * When set, buildExec adds an `integrations` MCP server the agent uses to
    * call the org's connected integrations (credentials resolved server-side). */

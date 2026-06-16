@@ -181,6 +181,10 @@ export interface ChatAgent {
   /** Which external agent CLI backs an 'external-agent' behavior. Gates
    * CLI-specific UI like the plan/act composer toggle (claude-code only). */
   agentKind?: 'claude-code' | 'opencode';
+  /** Credential mode for an 'external-agent'. 'byo' bypasses the platform
+   * gateway/catalog (raw model, user-supplied credentials) — the model picker
+   * shows a calm BYO indicator instead of the catalog/no-models warning. */
+  authMode?: 'managed' | 'byo';
   supportedModels?: string[];
   toolNames?: string[];
   integrationBindings?: string[];
@@ -232,6 +236,11 @@ export function useChatAgents(organizationId: string) {
             'agentKind' in a &&
             (a.agentKind === 'claude-code' || a.agentKind === 'opencode')
               ? a.agentKind
+              : undefined,
+          authMode:
+            'authMode' in a &&
+            (a.authMode === 'managed' || a.authMode === 'byo')
+              ? a.authMode
               : undefined,
           supportedModels: a.supportedModels,
           integrationBindings: Array.isArray(a.integrationBindings)

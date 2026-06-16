@@ -89,6 +89,7 @@
           "pages": [
             "platform/member/overview",
             "platform/member/preferences",
+            "platform/member/environment",
             "platform/member/install-as-app"
           ]
         },

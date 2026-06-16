@@ -112,6 +112,27 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
     expect(agentJsonSchema.safeParse(externalBase).success).toBe(true);
   });
 
+  it('accepts authMode managed/byo on an external-agent', () => {
+    expect(
+      agentJsonSchema.safeParse({ ...externalBase, authMode: 'managed' })
+        .success,
+    ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({ ...externalBase, authMode: 'byo' }).success,
+    ).toBe(true);
+  });
+
+  it('rejects authMode on a non-external-agent (chat)', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        displayName: 'Chat Agent',
+        supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
+        systemInstructions: 'hi',
+        authMode: 'byo',
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects loop-only fields (toolNames/workflows) on an external-agent', () => {
     expect(
       agentJsonSchema.safeParse({ ...externalBase, toolNames: ['run_code'] })

@@ -55,6 +55,14 @@ export interface AgentJsonConfig {
   primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
   /** External agent runtime for `primaryBehavior: 'external-agent'`. */
   agentKind?: 'claude-code' | 'opencode';
+  /**
+   * Credential / auth mode for `primaryBehavior: 'external-agent'`. 'managed'
+   * (default) routes through the platform gateway with a minted virtual key;
+   * 'byo' bypasses the gateway and uses the user-injected sandbox credentials
+   * with a raw model passthrough. The per-agent authMode is the sole control;
+   * there is no separate org-level gate.
+   */
+  authMode?: 'managed' | 'byo';
   systemInstructions?: string;
   toolNames?: string[];
   integrationBindings?: string[];
