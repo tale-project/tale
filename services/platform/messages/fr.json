@@ -2183,6 +2183,7 @@
   "onboarding": {
     "title": "Configure ton espace de travail",
     "subtitle": "Quelques étapes rapides et c'est prêt.",
+    "backToApp": "Retour à l'application",
     "stepsAriaLabel": "Étapes d'intégration",
     "progress": "Étape {current} sur {total} : {label}",
     "steps": {
@@ -4543,9 +4544,11 @@
       "switching": "Changement en cours…",
       "switchingTo": "Passage à {name}…",
       "switchingLabel": "Changement d'organisation",
-      "deleteAriaLabel": "Supprimer {name}",
       "deleteDialogTitle": "Supprimer l'organisation",
       "deleteDialogDescription": "Supprimer « {name} » ? Cela supprime ses agents, workflows, fournisseurs et intégrations. Les membres perdront l'accès. Cette action est irréversible.",
+      "dangerZoneTitle": "Zone de danger",
+      "dangerZoneDescription": "Actions irréversibles qui affectent toute l'organisation.",
+      "deleteSectionHelp": "Supprimer définitivement cette organisation et tout ce qu'elle contient. Cette action est irréversible.",
       "deleteConfirmAction": "Supprimer l'organisation",
       "deleteLoading": "Suppression…",
       "deleteSuccess": "Organisation supprimée",

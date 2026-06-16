@@ -665,7 +665,10 @@ export function DataTable<TData, TValue = unknown>({
             // lives on a wrapper around the box because a narrower placeholder
             // INSIDE a fullWidth SkeletonBox is ignored by the mask.
             Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
-              <TableRow key={`skeleton-${rowIndex}`}>
+              // `h-12` mirrors the real data rows below — without it the
+              // skeleton collapses to its content height (~32px) and reads as a
+              // dense, tight list that doesn't match the roomier loaded table.
+              <TableRow key={`skeleton-${rowIndex}`} className="min-h-12">
                 {enableExpanding && <TableCell className="w-[3rem]" />}
                 {columns.map((col, colIndex) => {
                   const textWidth = (salt: number, min: number, span: number) =>

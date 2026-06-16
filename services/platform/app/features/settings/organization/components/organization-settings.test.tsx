@@ -36,6 +36,8 @@ function Harness() {
       organization={{ _id: 'org1', name: 'Acme' }}
       organizationId="org1"
       memberContext={null}
+      canDelete={false}
+      isCurrentOrganization
       onSave={save}
     />
   );

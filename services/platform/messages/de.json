@@ -2182,6 +2182,7 @@
   "onboarding": {
     "title": "Richte deinen Arbeitsbereich ein",
     "subtitle": "Ein paar schnelle Schritte und du bist startklar.",
+    "backToApp": "Zurück zur App",
     "stepsAriaLabel": "Onboarding-Schritte",
     "progress": "Schritt {current} von {total}: {label}",
     "steps": {
@@ -4542,9 +4543,11 @@
       "switching": "Wird gewechselt…",
       "switchingTo": "Wechsle zu {name}…",
       "switchingLabel": "Organisation wird gewechselt",
-      "deleteAriaLabel": "{name} löschen",
       "deleteDialogTitle": "Organisation löschen",
       "deleteDialogDescription": "„{name}\" löschen? Damit werden Agents, Workflows, Anbieter und Integrationen entfernt. Mitglieder verlieren den Zugriff. Dies kann nicht rückgängig gemacht werden.",
+      "dangerZoneTitle": "Gefahrenzone",
+      "dangerZoneDescription": "Unwiderrufliche Aktionen, die die gesamte Organisation betreffen.",
+      "deleteSectionHelp": "Diese Organisation und alle ihre Inhalte dauerhaft löschen. Dies kann nicht rückgängig gemacht werden.",
       "deleteConfirmAction": "Organisation löschen",
       "deleteLoading": "Lösche…",
       "deleteSuccess": "Organisation gelöscht",

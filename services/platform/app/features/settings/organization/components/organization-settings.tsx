@@ -1,12 +1,14 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   useFormEditor,
   useRegisterActiveEditor,
@@ -15,6 +17,7 @@ import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
+import { useDeleteOrganization } from '@/app/features/organization/hooks/use-delete-organization';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { MembersSettings } from '@/app/features/settings/organization/components/members-settings';
@@ -27,7 +30,12 @@ import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 
-type Organization = { _id: string; name: string; metadata?: unknown } | null;
+type Organization = {
+  _id: string;
+  name: string;
+  slug?: string;
+  metadata?: unknown;
+} | null;
 
 type MemberContext = {
   memberId?: string;
@@ -79,12 +87,18 @@ export function OrganizationSettingsView({
   organization,
   organizationId,
   memberContext,
+  canDelete,
+  isCurrentOrganization,
   onSave,
 }: {
   controller: OrganizationController;
   organization: Organization;
   organizationId: string;
   memberContext: MemberContext | null;
+  /** Owner of a non-default org — gates the danger zone. */
+  canDelete: boolean;
+  /** Whether this is the org the user is currently viewing (drives post-delete nav). */
+  isCurrentOrganization: boolean;
   onSave: (values: OrganizationFormData) => Promise<void>;
 }) {
   const { t: tSettings } = useT('settings');
@@ -179,7 +193,84 @@ export function OrganizationSettingsView({
           memberContext={memberContext}
         />
       </SettingsSection>
+
+      {canDelete && (
+        <DangerZoneSection
+          organizationId={organizationId}
+          organizationName={organization?.name ?? ''}
+          isCurrentOrganization={isCurrentOrganization}
+        />
+      )}
     </SettingsPage>
+  );
+}
+
+// =============================================================================
+// Danger zone — owner-only org deletion. Split out from the view so the Convex
+// wiring (`useDeleteOrganization`) only mounts when the section is shown, and
+// so `OrganizationSettingsView` stays renderable without a Convex provider in
+// unit tests.
+// =============================================================================
+function DangerZoneSection({
+  organizationId,
+  organizationName,
+  isCurrentOrganization,
+}: {
+  organizationId: string;
+  organizationName: string;
+  isCurrentOrganization: boolean;
+}) {
+  const { t: tSettings } = useT('settings');
+  const { deleteOrganization, isDeleting } = useDeleteOrganization();
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  return (
+    <SettingsSection
+      title={tSettings('organization.dangerZoneTitle')}
+      description={tSettings('organization.dangerZoneDescription')}
+    >
+      <div className="border-destructive/40 flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium">
+            {tSettings('organization.deleteDialogTitle')}
+          </span>
+          <span className="text-muted-foreground text-sm">
+            {tSettings('organization.deleteSectionHelp')}
+          </span>
+        </div>
+        <Button
+          type="button"
+          variant="destructive"
+          className="shrink-0"
+          onClick={() => setConfirmDeleteOpen(true)}
+        >
+          {tSettings('organization.deleteConfirmAction')}
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={(open) => {
+          if (!isDeleting) setConfirmDeleteOpen(open);
+        }}
+        title={tSettings('organization.deleteDialogTitle')}
+        description={tSettings('organization.deleteDialogDescription', {
+          name: organizationName,
+        })}
+        variant="destructive"
+        confirmText={tSettings('organization.deleteConfirmAction')}
+        loadingText={tSettings('organization.deleteLoading')}
+        isLoading={isDeleting}
+        onConfirm={() => {
+          void deleteOrganization({
+            organizationId,
+            isCurrent: isCurrentOrganization,
+          }).then((ok) => {
+            if (ok) setConfirmDeleteOpen(false);
+          });
+        }}
+      />
+    </SettingsSection>
   );
 }
 
@@ -264,6 +355,12 @@ export function OrganizationSettings({
 
   useRegisterActiveEditor(editor);
 
+  // Deletion is owner-only and the default org can never be deleted — both are
+  // also enforced server-side in `prepareOrganizationDeletion`; this just hides
+  // the UI when it would always fail.
+  const canDelete =
+    memberContext?.role === 'owner' && organization?.slug !== 'default';
+
   // Access is only knowable once the ability has loaded; until then the
   // skeleton stands in (no denied-flash on warm entry).
   if (!abilityLoading && ability.cannot('read', 'orgSettings')) {
@@ -277,6 +374,10 @@ export function OrganizationSettings({
         organization={organization ?? null}
         organizationId={organizationId}
         memberContext={memberContext ?? null}
+        canDelete={canDelete}
+        // The settings route is always scoped to the org the user is currently
+        // in (`/dashboard/$id/...`), so deleting it must route them elsewhere.
+        isCurrentOrganization
         onSave={save}
       />
     </Skeletonize>

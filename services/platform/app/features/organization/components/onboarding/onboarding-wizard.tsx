@@ -2,8 +2,9 @@
 
 import { Heading } from '@tale/ui/heading';
 import { Text } from '@tale/ui/text';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
+import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
@@ -115,8 +116,21 @@ export function OnboardingWizard({
     <div className="flex min-h-screen flex-col">
       <header className="mx-auto flex w-full items-center justify-between px-4 py-3">
         <TaleLogo />
-        {/* No session yet on first-run until the account step completes. */}
-        {user ? <UserButton align="end" /> : null}
+        <div className="flex items-center gap-2">
+          {/* add-org mode: the user already has a workspace, so let them bail
+              out of the flow and return to the app. first-run has no app yet. */}
+          {!isFirstRun ? (
+            <Link
+              to="/dashboard"
+              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm"
+            >
+              <ArrowLeft className="size-4" />
+              {t('backToApp')}
+            </Link>
+          ) : null}
+          {/* No session yet on first-run until the account step completes. */}
+          {user ? <UserButton align="end" /> : null}
+        </div>
       </header>
       <main className="mx-auto w-full max-w-xl flex-1 px-4 py-12">
         <Heading level={1} className="mb-2">

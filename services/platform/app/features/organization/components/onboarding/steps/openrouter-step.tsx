@@ -9,20 +9,14 @@ import { Input } from '@/app/components/ui/forms/input';
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import {
   useFetchProviderModels,
-  useSaveProvider,
   useSaveProviderSecret,
 } from '@/app/features/settings/providers/hooks/mutations';
 import { useT } from '@/lib/i18n/client';
 import {
   OPENROUTER_BASE_URL,
-  OPENROUTER_DISPLAY_NAME,
   OPENROUTER_KEYS_URL,
   OPENROUTER_PROVIDER_NAME,
-  RECOMMENDED_OPENROUTER_MODELS,
 } from '@/lib/shared/constants/openrouter-recommended';
-
-/** Fallback cap when none of the curated IDs are in the live model list. */
-const FALLBACK_MODEL_CAP = 20;
 
 /** OpenRouter API keys are prefixed `sk-or-` (e.g. `sk-or-v1-…`). */
 const OPENROUTER_KEY_PREFIX = 'sk-or-';
@@ -68,10 +62,11 @@ interface OpenRouterStepProps {
 
 /**
  * Optional first-run step: connect OpenRouter with a single key. One key
- * unlocks chat, vision and image generation/editing across many models, so
- * the wizard pre-configures a curated, capability-tagged model set (see
- * `RECOMMENDED_OPENROUTER_MODELS`) — intersected with OpenRouter's live model
- * list so retired IDs never persist. Leaving the key blank skips the step.
+ * unlocks chat, vision and image generation/editing across the full model
+ * catalog the org was scaffolded with. The step probes the key for validity,
+ * then persists only the secret — the catalog (`openrouter.json`) is already
+ * seeded by the org scaffold, so the wizard never shrinks the model list.
+ * Leaving the key blank skips the step.
  */
 export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
   const { t } = useT('onboarding');
@@ -79,7 +74,6 @@ export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
   const [error, setError] = useState<string | null>(null);
 
   const { mutateAsync: fetchModels } = useFetchProviderModels();
-  const { mutateAsync: saveProvider } = useSaveProvider();
   const { mutateAsync: saveProviderSecret } = useSaveProviderSecret();
 
   const connectOpenRouter = async (): Promise<boolean> => {
@@ -98,46 +92,24 @@ export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
       return false;
     }
     try {
-      const fetched = await fetchModels({
+      // Probe the key first so an invalid key surfaces a clear auth error
+      // before we persist anything.
+      await fetchModels({
         organizationId,
         baseUrl: OPENROUTER_BASE_URL,
         apiKey: key,
       });
-      const availableIds = new Set(fetched.map((m) => m.id));
 
-      let models = RECOMMENDED_OPENROUTER_MODELS.filter((m) =>
-        availableIds.has(m.id),
-      ).map((m) => ({ id: m.id, displayName: m.displayName, tags: m.tags }));
-
-      // Curated IDs may all be retired/renamed — fall back to a capped slice
-      // of whatever the account actually exposes, tagged as chat so at least
-      // conversation works out of the box.
-      if (models.length === 0) {
-        models = fetched.slice(0, FALLBACK_MODEL_CAP).map((m) => ({
-          id: m.id,
-          displayName: m.displayName ?? m.id,
-          tags: ['chat' as const],
-        }));
-      }
-
-      if (models.length === 0) {
-        setError(t('provider.noModelsError'));
-        return false;
-      }
-
+      // Write ONLY the key. The org scaffold seeds the full-catalog
+      // `openrouter.json` from the builtin catalog (TALE_CONFIG_BUILTIN_DIR,
+      // set in prod and by `scripts/dev.ts`), and the secret file is on the
+      // scaffold's skip-list so it survives any ordering. Once the secret is
+      // present, `hasApiKey` flips true and every model in the catalog is
+      // usable in chat — consistent with every other org, no curated shrink.
       await saveProviderSecret({
         organizationId,
         providerName: OPENROUTER_PROVIDER_NAME,
         apiKey: key,
-      });
-      await saveProvider({
-        organizationId,
-        providerName: OPENROUTER_PROVIDER_NAME,
-        config: {
-          displayName: OPENROUTER_DISPLAY_NAME,
-          baseUrl: OPENROUTER_BASE_URL,
-          models,
-        },
       });
       return true;
     } catch (err) {
