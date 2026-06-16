@@ -1204,6 +1204,7 @@ export function ChatInput({
             >
               <ComposerModeMenu
                 organizationId={organizationId}
+                threadId={threadId}
                 onAttachFile={() => fileInputRef.current?.click()}
                 onTakeScreenshot={
                   screenshotSupported && !fileUploadDisabled

@@ -783,13 +783,7 @@ function SessionStoppedState() {
 
 /** The full open-pane body: header + tree (left) + viewer (below). Shared by
  *  the desktop resizable pane and the mobile sheet. */
-function WorkspaceFilesBody({
-  threadId,
-  embedded,
-}: {
-  threadId: string;
-  embedded?: boolean;
-}) {
+function WorkspaceFilesBody({ threadId }: { threadId: string }) {
   const { t } = useT('chat');
   const { close } = useWorkspaceFiles();
   const [showHidden, setShowHidden] = useState(false);
@@ -851,26 +845,28 @@ function WorkspaceFilesBody({
               <RefreshCw className="size-3.5" />
             </Button>
           </Tooltip>
-          {!embedded && (
-            <Tooltip
-              content={t('workspaceFiles.paneClose', {
+          {/* Rendered in every variant. On desktop it's the pane's close; in
+              the mobile Sheet (`embedded`) it replaces the Sheet's own absolute
+              top-right close (suppressed via `hideClose`) so it can't collide
+              with the Show-hidden / Refresh actions in this same row. */}
+          <Tooltip
+            content={t('workspaceFiles.paneClose', {
+              defaultValue: 'Close files panel',
+            })}
+            side="bottom"
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={close}
+              aria-label={t('workspaceFiles.paneClose', {
                 defaultValue: 'Close files panel',
               })}
-              side="bottom"
             >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                onClick={close}
-                aria-label={t('workspaceFiles.paneClose', {
-                  defaultValue: 'Close files panel',
-                })}
-              >
-                <X className="size-3.5" />
-              </Button>
-            </Tooltip>
-          )}
+              <X className="size-3.5" />
+            </Button>
+          </Tooltip>
         </div>
       </div>
 
@@ -921,7 +917,7 @@ function WorkspaceFilesBody({
 export function WorkspaceFilesMobileBody({ threadId }: { threadId: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspaceFilesBody threadId={threadId} embedded />
+      <WorkspaceFilesBody threadId={threadId} />
     </div>
   );
 }

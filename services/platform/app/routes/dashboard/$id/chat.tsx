@@ -387,6 +387,10 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
           side="right"
           title={tChatFiles('workspaceFiles.title')}
           className="w-full p-0 md:hidden"
+          // The pane body renders its own close button in the header row; the
+          // Sheet's default absolute top-right close would overlap the Refresh
+          // action, so suppress it (ESC / overlay-tap still dismiss).
+          hideClose
         >
           <LayoutErrorBoundary organizationId={organizationId}>
             <WorkspaceFilesMobileBody threadId={threadId} />
@@ -405,6 +409,9 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
           side="right"
           title={tChatFiles('liveBrowser.title')}
           className="w-full p-0 md:hidden"
+          // The pane body renders its own close button in the header row (see
+          // the workspace-files Sheet above for the same rationale).
+          hideClose
         >
           <LayoutErrorBoundary organizationId={organizationId}>
             <LiveBrowserMobileBody threadId={threadId} />

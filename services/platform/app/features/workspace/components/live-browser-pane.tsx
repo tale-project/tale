@@ -234,13 +234,7 @@ function ScreencastViewport({
 
 /** The full open-pane body: header (with the "View only" badge) + the live
  *  stream surface. Shared by the desktop resizable pane and the mobile sheet. */
-function LiveBrowserBody({
-  threadId,
-  embedded,
-}: {
-  threadId: string;
-  embedded?: boolean;
-}) {
+function LiveBrowserBody({ threadId }: { threadId: string }) {
   const { t } = useT('chat');
   const { close } = useLiveBrowser();
 
@@ -269,28 +263,30 @@ function LiveBrowserBody({
             {t('liveBrowser.viewOnly', { defaultValue: 'View only' })}
           </span>
         </div>
-        {!embedded && (
-          <div className="flex shrink-0 items-center gap-1">
-            <Tooltip
-              content={t('liveBrowser.paneClose', {
+        {/* Rendered in every variant. On desktop it's the pane's close; in the
+            mobile Sheet (`embedded`) it replaces the Sheet's own absolute
+            top-right close (suppressed via `hideClose`) so the close affordance
+            stays aligned with this header row. */}
+        <div className="flex shrink-0 items-center gap-1">
+          <Tooltip
+            content={t('liveBrowser.paneClose', {
+              defaultValue: 'Close live browser',
+            })}
+            side="bottom"
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={close}
+              aria-label={t('liveBrowser.paneClose', {
                 defaultValue: 'Close live browser',
               })}
-              side="bottom"
             >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                onClick={close}
-                aria-label={t('liveBrowser.paneClose', {
-                  defaultValue: 'Close live browser',
-                })}
-              >
-                <X className="size-3.5" />
-              </Button>
-            </Tooltip>
-          </div>
-        )}
+              <X className="size-3.5" />
+            </Button>
+          </Tooltip>
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
@@ -306,7 +302,7 @@ function LiveBrowserBody({
 export function LiveBrowserMobileBody({ threadId }: { threadId: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <LiveBrowserBody threadId={threadId} embedded />
+      <LiveBrowserBody threadId={threadId} />
     </div>
   );
 }

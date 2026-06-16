@@ -7,13 +7,23 @@ import {
   type DropdownMenuItem,
 } from '@tale/ui/dropdown-menu';
 import { useNavigate } from '@tanstack/react-router';
-import { Camera, Paperclip, Plus, Swords } from 'lucide-react';
+import {
+  Camera,
+  FolderOpen,
+  MonitorPlay,
+  Paperclip,
+  Plus,
+  Swords,
+} from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
+import { useLiveBrowserOptional } from '@/app/features/workspace/components/live-browser-context';
+import { useWorkspaceFilesOptional } from '@/app/features/workspace/components/workspace-files-context';
+import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
-import { useChatAgents } from '../hooks/queries';
+import { useChatAgents, useThreadSandboxState } from '../hooks/queries';
 import {
   getAgentMissingIntegrations,
   resolveCapabilityIcon,
@@ -25,6 +35,8 @@ import { useArenaModeOptional } from './arena/arena-mode-context';
 
 interface ComposerModeMenuProps {
   organizationId: string;
+  /** Current thread (gates the mobile sandbox-view entries). */
+  threadId?: string;
   onAttachFile?: () => void;
   /** Capture a screenshot and attach it. Omitted when unsupported/disabled. */
   onTakeScreenshot?: () => void;
@@ -34,6 +46,7 @@ interface ComposerModeMenuProps {
 
 export function ComposerModeMenu({
   organizationId,
+  threadId,
   onAttachFile,
   onTakeScreenshot,
   fileUploadDisabled = false,
@@ -42,10 +55,31 @@ export function ComposerModeMenu({
   const { t } = useT('composer');
   const { t: tChat } = useT('chat');
   const navigate = useNavigate();
-  const { setSelectedAgent, enabledCapabilities, setCapabilityEnabled } =
-    useChatLayout();
+  const {
+    setSelectedAgent,
+    selectedAgent,
+    enabledCapabilities,
+    setCapabilityEnabled,
+  } = useChatLayout();
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents } = useChatAgents(organizationId);
+
+  // Mobile-only: the composer's pill row (incl. the Workspace-files / Live-browser
+  // toggles) overflows off-screen under `md`, so surface those sandbox-view
+  // toggles here in the always-reachable `+` menu. Same gate as the pills:
+  // external-agent thread + a session that exists.
+  const isMobile = useIsMobile();
+  const files = useWorkspaceFilesOptional();
+  const live = useLiveBrowserOptional();
+  const sandboxAgent = selectedAgent
+    ? agents?.find((a) => a.name === selectedAgent.name)
+    : undefined;
+  const isExternalAgent = sandboxAgent?.primaryBehavior === 'external-agent';
+  const sandboxState = useThreadSandboxState(
+    isMobile && isExternalAgent ? threadId : undefined,
+  );
+  const showSandboxViews =
+    isMobile && isExternalAgent && Boolean(sandboxState) && !!files && !!live;
   const capabilities = useComposerCapabilities(organizationId);
   const readiness = useIntegrationReadiness(organizationId);
   const arenaContext = useArenaModeOptional();
@@ -205,8 +239,35 @@ export function ComposerModeMenu({
       groups.push(capabilityGroup);
     }
 
+    if (showSandboxViews && files && live) {
+      groups.push([
+        { type: 'label', content: tChat('sandbox.label') },
+        {
+          type: 'item',
+          label: tChat('workspaceFiles.toggleLabel', {
+            defaultValue: 'Workspace files',
+          }),
+          icon: FolderOpen,
+          selected: files.isOpen,
+          onClick: () => files.toggle(),
+        },
+        {
+          type: 'item',
+          label: tChat('liveBrowser.toggleLabel', {
+            defaultValue: 'Live browser',
+          }),
+          icon: MonitorPlay,
+          selected: live.isOpen,
+          onClick: () => live.toggle(),
+        },
+      ]);
+    }
+
     return groups;
   }, [
+    showSandboxViews,
+    files,
+    live,
     fileUploadDisabled,
     onAttachFile,
     onTakeScreenshot,
