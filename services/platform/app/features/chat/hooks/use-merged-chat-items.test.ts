@@ -458,3 +458,71 @@ describe('useMergedChatItems — inline plan approvals', () => {
     expect(planIds).toEqual(['plan1', 'plan2']);
   });
 });
+
+describe('useMergedChatItems — inline human-control handoffs', () => {
+  function makeHumanControl(
+    id: string,
+    status: 'pending' | 'executing' | 'completed' | 'rejected',
+    messageId: string,
+    creationTime: number,
+  ) {
+    return {
+      _id: id as never,
+      status,
+      metadata: {
+        reason: 'solve the CAPTCHA',
+        agentSlug: 'claude-code',
+        modelRef: 'm',
+        requestedAt: creationTime,
+      },
+      _creationTime: creationTime,
+      messageId,
+    };
+  }
+
+  const baseMessages = [
+    makeMessage('u1', 1000, 'user'),
+    makeMessage('a1', 2000, 'assistant'),
+    makeMessage('u2', 3000, 'user'),
+  ];
+
+  it('splices the handoff card immediately after its source assistant message', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        humanControlRequests: [makeHumanControl('hc1', 'pending', 'a1', 2500)],
+      }),
+    );
+    const keys = result.current.messages.map(
+      (i) => getMessageId(i) ?? `${i.type}:${getApprovalId(i)}`,
+    );
+    expect(keys).toEqual(['u1', 'a1', 'human_control_request:hc1', 'u2']);
+  });
+
+  it('NEVER populates activeApproval (the composer must stay usable)', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        humanControlRequests: [makeHumanControl('hc1', 'pending', 'a1', 2500)],
+      }),
+    );
+    expect(result.current.activeApproval).toBeNull();
+  });
+
+  it('drops handoff cards whose source message is not loaded (pagination)', () => {
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: baseMessages,
+        humanControlRequests: [
+          makeHumanControl('hc1', 'pending', 'not-loaded', 2500),
+        ],
+      }),
+    );
+    expect(
+      result.current.messages.some((i) => i.type === 'human_control_request'),
+    ).toBe(false);
+  });
+});

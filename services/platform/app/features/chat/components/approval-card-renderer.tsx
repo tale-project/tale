@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { DocumentWriteApprovalCard } from './document-write-approval-card';
+import { HumanControlCard } from './human-control-card';
 import { HumanInputRequestCard } from './human-input-request-card';
 import { IntegrationApprovalCard } from './integration-approval-card';
 import { KnowledgeWriteApprovalCard } from './knowledge-write-approval-card';
@@ -148,6 +149,16 @@ export function ApprovalCardRenderer({
             metadata={item.data.metadata}
           />
         ) : null;
+      break;
+    case 'human_control_request':
+      card = (
+        <HumanControlCard
+          approvalId={item.data._id}
+          organizationId={organizationId}
+          status={item.data.status}
+          metadata={item.data.metadata}
+        />
+      );
       break;
     default:
       // Any other non-message ChatItem kind renders no card.

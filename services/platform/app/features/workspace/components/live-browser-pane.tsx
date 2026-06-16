@@ -35,17 +35,22 @@ type StreamStatus = 'connecting' | 'streaming' | 'disconnected' | 'error';
  * `@novnc/novnc`'s `RFB` consumes exactly that. Scheme follows the page (wss on
  * https, ws on http). Browser-only — reads `window.location`.
  */
-function buildScreencastUrl(threadId: string): string {
+function buildScreencastUrl(threadId: string, control: boolean): string {
   const scheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
   return `${scheme}${window.location.host}/screencast/${encodeURIComponent(
     threadId,
-  )}`;
+  )}${control ? '?control=1' : ''}`;
 }
 
 interface ScreencastViewportProps {
   threadId: string;
   /** Whether the agent's session is actively running a turn / warm. */
   sessionActive: boolean;
+  /** When true, connect for human takeover (`?control=1` → writable x11vnc) and
+   * let the canvas receive pointer/keyboard input. Default false = read-only
+   * mirror. The oracle still gates the grant server-side; a denied control
+   * request silently falls back to a read-only stream. */
+  control: boolean;
 }
 
 /**
@@ -62,6 +67,7 @@ interface ScreencastViewportProps {
 function ScreencastViewport({
   threadId,
   sessionActive,
+  control,
 }: ScreencastViewportProps) {
   const { t } = useT('chat');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,12 +90,13 @@ function ScreencastViewport({
 
     let rfb: RFB | null = null;
     try {
-      rfb = new RFB(container, buildScreencastUrl(threadId), {});
-      // Read-only viewer knobs (set as instance props per noVNC docs).
-      rfb.viewOnly = true;
+      rfb = new RFB(container, buildScreencastUrl(threadId, control), {});
+      // In control mode the human drives — let RFB send pointer/keyboard and
+      // focus on click; otherwise it's a strictly read-only mirror.
+      rfb.viewOnly = !control;
       rfb.scaleViewport = true;
       rfb.clipViewport = true;
-      rfb.focusOnClick = false;
+      rfb.focusOnClick = control;
       rfb.background = '#000';
       rfbRef.current = rfb;
     } catch (err) {
@@ -129,8 +136,10 @@ function ScreencastViewport({
       }
       rfbRef.current = null;
     };
+    // `control` is a dep: flipping take/return control must reconnect the WS to
+    // the right (writable vs read-only) endpoint.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId, connectNonce]);
+  }, [threadId, connectNonce, control]);
 
   // Gated empty state: nothing is being driven, so don't even open a socket —
   // tell the user to start a turn.
@@ -158,15 +167,26 @@ function ScreencastViewport({
 
   return (
     <div className="relative min-h-0 flex-1 bg-black">
-      {/* The RFB canvas mounts inside here. `pointer-events-none` is
-          defense-in-depth on top of `rfb.viewOnly = true` — the stream is
-          strictly view-only. */}
+      {/* The RFB canvas mounts inside here. In read-only mode
+          `pointer-events-none` is defense-in-depth on top of
+          `rfb.viewOnly = true`; in control mode the human is driving, so the
+          canvas must receive pointer/keyboard events. */}
       <div
         ref={containerRef}
-        className="pointer-events-none absolute inset-0 size-full"
-        aria-label={t('liveBrowser.ariaLabel', {
-          defaultValue: 'Live view of the agent’s browser (read-only)',
-        })}
+        className={
+          control
+            ? 'absolute inset-0 size-full'
+            : 'pointer-events-none absolute inset-0 size-full'
+        }
+        aria-label={
+          control
+            ? t('liveBrowser.ariaLabelControl', {
+                defaultValue: 'Live browser — you are controlling it',
+              })
+            : t('liveBrowser.ariaLabel', {
+                defaultValue: 'Live view of the agent’s browser (read-only)',
+              })
+        }
       />
 
       {/* Screen-reader status while the live frames are flowing (the canvas
@@ -239,7 +259,7 @@ function ScreencastViewport({
  *  stream surface. Shared by the desktop resizable pane and the mobile sheet. */
 function LiveBrowserBody({ threadId }: { threadId: string }) {
   const { t } = useT('chat');
-  const { close } = useLiveBrowser();
+  const { close, control } = useLiveBrowser();
 
   // "Active" = there's something worth streaming: a turn is actively running,
   // or the sandbox is warm (`active`). A `stopped`/`creating`/`degraded`
@@ -285,9 +305,17 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
           <span className="truncate text-sm font-medium">
             {t('liveBrowser.title', { defaultValue: 'Live browser' })}
           </span>
-          <span className="border-border text-muted-foreground bg-muted/60 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-            {t('liveBrowser.viewOnly', { defaultValue: 'View only' })}
-          </span>
+          {control ? (
+            <span className="border-primary/40 text-primary bg-primary/10 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+              {t('liveBrowser.controlling', {
+                defaultValue: 'You’re in control',
+              })}
+            </span>
+          ) : (
+            <span className="border-border text-muted-foreground bg-muted/60 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+              {t('liveBrowser.viewOnly', { defaultValue: 'View only' })}
+            </span>
+          )}
         </div>
         {/* Rendered in every variant. On desktop it's the pane's close; in the
             mobile Sheet (`embedded`) it replaces the Sheet's own absolute
@@ -338,7 +366,11 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <ScreencastViewport threadId={threadId} sessionActive={sessionActive} />
+        <ScreencastViewport
+          threadId={threadId}
+          sessionActive={sessionActive}
+          control={control}
+        />
       </div>
 
       <ConfirmDialog
@@ -432,7 +464,7 @@ function LiveBrowserPaneComponent() {
     return (
       <button
         type="button"
-        onClick={open}
+        onClick={() => open()}
         aria-label={t('liveBrowser.toggleLabel', {
           defaultValue: 'Live browser',
         })}
