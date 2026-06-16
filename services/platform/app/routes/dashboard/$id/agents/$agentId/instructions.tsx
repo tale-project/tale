@@ -10,10 +10,12 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { ModelSelector } from '@/app/components/ui/forms/model-selector';
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { ByoModelEditor } from '@/app/features/agents/components/byo-model-editor';
 import { useTranslateAgentFields } from '@/app/features/agents/hooks/mutations';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { ModelInfoPopover } from '@/app/features/chat/components/model-info-popover';
@@ -365,6 +367,47 @@ function InstructionsTab() {
     [updateConfig],
   );
 
+  // authMode only applies to external-agent agents (gate the whole control on
+  // it). 'managed' (default) routes through the platform gateway; 'byo'
+  // bypasses it and uses the user's own sandbox credentials with a raw model
+  // passthrough.
+  const isExternalAgent = config.primaryBehavior === 'external-agent';
+  const authMode = config.authMode ?? 'managed';
+  const isByo = isExternalAgent && authMode === 'byo';
+
+  const handleAuthModeChange = useCallback(
+    (next: string) => {
+      if (next !== 'managed' && next !== 'byo') return;
+      // Switching managed→byo: the saved refs are platform model slugs
+      // (`<provider>:<id>`) that mean nothing to a raw provider passthrough,
+      // so clear them — the operator re-enters raw ids. supportedModels stays
+      // required (≥1); an empty list is valid only transiently in the editor
+      // and the save schema enforces the floor.
+      if (next === 'byo' && authMode !== 'byo') {
+        updateConfig({ authMode: 'byo', supportedModels: [] });
+        return;
+      }
+      updateConfig({ authMode: next });
+    },
+    [authMode, updateConfig],
+  );
+
+  const authModeOptions = useMemo(
+    () => [
+      {
+        value: 'managed',
+        label: t('agents.form.byo.managedLabel'),
+        description: t('agents.form.byo.managedDescription'),
+      },
+      {
+        value: 'byo',
+        label: t('agents.form.byo.byoLabel'),
+        description: t('agents.form.byo.byoDescription'),
+      },
+    ],
+    [t],
+  );
+
   return (
     <ContentArea variant="narrow" gap={6}>
       <SectionHeader
@@ -434,18 +477,47 @@ function InstructionsTab() {
         </CollapsibleDetails>
       </div>
 
+      {isExternalAgent && (
+        <PageSection
+          title={t('agents.form.byo.sectionTitle')}
+          description={t('agents.form.byo.sectionDescription')}
+        >
+          <RadioGroup
+            value={authMode}
+            onValueChange={handleAuthModeChange}
+            options={authModeOptions}
+          />
+        </PageSection>
+      )}
+
       <PageSection
         title={t('agents.form.sectionModel')}
-        description={t('agents.form.sectionModelDescription')}
+        description={
+          isByo
+            ? t('agents.form.byo.modelSectionDescription')
+            : t('agents.form.sectionModelDescription')
+        }
       >
-        <ModelSelector
-          models={selectedModels}
-          onChange={handleModelsChange}
-          availableOptions={availableOptions}
-          getDisplayName={getDisplayName}
-          getProviderName={getProviderName}
-          renderItemAction={renderItemAction}
-        />
+        {isByo ? (
+          <>
+            <ByoModelEditor
+              models={selectedModels}
+              onChange={handleModelsChange}
+            />
+            <p className="text-muted-foreground text-sm">
+              {t('agents.form.byo.modelNote')}
+            </p>
+          </>
+        ) : (
+          <ModelSelector
+            models={selectedModels}
+            onChange={handleModelsChange}
+            availableOptions={availableOptions}
+            getDisplayName={getDisplayName}
+            getProviderName={getProviderName}
+            renderItemAction={renderItemAction}
+          />
+        )}
       </PageSection>
 
       <PageSection

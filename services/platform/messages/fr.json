@@ -3817,6 +3817,10 @@
       "title": "Personnalisation",
       "description": "Aide l'assistant à se souvenir de choses sur toi d'une conversation à l'autre."
     },
+    "environment": {
+      "title": "Environnement et secrets",
+      "description": "Variables d'environnement et secrets injectés dans tes sandboxes d'agent."
+    },
     "organization": {
       "title": "Organisation",
       "description": "Gère les paramètres de ton organisation."
@@ -3965,6 +3969,7 @@
     "branding": "Branding",
     "governance": "Gouvernance",
     "personalization": "Personnalisation",
+    "environment": "Environnement",
     "account": "Compte",
     "agents": "Agents",
     "skills": "Skills",
@@ -4077,6 +4082,39 @@
       "deleted": "Supprimé.",
       "preferencesUpdated": "Préférences mises à jour.",
       "voiceOutputEnabledButProviderMissing": "La sortie vocale est activée, mais aucun fournisseur de synthèse vocale n'est configuré. Demande à une personne admin d'en ajouter un dans Paramètres → Fournisseurs IA."
+    }
+  },
+  "userEnv": {
+    "page": {
+      "title": "Environnement et secrets",
+      "description": "Variables et secrets injectés dans toutes tes sandboxes d'agent.",
+      "note": "Les secrets sont chiffrés et en écriture seule — une fois enregistrés, ils ne sont plus jamais affichés. Ces variables sont injectées dans toutes tes sandboxes."
+    },
+    "add": {
+      "keyLabel": "Nom",
+      "keyPlaceholder": "ex. MY_API_KEY",
+      "keyInvalid": "Doit commencer par une lettre ou un trait de soulignement et ne contenir que des lettres, des chiffres et des traits de soulignement.",
+      "valueLabel": "Valeur",
+      "valuePlaceholder": "Valeur",
+      "secretLabel": "Secret",
+      "secretHelp": "Lorsque activé, la valeur est chiffrée et en écriture seule — elle n'est plus jamais affichée après l'enregistrement.",
+      "submit": "Ajouter"
+    },
+    "list": {
+      "empty": "Aucune variable d'environnement pour l'instant.",
+      "secretBadge": "Secret",
+      "updatedHint": "Mis à jour {when}",
+      "delete": "Supprimer",
+      "deleteConfirmTitle": "Supprimer la variable ?",
+      "deleteConfirmDescription": "Supprimer « {key} » ? Cela la retire de toutes tes sandboxes."
+    },
+    "toasts": {
+      "saved": "Enregistré.",
+      "deleted": "Supprimé."
+    },
+    "errors": {
+      "saveFailed": "Échec de l'enregistrement. Veuillez réessayer.",
+      "deleteFailed": "Échec de la suppression. Veuillez réessayer."
     }
   },
   "piiConfigPanel": {
@@ -4503,6 +4541,9 @@
       "personalization": {
         "description": "Comment Tale s'adapte à toi — mémoire, instructions et voix."
       },
+      "environment": {
+        "description": "Variables d'environnement et secrets injectés dans tes sandboxes."
+      },
       "organization": {
         "description": "Nom de l'espace de travail, membres et identifiants."
       },
@@ -4814,7 +4855,19 @@
         },
         "structuredResponsesInjectedPrompt": "Les instructions suivantes seront automatiquement ajoutées au prompt système :",
         "browsePrompts": "Parcourir les prompts",
-        "systemInstructionsCharCount": "{count, plural, one {# caractère} other {# caractères}}"
+        "systemInstructionsCharCount": "{count, plural, one {# caractère} other {# caractères}}",
+        "byo": {
+          "sectionTitle": "Identifiants",
+          "sectionDescription": "Comment cet agent s'authentifie auprès de son fournisseur de modèle.",
+          "managedLabel": "Géré (passerelle de la plateforme)",
+          "managedDescription": "Passer par la passerelle de la plateforme avec une clé virtuelle générée. La sélection du modèle, la facturation et la gouvernance de l'usage restent du côté de la plateforme.",
+          "byoLabel": "Apporte tes propres identifiants (BYO)",
+          "byoDescription": "Contourner la passerelle et utiliser les identifiants que tu as définis dans Environnement et secrets, avec un passthrough direct du modèle.",
+          "modelSectionDescription": "Identifiants de modèle bruts du fournisseur, transmis tels quels. Le premier modèle est le modèle principal ; les autres sont des modèles de repli.",
+          "modelLabel": "Identifiant de modèle du fournisseur",
+          "modelPlaceholder": "ex. claude-opus-4-20250514",
+          "modelNote": "BYO passe par tes propres identifiants définis dans Environnement et secrets — la sélection du modèle, la facturation et la gouvernance de l'usage basculent vers tes identifiants ; la plateforme ne fournit que l'environnement d'exécution."
+        }
       },
       "delegation": {
         "title": "Délégation",

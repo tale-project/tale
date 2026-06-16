@@ -126,14 +126,19 @@ export const listUserEnvForInjection = internalQuery({
         q.eq('organizationId', args.organizationId).eq('userId', args.userId),
       )
       .collect();
-    return rows.map((r) => ({
-      key: r.key,
-      isSecret: r.isSecret,
-      ...(r.value !== undefined && { value: r.value }),
-      ...(r.encryptedValue !== undefined && {
-        encryptedValue: r.encryptedValue,
-      }),
-    }));
+    return rows.map((r) => {
+      const entry: {
+        key: string;
+        isSecret: boolean;
+        value?: string;
+        encryptedValue?: string;
+      } = { key: r.key, isSecret: r.isSecret };
+      if (r.value !== undefined) entry.value = r.value;
+      if (r.encryptedValue !== undefined) {
+        entry.encryptedValue = r.encryptedValue;
+      }
+      return entry;
+    });
   },
 });
 
@@ -171,14 +176,18 @@ export const listMyEnv = query({
       .collect();
     return rows
       .sort((a, b) => a.key.localeCompare(b.key))
-      .map((r) => ({
-        key: r.key,
-        isSecret: r.isSecret,
-        ...(r.isSecret
-          ? { maskedValue: SECRET_MASK }
-          : { value: r.value ?? '' }),
-        updatedAt: r.updatedAt,
-      }));
+      .map((r) => {
+        const entry: {
+          key: string;
+          isSecret: boolean;
+          value?: string;
+          maskedValue?: string;
+          updatedAt: number;
+        } = { key: r.key, isSecret: r.isSecret, updatedAt: r.updatedAt };
+        if (r.isSecret) entry.maskedValue = SECRET_MASK;
+        else entry.value = r.value ?? '';
+        return entry;
+      });
   },
 });
 

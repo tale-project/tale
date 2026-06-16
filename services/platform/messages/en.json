@@ -3816,6 +3816,10 @@
       "title": "Personalization",
       "description": "Help the assistant remember things about you across chats."
     },
+    "environment": {
+      "title": "Environment & secrets",
+      "description": "Environment variables and secrets injected into your agent sandboxes."
+    },
     "organization": {
       "title": "Organization",
       "description": "Manage your organization settings."
@@ -3964,6 +3968,7 @@
     "branding": "Branding",
     "governance": "Governance",
     "personalization": "Preferences",
+    "environment": "Environment",
     "account": "Account",
     "agents": "Agents",
     "skills": "Skills",
@@ -4076,6 +4081,39 @@
       "deleted": "Deleted.",
       "preferencesUpdated": "Preferences updated.",
       "voiceOutputEnabledButProviderMissing": "Voice output is on, but no text-to-speech provider is configured. Ask an admin to add one in Settings → AI providers."
+    }
+  },
+  "userEnv": {
+    "page": {
+      "title": "Environment & secrets",
+      "description": "Variables and secrets injected into all of your agent sandboxes.",
+      "note": "Secrets are encrypted and write-only — once saved they are never shown again. These variables are injected into all of your sandboxes."
+    },
+    "add": {
+      "keyLabel": "Name",
+      "keyPlaceholder": "e.g. MY_API_KEY",
+      "keyInvalid": "Must start with a letter or underscore and contain only letters, numbers, and underscores.",
+      "valueLabel": "Value",
+      "valuePlaceholder": "Value",
+      "secretLabel": "Secret",
+      "secretHelp": "When on, the value is encrypted and write-only — it is never shown again after saving.",
+      "submit": "Add"
+    },
+    "list": {
+      "empty": "No environment variables yet.",
+      "secretBadge": "Secret",
+      "updatedHint": "Updated {when}",
+      "delete": "Delete",
+      "deleteConfirmTitle": "Delete variable?",
+      "deleteConfirmDescription": "Delete \"{key}\"? This removes it from all of your sandboxes."
+    },
+    "toasts": {
+      "saved": "Saved.",
+      "deleted": "Deleted."
+    },
+    "errors": {
+      "saveFailed": "Couldn't save. Please try again.",
+      "deleteFailed": "Couldn't delete. Please try again."
     }
   },
   "piiConfigPanel": {
@@ -4763,6 +4801,9 @@
       "personalization": {
         "description": "How Tale adapts to you — memory, instructions, and voice."
       },
+      "environment": {
+        "description": "Environment variables and secrets injected into your sandboxes."
+      },
       "organization": {
         "description": "Workspace name, members, and identifiers."
       },
@@ -5074,7 +5115,19 @@
         },
         "structuredResponsesInjectedPrompt": "The following instructions will be automatically appended to the system prompt:",
         "browsePrompts": "Browse prompts",
-        "systemInstructionsCharCount": "{count, plural, one {# character} other {# characters}}"
+        "systemInstructionsCharCount": "{count, plural, one {# character} other {# characters}}",
+        "byo": {
+          "sectionTitle": "Credentials",
+          "sectionDescription": "How this agent authenticates to its model provider.",
+          "managedLabel": "Managed (platform gateway)",
+          "managedDescription": "Route through the platform gateway with a minted virtual key. Model selection, billing, and usage governance stay with the platform.",
+          "byoLabel": "Bring your own credentials (BYO)",
+          "byoDescription": "Bypass the gateway and use the credentials you set in Environment & Secrets, with a raw model passthrough.",
+          "modelSectionDescription": "Raw provider model ids passed through verbatim. The first model is the primary; the rest are fallbacks.",
+          "modelLabel": "Provider model id",
+          "modelPlaceholder": "e.g. claude-opus-4-20250514",
+          "modelNote": "BYO routes through your own credentials set in Environment & Secrets — model selection, billing, and usage governance move to your credentials; the platform only provides the runtime."
+        }
       },
       "delegation": {
         "title": "Delegation",
