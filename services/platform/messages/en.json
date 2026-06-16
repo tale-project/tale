@@ -2216,7 +2216,6 @@
       "hasKeyQuestion": "Don't have a key yet?",
       "getKeyLink": "Create one at OpenRouter",
       "saveError": "We couldn't connect to OpenRouter with that key. Check it and try again.",
-      "noModelsError": "No models were available for that key.",
       "invalidKeyError": "That doesn't look like an OpenRouter key — it should start with \"sk-or-\". Copy it from openrouter.ai/keys.",
       "authError": "OpenRouter rejected that key. Check it was copied in full and is still active.",
       "networkError": "Couldn't reach OpenRouter. Check your connection and try again."

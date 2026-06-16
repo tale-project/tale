@@ -2217,7 +2217,6 @@
       "hasKeyQuestion": "Tu n'as pas encore de clé ?",
       "getKeyLink": "En créer une sur OpenRouter",
       "saveError": "Impossible de se connecter à OpenRouter avec cette clé. Vérifie-la et réessaie.",
-      "noModelsError": "Aucun modèle n'était disponible pour cette clé.",
       "invalidKeyError": "Cela ne ressemble pas à une clé OpenRouter — elle devrait commencer par « sk-or- ». Copie-la depuis openrouter.ai/keys.",
       "authError": "OpenRouter a refusé cette clé. Vérifie qu'elle a été copiée en entier et qu'elle est toujours active.",
       "networkError": "Impossible de joindre OpenRouter. Vérifie ta connexion et réessaie."
