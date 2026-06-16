@@ -4543,7 +4543,7 @@
       "switchingTo": "Wechsle zu {name}…",
       "switchingLabel": "Organisation wird gewechselt",
       "deleteDialogTitle": "Organisation löschen",
-      "deleteDialogDescription": "„{name}\" löschen? Damit werden Agents, Workflows, Anbieter und Integrationen entfernt. Mitglieder verlieren den Zugriff. Dies kann nicht rückgängig gemacht werden.",
+      "deleteDialogDescription": "„{name}“ löschen? Damit werden Agents, Workflows, Anbieter und Integrationen entfernt. Mitglieder verlieren den Zugriff. Dies kann nicht rückgängig gemacht werden.",
       "dangerZoneTitle": "Gefahrenzone",
       "dangerZoneDescription": "Unwiderrufliche Aktionen, die die gesamte Organisation betreffen.",
       "deleteSectionHelp": "Diese Organisation und alle ihre Inhalte dauerhaft löschen. Dies kann nicht rückgängig gemacht werden.",

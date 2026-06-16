@@ -124,7 +124,7 @@ export function OnboardingWizard({
               to="/dashboard"
               className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm"
             >
-              <ArrowLeft className="size-4" />
+              <ArrowLeft className="size-4" aria-hidden />
               {t('backToApp')}
             </Link>
           ) : null}
