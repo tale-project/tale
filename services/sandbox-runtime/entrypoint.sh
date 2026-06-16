@@ -358,6 +358,13 @@ _browser_hygiene() {
 # runnerd can SIGKILL it to force a fresh, self-healed restart. $@ = chrome argv.
 _browser_supervise() {
   (
+    # CRITICAL: the script runs under `set -e`, but a supervisor loop MUST
+    # survive its child exiting non-zero — `wait "$_bpid"` returns 137 when
+    # runnerd SIGKILLs Chromium to recycle it, and the housekeeping rm/mkdir can
+    # also fail benignly. Without this the loop would errexit on the first
+    # recycle and never relaunch (the browser would stay dead). Disable errexit
+    # for the loop; every command here is already best-effort guarded.
+    set +e
     while true; do
       if [ -f "$TALE_BROWSER_CTRL/reset" ]; then
         # shellcheck disable=SC2086
