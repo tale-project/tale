@@ -125,6 +125,19 @@ const EXEC_DEADLINE_MS = Number(
 const ACTION_WINDOW_MS = Number(
   process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(480 * 1000),
 );
+// Live browser view (read-only mirror), operator-gated and default OFF. When
+// '1', the adapter attaches Playwright MCP to the session's externally-launched
+// HEADED Chromium over CDP (instead of self-launching headless) so the browser
+// can be mirrored read-only by x11vnc. This MUST be set together with the
+// SPAWNER's SANDBOX_BROWSER_VIEW: the spawner is what actually launches the
+// session container with TALE_BROWSER_CDP=1 (the entrypoint's start_browser_-
+// stack), so a one-sided flag is a misconfig — platform-on/spawner-off attaches
+// to a CDP endpoint that was never started (the MCP retries and the browser
+// tools fail); spawner-on/platform-off wastes a headed browser the agent never
+// attaches to. Read here because this node action is where the exec spec is
+// built. NOTE (deployment): keep this and the spawner's SANDBOX_BROWSER_VIEW in
+// lockstep — it is a single deployment-level operator decision.
+const BROWSER_VIEW_ENABLED = process.env.SANDBOX_BROWSER_VIEW === '1';
 
 /**
  * Append a failure note to the timeline-so-far WITHOUT discarding it. On an
@@ -532,6 +545,7 @@ export const runExternalAgentTurn = internalAction({
       const systemPromptAppend = buildSystemPromptAppend({
         systemInstructions: args.systemInstructions,
         permissionMode: args.permissionMode,
+        browserCdp: BROWSER_VIEW_ENABLED,
       });
 
       // Both attempts share ONE absolute action deadline — a fresh window for
@@ -547,6 +561,11 @@ export const runExternalAgentTurn = internalAction({
           execId: id,
           agentSlug: args.agentKind,
           prompt: args.rawPrompt,
+          // Live browser view (operator flag, default off): attach Playwright
+          // MCP over CDP to the session's headed Chromium so it can be mirrored
+          // read-only. Only set when on so the adapter's headless self-launch
+          // stays byte-identical to today otherwise.
+          ...(BROWSER_VIEW_ENABLED && { browserCdp: true }),
           // The agent CLI sends this verbatim to the gateway. Use the canonical
           // gateway routing so the request hits the SAME Bifrost record the VK
           // is bound to (per-model `<slug>__<modelId>` for custom providers;

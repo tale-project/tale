@@ -5,23 +5,31 @@
 // env), adds the session verbs. Lives in node_only because it streams SSE.
 //
 // Signature contract (services/sandbox/src/auth.ts):
-//   signedString = `${METHOD}\n${path}\n${timestamp}\n${sha256Hex(body)}`
+//   signedString = `${METHOD}\n${path}\n${timestamp}\n${nonce}\n${sha256Hex(body)}`
 //   signature    = HMAC-SHA256(SANDBOX_TOKEN, signedString)
+// The per-request nonce keeps byte-identical requests (e.g. the empty-body
+// sessionIsAlive GET) from colliding in the spawner's replay cache.
 
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
+const NONCE_HEADER = 'x-tale-sandbox-nonce';
 
+// Mirror of the spawner's auth.ts signed-string format. The per-request nonce
+// makes byte-identical requests (notably the empty-body `sessionIsAlive` GET)
+// sign distinct strings, so two probes in the same millisecond don't
+// false-positive against the spawner's replay cache.
 function signRequest(
   method: string,
   path: string,
   timestamp: string,
+  nonce: string,
   body: string,
   token: string,
 ): string {
   const bodyHash = createHash('sha256').update(body).digest('hex');
-  const signedString = `${method.toUpperCase()}\n${path}\n${timestamp}\n${bodyHash}`;
+  const signedString = `${method.toUpperCase()}\n${path}\n${timestamp}\n${nonce}\n${bodyHash}`;
   return createHmac('sha256', token).update(signedString).digest('hex');
 }
 
@@ -84,14 +92,17 @@ function signedHeaders(
   const token = getSpawnerToken();
   if (token !== null) {
     const timestamp = String(Date.now());
+    const nonce = randomUUID();
     headers[SIGNATURE_HEADER] = signRequest(
       method,
       path,
       timestamp,
+      nonce,
       body,
       token,
     );
     headers[TIMESTAMP_HEADER] = timestamp;
+    headers[NONCE_HEADER] = nonce;
   }
   return headers;
 }
@@ -268,6 +279,68 @@ export async function sessionCancelExec(
   return parsed.killed === true;
 }
 
+/** Managed live-browser recycle result (restart preserves logins; reset wipes
+ * the profile). `ready` = a CDP session attached again within the wait window. */
+export interface BrowserRecycleResult {
+  signalled: boolean;
+  ready: boolean;
+  tabs: number;
+}
+
+async function sessionBrowserControl(
+  sessionId: string,
+  action: 'restart' | 'reset' | 'close-pages',
+): Promise<Record<string, unknown>> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/browser/${action}`;
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'POST',
+    headers: signedHeaders('POST', path, ''),
+    body: '',
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) {
+    throw new Error(`sandbox browser ${action} failed (${res.status})`);
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  return (await res.json()) as Record<string, unknown>;
+}
+
+/** POST /v1/sessions/:id/browser/restart — recycle a wedged managed browser,
+ * PRESERVING saved logins (lock hygiene + respawn). Used by recovery paths. */
+export async function sessionBrowserRestart(
+  sessionId: string,
+): Promise<BrowserRecycleResult> {
+  const b = await sessionBrowserControl(sessionId, 'restart');
+  return {
+    signalled: b.signalled === true,
+    ready: b.ready === true,
+    tabs: typeof b.tabs === 'number' ? b.tabs : 0,
+  };
+}
+
+/** POST /v1/sessions/:id/browser/reset — wipe the persistent profile and start
+ * fresh. LOSES saved logins; the explicit user-driven "Reset browser". */
+export async function sessionBrowserReset(
+  sessionId: string,
+): Promise<BrowserRecycleResult> {
+  const b = await sessionBrowserControl(sessionId, 'reset');
+  return {
+    signalled: b.signalled === true,
+    ready: b.ready === true,
+    tabs: typeof b.tabs === 'number' ? b.tabs : 0,
+  };
+}
+
+/** POST /v1/sessions/:id/browser/close-pages — close all open tabs WITHOUT
+ * clearing cookies (logins persist). The turn-stop cleanup so a runaway/hung
+ * tab can't wedge the next turn's attach. */
+export async function sessionBrowserClosePages(
+  sessionId: string,
+): Promise<number> {
+  const b = await sessionBrowserControl(sessionId, 'close-pages');
+  return typeof b.closed === 'number' ? b.closed : 0;
+}
+
 /** Per-exec liveness, decoupled from `sessionIsAlive` (which is session-level). */
 export type ExecLiveness =
   | { state: 'running'; startedAtMs?: number }
@@ -407,6 +480,33 @@ export async function sessionListFiles(
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { entries?: SessionFsEntry[] };
   return parsed.entries ?? [];
+}
+
+/** GET /v1/sessions/:id/files/content?path= — raw bytes of a single workspace
+ * file. Returns null on 404, which the spawner emits for a missing/unsafe path
+ * AND for an over-cap file (runnerd's /fs/read caps at 20 MB and returns null →
+ * 404) — the two are indistinguishable here, so callers treat null as "can't
+ * serve" (a 404/413 at the boundary). The spawner serves
+ * `application/octet-stream`; the returned contentType reflects whatever the
+ * response carried so the caller can fall back when it's the generic type. */
+export async function sessionReadFile(
+  sessionId: string,
+  filePath: string,
+): Promise<{ bytes: ArrayBuffer; contentType: string } | null> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/content?path=${encodeURIComponent(filePath)}`;
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'GET',
+    headers: signedHeaders('GET', path, ''),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`sandbox session file read failed (${res.status})`);
+  }
+  const bytes = await res.arrayBuffer();
+  const contentType =
+    res.headers.get('content-type') ?? 'application/octet-stream';
+  return { bytes, contentType };
 }
 
 export interface SessionExecBody {

@@ -1202,6 +1202,7 @@ export function ChatInput({
             >
               <ComposerModeMenu
                 organizationId={organizationId}
+                threadId={threadId}
                 onAttachFile={() => fileInputRef.current?.click()}
                 onTakeScreenshot={
                   screenshotSupported && !fileUploadDisabled
@@ -1241,6 +1242,10 @@ export function ChatInput({
                       threadId={threadId}
                       organizationId={organizationId}
                     />
+                    {/* No Workspace-files / Live-browser pills here: on desktop
+                        the right-edge pane strips are the open affordance, and
+                        on mobile the `+` menu carries them — a composer pill
+                        would be redundant and crowd this row. */}
                   </HStack>
                 ))}
               {variant === 'full' && (

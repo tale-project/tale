@@ -51,10 +51,12 @@ declare -A SIZE_BUDGETS=(
     # build (~400 MB) with its system libs, and gh. Docker-in-container support
     # (sysbox/kata tiers) adds the docker-ce engine + cli + containerd + buildx
     # + compose plugins plus tini/uidmap/fuse-overlayfs/iptables/redsocks
-    # (~340 MB), landing ~2.2 GB in CI; budget = that measured size + ~10%
+    # (~340 MB). The read-only live browser view adds Xvfb + x11vnc and the
+    # Noto CJK/emoji font set (~250 MB) so non-Latin pages render glyphs, not
+    # tofu. That lands ~2.56 GB in CI; budget = that measured size + ~10%
     # headroom. (The one-shot /v1/execute role uses the same image — size is a
     # one-time per-node pull cost.)
-    [sandbox-runtime]=2450
+    [sandbox-runtime]=2820
 )
 
 header() {

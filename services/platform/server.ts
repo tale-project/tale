@@ -12,6 +12,10 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import {
+  createScreencastRelayHandler,
+  type ScreencastWsData,
+} from './lib/screencast-relay';
 import { isValidOrgSlug } from './lib/shared/constants/org-slug';
 import { parseSessionIdleTimeoutMinutes } from './lib/shared/session-idle';
 import { fetchAdapter as webdavFetchAdapter } from './lib/webdav/adapters/fetch';
@@ -147,6 +151,86 @@ async function resolveAllowedOrgSlugs(
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Screencast (live browser view) WebSocket termination.
+//
+// The browser opens `wss://<site>/screencast/<threadId>` (noVNC). This is the
+// ONLY browser-facing WS termination in the deployment. server.ts authenticates
+// the upgrade (cookie+org) by forwarding the Cookie header to the Convex
+// `/api/sandbox/screencast-auth` oracle — the platform process can't run Convex
+// queries directly, so the oracle runs the canAccessThread RLS and maps the
+// thread → its live sandbox session. On 200 we upgrade and relay raw binary RFB
+// frames to the spawner WS (lib/screencast-relay.ts). The chain:
+//   browser → [here] → spawner WS (HMAC) → runnerd tunnel → x11vnc.
+// ---------------------------------------------------------------------------
+
+/** `GET /screencast/<threadId>` — the (percent-encoded) threadId is the single
+ * path segment. Anchored so it can't match a deeper path. */
+export const SCREENCAST_ROUTE_RE = /^\/screencast\/([^/]+)$/;
+
+type ScreencastAuthResult =
+  | { ok: true; sessionId: string }
+  | { ok: false; status: number; body: string; contentType: string };
+
+/**
+ * Authorize a screencast WS upgrade by forwarding the request Cookie to the
+ * Convex `/api/sandbox/screencast-auth` httpAction (same mechanism
+ * `resolveAllowedOrgSlugs` uses to reach Convex). The oracle resolves identity
+ * from the session cookie and runs the canAccessThread boundary, returning the
+ * live sessionId on success. We propagate its status (401/403/409/429) verbatim
+ * so the browser sees the same refusal the workspace-file route would give.
+ */
+export async function authorizeScreencast(
+  threadId: string,
+  cookieHeader: string | undefined,
+): Promise<ScreencastAuthResult> {
+  const deny = (
+    status: number,
+    body: string,
+    contentType = 'text/plain',
+  ): ScreencastAuthResult => ({ ok: false, status, body, contentType });
+  if (!cookieHeader) return deny(401, 'Unauthenticated');
+  let res: Response;
+  try {
+    const target = `${convexHttpActionsBaseUrl()}/api/sandbox/screencast-auth?threadId=${encodeURIComponent(
+      threadId,
+    )}`;
+    res = await fetch(target, { headers: { cookie: cookieHeader } });
+  } catch (err) {
+    console.warn('[/screencast] convex auth lookup failed', err);
+    return deny(502, 'Bad Gateway');
+  }
+  if (res.status === 200) {
+    let sessionId: unknown;
+    try {
+      const body: unknown = await res.json();
+      sessionId =
+        body && typeof body === 'object' && 'sessionId' in body
+          ? (body as { sessionId: unknown }).sessionId
+          : undefined;
+    } catch (err) {
+      console.warn('[/screencast] convex auth 200 with unreadable body', err);
+      return deny(502, 'Bad Gateway');
+    }
+    if (typeof sessionId === 'string' && sessionId.length > 0) {
+      return { ok: true, sessionId };
+    }
+    return deny(502, 'Bad Gateway');
+  }
+  // Non-200: forward the oracle's status + body so the client sees the same
+  // refusal (409 session_not_running is JSON; 401/403/429 are plain text).
+  const contentType = res.headers.get('content-type') ?? 'text/plain';
+  let body: string;
+  try {
+    body = await res.text();
+  } catch {
+    body = '';
+  }
+  return deny(res.status, body, contentType);
+}
+
+const screencastWsHandler = createScreencastRelayHandler();
 
 // ---------------------------------------------------------------------------
 
@@ -671,9 +755,62 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
 if (import.meta.main) {
   initTelemetry();
   const app = createApp();
-  Bun.serve({
+  Bun.serve<ScreencastWsData>({
     port,
     hostname: '0.0.0.0',
-    fetch: app.fetch,
+    // Bun's default idleTimeout (10s) would kill the long-lived `/events/file`
+    // SSE stream and an idle (no input/no framebuffer delta) screencast WS.
+    // Match the spawner's screencast server: 255 (Bun's max). RFB sends
+    // periodic framebuffer updates and noVNC pings, so a healthy viewer never
+    // trips this; it only backstops a wedged socket.
+    idleTimeout: 255,
+    // Wrapper around the Hono app: intercept the browser-facing screencast WS
+    // upgrade (which needs the live Server instance for `server.upgrade`, only
+    // available here), and delegate EVERYTHING else to app.fetch unchanged so
+    // every existing route (incl. the `/events/file` SSE) is preserved.
+    async fetch(req, server) {
+      const url = new URL(req.url);
+      const screencastMatch =
+        req.method === 'GET' &&
+        req.headers.get('upgrade')?.toLowerCase() === 'websocket'
+          ? SCREENCAST_ROUTE_RE.exec(url.pathname)
+          : null;
+      if (screencastMatch) {
+        // The captured segment is percent-encoded by the client
+        // (buildScreencastUrl → encodeURIComponent). Decode before handing it
+        // to the auth oracle / session resolver.
+        let threadId: string;
+        try {
+          threadId = decodeURIComponent(screencastMatch[1] ?? '');
+        } catch {
+          return new Response('Bad Request', { status: 400 });
+        }
+        if (!threadId) return new Response('Bad Request', { status: 400 });
+
+        // Auth BEFORE upgrade: a denied viewer never reaches the relay.
+        const auth = await authorizeScreencast(
+          threadId,
+          req.headers.get('cookie') ?? undefined,
+        );
+        if (!auth.ok) {
+          return new Response(auth.body, {
+            status: auth.status,
+            headers: {
+              'Content-Type': auth.contentType,
+              'Cache-Control': 'no-store',
+              Vary: 'Cookie',
+            },
+          });
+        }
+        const upgraded = server.upgrade(req, {
+          data: { sessionId: auth.sessionId, threadId },
+        });
+        // On success Bun owns the socket and `fetch` must return undefined.
+        if (upgraded) return undefined;
+        return new Response('Upgrade failed', { status: 500 });
+      }
+      return app.fetch(req, server);
+    },
+    websocket: screencastWsHandler,
   });
 }

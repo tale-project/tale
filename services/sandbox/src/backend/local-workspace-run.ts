@@ -1,6 +1,6 @@
 // The local-workspace execution flow: stage inputs onto a local directory,
 // run the runtime against it, parse PHASE markers + live tail off its stdout,
-// then harvest `/workspace/output` back from the same local directory. This is
+// then harvest `/user/output` back from the same local directory. This is
 // the body that used to live inline in spawn.ts's `executeRequest`; it is
 // behavior-identical (the existing spawn-staging / spawn-prior-outputs / e2e
 // tests are the parity proof).
@@ -102,17 +102,17 @@ export async function runLocalWorkspaceExecution(
     const priorStage = stageResult.priorStage;
 
     // Resolve the path the runtime entrypoint will exec().
-    //   - steps[] → the spawner-generated wrapper under /workspace/.tale/
+    //   - steps[] → the spawner-generated wrapper under /user/.runtime/tale/
     //     (polyglot also routes through runner.py — Python is the image's
     //     base layer and always available as the dispatcher host).
     //   - single-script → the user file at its declared relative path
     // The validator guarantees `entryPath` is defined whenever `steps` is
     // not (and that polyglot always uses steps mode). The entrypoint
-    // reattaches /workspace/code/ for relative paths.
+    // reattaches /user/code/ for relative paths.
     const entryPath =
       req.steps !== undefined
         ? // validate-request guarantees req.language !== 'bash' here.
-          `/workspace/.tale/${
+          `/user/.runtime/tale/${
             req.language === 'python' || req.language === 'polyglot'
               ? 'runner.py'
               : 'runner.js'
@@ -203,7 +203,7 @@ export async function runLocalWorkspaceExecution(
           synthesizeStepResults(req.steps))
         : undefined;
 
-    // Harvest `/workspace/output/` unconditionally — even on failure or
+    // Harvest `/user/output/` unconditionally — even on failure or
     // cancellation, any partial files the user script managed to write
     // before crashing are worth surfacing (resolves D5 in plan
     // llm-majestic-hamming.md). The presigned-URL upload happens inside

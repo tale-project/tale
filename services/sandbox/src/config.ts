@@ -263,6 +263,11 @@ export function loadConfig(): SpawnerConfig {
       process.env.SANDBOX_RUNTIME_IMAGE ?? 'tale-sandbox-runtime:latest',
     runtimeTier,
     dockerInContainer,
+    // Live browser view (default off). When on, session containers launch with
+    // TALE_BROWSER_CDP=1 (the entrypoint's headed-Chromium + x11vnc mirror).
+    // The PLATFORM's own SANDBOX_BROWSER_VIEW must be set together so the
+    // adapter attaches Playwright MCP over CDP — a deployment-level decision.
+    browserView: boolEnvOpt('SANDBOX_BROWSER_VIEW') ?? false,
     defaultTimeoutMs: numEnv('SANDBOX_DEFAULT_TIMEOUT_MS', 30_000, { min: 1 }),
     maxTimeoutMs: numEnv('SANDBOX_MAX_TIMEOUT_MS', 300_000, { min: 1 }),
     maxConcurrent: numEnv('SANDBOX_MAX_CONCURRENT', 4, { min: 1 }),

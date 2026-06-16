@@ -18,6 +18,7 @@ const cfg: SpawnerConfig = {
   runtimeImage: 'tale-sandbox-runtime:test',
   runtimeTier: 'runc',
   dockerInContainer: false,
+  browserView: false,
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: null,
@@ -141,16 +142,16 @@ describe('buildSandboxPod', () => {
     expect(c.command?.[0]).toBe('/bin/sh');
     expect(c.command?.[1]).toBe('-c');
     expect(c.command?.[2]).toContain('/entrypoint.sh "$0" "$1" "$2" "$3"');
-    expect(c.command?.[2]).toContain('2>/workspace/.tale/stderr.log');
-    expect(c.command?.[2]).toContain('echo $? > /workspace/.tale/exit-code');
+    expect(c.command?.[2]).toContain('2>/user/.runtime/tale/stderr.log');
+    expect(c.command?.[2]).toContain('echo $? > /user/.runtime/tale/exit-code');
     // No sentinel handshake — staging is an initContainer now.
     expect(c.command?.[2]).not.toContain('.staged');
     expect(c.command?.[2]).not.toContain('exec /entrypoint.sh');
     // positional args = entrypoint's [language, packages, options, entry].
     expect(c.args).toEqual([
       'python',
-      '/workspace/code/packages.json',
-      '/workspace/code/options.json',
+      '/user/code/packages.json',
+      '/user/code/options.json',
       'main.py',
     ]);
   });
@@ -226,7 +227,7 @@ describe('buildSandboxPod', () => {
     expect(h.command?.[1]).toContain('k8s-harvest.ts');
   });
 
-  test('workspace emptyDir is shared by stage, runner, and harvest at /workspace', () => {
+  test('workspace emptyDir is shared by stage, runner, and harvest at /user', () => {
     const pod = buildSandboxPod(cfg, goodInput);
     const ws = pod.spec?.volumes?.find((v) => v.name === 'workspace');
     expect(ws?.emptyDir).toBeDefined();
@@ -235,7 +236,7 @@ describe('buildSandboxPod', () => {
     expect(ws?.emptyDir?.sizeLimit).toBe('4Gi');
     for (const c of [stage(pod), runner(pod), harvest(pod)]) {
       const m = c.volumeMounts?.find((x) => x.name === 'workspace');
-      expect(m?.mountPath).toBe('/workspace');
+      expect(m?.mountPath).toBe('/user');
     }
   });
 
@@ -270,7 +271,7 @@ describe('buildSandboxPod', () => {
     const c = runner(buildSandboxPod(cfg, goodInput));
     const script = c.command?.[2] ?? '';
     const lastLine = script.trim().split('\n').at(-1) ?? '';
-    expect(lastLine).toBe('echo $? > /workspace/.tale/exit-code');
+    expect(lastLine).toBe('echo $? > /user/.runtime/tale/exit-code');
   });
 
   test('runtimeClassName: omitted for runc, applied per tier', () => {

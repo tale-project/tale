@@ -52,6 +52,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
       libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
       libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 \
+      # Live browser view (read-only mirror). INERT unless the session is
+      # launched with TALE_BROWSER_CDP=1 (operator flag SANDBOX_BROWSER_VIEW):
+      # Xvfb gives the headed Chromium a virtual display, x11vnc mirrors it
+      # view-only, and the fonts keep rendered pages legible. The CDP (9222)
+      # and VNC (5900) endpoints the entrypoint binds are LOOPBACK-ONLY
+      # (127.0.0.1) and the session container publishes NO ports — they are
+      # never EXPOSE'd and only reachable from inside the container.
+      xvfb \
+      x11vnc \
+      fonts-liberation \
+      fonts-noto-core \
+      # CJK + emoji so real-world pages (e.g. google.com.hk, any non-Latin
+      # site) render glyphs instead of tofu boxes in the live browser view.
+      fonts-noto-cjk \
+      fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -f \
     && ln -sf /usr/local/bin/python3 /usr/local/bin/python \
@@ -194,7 +209,7 @@ COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
 
 # Claude Code managed settings (highest precedence on Linux): disable
 # auto-update + telemetry, and register the steer hook (mid-turn message
-# injection — hooks merge across settings sources, so /workspace configs
+# injection — hooks merge across settings sources, so /user configs
 # can't shadow it). NOT permission rules — those are per-run flags.
 COPY services/sandbox-runtime/managed-settings.json /etc/claude-code/managed-settings.json
 
@@ -237,7 +252,7 @@ RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-creden
 # profile); this is just the named account the session profile selects.
 # Absolute paths: the ENV PATH override above drops /usr/sbin.
 RUN /usr/sbin/groupadd --gid 10001 agent \
-    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /workspace/.home \
+    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /user/.runtime/home \
        --shell /bin/bash --no-create-home agent \
     # docker-in-container: the inner dockerd creates /var/run/docker.sock as
     # root:docker (660), so the agent (uid 10001, runs `docker` after the
@@ -250,6 +265,6 @@ RUN /usr/sbin/groupadd --gid 10001 agent \
 # (65534 one-shot, 10001 session-agent).
 USER 65534:65534
 
-WORKDIR /workspace
+WORKDIR /user
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

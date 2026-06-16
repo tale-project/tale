@@ -36,6 +36,25 @@ export interface RunnerdHealth {
   bootedAtMs: number;
   lastActivityAtMs: number;
   liveExecs: number;
+  /** Raw VNC tunnels (GET /screencast) currently piping. */
+  activeScreencasts: number;
+  /** Managed live-browser CDP liveness; present only on browser-view sessions
+   * (TALE_BROWSER_CDP=1). Real CDP round-trip, not just "HTTP answers". */
+  browser?: { cdpHealthy: boolean; tabs: number };
+}
+
+// --- POST /browser/{restart,reset,close-pages} (browser-view sessions) -------
+
+/** restart (recycle, preserves logins) / reset (wipe profile, loses logins). */
+export interface RunnerdBrowserRecycle {
+  signalled: boolean;
+  ready: boolean;
+  tabs: number;
+}
+
+/** close-pages — tabs closed, cookies untouched. */
+export interface RunnerdBrowserClosePages {
+  closed: number;
 }
 
 export interface RunnerdExecRequest {
@@ -132,5 +151,5 @@ export interface RunnerdError {
   message?: string;
 }
 
-export const WORKSPACE_ROOT = '/workspace';
+export const WORKSPACE_ROOT = '/user';
 export const ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,64}$/;

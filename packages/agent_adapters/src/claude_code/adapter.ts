@@ -39,6 +39,20 @@ const PLAYWRIGHT_MCP_SERVER = {
   ],
 };
 
+/** Live-browser-view args (browserCdp). Instead of self-launching a headless
+ * Chromium, the MCP ATTACHES over CDP to the session's externally-managed
+ * HEADED Chromium (entrypoint start_browser_stack, listening on loopback
+ * 127.0.0.1:9222) so the browser can be mirrored read-only by x11vnc. The
+ * self-launch flags (--headless/--browser/--isolated/--no-sandbox/
+ * --ignore-https-errors) all belong to the now-externally-launched browser and
+ * must be dropped — connectOverCDP ignores launch options. The shim
+ * (tale-playwright-mcp) also skips the proxy flags in this mode; the managed
+ * browser already carries the egress proxy. */
+const PLAYWRIGHT_MCP_CDP_SERVER = {
+  command: 'tale-playwright-mcp',
+  args: ['--cdp-endpoint', 'http://127.0.0.1:9222'],
+};
+
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly slug = 'claude-code' as const;
 
@@ -77,7 +91,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // reproducible regardless of repo contents.
     const mcpServers: Record<string, unknown> = {};
     if (spec.browserMcp !== false) {
-      mcpServers.playwright = PLAYWRIGHT_MCP_SERVER;
+      // browserCdp: attach to the session's externally-launched headed Chromium
+      // over CDP (read-only mirror); otherwise self-launch headless as today.
+      mcpServers.playwright =
+        spec.browserCdp === true
+          ? PLAYWRIGHT_MCP_CDP_SERVER
+          : PLAYWRIGHT_MCP_SERVER;
     }
     if (spec.integrationsBaseUrl) {
       // The integration-dispatch bridge — lets the agent use the org's connected
@@ -116,14 +135,14 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       // Blank the API key so it never conflicts with the bearer token
       // (documented Claude Code gotcha → model-not-found otherwise).
       ANTHROPIC_API_KEY: '',
-      CLAUDE_CONFIG_DIR: '/workspace/.home/.claude',
+      CLAUDE_CONFIG_DIR: '/user/.runtime/home/.claude',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     };
     if (spec.execId) {
       // Mid-turn steering: the in-image tale-steer-hook (registered via
       // managed-settings PostToolUse/Stop hooks) reads this per-exec dir and
       // injects any platform-staged user messages at the next boundary.
-      env.TALE_STEER_DIR = `/workspace/.tale/steer/${spec.execId}`;
+      env.TALE_STEER_DIR = `/user/.runtime/tale/steer/${spec.execId}`;
     }
     if (spec.model) {
       // The CLI's own default, ahead of the per-tier aliases: internal paths

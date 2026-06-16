@@ -94,6 +94,13 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   const { organizationId } = readRunContext();
   const suffix = Date.now().toString(36);
   const projectName = `E2E Depth ${suffix}`;
+  // The auto-derived key (deriveProjectKey takes only each word's first letter:
+  // "E2E Depth <suffix>" → "EDL") drops the suffix, so every run would collide on
+  // the same key in the SHARED org → PROJECT_KEY_TAKEN. Supply an explicit unique
+  // key from the suffix's fast-changing low-order base36 digits, with a fixed
+  // letter prefix so it always satisfies isValidProjectKey (/^[A-Z][A-Z0-9]{1,5}$/):
+  // uppercase, alnum-only, letter-start, length 6.
+  const projectKey = `E${suffix.slice(-5)}`.toUpperCase();
   const renamedProjectName = `E2E Depth Renamed ${suffix}`;
   const taskTitle = `E2E Depth Task ${suffix}`;
   const secretName = `E2E_DEPTH_SECRET_${suffix.toUpperCase()}`;
@@ -111,6 +118,13 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   await createDialog
     .getByRole('textbox', { name: t('projects.create.nameLabel') })
     .fill(projectName);
+  // Override the auto-derived (collision-prone) key with our unique one. Filling
+  // this field flips the dialog's keyEditedRef true, so the name-derivation
+  // effect no longer overwrites it. The value is already normalized, so the
+  // dialog's onChange normalize is a no-op.
+  await createDialog
+    .getByLabel(t('projects.create.keyLabel'), { exact: true })
+    .fill(projectKey);
   await createDialog
     .getByRole('button', { name: t('projects.create.submit') })
     .click();
@@ -192,28 +206,38 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
       exact: true,
     })
     .fill('tale-e2e-depth-secret-value');
-  // The FormDialog submit defaults to `common.actions.save`.
-  await secretDialog
-    .getByRole('button', { name: t('common.actions.save'), exact: true })
-    .click();
-
-  await expect(
-    page.getByText(t('projectSecrets.saveSuccess')).first(),
-  ).toBeVisible({ timeout: 20_000 });
+  // The FormDialog submit defaults to `common.actions.save`. Saving a secret is
+  // a Convex ACTION (encrypt-then-upsert) which — unlike a mutation — is NOT
+  // re-sent when the WS drops mid-flight; the CI backend intermittently 1011s
+  // under load, losing the action and leaving the dialog open with no success
+  // toast. Retry the submit until the dialog closes (success). The upsert is
+  // keyed by (project, name), so a re-click cannot duplicate; the persisted row
+  // asserted below is the durable success signal — the toast is too ephemeral
+  // to depend on once the socket has blipped.
+  const saveSecret = secretDialog.getByRole('button', {
+    name: t('common.actions.save'),
+    exact: true,
+  });
+  await expect(async () => {
+    await saveSecret.click();
+    await expect(secretDialog).toBeHidden({ timeout: 15_000 });
+  }).toPass({ timeout: 90_000 });
 
   // The new secret shows in the list (font-mono name). Scope the delete to its
   // row so we never touch another secret.
   const secretRow = page.getByRole('listitem').filter({ hasText: secretName });
   await expect(secretRow).toBeVisible({ timeout: 20_000 });
-  await secretRow
-    .getByRole('button', { name: t('common.actions.delete'), exact: true })
-    .click();
-  await expect(
-    page.getByText(t('projectSecrets.deleteSuccess')).first(),
-  ).toBeVisible({ timeout: 20_000 });
-  await expect(
-    page.getByRole('listitem').filter({ hasText: secretName }),
-  ).toHaveCount(0, { timeout: 20_000 });
+  // Deleting is also a non-retried Convex action — if the WS drops mid-flight
+  // the row stays. Retry the (idempotent) delete until the row is gone, the
+  // durable signal, rather than the easily-missed success toast.
+  const deleteSecret = secretRow.getByRole('button', {
+    name: t('common.actions.delete'),
+    exact: true,
+  });
+  await expect(async () => {
+    if (await secretRow.count()) await deleteSecret.click();
+    await expect(secretRow).toHaveCount(0, { timeout: 15_000 });
+  }).toPass({ timeout: 90_000 });
 
   // ── Settings (folded into Overview): rename → Save → reload → assert ─────
   await page.goto(base);

@@ -1,6 +1,6 @@
 // In-Pod `harvest` container entry mode (runs the SPAWNER image).
 //
-// Runs alongside the runner, sharing the /workspace emptyDir. It owns the
+// Runs alongside the runner, sharing the /user emptyDir. It owns the
 // SANDBOX_TOKEN + presigned upload slots (from the per-exec Secret) so the
 // runner never sees a credential. Flow:
 //   1. Wait for the runner to finish (poll EXIT_CODE_PATH), bounded by the
@@ -8,7 +8,7 @@
 //      self-timeout we harvest partial output with exitCode 124 (TIMEOUT).
 //   2. Read the runner's exit code + separated stderr (STDERR_PATH).
 //   3. Run the SAME `harvestOutputDir` the docker path uses: upload each
-//      /workspace/output file to a presigned slot + EP1/EP2.
+//      /user/output file to a presigned slot + EP1/EP2.
 //   4. Print ONE `__TALE_RESULT__ {json}` line to stdout; the owning spawner
 //      replica reads it back via readNamespacedPodLog (no websocket, no
 //      cross-replica callback) and assembles the ExecuteResponse.
@@ -143,7 +143,7 @@ async function run(spec: ExecSpec): Promise<K8sHarvestResult> {
 
   // Mirror the docker path (local-workspace-run.ts): a harvest crash must not
   // erase the result line — degrade to readFailed and ship the real exitCode,
-  // stderr, and steps. On the timeout path we deliberately walk /workspace
+  // stderr, and steps. On the timeout path we deliberately walk /user
   // while the runner is still alive, so transient fs races are expected here.
   let harvested: Awaited<ReturnType<typeof harvestOutputDir>> = {
     files: [],
@@ -158,7 +158,7 @@ async function run(spec: ExecSpec): Promise<K8sHarvestResult> {
   const harvestStartedAt = Date.now();
   try {
     harvested = await harvestOutputDir(
-      '/workspace',
+      '/user',
       {
         perFileMax: caps.outputFileMaxBytes,
         totalMax: caps.outputTotalMaxBytes,
@@ -179,7 +179,7 @@ async function run(spec: ExecSpec): Promise<K8sHarvestResult> {
 
   const steps =
     req.steps !== undefined
-      ? ((await readStepResults('/workspace', req.steps)) ??
+      ? ((await readStepResults('/user', req.steps)) ??
         synthesizeStepResults(req.steps))
       : undefined;
 

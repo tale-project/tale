@@ -79,6 +79,10 @@ const ORCHESTRATOR_MANAGED_KEYS = [
   // not present in any .env file. Required by the webdav createAppPassword
   // mutation via requireHmacSecret().
   'WEBDAV_APP_PASSWORD_HMAC_KEY',
+  // Derived from INSTANCE_SECRET by the dev orchestrator (ensureEncryptionSecret),
+  // not present in any .env file. Required by setProjectSecret + the guardrails
+  // secret box (get_secret_key / secret_box) for at-rest secret encryption.
+  'ENCRYPTION_SECRET_HEX',
 ] as const;
 
 // Vars read by Convex functions from the DEPLOYMENT env that are documented

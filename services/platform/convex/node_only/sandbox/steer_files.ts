@@ -12,7 +12,7 @@ export function steerFileName(createdAt: number, messageId: string): string {
 }
 
 export function steerDirFor(execId: string): string {
-  return `.tale/steer/${execId}`;
+  return `.runtime/tale/steer/${execId}`;
 }
 
 /** Pure intersection of the platform's delivered queue rows with a steer-dir

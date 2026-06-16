@@ -30,6 +30,7 @@ const cfg: SpawnerConfig = {
   runtimeImage: 'tale-sandbox-runtime:test',
   runtimeTier: 'runc',
   dockerInContainer: false,
+  browserView: false,
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: null,

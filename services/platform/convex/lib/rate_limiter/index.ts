@@ -291,6 +291,31 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 120,
   },
+  // Per-IP throttle on the read-only sandbox workspace file download route
+  // (`/api/sandbox/workspace_file`). Same shape/rationale as
+  // `security:tts-audio-fetch`: anonymous flooding forces a Better Auth
+  // session read per request, and an authenticated browser could otherwise
+  // hammer spawner file reads on a workspace it's already entitled to (cost,
+  // not data — the route gates on canAccessThread). Token bucket so a file
+  // browser issuing several quick reads doesn't hit a minute-boundary cliff.
+  'security:workspace-file': {
+    kind: 'token bucket',
+    rate: 120,
+    period: MINUTE,
+    capacity: 240,
+  },
+  // Per-IP throttle on the live-browser screencast auth oracle
+  // (`/api/sandbox/screencast-auth`), the cookie→org gate the browser hits
+  // before each VNC WebSocket upgrade. Same shape/rationale as
+  // `security:sse-auth`: anonymous probing forces a Better Auth session read
+  // per request; a real viewer reconnecting (network blips, pane re-open across
+  // tabs) issues a small burst, so a token bucket avoids a minute-boundary cliff.
+  'security:screencast-auth': {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 120,
+  },
   'security:login-ip': {
     kind: 'fixed window',
     rate: 30,

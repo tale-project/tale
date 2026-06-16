@@ -5,22 +5,34 @@
 // internal Docker network anyway; HMAC is defense-in-depth so a
 // misconfigured deployment that exposes :8003 doesn't immediately leak.
 //
-// The signature is bound to method, path, timestamp, AND body hash:
+// The signature is bound to method, path, timestamp, a per-request nonce, AND
+// body hash:
 //
-//   signedString = `${method}\n${path}\n${timestamp}\n${sha256Hex(body)}`
+//   signedString = `${method}\n${path}\n${timestamp}\n${nonce}\n${sha256Hex(body)}`
 //   signature    = HMAC-SHA256(SANDBOX_TOKEN, signedString)
 //
 // Binding method+path stops a captured /v1/execute signature from being
 // replayed against /v1/cancel/:id (or vice-versa). Binding the timestamp
-// AND keeping a short-TTL nonce cache of seen signatures bounds the replay
+// AND keeping a short-TTL cache of seen signatures bounds the replay
 // window: even within the clock-skew tolerance an attacker can't reuse a
 // captured signature, because the second verify hits the cache and is
 // rejected.
+//
+// The nonce makes every signature unique even for byte-identical requests.
+// Without it, a deterministic empty-body GET to a fixed path (e.g. the
+// `sessionIsAlive` liveness probe) signs the SAME string when two probes land
+// in the same millisecond, so the second false-positives as a replay. A random
+// nonce per request keeps distinct requests distinct while a verbatim replay of
+// a captured request still collides in the cache. The nonce header is OPTIONAL
+// for backward compatibility: when absent, the legacy nonce-less signed string
+// is verified instead, so a not-yet-updated client (or a rolling deploy window)
+// keeps authenticating.
 
 import { timingSafeEqual, createHmac, createHash } from 'node:crypto';
 
 export const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 export const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
+export const NONCE_HEADER = 'x-tale-sandbox-nonce';
 
 // Tolerance for clock skew + request travel. Convex actions and the
 // spawner share a host clock in our compose deployments; 30s is tight
@@ -62,9 +74,12 @@ function buildSignedString(
   path: string,
   timestamp: string,
   body: string,
+  nonce: string | null,
 ): string {
   const bodyHash = createHash('sha256').update(body).digest('hex');
-  return `${method.toUpperCase()}\n${path}\n${timestamp}\n${bodyHash}`;
+  const head = `${method.toUpperCase()}\n${path}\n${timestamp}`;
+  // Empty / missing nonce → legacy nonce-less format (backward compatible).
+  return nonce ? `${head}\n${nonce}\n${bodyHash}` : `${head}\n${bodyHash}`;
 }
 
 export function sign(
@@ -73,8 +88,9 @@ export function sign(
   timestamp: string,
   body: string,
   token: string,
+  nonce: string | null = null,
 ): string {
-  const signedString = buildSignedString(method, path, timestamp, body);
+  const signedString = buildSignedString(method, path, timestamp, body, nonce);
   return createHmac('sha256', token).update(signedString).digest('hex');
 }
 
@@ -95,6 +111,7 @@ export function verify(
   body: string,
   signatureHeader: string | null,
   timestampHeader: string | null,
+  nonceHeader: string | null,
   token: string,
   nowMs: number = Date.now(),
 ): VerifyResult {
@@ -107,7 +124,16 @@ export function verify(
   if (Math.abs(nowMs - ts) > TIMESTAMP_TOLERANCE_MS) {
     return { ok: false, reason: 'timestamp_skew' };
   }
-  const expected = sign(method, path, timestampHeader, body, token);
+  // Sign with the nonce when present; absent/empty falls back to the legacy
+  // nonce-less string so older clients keep verifying (see header comment).
+  const expected = sign(
+    method,
+    path,
+    timestampHeader,
+    body,
+    token,
+    nonceHeader,
+  );
   if (expected.length !== signatureHeader.length) {
     return { ok: false, reason: 'bad_signature' };
   }

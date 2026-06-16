@@ -113,7 +113,7 @@ export function classifyHarvestError(
   if (flags.readFailed) {
     return {
       code: 'HARVEST_READ_FAILED',
-      message: "Couldn't read /workspace/output",
+      message: "Couldn't read /user/output",
     };
   }
   return undefined;
@@ -200,7 +200,7 @@ export function buildHarvestMissing(
     status: 'failed',
     exitCode,
     errorCode: 'HARVEST_READ_FAILED',
-    errorMessage: "Couldn't read /workspace/output (no harvest result line)",
+    errorMessage: "Couldn't read /user/output (no harvest result line)",
     ...baseFields(parts),
   };
 }

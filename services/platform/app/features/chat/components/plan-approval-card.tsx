@@ -5,7 +5,6 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { ClipboardList, Loader2, XCircle } from 'lucide-react';
 import { memo, useState } from 'react';
@@ -17,6 +16,7 @@ import {
   useApprovePlan,
   useRejectPlan,
 } from '@/app/features/chat/hooks/mutations';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { PlanApprovalMetadata } from '@/convex/approvals/types';
@@ -71,7 +71,9 @@ function PlanApprovalCardComponent({
   const { mutateAsync: approvePlan } = useApprovePlan();
   const { mutateAsync: rejectPlan } = useRejectPlan();
   // Shared subscription with the chat surface (same query+args dedupes).
-  const meta = useQuery(api.threads.queries.getThreadMeta, { threadId });
+  const { data: meta } = useConvexQuery(api.threads.queries.getThreadMeta, {
+    threadId,
+  });
   const isGenerating = meta?.isGenerating === true;
 
   const isPending = status === 'pending';

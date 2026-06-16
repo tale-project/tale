@@ -21,7 +21,7 @@ describe('steerFileName', () => {
 
 describe('steerDirFor', () => {
   it('keys the dir by execId', () => {
-    expect(steerDirFor('exec_1')).toBe('.tale/steer/exec_1');
+    expect(steerDirFor('exec_1')).toBe('.runtime/tale/steer/exec_1');
   });
 });
 
