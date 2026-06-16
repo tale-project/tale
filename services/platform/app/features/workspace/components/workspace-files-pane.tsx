@@ -50,8 +50,10 @@ const MAX_WIDTH = 720;
 const DEFAULT_WIDTH = 480;
 const STRIP_WIDTH = 48;
 
-/** Workspace data root inside the container — matches the backend default. */
-const WORKSPACE_ROOT = '/user';
+/** The agent's working area — the explorer root (matches the backend). Rooted
+ * at `/user/workspace`, not the `/user` data root, so the panel shows only the
+ * workspace tree — not the sibling `uploads/`/`output/` dirs. */
+const WORKSPACE_ROOT = '/user/workspace';
 
 const IMAGE_EXTS = new Set([
   'png',

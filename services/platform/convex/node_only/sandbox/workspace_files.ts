@@ -13,9 +13,11 @@ import { internal } from '../../_generated/api';
 import { action, internalAction } from '../../_generated/server';
 import { sessionListFiles, sessionReadFile } from './helpers/session_client';
 
-/** Workspace data root inside the container (Part C). Also the default browse
- * path so the explorer opens at the session's top level. */
-const WORKSPACE_ROOT = '/user';
+/** The agent's working area (Part C) and the explorer's root. We deliberately
+ * root at `/user/workspace`, NOT the `/user` data root: the panel is "Workspace
+ * files", so it shows the agent's working tree (cloned repos, created files) —
+ * not the sibling `uploads/`/`output/` I/O dirs or the hidden `.runtime/`. */
+const WORKSPACE_ROOT = '/user/workspace';
 
 /** Hard cap on entries returned for one directory — protects the wire + UI from
  * a pathological directory; `truncated` tells the browser the list was clipped. */
