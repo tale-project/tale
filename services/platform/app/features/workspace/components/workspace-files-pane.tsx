@@ -659,16 +659,6 @@ function WorkspaceFileViewer({ threadId, path }: WorkspaceFileViewerProps) {
     }
   }, []);
 
-  // Reset to the idle (toolbar-only) state on file change — never auto-fetch;
-  // preview is explicit. Abort an in-flight load + revoke a prior object URL.
-  useEffect(() => {
-    setState({ kind: 'idle' });
-    return () => {
-      abortRef.current?.abort();
-      revokeObjectUrl();
-    };
-  }, [path, revokeObjectUrl]);
-
   const loadPreview = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -726,6 +716,21 @@ function WorkspaceFileViewer({ threadId, path }: WorkspaceFileViewerProps) {
     }
   }, [fileUrl, isImage, revokeObjectUrl]);
 
+  // Auto-load previewable files on selection so their source shows immediately;
+  // non-previewable binaries keep the download-only notice. Abort an in-flight
+  // load + revoke a prior object URL on path change / unmount.
+  useEffect(() => {
+    if (previewable) {
+      void loadPreview();
+    } else {
+      setState({ kind: 'idle' });
+    }
+    return () => {
+      abortRef.current?.abort();
+      revokeObjectUrl();
+    };
+  }, [previewable, loadPreview, revokeObjectUrl]);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Toolbar: filename + actions. Download is ALWAYS available (any file,
@@ -735,9 +740,10 @@ function WorkspaceFileViewer({ threadId, path }: WorkspaceFileViewerProps) {
           {filename}
         </Text>
         <div className="flex shrink-0 items-center gap-1.5">
-          {/* Preview is the idle CTA; once a file is shown, the content area
-              (and, for markdown/html, its own Source/Preview toggle) takes
-              over, so the toolbar button hides to avoid a duplicate control. */}
+          {/* Files auto-load on select, so this button is mainly the retry
+              affordance when a load errors (it shows disabled while loading).
+              Once content is shown, the area's own Source/Preview toggle (for
+              markdown/html) takes over, so the toolbar button hides. */}
           {previewable &&
             (state.kind === 'idle' ||
               state.kind === 'loading' ||
@@ -845,16 +851,16 @@ function WorkspaceFileViewerContent({
   }
 
   if (state.kind === 'text') {
-    // Markdown reads better rendered: open in the RenderableFileViewer's
-    // Preview mode (it still exposes a Source toggle). Everything else is
-    // shown as syntax-highlighted source.
+    // Show source by default. Markdown still goes through the
+    // RenderableFileViewer so its Source/Preview toggle stays available (it
+    // just opens on Source); everything else is syntax-highlighted source.
     if (MARKDOWN_EXTS.has(getFileExtensionLower(path))) {
       return (
         <RenderableFileViewer
           kind="markdown"
           path={path}
           content={state.content}
-          defaultMode="preview"
+          defaultMode="source"
         />
       );
     }
