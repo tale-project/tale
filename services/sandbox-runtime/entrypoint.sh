@@ -339,7 +339,11 @@ start_browser_stack() {
     --disable-gpu \
     --start-fullscreen \
     --window-size=1280,720 \
-    --ignore-certificate-errors
+    --ignore-certificate-errors \
+    --test-type \
+    --disable-infobars \
+    --no-first-run \
+    --no-default-browser-check
   [ -n "${HTTPS_PROXY:-}" ] && set -- "$@" --proxy-server="${HTTPS_PROXY}"
   [ -n "${NO_PROXY:-}" ] && set -- "$@" --proxy-bypass-list="${NO_PROXY}"
   # shellcheck disable=SC2086

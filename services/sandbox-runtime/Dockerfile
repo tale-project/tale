@@ -63,6 +63,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       x11vnc \
       fonts-liberation \
       fonts-noto-core \
+      # CJK + emoji so real-world pages (e.g. google.com.hk, any non-Latin
+      # site) render glyphs instead of tofu boxes in the live browser view.
+      fonts-noto-cjk \
+      fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -f \
     && ln -sf /usr/local/bin/python3 /usr/local/bin/python \
