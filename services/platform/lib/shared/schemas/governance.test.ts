@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   DEFAULT_PASSWORD_POLICY,
+  externalAgentByoConfigSchema,
   featureFlagRuleSchema,
   featureFlagsConfigSchema,
   mergeStrictestPasswordPolicy,
@@ -171,5 +172,19 @@ describe('mergeStrictestPasswordPolicy', () => {
         { ...DEFAULT_PASSWORD_POLICY, rotationDays: 0 },
       ]).rotationDays,
     ).toBe(0);
+  });
+});
+
+describe('externalAgentByoConfigSchema', () => {
+  it('defaults allowed to false on an empty object (managed-only, fail-closed)', () => {
+    const r = externalAgentByoConfigSchema.safeParse({});
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.allowed).toBe(false);
+  });
+
+  it('accepts an explicit allowed flag', () => {
+    const r = externalAgentByoConfigSchema.safeParse({ allowed: true });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.allowed).toBe(true);
   });
 });
