@@ -49,9 +49,6 @@ export const POLICY_TYPES = [
   // Master switch for the task-ops automation pack. Missing row → enabled.
   // See `taskAutomationConfigSchema`.
   'task_automation',
-  // Org-level opt-in for external-agent BYO ("bring your own credentials")
-  // mode. Missing row → OFF (managed-only). See `externalAgentByoConfigSchema`.
-  'external_agent_byo',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -87,22 +84,6 @@ export const taskAutomationConfigSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
-
-/**
- * Org-level opt-in for external-agent BYO ("bring your own credentials") mode.
- * Missing row ⇒ effective default OFF (managed-only). When `allowed: true`, an
- * org admin permits agents configured with `authMode: 'byo'` to run — those
- * turns bypass the platform gateway / virtual key (no metering, no
- * allowed_models enforcement, no budget gate) and authenticate with whatever
- * credentials the user injected into their sandbox env. The agent then talks
- * directly to the provider with a raw model passthrough.
- */
-export const externalAgentByoConfigSchema = z.object({
-  allowed: z.boolean().default(false),
-});
-export type ExternalAgentByoConfig = z.infer<
-  typeof externalAgentByoConfigSchema
->;
 
 // Org-level default for the custom-instructions feature. Per-user
 // `userPreferences.customInstructionsEnabled` may override this default;

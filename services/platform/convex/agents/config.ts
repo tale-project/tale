@@ -106,11 +106,10 @@ export function toSerializableConfig(
     convexToolNames: config.toolNames as ToolName[],
     integrationBindings: config.integrationBindings,
     workflowBindings: config.workflows,
-    model:
-      config.supportedModels[0] ??
-      (() => {
-        throw new Error('supportedModels must not be empty');
-      })(),
+    // Optional: a BYO external agent may have no model (empty supportedModels)
+    // — the runtime then lets Claude Code use the credential's own default. The
+    // schema's superRefine guarantees ≥1 model for every other agent kind.
+    model: config.supportedModels[0],
     provider: config.provider,
     maxSteps: config.maxSteps,
     knowledgeMode,

@@ -166,7 +166,13 @@ function InstructionsTab() {
   ]);
 
   const structuredResponsesEnabled = config.structuredResponsesEnabled ?? false;
-  const selectedModels = config.supportedModels;
+  // A BYO agent may carry no models (optional raw passthrough), so guard the
+  // (typed-as-required) field against an undefined runtime value. Memoized so
+  // the fallback keeps a stable identity across renders (used in hook deps).
+  const selectedModels = useMemo(
+    () => config.supportedModels ?? [],
+    [config.supportedModels],
+  );
 
   const modelDisplayNames = useMemo(() => {
     const map = new Map<string, string>();

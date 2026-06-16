@@ -54,12 +54,6 @@ export const GOVERNANCE_POLICY_TYPES = [
   // and `setTaskAutomationEnabled` flips the pack's trigger rows. Missing
   // row → enabled. Config shape: `taskAutomationConfigSchema`.
   'task_automation',
-  // Org-level opt-in for external-agent BYO ("bring your own credentials")
-  // mode. Missing row → OFF (managed-only). When `allowed: true`, agents with
-  // `authMode: 'byo'` may run: those turns bypass the gateway/virtual-key and
-  // use the user-injected sandbox credentials. Config shape:
-  // `externalAgentByoConfigSchema` (lib/shared/schemas/governance.ts).
-  'external_agent_byo',
 ] as const;
 
 const policyTypeValidator = v.union(

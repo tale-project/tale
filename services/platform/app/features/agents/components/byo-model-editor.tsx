@@ -65,11 +65,9 @@ export function ByoModelEditor({ models, onChange }: ByoModelEditorProps) {
   );
 
   const handleRemove = useCallback(
-    (id: string) => {
-      // Keep at least one model — supportedModels is required (≥1).
-      if (models.length <= 1) return;
-      onChange(models.filter((m) => m !== id));
-    },
+    // BYO models are OPTIONAL (empty = use the credential's own default model),
+    // so any entry — including the last — can be removed.
+    (id: string) => onChange(models.filter((m) => m !== id)),
     [models, onChange],
   );
 
@@ -90,7 +88,7 @@ export function ByoModelEditor({ models, onChange }: ByoModelEditorProps) {
         onMoveUp={handleMoveUp}
         onMoveDown={handleMoveDown}
         onRemove={handleRemove}
-        minItems={1}
+        minItems={0}
         moveUpLabel={t('agents.form.modelSelector.moveUp')}
         moveDownLabel={t('agents.form.modelSelector.moveDown')}
         dragHandleLabel={t('agents.form.modelSelector.dragHandle')}

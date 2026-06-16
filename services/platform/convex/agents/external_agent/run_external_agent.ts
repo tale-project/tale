@@ -21,7 +21,6 @@
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import { externalAgentByoConfigSchema } from '../../../lib/shared/schemas/governance';
 import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
@@ -203,27 +202,10 @@ export const runExternalAgentTurn = internalAction({
     let lastContent: AgentAssistantContent = '';
 
     try {
-      // 0. BYO gate: an agent may only run in bring-your-own-credentials mode
-      // when the org has opted in (governance policy `external_agent_byo`).
-      // Fail closed — never silently downgrade to managed.
+      // BYO ("bring your own credentials"): the per-agent authMode is the sole
+      // control — no separate org-level enable gate (configuring an agent is
+      // already a privileged action). Managed (default) is unchanged.
       const byo = args.authMode === 'byo';
-      if (byo) {
-        const rawByoPolicy = await ctx.runQuery(
-          internal.governance.internal_queries.getPolicyConfigInternal,
-          {
-            organizationId: args.organizationId,
-            policyType: 'external_agent_byo',
-          },
-        );
-        const parsed = externalAgentByoConfigSchema.safeParse(
-          rawByoPolicy ?? {},
-        );
-        if (!parsed.success || !parsed.data.allowed) {
-          throw new Error(
-            'BYO (bring-your-own-credentials) mode is not enabled for this organization. An org admin can enable it in governance settings.',
-          );
-        }
-      }
 
       // 1. Reuse the user's persistent sandbox, or create one (owner = user;
       // thread-owned fallback only when no userId is available). One sandbox
@@ -422,6 +404,35 @@ export const runExternalAgentTurn = internalAction({
           '[runExternalAgentTurn] credential injection failed (continuing without):',
           credErr,
         );
+      }
+
+      // 2a-pre. BYO: clear any platform-managed LLM env that a PRIOR managed
+      // turn left in this reused sandbox's SESSION env. A stale (now-revoked)
+      // ANTHROPIC_AUTH_TOKEN outranks CLAUDE_CODE_OAUTH_TOKEN in Claude Code's
+      // credential precedence, so without this the agent authenticates with the
+      // dead virtual key → 401. Managed turns carry these in the per-exec env
+      // (not the session env), so unsetting here never affects a managed run.
+      if (byo) {
+        try {
+          await sessionEnvPatch(sessionId, {
+            unset: [
+              'ANTHROPIC_BASE_URL',
+              'ANTHROPIC_AUTH_TOKEN',
+              'ANTHROPIC_API_KEY',
+              'ANTHROPIC_MODEL',
+              'ANTHROPIC_DEFAULT_OPUS_MODEL',
+              'ANTHROPIC_DEFAULT_SONNET_MODEL',
+              'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+              'ANTHROPIC_DEFAULT_FABLE_MODEL',
+              'CLAUDE_CODE_SUBAGENT_MODEL',
+            ],
+          });
+        } catch (unsetErr) {
+          console.warn(
+            '[runExternalAgentTurn] BYO platform-env unset failed (continuing):',
+            unsetErr,
+          );
+        }
       }
 
       // 2a-bis. Inject the user's own env vars + secrets (MANAGED and BYO). This
@@ -642,8 +653,13 @@ export const runExternalAgentTurn = internalAction({
           // `<slug>__<modelId>` for custom providers; `<slug>/<modelId>` for
           // standard) — must match mintVirtualKey's resolver. BYO: pass the raw
           // model id straight through to the provider (no slug / catalog).
+          // BYO passes the raw provider model id straight through; the
+          // 'default' sentinel (or empty) means "no model" → omit it so Claude
+          // Code falls back to the credential's own default model.
           model: byo
-            ? args.modelRef
+            ? args.modelRef && args.modelRef !== 'default'
+              ? args.modelRef
+              : undefined
             : resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
           authMode: byo ? 'byo' : 'managed',
           ...(agentSessionId !== null && { agentSessionId }),
