@@ -24,6 +24,13 @@ export class OpenCodeAdapter implements AgentAdapter {
   readonly slug = 'opencode' as const;
 
   buildExec(spec: AgentRunSpec): SessionExecSpec {
+    if (!spec.gateway) {
+      // OpenCode is managed-only: its provider config points at the gateway and
+      // authenticates with the virtual key. BYO (no gateway) is unsupported.
+      throw new Error(
+        'OpenCode requires the managed gateway; authMode "byo" is not supported for OpenCode.',
+      );
+    }
     const modelId = spec.model ?? 'default';
     const taleModel = `${TALE_PROVIDER}/${modelId}`;
 

@@ -21,6 +21,7 @@
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
+import { externalAgentByoConfigSchema } from '../../../lib/shared/schemas/governance';
 import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
@@ -165,6 +166,10 @@ export const runExternalAgentTurn = internalAction({
     rawPrompt: v.string(),
     systemInstructions: v.optional(v.string()),
     agentKind: v.union(v.literal('claude-code'), v.literal('opencode')),
+    /** Credential mode (default 'managed'). 'byo' bypasses the gateway / VK and
+     * uses the user-injected sandbox credentials; gated by the org
+     * `external_agent_byo` policy. */
+    authMode: v.optional(v.union(v.literal('managed'), v.literal('byo'))),
     /** Turn posture from the thread's plan/act toggle ('execute' when absent). */
     permissionMode: v.optional(
       v.union(v.literal('plan'), v.literal('execute')),
@@ -198,6 +203,28 @@ export const runExternalAgentTurn = internalAction({
     let lastContent: AgentAssistantContent = '';
 
     try {
+      // 0. BYO gate: an agent may only run in bring-your-own-credentials mode
+      // when the org has opted in (governance policy `external_agent_byo`).
+      // Fail closed — never silently downgrade to managed.
+      const byo = args.authMode === 'byo';
+      if (byo) {
+        const rawByoPolicy = await ctx.runQuery(
+          internal.governance.internal_queries.getPolicyConfigInternal,
+          {
+            organizationId: args.organizationId,
+            policyType: 'external_agent_byo',
+          },
+        );
+        const parsed = externalAgentByoConfigSchema.safeParse(
+          rawByoPolicy ?? {},
+        );
+        if (!parsed.success || !parsed.data.allowed) {
+          throw new Error(
+            'BYO (bring-your-own-credentials) mode is not enabled for this organization. An org admin can enable it in governance settings.',
+          );
+        }
+      }
+
       // 1. Reuse the user's persistent sandbox, or create one (owner = user;
       // thread-owned fallback only when no userId is available). One sandbox
       // per user PER ORG serves all their threads in that org — shared
@@ -332,30 +359,34 @@ export const runExternalAgentTurn = internalAction({
       // Its failure is best-effort HERE because it surfaces downstream as the
       // mint's fail-closed error (no key to bind to) rather than a silently
       // over-permissive key.
-      try {
-        const gatewayProviders = await loadOrgGatewayProviders(
-          ctx,
-          args.organizationId,
-        );
-        if (gatewayProviders.length > 0) {
-          await provisionProviders(args.organizationId, gatewayProviders);
+      // Provider provisioning + gateway auth-hardening are MANAGED-only — a byo
+      // turn never touches the gateway (no VK to mint, no provider key to bind).
+      if (!byo) {
+        try {
+          const gatewayProviders = await loadOrgGatewayProviders(
+            ctx,
+            args.organizationId,
+          );
+          if (gatewayProviders.length > 0) {
+            await provisionProviders(args.organizationId, gatewayProviders);
+          }
+        } catch (provisionErr) {
+          console.warn(
+            '[runExternalAgentTurn] gateway provider provisioning failed (continuing; mint fails closed if no key):',
+            provisionErr,
+          );
         }
-      } catch (provisionErr) {
-        console.warn(
-          '[runExternalAgentTurn] gateway provider provisioning failed (continuing; mint fails closed if no key):',
-          provisionErr,
-        );
-      }
 
-      // The gateway AUTH POSTURE is fail-CLOSED, not best-effort. applyGatewayConfig
-      // sets enforce_auth_on_inference + enforce_governance_header — the controls
-      // that require a minted VK and enforce its allowed_models on the inference
-      // path. Swallowing a failure here could leave the gateway accepting
-      // un-keyed or model-unrestricted inference (fail-open), defeating the whole
-      // per-turn VK model. Let it throw: the run catch finalizes the turn as
-      // failed and the user retries, rather than running against an unguarded
-      // gateway.
-      await applyGatewayConfig();
+        // The gateway AUTH POSTURE is fail-CLOSED, not best-effort.
+        // applyGatewayConfig sets enforce_auth_on_inference +
+        // enforce_governance_header — the controls that require a minted VK and
+        // enforce its allowed_models on the inference path. Swallowing a failure
+        // here could leave the gateway accepting un-keyed or model-unrestricted
+        // inference (fail-open), defeating the whole per-turn VK model. Let it
+        // throw: the run catch finalizes the turn as failed and the user
+        // retries, rather than running against an unguarded gateway.
+        await applyGatewayConfig();
+      }
 
       // 2. Inject Tier-2 integration credentials. Per-turn (not just at
       // create) so reused sessions pick up rotations; the broker audits
@@ -393,6 +424,40 @@ export const runExternalAgentTurn = internalAction({
         );
       }
 
+      // 2a-bis. Inject the user's own env vars + secrets (MANAGED and BYO). This
+      // is the user's box environment, auto-attached to all their sandboxes; for
+      // a byo agent it carries the credential the agent authenticates with. In
+      // managed mode the platform VK still wins for LLM auth (the adapter sets it
+      // at exec scope, above Claude Code's credential precedence).
+      if (args.userId) {
+        try {
+          const userEnv = await ctx.runAction(
+            internal.sandbox.user_env_actions.resolveUserEnv,
+            {
+              organizationId: args.organizationId,
+              userId: args.userId,
+              sessionId,
+            },
+          );
+          if (Object.keys(userEnv.env).length > 0) {
+            const denied = await sessionEnvPatch(sessionId, {
+              set: userEnv.env,
+            });
+            if (denied.length > 0) {
+              console.warn(
+                '[runExternalAgentTurn] user env names denied by runnerd:',
+                denied,
+              );
+            }
+          }
+        } catch (userEnvErr) {
+          console.warn(
+            '[runExternalAgentTurn] user env injection failed (continuing):',
+            userEnvErr,
+          );
+        }
+      }
+
       // 2b. Materialize the org's integrations as CC-native skills so the agent
       // knows what's available + how to call the dispatch tool (readiness-
       // independent text; connection state comes from the tool result). Staged
@@ -410,59 +475,65 @@ export const runExternalAgentTurn = internalAction({
         );
       }
 
-      // 3. Mint a per-turn, model-scoped gateway key (revoked in finally).
-      // Size its hard budget to the org's rolling-remaining cost (when a cost
-      // cap applies) so Bifrost's own ceiling can't exceed the rolling cap even
-      // between the seam-level budget checks; fall back to the flat per-turn
-      // default when the org is uncapped. The turn-start gate in
-      // start_agent_chat.ts already blocked a fully-exhausted budget, so a
-      // started turn's remaining is > 0.
-      let vkBudgetCents = TURN_BUDGET_CENTS;
-      if (args.userId) {
-        try {
-          const budget = await ctx.runQuery(
-            internal.governance.internal_queries.evaluateExternalAgentBudget,
-            { organizationId: args.organizationId, userId: args.userId },
-          );
-          if (budget.rollingRemainingCents !== null) {
-            vkBudgetCents = Math.max(
-              1,
-              Math.floor(budget.rollingRemainingCents),
+      // 3. Mint a per-turn, model-scoped gateway key (MANAGED only; revoked in
+      // finally). BYO never touches the gateway — the agent uses the user's own
+      // credentials, so no VK is minted (mintedKeyId stays null and the finalize
+      // path skips the spend-poll + revoke).
+      let gatewayToken: string | null = null;
+      if (!byo) {
+        // Size its hard budget to the org's rolling-remaining cost (when a cost
+        // cap applies) so Bifrost's own ceiling can't exceed the rolling cap
+        // even between the seam-level budget checks; fall back to the flat
+        // per-turn default when the org is uncapped. The turn-start gate in
+        // start_agent_chat.ts already blocked a fully-exhausted budget, so a
+        // started turn's remaining is > 0.
+        let vkBudgetCents = TURN_BUDGET_CENTS;
+        if (args.userId) {
+          try {
+            const budget = await ctx.runQuery(
+              internal.governance.internal_queries.evaluateExternalAgentBudget,
+              { organizationId: args.organizationId, userId: args.userId },
+            );
+            if (budget.rollingRemainingCents !== null) {
+              vkBudgetCents = Math.max(
+                1,
+                Math.floor(budget.rollingRemainingCents),
+              );
+            }
+          } catch (budgetErr) {
+            console.warn(
+              '[runExternalAgentTurn] budget sizing failed (using default):',
+              budgetErr,
             );
           }
-        } catch (budgetErr) {
-          console.warn(
-            '[runExternalAgentTurn] budget sizing failed (using default):',
-            budgetErr,
-          );
         }
-      }
-      const vk = await mintVirtualKey({
-        budgetCents: vkBudgetCents,
-        allowedModels: [args.modelRef],
-        organizationId: args.organizationId,
-        sessionId,
-      });
-      mintedKeyId = vk.keyId;
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.insertSessionToken,
-        {
+        const vk = await mintVirtualKey({
+          budgetCents: vkBudgetCents,
+          allowedModels: [args.modelRef],
           organizationId: args.organizationId,
           sessionId,
-          tokenHash: hashVirtualKey(vk.key),
-          bifrostKeyId: vk.keyId,
-          scope: {
-            agentKind: args.agentKind,
-            allowedModels: [args.modelRef],
-            // The session's dispatch grant set = the agent's integrationBindings
-            // (enforced by /api/integrations/execute). NOT the git-credential
-            // slugs — git uses env injection (creds.env above), not the dispatch.
-            integrationGrants: args.integrationBindings ?? [],
-            budgetCents: vkBudgetCents,
+        });
+        mintedKeyId = vk.keyId;
+        gatewayToken = vk.key;
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.insertSessionToken,
+          {
+            organizationId: args.organizationId,
+            sessionId,
+            tokenHash: hashVirtualKey(vk.key),
+            bifrostKeyId: vk.keyId,
+            scope: {
+              agentKind: args.agentKind,
+              allowedModels: [args.modelRef],
+              // The session's dispatch grant set = the agent's
+              // integrationBindings (enforced by /api/integrations/execute).
+              integrationGrants: args.integrationBindings ?? [],
+              budgetCents: vkBudgetCents,
+            },
+            expiresAt: Date.now() + 2 * 60 * 60 * 1000,
           },
-          expiresAt: Date.now() + 2 * 60 * 60 * 1000,
-        },
-      );
+        );
+      }
 
       // 4. Resume THIS thread's prior conversation, if any (a per-user sandbox
       // holds every thread's conversation — scope by thread, bounded to the
@@ -566,20 +637,30 @@ export const runExternalAgentTurn = internalAction({
           // read-only. Only set when on so the adapter's headless self-launch
           // stays byte-identical to today otherwise.
           ...(BROWSER_VIEW_ENABLED && { browserCdp: true }),
-          // The agent CLI sends this verbatim to the gateway. Use the canonical
-          // gateway routing so the request hits the SAME Bifrost record the VK
-          // is bound to (per-model `<slug>__<modelId>` for custom providers;
-          // `<slug>/<modelId>` for standard). Must match mintVirtualKey, which
-          // derives the binding from the same resolver.
-          model: resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
+          // MANAGED: send the canonical gateway routing so the request hits the
+          // SAME Bifrost record the VK is bound to (per-model
+          // `<slug>__<modelId>` for custom providers; `<slug>/<modelId>` for
+          // standard) — must match mintVirtualKey's resolver. BYO: pass the raw
+          // model id straight through to the provider (no slug / catalog).
+          model: byo
+            ? args.modelRef
+            : resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
+          authMode: byo ? 'byo' : 'managed',
           ...(agentSessionId !== null && { agentSessionId }),
           ...(systemPromptAppend !== '' && { systemPromptAppend }),
           ...(args.permissionMode !== undefined && {
             permissionMode: args.permissionMode,
           }),
-          gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
-          gatewayToken: vk.key,
-          integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
+          // MANAGED only: route through the gateway with the minted VK and
+          // expose the integration-dispatch bridge (authed by that key). BYO
+          // carries no gateway/bridge — the agent uses the user-injected session
+          // credentials directly.
+          ...(!byo &&
+            gatewayToken !== null && {
+              gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
+              gatewayToken,
+              integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
+            }),
           timeoutMs: EXEC_DEADLINE_MS,
           budgetDeadlineMs: actionDeadlineMs,
           // Durable per-flush mirror: patch the streaming message with the

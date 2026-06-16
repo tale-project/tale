@@ -653,6 +653,9 @@ export async function startAgentChat(
         rawPrompt: trimmedMessage,
         systemInstructions: enforcedConfig.instructions || undefined,
         agentKind: enforcedConfig.agentKind ?? 'claude-code',
+        ...(enforcedConfig.authMode !== undefined && {
+          authMode: enforcedConfig.authMode,
+        }),
         // Single mode-resolution point: every turn entry (composer send, queue
         // drain, plan approval) re-enters here and reads the thread's sticky
         // plan/act posture fresh.

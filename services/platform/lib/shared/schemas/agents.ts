@@ -184,6 +184,17 @@ export const agentJsonSchema = z
      * runtime handles the turn. Defaults to 'claude-code' at runtime.
      */
     agentKind: agentKindSchema.optional(),
+    /**
+     * For `primaryBehavior: 'external-agent'` only — credential / auth mode.
+     * 'managed' (default): the platform mints a Bifrost virtual key, routes the
+     * agent through the gateway, and enforces allowed_models + usage metering +
+     * the budget gate. 'byo': the platform injects no virtual key or gateway;
+     * the agent authenticates with whatever credentials the user injected into
+     * the sandbox env, the model is a raw provider passthrough (no platform
+     * slug resolution / catalog), and native web tools are not force-disabled.
+     * Requires the org `external_agent_byo` policy to be enabled at run time.
+     */
+    authMode: z.enum(['managed', 'byo']).optional(),
     systemInstructions: z.string().optional(),
     toolNames: z.array(z.string()).optional(),
     integrationBindings: z.array(z.string().min(1)).optional(),
@@ -401,6 +412,19 @@ export const agentJsonSchema = z
         path: ['agentKind'],
         message:
           'agentKind is only valid when primaryBehavior is "external-agent".',
+      });
+    }
+
+    // authMode only applies to external-agent.
+    if (
+      data.authMode !== undefined &&
+      data.primaryBehavior !== 'external-agent'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['authMode'],
+        message:
+          'authMode is only valid when primaryBehavior is "external-agent".',
       });
     }
   });
