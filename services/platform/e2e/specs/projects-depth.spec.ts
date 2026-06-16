@@ -94,6 +94,13 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   const { organizationId } = readRunContext();
   const suffix = Date.now().toString(36);
   const projectName = `E2E Depth ${suffix}`;
+  // The auto-derived key (deriveProjectKey takes only each word's first letter:
+  // "E2E Depth <suffix>" → "EDL") drops the suffix, so every run would collide on
+  // the same key in the SHARED org → PROJECT_KEY_TAKEN. Supply an explicit unique
+  // key from the suffix's fast-changing low-order base36 digits, with a fixed
+  // letter prefix so it always satisfies isValidProjectKey (/^[A-Z][A-Z0-9]{1,5}$/):
+  // uppercase, alnum-only, letter-start, length 6.
+  const projectKey = `E${suffix.slice(-5)}`.toUpperCase();
   const renamedProjectName = `E2E Depth Renamed ${suffix}`;
   const taskTitle = `E2E Depth Task ${suffix}`;
   const secretName = `E2E_DEPTH_SECRET_${suffix.toUpperCase()}`;
@@ -111,6 +118,13 @@ test('exercises a project in depth (instructions, secrets, rename, task edit, ta
   await createDialog
     .getByRole('textbox', { name: t('projects.create.nameLabel') })
     .fill(projectName);
+  // Override the auto-derived (collision-prone) key with our unique one. Filling
+  // this field flips the dialog's keyEditedRef true, so the name-derivation
+  // effect no longer overwrites it. The value is already normalized, so the
+  // dialog's onChange normalize is a no-op.
+  await createDialog
+    .getByLabel(t('projects.create.keyLabel'), { exact: true })
+    .fill(projectKey);
   await createDialog
     .getByRole('button', { name: t('projects.create.submit') })
     .click();

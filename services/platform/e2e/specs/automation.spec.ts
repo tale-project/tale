@@ -37,8 +37,24 @@ test('runs the seeded test automation to completion', async ({ page }) => {
   // The list loads via a Convex action behind a skeleton (whose rows carry no
   // text), so the count check below must wait for the table to settle first —
   // otherwise a retry would read 0 mid-load and wrongly take the install path.
-  // Settled means either the `test` row rendered or the empty state appeared.
-  await expect(installedRow.or(emptyState).first()).toBeVisible({
+  //
+  // The org is shared across specs, so the settled list has THREE possible
+  // states, not two: the `test` row present, OTHER automations present (e.g.
+  // rows left behind by sibling specs), or genuinely empty. The robust
+  // "loaded with rows" signal that covers the first two is the table's count
+  // footer (DataTable renders `pagination.showingAll` as a `role="status"`
+  // `<output>` whenever any automation exists); the empty case is the
+  // empty-state title. Waiting on `test` alone would hang whenever the org
+  // holds only unrelated automations. Match the footer with a count-agnostic
+  // regex built from the i18n template so it tolerates any `{count}`/`{entity}`.
+  const countFooter = page.getByText(
+    new RegExp(
+      t('common.pagination.showingAll')
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\\\{[a-z]+\\\}/g, '.+'),
+    ),
+  );
+  await expect(countFooter.or(emptyState).first()).toBeVisible({
     timeout: 60_000,
   });
 
