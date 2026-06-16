@@ -1397,7 +1397,6 @@
     "workspaceFiles": {
       "title": "Arbeitsbereichsdateien",
       "toggleLabel": "Arbeitsbereichsdateien",
-      "toggleTooltip": "Die Arbeitsbereichsdateien des Agents durchsuchen (schreibgeschützt)",
       "showHidden": "Versteckte Dateien anzeigen",
       "refresh": "Aktualisieren",
       "download": "Herunterladen",
@@ -1418,7 +1417,6 @@
     "liveBrowser": {
       "title": "Live-Browser",
       "toggleLabel": "Live-Browser",
-      "toggleTooltip": "Dem Browser des Agents live zusehen (nur ansehen)",
       "viewOnly": "Nur ansehen",
       "connecting": "Verbinden…",
       "streaming": "Live",

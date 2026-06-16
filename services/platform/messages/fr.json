@@ -1398,7 +1398,6 @@
     "workspaceFiles": {
       "title": "Fichiers de l'espace de travail",
       "toggleLabel": "Fichiers de l'espace de travail",
-      "toggleTooltip": "Parcourir les fichiers de l'espace de travail de l'agent (lecture seule)",
       "showHidden": "Afficher les fichiers cachés",
       "refresh": "Actualiser",
       "download": "Télécharger",
@@ -1419,7 +1418,6 @@
     "liveBrowser": {
       "title": "Navigateur en direct",
       "toggleLabel": "Navigateur en direct",
-      "toggleTooltip": "Regarde le navigateur de l'agent en direct (lecture seule)",
       "viewOnly": "Lecture seule",
       "connecting": "Connexion…",
       "streaming": "En direct",

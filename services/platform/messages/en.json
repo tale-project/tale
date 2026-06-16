@@ -1028,7 +1028,6 @@
     "workspaceFiles": {
       "title": "Workspace files",
       "toggleLabel": "Workspace files",
-      "toggleTooltip": "Browse the agent’s workspace files (read-only)",
       "showHidden": "Show hidden files",
       "refresh": "Refresh",
       "download": "Download",
@@ -1418,7 +1417,6 @@
     "liveBrowser": {
       "title": "Live browser",
       "toggleLabel": "Live browser",
-      "toggleTooltip": "Watch the agent’s browser live (view only)",
       "viewOnly": "View only",
       "connecting": "Connecting…",
       "streaming": "Live",
