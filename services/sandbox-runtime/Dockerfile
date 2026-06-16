@@ -239,10 +239,17 @@ COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright
 # server-side). Runs under the image's node (global fetch).
 COPY services/sandbox-runtime/tale-integrations-mcp /usr/local/bin/tale-integrations-mcp
 
+# Human-control MCP bridge: a dependency-free stdio MCP server exposing
+# request_human_control({reason}). The agent calls it to hand the live browser
+# to a human (CAPTCHA/login/2FA); the platform observes the tool_use, parks the
+# turn, and resumes once control is returned. Purely local — no network call.
+COPY services/sandbox-runtime/tale-human-control-mcp /usr/local/bin/tale-human-control-mcp
+
 COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
       /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-integrations-mcp \
+      /usr/local/bin/tale-human-control-mcp \
       /usr/local/bin/tale-steer-hook \
       /usr/local/bin/tale-plan-gate
 

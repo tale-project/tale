@@ -515,10 +515,16 @@ function handleScreencastUpgrade(
   sessionId: string,
 ): Response | undefined {
   // HMAC over the empty body — same gate as every other session route (the
-  // files/content GET signs sha256('') identically).
+  // files/content GET signs sha256('') identically). The signature covers
+  // pathname+search, so the `?control=1` query (see below) is authenticated:
+  // the platform only sets it after its oracle authorized + leased control.
   const authFail = authorize('', req);
   if (authFail) return authFail;
-  const upgraded = server.upgrade(req, { data: { sessionId } });
+  // The spawner does NOT decide control — it relays the platform's already-
+  // authorized flag so runnerd dials the writable x11vnc. Parse it from the
+  // (signed) query and carry it on ws.data.
+  const control = new URL(req.url).searchParams.get('control') === '1';
+  const upgraded = server.upgrade(req, { data: { sessionId, control } });
   if (upgraded) return undefined; // Bun owns the socket now.
   return jsonResponse({ error: 'upgrade_failed' }, 500);
 }

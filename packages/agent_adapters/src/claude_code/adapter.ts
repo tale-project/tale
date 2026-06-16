@@ -53,6 +53,15 @@ const PLAYWRIGHT_MCP_CDP_SERVER = {
   args: ['--cdp-endpoint', 'http://127.0.0.1:9222'],
 };
 
+/** Human-control bridge (browserCdp only). A dependency-free stdio shim that
+ * exposes `request_human_control({reason})`. The tool makes NO network call —
+ * the platform observes the tool_use in stream-json (run_agent) and raises a
+ * take-control card + parks the turn. Only meaningful when the live headed
+ * browser exists (browserCdp), since a human drives it via the x11vnc path. */
+const HUMAN_CONTROL_MCP_SERVER = {
+  command: 'tale-human-control-mcp',
+};
+
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly slug = 'claude-code' as const;
 
@@ -102,6 +111,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         spec.browserCdp === true
           ? PLAYWRIGHT_MCP_CDP_SERVER
           : PLAYWRIGHT_MCP_SERVER;
+      // Human takeover only applies to the live headed browser (browserCdp) —
+      // that's the one a human can drive via x11vnc. The self-launched headless
+      // browser has no VNC surface, so the tool would be a dead end there.
+      if (spec.browserCdp === true) {
+        mcpServers.humanControl = HUMAN_CONTROL_MCP_SERVER;
+      }
     }
     if (spec.integrationsBaseUrl && spec.gateway) {
       // The integration-dispatch bridge — lets the agent use the org's connected

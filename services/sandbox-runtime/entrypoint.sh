@@ -425,11 +425,23 @@ start_browser_stack() {
   _supervise $DROP Xvfb :99 -screen 0 1280x720x24 -nolisten tcp -ac
   export DISPLAY=:99
 
-  # Read-only mirror. -localhost binds 127.0.0.1 only, -viewonly drops all X
-  # input from the VNC side (the agent drives via CDP, never via VNC). -nopw is
+  # Read-only mirror on :5900 — the DEFAULT path every watcher gets. -localhost
+  # binds 127.0.0.1 only, -viewonly drops all X input from the VNC side. -nopw is
   # acceptable because the port is loopback-only inside an isolated container.
   # shellcheck disable=SC2086
   _supervise $DROP x11vnc -display :99 -rfbport 5900 -localhost -viewonly \
+    -forever -shared -nopw -noxdamage
+
+  # Writable control path on :5901 — same X display, NO -viewonly, so RFB
+  # pointer/keyboard events reach the real X input. This port is reached ONLY
+  # when a human-control grant is active: the runnerd tunnel dials 5901 instead
+  # of 5900 for a `?control=1` upgrade (which the platform oracle authorizes +
+  # leases to a single holder). Keeping the read-only :5900 as a separate
+  # process means watchers retain a structural read-only guarantee — there is no
+  # flag a watcher's client can flip to gain input. Same display ⇒ a human's
+  # clicks here and the agent's CDP drive both land on the one Chromium.
+  # shellcheck disable=SC2086
+  _supervise $DROP x11vnc -display :99 -rfbport 5901 -localhost \
     -forever -shared -nopw -noxdamage
 
   # Headed Chromium with a CDP endpoint on loopback. The proxy bridge mirrors

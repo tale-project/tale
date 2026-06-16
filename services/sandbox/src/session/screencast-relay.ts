@@ -35,6 +35,10 @@ export interface ScreencastTarget {
 /** Attached to the upgraded WebSocket via `server.upgrade(req, { data })`. */
 export interface ScreencastWsData {
   sessionId: string;
+  /** A human-control grant — already authorized + leased by the platform
+   * oracle, here just forwarded to runnerd so it dials the writable x11vnc.
+   * The spawner never authorizes control itself; it only relays the flag. */
+  control: boolean;
 }
 
 /**
@@ -175,7 +179,7 @@ export function createScreencastWebSocketHandler(
     data: undefined as unknown as ScreencastWsData,
 
     open(ws): void {
-      const { sessionId } = ws.data;
+      const { sessionId, control } = ws.data;
       const target = resolveTarget(sessionId);
       if (target === null) {
         ws.close(1011, 'no session');
@@ -196,8 +200,11 @@ export function createScreencastWebSocketHandler(
       const tokenLine = target.token
         ? `${RUNNERD_TOKEN_HEADER}: ${target.token}\r\n`
         : '';
+      // Forward the control grant as a query param so runnerd's tunnel dials
+      // the writable :5901 instead of the read-only :5900.
+      const requestPath = control ? '/screencast?control=1' : '/screencast';
       const upgradeRequest =
-        `GET /screencast HTTP/1.1\r\n` +
+        `GET ${requestPath} HTTP/1.1\r\n` +
         `Host: ${host}\r\n` +
         `Upgrade: tale-vnc\r\n` +
         `Connection: Upgrade\r\n` +

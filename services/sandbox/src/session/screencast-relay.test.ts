@@ -93,7 +93,7 @@ describe('screencast handler open() resolver gate', () => {
     const handler = createScreencastWebSocketHandler(() => null);
     // Minimal ServerWebSocket stand-in: only the surface open() touches.
     const ws = {
-      data: { sessionId: 'sess_x' } satisfies ScreencastWsData,
+      data: { sessionId: 'sess_x', control: false } satisfies ScreencastWsData,
       close: (code?: number, reason?: string) => closes.push({ code, reason }),
       sendBinary: () => 0,
       getBufferedAmount: () => 0,
@@ -120,7 +120,10 @@ describe('screencast handler open() resolver gate', () => {
       return target;
     });
     const ws = {
-      data: { sessionId: 'sess_live' } satisfies ScreencastWsData,
+      data: {
+        sessionId: 'sess_live',
+        control: false,
+      } satisfies ScreencastWsData,
       close: () => {},
       sendBinary: () => 0,
       getBufferedAmount: () => 0,
