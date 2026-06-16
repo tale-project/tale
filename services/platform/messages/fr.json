@@ -894,6 +894,8 @@
       "noResults": "Aucun modèle trouvé",
       "auto": "Auto",
       "autoDescription": "Tale choisit le meilleur modèle pour chaque message — équilibre qualité, vitesse et coût.",
+      "byoDefault": "Modèle par défaut",
+      "byoTooltip": "Cet agent utilise vos propres identifiants (BYO) — le modèle, la facturation et les limites sont les vôtres.",
       "noModelsAvailable": "Aucun modèle disponible",
       "noModelsAdminHint": "Aucun fournisseur d’IA n’est encore configuré. Clique pour ouvrir Paramètres → Fournisseurs d’IA et en ajouter un pour commencer à discuter.",
       "noModelsAgentHint": "Cet assistant n’a aucun modèle utilisable. Vérifie que ses modèles autorisés correspondent à un fournisseur configuré — clique pour ouvrir les fournisseurs d’IA.",

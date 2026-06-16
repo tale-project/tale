@@ -893,6 +893,8 @@
       "noResults": "No models found",
       "auto": "Auto",
       "autoDescription": "Let Tale pick the best model for each message — balances quality, speed, and cost.",
+      "byoDefault": "Default model",
+      "byoTooltip": "This agent uses your own credentials (BYO) — model, billing, and limits are yours.",
       "noModelsAvailable": "No models available",
       "noModelsAdminHint": "No AI provider is set up yet. Click to open Settings → AI providers and add one to start chatting.",
       "noModelsAgentHint": "This assistant has no usable model. Check that its allowed models match a configured provider — click to open AI providers.",

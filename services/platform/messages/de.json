@@ -893,6 +893,8 @@
       "noResults": "Keine Modelle gefunden",
       "auto": "Auto",
       "autoDescription": "Tale wählt für jede Nachricht das passende Modell — abgewogen zwischen Qualität, Geschwindigkeit und Kosten.",
+      "byoDefault": "Standardmodell",
+      "byoTooltip": "Dieser Agent verwendet deine eigenen Anmeldedaten (BYO) — Modell, Abrechnung und Limits liegen bei dir.",
       "noModelsAvailable": "Keine Modelle verfügbar",
       "noModelsAdminHint": "Es ist noch kein KI-Anbieter eingerichtet. Klicke, um Einstellungen → KI-Anbieter zu öffnen, und füge einen hinzu, um zu chatten.",
       "noModelsAgentHint": "Dieser Assistent hat kein nutzbares Modell. Prüfe, ob seine zugelassenen Modelle zu einem konfigurierten Anbieter passen — klicke, um die KI-Anbieter zu öffnen.",
