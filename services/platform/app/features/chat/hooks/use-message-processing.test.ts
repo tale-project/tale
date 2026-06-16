@@ -44,6 +44,14 @@ vi.mock('convex/react', () => ({
   ),
 }));
 
+// getThreadMeta now flows through the non-throwing useConvexQuery wrapper
+// (returns `{ data }`), so mirror the registry into its shape.
+vi.mock('@/app/hooks/use-convex-query', () => ({
+  useConvexQuery: vi.fn((queryRef: unknown) => ({
+    data: queryResults.get(functionPath(queryRef)),
+  })),
+}));
+
 vi.mock('./queries', () => ({
   useSessionProgress: vi.fn(() => mockSessionProgress),
 }));

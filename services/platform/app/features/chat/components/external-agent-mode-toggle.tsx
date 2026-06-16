@@ -1,10 +1,11 @@
 'use client';
 
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { ClipboardList, Zap } from 'lucide-react';
 import { useCallback } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -40,7 +41,7 @@ export function ExternalAgentModeToggle({
   const { toast } = useToast();
   const { selectedAgent } = useChatLayout();
   const { agents } = useChatAgents(organizationId);
-  const meta = useQuery(
+  const { data: meta } = useConvexQuery(
     api.threads.queries.getThreadMeta,
     threadId ? { threadId } : 'skip',
   );

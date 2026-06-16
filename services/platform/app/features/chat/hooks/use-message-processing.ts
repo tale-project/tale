@@ -1,7 +1,7 @@
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
-import { useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef } from 'react';
 
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { SystemMessageDisplay } from '@/lib/shared/constants/system-message-tags';
@@ -123,7 +123,13 @@ export function useMessageProcessing(
   // ChatInterface reads the same getThreadMeta with identical args, so the two
   // share ONE Convex subscription per thread switch instead of four separate
   // ones (failed errors, generation status, fork info, project).
-  const threadMeta = useQuery(
+  // Non-throwing: the self-hosted backend can transiently blow Convex's 1s
+  // query limit on the org-membership-gated getThreadMeta (the isOrgMember
+  // cross-component hop, amplified under load). useQuery would re-throw that
+  // into the page error boundary and blank the whole chat — fatal for arena,
+  // whose split view lives in ephemeral state a remount can't restore. Degrade
+  // to a loading state instead; the reactive query recovers on the next tick.
+  const { data: threadMeta } = useConvexQuery(
     api.threads.queries.getThreadMeta,
     threadId ? { threadId } : 'skip',
   );
