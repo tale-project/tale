@@ -253,17 +253,52 @@ export const createHumanControlRequest = internalMutation({
   args: {
     organizationId: v.string(),
     threadId: v.string(),
-    /** Assistant message of the turn that requested control (card anchor). */
+    /** Assistant message of the turn that requested control. Only stored for
+     * provenance — the card renders in the composer slot, NOT anchored to a
+     * message (so a long thread that paginated the message out still shows it). */
     messageId: v.string(),
     agentSlug: v.string(),
     modelRef: v.string(),
     reason: v.string(),
-    /** Park deadline: if no human acts within this, auto-resume the agent. */
-    parkTimeoutMs: v.number(),
+    /** Park deadline before the no-human auto-return. Defaults via
+     * EXTERNAL_AGENT_HUMAN_CONTROL_PARK_MS (15 min) when omitted. */
+    parkTimeoutMs: v.optional(v.number()),
     requestedBy: v.optional(v.string()),
   },
   returns: v.string(),
   handler: async (ctx, args): Promise<Id<'approvals'>> => {
+    // Idempotent: this fires MID-TURN (the moment the agent calls
+    // request_human_control) — and the turn-end path may fire it again — so if
+    // a pending handoff already exists for this thread, refresh it in place
+    // rather than stacking duplicates. At most one pending handoff per thread.
+    const existing = await ctx.db
+      .query('approvals')
+      .withIndex('by_threadId_status_resourceType', (q) =>
+        q
+          .eq('threadId', args.threadId)
+          .eq('status', 'pending')
+          .eq('resourceType', 'external_agent_human_control'),
+      )
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        messageId: args.messageId,
+        metadata: {
+          ...(isRecord(existing.metadata) ? existing.metadata : {}),
+          reason: args.reason,
+          agentSlug: args.agentSlug,
+          modelRef: args.modelRef,
+        },
+      });
+      return existing._id;
+    }
+
+    const parkTimeoutMs =
+      args.parkTimeoutMs ??
+      Number(
+        process.env.EXTERNAL_AGENT_HUMAN_CONTROL_PARK_MS ??
+          String(15 * 60 * 1000),
+      );
     const approvalId = await ctx.db.insert('approvals', {
       organizationId: args.organizationId,
       status: 'pending',
@@ -277,37 +312,17 @@ export const createHumanControlRequest = internalMutation({
         agentSlug: args.agentSlug,
         modelRef: args.modelRef,
         requestedAt: Date.now(),
-        parkTimeoutMs: args.parkTimeoutMs,
+        parkTimeoutMs,
         ...(args.requestedBy !== undefined && {
           requestedBy: args.requestedBy,
         }),
       },
     });
 
-    // Supersede older pending handoffs on this thread (skip the row just added).
-    for await (const existing of ctx.db
-      .query('approvals')
-      .withIndex('by_threadId_status_resourceType', (q) =>
-        q
-          .eq('threadId', args.threadId)
-          .eq('status', 'pending')
-          .eq('resourceType', 'external_agent_human_control'),
-      )) {
-      if (existing._id === approvalId) continue;
-      await ctx.db.patch(existing._id, {
-        status: 'rejected',
-        reviewedAt: Date.now(),
-        metadata: {
-          ...(isRecord(existing.metadata) ? existing.metadata : {}),
-          supersededBy: approvalId,
-        },
-      });
-    }
-
     // No-human fallback: if nobody takes control within parkTimeoutMs, the
     // scheduled mutation resumes the agent with a "no human available" steer.
     await ctx.scheduler.runAfter(
-      args.parkTimeoutMs,
+      parkTimeoutMs,
       internal.approvals.human_control_mutations.autoReturnHumanControl,
       { approvalId, organizationId: args.organizationId },
     );

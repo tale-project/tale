@@ -670,6 +670,25 @@ export const runExternalAgentTurn = internalAction({
               : undefined
             : resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
           authMode: byo ? 'byo' : 'managed',
+          // Raise the browser-handoff card the moment the agent calls
+          // request_human_control — mid-stream, not at turn end (a lingering
+          // session may not terminate for a while). Idempotent on the mutation
+          // side, so a later turn-end pass is a safe no-op.
+          onHumanControlRequest: async (reason: string) => {
+            if (assistantMessageId === null) return;
+            await ctx.runMutation(
+              internal.approvals.internal_mutations.createHumanControlRequest,
+              {
+                organizationId: args.organizationId,
+                threadId: args.threadId,
+                messageId: assistantMessageId,
+                agentSlug: args.agentSlug ?? args.agentKind,
+                modelRef: args.modelRef,
+                reason,
+                ...(args.userId !== undefined && { requestedBy: args.userId }),
+              },
+            );
+          },
           ...(agentSessionId !== null && { agentSessionId }),
           ...(systemPromptAppend !== '' && { systemPromptAppend }),
           ...(args.permissionMode !== undefined && {

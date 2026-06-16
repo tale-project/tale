@@ -2,7 +2,7 @@ import { saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-guards';
-import { components } from '../_generated/api';
+import { components, internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import {
   internalMutation,
@@ -69,6 +69,20 @@ async function resumeAfterHandoff(
     status: 'queued' as const,
     createdAt: now,
   });
+
+  // The handoff turn that called request_human_control is usually STILL
+  // generating (lingering — it parked itself, it did not end). In that case
+  // resume by STEERING the message into the running turn (exactly like a
+  // mid-turn composer send), not by starting a new turn. Only when the turn has
+  // actually gone idle do we start a fresh --resume turn. Mirrors enqueueMessage.
+  if (meta.generationStatus === 'generating' && meta.streamId) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.node_only.sandbox.steer_delivery.deliverSteerMessages,
+      { threadId: meta.threadId },
+    );
+    return;
+  }
   const queued = await ctx.db
     .query('chatMessageQueue')
     .withIndex('by_threadId_status', (q) =>
@@ -180,9 +194,10 @@ export const returnHumanControl = mutation({
     if (!meta || meta.userId !== authUser.userId) {
       throw new ConvexError({ code: 'NOT_FOUND' });
     }
-    if (meta.generationStatus === 'generating') {
-      throw new ConvexError({ code: 'TURN_RUNNING' });
-    }
+    // No TURN_RUNNING guard: the handoff turn is usually still generating
+    // (it parked itself, it did not end). resumeAfterHandoff steers the resume
+    // message into the running turn when generating, and starts a fresh
+    // --resume turn only when the turn has gone idle.
     const metadata = isRecord(approval.metadata) ? approval.metadata : {};
     const agentSlug =
       typeof metadata.agentSlug === 'string'
@@ -250,9 +265,9 @@ export const autoReturnHumanControl = internalMutation({
       .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
       .first();
     if (!meta) return null;
-    // Don't resume on top of a live turn (defensive — a handoff turn is idle by
-    // construction, but a recovery resume could have re-armed it).
-    if (meta.generationStatus === 'generating') return null;
+    // No generating guard: the handoff turn is usually still lingering when the
+    // park window elapses. resumeAfterHandoff steers the "no human" message into
+    // the running turn (or starts a fresh turn if it has gone idle).
 
     const metadata = isRecord(approval.metadata) ? approval.metadata : {};
     const agentSlug =

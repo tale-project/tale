@@ -9,6 +9,7 @@
 
 import { v } from 'convex/values';
 
+import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalAction } from '../../_generated/server';
 import {
@@ -153,6 +154,22 @@ export const continueExternalAgentTurn = internalAction({
         resumeFrom,
         onTimeline: async (content) => {
           await patchStreamingMessage(ctx, args.assistantMessageId, content);
+        },
+        // Handoff requested in a continuation segment → raise the card now too
+        // (idempotent on the mutation side).
+        onHumanControlRequest: async (reason: string) => {
+          await ctx.runMutation(
+            internal.approvals.internal_mutations.createHumanControlRequest,
+            {
+              organizationId: turn.organizationId,
+              threadId: turn.threadId,
+              messageId: turn.assistantMessageId,
+              agentSlug: turn.agentSlug ?? turn.agentKind,
+              modelRef: turn.modelRef,
+              reason,
+              ...(turn.userId !== undefined && { requestedBy: turn.userId }),
+            },
+          );
         },
       });
       await handleTurnOutcome(ctx, turn, result);

@@ -132,6 +132,11 @@ export interface RunAgentInSessionArgs {
    * buffer). Best-effort; failures are swallowed (the op flush is the fallback).
    */
   onTimeline?: (content: AgentAssistantContent) => Promise<void>;
+  /** Fired the MOMENT the agent calls request_human_control (mid-stream), so
+   * the handoff card can appear immediately — the turn itself may then linger
+   * (I/O-conduit) and not reach the terminal path for a while. Fired at most
+   * once per invocation. */
+  onHumanControlRequest?: (reason: string) => Promise<void>;
   /** Absolute time (ms) by which THIS action must hand off (it runs under the
    * Convex action ceiling). Reached without a terminal result → the run returns
    * status 'continued' + a checkpoint instead of finishing, and the caller
@@ -300,6 +305,8 @@ export async function runAgentInSessionImpl(
   // checkpoint like planText, and subject to the same last-tool-call reset.
   let humanControlReason: string | undefined =
     args.resumeFrom?.humanControlReason;
+  // Guards the mid-stream onHumanControlRequest callback to fire once per run.
+  let humanControlFired = false;
   let usage: RunAgentInSessionResult['usage'];
   let lastFlush = 0;
   // When the agent last emitted ANY stream event. Stays frozen while the CLI
@@ -780,7 +787,23 @@ export async function runAgentInSessionImpl(
           // tells the model to stop, so this is normally the turn's last tool
           // call (the reset below clears it if the agent kept working anyway).
           const reason = reasonFromToolInput(e.input);
-          if (reason !== undefined) humanControlReason = reason;
+          if (reason !== undefined) {
+            humanControlReason = reason;
+            // Raise the handoff card NOW (mid-stream), not at turn end — a
+            // lingering session may not reach the terminal path for a long
+            // time, and the agent expects the human to take over immediately.
+            if (!humanControlFired && args.onHumanControlRequest) {
+              humanControlFired = true;
+              void args
+                .onHumanControlRequest(reason)
+                .catch((err) =>
+                  console.warn(
+                    '[run_agent] onHumanControlRequest failed:',
+                    err,
+                  ),
+                );
+            }
+          }
         } else if (args.permissionMode !== 'plan') {
           // Execute-mode reset rule: a plan / handoff only counts if its tool
           // was the turn's LAST tool call. Verified on 2.1.173: under
