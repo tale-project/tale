@@ -18,18 +18,38 @@
 
 import type { PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
+import { installPdfjsDomGlobals } from './pdfjs_dom_polyfill';
+
 type PdfjsModule = typeof import('pdfjs-dist/legacy/build/pdf.mjs');
 let pdfjsModulePromise: Promise<PdfjsModule> | undefined;
 /**
- * Lazily load pdfjs so its DOM-global setup (DOMMatrix/OffscreenCanvas, the
- * optional `@napi-rs/canvas` probe) runs only when an action actually parses a
- * PDF — never during Convex's module *analyze* pass, where those globals are
- * undefined and a top-level pdfjs import throws `DOMMatrix is not defined`.
- * pdfjs is bundled (tree-shaken) rather than externalized to keep the module
- * upload under the backend's size limit.
+ * Lazily load pdfjs so its DOM-global setup runs only when an action actually
+ * parses a PDF — never during Convex's module *analyze* pass, where those
+ * globals are undefined and a top-level pdfjs import throws `DOMMatrix is not
+ * defined`. pdfjs is bundled (tree-shaken) rather than externalized to keep the
+ * module upload under the backend's size limit.
+ *
+ * Before importing pdfjs we install pure-JS `DOMMatrix`/`ImageData`/`Path2D`
+ * globals: pdfjs's own polyfill does `require("@napi-rs/canvas")` (a native
+ * module Convex does NOT ship to the node-action runtime — see
+ * {@link installPdfjsDomGlobals}), so without this every PDF fails with
+ * `DOMMatrix is not defined`. pdfjs only sets its globals when absent, so ours
+ * win and the native require is skipped.
  */
 function loadPdfjs(): Promise<PdfjsModule> {
-  return (pdfjsModulePromise ??= import('pdfjs-dist/legacy/build/pdf.mjs'));
+  installPdfjsDomGlobals();
+  return (pdfjsModulePromise ??= (async () => {
+    // pdfjs's fake worker would dynamically `import('./pdf.worker.mjs')` at
+    // getDocument time — a sibling file that doesn't exist in the Convex action
+    // bundle, so it fails with "Setting up fake worker failed". Pre-load the
+    // worker module and expose it as `globalThis.pdfjsWorker`: pdfjs's
+    // PDFWorker._setupFakeWorkerGlobal then uses its `WorkerMessageHandler`
+    // in-process and skips the file import. The worker is bundled with the
+    // action because we import it statically here.
+    const worker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
+    (globalThis as Record<string, unknown>).pdfjsWorker = worker;
+    return import('pdfjs-dist/legacy/build/pdf.mjs');
+  })());
 }
 
 import type { VisionClient } from '../vision/client';

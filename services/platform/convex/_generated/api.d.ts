@@ -709,6 +709,7 @@ import type * as lib_knowledge_extraction_helpers from "../lib/knowledge/extract
 import type * as lib_knowledge_extraction_image from "../lib/knowledge/extraction/image.js";
 import type * as lib_knowledge_extraction_ooxml from "../lib/knowledge/extraction/ooxml.js";
 import type * as lib_knowledge_extraction_pdf from "../lib/knowledge/extraction/pdf.js";
+import type * as lib_knowledge_extraction_pdfjs_dom_polyfill from "../lib/knowledge/extraction/pdfjs_dom_polyfill.js";
 import type * as lib_knowledge_extraction_pptx from "../lib/knowledge/extraction/pptx.js";
 import type * as lib_knowledge_extraction_router from "../lib/knowledge/extraction/router.js";
 import type * as lib_knowledge_extraction_text from "../lib/knowledge/extraction/text.js";
@@ -2203,6 +2204,7 @@ declare const fullApi: ApiFromModules<{
   "lib/knowledge/extraction/image": typeof lib_knowledge_extraction_image;
   "lib/knowledge/extraction/ooxml": typeof lib_knowledge_extraction_ooxml;
   "lib/knowledge/extraction/pdf": typeof lib_knowledge_extraction_pdf;
+  "lib/knowledge/extraction/pdfjs_dom_polyfill": typeof lib_knowledge_extraction_pdfjs_dom_polyfill;
   "lib/knowledge/extraction/pptx": typeof lib_knowledge_extraction_pptx;
   "lib/knowledge/extraction/router": typeof lib_knowledge_extraction_router;
   "lib/knowledge/extraction/text": typeof lib_knowledge_extraction_text;
