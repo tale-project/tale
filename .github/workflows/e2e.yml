@@ -39,7 +39,7 @@ concurrency:
 
 jobs:
   e2e:
-    name: Playwright (platform ${{ matrix.shard }}/8)
+    name: Playwright (platform ${{ matrix.shard }}/5)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -49,10 +49,19 @@ jobs:
     # an independent job: it boots its own hermetic stack and runs the `setup`
     # auth project before its slice. fail-fast:false so one shard's failure
     # doesn't cancel the others — we want every shard's result.
+    #
+    # Shard count: dropped 8 -> 5 after the test-pyramid rebalance moved the
+    # pure-UI smokes (dialogs, menus, render-only pages, validation gating,
+    # clipboard, command palette, …) down to the jsdom `test:ui` and Chromium
+    # `test:browser` lanes. Each shard's cost is dominated by the FIXED per-shard
+    # boot (prod build + Chromium + Convex + Vite preview + @tale/mocks), not the
+    # test bodies, and every shard still runs a single worker — so fewer shards
+    # means fewer stack boots without changing the 4-vCPU starvation profile. The
+    # ~90 residual tests at ~18/shard keep each job well inside the 25-min budget.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5]
     permissions:
       contents: read
 
@@ -102,13 +111,13 @@ jobs:
         working-directory: services/platform
         run: bun run build
 
-      - name: Run E2E suite (shard ${{ matrix.shard }}/8)
+      - name: Run E2E suite (shard ${{ matrix.shard }}/5)
         working-directory: services/platform
         # One worker per shard. Two workers over-subscribed the 4-vCPU runner
         # (Vite + Convex + mock + the browser workers all share it): the local
         # Convex backend starved and queries blew its hard 1s function-execution
         # timeout in floods (100s+ per shard), stranding the WS unauthenticated
-        # and failing tests non-deterministically. Parallelism comes from the 8
+        # and failing tests non-deterministically. Parallelism comes from the 5
         # shards; each single-worker shard still finishes well inside the 25-min
         # budget. Tune via E2E_WORKERS.
         env:
@@ -121,7 +130,7 @@ jobs:
           # starve interactive queries past the backend's hard 1s timeout
           # mid-test. Passed through to the deployment env by sync-convex-env.
           TALE_E2E: '1'
-        run: bunx playwright test --shard=${{ matrix.shard }}/8
+        run: bunx playwright test --shard=${{ matrix.shard }}/5
 
       - name: Upload Playwright report
         if: failure()
