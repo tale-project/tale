@@ -39,7 +39,7 @@ concurrency:
 
 jobs:
   e2e:
-    name: Playwright (platform ${{ matrix.shard }}/4)
+    name: Playwright (platform ${{ matrix.shard }}/8)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -50,20 +50,21 @@ jobs:
     # auth project before its slice. fail-fast:false so one shard's failure
     # doesn't cancel the others — we want every shard's result.
     #
-    # Shard count: dropped 8 -> 4 after the test-pyramid rebalance moved the
-    # pure-UI / client-logic / layout smokes (dialogs, menus, render-only pages,
-    # validation gating, clipboard, command palette, knowledge-entity CRUD UI,
-    # DataTable search/pagination, focus-trap, React-Flow organigram, …) down to
-    # the jsdom `test:ui` and Chromium `test:browser` lanes. Each shard's cost is
-    # dominated by the FIXED per-shard boot (prod build + Chromium + Convex + Vite
-    # preview + @tale/mocks), not the test bodies, and every shard still runs a
-    # single worker — so fewer shards means fewer stack boots without changing the
-    # 4-vCPU starvation profile. The ~74 residual tests at ~18/shard keep each job
-    # well inside the 25-min budget.
+    # Shard count: 8. Each shard's cost is the FIXED per-shard boot (Chromium +
+    # Convex + Vite preview + @tale/mocks) plus its serial test slice; a single
+    # worker per shard is mandatory (two starve the local Convex backend on the
+    # 4-vCPU runner — see the run step). Parallelism therefore comes only from
+    # shards, so the lever for wall-clock is the test slice: 8 shards puts ~9 of
+    # the ~74 tests per job (vs ~18 at 4) and halves the serial test time. We stop
+    # at 8 rather than going higher because the boot floor dominates below ~9
+    # tests — more shards would multiply CI minutes for a negligible wall-clock
+    # gain. The prod build that used to sit on every shard's critical path is now
+    # cached across shards/re-runs (see the dist cache step), so test-only e2e PRs
+    # skip it entirely.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     permissions:
       contents: read
 
@@ -100,6 +101,21 @@ jobs:
         working-directory: services/platform
         run: bunx playwright install --with-deps chromium
 
+      # Cache the prebuilt dist/ across shards and re-runs. The key hashes the
+      # whole platform package and the shared UI package, MINUS the tests/ tree
+      # (excluded by hashing each source subtree explicitly) — so a test-only
+      # e2e PR, the common case, restores a cached bundle and skips the ~4-min
+      # build on every shard. Exact-match only (no restore-keys): any real source
+      # change rebuilds, so the cache can never serve a stale bundle. On a cold
+      # first run all shards miss and build in parallel; the first to finish
+      # populates the cache for its siblings and every later re-run.
+      - name: Cache platform dist (E2E preview bundle)
+        id: dist-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: services/platform/dist
+          key: e2e-dist-${{ runner.os }}-${{ hashFiles('services/platform/app/**', 'services/platform/lib/**', 'services/platform/convex/**', 'services/platform/public/**', 'services/platform/*.json', 'services/platform/*.ts', 'packages/ui/src/**', 'packages/ui/*.json', 'bun.lock') }}
+
       # Serve a production build instead of the Vite dev server. `vite dev`
       # transpiles on the fly — the dominant CPU consumer that, on the 4-vCPU
       # runner, starved the local Convex backend into flooding its hard 1s
@@ -108,12 +124,13 @@ jobs:
       # `vite preview`: static assets + Convex proxy only, no transpilation.
       # Built here (not inside the webServer) so the boot stays inside the
       # Playwright webServer timeout. The committed convex/_generated lets the
-      # client bundle build without a live backend.
+      # client bundle build without a live backend. Skipped on a dist-cache hit.
       - name: Build platform (prod bundle for E2E preview)
+        if: steps.dist-cache.outputs.cache-hit != 'true'
         working-directory: services/platform
         run: bun run build
 
-      - name: Run E2E suite (shard ${{ matrix.shard }}/4)
+      - name: Run E2E suite (shard ${{ matrix.shard }}/8)
         working-directory: services/platform
         # One worker per shard. Two workers over-subscribed the 4-vCPU runner
         # (Vite + Convex + mock + the browser workers all share it): the local
@@ -132,7 +149,7 @@ jobs:
           # starve interactive queries past the backend's hard 1s timeout
           # mid-test. Passed through to the deployment env by sync-convex-env.
           TALE_E2E: '1'
-        run: bunx playwright test --shard=${{ matrix.shard }}/4
+        run: bunx playwright test --shard=${{ matrix.shard }}/8
 
       - name: Upload Playwright report
         if: failure()

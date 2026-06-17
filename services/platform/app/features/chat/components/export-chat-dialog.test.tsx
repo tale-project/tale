@@ -25,7 +25,7 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
 }));
 
 describe('ExportChatDialog', () => {
-  let createObjectURL: ReturnType<typeof vi.fn>;
+  let createObjectURL: typeof URL.createObjectURL;
 
   beforeEach(() => {
     // jsdom implements neither; the export path calls both.
