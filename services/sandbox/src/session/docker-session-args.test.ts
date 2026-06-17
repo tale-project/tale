@@ -16,6 +16,7 @@ const cfg: SpawnerConfig = {
   runtimeTier: 'runc',
   dockerInContainer: false,
   browserView: false,
+  transparentEgress: false,
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: null,
@@ -116,6 +117,89 @@ describe('buildDockerSessionRunArgs', () => {
       expect(args).toContain('--cap-drop=ALL');
       expect(args).toContain('--read-only');
       expect(args[args.length - 1]).toBe('daemon');
+    });
+  });
+
+  describe('transparent egress (SANDBOX_TRANSPARENT_EGRESS)', () => {
+    test('off (default): no NET_ADMIN, no signal, runs as the profile uid', () => {
+      const args = buildDockerSessionRunArgs(cfg, goodInput);
+      expect(args).not.toContain('--cap-add=NET_ADMIN');
+      expect(args).not.toContain('TALE_TRANSPARENT_EGRESS=1');
+      const userIdx = args.indexOf('--user');
+      expect(args[userIdx + 1]).toBe('10001:10001');
+      expect(args).toContain('--cap-drop=ALL');
+    });
+
+    test('on (runc, agent): adds NET_ADMIN+NET_RAW, boots root, keeps hardening, signals drop uid', () => {
+      const args = buildDockerSessionRunArgs(
+        { ...cfg, transparentEgress: true },
+        goodInput,
+      );
+      // iptables caps + SETUID/SETGID for the boot-time setpriv drop, on top of
+      // a still-dropped base.
+      expect(args).toContain('--cap-drop=ALL');
+      expect(args).toContain('--cap-add=NET_ADMIN');
+      expect(args).toContain('--cap-add=NET_RAW');
+      expect(args).toContain('--cap-add=SETUID');
+      expect(args).toContain('--cap-add=SETGID');
+      // Rest of the hardening preserved (read-only stays — redsocks.conf → /tmp).
+      expect(args).toContain('no-new-privileges');
+      expect(args).toContain('--read-only');
+      // Boots as root so the entrypoint can install iptables, then setpriv-drops.
+      const userIdx = args.indexOf('--user');
+      expect(args[userIdx + 1]).toBe('0:0');
+      // Entrypoint signal + the profile uid to drop to (agent → 10001).
+      expect(args).toContain('TALE_TRANSPARENT_EGRESS=1');
+      expect(args).toContain('TALE_DROP_UID=10001');
+      expect(args).toContain('TALE_DROP_GID=10001');
+      // Still a daemon session.
+      expect(args[args.length - 1]).toBe('daemon');
+    });
+
+    test('on + default profile: drop uid is 65534', () => {
+      const args = buildDockerSessionRunArgs(
+        { ...cfg, transparentEgress: true },
+        { ...goodInput, profile: 'default' },
+      );
+      const userIdx = args.indexOf('--user');
+      expect(args[userIdx + 1]).toBe('0:0');
+      expect(args).toContain('TALE_DROP_UID=65534');
+      expect(args).toContain('TALE_DROP_GID=65534');
+    });
+
+    test('on but gvisor tier: skipped (runsc netstack), falls back to env proxy', () => {
+      const args = buildDockerSessionRunArgs(
+        { ...cfg, transparentEgress: true, runtimeTier: 'gvisor' },
+        goodInput,
+      );
+      expect(args).not.toContain('--cap-add=NET_ADMIN');
+      expect(args).not.toContain('TALE_TRANSPARENT_EGRESS=1');
+      const userIdx = args.indexOf('--user');
+      expect(args[userIdx + 1]).toBe('10001:10001');
+      // HTTPS_PROXY env is still present for proxy-aware clients.
+      expect(args).toContain('HTTPS_PROXY=http://sandbox-egress:3128');
+    });
+
+    test('on + DinD: signal sent, but DinD hardening (not the NET_ADMIN argv) applies', () => {
+      const args = buildDockerSessionRunArgs(
+        {
+          ...cfg,
+          transparentEgress: true,
+          runtimeTier: 'sysbox',
+          dockerInContainer: true,
+        },
+        { ...goodInput, dockerStorageVolume: 'tale-dind-ses-abc-123' },
+      );
+      // The entrypoint installs session egress after dockerd; signal is present.
+      expect(args).toContain('TALE_TRANSPARENT_EGRESS=1');
+      // DinD already boots root with its caps — the non-DinD NET_ADMIN argv and
+      // the explicit drop-uid env are NOT added on this path.
+      expect(args).not.toContain('--cap-add=NET_ADMIN');
+      expect(args.some((a) => a.startsWith('TALE_DROP_UID='))).toBe(false);
+      // DinD relaxations unchanged.
+      expect(args).toContain('apparmor=unconfined');
+      const userIdx = args.indexOf('--user');
+      expect(args[userIdx + 1]).toBe('0:0');
     });
   });
 

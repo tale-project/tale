@@ -19,7 +19,10 @@ import { createHash } from 'node:crypto';
 
 import type { V1Pod, V1EnvFromSource } from '@kubernetes/client-node';
 
-import { dindCapabilityOf } from '../../runtime-tier.ts';
+import {
+  dindCapabilityOf,
+  transparentEgressSupported,
+} from '../../runtime-tier.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../../types.ts';
 import type { SandboxSessionProfile } from '../../wire.ts';
@@ -116,6 +119,62 @@ export function buildSessionPod(
     ? dindSecurityContext
     : hardenedSecurityContext;
 
+  // Transparent egress (non-DinD, supported tier). A native sidecar (an init
+  // container with restartPolicy: Always — K8s 1.28+) holds NET_ADMIN, installs
+  // the iptables OUTPUT REDIRECT into the SHARED pod netns, then drops to the
+  // redsocks uid and runs redsocks. Because it is a native sidecar it is started
+  // BEFORE the runner, so the redirect + redsocks are in place before any user
+  // code can egress. The `runner` container itself stays fully hardened
+  // (drop:[ALL], runAsNonRoot) and never holds NET_ADMIN — its outbound TCP is
+  // transparently tunnelled through the egress proxy with zero app awareness.
+  // Skipped on gvisor (runsc netstack makes the REDIRECT unreliable) and under
+  // DinD (the entrypoint already installs redsocks in-container there).
+  const transparentEgress =
+    cfg.transparentEgress && transparentEgressSupported(cfg.runtimeTier);
+  // Non-DinD uses a native sidecar (runner stays hardened, never holds
+  // NET_ADMIN). DinD instead lets the already-root runner install the OUTPUT
+  // REDIRECT inline (signalled via TALE_TRANSPARENT_EGRESS in the runner env
+  // below), exactly like the docker DinD path.
+  const transparentEgressSidecar = transparentEgress && !dind;
+  const egressSidecars = transparentEgressSidecar
+    ? [
+        {
+          name: 'egress',
+          image: cfg.runtimeImage,
+          imagePullPolicy: 'IfNotPresent',
+          // `egress-sidecar` entrypoint dispatch: install the OUTPUT REDIRECT as
+          // root, then setpriv-drop to the redsocks uid and exec redsocks.
+          args: ['egress-sidecar'],
+          // Native sidecar: started (and kept running) before the runner.
+          restartPolicy: 'Always',
+          env: [
+            // redsocks resolves the egress proxy endpoint from these.
+            { name: 'HTTPS_PROXY', value: cfg.egressProxy },
+            { name: 'HTTP_PROXY', value: cfg.egressProxy },
+          ],
+          securityContext: {
+            // Boot as root to install iptables; the entrypoint drops to the
+            // redsocks uid for redsocks itself (which needs no caps).
+            runAsUser: 0,
+            runAsGroup: 0,
+            runAsNonRoot: false,
+            // redsocks.conf is written to the sidecar's own /tmp.
+            readOnlyRootFilesystem: false,
+            allowPrivilegeEscalation: false,
+            // NET_ADMIN/NET_RAW install the OUTPUT REDIRECT; SETUID/SETGID let
+            // the entrypoint setpriv-drop from root to the redsocks uid (cleared
+            // on the uid change, so redsocks itself runs capless). This sidecar
+            // runs ONLY redsocks — the `runner` container stays drop:[ALL].
+            capabilities: {
+              drop: ['ALL'],
+              add: ['NET_ADMIN', 'NET_RAW', 'SETUID', 'SETGID'],
+            },
+            seccompProfile: { type: 'RuntimeDefault' },
+          },
+        },
+      ]
+    : [];
+
   // runnerd token + seed env arrive via the per-session Secret, not the Pod
   // spec (so `kubectl get pod` never shows them). envFrom maps every Secret
   // key to an env var (TALE_RUNNERD_TOKEN, TALE_SESSION_ENV).
@@ -185,6 +244,9 @@ export function buildSessionPod(
             ]
           : []),
       ],
+      // Transparent-egress native sidecar (empty unless enabled). Installs the
+      // OUTPUT REDIRECT + runs redsocks in the shared netns before the runner.
+      ...(egressSidecars.length > 0 ? { initContainers: egressSidecars } : {}),
       containers: [
         {
           name: 'runner',
@@ -204,6 +266,12 @@ export function buildSessionPod(
                   { name: 'TALE_DIND', value: '1' },
                   { name: 'TALE_RUNTIME_TIER', value: cfg.runtimeTier },
                 ]
+              : []),
+            // DinD transparent egress: the already-root runner installs the
+            // OUTPUT REDIRECT inline after the inner dockerd is up (non-DinD uses
+            // the native sidecar above, so the runner gets no such signal there).
+            ...(transparentEgress && dind
+              ? [{ name: 'TALE_TRANSPARENT_EGRESS', value: '1' }]
               : []),
           ],
           ports: [{ containerPort: RUNNERD_PORT }],

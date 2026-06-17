@@ -285,6 +285,16 @@ export interface SpawnerConfig {
   // adapter attaches Playwright MCP over CDP (the two sides MUST agree — a
   // deployment-level operator decision). Off ⇒ today's headless behavior.
   browserView: boolean;
+  // Transparent egress for the session container's OWN processes (env
+  // SANDBOX_TRANSPARENT_EGRESS; default true). When true the entrypoint installs
+  // an iptables OUTPUT REDIRECT → redsocks → the egress proxy, so ANY client
+  // (Node/undici, Go static binaries, raw sockets) reaches the internet through
+  // the proxy with zero proxy-env awareness — closing the leak where proxy-
+  // ignorant clients silently fail. Requires NET_ADMIN at boot (granted to PID 1
+  // root, dropped via setpriv before any user process runs). Unsupported on the
+  // gvisor tier (runsc netstack) — loadConfig warns and the session falls back to
+  // the HTTPS_PROXY env for proxy-aware clients only. Off ⇒ today's env-only path.
+  transparentEgress: boolean;
   // Kubernetes-backend settings (env SANDBOX_K8S_* / SANDBOX_CACHE). Always
   // populated by loadConfig; consumed only when backend === 'kubernetes'.
   k8s: {

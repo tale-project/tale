@@ -59,6 +59,23 @@ TALE_DIND_INNER_POOL="172.31.0.0/16"
 # drops (keeps sbin tools off the agent PATH); call them by absolute path.
 _IPTABLES=/usr/sbin/iptables
 _IP6TABLES=/usr/sbin/ip6tables
+# iproute2 `ip`, used by the SESSION transparent-egress path to add a default
+# route (see _ensure_default_route). Also in /usr/sbin (dropped from PATH).
+_IP=/usr/sbin/ip
+
+# Dedicated low-priv uid redsocks runs as on the SESSION transparent-egress path,
+# so the OUTPUT owner-match loop-breaker has a stable owner to exempt (see
+# _install_session_output_redirect). Must match the `redsocks` user in the
+# Dockerfile. The DinD inner path still launches redsocks as root (its loop is
+# broken by the destination RETURNs instead) — that path is untouched.
+TALE_REDSOCKS_UID="${TALE_REDSOCKS_UID:-10002}"
+# redsocks config path for the session path. /tmp is the writable tmpfs even when
+# the non-DinD session keeps a read-only root, so write it there (not /etc, which
+# is read-only on that path).
+TALE_REDSOCKS_CONF=/tmp/redsocks.conf
+# Set once redsocks is launched (by either the DinD inner path or the session
+# path) so the session path never double-launches it on a DinD session.
+TALE_REDSOCKS_STARTED=""
 
 # Resolve a proxy URL's host to an IP. CRITICAL: the session reaches the egress
 # proxy by its Docker DNS name (e.g. http://sandbox-egress:3128), but INNER
@@ -130,6 +147,7 @@ redsocks { local_ip = 0.0.0.0; local_port = 12346; ip = ${TALE_EGRESS_IP}; port 
 EOF
   # redsocks lives in /usr/sbin, which the image PATH drops — call it absolute.
   /usr/sbin/redsocks -c /etc/redsocks.conf >/var/log/redsocks.log 2>&1 &
+  TALE_REDSOCKS_STARTED=1
   # nat REDSOCKS chain: leave internal / private / link-local DIRECT (so inner
   # service-to-service, localhost healthchecks and the inner embedded DNS are
   # untouched), tunnel everything public through redsocks.
@@ -144,6 +162,142 @@ EOF
   "$_IPTABLES" -t nat -C PREROUTING -s "${TALE_DIND_INNER_POOL}" -p tcp -j REDSOCKS 2>/dev/null \
     || "$_IPTABLES" -t nat -A PREROUTING -s "${TALE_DIND_INNER_POOL}" -p tcp -j REDSOCKS
   echo "[entrypoint] transparent egress installed (redsocks -> ${TALE_EGRESS_IP}:${TALE_EGRESS_PORT}; nested public TCP tunneled, internal direct, DNS via egress :53)"
+}
+
+# ---------------------------------------------------------------------------
+# SESSION transparent egress — the session container's OWN processes.
+#
+# The DinD machinery above only redirects NESTED containers (PREROUTING -s the
+# inner pool). The session's own binaries (Node/undici, Go static binaries, raw
+# sockets) generate traffic on the OUTPUT chain and reach egress today ONLY if
+# they honor the HTTPS_PROXY env — which undici/Go/raw sockets do not. This adds
+# an OUTPUT-chain REDIRECT into the SAME redsocks/REDSOCKS chain so any client
+# egresses through the proxy transparently, with zero proxy-env awareness.
+#
+# Capability: installed by PID 1 root at boot, BEFORE the entrypoint setpriv-drops
+# to the agent uid — so no user-exec'd process ever holds NET_ADMIN. Gated by the
+# spawner (TALE_TRANSPARENT_EGRESS=1, off on gvisor where runsc's netstack makes
+# the REDIRECT unreliable). Best-effort: a failure WARNs and continues (proxy-
+# aware clients still egress via env), never wedges the session.
+# ---------------------------------------------------------------------------
+
+# Build the shared nat REDSOCKS chain if it doesn't already exist (the DinD inner
+# path may have built it). Same policy as setup_inner_transparent_egress: leave
+# internal / private / link-local DIRECT, tunnel everything public to redsocks.
+# Idempotent and NON-destructive (never flushes an existing chain).
+_ensure_redsocks_chain() {
+  if "$_IPTABLES" -t nat -L REDSOCKS >/dev/null 2>&1; then
+    return 0
+  fi
+  "$_IPTABLES" -t nat -N REDSOCKS
+  for _cidr in 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16; do
+    "$_IPTABLES" -t nat -A REDSOCKS -d "$_cidr" -j RETURN
+  done
+  "$_IPTABLES" -t nat -A REDSOCKS -p tcp -j REDIRECT --to-ports 12346
+}
+
+# Write the redsocks config for the session path to $1.
+_write_redsocks_conf() {
+  cat >"$1" <<EOF
+base { log_debug = off; log_info = off; log = "stderr"; daemon = off; redirector = iptables; }
+redsocks { local_ip = 0.0.0.0; local_port = 12346; ip = ${TALE_EGRESS_IP}; port = ${TALE_EGRESS_PORT}; type = http-connect; }
+EOF
+}
+
+# Hook the session's own locally-generated TCP (OUTPUT chain) into the redirect.
+# OUTPUT has two loop hazards PREROUTING never had — redsocks' own upstream
+# CONNECT to the proxy is locally-generated and would re-enter the chain:
+#   (1) destination RETURN for the proxy IP — the reliable loop-breaker in every
+#       case (covers redsocks running as root on the DinD path too). The existing
+#       REDSOCKS RFC1918 RETURNs already cover a private proxy; this makes it
+#       explicit for a public proxy too.
+#   (2) owner-match RETURN for the redsocks uid — defense-in-depth when redsocks
+#       runs as the dedicated uid (session path / k8s sidecar).
+# All idempotent (-C guard) so a container restart re-applies cleanly.
+_install_session_output_redirect() {
+  "$_IPTABLES" -t nat -C REDSOCKS -d "${TALE_EGRESS_IP}" -p tcp -j RETURN 2>/dev/null \
+    || "$_IPTABLES" -t nat -I REDSOCKS 1 -d "${TALE_EGRESS_IP}" -p tcp -j RETURN \
+    || echo "[entrypoint] WARN: could not add egress-IP RETURN to REDSOCKS chain" >&2
+  "$_IPTABLES" -t nat -C OUTPUT -p tcp -m owner --uid-owner "${TALE_REDSOCKS_UID}" -j RETURN 2>/dev/null \
+    || "$_IPTABLES" -t nat -A OUTPUT -p tcp -m owner --uid-owner "${TALE_REDSOCKS_UID}" -j RETURN \
+    || echo "[entrypoint] WARN: could not add redsocks owner-match RETURN to OUTPUT" >&2
+  "$_IPTABLES" -t nat -C OUTPUT -p tcp -j REDSOCKS 2>/dev/null \
+    || "$_IPTABLES" -t nat -A OUTPUT -p tcp -j REDSOCKS \
+    || echo "[entrypoint] WARN: could not hook OUTPUT into the REDSOCKS chain" >&2
+}
+
+# Ensure a default route exists so the kernel will GENERATE connections to public
+# IPs — the nat OUTPUT REDIRECT can only intercept a packet that routes. On the
+# docker `--internal` network the session netns has NO default route, so
+# connect() to a public IP fails with ENETUNREACH before REDIRECT ever runs.
+# Point the default at the egress proxy IP (an on-link next-hop); REDIRECT
+# rewrites the dst to redsocks before the packet leaves, so the egress host never
+# actually receives it. Skipped when a default route already exists (e.g. a k8s
+# pod's route to the CNI gateway) — REDIRECT works as-is there.
+_ensure_default_route() {
+  [ -n "${TALE_EGRESS_IP}" ] || return 0
+  if "$_IP" route show default 2>/dev/null | grep -q .; then
+    return 0
+  fi
+  if "$_IP" route add default via "${TALE_EGRESS_IP}" 2>/dev/null; then
+    echo "[entrypoint] added default route via ${TALE_EGRESS_IP} (enables transparent-egress REDIRECT for public IPs)"
+  else
+    echo "[entrypoint] WARN: could not add default route via ${TALE_EGRESS_IP}; transparent egress to public IPs may fail (ENETUNREACH)" >&2
+  fi
+}
+
+# External DNS for the session. Transparent IP-redirect needs the CLIENT to
+# resolve hostnames to IPs locally (redsocks tunnels by the resolved IP), but on
+# the docker `--internal` network Docker's embedded resolver (127.0.0.11) can't
+# reach its upstream ExtServers (8.8.8.8 …) — external lookups time out. The
+# egress sidecar's dnsmasq CAN resolve external names. DNAT the embedded
+# resolver's FORWARDED queries (anything to :53 that isn't the embedded resolver
+# itself) to the egress dnsmasq, so: Docker service names (bifrost, convex) are
+# still answered LOCALLY by 127.0.0.11 with their correct on-network IPs, while
+# only external names get forwarded to the egress resolver. Gated on 127.0.0.11
+# being the resolver — on k8s (kube-dns) external DNS already works and DNAT'ing
+# it would break resolution, so this is a no-op there.
+_install_session_dns_dnat() {
+  grep -q 'nameserver 127.0.0.11' /etc/resolv.conf 2>/dev/null || return 0
+  for _proto in udp tcp; do
+    "$_IPTABLES" -t nat -C OUTPUT -p "$_proto" --dport 53 ! -d 127.0.0.11 -j DNAT --to-destination "${TALE_EGRESS_IP}:53" 2>/dev/null \
+      || "$_IPTABLES" -t nat -A OUTPUT -p "$_proto" --dport 53 ! -d 127.0.0.11 -j DNAT --to-destination "${TALE_EGRESS_IP}:53" \
+      || echo "[entrypoint] WARN: could not DNAT ${_proto}/53 to the egress resolver; external DNS may fail" >&2
+  done
+}
+
+# Launch redsocks as the dedicated low-priv uid (for the owner-match), unless it
+# is already running (the DinD inner path launched it as root). Background. Logs
+# to /tmp (the writable tmpfs) — the non-DinD session keeps a read-only root, so
+# /var/log (used by the DinD inner path, which has a writable rootfs) is not
+# writable here.
+_launch_session_redsocks() {
+  [ "${TALE_REDSOCKS_STARTED:-}" = "1" ] && return 0
+  _write_redsocks_conf "${TALE_REDSOCKS_CONF}"
+  setpriv --reuid "${TALE_REDSOCKS_UID}" --regid "${TALE_REDSOCKS_UID}" --init-groups -- \
+    /usr/sbin/redsocks -c "${TALE_REDSOCKS_CONF}" >/tmp/redsocks.log 2>&1 &
+  TALE_REDSOCKS_STARTED=1
+}
+
+# Install transparent egress for the session's own processes (docker path). Runs
+# as root in the daemon dispatch BEFORE the setpriv drop. Idempotent; safe to call
+# on a DinD session after setup_inner_transparent_egress (it reuses the chain +
+# redsocks and only adds the OUTPUT hook).
+setup_session_transparent_egress() {
+  resolve_egress_endpoint
+  if [ -z "${TALE_EGRESS_IP}" ]; then
+    echo "[entrypoint] WARN: no egress proxy IP resolved; session transparent egress disabled (proxy-aware clients still use HTTPS_PROXY)" >&2
+    return 0
+  fi
+  # Best-effort: never let an iptables/redsocks hiccup abort session boot.
+  set +e
+  _ensure_redsocks_chain
+  _install_session_output_redirect
+  _ensure_default_route
+  _install_session_dns_dnat
+  _launch_session_redsocks
+  set -e
+  echo "[entrypoint] session transparent egress installed (OUTPUT -> redsocks -> ${TALE_EGRESS_IP}:${TALE_EGRESS_PORT}; public TCP tunneled, internal direct)"
 }
 
 # Block inner containers from the cloud metadata endpoint (IMDS) + link-local —
@@ -490,6 +644,36 @@ start_browser_stack() {
 }
 
 # ---------------------------------------------------------------------------
+# K8s transparent-egress native sidecar. The session Pod runs a sidecar
+# container (an initContainer with restartPolicy: Always — K8s 1.28+) with this
+# arg + NET_ADMIN. It installs the OUTPUT REDIRECT into the SHARED pod netns as
+# root, then drops to the redsocks uid and runs redsocks in the foreground for
+# the pod's lifetime. The `runner` container stays fully hardened and never holds
+# NET_ADMIN. On docker this is all done inline in the `daemon` dispatch instead.
+# ---------------------------------------------------------------------------
+if [ "$1" = "egress-sidecar" ]; then
+  resolve_egress_endpoint
+  if [ -z "${TALE_EGRESS_IP}" ]; then
+    echo "[entrypoint] WARN: egress-sidecar could not resolve the egress proxy endpoint; transparent egress disabled (proxy-aware clients still use HTTPS_PROXY). Idling so the runner can still start." >&2
+    exec sleep infinity
+  fi
+  # Best-effort install — never crashloop the sidecar (and so block the runner)
+  # on an iptables hiccup; proxy-aware clients still egress via the env.
+  set +e
+  _ensure_redsocks_chain
+  _install_session_output_redirect
+  _ensure_default_route
+  _install_session_dns_dnat
+  set -e
+  echo "[entrypoint] egress-sidecar: OUTPUT REDIRECT installed (-> redsocks -> ${TALE_EGRESS_IP}:${TALE_EGRESS_PORT})"
+  _write_redsocks_conf "${TALE_REDSOCKS_CONF}"
+  # redsocks is the sidecar's main process; run it as the dedicated uid (matches
+  # the OUTPUT owner-match RETURN) in the foreground.
+  exec setpriv --reuid "${TALE_REDSOCKS_UID}" --regid "${TALE_REDSOCKS_UID}" --init-groups -- \
+    /usr/sbin/redsocks -c "${TALE_REDSOCKS_CONF}"
+fi
+
+# ---------------------------------------------------------------------------
 # Session daemon dispatch (sessions plan). The spawner launches a long-lived
 # session container with a single positional arg `daemon` (see
 # session/docker-session-args.ts); everything else is the one-shot
@@ -497,14 +681,20 @@ start_browser_stack() {
 # so we `exec` it (SIGTERM from container-stop must reach it directly).
 # ---------------------------------------------------------------------------
 if [ "$1" = "daemon" ]; then
-  # In DinD mode the container starts as root (so it can run an inner dockerd),
-  # so the workspace skeleton + steer cleanup must be done AS the agent (uid
-  # 10001) — otherwise the dirs would be root-owned and runnerd couldn't write
-  # them. On the default path the container is already uid 10001 (--user), so
-  # DROP is empty and these run directly, exactly as before.
+  # Both DinD and transparent egress boot the container as root (DinD to run the
+  # inner dockerd; transparent egress so the entrypoint can install the iptables
+  # OUTPUT REDIRECT). In either case the workspace skeleton + steer cleanup must
+  # run AS the agent uid — otherwise the dirs would be root-owned and runnerd
+  # couldn't write them. On the plain hardened path the container is already at
+  # --user, DROP is empty, and these run directly, exactly as before. DinD always
+  # drops to 10001 (the agent profile); transparent egress drops to the profile
+  # uid the spawner pinned (agent 10001 / default 65534) via TALE_DROP_UID/GID.
   DROP=""
-  [ "${TALE_DIND:-}" = "1" ] &&
+  if [ "${TALE_DIND:-}" = "1" ]; then
     DROP="setpriv --reuid 10001 --regid 10001 --init-groups --"
+  elif [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ]; then
+    DROP="setpriv --reuid ${TALE_DROP_UID:-10001} --regid ${TALE_DROP_GID:-10001} --init-groups --"
+  fi
 
   # Bootstrap the persistent workspace skeleton. HOME lives here so agent
   # state (~/.claude, ~/.config/opencode, ~/.gitconfig) survives every exec
@@ -533,6 +723,14 @@ if [ "$1" = "daemon" ]; then
   export NODE_PATH=/user/.runtime/deps/node/lib/node_modules
   export PATH=/user/.runtime/deps/python/bin:/user/.runtime/deps/node/bin:$PATH
 
+  # Transparent egress (non-DinD): install the OUTPUT REDIRECT as root BEFORE the
+  # browser + runnerd start, so every client (and Chromium's direct connections)
+  # egresses through the proxy. The DinD path installs it after the inner dockerd
+  # is up (below), so it's skipped here when DinD.
+  if [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ] && [ "${TALE_DIND:-}" != "1" ]; then
+    setup_session_transparent_egress
+  fi
+
   # Live browser view (operator flag): bring up the headed Chromium + Xvfb +
   # x11vnc mirror BEFORE handing off to runnerd, so Playwright MCP can attach to
   # the CDP endpoint on the first browser tool call. In DinD mode the supervisor
@@ -549,13 +747,23 @@ if [ "$1" = "daemon" ]; then
   # user so Claude Code's bypassPermissions (refused as root) still works.
   if [ "${TALE_DIND:-}" = "1" ]; then
     start_inner_dockerd
+    # Also redirect the session's OWN processes (not just nested containers) when
+    # transparent egress is on — reuses the redsocks + chain dockerd's setup left.
+    [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ] && setup_session_transparent_egress
     exec tini -g -- \
       setpriv --reuid 10001 --regid 10001 --init-groups -- \
       node /usr/local/lib/tale/runnerd.mjs
   fi
 
-  # Default (non-DinD) path: runnerd is PID 1 at the container's --user, exactly
-  # as before — SIGTERM from container-stop reaches it directly.
+  # Non-DinD path. With transparent egress the container booted as root to install
+  # the OUTPUT REDIRECT, so drop to the profile uid for runnerd (setpriv execs it
+  # in place → node stays PID 1, so container-stop SIGTERM still reaches it).
+  # Without transparent egress, runnerd is already PID 1 at the container's
+  # --user — exactly as before.
+  if [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ]; then
+    exec setpriv --reuid "${TALE_DROP_UID:-10001}" --regid "${TALE_DROP_GID:-10001}" --init-groups -- \
+      node /usr/local/lib/tale/runnerd.mjs
+  fi
   exec node /usr/local/lib/tale/runnerd.mjs
 fi
 

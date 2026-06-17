@@ -10,6 +10,7 @@ import {
   isRuntimeTier,
   k8sRuntimeClassFor,
   RUNTIME_TIERS,
+  transparentEgressSupported,
   type RuntimeTier,
 } from './runtime-tier.ts';
 import type { SpawnerConfig } from './types.ts';
@@ -179,6 +180,22 @@ export function loadConfig(): SpawnerConfig {
       );
     }
   }
+  // Transparent egress for the session container's own processes (default ON).
+  // The entrypoint installs an iptables OUTPUT REDIRECT → redsocks so any client
+  // egresses through the proxy without honoring HTTP(S)_PROXY env. Reliable on
+  // runc/sysbox/kata; unsupported on gvisor (runsc netstack) — warn and let the
+  // session fall back to env-proxy for proxy-aware clients only.
+  const transparentEgress = boolEnvOpt('SANDBOX_TRANSPARENT_EGRESS') ?? true;
+  if (transparentEgress && !transparentEgressSupported(runtimeTier)) {
+    console.warn(
+      `[sandbox.config] WARNING: transparent egress is not supported on the '${runtimeTier}' tier ` +
+        `(runsc's user-space netstack makes the iptables OUTPUT REDIRECT unreliable). Sessions fall ` +
+        `back to the HTTPS_PROXY env, so proxy-IGNORANT clients (Node/undici default fetch, Go static ` +
+        `binaries) will fail to reach the internet. Use SANDBOX_RUNTIME=runc (or sysbox/kata) for ` +
+        `transparent egress, or set SANDBOX_TRANSPARENT_EGRESS=false to silence this.`,
+    );
+  }
+
   const rawBackend = process.env.SANDBOX_BACKEND ?? 'docker';
   if (rawBackend !== 'docker' && rawBackend !== 'kubernetes') {
     throw new Error(
@@ -268,6 +285,9 @@ export function loadConfig(): SpawnerConfig {
     // The PLATFORM's own SANDBOX_BROWSER_VIEW must be set together so the
     // adapter attaches Playwright MCP over CDP — a deployment-level decision.
     browserView: boolEnvOpt('SANDBOX_BROWSER_VIEW') ?? false,
+    // Transparent egress for the session's own processes (default on; resolved +
+    // gvisor-warned above). Off ⇒ env-proxy-only (today's behavior).
+    transparentEgress,
     defaultTimeoutMs: numEnv('SANDBOX_DEFAULT_TIMEOUT_MS', 30_000, { min: 1 }),
     maxTimeoutMs: numEnv('SANDBOX_MAX_TIMEOUT_MS', 300_000, { min: 1 }),
     maxConcurrent: numEnv('SANDBOX_MAX_CONCURRENT', 4, { min: 1 }),
