@@ -2225,7 +2225,7 @@
   },
   "onboarding": {
     "title": "Set up your workspace",
-    "subtitle": "A few quick steps and you're ready to go.",
+    "subtitle": "Just a few quick steps to get your workspace up and running.",
     "backToApp": "Back to app",
     "stepsAriaLabel": "Onboarding steps",
     "progress": "Step {current} of {total}: {label}",
@@ -2253,7 +2253,8 @@
     },
     "provider": {
       "heading": "Connect OpenRouter",
-      "why": "One OpenRouter key unlocks chat, image generation & editing, voice and more across hundreds of models from every major lab. We'll preconfigure a recommended set so you're ready immediately.",
+      "connect": "Connect",
+      "why": "One key unlocks hundreds of models for chat, images, voice, and more — we'll preconfigure a recommended set so you're ready right away.",
       "keyLabel": "OpenRouter API key",
       "keyPlaceholder": "sk-or-...",
       "keyHelp": "Stored encrypted. Leave blank to set this up later in Settings.",
@@ -4840,6 +4841,8 @@
       "profile": {
         "title": "Profile",
         "description": "Your display name and email — visible to your teammates.",
+        "nameDescription": "The name shown to your teammates.",
+        "emailDescription": "Used to sign in and receive notifications.",
         "name": "Display name",
         "namePlaceholder": "Enter your name",
         "email": "Email",
@@ -4868,6 +4871,8 @@
       "title": "Organization name",
       "detailsTitle": "Organization details",
       "detailsDescription": "Basic information about your organization.",
+      "nameDescription": "The display name for your organization.",
+      "localeDescription": "Primary language for your organization.",
       "identifiersTitle": "Identifiers",
       "identifiersDescription": "Read-only references you may need when using the API or contacting support.",
       "organizationId": "Organization ID",
@@ -7033,6 +7038,7 @@
       "title": "Connection details",
       "usernameLabel": "Username",
       "usernameHelp": "Your Tale account email (or username)",
+      "copyUsername": "Copy username",
       "passwordLabel": "Password",
       "passwordHelp": "An app-password you generate below — not your account password."
     },

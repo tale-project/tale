@@ -1,8 +1,6 @@
 'use client';
 
-import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { Text } from '@tale/ui/text';
 import { ThemeSwitcher } from '@tale/ui/theme-switcher';
 import { useRef, type KeyboardEvent } from 'react';
 
@@ -74,11 +72,7 @@ export function PreferencesStep() {
 
   return (
     <WizardStep id="preferences">
-      <Heading level={2} className="text-base">
-        {t('preferences.heading')}
-      </Heading>
-      <Text variant="muted">{t('preferences.why')}</Text>
-
+      {/* Heading + description live in the wizard hero now. */}
       <fieldset className="flex flex-col gap-2">
         <legend className="text-fg-base mb-1 text-sm font-medium">
           {t('preferences.languageLabel')}

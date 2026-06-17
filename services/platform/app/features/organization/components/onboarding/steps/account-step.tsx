@@ -2,10 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
-import { Heading } from '@tale/ui/heading';
 import { Stack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
-import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -37,7 +35,6 @@ type AccountFormData = {
  */
 export function AccountStep() {
   const { t } = useT('auth');
-  const { t: tOnboarding } = useT('onboarding');
   const { t: tCommon } = useT('common');
   const queryClient = useReactQueryClient();
   const { data: ssoConfig } = useIsSsoConfigured();
@@ -117,11 +114,7 @@ export function AccountStep() {
 
   return (
     <WizardStep id="account" valid={isValid} onBeforeNext={createAccount}>
-      <Heading level={2} className="text-base">
-        {tOnboarding('account.heading')}
-      </Heading>
-      <Text variant="muted">{tOnboarding('account.why')}</Text>
-
+      {/* Heading + description live in the wizard hero now. */}
       <Stack gap={4}>
         <Input
           id="email"

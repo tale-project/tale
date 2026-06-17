@@ -70,7 +70,13 @@ const SwitchBase = forwardRef<
         id={id}
         data-slot="switch"
         className={cn(
-          'peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-border focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-border/80 inline-flex shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+          // Light mode: the unchecked track (`bg-border`, 90% L) is barely
+          // perceptible on the near-white page (~1.2:1) — and `disabled` halves
+          // it again into invisibility. Give the unchecked track a visible
+          // `border-border-strong` outline so the control's shape always reads,
+          // even when disabled. Dark mode already has enough edge contrast (see
+          // globals.css), so it keeps the transparent border there.
+          'peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-border data-[state=unchecked]:border-border-strong data-[state=checked]:border-transparent dark:border-transparent focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-border/80 inline-flex shrink-0 items-center rounded-full border shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-60',
           SWITCH_TRACK_DIMENSIONS,
           className,
         )}

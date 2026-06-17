@@ -33,7 +33,7 @@ function PoliciesLimitsRoute() {
   const { id: organizationId } = Route.useParams();
 
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <BudgetEditor organizationId={organizationId} />
       <UploadPolicyEditor organizationId={organizationId} />
       <RetentionEditor organizationId={organizationId} />

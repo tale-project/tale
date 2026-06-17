@@ -2225,7 +2225,7 @@
   },
   "onboarding": {
     "title": "Richte deinen Arbeitsbereich ein",
-    "subtitle": "Ein paar schnelle Schritte und du bist startklar.",
+    "subtitle": "Nur ein paar schnelle Schritte, bis dein Arbeitsbereich einsatzbereit ist.",
     "backToApp": "Zurück zur App",
     "stepsAriaLabel": "Onboarding-Schritte",
     "progress": "Schritt {current} von {total}: {label}",
@@ -2253,7 +2253,8 @@
     },
     "provider": {
       "heading": "OpenRouter verbinden",
-      "why": "Ein OpenRouter-Schlüssel schaltet Chat, Bildgenerierung & -bearbeitung, Sprachmodus und mehr über Hunderte Modelle aller großen Anbieter frei. Wir konfigurieren eine empfohlene Auswahl vor, damit du sofort loslegen kannst.",
+      "connect": "Verbinden",
+      "why": "Ein Schlüssel schaltet Hunderte Modelle für Chat, Bilder, Sprache und mehr frei – wir konfigurieren eine empfohlene Auswahl vor, damit du sofort loslegen kannst.",
       "keyLabel": "OpenRouter-API-Schlüssel",
       "keyPlaceholder": "sk-or-...",
       "keyHelp": "Verschlüsselt gespeichert. Leer lassen, um dies später in den Einstellungen einzurichten.",
@@ -4579,6 +4580,8 @@
       "profile": {
         "title": "Profil",
         "description": "Dein Anzeigename und deine E-Mail — sichtbar für deine Teamkollegen.",
+        "nameDescription": "Der Name, der deinen Teamkollegen angezeigt wird.",
+        "emailDescription": "Wird zur Anmeldung und für Benachrichtigungen verwendet.",
         "name": "Anzeigename",
         "namePlaceholder": "Gib deinen Namen ein",
         "email": "E-Mail",
@@ -4607,6 +4610,8 @@
       "title": "Organisation (optional)",
       "detailsTitle": "Organisationsdetails",
       "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",
+      "nameDescription": "Der Anzeigename deiner Organisation.",
+      "localeDescription": "Die Hauptsprache deiner Organisation.",
       "identifiersTitle": "Kennungen",
       "identifiersDescription": "Schreibgeschützte Referenzen für API-Aufrufe oder den Support.",
       "organizationId": "Organisations-ID",
@@ -7033,6 +7038,7 @@
       "title": "Verbindungsdaten",
       "usernameLabel": "Benutzername",
       "usernameHelp": "Deine Tale-Konto-E-Mail (oder dein Benutzername)",
+      "copyUsername": "Benutzername kopieren",
       "passwordLabel": "Passwort",
       "passwordHelp": "Ein App-Passwort, das du unten erzeugst — nicht dein Konto-Passwort."
     },

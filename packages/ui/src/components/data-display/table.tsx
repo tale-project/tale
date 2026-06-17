@@ -62,7 +62,16 @@ const TableBody = forwardRef<
 >(({ className, ...props }, ref) => (
   <tbody
     ref={ref}
-    className={cn('[&_tr:hover]:bg-muted', className)}
+    // Row hover is an interactivity affordance, so it must not target
+    // non-interactive rows (empty/filtered-empty states, expanded-content
+    // rows). Those opt out with `data-no-hover`; excluding them here (rather
+    // than overriding per-row) avoids a specificity fight this descendant
+    // selector would otherwise win.
+    //
+    // Use a 50%-muted tint (not solid `bg-muted`) so the hover reads as a
+    // subtle highlight distinct from the header, whose cells are painted with
+    // solid `bg-muted` — at full strength the two were indistinguishable.
+    className={cn('[&_tr:not([data-no-hover]):hover]:bg-muted/50', className)}
     {...props}
   />
 ));

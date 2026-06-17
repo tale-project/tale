@@ -20,7 +20,7 @@ const selectContentVariants = cva(
   // could extend past the edge and clip its first option (e.g. "End workflow")
   // behind the scroll buttons. The `,24rem` fallback keeps the cap for the
   // `item-aligned` position, where Radix does not expose the available-height var.
-  'relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height,24rem))] min-w-[8rem] overflow-hidden rounded-md border bg-muted text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+  'relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height,24rem))] min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground dark:bg-muted shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
   {
     variants: {
       position: {

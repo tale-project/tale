@@ -36,7 +36,7 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
   }
 
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <SettingsSection
         title={tNav('teams')}
         description={tSettings('teams.sectionDescription')}

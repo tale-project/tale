@@ -44,7 +44,10 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
         {...props}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-          <div className="flex min-w-0 flex-col gap-1">
+          {/* Cap the title/description column at a readable line length so long
+              descriptions don't stretch the full content width (and run up
+              against a right-aligned `action`). */}
+          <div className="flex max-w-2xl min-w-0 flex-col gap-1">
             <h2
               id={headingId}
               className="text-foreground text-base leading-tight font-semibold"

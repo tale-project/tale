@@ -1,13 +1,13 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack, Stack, VStack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
+import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -39,7 +39,6 @@ type EnrollState =
     };
 
 export function TwoFactorSection() {
-  const { t } = useT('twoFactor');
   const { data: status } = useConvexQuery(api.two_factor.queries.getStatus, {});
 
   // SSO-only users: hide the section. The backend also rejects enable
@@ -48,19 +47,10 @@ export function TwoFactorSection() {
   // BackupCodesDialogProvider at the root so it's unaffected.
   if (!status || !status.authenticated || !status.hasCredential) return null;
 
-  return (
-    <PageSection
-      title={t('enrollment.title')}
-      description={t('enrollment.description')}
-      titleSize="base"
-      className="pt-4"
-    >
-      {status.twoFactorEnabled ? (
-        <EnrolledState />
-      ) : (
-        <NotEnrolledState enforced={status.enforced} />
-      )}
-    </PageSection>
+  return status.twoFactorEnabled ? (
+    <EnrolledState />
+  ) : (
+    <NotEnrolledState enforced={status.enforced} />
   );
 }
 
@@ -122,17 +112,21 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
   }
 
   return (
-    <Stack gap={3}>
+    <SettingsSection
+      className="border-border border-t pt-8"
+      title={t('enrollment.title')}
+      description={t('enrollment.description')}
+      action={
+        <Button onClick={() => setState({ step: 'password' })}>
+          {t('enrollment.enableButton')}
+        </Button>
+      }
+    >
       {enforced && (
         <Text variant="muted" className="text-sm">
           {t('enrollment.requiredByOrg')}
         </Text>
       )}
-      <div>
-        <Button onClick={() => setState({ step: 'password' })}>
-          {t('enrollment.enableButton')}
-        </Button>
-      </div>
 
       <PasswordPromptDialog
         open={state.step === 'password'}
@@ -154,7 +148,7 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
           onSubmit={confirmCode}
         />
       )}
-    </Stack>
+    </SettingsSection>
   );
 }
 
@@ -207,18 +201,24 @@ function EnrolledState() {
   }
 
   return (
-    <Stack gap={3}>
+    <SettingsSection
+      className="border-border border-t pt-8"
+      title={t('enrollment.title')}
+      description={t('enrollment.description')}
+      action={
+        <HStack gap={2}>
+          <Button variant="secondary" onClick={() => setRegenOpen(true)}>
+            {t('enrollment.regenerateButton')}
+          </Button>
+          <Button variant="destructive" onClick={() => setDisableOpen(true)}>
+            {t('enrollment.disableButton')}
+          </Button>
+        </HStack>
+      }
+    >
       <Text variant="muted" className="text-sm">
         {t('enrollment.enabledHint')}
       </Text>
-      <HStack gap={2}>
-        <Button variant="secondary" onClick={() => setRegenOpen(true)}>
-          {t('enrollment.regenerateButton')}
-        </Button>
-        <Button variant="destructive" onClick={() => setDisableOpen(true)}>
-          {t('enrollment.disableButton')}
-        </Button>
-      </HStack>
 
       <PasswordPromptDialog
         open={disableOpen}
@@ -245,7 +245,7 @@ function EnrolledState() {
         onSubmit={regenerate}
         error={error}
       />
-    </Stack>
+    </SettingsSection>
   );
 }
 

@@ -14,7 +14,7 @@ function ApiRuntimesPage() {
 
   // Access is gated by the parent `api` route layout.
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <RuntimesSettings organizationId={organizationId} />
     </SettingsPage>
   );

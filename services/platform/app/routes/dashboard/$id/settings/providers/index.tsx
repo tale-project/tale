@@ -16,7 +16,7 @@ function ProvidersIndexRoute() {
   const { t: tSettings } = useT('settings');
 
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <SettingsSection
         title={tNav('providers')}
         description={tSettings('menu.providers.description')}

@@ -19,6 +19,17 @@ export type WizardStatus = 'idle' | 'submitting';
  */
 export type WizardBeforeNext = () => boolean | Promise<boolean>;
 
+/**
+ * Per-step override for the footer's primary (Next) control. Lets a step adapt
+ * the label/emphasis to the current input — e.g. an optional key step showing
+ * "Skip for now" (secondary) while empty and "Connect" (primary) once filled,
+ * so a single button always reflects what will happen.
+ */
+export interface WizardPrimaryOverride {
+  label?: string;
+  variant?: 'primary' | 'secondary';
+}
+
 export interface WizardContextValue {
   steps: WizardStepMeta[];
   activeIndex: number;
@@ -39,6 +50,13 @@ export interface WizardContextValue {
     handler: WizardBeforeNext | undefined,
   ) => void;
   isStepValid: (id: string) => boolean;
+  /** A step registers/clears its primary-action override (label + emphasis). */
+  setStepPrimary: (
+    id: string,
+    override: WizardPrimaryOverride | undefined,
+  ) => void;
+  /** The active step's primary-action override, if any. */
+  activePrimary: WizardPrimaryOverride | undefined;
 }
 
 export const WizardContext = createContext<WizardContextValue | null>(null);

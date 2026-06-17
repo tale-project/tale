@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { HStack } from '@tale/ui/layout';
 import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -84,26 +85,28 @@ export function ChatsSection() {
 
   return (
     <SettingsSection
+      className="border-border border-t pt-8"
       title={t('account.chats.title')}
       description={t('account.chats.description')}
+      action={
+        <HStack gap={2}>
+          <Button
+            variant="secondary"
+            disabled={activeCount === 0 || isArchiving}
+            onClick={() => setArchiveOpen(true)}
+          >
+            {t('account.chats.archiveAll')}
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={deletableCount === 0 || isDeleting}
+            onClick={() => setDeleteOpen(true)}
+          >
+            {t('account.chats.deleteAll')}
+          </Button>
+        </HStack>
+      }
     >
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Button
-          variant="secondary"
-          disabled={activeCount === 0 || isArchiving}
-          onClick={() => setArchiveOpen(true)}
-        >
-          {t('account.chats.archiveAll')}
-        </Button>
-        <Button
-          variant="destructive"
-          disabled={deletableCount === 0 || isDeleting}
-          onClick={() => setDeleteOpen(true)}
-        >
-          {t('account.chats.deleteAll')}
-        </Button>
-      </div>
-
       <ConfirmDialog
         open={archiveOpen}
         onOpenChange={setArchiveOpen}

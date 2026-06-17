@@ -17,9 +17,9 @@ import { ValidationCheckList } from '@/app/components/ui/feedback/validation-che
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { Label } from '@/app/components/ui/forms/label';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -52,10 +52,10 @@ interface SetPasswordFormData {
 
 // =============================================================================
 // Container — owns the loading state (current user + credential probe) and
-// wraps the real `SettingsPage narrow` view in `<Skeletonize>` so the skeleton
-// inherits the SAME narrow centering and section structure (no horizontal
-// shift on load, and no empty-Input → real-value flash). Skeleton-aware leaves
-// (Input, Button) mask themselves while loading.
+// wraps the real full-width view in `<Skeletonize>` so the skeleton inherits
+// the SAME row structure (no horizontal shift on load, and no empty-Input →
+// real-value flash). Skeleton-aware leaves (Input, Button) mask themselves
+// while loading.
 // =============================================================================
 export function AccountForm() {
   const { data: hasCredential, isLoading: isCredentialLoading } =
@@ -70,13 +70,13 @@ export function AccountForm() {
 }
 
 // =============================================================================
-// Plain presentational view — renders the real `SettingsPage narrow` layout.
+// Plain presentational view — renders the real full-width settings layout.
 // Rendered both live and (wrapped in `<Skeletonize>`) as its own skeleton, so
 // loading and loaded layouts are the SAME tree and cannot drift.
 // =============================================================================
 function AccountFormView({ hasCredential }: { hasCredential: boolean }) {
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <ProfileSection />
       <PasswordSection hasCredential={hasCredential} />
       <TwoFactorSection />
@@ -154,38 +154,56 @@ function ProfileSection() {
         id="account-profile-form"
         onSubmit={handleSubmit((values) => save(values))}
       >
-        <fieldset disabled={editor.isLoading} className="contents space-y-4">
-          <Input
-            id="display-name"
+        {/* Settings-row layout (label + helper text left, control pinned
+            right, divider between rows) mirroring the Organization details
+            block. */}
+        <fieldset
+          disabled={editor.isLoading}
+          className="divide-border divide-y"
+        >
+          <SettingsRow
+            className="py-5"
             label={tSettings('account.profile.name')}
-            placeholder={tSettings('account.profile.namePlaceholder')}
-            disabled={editor.isSaving}
-            errorMessage={errors.name?.message}
-            wrapperClassName="max-w-sm"
-            {...register('name')}
-          />
-          <EmailField email={user?.email ?? ''} />
+            description={tSettings('account.profile.nameDescription')}
+          >
+            <div className="w-full sm:w-80">
+              <Input
+                id="display-name"
+                placeholder={tSettings('account.profile.namePlaceholder')}
+                disabled={editor.isSaving}
+                errorMessage={errors.name?.message}
+                wrapperClassName="w-full"
+                {...register('name')}
+              />
+            </div>
+          </SettingsRow>
+
+          <SettingsRow
+            className="py-5"
+            label={tSettings('account.profile.email')}
+            description={tSettings('account.profile.emailDescription')}
+          >
+            <div className="w-full sm:w-80">
+              <EmailField email={user?.email ?? ''} />
+            </div>
+          </SettingsRow>
         </fieldset>
       </Form>
     </SettingsSection>
   );
 }
 
-/** Read-only email row. Visually mirrors the `CopyableField` pill used for the
+/** Read-only email pill. Visually mirrors the `CopyableField` pill used for the
  *  Organization ID elsewhere in settings — same bg, border, radius, padding —
  *  so any "you can read this but can't edit it here" surface looks consistent.
  *  Doesn't render a copy button because nobody copies their own email out of
- *  Account settings. */
+ *  Account settings. The field label lives on the enclosing `SettingsRow`. */
 function EmailField({ email }: { email: string }) {
-  const { t: tSettings } = useT('settings');
   const loading = useSkeleton();
 
   return (
-    <div className="flex max-w-sm flex-col gap-1.5">
-      <Label>{tSettings('account.profile.email')}</Label>
-      <div className="bg-muted/40 ring-border text-muted-foreground flex w-full items-center rounded-lg border px-3 py-2.25 text-sm">
-        {loading ? <SkeletonText /> : email}
-      </div>
+    <div className="bg-muted/40 ring-border text-muted-foreground flex w-full items-center rounded-lg border px-3 py-2.25 text-sm">
+      {loading ? <SkeletonText /> : email}
     </div>
   );
 }
@@ -201,17 +219,17 @@ function PasswordSection({ hasCredential }: PasswordSectionProps) {
 
   return (
     <SettingsSection
+      className="border-border border-t pt-8"
       title={tSettings('account.security.title')}
       description={tSettings('account.security.description')}
-    >
-      <div>
+      action={
         <Button variant="secondary" onClick={() => setOpen(true)}>
           {hasCredential
             ? tAuth('changePassword.title')
             : tAuth('setPassword.title')}
         </Button>
-      </div>
-
+      }
+    >
       {hasCredential ? (
         <ChangePasswordDialog open={open} onOpenChange={setOpen} />
       ) : (

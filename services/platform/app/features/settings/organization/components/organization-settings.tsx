@@ -19,6 +19,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useDeleteOrganization } from '@/app/features/organization/hooks/use-delete-organization';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { MembersSettings } from '@/app/features/settings/organization/components/members-settings';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
@@ -76,10 +77,10 @@ function parseMetadata(metadata: unknown): {
 }
 
 // =============================================================================
-// Plain presentational view — renders the real `SettingsPage narrow` layout
+// Plain presentational view — renders the full-width settings-row layout
 // from an injected controller. Rendered both live and (wrapped in
 // `<Skeletonize>`) as its own skeleton, so the skeleton inherits the exact
-// `narrow` centering and section structure — it can't drift horizontally or
+// row structure and control widths — it can't drift horizontally or
 // vertically from the loaded content.
 // =============================================================================
 export function OrganizationSettingsView({
@@ -117,7 +118,13 @@ export function OrganizationSettingsView({
   );
 
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
+      {/* Settings-row layout: each field is a horizontal row with its
+          label + helper text on the left and the control pinned right, with
+          a divider between rows. The form (name + locale) and the read-only
+          Organization ID share one divided list so they read as one
+          continuous block; Save/Discard live in the settings header via the
+          registered editor. */}
       <SettingsSection
         title={tSettings('organization.detailsTitle')}
         description={tSettings('organization.detailsDescription')}
@@ -126,67 +133,82 @@ export function OrganizationSettingsView({
           id="organization-form"
           onSubmit={handleSubmit((values) => onSave(values))}
         >
-          {/* `max-w-sm` lives on the field column (not each control) so the
-              full-width skeleton masks resolve to the same width as the loaded
-              `max-w-sm` controls — no horizontal shrink when data lands. */}
-          <fieldset
-            disabled={isLoading}
-            className="flex max-w-sm flex-col gap-4"
-          >
-            <Input
-              id="org-name"
+          <fieldset disabled={isLoading} className="divide-border divide-y">
+            <SettingsRow
+              className="py-5"
               label={tSettings('organization.title')}
-              {...register('name')}
-            />
-            {/* Controlled via RHF `Controller`: the field registers itself so
-                dirty tracking is automatic (no `setValue(..., { shouldDirty })`
-                to forget). `field.value ?? ''` keeps Radix controlled from the
-                first render before the form resets to server data. */}
-            <Controller
-              control={control}
-              name="defaultLocale"
-              render={({ field }) => (
-                <Select
-                  id="default-locale"
-                  label={tSettings('organization.defaultLocale')}
-                  value={field.value ?? ''}
-                  onValueChange={(value) => {
-                    // Radix emits a spurious `onValueChange('')` while its value
-                    // and options settle during cold load; drop it (`''` is
-                    // never a valid locale) so it can't false-dirty the form on
-                    // a page the user only opened.
-                    if (!value) return;
-                    field.onChange(value);
-                  }}
-                  disabled={isSaving || isLoading}
-                  options={localeOptions}
+              description={tSettings('organization.nameDescription')}
+            >
+              {/* Fixed-width control column, full-width on mobile where the row
+                stacks. `wrapperClassName="w-full"` lets the bare Input fill it
+                so its skeleton mask matches the loaded width. */}
+              <div className="w-full sm:w-80">
+                <Input
+                  id="org-name"
+                  {...register('name')}
+                  wrapperClassName="w-full"
                 />
-              )}
-            />
+              </div>
+            </SettingsRow>
+
+            <SettingsRow
+              className="py-5"
+              label={tSettings('organization.defaultLocale')}
+              description={tSettings('organization.localeDescription')}
+            >
+              <div className="w-full sm:w-80">
+                {/* Controlled via RHF `Controller`: the field registers itself so
+                  dirty tracking is automatic (no `setValue(..., { shouldDirty })`
+                  to forget). `field.value ?? ''` keeps Radix controlled from the
+                  first render before the form resets to server data. */}
+                <Controller
+                  control={control}
+                  name="defaultLocale"
+                  render={({ field }) => (
+                    <Select
+                      id="default-locale"
+                      value={field.value ?? ''}
+                      onValueChange={(value) => {
+                        // Radix emits a spurious `onValueChange('')` while its
+                        // value and options settle during cold load; drop it
+                        // (`''` is never a valid locale) so it can't false-dirty
+                        // the form on a page the user only opened.
+                        if (!value) return;
+                        field.onChange(value);
+                      }}
+                      disabled={isSaving || isLoading}
+                      options={localeOptions}
+                    />
+                  )}
+                />
+              </div>
+            </SettingsRow>
+
+            <SettingsRow
+              className="py-5"
+              label={tSettings('organization.organizationId')}
+              description={tSettings('organization.organizationIdDescription')}
+            >
+              <div className="w-full sm:w-80">
+                <CopyableField
+                  value={organization?._id ?? ''}
+                  copyAriaLabel={tSettings('organization.copyOrganizationId')}
+                />
+              </div>
+            </SettingsRow>
           </fieldset>
         </Form>
       </SettingsSection>
 
-      <SettingsSection
-        title={tSettings('organization.identifiersTitle')}
-        description={tSettings('organization.identifiersDescription')}
-      >
-        {/* `max-w-sm` on the wrapper (not the field) so the full-width
-            skeleton mask matches the loaded field width — no shrink on load. */}
-        <div className="max-w-sm">
-          <CopyableField
-            label={tSettings('organization.organizationId')}
-            description={tSettings('organization.organizationIdDescription')}
-            value={organization?._id ?? ''}
-            copyAriaLabel={tSettings('organization.copyOrganizationId')}
-          />
-        </div>
-      </SettingsSection>
-
+      {/* Light full-width divider marks the boundary between the
+          organization-details block and the Members section — the within-block
+          rows already use dividers, so without it the two groups blur together
+          across the gap. `pt-8` keeps the heading off the line. */}
       <SettingsSection
         title={tSettings('organization.membersSectionTitle')}
         description={tSettings('organization.membersDescription')}
         gap={5}
+        className="border-border border-t pt-8"
       >
         <MembersSettings
           organizationId={organizationId}
