@@ -15,9 +15,13 @@ import type { IncomingMessage } from 'node:http';
 import { connect } from 'node:net';
 import type { Duplex } from 'node:stream';
 
-/** Default x11vnc RFB endpoint inside the session container. */
+/** Default x11vnc RFB endpoints inside the session container. :5900 is the
+ * read-only mirror every watcher gets; :5901 is the writable control path,
+ * dialed ONLY for an authorized `?control=1` upgrade (entrypoint.sh runs a
+ * second, non-`-viewonly` x11vnc there). */
 const VNC_HOST = '127.0.0.1';
 const VNC_PORT = 5900;
+const VNC_CONTROL_PORT = 5901;
 
 /** Resolve the dial target. Read from the environment per-connection so unit
  * tests can point the tunnel at a stub TCP server on an ephemeral port (same
@@ -25,9 +29,29 @@ const VNC_PORT = 5900;
 function targetHost(): string {
   return process.env.TALE_SCREENCAST_TARGET_HOST ?? VNC_HOST;
 }
-function targetPort(): number {
-  return Number(process.env.TALE_SCREENCAST_TARGET_PORT ?? '') || VNC_PORT;
+function targetPort(control: boolean): number {
+  // A test override points BOTH view and control at the same stub server.
+  const override = Number(process.env.TALE_SCREENCAST_TARGET_PORT ?? '');
+  if (override) return override;
+  return control ? VNC_CONTROL_PORT : VNC_PORT;
 }
+
+/** A control grant routes to the writable x11vnc. The platform oracle is the
+ * authority that gates + leases control; runnerd only honors the already-
+ * authorized flag the spawner forwarded on the upgrade query. */
+function wantsControl(req: IncomingMessage): boolean {
+  try {
+    const u = new URL(req.url ?? '', 'http://runnerd.local');
+    return u.searchParams.get('control') === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** While a tunnel is piping, bump last-activity periodically (not just at
+ * attach) so the idle reaper never stops a session a human is actively driving,
+ * even across a long control session with no exec running. */
+const SCREENCAST_TOUCH_INTERVAL_MS = 20_000;
 
 /** Upgrade protocol token echoed back in the 101 response. Cosmetic — the
  * relayed bytes are raw RFB, not a WebSocket subprotocol. */
@@ -83,8 +107,11 @@ export function handleScreencastUpgrade(
   }
 
   // Dial x11vnc FIRST: only after a successful connect do we send 101, so a
-  // down backend surfaces as a clean 502 instead of a half-open tunnel.
-  const vnc = connect(targetPort(), targetHost());
+  // down backend surfaces as a clean 502 instead of a half-open tunnel. A
+  // `?control=1` upgrade (already authorized + leased by the platform oracle)
+  // dials the writable :5901; everything else dials the read-only :5900.
+  const control = wantsControl(req);
+  const vnc = connect(targetPort(control), targetHost());
 
   // True once the 101 handshake has gone out and we are piping; flips the
   // 'error' handling from "answer 502" to "tear the live tunnel down".
@@ -92,10 +119,16 @@ export function handleScreencastUpgrade(
   // Guards the teardown so each side is destroyed exactly once and the active
   // count is decremented exactly once.
   let closed = false;
+  // Heartbeat that re-touches last-activity while piping (cleared on teardown).
+  let touchTimer: ReturnType<typeof setInterval> | null = null;
 
   const teardown = (): void => {
     if (closed) return;
     closed = true;
+    if (touchTimer !== null) {
+      clearInterval(touchTimer);
+      touchTimer = null;
+    }
     if (piping) {
       activeScreencasts -= 1;
     }
@@ -116,6 +149,10 @@ export function handleScreencastUpgrade(
     piping = true;
     activeScreencasts += 1;
     deps.touch();
+    touchTimer = setInterval(deps.touch, SCREENCAST_TOUCH_INTERVAL_MS);
+    // Node keeps the event loop alive for timers; a screencast tunnel should
+    // not by itself prevent the daemon from exiting, so unref it.
+    touchTimer.unref?.();
     // pipe() applies backpressure (pause the source when the dest buffer fills,
     // resume on drain) on both legs.
     socket.pipe(vnc);

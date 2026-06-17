@@ -41,6 +41,9 @@ export const approvalResourceTypeValidator = v.union(
   // External-agent (Claude Code) plan proposal awaiting the user's
   // approve-and-execute in chat (plan/act workflow).
   v.literal('external_agent_plan'),
+  // External-agent browser handoff: the agent parked its turn to let a human
+  // drive the live browser (CAPTCHA/login/2FA); returning control resumes it.
+  v.literal('external_agent_human_control'),
 );
 
 export const approvalItemValidator = v.object({

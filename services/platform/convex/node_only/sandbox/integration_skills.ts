@@ -26,6 +26,50 @@ import {
 
 const SKILLS_DIR = '.runtime/home/.claude/skills';
 const INTEGRATION_SKILL_PREFIX = 'integration-';
+const BROWSER_CONTROL_SKILL = 'browser-human-control';
+
+/** Static CC-native skill (browserCdp turns only) teaching the agent WHEN to
+ * call `request_human_control`. The trigger condition lives here, not in the
+ * system prompt (capability-only) — mirrors how plan-mode guidance is staged
+ * out of the standing prompt. The tool description carries the "what"; this
+ * carries the "when". */
+const BROWSER_CONTROL_SKILL_MD = `---
+name: ${BROWSER_CONTROL_SKILL}
+description: "Hand the live browser to a human for a step only a person can do — a CAPTCHA, login, 2FA/OTP, or consent screen. Call the request_human_control tool."
+---
+
+# Human takeover of the live browser
+
+You drive the live browser yourself via the Playwright tools. Some steps,
+however, can only be completed by a human at the keyboard. When you hit one,
+**stop and call \`request_human_control({ reason })\`** instead of guessing or
+giving up.
+
+## Call it when you hit
+
+- A **CAPTCHA** / "prove you're human" challenge.
+- A **login form** whose credentials you do not have.
+- A **2FA / OTP** prompt (code from the user's phone/email/authenticator).
+- An **account-consent / device-verification** screen.
+
+## How
+
+\`\`\`
+request_human_control({ reason: "solve the CAPTCHA on the checkout page" })
+\`\`\`
+
+Give a short, specific \`reason\` — it is shown to the human so they know exactly
+what to do. After the call, **end your turn immediately**. A human takes control
+of the browser, completes the step, and you are resumed automatically with the
+browser at the new state. Then verify the page and continue.
+
+## Do not
+
+- Do **not** try to read or solve a CAPTCHA yourself.
+- Do **not** ask for the password or OTP in chat — the human enters it directly
+  in the browser.
+- Do **not** call this repeatedly; one call hands off and ends your turn.
+`;
 
 function yamlInline(value: string): string {
   return value.replace(/"/g, "'").replace(/\s+/g, ' ').trim().slice(0, 280);
@@ -134,6 +178,36 @@ export async function stageIntegrationSkills(
   if (result.skipped.length > 0) {
     console.warn(
       '[stageIntegrationSkills] some integration skills were skipped:',
+      result.skipped,
+    );
+  }
+}
+
+/**
+ * Stage the static browser-human-control skill. Call only on turns where the
+ * live headed browser (browserCdp) is enabled — that's the one a human can
+ * drive via x11vnc, so the request_human_control tool exists. Idempotent
+ * (overwrites the same path each turn). Best-effort — never fails the turn.
+ */
+export async function stageBrowserControlSkill(
+  ctx: ActionCtx,
+  args: { sessionId: string },
+): Promise<void> {
+  // ctx is unused today (the skill text is static), but kept in the signature
+  // for parity with stageIntegrationSkills and in case the text ever needs org
+  // context. Reference it to satisfy no-unused-vars without changing callers.
+  void ctx;
+  const result = await sessionStageFiles(args.sessionId, [
+    {
+      path: `${SKILLS_DIR}/${BROWSER_CONTROL_SKILL}/SKILL.md`,
+      contentBase64: Buffer.from(BROWSER_CONTROL_SKILL_MD, 'utf8').toString(
+        'base64',
+      ),
+    },
+  ]);
+  if (result.skipped.length > 0) {
+    console.warn(
+      '[stageBrowserControlSkill] skill staging was skipped:',
       result.skipped,
     );
   }

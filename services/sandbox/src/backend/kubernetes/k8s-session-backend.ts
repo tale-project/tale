@@ -50,6 +50,14 @@ export class KubernetesSessionBackend implements SessionBackend {
     // A failed create here must NOT delete that PVC (it holds the user's
     // preserved data) — stop instead. Fresh creates clean up fully.
     const preexisting = await this.workspacePvcExists(spec.sessionId);
+    // On a resume (preexisting PVC) a Pod that died out-of-band can still hold
+    // the deterministic Pod/Secret name and would 409 the create below — one
+    // wasted, user-visible failed turn before the failed-create cleanup reaps
+    // it. Reap a terminal orphan UP-FRONT so the resume is first-attempt clean
+    // (parity with the Docker backend's reconcile-on-conflict). The
+    // failed-create cleanup envelope remains the backstop for anything this
+    // misses.
+    if (preexisting) await this.reapTerminalPod(spec.sessionId);
     await this.ensureWorkspacePvc(spec.sessionId);
 
     const secret: V1Secret = {
@@ -168,6 +176,60 @@ export class KubernetesSessionBackend implements SessionBackend {
     // loss) is dead for session purposes — session Pods never restart.
     if (pod.metadata?.deletionTimestamp) return false;
     return pod.status?.phase === 'Running';
+  }
+
+  /**
+   * Resume helper: a session Pod that died out-of-band (Failed after an OOM /
+   * eviction) is never restarted, yet it still occupies the deterministic
+   * Pod/Secret name and would 409 the create on the next resume. Delete such a
+   * PROVABLY-DEAD orphan (+ its Secret) and wait until the Pod object is gone,
+   * so the recreate is first-attempt clean.
+   *
+   * Reap ONLY a Pod that is genuinely terminal — `Failed`/`Succeeded` (runnerd
+   * is never restarted, so these never recover) or one already terminating
+   * (deletionTimestamp set). This mirrors the Docker backend's exited/dead gate.
+   * Crucially we do NOT reap `Running` OR `Pending`: the spawner is a
+   * multi-replica Deployment behind a VIP, and the route's `creating` set is
+   * per-replica in-memory — it does NOT serialize creates ACROSS replicas. A
+   * peer that just won the create on another replica dwells in `Pending` for
+   * seconds (schedule + image pull + start) before `Running`; reaping a Pending
+   * Pod would delete that healthy, still-starting peer and its Secret. `Pending`
+   * is the K8s analogue of Docker `created`, which the Docker gate also spares;
+   * `Unknown` (node partition) may also still be alive. A genuinely stuck
+   * Pending/Unknown orphan is rare and the failed-create cleanup is the backstop.
+   */
+  private async reapTerminalPod(sessionId: string): Promise<void> {
+    let pod: V1Pod;
+    try {
+      pod = await this.readPod(sessionId);
+    } catch (err) {
+      if (httpStatusCode(err) === 404) return; // already gone — nothing to reap
+      throw err; // transient API error: fail the create; the platform retries
+    }
+    const phase = pod.status?.phase;
+    const terminal =
+      phase === 'Failed' ||
+      phase === 'Succeeded' ||
+      pod.metadata?.deletionTimestamp != null;
+    if (!terminal) return; // Running/Pending/Unknown → possible live peer, leave it
+    await this.removePodAndSecret(sessionId);
+    // Deletion is asynchronous (graceful termination), so poll until the Pod
+    // object is gone — recreating against a still-Terminating Pod would 409.
+    const deadline = Date.now() + this.cfg.session.createHealthTimeoutMs;
+    for (;;) {
+      try {
+        await this.readPod(sessionId);
+      } catch (err) {
+        if (httpStatusCode(err) === 404) return; // gone
+        throw err;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(
+          `session ${sessionId} pod stuck terminating past create timeout`,
+        );
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
   }
 
   /** Delete the Pod + Secret, leaving the workspace PVC intact. Shared by

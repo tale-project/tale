@@ -170,7 +170,7 @@ async function resolveAllowedOrgSlugs(
 export const SCREENCAST_ROUTE_RE = /^\/screencast\/([^/]+)$/;
 
 type ScreencastAuthResult =
-  | { ok: true; sessionId: string }
+  | { ok: true; sessionId: string; control: boolean }
   | { ok: false; status: number; body: string; contentType: string };
 
 /**
@@ -184,6 +184,7 @@ type ScreencastAuthResult =
 export async function authorizeScreencast(
   threadId: string,
   cookieHeader: string | undefined,
+  control = false,
 ): Promise<ScreencastAuthResult> {
   const deny = (
     status: number,
@@ -195,7 +196,7 @@ export async function authorizeScreencast(
   try {
     const target = `${convexHttpActionsBaseUrl()}/api/sandbox/screencast-auth?threadId=${encodeURIComponent(
       threadId,
-    )}`;
+    )}${control ? '&control=1' : ''}`;
     res = await fetch(target, { headers: { cookie: cookieHeader } });
   } catch (err) {
     console.warn('[/screencast] convex auth lookup failed', err);
@@ -203,18 +204,23 @@ export async function authorizeScreencast(
   }
   if (res.status === 200) {
     let sessionId: unknown;
+    let controlGranted = false;
     try {
       const body: unknown = await res.json();
       sessionId =
         body && typeof body === 'object' && 'sessionId' in body
           ? (body as { sessionId: unknown }).sessionId
           : undefined;
+      controlGranted =
+        body !== null &&
+        typeof body === 'object' &&
+        (body as { control?: unknown }).control === true;
     } catch (err) {
       console.warn('[/screencast] convex auth 200 with unreadable body', err);
       return deny(502, 'Bad Gateway');
     }
     if (typeof sessionId === 'string' && sessionId.length > 0) {
-      return { ok: true, sessionId };
+      return { ok: true, sessionId, control: controlGranted };
     }
     return deny(502, 'Bad Gateway');
   }
@@ -787,10 +793,15 @@ if (import.meta.main) {
         }
         if (!threadId) return new Response('Bad Request', { status: 400 });
 
+        // `?control=1` requests a WRITABLE browser (human takeover); the oracle
+        // decides whether to grant it (pending handoff + owner + lease) and a
+        // denied control request still streams read-only.
+        const wantControl = url.searchParams.get('control') === '1';
         // Auth BEFORE upgrade: a denied viewer never reaches the relay.
         const auth = await authorizeScreencast(
           threadId,
           req.headers.get('cookie') ?? undefined,
+          wantControl,
         );
         if (!auth.ok) {
           return new Response(auth.body, {
@@ -803,7 +814,7 @@ if (import.meta.main) {
           });
         }
         const upgraded = server.upgrade(req, {
-          data: { sessionId: auth.sessionId, threadId },
+          data: { sessionId: auth.sessionId, threadId, control: auth.control },
         });
         // On success Bun owns the socket and `fetch` must return undefined.
         if (upgraded) return undefined;

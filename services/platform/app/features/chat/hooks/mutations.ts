@@ -46,6 +46,12 @@ export function useRejectPlan() {
   return useConvexMutation(api.approvals.plan_mutations.rejectPlan);
 }
 
+export function useReturnHumanControl() {
+  return useConvexMutation(
+    api.approvals.human_control_mutations.returnHumanControl,
+  );
+}
+
 export function useExecuteApprovedIntegrationOperation() {
   return useConvexAction(
     api.approvals.actions.executeApprovedIntegrationOperation,

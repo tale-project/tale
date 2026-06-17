@@ -26,6 +26,18 @@ import {
  */
 const SCREENCAST_RE = /^\/screencast\/([^/?]+)/;
 
+/** True if the upgrade URL carries `?control=1` (human-takeover request). */
+function wantsControl(reqUrl: string | undefined): boolean {
+  try {
+    return (
+      new URL(reqUrl ?? '', 'http://dev.local').searchParams.get('control') ===
+      '1'
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Convex site-proxy (:3211) where the screencast-auth httpAction lives. */
 function convexSiteProxy(): string {
   return process.env.CONVEX_SITE_PROXY_URL || 'http://127.0.0.1:3211';
@@ -46,16 +58,21 @@ function spawnerWsBase(): string {
 async function authorizeScreencast(
   threadId: string,
   cookie: string,
-): Promise<string | null> {
+  control: boolean,
+): Promise<{ sessionId: string; control: boolean } | null> {
   try {
     const res = await fetch(
-      `${convexSiteProxy()}/api/sandbox/screencast-auth?threadId=${encodeURIComponent(threadId)}`,
+      `${convexSiteProxy()}/api/sandbox/screencast-auth?threadId=${encodeURIComponent(threadId)}${control ? '&control=1' : ''}`,
       { headers: cookie ? { cookie } : {} },
     );
     if (!res.ok) return null;
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const body = (await res.json()) as { sessionId?: string };
-    return body.sessionId ?? null;
+    const body = (await res.json()) as {
+      sessionId?: string;
+      control?: boolean;
+    };
+    if (!body.sessionId) return null;
+    return { sessionId: body.sessionId, control: body.control === true };
   } catch (err) {
     console.warn('[serve-screencast] auth oracle call failed:', err);
     return null;
@@ -79,13 +96,15 @@ export function serveScreencast(): Plugin {
           // handler (and any other) can claim it.
           if (!match) return;
           const threadId = decodeURIComponent(match[1]);
+          const control = wantsControl(req.url);
 
           void (async () => {
-            const sessionId = await authorizeScreencast(
+            const auth = await authorizeScreencast(
               threadId,
               req.headers.cookie ?? '',
+              control,
             );
-            if (!sessionId) {
+            if (!auth) {
               socket.write(
                 'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n',
               );
@@ -93,14 +112,18 @@ export function serveScreencast(): Plugin {
               return;
             }
             wss.handleUpgrade(req, socket, head, (browser) => {
-              relayToSpawner(browser, sessionId);
+              relayToSpawner(browser, auth.sessionId, auth.control);
             });
           })();
         },
       );
 
-      function relayToSpawner(browser: WebSocket, sessionId: string): void {
-        const path = spawnerScreencastPath(sessionId);
+      function relayToSpawner(
+        browser: WebSocket,
+        sessionId: string,
+        control: boolean,
+      ): void {
+        const path = spawnerScreencastPath(sessionId, control);
         const headers = buildScreencastAuthHeaders(path, resolveSandboxToken());
         const spawner = new WebSocket(`${spawnerWsBase()}${path}`, { headers });
         browser.binaryType = 'nodebuffer';

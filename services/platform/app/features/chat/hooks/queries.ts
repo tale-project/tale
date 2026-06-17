@@ -10,6 +10,7 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type {
+  HumanControlMetadata,
   KnowledgeWriteMetadata,
   PlanApprovalMetadata,
   WorkflowCreationMetadata,
@@ -660,6 +661,14 @@ export interface PlanApproval {
   _id: Id<'approvals'>;
   status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: PlanApprovalMetadata;
+  _creationTime: number;
+  messageId?: string;
+}
+
+export interface HumanControlRequest {
+  _id: Id<'approvals'>;
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
+  metadata: HumanControlMetadata;
   _creationTime: number;
   messageId?: string;
 }

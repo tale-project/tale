@@ -1,0 +1,164 @@
+#!/usr/bin/env node
+// Human-control MCP bridge (stdio). Exposes ONE tool to Claude Code:
+//
+//   request_human_control({reason}) → "stop and end your turn; a human takes over"
+//
+// Unlike the integrations bridge this shim is PURELY LOCAL — it makes no network
+// call. The platform learns a request was made by observing the tool_use in the
+// agent's stream-json output (run_agent.ts), exactly as it captures ExitPlanMode.
+// So the shim's only job is to (a) advertise the tool and (b) return a result
+// that tells the model to stop driving and end its turn. The platform then
+// surfaces a "take control" card, lets a human drive the live browser, and
+// resumes the agent once control is returned (or auto-resumes if no human shows).
+//
+// Dependency-free: a hand-rolled, newline-delimited JSON-RPC 2.0 loop (the MCP
+// stdio transport). stdout is the protocol channel — only JSON-RPC lines go
+// there; everything else goes to stderr.
+
+'use strict';
+
+const PROTOCOL_VERSION = '2024-11-05';
+const SERVER_INFO = { name: 'tale-human-control', version: '1.0.0' };
+
+// Bound a single un-newlined stdin line so a misbehaving client can't grow the
+// read buffer without limit (the stdin peer is the trusted MCP host, so this is
+// defense-in-depth).
+const MAX_BUFFER_CHARS = 16 * 1024 * 1024;
+
+const TOOLS = [
+  {
+    name: 'request_human_control',
+    description:
+      'Hand the live browser to a human when a step REQUIRES a person and you ' +
+      'cannot complete it yourself — a CAPTCHA, a login form, a 2FA/OTP prompt, ' +
+      'or an account-consent screen. Give a short, specific `reason` (e.g. ' +
+      '"solve the CAPTCHA on the checkout page", "log in to the bank portal"). ' +
+      'After calling this you MUST stop and end your turn: a human will take ' +
+      'control of the browser, complete the step, and you will be resumed ' +
+      'automatically with the browser at the new state. Do NOT guess CAPTCHAs, ' +
+      'do NOT ask for the password in chat, and do NOT keep calling this tool.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description:
+            'A short, specific description of what the human needs to do.',
+        },
+      },
+      required: ['reason'],
+    },
+  },
+];
+
+function send(message) {
+  process.stdout.write(JSON.stringify(message) + '\n');
+}
+
+function sendResult(id, result) {
+  send({ jsonrpc: '2.0', id, result });
+}
+
+function sendError(id, code, message) {
+  send({ jsonrpc: '2.0', id, error: { code, message } });
+}
+
+function toolText(text, isError) {
+  return { content: [{ type: 'text', text }], isError: isError === true };
+}
+
+function handleToolCall(name, args) {
+  if (name === 'request_human_control') {
+    const reason =
+      args && typeof args.reason === 'string' && args.reason.trim()
+        ? args.reason.trim()
+        : '';
+    if (!reason) {
+      return toolText('A "reason" string is required.', true);
+    }
+    // Not an error: the model should treat this as a successful handoff and
+    // stop. The platform (run_agent) has already seen this tool_use and will
+    // raise the take-control card + park the turn at turn end.
+    return toolText(
+      'A human has been asked to take control of the browser to handle: ' +
+        reason +
+        '. Stop now and end your turn — do not take any further action. You ' +
+        'will be resumed automatically once control is returned, with the ' +
+        'browser at the resulting state.',
+      false,
+    );
+  }
+  return toolText(`Unknown tool: ${name}`, true);
+}
+
+function handleMessage(msg) {
+  const isNotification = msg.id === undefined || msg.id === null;
+  const { method, id } = msg;
+
+  if (method === 'initialize') {
+    const clientProtocol =
+      msg.params && typeof msg.params.protocolVersion === 'string'
+        ? msg.params.protocolVersion
+        : PROTOCOL_VERSION;
+    sendResult(id, {
+      protocolVersion: clientProtocol,
+      capabilities: { tools: {} },
+      serverInfo: SERVER_INFO,
+    });
+    return;
+  }
+  if (method === 'tools/list') {
+    sendResult(id, { tools: TOOLS });
+    return;
+  }
+  if (method === 'tools/call') {
+    const params = msg.params || {};
+    sendResult(id, handleToolCall(params.name, params.arguments || {}));
+    return;
+  }
+  if (method === 'ping') {
+    sendResult(id, {});
+    return;
+  }
+  if (isNotification) return;
+  sendError(id, -32601, `Method not found: ${method}`);
+}
+
+let buffer = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => {
+  buffer += chunk;
+  if (buffer.length > MAX_BUFFER_CHARS && buffer.indexOf('\n') === -1) {
+    process.stderr.write(
+      `[tale-human-control-mcp] input line exceeded ${MAX_BUFFER_CHARS} chars; dropping\n`,
+    );
+    buffer = '';
+    return;
+  }
+  let nl;
+  while ((nl = buffer.indexOf('\n')) !== -1) {
+    const line = buffer.slice(0, nl).trim();
+    buffer = buffer.slice(nl + 1);
+    if (!line) continue;
+    let msg;
+    try {
+      msg = JSON.parse(line);
+    } catch (err) {
+      process.stderr.write(`[tale-human-control-mcp] bad JSON line: ${err}\n`);
+      continue;
+    }
+    try {
+      handleMessage(msg);
+    } catch (err) {
+      process.stderr.write(`[tale-human-control-mcp] handler error: ${err}\n`);
+      if (msg && msg.id !== undefined && msg.id !== null) {
+        sendError(
+          msg.id,
+          -32603,
+          `Internal error: ${err && err.message ? err.message : String(err)}`,
+        );
+      }
+    }
+  }
+});
+process.stdin.on('end', () => process.exit(0));

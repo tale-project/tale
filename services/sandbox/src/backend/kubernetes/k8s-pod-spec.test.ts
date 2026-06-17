@@ -19,6 +19,7 @@ const cfg: SpawnerConfig = {
   runtimeTier: 'runc',
   dockerInContainer: false,
   browserView: false,
+  transparentEgress: false,
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: null,

@@ -8,18 +8,12 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useSessionProgress } from '../hooks/queries';
-import { buildExternalAgentParts } from '../utils/build-external-agent-parts';
-import { buildMessageSegments } from '../utils/build-message-segments';
-import { formatToolDetail } from '../utils/format-tool-detail';
 
 export type SteerStatus = 'queued' | 'claimed' | 'delivered' | 'consumed';
 
 interface SteerStatusValue {
   /** messageId → its current mid-turn steer-queue status. */
   byMessageId: Map<string, SteerStatus>;
-  /** The running turn's in-flight tool label (e.g. "Bash …"), surfaced so a
-   *  queued steer message can say which step it's waiting behind. */
-  currentStepLabel?: string;
   /** The agent emitted its result and is lingering on held-open stdin — a
    *  queued message is pushed via the linger loop within seconds, so it's
    *  "delivering now" rather than waiting behind a long in-flight tool. */
@@ -32,8 +26,8 @@ export const SteerStatusContext = createContext<SteerStatusValue | null>(null);
 
 /**
  * Subscribes once per thread to the mid-turn steer queue (chatMessageQueue) and
- * exposes a messageId→status map + the running turn's current step to the user
- * bubbles below. Mounted alongside `ThreadMessageMetadataProvider`.
+ * exposes a messageId→status map to the user bubbles below. Mounted alongside
+ * `ThreadMessageMetadataProvider`.
  *
  * Why: a message sent while an external agent is working is delivered only at
  * the next tool/Stop boundary (or via stdin once the exec idles) — so during a
@@ -53,7 +47,6 @@ export function SteerStatusProvider({
     api.threads.message_queue.listQueuedMessages,
     threadId ? { threadId, organizationId } : 'skip',
   );
-  const { t } = useT('chat');
   const progress = useSessionProgress(threadId);
 
   const byMessageId = useMemo(() => {
@@ -64,44 +57,13 @@ export function SteerStatusProvider({
     return map;
   }, [rows]);
 
-  // Only derive the live step while a steer is actually waiting — keeps the
-  // context (and the bubbles that read it) from churning on every 500ms
-  // progress flush of a normal, un-steered turn.
-  const hasPending = useMemo(() => {
-    for (const s of byMessageId.values()) {
-      if (s === 'queued' || s === 'claimed') return true;
-    }
-    return false;
-  }, [byMessageId]);
-
-  const currentStepLabel = useMemo(() => {
-    if (!hasPending || progress?.status !== 'running') return undefined;
-    const { segments } = buildMessageSegments(
-      buildExternalAgentParts(progress.recentEvents),
-    );
-    for (let i = segments.length - 1; i >= 0; i--) {
-      const s = segments[i];
-      if (
-        s.kind === 'tool' &&
-        (s.state === 'input-streaming' || s.state === 'input-available')
-      ) {
-        return formatToolDetail(t, s.toolName, s.input).displayText;
-      }
-    }
-    return undefined;
-  }, [hasPending, progress?.status, progress?.recentEvents, t]);
-
   // Agent has finished its result and is lingering (idle) — set on the op when
   // the process stays alive on held-open stdin to receive more messages.
   const agentLingering = progress?.agentIdleAt != null;
 
   const value = useMemo<SteerStatusValue>(
-    () => ({
-      byMessageId,
-      agentLingering,
-      ...(currentStepLabel !== undefined && { currentStepLabel }),
-    }),
-    [byMessageId, agentLingering, currentStepLabel],
+    () => ({ byMessageId, agentLingering }),
+    [byMessageId, agentLingering],
   );
 
   return (
@@ -135,9 +97,7 @@ export function SteerStatusLine({ messageId }: { messageId: string }) {
     text = t('queue.status.deliversNow');
   } else {
     // queued / claimed — still waiting for a boundary to pick it up.
-    text = ctx?.currentStepLabel
-      ? t('queue.status.queuedWithStep', { step: ctx.currentStepLabel })
-      : t('queue.status.queued');
+    text = t('queue.status.queued');
   }
 
   return (

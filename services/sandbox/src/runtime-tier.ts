@@ -106,6 +106,17 @@ export function dindDefaultEnabled(tier: RuntimeTier): boolean {
   return tier === 'sysbox' || tier === 'kata';
 }
 
+/**
+ * True when transparent egress (an iptables OUTPUT REDIRECT → redsocks for the
+ * session's own TCP) works reliably on this tier. False only on gvisor: runsc's
+ * user-space netstack + partial iptables make REDIRECT functionally unreliable
+ * (same limitation as dindExperimental). On an unsupported tier the session
+ * falls back to the HTTPS_PROXY env (proxy-aware clients only); loadConfig warns.
+ */
+export function transparentEgressSupported(tier: RuntimeTier): boolean {
+  return tier !== 'gvisor';
+}
+
 // No fail-closed policy gate for DinD: per the "one codebase, operator
 // configures the host to their needs" model, every tier may enable it. The
 // trade-offs (runc = host-root, gvisor = likely-broken) are surfaced as loud

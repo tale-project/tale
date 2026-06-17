@@ -14,12 +14,19 @@ import {
 
 interface LiveBrowserState {
   isOpen: boolean;
+  /** When true the pane connects with `?control=1` (writable VNC, human
+   * takeover) instead of the read-only mirror. Set by the take-control card;
+   * the strip/menu always open in view mode. */
+  control: boolean;
 }
 
 interface LiveBrowserContextType extends LiveBrowserState {
-  open: () => void;
+  /** Open the pane. `control: true` requests the writable takeover stream. */
+  open: (opts?: { control?: boolean }) => void;
   close: () => void;
   toggle: () => void;
+  /** Flip control on/off without closing the pane (e.g. on "return control"). */
+  setControl: (control: boolean) => void;
 }
 
 const LiveBrowserContext = createContext<LiveBrowserContextType | null>(null);
@@ -60,23 +67,32 @@ export function LiveBrowserProvider({ children }: LiveBrowserProviderProps) {
   const threadId = threadMatch?.params?.threadId;
 
   const [isOpen, setIsOpen] = useState(false);
+  const [control, setControlState] = useState(false);
 
-  // Reset to closed on every thread switch.
+  // Reset to closed (and view-only) on every thread switch.
   const prevThreadIdRef = useRef(threadId);
   useEffect(() => {
     if (prevThreadIdRef.current !== threadId) {
       setIsOpen(false);
+      setControlState(false);
       prevThreadIdRef.current = threadId;
     }
   }, [threadId]);
 
-  const open = useCallback(() => setIsOpen(true), []);
-  const close = useCallback(() => setIsOpen(false), []);
+  const open = useCallback((opts?: { control?: boolean }) => {
+    setControlState(opts?.control === true);
+    setIsOpen(true);
+  }, []);
+  const close = useCallback(() => {
+    setIsOpen(false);
+    setControlState(false);
+  }, []);
   const toggle = useCallback(() => setIsOpen((prev) => !prev), []);
+  const setControl = useCallback((next: boolean) => setControlState(next), []);
 
   const value = useMemo<LiveBrowserContextType>(
-    () => ({ isOpen, open, close, toggle }),
-    [isOpen, open, close, toggle],
+    () => ({ isOpen, control, open, close, toggle, setControl }),
+    [isOpen, control, open, close, toggle, setControl],
   );
 
   return (

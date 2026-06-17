@@ -172,6 +172,11 @@ RUN set -eux; \
 #                public TCP to redsocks, which tunnels it through the egress
 #                proxy — so inner apps reach the internet with NO proxy env (no
 #                hijacked localhost/sibling healthchecks)
+#   iproute2   = `ip route` — the SESSION transparent-egress path adds a default
+#                route via the egress proxy so the kernel will generate (and the
+#                nat OUTPUT REDIRECT can then intercept) connections to public IPs.
+#                Without a default route, connect() to a public IP on the
+#                `--internal` network fails with ENETUNREACH before REDIRECT runs.
 # Versions are the live Docker apt-repo stable channel; pin here if a build
 # needs to be byte-reproducible.
 RUN install -m 0755 -d /etc/apt/keyrings \
@@ -190,6 +195,7 @@ RUN install -m 0755 -d /etc/apt/keyrings \
       uidmap \
       fuse-overlayfs \
       iptables \
+      iproute2 \
       util-linux \
       redsocks \
     && rm -rf /var/lib/apt/lists/* \
@@ -239,10 +245,17 @@ COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright
 # server-side). Runs under the image's node (global fetch).
 COPY services/sandbox-runtime/tale-integrations-mcp /usr/local/bin/tale-integrations-mcp
 
+# Human-control MCP bridge: a dependency-free stdio MCP server exposing
+# request_human_control({reason}). The agent calls it to hand the live browser
+# to a human (CAPTCHA/login/2FA); the platform observes the tool_use, parks the
+# turn, and resumes once control is returned. Purely local — no network call.
+COPY services/sandbox-runtime/tale-human-control-mcp /usr/local/bin/tale-human-control-mcp
+
 COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
       /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-integrations-mcp \
+      /usr/local/bin/tale-human-control-mcp \
       /usr/local/bin/tale-steer-hook \
       /usr/local/bin/tale-plan-gate
 
@@ -260,6 +273,25 @@ RUN /usr/sbin/groupadd --gid 10001 agent \
     # Inert on non-DinD tiers (no socket exists). The `docker` group is created
     # by the docker-ce install above.
     && /usr/sbin/usermod -aG docker agent
+
+# Pin the account redsocks runs as on the SESSION transparent-egress path to a
+# stable uid/gid 10002 — the owner the iptables OUTPUT owner-match RETURN exempts
+# (the loop-breaker for redsocks' own upstream CONNECT — see entrypoint.sh
+# _install_session_output_redirect / TALE_REDSOCKS_UID). The `redsocks` apt
+# package already creates a `redsocks` system user/group at a dynamic uid, so
+# MODIFY it to 10002 when present (else create it). 10002 avoids the agent
+# (10001) and nobody (65534). No shell/home — it only execs redsocks.
+RUN if getent group redsocks >/dev/null; then \
+      /usr/sbin/groupmod --gid 10002 redsocks; \
+    else \
+      /usr/sbin/groupadd --gid 10002 redsocks; \
+    fi \
+    && if getent passwd redsocks >/dev/null; then \
+      /usr/sbin/usermod --uid 10002 --gid 10002 --shell /usr/sbin/nologin redsocks; \
+    else \
+      /usr/sbin/useradd --uid 10002 --gid 10002 --no-create-home \
+        --shell /usr/sbin/nologin redsocks; \
+    fi
 
 # Default user is nobody; spawner pins --user per profile at the call site
 # (65534 one-shot, 10001 session-agent).

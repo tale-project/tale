@@ -42,7 +42,10 @@ import {
   sessionIsAlive,
   sessionSetPinned,
 } from '../../node_only/sandbox/helpers/session_client';
-import { stageIntegrationSkills } from '../../node_only/sandbox/integration_skills';
+import {
+  stageBrowserControlSkill,
+  stageIntegrationSkills,
+} from '../../node_only/sandbox/integration_skills';
 import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
 import {
@@ -479,6 +482,11 @@ export const runExternalAgentTurn = internalAction({
           organizationId: args.organizationId,
           sessionId,
         });
+        // The browser-human-control skill only applies when the live headed
+        // browser is on (the request_human_control tool is wired in that mode).
+        if (BROWSER_VIEW_ENABLED) {
+          await stageBrowserControlSkill(ctx, { sessionId });
+        }
       } catch (skillErr) {
         console.warn(
           '[runExternalAgentTurn] integration skill staging failed (continuing):',
@@ -662,6 +670,25 @@ export const runExternalAgentTurn = internalAction({
               : undefined
             : resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
           authMode: byo ? 'byo' : 'managed',
+          // Raise the browser-handoff card the moment the agent calls
+          // request_human_control — mid-stream, not at turn end (a lingering
+          // session may not terminate for a while). Idempotent on the mutation
+          // side, so a later turn-end pass is a safe no-op.
+          onHumanControlRequest: async (reason: string) => {
+            if (assistantMessageId === null) return;
+            await ctx.runMutation(
+              internal.approvals.internal_mutations.createHumanControlRequest,
+              {
+                organizationId: args.organizationId,
+                threadId: args.threadId,
+                messageId: assistantMessageId,
+                agentSlug: args.agentSlug ?? args.agentKind,
+                modelRef: args.modelRef,
+                reason,
+                ...(args.userId !== undefined && { requestedBy: args.userId }),
+              },
+            );
+          },
           ...(agentSessionId !== null && { agentSessionId }),
           ...(systemPromptAppend !== '' && { systemPromptAppend }),
           ...(args.permissionMode !== undefined && {

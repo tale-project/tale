@@ -12,7 +12,11 @@
 // into a container-escape primitive. User code is NEVER in argv; it arrives
 // over the runnerd HTTP API after the container is up.
 
-import { dindCapabilityOf, dockerRuntimeFor } from '../runtime-tier.ts';
+import {
+  dindCapabilityOf,
+  dockerRuntimeFor,
+  transparentEgressSupported,
+} from '../runtime-tier.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 import { sessionContainerName } from './session-naming.ts';
@@ -106,8 +110,46 @@ export function buildDockerSessionRunArgs(
   const dind = cfg.dockerInContainer;
   const dindMode = dindCapabilityOf(cfg.runtimeTier);
 
+  // Transparent egress for the session's OWN processes. The entrypoint installs
+  // an iptables OUTPUT REDIRECT → redsocks so any client (Node/undici, Go static
+  // binaries, raw sockets) egresses through the proxy with zero proxy-env
+  // awareness. Gated off on gvisor (runsc netstack makes the REDIRECT unreliable).
+  //   transparentEgress         — emit the TALE_TRANSPARENT_EGRESS=1 signal;
+  //     applies to BOTH paths (the entrypoint installs the OUTPUT hook inline on
+  //     non-DinD, and after the inner dockerd is up on DinD).
+  //   transparentEgressHardening — the boot-as-root + NET_ADMIN/NET_RAW argv
+  //     change; ONLY the non-DinD path needs it (DinD already boots root with
+  //     the caps it needs, so its argv is unchanged).
+  const transparentEgress =
+    cfg.transparentEgress && transparentEgressSupported(cfg.runtimeTier);
+  const transparentEgressHardening = transparentEgress && !dind;
+
   let hardeningFlags: string[];
-  if (!dind) {
+  if (dind) {
+    hardeningFlags =
+      dindMode === 'privileged'
+        ? ['--privileged']
+        : ['--security-opt', 'apparmor=unconfined'];
+  } else if (transparentEgressHardening) {
+    // Boot caps, far less than --privileged: NET_ADMIN/NET_RAW for the iptables
+    // OUTPUT REDIRECT, plus SETUID/SETGID so the entrypoint can setpriv-drop from
+    // root to the profile uid (setresuid to an unrelated uid needs CAP_SETUID).
+    // ALL of these are exercised ONLY by PID 1 (the entrypoint) at boot — the
+    // kernel clears the cap set when setpriv changes the uid, so the runnerd +
+    // every user process that follows runs fully capless. no-new-privileges is
+    // kept: the setpriv drop is a privilege REDUCTION, which the flag permits.
+    hardeningFlags = [
+      '--cap-drop=ALL',
+      '--cap-add=NET_ADMIN',
+      '--cap-add=NET_RAW',
+      '--cap-add=SETUID',
+      '--cap-add=SETGID',
+      '--security-opt',
+      'no-new-privileges',
+      '--security-opt',
+      'apparmor=docker-default',
+    ];
+  } else {
     hardeningFlags = [
       '--cap-drop=ALL',
       '--security-opt',
@@ -115,14 +157,15 @@ export function buildDockerSessionRunArgs(
       '--security-opt',
       'apparmor=docker-default',
     ];
-  } else if (dindMode === 'privileged') {
-    hardeningFlags = ['--privileged'];
-  } else {
-    hardeningFlags = ['--security-opt', 'apparmor=unconfined'];
   }
-  const userValue = dind ? '0:0' : profile.user;
+  // DinD and the transparent-egress hardening both boot as root (uid 0); the
+  // entrypoint drops to the profile uid via setpriv. Plain hardened sessions run
+  // as the profile uid directly.
+  const userValue = dind || transparentEgressHardening ? '0:0' : profile.user;
   // dockerd needs a writable rootfs (/var/run, /etc/docker, etc.); /var/lib/
-  // docker is a dedicated volume (below). Non-dind keeps the read-only root.
+  // docker is a dedicated volume (below). Non-dind keeps the read-only root —
+  // transparent egress writes redsocks.conf to the /tmp tmpfs, so --read-only
+  // stays even on that path.
   const readOnlyFlag = dind ? [] : ['--read-only'];
 
   // Ulimits. The inner dockerd inherits these from the session container, so the
@@ -199,6 +242,26 @@ export function buildDockerSessionRunArgs(
   // and only present when enabled — off keeps today's argv byte-identical. The
   // CDP (9222) / VNC (5900) endpoints are loopback-only; no port is published.
   const browserViewEnv = cfg.browserView ? ['--env', 'TALE_BROWSER_CDP=1'] : [];
+
+  // Transparent egress signal for the entrypoint. On the non-DinD hardening path
+  // the container boots as root, so TALE_DROP_UID/GID tell the entrypoint which
+  // profile uid to setpriv-drop to after installing the OUTPUT REDIRECT. On DinD
+  // the entrypoint already drops to the agent uid itself, so only the signal is
+  // sent. Empty when off ⇒ argv byte-identical.
+  const transparentEgressEnv = transparentEgress
+    ? [
+        '--env',
+        'TALE_TRANSPARENT_EGRESS=1',
+        ...(transparentEgressHardening
+          ? [
+              '--env',
+              `TALE_DROP_UID=${profile.uid}`,
+              '--env',
+              `TALE_DROP_GID=${profile.gid}`,
+            ]
+          : []),
+      ]
+    : [];
 
   // Per-org shared dep caches are DISABLED under DinD (sysbox userns shifting
   // makes a cross-session shared volume's ownership/integrity unsafe — a
@@ -278,6 +341,8 @@ export function buildDockerSessionRunArgs(
     ...dindEnv,
     // Live browser view signal for the entrypoint (empty when off).
     ...browserViewEnv,
+    // Transparent egress signal + drop-uid for the entrypoint (empty when off).
+    ...transparentEgressEnv,
     `--cpus=${profile.cpus}`,
     `--memory=${profile.memory}`,
     `--memory-swap=${profile.memory}`,

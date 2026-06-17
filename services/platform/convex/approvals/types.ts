@@ -152,6 +152,27 @@ export interface PlanApprovalMetadata {
   supersededBy?: string;
 }
 
+export interface HumanControlMetadata {
+  /** Short, agent-supplied description of what the human must do (CAPTCHA,
+   * login, 2FA …) — shown on the take-control card. */
+  reason: string;
+  /** Agent slug recorded at request time — the resumed turn runs under THIS
+   * agent (mirrors PlanApprovalMetadata). */
+  agentSlug: string;
+  modelRef: string;
+  requestedAt: number;
+  requestedBy?: string;
+  /** No-human auto-return deadline (ms) used to schedule the fallback. */
+  parkTimeoutMs?: number;
+  /** The single-controller lease holder (userId) while control is taken. */
+  controlHolderUserId?: string;
+  /** How the handoff resolved: a human returned control, or the no-human
+   * timeout fired. Absent while pending. */
+  resolution?: 'returned' | 'no_human_timeout';
+  /** Set on a pending row that a newer handoff replaced (auto-rejected). */
+  supersededBy?: string;
+}
+
 export function normalizeDocumentWriteMetadata(
   raw: DocumentWriteMetadata,
 ): DocumentWriteMetadata {

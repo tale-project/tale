@@ -22,6 +22,7 @@ const cfg: SpawnerConfig = {
   runtimeTier: 'gvisor',
   dockerInContainer: false,
   browserView: false,
+  transparentEgress: false,
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: 'gvisor',
@@ -190,6 +191,77 @@ describe('buildSessionPod', () => {
           (e) => e.name === 'TALE_DIND',
         ),
       ).toBe(false);
+    });
+  });
+
+  describe('transparent egress (SANDBOX_TRANSPARENT_EGRESS)', () => {
+    // The base fixture tier is gvisor (unsupported); use runc for the supported
+    // cases.
+    const runcCfg = {
+      ...cfg,
+      runtimeTier: 'runc' as const,
+      k8s: { ...cfg.k8s, runtimeClassName: null },
+    };
+
+    test('off (default): no egress sidecar, runner unchanged', () => {
+      const pod = buildSessionPod(cfg, input);
+      expect(pod.spec?.initContainers).toBeUndefined();
+      expect(
+        (pod.spec?.containers[0]?.env ?? []).some(
+          (e) => e.name === 'TALE_TRANSPARENT_EGRESS',
+        ),
+      ).toBe(false);
+    });
+
+    test('on (runc, non-DinD): native redsocks sidecar; runner stays hardened', () => {
+      const pod = buildSessionPod(
+        { ...runcCfg, transparentEgress: true },
+        input,
+      );
+      const egress = (pod.spec?.initContainers ?? []).find(
+        (c) => c.name === 'egress',
+      );
+      expect(egress).toBeDefined();
+      expect(egress?.args).toEqual(['egress-sidecar']);
+      // Native sidecar: started before (and runs alongside) the runner.
+      expect(egress?.restartPolicy).toBe('Always');
+      // NET_ADMIN lives ONLY in the sidecar (which runs only redsocks).
+      expect(egress?.securityContext?.runAsUser).toBe(0);
+      expect(egress?.securityContext?.capabilities?.add).toEqual([
+        'NET_ADMIN',
+        'NET_RAW',
+        'SETUID',
+        'SETGID',
+      ]);
+      // The runner container is untouched — still fully hardened, no NET_ADMIN.
+      const runner = pod.spec?.containers[0]?.securityContext;
+      expect(runner?.runAsNonRoot).toBe(true);
+      expect(runner?.capabilities?.drop).toEqual(['ALL']);
+      expect(runner?.capabilities?.add).toBeUndefined();
+      // Non-DinD runner gets NO inline signal (the sidecar does the install).
+      expect(
+        (pod.spec?.containers[0]?.env ?? []).some(
+          (e) => e.name === 'TALE_TRANSPARENT_EGRESS',
+        ),
+      ).toBe(false);
+    });
+
+    test('on but gvisor tier: no sidecar (runsc netstack), falls back to env', () => {
+      const pod = buildSessionPod({ ...cfg, transparentEgress: true }, input);
+      expect(pod.spec?.initContainers).toBeUndefined();
+    });
+
+    test('on + DinD: no sidecar; the root runner installs it inline via the signal', () => {
+      const pod = buildSessionPod(
+        { ...runcCfg, dockerInContainer: true, transparentEgress: true },
+        input,
+      );
+      expect(pod.spec?.initContainers).toBeUndefined();
+      expect(
+        (pod.spec?.containers[0]?.env ?? []).find(
+          (e) => e.name === 'TALE_TRANSPARENT_EGRESS',
+        )?.value,
+      ).toBe('1');
     });
   });
 });

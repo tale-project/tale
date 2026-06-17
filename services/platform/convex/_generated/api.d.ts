@@ -194,6 +194,7 @@ import type * as agents_workforce_ops from "../agents/workforce_ops.js";
 import type * as api_gateway from "../api_gateway.js";
 import type * as approvals_actions from "../approvals/actions.js";
 import type * as approvals_helpers from "../approvals/helpers.js";
+import type * as approvals_human_control_mutations from "../approvals/human_control_mutations.js";
 import type * as approvals_internal_mutations from "../approvals/internal_mutations.js";
 import type * as approvals_internal_queries from "../approvals/internal_queries.js";
 import type * as approvals_list_approvals_paginated from "../approvals/list_approvals_paginated.js";
@@ -1623,6 +1624,7 @@ declare const fullApi: ApiFromModules<{
   api_gateway: typeof api_gateway;
   "approvals/actions": typeof approvals_actions;
   "approvals/helpers": typeof approvals_helpers;
+  "approvals/human_control_mutations": typeof approvals_human_control_mutations;
   "approvals/internal_mutations": typeof approvals_internal_mutations;
   "approvals/internal_queries": typeof approvals_internal_queries;
   "approvals/list_approvals_paginated": typeof approvals_list_approvals_paginated;

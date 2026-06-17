@@ -979,7 +979,6 @@
       "full": "Message queue is full",
       "status": {
         "queued": "Queued — will be picked up after the current step",
-        "queuedWithStep": "Queued — will be picked up after the current step ({step})",
         "delivered": "Delivered — waiting for the agent to respond",
         "deliversNow": "Delivering now",
         "consumed": "Picked up"

@@ -455,7 +455,24 @@ describe('authorizeScreencast — auth oracle propagation', () => {
       }),
     );
     const res = await authorizeScreencast('thread-1', 'better-auth.x=1');
-    expect(res).toEqual({ ok: true, sessionId: 'sess-x' });
+    // A view request (control omitted) → control:false in the result.
+    expect(res).toEqual({ ok: true, sessionId: 'sess-x', control: false });
+  });
+
+  test('reflects an oracle-granted control flag and requests it', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ sessionId: 'sess-x', control: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const res = await authorizeScreencast('thread-1', 'c=1', true);
+    expect(res).toEqual({ ok: true, sessionId: 'sess-x', control: true });
+    const calledArg = fetchSpy.mock.calls[0]?.[0];
+    if (typeof calledArg !== 'string') {
+      throw new Error('expected fetch to be called with a string URL');
+    }
+    expect(calledArg).toContain('control=1');
   });
 
   test('forwards the threadId to the oracle as a query param', async () => {

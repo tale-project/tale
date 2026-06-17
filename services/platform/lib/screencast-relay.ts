@@ -95,7 +95,10 @@ export function resolveSandboxToken(): string | null {
  * spawner WS client. Defaults to the compose service name when unset (parity
  * with session_client.ts `getSpawnerUrl`).
  */
-export function spawnerScreencastUrl(sessionId: string): string {
+export function spawnerScreencastUrl(
+  sessionId: string,
+  control = false,
+): string {
   const base = process.env.SANDBOX_URL ?? 'http://localhost:8003';
   // Swap only the scheme; host:port + everything else is preserved. http→ws,
   // https→wss. Falls back to a string replace if the URL doesn't parse.
@@ -107,13 +110,18 @@ export function spawnerScreencastUrl(sessionId: string): string {
   } catch {
     wsBase = base.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
   }
-  return `${wsBase}/v1/sessions/${encodeURIComponent(sessionId)}/screencast`;
+  return `${wsBase}${spawnerScreencastPath(sessionId, control)}`;
 }
 
-/** The signed spawner path (pathname only — the screencast route has no query,
- * so this matches the spawner's `pathname + search` verification). */
-export function spawnerScreencastPath(sessionId: string): string {
-  return `/v1/sessions/${encodeURIComponent(sessionId)}/screencast`;
+/** The signed spawner path. A control connection carries `?control=1`; the
+ * spawner verifies the HMAC over `pathname + search`, so the query MUST be part
+ * of the signed path (and the URL above) or the upgrade is rejected. */
+export function spawnerScreencastPath(
+  sessionId: string,
+  control = false,
+): string {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/screencast`;
+  return control ? `${path}?control=1` : path;
 }
 
 /**
@@ -134,6 +142,10 @@ const BROWSER_BACKPRESSURE_DROP_BYTES = 8 * 1024 * 1024; // 8 MiB
 export interface ScreencastWsData {
   sessionId: string;
   threadId: string;
+  /** The oracle granted a WRITABLE control connection (human takeover). When
+   * true the spawner leg carries `?control=1` (signed into the HMAC) so runnerd
+   * dials the writable x11vnc; otherwise this is a read-only mirror. */
+  control: boolean;
 }
 
 /** Per-connection relay state, hung off the browser WS in a side-map so
@@ -247,7 +259,7 @@ export function createScreencastRelayHandler(): import('bun').WebSocketHandler<S
     data: undefined as unknown as ScreencastWsData,
 
     open(ws): void {
-      const { sessionId } = ws.data;
+      const { sessionId, control } = ws.data;
       const state: RelayState = {
         spawner: null,
         pendingFromBrowser: [],
@@ -255,8 +267,8 @@ export function createScreencastRelayHandler(): import('bun').WebSocketHandler<S
       };
       relays.set(ws, state);
 
-      const url = spawnerScreencastUrl(sessionId);
-      const path = spawnerScreencastPath(sessionId);
+      const url = spawnerScreencastUrl(sessionId, control);
+      const path = spawnerScreencastPath(sessionId, control);
       const headers = buildScreencastAuthHeaders(path, resolveSandboxToken());
 
       let spawner: WebSocket;

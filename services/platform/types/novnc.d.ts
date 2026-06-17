@@ -28,6 +28,9 @@ declare module '@novnc/novnc' {
     clean?: boolean;
     status?: number;
     reason?: string;
+    /** Carried by the `clipboard` event (remote → client): the remote's cut
+     * text, mirrored to the host clipboard during human control. */
+    text?: string;
   }
 
   /**
@@ -52,6 +55,20 @@ declare module '@novnc/novnc' {
 
     /** Close the connection and tear down the canvas. */
     disconnect(): void;
+
+    /**
+     * Set the remote clipboard (sends an RFB `ClientCutText` to the server,
+     * which sets the X `CLIPBOARD`/`PRIMARY` selection). No-op when `viewOnly`
+     * or not connected — so it is inert outside human-control mode.
+     */
+    clipboardPasteFrom(text: string): void;
+
+    /**
+     * Inject a key event into the remote session. `keysym` is an X11 keysym and
+     * `code` a DOM `KeyboardEvent.code`. Omitting `down` sends a down+up pair.
+     * No-op when `viewOnly` or not connected.
+     */
+    sendKey(keysym: number, code: string, down?: boolean): void;
 
     addEventListener(
       type: string,

@@ -1,6 +1,6 @@
 'use client';
 
-import RFB from '@novnc/novnc';
+import RFB, { type RFBEventDetail } from '@novnc/novnc';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
@@ -35,17 +35,100 @@ type StreamStatus = 'connecting' | 'streaming' | 'disconnected' | 'error';
  * `@novnc/novnc`'s `RFB` consumes exactly that. Scheme follows the page (wss on
  * https, ws on http). Browser-only — reads `window.location`.
  */
-function buildScreencastUrl(threadId: string): string {
+function buildScreencastUrl(threadId: string, control: boolean): string {
   const scheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
   return `${scheme}${window.location.host}/screencast/${encodeURIComponent(
     threadId,
-  )}`;
+  )}${control ? '?control=1' : ''}`;
+}
+
+// X11 keysyms for the synthetic paste chord (noVNC's `KeyTable` isn't importable
+// — the package exports only `RFB`). `Control_L` + lowercase `v`.
+const XK_CONTROL_L = 0xffe3;
+const XK_V = 0x76;
+
+/** A Ctrl+V (Win/Linux) or Cmd+V (macOS) press. Match on the physical key
+ *  (`code`) so layout doesn't matter, and exclude AltGr combos. */
+function isPasteChord(e: KeyboardEvent): boolean {
+  if (e.code !== 'KeyV' || e.altKey) return false;
+  return e.ctrlKey || e.metaKey;
+}
+
+/**
+ * Push the host clipboard into the remote browser, then paste it. `readText()`
+ * runs synchronously inside the user-gesture keydown (before any await), so the
+ * browser permits the read. `clipboardPasteFrom` writes its `ClientCutText`
+ * bytes first on the same socket — x11vnc doesn't advertise extended-clipboard
+ * caps, so it's the inline path — and the synthesized Ctrl+V follows, so the
+ * remote `CLIPBOARD` is set before the paste keystroke lands (race-free). The
+ * chord is self-contained (we suppressed the physical one) so it works even when
+ * the host modifier is Cmd, which never maps to a Linux paste on its own.
+ */
+async function bridgeHostPaste(rfb: RFB): Promise<void> {
+  let text: string;
+  try {
+    text = await navigator.clipboard.readText();
+  } catch (err) {
+    // Permission denied / non-secure context / unsupported browser — the human
+    // can still type the value in. Surface it, don't swallow.
+    console.warn('[live-browser] clipboard read failed; paste skipped', err);
+    return;
+  }
+  if (!text) return;
+  rfb.clipboardPasteFrom(text);
+  rfb.sendKey(XK_CONTROL_L, 'ControlLeft', true);
+  rfb.sendKey(XK_V, 'KeyV', true);
+  rfb.sendKey(XK_V, 'KeyV', false);
+  rfb.sendKey(XK_CONTROL_L, 'ControlLeft', false);
+}
+
+/**
+ * Bridge the host clipboard to/from the remote browser while the human is in
+ * control. Read-only viewers never get this (defense-in-depth on top of
+ * `rfb.viewOnly`, which already makes `clipboardPasteFrom`/`sendKey` no-ops).
+ *
+ *  - host → remote: intercept the paste chord in the capture phase on
+ *    `container` (the parent of noVNC's `<canvas>`, whose own keydown listener
+ *    is in the bubble phase) so the physical Ctrl/Cmd+V never reaches noVNC —
+ *    a raw forward would paste stale/empty content. `bridgeHostPaste` drives it.
+ *  - remote → host: mirror the remote's `ServerCutText` (noVNC's `clipboard`
+ *    event) onto the host clipboard, best-effort.
+ *
+ * Returns a teardown that removes both listeners.
+ */
+function attachClipboardBridge(rfb: RFB, container: HTMLElement): () => void {
+  const handlePasteKeydown = (e: KeyboardEvent) => {
+    if (!isPasteChord(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    void bridgeHostPaste(rfb);
+  };
+  const handleRemoteClipboard = (event: CustomEvent<RFBEventDetail>) => {
+    const text = event.detail?.text;
+    if (!text) return;
+    navigator.clipboard.writeText(text).catch((err) => {
+      console.warn('[live-browser] clipboard write to host failed', err);
+    });
+  };
+
+  container.addEventListener('keydown', handlePasteKeydown, true);
+  rfb.addEventListener('clipboard', handleRemoteClipboard);
+
+  return () => {
+    container.removeEventListener('keydown', handlePasteKeydown, true);
+    rfb.removeEventListener('clipboard', handleRemoteClipboard);
+  };
 }
 
 interface ScreencastViewportProps {
   threadId: string;
   /** Whether the agent's session is actively running a turn / warm. */
   sessionActive: boolean;
+  /** When true, connect for human takeover (`?control=1` → writable x11vnc) and
+   * let the canvas receive pointer/keyboard input. Default false = read-only
+   * mirror. The oracle still gates the grant server-side; a denied control
+   * request silently falls back to a read-only stream. */
+  control: boolean;
 }
 
 /**
@@ -62,6 +145,7 @@ interface ScreencastViewportProps {
 function ScreencastViewport({
   threadId,
   sessionActive,
+  control,
 }: ScreencastViewportProps) {
   const { t } = useT('chat');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,12 +168,13 @@ function ScreencastViewport({
 
     let rfb: RFB | null = null;
     try {
-      rfb = new RFB(container, buildScreencastUrl(threadId), {});
-      // Read-only viewer knobs (set as instance props per noVNC docs).
-      rfb.viewOnly = true;
+      rfb = new RFB(container, buildScreencastUrl(threadId, control), {});
+      // In control mode the human drives — let RFB send pointer/keyboard and
+      // focus on click; otherwise it's a strictly read-only mirror.
+      rfb.viewOnly = !control;
       rfb.scaleViewport = true;
       rfb.clipViewport = true;
-      rfb.focusOnClick = false;
+      rfb.focusOnClick = control;
       rfb.background = '#000';
       rfbRef.current = rfb;
     } catch (err) {
@@ -116,10 +201,18 @@ function ScreencastViewport({
     rfb.addEventListener('disconnect', handleDisconnect);
     rfb.addEventListener('securityfailure', handleSecurityFailure);
 
+    // Clipboard bridge only while the human is driving — read-only viewers get
+    // no input path at all (the `clipboardPasteFrom`/`sendKey` calls are also
+    // no-ops under `viewOnly`, so this is belt-and-suspenders).
+    const detachClipboard = control
+      ? attachClipboardBridge(rfb, container)
+      : undefined;
+
     return () => {
       rfb?.removeEventListener('connect', handleConnect);
       rfb?.removeEventListener('disconnect', handleDisconnect);
       rfb?.removeEventListener('securityfailure', handleSecurityFailure);
+      detachClipboard?.();
       try {
         rfb?.disconnect();
       } catch (err) {
@@ -129,8 +222,10 @@ function ScreencastViewport({
       }
       rfbRef.current = null;
     };
+    // `control` is a dep: flipping take/return control must reconnect the WS to
+    // the right (writable vs read-only) endpoint.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId, connectNonce]);
+  }, [threadId, connectNonce, control]);
 
   // Gated empty state: nothing is being driven, so don't even open a socket —
   // tell the user to start a turn.
@@ -158,15 +253,26 @@ function ScreencastViewport({
 
   return (
     <div className="relative min-h-0 flex-1 bg-black">
-      {/* The RFB canvas mounts inside here. `pointer-events-none` is
-          defense-in-depth on top of `rfb.viewOnly = true` — the stream is
-          strictly view-only. */}
+      {/* The RFB canvas mounts inside here. In read-only mode
+          `pointer-events-none` is defense-in-depth on top of
+          `rfb.viewOnly = true`; in control mode the human is driving, so the
+          canvas must receive pointer/keyboard events. */}
       <div
         ref={containerRef}
-        className="pointer-events-none absolute inset-0 size-full"
-        aria-label={t('liveBrowser.ariaLabel', {
-          defaultValue: 'Live view of the agent’s browser (read-only)',
-        })}
+        className={
+          control
+            ? 'absolute inset-0 size-full'
+            : 'pointer-events-none absolute inset-0 size-full'
+        }
+        aria-label={
+          control
+            ? t('liveBrowser.ariaLabelControl', {
+                defaultValue: 'Live browser — you are controlling it',
+              })
+            : t('liveBrowser.ariaLabel', {
+                defaultValue: 'Live view of the agent’s browser (read-only)',
+              })
+        }
       />
 
       {/* Screen-reader status while the live frames are flowing (the canvas
@@ -239,7 +345,7 @@ function ScreencastViewport({
  *  stream surface. Shared by the desktop resizable pane and the mobile sheet. */
 function LiveBrowserBody({ threadId }: { threadId: string }) {
   const { t } = useT('chat');
-  const { close } = useLiveBrowser();
+  const { close, control } = useLiveBrowser();
 
   // "Active" = there's something worth streaming: a turn is actively running,
   // or the sandbox is warm (`active`). A `stopped`/`creating`/`degraded`
@@ -285,9 +391,17 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
           <span className="truncate text-sm font-medium">
             {t('liveBrowser.title', { defaultValue: 'Live browser' })}
           </span>
-          <span className="border-border text-muted-foreground bg-muted/60 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-            {t('liveBrowser.viewOnly', { defaultValue: 'View only' })}
-          </span>
+          {control ? (
+            <span className="border-primary/40 text-primary bg-primary/10 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+              {t('liveBrowser.controlling', {
+                defaultValue: 'You’re in control',
+              })}
+            </span>
+          ) : (
+            <span className="border-border text-muted-foreground bg-muted/60 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+              {t('liveBrowser.viewOnly', { defaultValue: 'View only' })}
+            </span>
+          )}
         </div>
         {/* Rendered in every variant. On desktop it's the pane's close; in the
             mobile Sheet (`embedded`) it replaces the Sheet's own absolute
@@ -338,7 +452,11 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <ScreencastViewport threadId={threadId} sessionActive={sessionActive} />
+        <ScreencastViewport
+          threadId={threadId}
+          sessionActive={sessionActive}
+          control={control}
+        />
       </div>
 
       <ConfirmDialog
@@ -432,7 +550,7 @@ function LiveBrowserPaneComponent() {
     return (
       <button
         type="button"
-        onClick={open}
+        onClick={() => open()}
         aria-label={t('liveBrowser.toggleLabel', {
           defaultValue: 'Live browser',
         })}
