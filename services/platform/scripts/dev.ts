@@ -235,6 +235,36 @@ function ensureEncryptionSecret() {
     .digest('hex');
 }
 
+// knowledge-db (ParadeDB) connection for the RAG / knowledge-base Convex node
+// actions. Since #1883 the platform talks to the knowledge corpus DIRECTLY via
+// postgres.js (convex/lib/knowledge/db/knowledge_db.ts) instead of the old
+// Python `rag` service. A containerized Convex run resolves the compose
+// hostname `knowledge-db`, but the local `bun dev` backend runs on the host,
+// where that name does NOT resolve — the node action dies with
+// `getaddrinfo ENOTFOUND knowledge-db` and every RAG upload/search fails. Point
+// it at the port compose publishes to the host (the `knowledge-db` service maps
+// `5433:5432` in compose.yml) so RAG works with zero manual setup. Pushed into
+// Convex via ORCHESTRATOR_MANAGED_KEYS in sync-convex-env-from-dotenv.ts. An
+// explicit KNOWLEDGE_DATABASE_URL / RAG_DATABASE_URL (.env) always wins — we
+// only fill the gap. Run after loadEnvFiles() so DB_PASSWORD is populated.
+function ensureKnowledgeDatabaseUrl() {
+  if (process.env.KNOWLEDGE_DATABASE_URL || process.env.RAG_DATABASE_URL) {
+    return;
+  }
+  const password = process.env.DB_PASSWORD;
+  if (!password) {
+    console.warn(
+      '[dev] ⚠️  DB_PASSWORD not set; cannot derive KNOWLEDGE_DATABASE_URL —\n   knowledge base / RAG search will fail. Set DB_PASSWORD in .env.',
+    );
+    return;
+  }
+  // Host port published by the `knowledge-db` service in compose.yml (5433:5432).
+  const KNOWLEDGE_DB_HOST_PORT = 5433;
+  process.env.KNOWLEDGE_DATABASE_URL = `postgresql://tale:${encodeURIComponent(
+    password,
+  )}@localhost:${KNOWLEDGE_DB_HOST_PORT}/tale_knowledge`;
+}
+
 // WebDAV's dev route (vite-plugins/serve-webdav.ts) talks to Convex with the
 // deployment ADMIN_KEY to call internal functions; without it the plugin
 // disables /dav/* and every request returns 503. Prod derives the key with the
@@ -738,6 +768,7 @@ async function main() {
     ensureBetterAuthSecret();
     ensureWebdavHmacKey();
     ensureEncryptionSecret();
+    ensureKnowledgeDatabaseUrl();
     const deployment = process.env.CONVEX_DEPLOYMENT;
     const hasLocalDeployment = deployment?.startsWith('anonymous:');
     if (deployment && !hasLocalDeployment) {
