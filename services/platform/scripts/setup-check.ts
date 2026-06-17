@@ -4,7 +4,7 @@
 
   `bun run dev` spawns a local Convex backend, syncs env, runs codegen, then
   boots Vite — a 30-90s chain on a cold machine. When a prerequisite is
-  missing (wrong Bun, no Python, a port already bound) the failure surfaces
+  missing (wrong Bun, a port already bound) the failure surfaces
   deep inside that chain with a stack trace, not a sentence. This script
   front-loads the cheap checks and prints a clear pass/fail with the exact
   remediation, so a missing tool is a five-second fix instead of a confusing
@@ -12,8 +12,6 @@
 
   It validates:
     - Bun >= 1.3            (the workspace runtime)
-    - Python 3.12 present   (the rag + crawler services run on it)
-    - uv present            (the Python package manager)
     - Port 3000 free        (the Vite dev server binds it)
     - Port 3210 free        (the local Convex backend binds it)
     - Convex CLI reachable  (`bunx convex --version`)
@@ -55,8 +53,6 @@ export interface SetupCheckDeps {
 
 const MIN_BUN_MAJOR = 1;
 const MIN_BUN_MINOR = 3;
-const REQUIRED_PYTHON_MAJOR = 3;
-const REQUIRED_PYTHON_MINOR = 12;
 const APP_PORT = 3000;
 const CONVEX_PORT = 3210;
 
@@ -108,52 +104,6 @@ function checkBun(bunVersion: string): CheckResult {
   };
 }
 
-async function checkPython(
-  commandVersion: SetupCheckDeps['commandVersion'],
-): Promise<CheckResult> {
-  // Try `python3` first (the macOS/Linux convention), then bare `python`.
-  const raw =
-    (await commandVersion('python3', ['--version'])) ??
-    (await commandVersion('python', ['--version']));
-  const parsed = parseSemver(raw);
-  if (!parsed) {
-    return {
-      name: 'Python 3.12',
-      ok: false,
-      hard: true,
-      detail: 'python3 not found',
-      remediation:
-        'Install Python 3.12 (the rag + crawler services need it): https://www.python.org/downloads/',
-    };
-  }
-  const ok = atLeast(parsed, REQUIRED_PYTHON_MAJOR, REQUIRED_PYTHON_MINOR);
-  return {
-    name: 'Python 3.12',
-    ok,
-    hard: true,
-    detail: `found ${parsed.major}.${parsed.minor}.${parsed.patch}`,
-    remediation: ok
-      ? undefined
-      : `Install Python ${REQUIRED_PYTHON_MAJOR}.${REQUIRED_PYTHON_MINOR}+ for the rag + crawler services: https://www.python.org/downloads/`,
-  };
-}
-
-async function checkUv(
-  commandVersion: SetupCheckDeps['commandVersion'],
-): Promise<CheckResult> {
-  const raw = await commandVersion('uv', ['--version']);
-  const ok = raw !== null;
-  return {
-    name: 'uv (Python package manager)',
-    ok,
-    hard: true,
-    detail: ok ? `found ${raw}` : 'uv not found',
-    remediation: ok
-      ? undefined
-      : 'Install uv: https://github.com/astral-sh/uv (curl -LsSf https://astral.sh/uv/install.sh | sh)',
-  };
-}
-
 async function checkPort(
   port: number,
   label: string,
@@ -197,21 +147,12 @@ export async function runSetupChecks(
 ): Promise<CheckResult[]> {
   // Bun is synchronous (version is already in hand); the rest run in parallel
   // since they're independent probes.
-  const [python, uv, appPort, convexPort, convexCli] = await Promise.all([
-    checkPython(deps.commandVersion),
-    checkUv(deps.commandVersion),
+  const [appPort, convexPort, convexCli] = await Promise.all([
     checkPort(APP_PORT, 'Vite app', deps.portInUse),
     checkPort(CONVEX_PORT, 'Convex backend', deps.portInUse),
     checkConvexCli(deps.commandVersion),
   ]);
-  return [
-    checkBun(deps.bunVersion),
-    python,
-    uv,
-    appPort,
-    convexPort,
-    convexCli,
-  ];
+  return [checkBun(deps.bunVersion), appPort, convexPort, convexCli];
 }
 
 /** True when no hard check failed — the gate `main()` uses for its exit code. */
@@ -283,7 +224,7 @@ async function realCommandVersion(
       proc.exited,
     ]);
     if (exitCode !== 0) return null;
-    // Some tools (python) print the version to stderr; fall back to it.
+    // Some tools print the version to stderr; fall back to it.
     const out = stdout.trim() || stderr.trim();
     return out.length > 0 ? out : null;
   } catch {

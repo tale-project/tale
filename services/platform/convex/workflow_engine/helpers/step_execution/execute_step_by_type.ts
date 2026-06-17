@@ -4,7 +4,7 @@
 
 import type { Infer } from 'convex/values';
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import { ActionCtx } from '../../../_generated/server';
 import { replaceVariables } from '../../../lib/variables/replace_variables';

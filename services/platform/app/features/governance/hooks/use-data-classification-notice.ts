@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 interface DataNoticeConfig {
   enabled: boolean;

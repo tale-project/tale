@@ -1,13 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { CirculyIcon } from './circuly-icon';
 import { EnterKeyIcon } from './enter-key-icon';
 import { GmailIcon } from './gmail-icon';
 import { LocaleIcon } from './locale-icon';
 import { MicrosoftIcon } from './microsoft-icon';
 import { OneDriveIcon } from './onedrive-icon';
 import { OutlookIcon } from './outlook-icon';
-import { ProtelIcon } from './protel-icon';
 import { ShopifyIcon } from './shopify-icon';
 import { WebsiteIcon } from './website-icon';
 
@@ -21,16 +19,6 @@ const icons = [
     name: 'ShopifyIcon',
     component: ShopifyIcon,
     description: 'Shopify e-commerce platform',
-  },
-  {
-    name: 'CirculyIcon',
-    component: CirculyIcon,
-    description: 'Circuly subscription platform',
-  },
-  {
-    name: 'ProtelIcon',
-    component: ProtelIcon,
-    description: 'Protel PMS hotel management',
   },
   {
     name: 'GmailIcon',
@@ -156,24 +144,18 @@ export const IconSizes: StoryObj = {
 export const BrandIcons: StoryObj = {
   render: () => (
     <div className="flex flex-wrap items-center justify-center gap-6">
-      {[
-        MicrosoftIcon,
-        ShopifyIcon,
-        CirculyIcon,
-        ProtelIcon,
-        GmailIcon,
-        OutlookIcon,
-        OneDriveIcon,
-      ].map((Icon, i) => (
-        <div
-          key={i}
-          className="bg-muted flex size-16 items-center justify-center rounded-lg"
-        >
-          <div className="size-8">
-            <Icon />
+      {[MicrosoftIcon, ShopifyIcon, GmailIcon, OutlookIcon, OneDriveIcon].map(
+        (Icon, i) => (
+          <div
+            key={i}
+            className="bg-muted flex size-16 items-center justify-center rounded-lg"
+          >
+            <div className="size-8">
+              <Icon />
+            </div>
           </div>
-        </div>
-      ))}
+        ),
+      )}
     </div>
   ),
   parameters: {

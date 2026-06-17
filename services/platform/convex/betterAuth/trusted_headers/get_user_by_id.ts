@@ -7,7 +7,7 @@ import {
   getString,
   getNumber,
   getBoolean,
-} from '../../../lib/utils/type-guards';
+} from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
 import type { QueryCtx } from '../../_generated/server';
 

@@ -1,28 +1,61 @@
-import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { _resetRagConfigForTests } from '../../../../lib/helpers/rag_config';
+import { internal } from '../../../../_generated/api';
+import type { ActionCtx } from '../../../../_generated/server';
 import { uploadFile } from './upload_file_direct';
 
-const RAG_URL = 'http://rag:8000';
-
-beforeAll(() => {
-  process.env.RAG_URL = RAG_URL;
-  process.env.RAG_AUTH_TOKEN = 'test-token';
-  _resetRagConfigForTests();
-});
 const FILE_ID = 'doc-abc-123';
+
+/** The serialized shape `internal.rag.documents.upload` resolves to. */
+interface RagUploadActionResult {
+  success: boolean;
+  file_id: string;
+  chunks_created: number;
+  skipped: boolean;
+  skip_reason: string | null;
+}
+
+/**
+ * `uploadFile` now indexes IN-PROCESS via `ctx.runAction(internal.rag.documents.upload)`
+ * (reading bytes from storage by `fileId`) instead of a multipart POST to
+ * `RAG_URL`. Per-document metadata is stamped via follow-up `updateMetadata` /
+ * `updateFolderPaths` actions. This factory drives the `runAction` spy and
+ * returns it for assertion; all other `ActionCtx` members are typed stubs.
+ *
+ * The spy dispatches by the action reference so a single ctx can resolve the
+ * upload + metadata + folder-path calls independently.
+ */
+function createCtx(uploadResult: RagUploadActionResult): {
+  ctx: ActionCtx;
+  runAction: ReturnType<typeof vi.fn>;
+} {
+  // `uploadFile` only reads the upload action's result fields (success /
+  // file_id / chunks_created); the updateMetadata / updateFolderPaths return
+  // values are ignored, so a single resolved value covers every call. Calls
+  // are asserted via `toHaveBeenCalledWith` against the Convex function
+  // references (identity `===` on the reference proxy is unreliable).
+  const runAction = vi.fn().mockResolvedValue(uploadResult);
+  const ctx: ActionCtx = {
+    runQuery: vi.fn(),
+    runMutation: vi.fn(),
+    runAction,
+    scheduler: { runAfter: vi.fn(), runAt: vi.fn(), cancel: vi.fn() },
+    auth: { getUserIdentity: vi.fn() },
+    storage: {
+      generateUploadUrl: vi.fn(),
+      getUrl: vi.fn(),
+      getMetadata: vi.fn(),
+      delete: vi.fn(),
+      get: vi.fn(),
+      store: vi.fn(),
+    },
+    vectorSearch: vi.fn(),
+  };
+  return { ctx, runAction };
+}
 
 function defaultArgs() {
   return {
-    file: new Blob(['test-content'], { type: 'text/plain' }),
     filename: 'test.txt',
     contentType: 'text/plain',
     fileId: FILE_ID,
@@ -30,158 +63,107 @@ function defaultArgs() {
   };
 }
 
+function okUploadResult(
+  overrides?: Partial<RagUploadActionResult>,
+): RagUploadActionResult {
+  return {
+    success: true,
+    file_id: 'rag-doc-1',
+    chunks_created: 5,
+    skipped: false,
+    skip_reason: null,
+    ...overrides,
+  };
+}
+
 describe('uploadFile', () => {
-  let fetchSpy: ReturnType<typeof vi.fn>;
+  it('indexes via the in-process upload action with storageId = fileId', async () => {
+    const { ctx, runAction } = createCtx(okUploadResult());
 
-  beforeEach(() => {
-    fetchSpy = vi.fn();
-    vi.stubGlobal('fetch', fetchSpy);
-  });
+    await uploadFile(ctx, defaultArgs());
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  function mockFetchOk(body: object = {}) {
-    fetchSpy.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () =>
-        Promise.resolve({
-          success: true,
-          file_id: 'rag-doc-1',
-          chunks_created: 5,
-          ...body,
-        }),
+    expect(runAction).toHaveBeenCalledWith(internal.rag.documents.upload, {
+      orgSlug: 'default',
+      fileId: FILE_ID,
+      filename: 'test.txt',
+      storageId: FILE_ID,
+      // No inline content → indexer reads bytes from storage by storageId.
+      content: null,
     });
-  }
-
-  function mockFetchError(status: number, statusText: string, body = '') {
-    fetchSpy.mockResolvedValue({
-      ok: false,
-      status,
-      statusText,
-      text: () => Promise.resolve(body),
-    });
-  }
-
-  function getCalledFormData(): FormData {
-    return fetchSpy.mock.calls[0][1].body;
-  }
-
-  it('sends multipart form data with correct filename', async () => {
-    mockFetchOk();
-
-    await uploadFile(defaultArgs());
-
-    const formData = getCalledFormData();
-    const file = formData.get('file');
-    expect(file).toBeInstanceOf(Blob);
-    expect((file as File).name).toBe('test.txt');
   });
 
-  it('includes file_id in form data', async () => {
-    mockFetchOk();
+  it('passes inline base64 content (and null storageId) when content is supplied', async () => {
+    const { ctx, runAction } = createCtx(okUploadResult());
 
-    await uploadFile(defaultArgs());
-
-    const formData = getCalledFormData();
-    expect(formData.get('file_id')).toBe(FILE_ID);
-  });
-
-  it('includes metadata with content_type in form data', async () => {
-    mockFetchOk();
-
-    await uploadFile(defaultArgs());
-
-    const formData = getCalledFormData();
-    const metadata = JSON.parse(formData.get('metadata') as string);
-    expect(metadata.content_type).toBe('text/plain');
-  });
-
-  it('merges custom metadata with content_type', async () => {
-    mockFetchOk();
-
-    await uploadFile({
+    await uploadFile(ctx, {
       ...defaultArgs(),
-      metadata: { source: 'upload', category: 'legal' },
+      content: new Blob(['transcript text'], { type: 'text/plain' }),
     });
 
-    const formData = getCalledFormData();
-    const metadata = JSON.parse(formData.get('metadata') as string);
-    expect(metadata.content_type).toBe('text/plain');
-    expect(metadata.source).toBe('upload');
-    expect(metadata.category).toBe('legal');
-  });
-
-  it('appends ?sync=true to URL when sync is true', async () => {
-    mockFetchOk();
-
-    await uploadFile({ ...defaultArgs(), sync: true });
-
-    const calledUrl: string = fetchSpy.mock.calls[0][0];
-    expect(calledUrl).toBe(`${RAG_URL}/api/v1/documents/upload?sync=true`);
-  });
-
-  it('does not append ?sync=true when sync is false', async () => {
-    mockFetchOk();
-
-    await uploadFile({ ...defaultArgs(), sync: false });
-
-    const calledUrl: string = fetchSpy.mock.calls[0][0];
-    expect(calledUrl).toBe(`${RAG_URL}/api/v1/documents/upload`);
-  });
-
-  it('does not append ?sync=true when sync is omitted', async () => {
-    mockFetchOk();
-
-    await uploadFile(defaultArgs());
-
-    const calledUrl: string = fetchSpy.mock.calls[0][0];
-    expect(calledUrl).toBe(`${RAG_URL}/api/v1/documents/upload`);
-  });
-
-  it('throws UpstreamHttpError with sanitized body snippet on non-ok response', async () => {
-    mockFetchError(500, 'Internal Server Error', 'something broke');
-
-    const err = await uploadFile(defaultArgs()).then(
-      () => null,
-      (e: unknown) => e,
+    expect(runAction).toHaveBeenCalledWith(
+      internal.rag.documents.upload,
+      expect.objectContaining({
+        orgSlug: 'default',
+        fileId: FILE_ID,
+        filename: 'test.txt',
+        storageId: null,
+        content: expect.any(String),
+      }),
     );
-    expect(err).toBeInstanceOf(Error);
-    expect((err as Error).name).toBe('UpstreamHttpError');
-    // `.message` carries the safe summary only (the sanitized body
-    // lives on `.bodySnippet` so it does not cross the Convex client
-    // boundary as a default error toast).
-    expect((err as Error).message).toMatch(/HTTP 500/);
-    expect((err as { bodySnippet?: string }).bodySnippet).toMatch(
-      /something broke/,
-    );
-    // Retryable for 5xx — caller can decide whether to bounce.
-    expect((err as { retryable?: boolean }).retryable).toBe(true);
   });
 
-  it('throws UpstreamHttpError on non-ok response with empty body', async () => {
-    mockFetchError(502, 'Bad Gateway');
+  it('stamps filterable metadata via updateMetadata (dropping content_type)', async () => {
+    const { ctx, runAction } = createCtx(okUploadResult());
 
-    const err = await uploadFile(defaultArgs()).then(
-      () => null,
-      (e: unknown) => e,
-    );
-    expect(err).toBeInstanceOf(Error);
-    expect((err as Error).name).toBe('UpstreamHttpError');
-    expect((err as Error).message).toMatch(/HTTP 502/);
-    expect((err as { retryable?: boolean }).retryable).toBe(true);
-  });
-
-  it('returns correct RagUploadResult shape on success', async () => {
-    mockFetchOk({
-      success: true,
-      file_id: 'rag-doc-42',
-      chunks_created: 7,
+    await uploadFile(ctx, {
+      ...defaultArgs(),
+      metadata: { team_id: 'team-1', content_type: 'text/plain' },
     });
 
-    const result = await uploadFile(defaultArgs());
+    expect(runAction).toHaveBeenCalledWith(
+      internal.rag.documents.updateMetadata,
+      {
+        orgSlug: 'default',
+        updates: [{ file_id: FILE_ID, metadata: { team_id: 'team-1' } }],
+      },
+    );
+  });
+
+  it('routes the folder_path metadata key to updateFolderPaths', async () => {
+    const { ctx, runAction } = createCtx(okUploadResult());
+
+    await uploadFile(ctx, {
+      ...defaultArgs(),
+      metadata: { folder_path: 'legal/contracts' },
+    });
+
+    expect(runAction).toHaveBeenCalledWith(
+      internal.rag.documents.updateFolderPaths,
+      {
+        orgSlug: 'default',
+        updates: [{ file_id: FILE_ID, folder_path: 'legal/contracts' }],
+      },
+    );
+  });
+
+  it('does not call updateMetadata when no metadata is supplied', async () => {
+    const { ctx, runAction } = createCtx(okUploadResult());
+
+    await uploadFile(ctx, defaultArgs());
+
+    // With no metadata, the only runAction call is the upload itself — no
+    // follow-up updateMetadata / updateFolderPaths. (Asserting via call count
+    // avoids identity-comparing the Convex function-reference proxy, whose
+    // pretty-printer throws on `===` diffs.)
+    expect(runAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the RagUploadResult shape on success', async () => {
+    const { ctx } = createCtx(
+      okUploadResult({ file_id: 'rag-doc-42', chunks_created: 7 }),
+    );
+
+    const result = await uploadFile(ctx, defaultArgs());
 
     expect(result).toEqual(
       expect.objectContaining({
@@ -195,43 +177,19 @@ describe('uploadFile', () => {
     expect(result.timestamp).toBeTypeOf('number');
   });
 
-  it('uses id field as fallback when file_id is absent', async () => {
-    mockFetchOk({ file_id: undefined, id: 'fallback-id' });
+  it('defaults chunksCreated to 0 when the action returns 0', async () => {
+    const { ctx } = createCtx(okUploadResult({ chunks_created: 0 }));
 
-    const result = await uploadFile(defaultArgs());
-
-    expect(result.ragDocumentId).toBe('fallback-id');
-  });
-
-  it('defaults chunksCreated to 0 when not in response', async () => {
-    mockFetchOk({ chunks_created: undefined });
-
-    const result = await uploadFile(defaultArgs());
+    const result = await uploadFile(ctx, defaultArgs());
 
     expect(result.chunksCreated).toBe(0);
   });
 
-  it('defaults success to true when not in response', async () => {
-    mockFetchOk({ success: undefined });
+  it('propagates the action success flag', async () => {
+    const { ctx } = createCtx(okUploadResult({ success: false }));
 
-    const result = await uploadFile(defaultArgs());
+    const result = await uploadFile(ctx, defaultArgs());
 
-    expect(result.success).toBe(true);
-  });
-
-  it('sends POST method', async () => {
-    mockFetchOk();
-
-    await uploadFile(defaultArgs());
-
-    expect(fetchSpy.mock.calls[0][1].method).toBe('POST');
-  });
-
-  it('passes abort signal for timeout', async () => {
-    mockFetchOk();
-
-    await uploadFile(defaultArgs());
-
-    expect(fetchSpy.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+    expect(result.success).toBe(false);
   });
 });

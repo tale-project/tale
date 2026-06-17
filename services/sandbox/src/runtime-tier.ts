@@ -15,6 +15,7 @@
 
 export type RuntimeTier = 'runc' | 'gvisor' | 'sysbox' | 'kata';
 
+// nosemgrep: tools.opengrep.rules.trailofbits.generic.container-privileged.container-privileged -- intentional: descriptive prose documenting the trusted-only `runc` runtime tier; no container invocation here
 // How a tier delivers docker-in-container:
 //   'privileged' — real inner dockerd via --privileged; NO boundary, host-root
 //                  (runc): functional but trusted-only / single-tenant

@@ -31,7 +31,7 @@ import { validateRequiredParameters } from './helpers/validate_required_paramete
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
 export const integrationAction: ActionDefinition<{
-  // The name/type of integration to use (e.g., 'shopify', 'circuly', 'my_erp')
+  // The name/type of integration to use (e.g., 'shopify', 'stripe', 'my_erp')
   name: string;
   // The operation to perform
   operation: string;

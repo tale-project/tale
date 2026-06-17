@@ -10,7 +10,7 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { INTEGRATION_SLUG } from '../../../lib/shared/constants/usage';
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import { wrapUntrusted } from '../../lib/untrusted_content';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
@@ -24,7 +24,7 @@ const DEFAULT_MAX_INTEGRATION_CALLS_PER_RUN = 60;
 const integrationArgs = z.object({
   integrationName: z
     .string()
-    .describe('Integration name (e.g., "protel", "stripe")'),
+    .describe('Integration name (e.g., "shopify", "stripe")'),
   operation: z
     .string()
     .describe(
@@ -47,7 +47,7 @@ export const integrationTool: ToolDefinition = {
     description: `Execute a single operation on an integration.
 
 CRITICAL: The "params" field must contain ALL required parameters as a JSON object.
-Example call: { integrationName: "protel", operation: "create_guest", params: { "guestId": 5000003, "lastName": "Zhang" } }
+Example call: { integrationName: "shopify", operation: "create_customer", params: { "customerId": 5000003, "lastName": "Zhang" } }
 
 Steps:
 1. First call integration_introspect(operation="xxx") to get required parameters

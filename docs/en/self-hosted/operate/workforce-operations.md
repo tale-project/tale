@@ -27,7 +27,7 @@ Verification: the Workforce page shows automation **off**; new task assignments 
 | Work stuck _In progress_ > 24 h             | Agent run died; stale sweep will roll it back | Check the task's run history; the hourly sweep returns it to _To do_              |
 | Agent refuses every run                     | Budget pause or circuit breaker               | Workforce → needs-attention queues; raise budget or change task status as a human |
 | Reviews pile up                             | Reviewers missing the inbox                   | Review reminders escalate at 4 h / 24 h automatically; check Inbox preferences    |
-| External runs always fail `runtime_offline` | No daemon online for the adapter              | Settings → API → Runtimes: daemon status; `tale-daemon status` on the machine     |
+| External runs always fail `runtime_offline` | No daemon online for the adapter              | Settings → API → Runtimes: daemon status; `tale daemon status` on the machine     |
 | Digest reports `capped` numbers             | Very high activity day hit a scan cap         | Numbers are lower bounds; no action needed                                        |
 
 ## Where to look

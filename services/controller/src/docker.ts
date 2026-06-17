@@ -81,9 +81,10 @@ function dockerRequest(
  * set of candidate projects so we never touch another stack on the same host.
  *
  * Why candidates rather than a single (project, service): rotatable services
- * (e.g. `rag`) are deployed blue/green by the CLI as service `rag-<color>` under
- * project `<project>-<color>`, while the hand-written compose runs them as plain
- * `rag` under `<project>`. Matching `{rag, rag-blue, rag-green}` across
+ * (e.g. `platform`) are deployed blue/green by the CLI as service
+ * `platform-<color>` under project `<project>-<color>`, while the hand-written
+ * compose runs them as plain `platform` under `<project>`. Matching
+ * `{platform, platform-blue, platform-green}` across
  * `{project, project-blue, project-green}` resolves the live container in BOTH
  * topologies. Docker's `label` filters are AND-combined, so OR is done by one
  * list call per service label; the project is then filtered from the returned

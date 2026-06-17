@@ -9,7 +9,7 @@
 
 import { v } from 'convex/values';
 
-import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { fetchJson } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { encryptString } from '../lib/crypto/encrypt_string';

@@ -99,7 +99,7 @@ Core customer fields:
 • email: Customer email (string, optional) - RECOMMENDED
 • externalId: External system ID (string or number, optional)
 • status: Customer status - 'active' | 'churned' | 'potential' (optional)
-• source: Data source - 'manual_import' | 'file_upload' | 'circuly' (string)
+• source: Data source - 'manual_import' | 'file_upload' | 'shopify' (string)
 • locale: Customer locale/language preference (string, optional)
 • address: Customer address object with street, city, state, country, postalCode (optional)
 

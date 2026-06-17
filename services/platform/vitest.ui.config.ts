@@ -35,14 +35,24 @@ export default defineConfig({
       if (log.includes('Not implemented:')) return false;
       return undefined;
     },
-    setupFiles: ['./test/setup-ui.ts'],
+    setupFiles: ['./tests/setup-ui.ts'],
     include: [
       'app/components/**/*.test.{ts,tsx}',
       'app/features/**/*.test.{ts,tsx}',
       'app/hooks/**/*.test.{ts,tsx}',
       'app/routes/**/*.test.{ts,tsx}',
     ],
-    exclude: ['node_modules', '.next', 'dist', 'convex/**'],
+    // `*.browser.test.tsx` are real-Chromium component tests owned by the
+    // `browser` vitest project (`test:browser`); they assert things jsdom fakes
+    // (real layout/getBoundingClientRect, React Flow geometry, focus trapping),
+    // so they must NOT run under this jsdom config even though the glob matches.
+    exclude: [
+      'node_modules',
+      '.next',
+      'dist',
+      'convex/**',
+      '**/*.browser.test.{ts,tsx}',
+    ],
     deps: {
       optimizer: {
         web: {

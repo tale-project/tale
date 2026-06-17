@@ -97,7 +97,7 @@ async function scheduleStorageCleanup(
   if (variablesStorageId || outputStorageId) {
     await ctx.scheduler.runAfter(
       STORAGE_RETENTION_MS,
-      internal.wf_executions.internal_mutations.cleanupExecutionStorage,
+      internal.workflow_executions.internal_mutations.cleanupExecutionStorage,
       { executionId: execution._id, variablesStorageId, outputStorageId },
     );
   }

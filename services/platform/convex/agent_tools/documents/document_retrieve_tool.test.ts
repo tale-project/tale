@@ -1,453 +1,458 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ToolCtx } from '@convex-dev/agent';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { internal } from '../../_generated/api';
 import { documentRetrieveArgs } from './document_retrieve_tool';
 import { retrieveDocument } from './helpers/retrieve_document';
 
-vi.mock('../../_generated/api', () => ({
-  internal: {
-    documents: {
-      internal_queries: {
-        getAccessibleDocumentIds: 'mock-get-accessible-document-ids',
-        findDocumentByFileId: 'mock-find-document-by-file-id',
-      },
-    },
-    file_metadata: {
-      internal_queries: {
-        getByStorageId: 'mock-get-by-storage-id',
-        lookupVideoLinkSources: 'mock-lookup-video-link-sources',
-      },
-    },
-  },
-  // `orgSlugFromId` (called inside retrieveDocument before forwarding
-  // the request to RAG) hits `components.betterAuth.adapter.findOne`.
-  components: {
-    betterAuth: {
-      adapter: {
-        findOne: 'mock-better-auth-find-one',
-      },
-    },
-  },
-}));
+const FILE_ID = 'file-storage-123';
+const ORG_ID = 'org1';
+const USER_ID = 'user1';
+const ORG_SLUG = 'org-1';
 
-vi.mock('../../lib/helpers/rag_config', () => ({
-  getRagConfig: () => ({ serviceUrl: 'http://mock-rag:8001' }),
-  // Source migrated from raw fetch + getRagConfig to ragFetch (commit
-  // ea2d3f1a3); the test still asserts on globalThis.fetch shape, so the
-  // mock just forwards to it. Skips the real auth + SSRF guard because
-  // they require process.env wiring this test doesn't set up.
-  ragFetch: (path: string, init?: RequestInit & { timeoutMs?: number }) =>
-    globalThis.fetch(`http://mock-rag:8001${path}`, init),
-}));
-
-const originalFetch = globalThis.fetch;
-
-function createMockCtx(overrides?: Record<string, unknown>) {
-  const runQuery = vi
-    .fn()
-    .mockResolvedValueOnce({
-      _id: 'doc123',
-      fileId: 'file-storage-123',
-      title: 'Test',
-    }) // findDocumentByFileId
-    .mockResolvedValueOnce(['doc123', 'doc456']) // getAccessibleDocumentIds
-    .mockResolvedValueOnce({ slug: 'org-1' }) // orgSlugFromId → betterAuth findOne
-    .mockResolvedValueOnce([]); // lookupVideoLinkSources — no video-link metadata
-  return {
-    organizationId: 'org1',
-    userId: 'user1',
-    runQuery,
-    ...overrides,
-  };
+/** The serialized shape `internal.rag.documents.getContent` resolves to. */
+interface RagContentResult {
+  file_id: string;
+  title: string | null;
+  content: string;
+  chunk_range: { start: number; end: number };
+  total_chunks: number;
+  total_chars: number;
+  source_created_at: string | null;
+  source_modified_at: string | null;
+  chunks: { index: number; content: string }[] | null;
 }
 
-function createRagResponse(overrides?: Record<string, unknown>) {
+function createRagResult(
+  overrides?: Partial<RagContentResult>,
+): RagContentResult {
   return {
-    file_id: 'file-storage-123',
+    file_id: FILE_ID,
     title: 'Test Document',
     content: 'Hello world',
     chunk_range: { start: 1, end: 5 },
     total_chunks: 10,
     total_chars: 11,
+    source_created_at: null,
+    source_modified_at: null,
+    chunks: null,
     ...overrides,
   };
 }
 
-function mockFetchSuccess(body: Record<string, unknown>) {
-  globalThis.fetch = Object.assign(
-    vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(body), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    ),
-    { preconnect: vi.fn() },
-  );
+/**
+ * The sequenced values `ctx.runQuery` resolves to, in call order. The resolved
+ * shapes are heterogeneous (a document row, an accessible-id list, an org slug
+ * row, a video-source list), so the sequence is modelled as opaque values; the
+ * helper only reads the fields each path needs.
+ */
+function withQueryResults(
+  runQuery: ReturnType<typeof vi.fn>,
+  results: readonly unknown[],
+): void {
+  for (const result of results) runQuery.mockResolvedValueOnce(result);
 }
 
-beforeEach(() => {
-  mockFetchSuccess(createRagResponse());
-});
+/**
+ * `runQuery` result sequence for the knowledge-base-hub happy path:
+ * findDocumentByFileId → getAccessibleDocumentIds → betterAuth findOne
+ * (org slug) → lookupVideoLinkSources.
+ */
+const HUB_QUERY_RESULTS: readonly unknown[] = [
+  { _id: 'doc123', fileId: FILE_ID, title: 'Test' },
+  ['doc123', 'doc456'],
+  { slug: ORG_SLUG },
+  [],
+];
 
-afterEach(() => {
-  globalThis.fetch = originalFetch;
+/**
+ * `retrieveDocument` resolves access control through `ctx.runQuery` and then
+ * delegates the actual content read to `fetchDocumentContent`, which now flows
+ * through an in-process `ctx.runAction(internal.rag.documents.getContent)`
+ * instead of `globalThis.fetch`/`RAG_URL`. This test exercises that contract:
+ * the `runQuery` spy drives the resolution path (sequenced per test) and the
+ * `runAction` spy resolves to the RAG payload. Both spies are returned for
+ * assertion; all other `ToolCtx` members are typed stubs the helper never
+ * invokes.
+ */
+function createCtx(options: {
+  queryResults: readonly unknown[];
+  ragResult: RagContentResult | null;
+  organizationId?: string;
+  userId?: string;
+}) {
+  const runQuery = vi.fn();
+  withQueryResults(runQuery, options.queryResults);
+  const runAction = vi.fn().mockResolvedValue(options.ragResult);
+  const ctx: ToolCtx = {
+    organizationId: options.organizationId,
+    userId: options.userId,
+    runQuery,
+    runMutation: vi.fn(),
+    runAction,
+    scheduler: { runAfter: vi.fn(), runAt: vi.fn(), cancel: vi.fn() },
+    auth: { getUserIdentity: vi.fn() },
+    storage: {
+      generateUploadUrl: vi.fn(),
+      getUrl: vi.fn(),
+      getMetadata: vi.fn(),
+      delete: vi.fn(),
+      get: vi.fn(),
+      store: vi.fn(),
+    },
+    vectorSearch: vi.fn(),
+  };
+  return { ctx, runQuery, runAction };
+}
+
+let runAction: ReturnType<typeof createCtx>['runAction'];
+let ctx: ToolCtx;
+
+beforeEach(() => {
+  ({ ctx, runAction } = createCtx({
+    queryResults: HUB_QUERY_RESULTS,
+    ragResult: createRagResult(),
+    organizationId: ORG_ID,
+    userId: USER_ID,
+  }));
 });
 
 describe('retrieveDocument helper', () => {
   it('returns correct result shape on happy path', async () => {
-    const ctx = createMockCtx();
-
-    const result = await retrieveDocument(ctx as never, {
-      fileId: 'file-storage-123',
-    });
+    const result = await retrieveDocument(ctx, { fileId: FILE_ID });
 
     expect(result).toEqual({
-      fileId: 'file-storage-123',
+      fileId: FILE_ID,
       name: 'Test Document',
       content: 'Hello world',
       chunkRange: { start: 1, end: 5 },
       totalChunks: 10,
       truncated: false,
       totalChars: 11,
+      chunks: undefined,
     });
   });
 
-  it('forwards chunkStart and chunkEnd as query params', async () => {
-    const ctx = createMockCtx();
-
-    await retrieveDocument(ctx as never, {
-      fileId: 'file-storage-123',
+  it('forwards chunkStart and chunkEnd as runAction args', async () => {
+    await retrieveDocument(ctx, {
+      fileId: FILE_ID,
       chunkStart: 5,
       chunkEnd: 15,
     });
 
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const url = fetchCall?.[0];
-    expect(url).toContain('chunk_start=5');
-    expect(url).toContain('chunk_end=15');
+    expect(runAction).toHaveBeenCalledWith(internal.rag.documents.getContent, {
+      orgSlug: ORG_SLUG,
+      fileId: FILE_ID,
+      chunkStart: 5,
+      chunkEnd: 15,
+      returnChunks: null,
+    });
   });
 
-  it('omits query params when chunkStart and chunkEnd not provided', async () => {
-    const ctx = createMockCtx();
+  it('passes null chunk args to runAction when not provided', async () => {
+    await retrieveDocument(ctx, { fileId: FILE_ID });
 
-    await retrieveDocument(ctx as never, { fileId: 'file-storage-123' });
-
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const url = fetchCall?.[0] ?? '';
-    expect(url).not.toContain('chunk_start');
-    expect(url).not.toContain('chunk_end');
-    expect(url).toMatch(/\/content$/);
+    expect(runAction).toHaveBeenCalledWith(internal.rag.documents.getContent, {
+      orgSlug: ORG_SLUG,
+      fileId: FILE_ID,
+      chunkStart: null,
+      chunkEnd: null,
+      returnChunks: null,
+    });
   });
 
-  it('uses file storage ID in RAG URL, not document ID', async () => {
-    const ctx = createMockCtx();
+  it('forwards the raw fileId untouched (no URL encoding)', async () => {
+    ({ ctx, runAction } = createCtx({
+      queryResults: [
+        { _id: 'doc-slashes', fileId: 'file/with slashes', title: 'Test' },
+        ['doc-slashes'],
+        { slug: ORG_SLUG },
+        [],
+      ],
+      ragResult: createRagResult({ file_id: 'file/with slashes' }),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
-    await retrieveDocument(ctx as never, { fileId: 'file-storage-123' });
+    await retrieveDocument(ctx, { fileId: 'file/with slashes' });
 
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const url = fetchCall?.[0] ?? '';
-    expect(url).toContain('file-storage-123');
-    expect(url).not.toContain('doc123');
+    expect(runAction).toHaveBeenCalledWith(internal.rag.documents.getContent, {
+      orgSlug: ORG_SLUG,
+      fileId: 'file/with slashes',
+      chunkStart: null,
+      chunkEnd: null,
+      returnChunks: null,
+    });
   });
 
   it('truncates content exceeding 50K chars', async () => {
     const longContent = 'x'.repeat(60_000);
-    mockFetchSuccess(
-      createRagResponse({ content: longContent, total_chars: 60_000 }),
-    );
-    const ctx = createMockCtx();
+    ({ ctx, runAction } = createCtx({
+      queryResults: HUB_QUERY_RESULTS,
+      ragResult: createRagResult({ content: longContent, total_chars: 60_000 }),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
-    const result = await retrieveDocument(ctx as never, {
-      fileId: 'file-storage-123',
-    });
+    const result = await retrieveDocument(ctx, { fileId: FILE_ID });
 
     expect(result.truncated).toBe(true);
     expect(result.content).toHaveLength(50_000);
+    expect(result.totalChars).toBe(60_000);
   });
 
   it('does not truncate content at exactly 50K chars', async () => {
     const exactContent = 'x'.repeat(50_000);
-    mockFetchSuccess(
-      createRagResponse({ content: exactContent, total_chars: 50_000 }),
-    );
-    const ctx = createMockCtx();
+    ({ ctx, runAction } = createCtx({
+      queryResults: HUB_QUERY_RESULTS,
+      ragResult: createRagResult({
+        content: exactContent,
+        total_chars: 50_000,
+      }),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
-    const result = await retrieveDocument(ctx as never, {
-      fileId: 'file-storage-123',
-    });
+    const result = await retrieveDocument(ctx, { fileId: FILE_ID });
 
     expect(result.truncated).toBe(false);
     expect(result.content).toHaveLength(50_000);
   });
 
   it('throws when organizationId is missing', async () => {
-    const ctx = createMockCtx({ organizationId: undefined });
+    ({ ctx } = createCtx({
+      queryResults: HUB_QUERY_RESULTS,
+      ragResult: createRagResult(),
+      organizationId: undefined,
+      userId: USER_ID,
+    }));
 
-    await expect(
-      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
-    ).rejects.toThrow('organizationId is required');
+    await expect(retrieveDocument(ctx, { fileId: FILE_ID })).rejects.toThrow(
+      'organizationId is required',
+    );
   });
 
   it('throws when userId is missing', async () => {
-    const ctx = createMockCtx({ userId: undefined });
+    ({ ctx } = createCtx({
+      queryResults: HUB_QUERY_RESULTS,
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: undefined,
+    }));
 
-    await expect(
-      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
-    ).rejects.toThrow('userId is required');
+    await expect(retrieveDocument(ctx, { fileId: FILE_ID })).rejects.toThrow(
+      'userId is required',
+    );
   });
 
   it('throws when fileId is in neither documents hub nor fileMetadata', async () => {
-    const ctx = createMockCtx({
-      runQuery: vi
-        .fn()
-        .mockResolvedValueOnce(null) // findDocumentByFileId returns null
-        .mockResolvedValueOnce(null), // getByStorageId returns null
-    });
+    ({ ctx } = createCtx({
+      queryResults: [
+        null, // findDocumentByFileId — no hub row
+        null, // getByStorageId — no metadata
+      ],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
     await expect(
-      retrieveDocument(ctx as never, { fileId: 'nonexistent-file' }),
+      retrieveDocument(ctx, { fileId: 'nonexistent-file' }),
     ).rejects.toThrow('Document not found');
   });
 
   it('falls back to fileMetadata + RAG for chat-uploaded files not in documents hub', async () => {
-    mockFetchSuccess(
-      createRagResponse({
+    ({ ctx, runAction } = createCtx({
+      queryResults: [
+        null, // findDocumentByFileId — no hub row
+        {
+          organizationId: ORG_ID,
+          storageId: 'chat-upload-1',
+          ragStatus: 'completed',
+        }, // getByStorageId — chat attachment, indexed
+        { slug: ORG_SLUG }, // orgSlugFromId → betterAuth findOne
+        [], // lookupVideoLinkSources
+      ],
+      ragResult: createRagResult({
         file_id: 'chat-upload-1',
         title: 'Chat Attachment',
       }),
-    );
-    const ctx = createMockCtx({
-      runQuery: vi
-        .fn()
-        .mockResolvedValueOnce(null) // findDocumentByFileId — no hub row
-        .mockResolvedValueOnce({
-          organizationId: 'org1',
-          storageId: 'chat-upload-1',
-          ragStatus: 'completed',
-        }) // getByStorageId — chat attachment, indexed
-        .mockResolvedValueOnce({ slug: 'org-1' }) // orgSlugFromId → betterAuth findOne
-        .mockResolvedValueOnce([]), // lookupVideoLinkSources
-    });
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
-    const result = await retrieveDocument(ctx as never, {
-      fileId: 'chat-upload-1',
-    });
+    const result = await retrieveDocument(ctx, { fileId: 'chat-upload-1' });
 
     expect(result.name).toBe('Chat Attachment');
     expect(result.content).toBe('Hello world');
-    expect(vi.mocked(globalThis.fetch).mock.calls[0]?.[0]).toContain(
-      'chat-upload-1',
-    );
+    expect(runAction).toHaveBeenCalledWith(internal.rag.documents.getContent, {
+      orgSlug: ORG_SLUG,
+      fileId: 'chat-upload-1',
+      chunkStart: null,
+      chunkEnd: null,
+      returnChunks: null,
+    });
   });
 
   it('rejects fileMetadata from a different organization as not found', async () => {
-    const ctx = createMockCtx({
-      runQuery: vi
-        .fn()
-        .mockResolvedValueOnce(null) // findDocumentByFileId — no hub row
-        .mockResolvedValueOnce({
+    ({ ctx } = createCtx({
+      queryResults: [
+        null, // findDocumentByFileId — no hub row
+        {
           organizationId: 'other-org',
           storageId: 'chat-upload-1',
           ragStatus: 'completed',
-        }),
-    });
+        }, // getByStorageId — foreign-org metadata
+      ],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
     await expect(
-      retrieveDocument(ctx as never, { fileId: 'chat-upload-1' }),
+      retrieveDocument(ctx, { fileId: 'chat-upload-1' }),
     ).rejects.toThrow('Document not found');
   });
 
   it('throws transient error when chat attachment is still being indexed', async () => {
-    const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
-        organizationId: 'org1',
-        storageId: 'chat-upload-1',
-        ragStatus: 'running',
-      }),
-    });
+    ({ ctx } = createCtx({
+      queryResults: [
+        null, // findDocumentByFileId — no hub row
+        {
+          organizationId: ORG_ID,
+          storageId: 'chat-upload-1',
+          ragStatus: 'running',
+        }, // getByStorageId — still indexing
+      ],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
     await expect(
-      retrieveDocument(ctx as never, { fileId: 'chat-upload-1' }),
+      retrieveDocument(ctx, { fileId: 'chat-upload-1' }),
     ).rejects.toThrow('still being indexed');
   });
 
   it('throws transient error when ragStatus is undefined (pending)', async () => {
-    const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
-        organizationId: 'org1',
-        storageId: 'chat-upload-1',
-        // ragStatus undefined
-      }),
-    });
+    ({ ctx } = createCtx({
+      queryResults: [
+        null, // findDocumentByFileId — no hub row
+        {
+          organizationId: ORG_ID,
+          storageId: 'chat-upload-1',
+          // ragStatus undefined
+        }, // getByStorageId — pending (no status)
+      ],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
     await expect(
-      retrieveDocument(ctx as never, { fileId: 'chat-upload-1' }),
+      retrieveDocument(ctx, { fileId: 'chat-upload-1' }),
     ).rejects.toThrow('still being indexed');
   });
 
   it('throws with stored ragError when indexing has failed', async () => {
-    const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
-        organizationId: 'org1',
-        storageId: 'chat-upload-1',
-        ragStatus: 'failed',
-        ragError: 'crawler timeout after 3 retries',
-      }),
-    });
+    ({ ctx } = createCtx({
+      queryResults: [
+        null, // findDocumentByFileId — no hub row
+        {
+          organizationId: ORG_ID,
+          storageId: 'chat-upload-1',
+          ragStatus: 'failed',
+          ragError: 'crawler timeout after 3 retries',
+        }, // getByStorageId — indexing failed
+      ],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
     await expect(
-      retrieveDocument(ctx as never, { fileId: 'chat-upload-1' }),
+      retrieveDocument(ctx, { fileId: 'chat-upload-1' }),
     ).rejects.toThrow('crawler timeout after 3 retries');
   });
 
   it('does not call getAccessibleDocumentIds on the fileMetadata fallback path', async () => {
-    const runQuery = vi
-      .fn()
-      .mockResolvedValueOnce(null) // findDocumentByFileId
-      .mockResolvedValueOnce({
-        organizationId: 'org1',
-        storageId: 'chat-upload-1',
-        ragStatus: 'completed',
-      }) // getByStorageId
-      .mockResolvedValueOnce({ slug: 'org-1' }) // orgSlugFromId → betterAuth findOne
-      .mockResolvedValueOnce([]); // lookupVideoLinkSources
-    const ctx = createMockCtx({ runQuery });
+    let runQuery: ReturnType<typeof createCtx>['runQuery'];
+    ({ ctx, runQuery } = createCtx({
+      queryResults: [
+        null, // findDocumentByFileId — no hub row
+        {
+          organizationId: ORG_ID,
+          storageId: 'chat-upload-1',
+          ragStatus: 'completed',
+        }, // getByStorageId
+        { slug: ORG_SLUG }, // orgSlugFromId → betterAuth findOne
+        [], // lookupVideoLinkSources
+      ],
+      ragResult: createRagResult({ file_id: 'chat-upload-1' }),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
-    await retrieveDocument(ctx as never, { fileId: 'chat-upload-1' });
+    await retrieveDocument(ctx, { fileId: 'chat-upload-1' });
 
     const queryIdentifiers = runQuery.mock.calls.map((call) => call[0]);
-    expect(queryIdentifiers).not.toContain('mock-get-accessible-document-ids');
+    expect(queryIdentifiers).not.toContain(
+      internal.documents.internal_queries.getAccessibleDocumentIds,
+    );
   });
 
   it('throws when document is not in accessible IDs', async () => {
-    const runQuery = vi
-      .fn()
-      .mockResolvedValueOnce({
-        _id: 'doc123',
-        fileId: 'file-storage-123',
-        title: 'Test',
-      }) // findDocumentByFileId
-      .mockResolvedValueOnce(['other-doc']); // getAccessibleDocumentIds — doc123 not included
-    const ctx = createMockCtx({ runQuery });
+    ({ ctx } = createCtx({
+      queryResults: [
+        { _id: 'doc123', fileId: FILE_ID, title: 'Test' }, // findDocumentByFileId
+        ['other-doc'], // getAccessibleDocumentIds — doc123 not included
+      ],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
-    await expect(
-      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
-    ).rejects.toThrow('Access denied for document');
+    await expect(retrieveDocument(ctx, { fileId: FILE_ID })).rejects.toThrow(
+      'Access denied for document',
+    );
   });
 
-  it('throws graceful message on RAG 404', async () => {
-    globalThis.fetch = Object.assign(
-      vi.fn().mockResolvedValue(new Response('Not found', { status: 404 })),
-      { preconnect: vi.fn() },
+  it('throws "not found in the knowledge base" when getContent returns null', async () => {
+    ({ ctx } = createCtx({
+      queryResults: HUB_QUERY_RESULTS,
+      ragResult: null,
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
+
+    await expect(retrieveDocument(ctx, { fileId: FILE_ID })).rejects.toThrow(
+      'was not found in the knowledge base',
     );
-    const ctx = createMockCtx();
-
-    await expect(
-      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
-    ).rejects.toThrow('was not found in the knowledge base');
-  });
-
-  it('throws with status on RAG 500', async () => {
-    globalThis.fetch = Object.assign(
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response('Internal Server Error', { status: 500 }),
-        ),
-      { preconnect: vi.fn() },
-    );
-    const ctx = createMockCtx();
-
-    await expect(
-      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
-    ).rejects.toThrow(/HTTP 500/);
-  });
-
-  it('wraps non-JSON response parse error', async () => {
-    globalThis.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response('<html>Error</html>', {
-          status: 200,
-          headers: { 'content-type': 'text/html' },
-        }),
-      ),
-      { preconnect: vi.fn() },
-    );
-    const ctx = createMockCtx();
-
-    await expect(
-      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
-    ).rejects.toThrow('Failed to parse RAG response');
   });
 
   it('handles empty content from RAG gracefully', async () => {
-    mockFetchSuccess(createRagResponse({ content: '', total_chars: 0 }));
-    const ctx = createMockCtx();
+    ({ ctx } = createCtx({
+      queryResults: HUB_QUERY_RESULTS,
+      ragResult: createRagResult({ content: '', total_chars: 0 }),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
-    const result = await retrieveDocument(ctx as never, {
-      fileId: 'file-storage-123',
-    });
+    const result = await retrieveDocument(ctx, { fileId: FILE_ID });
 
     expect(result.content).toBe('');
     expect(result.truncated).toBe(false);
   });
 
-  it('uses encodeURIComponent for fileId in URL', async () => {
-    const runQuery = vi
-      .fn()
-      .mockResolvedValueOnce({
-        _id: 'doc-slashes',
-        fileId: 'file/with/slashes',
-        title: 'Test',
-      }) // findDocumentByFileId
-      .mockResolvedValueOnce(['doc-slashes']) // getAccessibleDocumentIds
-      .mockResolvedValueOnce({ slug: 'org-1' }) // orgSlugFromId → betterAuth findOne
-      .mockResolvedValueOnce([]); // lookupVideoLinkSources
-    const ctx = createMockCtx({ runQuery });
-
-    await retrieveDocument(ctx as never, {
-      fileId: 'file/with/slashes',
-    });
-
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const url = fetchCall?.[0] ?? '';
-    expect(url).toContain('file%2Fwith%2Fslashes');
-  });
-
-  it('throws timeout error when fetch is aborted', async () => {
-    globalThis.fetch = Object.assign(
-      vi
-        .fn()
-        .mockRejectedValue(
-          new DOMException('The operation was aborted', 'AbortError'),
-        ),
-      { preconnect: vi.fn() },
-    );
-    const ctx = createMockCtx();
-
-    await expect(
-      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
-    ).rejects.toThrow('timed out after 60s');
-  });
-
-  it('re-throws network errors from fetch', async () => {
-    globalThis.fetch = Object.assign(
-      vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
-      { preconnect: vi.fn() },
-    );
-    const ctx = createMockCtx();
-
-    await expect(
-      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
-    ).rejects.toThrow('Failed to fetch');
-  });
-
   it('returns "Untitled" when RAG response has null title', async () => {
-    mockFetchSuccess(createRagResponse({ title: null }));
-    const ctx = createMockCtx();
+    ({ ctx } = createCtx({
+      queryResults: HUB_QUERY_RESULTS,
+      ragResult: createRagResult({ title: null }),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
 
-    const result = await retrieveDocument(ctx as never, {
-      fileId: 'file-storage-123',
-    });
+    const result = await retrieveDocument(ctx, { fileId: FILE_ID });
 
     expect(result.name).toBe('Untitled');
   });

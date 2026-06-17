@@ -1,0 +1,82 @@
+name: SAST
+
+# Strict, blocking source-level SAST (Opengrep). Unlike the dependency scans in
+# security.yml (scoped to lockfiles + main), this runs on EVERY pull request
+# (any target branch) whenever source changes, so feature branches can't slip
+# code past the gate. The ruleset and pinned engine live in tools/opengrep/.
+
+on:
+  pull_request:
+    paths:
+      - 'services/**'
+      - 'packages/**'
+      - 'tools/**'
+      - 'scripts/**'
+      - 'compose*.yml'
+      - '.github/workflows/**'
+      - '.opengrepignore'
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/**'
+      - 'packages/**'
+      - 'tools/**'
+      - 'scripts/**'
+      - 'compose*.yml'
+      - '.github/workflows/**'
+      - '.opengrepignore'
+  schedule:
+    - cron: '0 3 * * 2' # Tuesday 03:00 UTC (offset from the Monday dep scan)
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  opengrep:
+    name: Opengrep
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Cache Opengrep binary
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/opengrep
+          key: opengrep-${{ runner.os }}-${{ hashFiles('tools/opengrep/run.sh') }}
+          restore-keys: |
+            opengrep-${{ runner.os }}-
+
+      # The blocking gate: downloads the pinned engine (cached above), runs the
+      # vendored ruleset, writes SARIF, and exits non-zero on any finding.
+      - name: Run Opengrep
+        env:
+          OPENGREP_SARIF_OUTPUT: opengrep.sarif
+        run: bash tools/opengrep/run.sh
+
+      - name: Upload SARIF
+        if: always() && hashFiles('opengrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
+        with:
+          sarif_file: opengrep.sarif
+          category: opengrep
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Opengrep SAST" >> "$GITHUB_STEP_SUMMARY"
+          echo "Vendored ruleset (tools/opengrep/config.yml). Findings, if any, are in the Security tab under \`opengrep\` and fail this required check." >> "$GITHUB_STEP_SUMMARY"

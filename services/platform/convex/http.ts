@@ -1,6 +1,6 @@
 import { httpRouter } from 'convex/server';
 
-import { getString, isRecord } from '../lib/utils/type-guards';
+import { getString, isRecord } from '../lib/utils/type-utils';
 import { components, internal } from './_generated/api';
 import { httpAction } from './_generated/server';
 import {

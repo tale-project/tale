@@ -4,7 +4,7 @@ import { defineConfig } from 'vite';
 
 // To serve `/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, `/robots.txt`,
 // and `/<route>.md` on demand, build a server with `createArtifactsServer`
-// from `@tale/seo` and wire it through `artifactsPlugin` here and
+// from `@tale/ui/seo` and wire it through `artifactsPlugin` here and
 // `startReactServer({ artifacts })` in `server.ts`. See
 // `services/web/lib/seo/artifacts-server.ts` for a full example.
 
@@ -37,7 +37,6 @@ export default defineConfig({
   ssr: {
     noExternal: [
       '@tale/ui',
-      '@tale/webui',
       '@tanstack/react-router',
       'framer-motion',
       'lucide-react',

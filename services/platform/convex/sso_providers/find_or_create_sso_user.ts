@@ -1,9 +1,15 @@
 import { GenericMutationCtx } from 'convex/server';
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { DataModel } from '../_generated/dataModel';
+import { upsertMemberMirror } from '../members/mirror_sync';
 import type { PlatformRole } from './types';
+
+function extractMemberId(created: unknown): string | undefined {
+  if (!isRecord(created)) return undefined;
+  return getString(created, '_id') ?? getString(created, 'id');
+}
 
 type FindOrCreateSsoUserArgs = {
   email: string;
@@ -115,17 +121,31 @@ export async function findOrCreateSsoUser(
     const existingMembership = membershipRes?.page?.[0];
 
     if (!existingMembership) {
-      await ctx.runMutation(components.betterAuth.adapter.create, {
-        input: {
-          model: 'member',
-          data: {
-            organizationId: args.organizationId,
-            userId: existingUserId,
-            role: args.role,
-            createdAt: Date.now(),
+      const memberCreatedAt = Date.now();
+      const createdMember = await ctx.runMutation(
+        components.betterAuth.adapter.create,
+        {
+          input: {
+            model: 'member',
+            data: {
+              organizationId: args.organizationId,
+              userId: existingUserId,
+              role: args.role,
+              createdAt: memberCreatedAt,
+            },
           },
         },
-      });
+      );
+      const memberId = extractMemberId(createdMember);
+      if (memberId) {
+        await upsertMemberMirror(ctx, {
+          memberId,
+          userId: existingUserId,
+          organizationId: args.organizationId,
+          role: args.role,
+          createdAt: memberCreatedAt,
+        });
+      }
     }
 
     return { userId: existingUserId, isNewUser: false };
@@ -172,17 +192,30 @@ export async function findOrCreateSsoUser(
     },
   });
 
-  await ctx.runMutation(components.betterAuth.adapter.create, {
-    input: {
-      model: 'member',
-      data: {
-        organizationId: args.organizationId,
-        userId,
-        role: args.role,
-        createdAt: now,
+  const createdMember = await ctx.runMutation(
+    components.betterAuth.adapter.create,
+    {
+      input: {
+        model: 'member',
+        data: {
+          organizationId: args.organizationId,
+          userId,
+          role: args.role,
+          createdAt: now,
+        },
       },
     },
-  });
+  );
+  const memberId = extractMemberId(createdMember);
+  if (memberId) {
+    await upsertMemberMirror(ctx, {
+      memberId,
+      userId,
+      organizationId: args.organizationId,
+      role: args.role,
+      createdAt: now,
+    });
+  }
 
   return { userId, isNewUser: true };
 }

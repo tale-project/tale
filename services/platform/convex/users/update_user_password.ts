@@ -8,7 +8,7 @@ import {
   isPasswordValid,
   passwordPolicyViolations,
 } from '../../lib/shared/schemas/password';
-import { getString, isRecord } from '../../lib/utils/type-guards';
+import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { hasCredentialAccount } from '../accounts/helpers';

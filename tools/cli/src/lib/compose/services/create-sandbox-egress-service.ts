@@ -20,8 +20,8 @@ import { DEFAULT_LOGGING } from '../types';
  * lookup and the kernel connect(). Mirrors
  * services/convex/docker-entrypoint.sh.
  *
- * Egress IS reachable from `internal` peers (rag, crawler, platform,
- * web) — but the IMDS/RFC1918 rules still apply and the proxy only
+ * Egress IS reachable from `internal` peers (platform, convex, web) —
+ * but the IMDS/RFC1918 rules still apply and the proxy only
  * reaches the same internet those peers can reach directly via their
  * own NAT. The proxy is not a meaningful new attack surface for those
  * peers; the isolation it provides is for the `--internal` sandbox

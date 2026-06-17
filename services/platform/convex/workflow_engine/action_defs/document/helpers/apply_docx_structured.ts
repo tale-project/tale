@@ -1,26 +1,27 @@
 'use node';
 
 /**
- * Apply text modifications to a DOCX template via the crawler service.
+ * Apply text modifications to a DOCX template in-process.
  *
- * Downloads the template from Convex storage, sends it to the crawler
- * /apply-structured endpoint with modifications, stores the result back
- * in Convex storage, and returns a download URL.
+ * Replaces the former crawler `POST /api/v1/docx/apply-structured` call:
+ * downloads the template from Convex storage, applies the modifications via
+ * `crawler/lib/docx_roundtrip` (`applyStructured`, OOXML in-place edit with
+ * optional tracked changes), stores the result back in Convex storage, and
+ * returns a download URL.
  */
 
-import { decode as decodeBase64 } from 'base64-arraybuffer';
+import { v } from 'convex/values';
 
-import { fetchJson } from '../../../../../lib/utils/type-cast-helpers';
+import { fetchJson } from '../../../../../lib/utils/type-utils';
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
-import type { ActionCtx } from '../../../../_generated/server';
+import { internalAction, type ActionCtx } from '../../../../_generated/server';
 import {
-  buildDownloadUrl,
-  getCrawlerUrl,
-} from '../../../../documents/generate_document_helpers';
+  applyStructured,
+  type ApplyReport,
+} from '../../../../crawler/lib/docx_roundtrip';
+import { buildDownloadUrl } from '../../../../documents/generate_document_helpers';
 import { createDebugLog } from '../../../../lib/debug_log';
-import { UpstreamHttpError } from '../../../../lib/errors/upstream_http_error';
-import { orgSlugFromId } from '../../../../lib/helpers/org_slug';
 import { toId } from '../../../../lib/type_cast_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
@@ -28,26 +29,6 @@ const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 interface Modification {
   key: string;
   text: string;
-}
-
-interface ApplyReport {
-  total_modifications_requested: number;
-  applied: number;
-  success: boolean;
-  skipped_not_editable: string[];
-  skipped_unknown_key: string[];
-  skipped_no_change: string[];
-  skipped_non_text_content: string[];
-  format_simplified: string[];
-  errors: Array<{ key: string; error: string }>;
-}
-
-interface CrawlerApplyResponse {
-  success: boolean;
-  file_base64: string | null;
-  file_size: number | null;
-  report: ApplyReport | null;
-  error: string | null;
 }
 
 export interface ApplyDocxStructuredArgs {
@@ -77,79 +58,29 @@ export async function applyDocxStructured(
   ctx: ActionCtx,
   args: ApplyDocxStructuredArgs,
 ): Promise<ApplyDocxStructuredResult> {
-  const crawlerUrl = getCrawlerUrl();
-  const apiUrl = `${crawlerUrl}/api/v1/docx/apply-structured`;
-
   debugLog('applyDocxStructured start', {
     templateFileId: args.templateFileId,
     modificationsCount: args.modifications.length,
     trackChanges: args.trackChanges ?? false,
   });
 
-  // Download template from storage
-  const templateUrl = await ctx.storage.getUrl(
+  // Read template bytes from storage in-process.
+  const templateBlob = await ctx.storage.get(
     toId<'_storage'>(args.templateFileId),
   );
-  if (!templateUrl) {
+  if (!templateBlob) {
     throw new Error(
       `Template file not found in storage: ${args.templateFileId}`,
     );
   }
+  const templateBytes = new Uint8Array(await templateBlob.arrayBuffer());
 
-  const templateResponse = await fetch(templateUrl);
-  if (!templateResponse.ok) {
-    throw new Error(`Failed to download template: ${templateResponse.status}`);
-  }
-  const templateBlob = await templateResponse.blob();
-
-  // Build params JSON
-  const params = JSON.stringify({
-    source_hash: args.sourceHash,
-    modifications: args.modifications,
-    track_changes: args.trackChanges ?? false,
-    author: args.author ?? 'AI Assistant',
-  });
-
-  // Send to crawler
-  const formData = new FormData();
-  formData.append('template_file', templateBlob, 'template.docx');
-  formData.append('params', params);
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300_000);
-
-  const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'x-tale-org': orgSlug },
-    body: formData,
-    signal: controller.signal,
-  });
-
-  clearTimeout(timeoutId);
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw UpstreamHttpError.fromResponse(
-      'crawler',
-      response,
-      errorText,
-      '/api/v1/docx/apply-structured',
-    );
-  }
-
-  const result = await fetchJson<CrawlerApplyResponse>(response);
-
-  if (!result.success || !result.file_base64) {
-    throw new Error(
-      result.error || 'Failed to apply structured modifications to DOCX',
-    );
-  }
-
-  // Decode base64 and upload to Convex storage
-  const docxArrayBuffer = decodeBase64(result.file_base64);
-  const docxBytes = new Uint8Array(docxArrayBuffer);
+  const { bytes: docxBytes, report } = await applyStructured(
+    templateBytes,
+    args.sourceHash,
+    args.modifications,
+    { trackChanges: args.trackChanges, author: args.author },
+  );
 
   const uploadUrl = await ctx.storage.generateUploadUrl();
   const uploadResponse = await fetch(uploadUrl, {
@@ -170,11 +101,10 @@ export async function applyDocxStructured(
     ? args.fileName
     : `${args.fileName}.docx`;
 
-  // Save file metadata so the file shows up in the org's library.
-  // Cleanup the just-uploaded _storage blob if the metadata write
-  // fails — without this, a transient mutation failure leaves an
-  // orphan blob in the global _storage namespace with no fileMetadata
-  // pointer (round-3 P2 R10-P2-c).
+  // Save file metadata so the file shows up in the org's library. Cleanup the
+  // just-uploaded `_storage` blob if the metadata write fails — without this,
+  // a transient mutation failure leaves an orphan blob with no fileMetadata
+  // pointer.
   try {
     await ctx.runMutation(
       internal.file_metadata.internal_mutations.saveFileMetadata,
@@ -205,7 +135,7 @@ export async function applyDocxStructured(
     fileName: finalFileName,
     storageId,
     size: docxBytes.length,
-    applied: result.report?.applied ?? 0,
+    applied: report.applied,
   });
 
   return {
@@ -215,16 +145,24 @@ export async function applyDocxStructured(
     fileName: finalFileName,
     contentType: DOCX_CONTENT_TYPE,
     size: docxBytes.length,
-    report: result.report ?? {
-      total_modifications_requested: args.modifications.length,
-      applied: 0,
-      success: true,
-      skipped_not_editable: [],
-      skipped_unknown_key: [],
-      skipped_no_change: [],
-      skipped_non_text_content: [],
-      format_simplified: [],
-      errors: [],
-    },
+    report,
   };
 }
+
+/**
+ * Node-runtime entry point invoked by the V8 `document_action` via
+ * `ctx.runAction` — see the note on `extractDocxStructuredAction`.
+ */
+export const applyDocxStructuredAction = internalAction({
+  args: {
+    templateFileId: v.string(),
+    sourceHash: v.string(),
+    modifications: v.array(v.object({ key: v.string(), text: v.string() })),
+    fileName: v.string(),
+    organizationId: v.string(),
+    trackChanges: v.optional(v.boolean()),
+    author: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<ApplyDocxStructuredResult> =>
+    applyDocxStructured(ctx, args),
+});

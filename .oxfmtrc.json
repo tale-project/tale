@@ -18,6 +18,7 @@
     "**/dist",
     "**/dist-ssr",
     "**/search-index-*.json",
-    "tools/plop/templates"
+    "tools/plop/templates",
+    "tools/opengrep/rules"
   ]
 }

@@ -8,7 +8,7 @@
  * live payloads that predate the declared schema.
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { extractInputSchema } from '../../../agent_tools/workflows/helpers/extract_input_schema';
 import { validateWorkflowInput } from './validate_workflow_input';
 

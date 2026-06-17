@@ -1,4 +1,38 @@
 {
+  "effortLevel": "xhigh",
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(bun run check)",
+      "Bash(bun run verify)",
+      "Bash(bun run format)",
+      "Bash(bun run format:check)",
+      "Bash(bun run lint)",
+      "Bash(bun run lint:sast)",
+      "Bash(bun run typecheck)",
+      "Bash(bun run test)",
+      "Bash(bun run test:e2e)",
+      "Bash(bun run knip)",
+      "Bash(bun run knip:check)",
+      "Bash(bun run --filter * lint)",
+      "Bash(bun run --filter * test)",
+      "Bash(bun run --filter * typecheck)",
+      "Bash(bun run migrations:check)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git stash list)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)",
+      "Bash(rg:*)",
+      "Bash(bunx convex env list)",
+      "Bash(bunx convex codegen)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {

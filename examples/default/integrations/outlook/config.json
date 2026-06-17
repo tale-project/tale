@@ -1,6 +1,6 @@
 {
   "title": "Microsoft Outlook",
-  "description": "Microsoft Graph API integration for Outlook mail, calendar, and contacts",
+  "description": "Manage Outlook mail, calendar, and contacts.",
   "version": 2,
   "authMethod": "oauth2",
   "supportedAuthMethods": ["oauth2"],

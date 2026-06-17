@@ -2,7 +2,7 @@
 
 import { v } from 'convex/values';
 
-import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
+import { isRecord, getBoolean, getString } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';

@@ -10,7 +10,7 @@ const GREEN = isTTY ? `${ESC}[32m` : '';
 const YELLOW = isTTY ? `${ESC}[33m` : '';
 
 const COMPACT_LINES = 3;
-const EXPANDED_LINES = 8;
+const EXPANDED_LINES = 9;
 const LOG_BUFFER_CAPACITY = 1000;
 
 function write(text: string) {
@@ -108,6 +108,7 @@ export class StatusHeader {
   private ready = false;
   private version: string;
   private urls: ReadyUrls | null = null;
+  private adminKey: string | null = null;
   private headerLines = COMPACT_LINES;
   private logBuffer = new RingBuffer(LOG_BUFFER_CAPACITY);
   private repaintScheduled = false;
@@ -146,6 +147,17 @@ export class StatusHeader {
     this.urls = urls;
     this.headerLines = EXPANDED_LINES;
     this.repaint();
+  }
+
+  /**
+   * Set the Convex dashboard admin key, shown under the Dashboard URL once the
+   * ready block is up. Derived asynchronously from the platform container, so
+   * this may land before or after `setReady`; either way the next repaint
+   * renders it.
+   */
+  setAdminKey(key: string) {
+    this.adminKey = key;
+    if (this.active) this.repaint();
   }
 
   writeLine(line: string) {
@@ -198,6 +210,13 @@ export class StatusHeader {
       clearLine();
       write(`  ${GREEN}Dashboard${RESET}      ${this.urls.dashboard}`);
       moveTo(7, 1);
+      clearLine();
+      if (this.adminKey) {
+        write(`  ${GREEN}Admin key${RESET}      ${this.adminKey}`);
+      } else {
+        write(`  ${DIM}Admin key      deriving…${RESET}`);
+      }
+      moveTo(8, 1);
       clearLine();
 
       moveTo(EXPANDED_LINES, 1);

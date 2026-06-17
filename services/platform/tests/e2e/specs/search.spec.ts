@@ -1,0 +1,63 @@
+import { deleteThreadById, sendNewThreadMessage } from '../helpers/chat';
+import { TIMEOUT } from '../helpers/env';
+import { test, expect } from '../helpers/fixtures';
+import { t } from '../helpers/i18n';
+
+/**
+ * Chat command-palette thread search. The palette (shared `SearchCommand` in the
+ * chat header) is wired to a threads source: a query ≥2 chars runs a backend
+ * search over message content and surfaces matching threads. To get a
+ * deterministic match, the spec seeds a thread carrying a unique marker, then
+ * searches for it. The marker lives in the user's own message (stored
+ * regardless of LLM mode), so the assertion holds in mock and live modes. The
+ * palette is opened via the header search button (stable across OS) and closed
+ * with Escape (its close-button label is in the `@tale/ui` search namespace,
+ * which the service-only `t()` can't resolve).
+ */
+
+test('opens the chat command palette, finds a thread, and closes', async ({
+  page,
+  org,
+}) => {
+  const { organizationId } = org;
+  await page.goto(`/dashboard/${organizationId}/chat`);
+
+  const marker = `zqxsearch${Date.now().toString(36)}`;
+  const seedMessage = `Searchable probe ${marker} for the palette`;
+
+  // Seed a thread whose user message contains the unique marker.
+  const threadId = await sendNewThreadMessage(page, seedMessage);
+
+  try {
+    // Open the palette via the header search button.
+    await page
+      .getByRole('button', { name: t('chat.searchChat') })
+      .first()
+      .click();
+
+    const searchInput = page.getByRole('combobox', {
+      name: t('dialogs.searchChat.placeholder'),
+    });
+    await expect(searchInput).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    // A ≥2-char query runs the message-content search; the marker is unique to
+    // the just-created thread, so its thread surfaces. Retry to absorb any
+    // indexing lag on the freshly written message.
+    await expect(async () => {
+      await searchInput.fill('');
+      await searchInput.fill(marker);
+      await expect(
+        page.getByRole('listbox', { name: t('dialogs.searchChat.title') }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('option').filter({ hasText: marker }).first(),
+      ).toBeVisible();
+    }).toPass({ timeout: TIMEOUT.REPLY });
+
+    // Close the palette with Escape (Radix Dialog dismiss).
+    await page.keyboard.press('Escape');
+    await expect(searchInput).toBeHidden({ timeout: TIMEOUT.VISIBLE });
+  } finally {
+    await deleteThreadById(page, threadId);
+  }
+});

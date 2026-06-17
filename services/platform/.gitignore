@@ -51,13 +51,13 @@ compose.yml
 .convex/
 
 # Playwright E2E
-e2e/.auth/
+tests/e2e/.auth/
 playwright-report/
 test-results/
 # The org scaffold creates a sibling config dir per organization an E2E run
 # creates; only the seed template (default/) is source-controlled.
-e2e/fixtures/config/*/
-!e2e/fixtures/config/default/
+tests/e2e/fixtures/config/*/
+!tests/e2e/fixtures/config/default/
 
 # Storybook
 storybook-static/
@@ -67,3 +67,6 @@ stress-tests/report-*.json
 
 # TanStack
 .tanstack/tmp
+# vitest browser-mode failure-capture screenshots (not snapshot baselines)
+__screenshots__/
+.vitest-attachments/

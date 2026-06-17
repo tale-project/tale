@@ -7,6 +7,7 @@ import { createBackupCommand } from './commands/backup';
 import { createCleanupCommand } from './commands/cleanup';
 import { createConfigCommand } from './commands/config';
 import { createConvexCommand } from './commands/convex';
+import { createDaemonCommand } from './commands/daemon';
 import { createDeployCommand } from './commands/deploy';
 import { createInitCommand } from './commands/init';
 import { createLogsCommand } from './commands/logs';
@@ -62,6 +63,7 @@ program.addCommand(createConfigCommand().helpGroup(MAINTAIN));
 
 program.addCommand(createAuthCommand().helpGroup(ADVANCED));
 program.addCommand(createConvexCommand().helpGroup(ADVANCED));
+program.addCommand(createDaemonCommand().helpGroup(ADVANCED));
 
 // Docs link honors TALE_DOCS_URL (mirrors @tale/ui/seo/globals) so a
 // self-hosted or staging deployment can point users at its own docs; the

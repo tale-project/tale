@@ -30,7 +30,7 @@ export function useTestDeploymentConnection() {
   return useConvexAction(api.deployment.file_actions.testDeploymentConnection);
 }
 
-/** Ask the opt-in controller sidecar to restart rag+convex (one-click apply). */
+/** Ask the opt-in controller sidecar to restart convex (one-click apply). */
 export function useRequestRestart() {
   return useConvexAction(api.deployment.file_actions.requestRestart);
 }

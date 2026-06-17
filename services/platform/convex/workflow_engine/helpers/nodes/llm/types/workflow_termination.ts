@@ -8,7 +8,7 @@
 
 import { v } from 'convex/values';
 
-import { isRecord } from '../../../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../../../lib/utils/type-utils';
 import { renderPrompt } from '../../../../../lib/prompts/registry';
 import { jsonRecordValidator } from '../../../../../lib/validators/json';
 

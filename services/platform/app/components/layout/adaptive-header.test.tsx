@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render } from '@/tests/utils/render';
 
 import {
   AdaptiveHeaderProvider,

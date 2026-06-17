@@ -3,7 +3,7 @@ title: Data residency
 description: Point a self-hosted Tale deployment's knowledge database, application database, and uploaded-file storage at infrastructure you control, configured by administrators in Settings > Data residency and applied on restart.
 ---
 
-A self-hosted Tale deployment runs on infrastructure you already control, so its data lives on your hosts by default. **Data residency** is for the case where you want individual data stores pointed at your own managed Postgres or object storage instead of the bundled containers — for example to keep document text in a database your team operates, or uploaded files in your own S3 bucket. Administrators configure this in **Settings > Data residency**; the change is written to a single deployment-level config file and **takes effect when the affected containers restart**.
+A self-hosted Tale deployment runs on infrastructure you already control, so its data lives on your hosts by default. **Data residency** is for the case where you want individual data stores pointed at your own managed Postgres or object storage instead of the bundled containers — for example to keep document text in a database your team operates, or uploaded files in your own S3 bucket. The knowledge corpus runs as its own container (`knowledge-db`) precisely so it can be relocated or replaced independently of the operational database — it is the store most residency requirements care about. Administrators configure this in **Settings > Data residency**; the change is written to a single deployment-level config file and **takes effect when the affected containers restart**.
 
 This page covers what can be relocated, the one prerequisite that bites (ParadeDB), how the configuration is stored and applied, and how to restart safely.
 
@@ -21,15 +21,15 @@ With the allowlist empty or unset, **Settings > Data residency** still shows the
 
 Three stores, each independent and optional. An absent setting means "use the bundled default" — so a fresh deployment with no config is unchanged.
 
-- **Knowledge database** — the RAG store: document metadata, the extracted chunk text, embeddings, the BM25 index, and the semantic cache. This is the store most residency requirements care about, because it holds your document content.
+- **Knowledge database** — the knowledge corpus: document metadata, the extracted chunk text, embeddings, the BM25 index, the semantic cache, and the crawled web pages. It ships as the bundled `knowledge-db` container (`tale_knowledge`, with the `private_knowledge` and `public_web` schemas) and is the store most residency requirements care about, because it holds your document content. Point it at your own managed Postgres to keep the corpus on infrastructure your team operates.
 - **File storage** — where uploaded files (the original blobs) live. By default they sit on the local Convex volume; you can point them at an external S3-compatible bucket.
-- **Application database** (advanced) — the Convex metadata database. The Convex backend derives this database's name from `INSTANCE_NAME` (`tale_platform`) and connects on host:port only, so the external Postgres must contain a database named exactly `tale_platform`. Its TLS mode is fixed by the Convex driver and is not configurable.
+- **Application database** (advanced) — the operational Convex database (the bundled `db` container). The Convex backend derives this database's name from `INSTANCE_NAME` (`tale_platform`) and connects on host:port only, so the external Postgres must contain a database named exactly `tale_platform`. Its TLS mode is fixed by the Convex driver and is not configurable.
 
-> Note: relocating the knowledge database moves the extracted text and embeddings. The original uploaded files move only when you also relocate **File storage** to S3.
+> Note: the knowledge database and the application database are two separate Postgres instances — moving one does not touch the other. Relocating the knowledge database moves the extracted text and embeddings; the original uploaded files move only when you also relocate **File storage** to S3.
 
 ## The ParadeDB prerequisite
 
-The knowledge database uses two Postgres extensions: `vector` (pgvector) for embeddings and `pg_search` (ParadeDB) for full-text/BM25 hybrid search. An external knowledge Postgres **must run ParadeDB** (which bundles both) for full search quality. If you point it at a plain Postgres that has only `pgvector`, indexing and vector search still work, but hybrid search degrades to **vector-only** — the BM25 leg is silently skipped. The **Test connection** button reports both `pgvector` and `pg_search` availability so you can see this before you commit. The external knowledge database must already exist (it can have any name you enter — `tale_knowledge` by convention); the RAG service runs its migrations against it on boot.
+The knowledge database uses two Postgres extensions: `vector` (pgvector) for embeddings and `pg_search` (ParadeDB) for full-text/BM25 hybrid search. An external knowledge Postgres **must run ParadeDB** (which bundles both) for full search quality. If you point it at a plain Postgres that has only `pgvector`, indexing and vector search still work, but hybrid search degrades to **vector-only** — the BM25 leg is silently skipped. The **Test connection** button reports both `pgvector` and `pg_search` availability so you can see this before you commit. The external knowledge database must already exist (it can have any name you enter — `tale_knowledge` by convention) with the `private_knowledge` and `public_web` schemas; the baseline schema migrations live in [`services/db/migrations/`](https://github.com/tale-project/tale/tree/main/services/db/migrations) and are applied via dbmate when the database comes up.
 
 ## File storage on S3
 
@@ -44,13 +44,13 @@ Saving writes two files at the config root (not under an org directory):
 - `deployment.json` — the non-secret config (hosts, ports, buckets, modes).
 - `deployment.secrets.json` — the database passwords and S3 keys, SOPS-encrypted (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
 
-At boot the `rag` and `convex` entrypoints read these and derive their connections before starting. The contract is **fail-closed**: a present-but-unparseable `deployment.json`, an undecryptable secret, or a config missing required fields **aborts startup** rather than silently falling back to the bundled database — mis-routing regulated data is worse than not starting. An absent file is the normal default path.
+At boot the `convex` entrypoint reads these and derives its connections before starting. Knowledge ingestion and retrieval run inside the Convex backend, so it is the only container that opens the knowledge-database connection — there is no separate retrieval service to configure. The contract is **fail-closed**: a present-but-unparseable `deployment.json`, an undecryptable secret, or a config missing required fields **aborts startup** rather than silently falling back to the bundled database — mis-routing regulated data is worse than not starting. An absent file is the normal default path.
 
 ## Applying a change: restart
 
-The config is read at boot, so a save does not take effect until the **`rag` and `convex`** containers restart (the platform itself does not need restarting). Two ways:
+The config is read at boot, so a save does not take effect until the **`convex`** container restarts (the platform itself does not need restarting). Two ways:
 
-- **Manual** — `docker compose restart rag convex`, or `tale deploy --services rag` for a zero-downtime blue-green roll.
-- **One-click** — enable the opt-in `controller` service (`docker compose --profile controller up -d`). It is a small internal-only sidecar that restarts the two allowlisted services on an HMAC-signed request from the app, so the browser-facing platform never needs Docker-socket access. With it running, the **Apply & restart** button does the bounce for you; set `CONTROLLER_TOKEN` (shared with the platform) and `CONTROLLER_URL` in `.env`. Without it, the button shows the manual command.
+- **Manual** — `docker compose restart convex`, or `tale deploy --services convex` for a zero-downtime blue-green roll.
+- **One-click** — enable the opt-in `controller` service (`docker compose --profile controller up -d`). It is a small internal-only sidecar that restarts the allowlisted `convex` service on an HMAC-signed request from the app, so the browser-facing platform never needs Docker-socket access. With it running, the **Apply & restart** button does the bounce for you; set `CONTROLLER_TOKEN` (shared with the platform) and `CONTROLLER_URL` in `.env`. Without it, the button shows the manual command.
 
 The relevant environment variables are `TALE_DEPLOYMENT_CONFIG_ADMINS` (the comma-separated email allowlist of operators allowed to edit), and — only when running the one-click `controller` — `CONTROLLER_TOKEN` (the shared HMAC secret) and `CONTROLLER_URL` (e.g. `http://controller:8004`). Set them in `.env`. See also [Environment reference](/self-hosted/configuration/environment-reference) and [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).

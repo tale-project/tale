@@ -5,7 +5,7 @@
  * and included in the JWT claims. This helper extracts and parses that data.
  */
 
-import { isRecord, getString } from '../../../../lib/utils/type-guards';
+import { isRecord, getString } from '../../../../lib/utils/type-utils';
 import type {
   QueryCtx,
   MutationCtx,

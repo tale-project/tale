@@ -194,11 +194,11 @@ SQL example (timestamp_based):
   "parameters": {
     "operation": "find_unprocessed",
     "dataSource": {
-      "integrationName": "protel",
-      "fetchOperation": "list_guests",
+      "integrationName": "shopify",
+      "fetchOperation": "list_orders",
       "fetchParams": { "status": "active", "limit": 100 },
-      "recordIdField": "guest_id",
-      "sourceIdentifier": "guests",
+      "recordIdField": "order_id",
+      "sourceIdentifier": "orders",
       "localFilterExpression": "daysAgo(modified_date) < 30",
       "incrementalConfig": {
         "strategy": "timestamp_based",
@@ -248,10 +248,10 @@ REST example (cursor_based):
   "type": "integration_processing_records",
   "parameters": {
     "operation": "record_processed",
-    "integrationName": "protel",
-    "sourceIdentifier": "guests",
-    "recordId": "{{steps.find_guest.output.data.recordId}}",
-    "incrementalValue": "{{steps.find_guest.output.data.incrementalValue}}"
+    "integrationName": "shopify",
+    "sourceIdentifier": "orders",
+    "recordId": "{{steps.find_order.output.data.recordId}}",
+    "incrementalValue": "{{steps.find_order.output.data.incrementalValue}}"
   }
 }
 \`\`\`
@@ -327,7 +327,7 @@ Operation: create_approval
 \`\`\`
 
 ### integration
-For external APIs (Shopify, Circuly, etc.)
+For external APIs (Shopify, Stripe, etc.)
 \`\`\`json
 {
   "type": "integration",

@@ -4,7 +4,7 @@
 // its normalized events to the reactive progress row.
 //
 // Ties together the three pieces built for sessions:
-//   1. @tale/agent-adapters: buildExec(spec) → the session exec (argv/env/
+//   1. @/lib/agent-adapters: buildExec(spec) → the session exec (argv/env/
 //      stdin) + a parser for the agent's native stdout stream.
 //   2. session_client.sessionExec: runs that exec, streaming stdout deltas.
 //   3. upsertSessionOp: throttled writes to `sandboxSessionOps` so any entry
@@ -14,13 +14,11 @@
 // the session id + gateway token + prompt and subscribes to the progress row;
 // this action owns the stream→event→row plumbing once, for all of them.
 
-import {
-  buildSteerStdinPayload,
-  getAgentAdapter,
-  type AgentEvent,
-} from '@tale/agent-adapters';
 import { v } from 'convex/values';
 
+import { buildSteerStdinPayload } from '../../../lib/agent-adapters/claude-code/stdin';
+import type { AgentEvent } from '../../../lib/agent-adapters/events';
+import { getAgentAdapter } from '../../../lib/agent-adapters/registry';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../../_generated/server';

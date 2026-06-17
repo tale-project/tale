@@ -36,14 +36,14 @@ The convex container is probably restarting (look for `panic` in the logs) or un
 
 ## Uploads stuck in "indexing"
 
-The RAG container indexes uploads asynchronously. A long "indexing" state means either the queue is backed up or the container has stopped consuming it. Check the queue depth via the metrics endpoint:
+Document ingestion runs inside the Convex backend and writes the extracted chunks and embeddings to the knowledge corpus database. A long "indexing" state means either the backend cannot reach `tale-knowledge-db` or the file itself failed to extract. Check the convex logs and the corpus database first:
 
 ```bash
-curl -H "Authorization: Bearer $METRICS_BEARER_TOKEN" \
-  https://$HOST/metrics/rag | grep queue_depth
+docker compose logs --tail=200 tale-convex | grep -iE "knowledge|ingest|embed"
+docker compose ps tale-knowledge-db
 ```
 
-If queue depth is climbing without draining, restart RAG: `docker compose restart tale-rag`. The container picks up where it left off; uploads do not have to be re-submitted. If the queue is empty but a specific upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion + re-upload.
+If the logs show connection errors to `knowledge-db`, restart the corpus database (`docker compose restart tale-knowledge-db`); ingestion retries on the next pass, so uploads do not have to be re-submitted. If the database is healthy but a specific upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion and re-upload.
 
 ## Chat replies stop mid-stream
 

@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 import enMessages from '@/messages/en.json';
-import { checkAccessibility } from '@/test/utils/a11y';
+import { checkAccessibility } from '@/tests/utils/a11y';
 
 import { BrandingPreview } from './branding-preview';
 

@@ -1,7 +1,7 @@
 import { saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';

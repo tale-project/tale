@@ -1857,8 +1857,7 @@
     "filter": {
       "source": {
         "manual": "Manuel",
-        "upload": "Téléversement",
-        "circuly": "Circuly"
+        "upload": "Téléversement"
       },
       "status": {
         "active": "Actif",
@@ -1867,11 +1866,8 @@
       }
     },
     "importForm": {
-      "circuly": "Circuly",
       "manualEntry": "Saisie manuelle",
       "upload": "Téléversement",
-      "fromShopify": "Depuis Shopify",
-      "syncBusinessData": "Synchroniser les données commerciales",
       "formatHint": "Format : email, nom (optionnel), locale (optionnel). Un client par ligne.",
       "localeHint": "La locale peut être n'importe quelle balise BCP 47 valide (ex. en, en-US, de-DE, zh-Hans).",
       "statusNote": "Les clients importés sont marqués comme (Actif)",
@@ -1897,8 +1893,6 @@
     "status": "Statut",
     "import": {
       "selectDataSource": "Sélectionne une source de données",
-      "syncFeature": "Fonctionnalité de synchronisation",
-      "syncNotImplemented": "La synchronisation automatique n'est pas encore implémentée",
       "provideData": "Fournis des données",
       "noValidData": "Aucune donnée client valide trouvée",
       "success": "Importation réussie",
@@ -6607,8 +6601,7 @@
     "filter": {
       "source": {
         "manual": "Importation manuelle",
-        "upload": "Téléversement de fichier",
-        "circuly": "Circuly"
+        "upload": "Téléversement de fichier"
       }
     },
     "import": {
@@ -7180,6 +7173,7 @@
     "description": "Exécutez le travail des tâches sur vos propres machines, avec les CLIs d'agents de code que vous utilisez déjà (Claude Code, Codex, OpenCode).",
     "install": {
       "title": "Connecter un daemon",
+      "cliHint": "Installez d'abord la CLI Tale si ce n'est pas déjà fait :",
       "description": "À installer une fois par machine : setup demande l'URL de cet espace, une clé API et l'espace de travail git où les agents peuvent travailler. Liez ensuite un agent à une runtime dans sa configuration — ses tâches s'exécuteront sur votre machine et reviendront pour revue.",
       "privacy": "Les chemins locaux ne quittent jamais votre machine — seules les clés d'espace de travail que vous choisissez sont annoncées ici. La permission full_auto exige un opt-in côté serveur ET côté daemon.",
       "createKey": "Créer une clé API"
@@ -7187,7 +7181,7 @@
     "list": {
       "title": "Daemons connectés",
       "empty": "Aucun daemon connecté pour le moment",
-      "emptyHint": "Lancez bunx tale-daemon setup sur la machine qui doit exécuter le travail.",
+      "emptyHint": "Lancez tale daemon setup sur la machine qui doit exécuter le travail.",
       "lastSeen": "vu pour la dernière fois {age}",
       "workspaces": "Espaces de travail : {keys}"
     },

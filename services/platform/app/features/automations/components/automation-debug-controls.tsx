@@ -48,7 +48,7 @@ export function AutomationDebugControls({
     isError: variablesFailed,
   } = useActionQuery(
     ['automation-execution-variables', executionId, waitingFor],
-    api.wf_executions.actions.getExecutionVariables,
+    api.workflow_executions.actions.getExecutionVariables,
     { executionId },
   );
 

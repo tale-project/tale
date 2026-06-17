@@ -1,6 +1,6 @@
 {
   "title": "Twilio",
-  "description": "Twilio API integration for SMS messaging, voice calls, and phone number management",
+  "description": "Send SMS and make voice calls with Twilio.",
   "version": 1,
   "authMethod": "basic_auth",
   "supportedAuthMethods": ["basic_auth"],

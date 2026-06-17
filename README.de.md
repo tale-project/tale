@@ -165,13 +165,6 @@ CONVEX_EXTERNAL=true bun run dev                # in einem zweiten (CONVEX_URL o
 
 Praktisch, wenn du schnelle Vite-Reloads willst, aber ein stabiles Convex-Backend, das die Produktion spiegelt. Setze `CONVEX_URL`, falls dein Container Convex auf einem nicht-Standard-Host/-Port exponiert.
 
-Für die Python-Dienste:
-
-```bash
-cd services/rag && uv sync --extra dev
-cd services/crawler && uv sync --extra dev
-```
-
 ### Bekannte Probleme
 
 - **xlsx-Sicherheitslücke**: Das Projekt nutzt xlsx@0.18.5 mit bekannten Sicherheitslücken (Prototype Pollution und ReDoS). Das ist die aktuell verfügbare Version; ein Fix ist noch nicht veröffentlicht. Das Paket wird zum Parsen von Excel-Dateien im Documents-Feature genutzt.

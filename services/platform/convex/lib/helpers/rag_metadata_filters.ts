@@ -1,14 +1,12 @@
 /**
- * Structured pre-retrieval filters for RAG `/api/v1/search` (#1517).
+ * Structured pre-retrieval filters for in-process RAG search (#1517).
  *
- * The Python twin of the validation rules lives at
- * `services/rag/app/utils/document_metadata.py` and
- * `services/rag/app/models.py::SearchFilters` — keep shapes in sync.
+ * These shapes are the canonical source of truth, consumed directly by the
+ * in-process RAG search action (`convex/rag/search.ts`).
  */
 
 import { normalizeFolderPath } from './rag_folder_path';
 
-/** Mirrors MetadataScalar in services/rag/app/models.py. */
 type RagMetadataFilterScalar = string | number | boolean;
 
 /**

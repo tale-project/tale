@@ -180,6 +180,7 @@ function applySecurityHeaders(
     response.headers.set('X-Content-Type-Options', config.xContentTypeOptions);
   }
   if (config.xFrameOptions) {
+    // nosemgrep: javascript.express.security.x-frame-options-misconfiguration.x-frame-options-misconfiguration -- generic config-driven header setter; the value is operator-controlled
     response.headers.set('X-Frame-Options', config.xFrameOptions);
   }
   if (config.referrerPolicy) {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { Input } from '@/app/components/ui/forms/input';
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen, waitFor } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { SettingsField } from './settings-field';
 

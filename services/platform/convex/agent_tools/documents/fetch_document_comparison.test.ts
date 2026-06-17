@@ -1,30 +1,58 @@
-import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { _resetRagConfigForTests } from '../../lib/helpers/rag_config';
+import { internal } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 import { fetchDocumentComparison } from './helpers/fetch_document_comparison';
 
-const RAG_URL = 'http://mock-rag:8001';
-
-beforeAll(() => {
-  process.env.RAG_URL = RAG_URL;
-  process.env.RAG_AUTH_TOKEN = 'test-token';
-  _resetRagConfigForTests();
-});
 const BASE_FILE_ID = 'file-base-123';
 const COMP_FILE_ID = 'file-comp-456';
 const ORG_SLUG = 'test-org';
 
-const originalFetch = globalThis.fetch;
+interface RagDiffItem {
+  type: 'added' | 'deleted' | 'modified' | 'context';
+  base_content: string | null;
+  comparison_content: string | null;
+  content: string | null;
+  inline_diff?: string | null;
+  clause_ref?: string | null;
+  base_page?: number | null;
+  comparison_page?: number | null;
+}
 
-function createRagCompareResponse(overrides?: Record<string, unknown>) {
+interface RagChangeBlock {
+  context_before: string | null;
+  items: RagDiffItem[];
+  context_after: string | null;
+}
+
+interface RagCompareSuccess {
+  success: true;
+  base_document: { file_id: string | null; title: string | null };
+  comparison_document: { file_id: string | null; title: string | null };
+  change_blocks: RagChangeBlock[];
+  stats: {
+    total_paragraphs_base: number;
+    total_paragraphs_comparison: number;
+    unchanged: number;
+    modified: number;
+    added: number;
+    deleted: number;
+    high_divergence: boolean;
+  };
+  truncated: boolean;
+}
+
+interface RagCompareNotFound {
+  error: string;
+  file_id: string;
+  role: string;
+}
+
+type RagCompareResult = RagCompareSuccess | RagCompareNotFound | null;
+
+function createRagCompareSuccess(
+  overrides?: Partial<RagCompareSuccess>,
+): RagCompareSuccess {
   return {
     success: true,
     base_document: { file_id: BASE_FILE_ID, title: 'Base Doc' },
@@ -61,29 +89,49 @@ function createRagCompareResponse(overrides?: Record<string, unknown>) {
   };
 }
 
-function mockFetchSuccess(body: Record<string, unknown>) {
-  globalThis.fetch = Object.assign(
-    vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(body), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    ),
-    { preconnect: vi.fn() },
-  );
+/**
+ * Build a typed `ActionCtx` mock whose `runAction` resolves to `result`. The
+ * RAG by-id comparison now flows through an in-process `ctx.runAction`, so the
+ * test exercises that contract instead of `globalThis.fetch`/`RAG_URL`. The
+ * returned `runAction` spy is asserted against; all other members are typed
+ * stubs (never invoked by the helper).
+ */
+function createCtx(result: RagCompareResult) {
+  const runAction = vi.fn().mockResolvedValue(result);
+  const ctx: ActionCtx = {
+    runQuery: vi.fn(),
+    runMutation: vi.fn(),
+    runAction,
+    scheduler: { runAfter: vi.fn(), runAt: vi.fn(), cancel: vi.fn() },
+    auth: { getUserIdentity: vi.fn() },
+    storage: {
+      generateUploadUrl: vi.fn(),
+      getUrl: vi.fn(),
+      getMetadata: vi.fn(),
+      delete: vi.fn(),
+      get: vi.fn(),
+      store: vi.fn(),
+    },
+    vectorSearch: vi.fn(),
+  };
+  return { ctx, runAction };
+}
+
+let runAction: ReturnType<typeof createCtx>['runAction'];
+let ctx: ActionCtx;
+
+function mockResult(result: RagCompareResult): void {
+  ({ ctx, runAction } = createCtx(result));
 }
 
 beforeEach(() => {
-  mockFetchSuccess(createRagCompareResponse());
-});
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
+  mockResult(createRagCompareSuccess());
 });
 
 describe('fetchDocumentComparison', () => {
   it('returns correctly mapped result on happy path', async () => {
     const result = await fetchDocumentComparison(
+      ctx,
       ORG_SLUG,
       BASE_FILE_ID,
       COMP_FILE_ID,
@@ -111,6 +159,7 @@ describe('fetchDocumentComparison', () => {
 
   it('maps change blocks with all diff item fields', async () => {
     const result = await fetchDocumentComparison(
+      ctx,
       ORG_SLUG,
       BASE_FILE_ID,
       COMP_FILE_ID,
@@ -134,8 +183,8 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('defaults nullable diff item fields to null', async () => {
-    mockFetchSuccess(
-      createRagCompareResponse({
+    mockResult(
+      createRagCompareSuccess({
         change_blocks: [
           {
             context_before: null,
@@ -154,6 +203,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     const result = await fetchDocumentComparison(
+      ctx,
       ORG_SLUG,
       BASE_FILE_ID,
       COMP_FILE_ID,
@@ -166,132 +216,59 @@ describe('fetchDocumentComparison', () => {
     expect(item.comparisonPage).toBeNull();
   });
 
-  it('sends POST request with correct body', async () => {
-    await fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID);
+  it('calls compareDocuments with null maxChanges when not provided', async () => {
+    await fetchDocumentComparison(ctx, ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID);
 
-    // ragFetch wraps init.headers in a `new Headers(...)` and adds the
-    // bearer token + redirect:'manual' + AbortSignal — so we assert on
-    // method/body and verify the Content-Type via the Headers instance.
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      `${RAG_URL}/api/v1/documents/compare`,
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          base_file_id: BASE_FILE_ID,
-          comparison_file_id: COMP_FILE_ID,
-        }),
-      }),
-    );
-    const init = vi.mocked(globalThis.fetch).mock.calls[0]?.[1] as
-      | (RequestInit & { headers?: Headers })
-      | undefined;
-    expect(init?.headers).toBeInstanceOf(Headers);
-    expect(init?.headers?.get('content-type')).toBe('application/json');
-  });
-
-  it('includes max_changes in body when provided', async () => {
-    await fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID, 50);
-
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        body: JSON.stringify({
-          base_file_id: BASE_FILE_ID,
-          comparison_file_id: COMP_FILE_ID,
-          max_changes: 50,
-        }),
-      }),
+    expect(runAction).toHaveBeenCalledWith(
+      internal.rag.documents.compareDocuments,
+      {
+        orgSlug: ORG_SLUG,
+        baseFileId: BASE_FILE_ID,
+        comparisonFileId: COMP_FILE_ID,
+        maxChanges: null,
+      },
     );
   });
 
-  it('omits max_changes from body when not provided', async () => {
-    await fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID);
+  it('forwards maxChanges as a runAction arg when provided', async () => {
+    await fetchDocumentComparison(
+      ctx,
+      ORG_SLUG,
+      BASE_FILE_ID,
+      COMP_FILE_ID,
+      50,
+    );
 
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        body: JSON.stringify({
-          base_file_id: BASE_FILE_ID,
-          comparison_file_id: COMP_FILE_ID,
-        }),
-      }),
+    expect(runAction).toHaveBeenCalledWith(
+      internal.rag.documents.compareDocuments,
+      {
+        orgSlug: ORG_SLUG,
+        baseFileId: BASE_FILE_ID,
+        comparisonFileId: COMP_FILE_ID,
+        maxChanges: 50,
+      },
     );
   });
 
-  it('throws UpstreamHttpError "not found" on RAG 404', async () => {
-    globalThis.fetch = Object.assign(
-      vi
-        .fn()
-        .mockResolvedValue(new Response('Document not found', { status: 404 })),
-      { preconnect: vi.fn() },
-    );
-
-    // safeMessageFor maps 404 to a "returned not found" summary; the
-    // upstream body lives only on `.bodySnippet`.
-    await expect(
-      fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
-    ).rejects.toThrow(/not found/);
-  });
-
-  it('throws UpstreamHttpError with HTTP 400 summary on RAG 400', async () => {
-    globalThis.fetch = Object.assign(
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response('Missing base_file_id', { status: 400 }),
-        ),
-      { preconnect: vi.fn() },
-    );
+  it('throws "not found" when compareDocuments returns null', async () => {
+    mockResult(null);
 
     await expect(
-      fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
-    ).rejects.toThrow(/HTTP 400/);
+      fetchDocumentComparison(ctx, ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
+    ).rejects.toThrow(/one or both documents were not found/);
   });
 
-  it('throws with status on RAG 500', async () => {
-    globalThis.fetch = Object.assign(
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response('Internal Server Error', { status: 500 }),
-        ),
-      { preconnect: vi.fn() },
-    );
+  it('throws a role-specific "not found" on an error result', async () => {
+    mockResult({ error: 'not_found', file_id: BASE_FILE_ID, role: 'base' });
 
     await expect(
-      fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
-    ).rejects.toThrow(/HTTP 500/);
-  });
-
-  it('throws timeout error when fetch is aborted', async () => {
-    globalThis.fetch = Object.assign(
-      vi
-        .fn()
-        .mockRejectedValue(
-          new DOMException('The operation was aborted', 'AbortError'),
-        ),
-      { preconnect: vi.fn() },
-    );
-
-    await expect(
-      fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
-    ).rejects.toThrow('timed out after 120s');
-  });
-
-  it('re-throws network errors from fetch', async () => {
-    globalThis.fetch = Object.assign(
-      vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
-      { preconnect: vi.fn() },
-    );
-
-    await expect(
-      fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
-    ).rejects.toThrow('Failed to fetch');
+      fetchDocumentComparison(ctx, ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
+    ).rejects.toThrow(`base document (${BASE_FILE_ID}) was not found`);
   });
 
   it('handles empty change_blocks array', async () => {
-    mockFetchSuccess(
-      createRagCompareResponse({
+    mockResult(
+      createRagCompareSuccess({
         change_blocks: [],
         stats: {
           total_paragraphs_base: 5,
@@ -306,6 +283,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     const result = await fetchDocumentComparison(
+      ctx,
       ORG_SLUG,
       BASE_FILE_ID,
       COMP_FILE_ID,
@@ -316,9 +294,10 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('handles truncated response', async () => {
-    mockFetchSuccess(createRagCompareResponse({ truncated: true }));
+    mockResult(createRagCompareSuccess({ truncated: true }));
 
     const result = await fetchDocumentComparison(
+      ctx,
       ORG_SLUG,
       BASE_FILE_ID,
       COMP_FILE_ID,
@@ -328,8 +307,8 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('handles high_divergence flag', async () => {
-    mockFetchSuccess(
-      createRagCompareResponse({
+    mockResult(
+      createRagCompareSuccess({
         stats: {
           total_paragraphs_base: 100,
           total_paragraphs_comparison: 5,
@@ -343,6 +322,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     const result = await fetchDocumentComparison(
+      ctx,
       ORG_SLUG,
       BASE_FILE_ID,
       COMP_FILE_ID,
@@ -352,14 +332,15 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('handles null document titles', async () => {
-    mockFetchSuccess(
-      createRagCompareResponse({
+    mockResult(
+      createRagCompareSuccess({
         base_document: { file_id: BASE_FILE_ID, title: null },
         comparison_document: { file_id: COMP_FILE_ID, title: null },
       }),
     );
 
     const result = await fetchDocumentComparison(
+      ctx,
       ORG_SLUG,
       BASE_FILE_ID,
       COMP_FILE_ID,
@@ -370,8 +351,8 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('maps multiple change blocks', async () => {
-    mockFetchSuccess(
-      createRagCompareResponse({
+    mockResult(
+      createRagCompareSuccess({
         change_blocks: [
           {
             context_before: 'ctx1',
@@ -402,6 +383,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     const result = await fetchDocumentComparison(
+      ctx,
       ORG_SLUG,
       BASE_FILE_ID,
       COMP_FILE_ID,
@@ -410,14 +392,5 @@ describe('fetchDocumentComparison', () => {
     expect(result.changeBlocks).toHaveLength(2);
     expect(result.changeBlocks[0].items[0].type).toBe('deleted');
     expect(result.changeBlocks[1].items[0].type).toBe('added');
-  });
-
-  it('passes AbortSignal to fetch', async () => {
-    await fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID);
-
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const options = fetchCall?.[1];
-    expect(options).toHaveProperty('signal');
-    expect(options?.signal).toBeInstanceOf(AbortSignal);
   });
 });

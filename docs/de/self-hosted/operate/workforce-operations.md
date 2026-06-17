@@ -27,7 +27,7 @@ Verifikation: die Workforce-Seite zeigt Automatisierung **aus**; neue Zuweisunge
 | Arbeit hängt > 24 h _In Arbeit_                     | Agenten-Lauf gestorben; Stale-Sweep rollt zurück | Lauf-Historie der Aufgabe prüfen; der stündliche Sweep stellt auf _Zu erledigen_ zurück       |
 | Agent verweigert jeden Lauf                         | Budget-Pause oder Sicherung                      | Workforce → Aufmerksamkeits-Warteschlangen; Budget erhöhen oder Status als Mensch ändern      |
 | Reviews stapeln sich                                | Reviewer übersehen den Posteingang               | Review-Erinnerungen eskalieren automatisch nach 4 h / 24 h; Posteingangs-Einstellungen prüfen |
-| Externe Läufe scheitern stets mit `runtime_offline` | Kein Daemon für den Adapter online               | Einstellungen → API → Runtimes: Daemon-Status; `tale-daemon status` auf der Maschine          |
+| Externe Läufe scheitern stets mit `runtime_offline` | Kein Daemon für den Adapter online               | Einstellungen → API → Runtimes: Daemon-Status; `tale daemon status` auf der Maschine          |
 | Digest meldet `capped`-Zahlen                       | Sehr aktiver Tag traf eine Scan-Grenze           | Zahlen sind Untergrenzen; keine Aktion nötig                                                  |
 
 ## Wohin schauen

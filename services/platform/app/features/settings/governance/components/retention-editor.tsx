@@ -13,7 +13,7 @@ import {
   retentionPolicyConfigSchema,
   type RetentionPolicyConfig,
 } from '@/lib/shared/schemas/governance';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { useGovernancePolicy } from '../hooks/queries';
 import { useRetentionBounds } from '../hooks/use-retention-bounds';

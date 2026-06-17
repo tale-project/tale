@@ -22,7 +22,7 @@ import {
   SESSION_IDLE_TIMEOUT_MAX_MINUTES,
   SESSION_IDLE_TIMEOUT_MIN_MINUTES,
 } from '@/lib/shared/session-idle';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';

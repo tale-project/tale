@@ -45,7 +45,7 @@ The proof the wiring works is one transcript visible in the Knowledge Base as a 
 
 Open the target project, navigate to its Knowledge Base, and look for the new transcript at the top of the document list. Click into the preview — the transcript renders as a document with the meeting title as the document name and the meeting date as the document's created-at. Wait for the indexing badge to clear (a few seconds for a short transcript, up to a minute for a long one), then run a search for a name or a phrase you remember from the test meeting. The transcript should be the first result with the phrase highlighted.
 
-If the document is there but the indexing badge stays orange, the RAG service is behind — the [Troubleshooting](/self-hosted/operate/observability/troubleshooting) page names the symptoms.
+If the document is there but the indexing badge stays orange, indexing is behind — the [Troubleshooting](/self-hosted/operate/observability/troubleshooting) page names the symptoms.
 
 ## Privacy notes
 

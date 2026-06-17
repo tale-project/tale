@@ -27,7 +27,7 @@ const primaryBehaviorLiterals = [
 const primaryBehaviorSchema = z.enum(primaryBehaviorLiterals);
 
 // Which external agent runtime handles an `external-agent` turn. The turn runs
-// in a sandbox session driven by @tale/agent-adapters; the platform never runs
+// in a sandbox session driven by @/lib/agent-adapters; the platform never runs
 // its own tool loop for these.
 const agentKindLiterals = ['claude-code', 'opencode'] as const;
 const agentKindSchema = z.enum(agentKindLiterals);

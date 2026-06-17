@@ -1,12 +1,16 @@
 name: E2E
 
-# Playwright full-app smoke suite (services/platform/e2e). Boots the real
-# stack (anonymous Convex + Vite) with the hermetic fixture config and the
-# mock LLM — no external services, no provider keys.
+# Playwright suites for the frontend services. The platform job boots the real
+# stack (anonymous Convex + Vite) with the hermetic fixture config and the mock
+# LLM; the web/docs jobs are smoke suites against each static site's own dev
+# server (no Convex, no mock LLM). All share the shared config in `@tale/e2e`.
 #
-# Burn-in policy (issue #179): PR runs are advisory (`continue-on-error`) and
-# the check is NOT required for merge; the nightly run is strict. Promote the
-# PR job to a required check once the suite has proven stable for ~2 weeks.
+# Policy (issue #179): the suite is strict on every trigger — PRs, nightly, and
+# manual runs all fail loudly. The burn-in is over; the auth-cost reductions in
+# the backend (lazy team-id resolution in the RLS wrappers) brought the local
+# Convex backend's per-query load under its hard 1s function timeout on the
+# 4-vCPU runner, so a red E2E run now signals a real regression. Keep it that
+# way: investigate failures, don't reach for `continue-on-error`.
 
 on:
   pull_request:
@@ -14,7 +18,10 @@ on:
       - main
     paths:
       - 'services/platform/**'
+      - 'services/web/**'
+      - 'services/docs/**'
       - 'packages/ui/**'
+      - 'packages/e2e/**'
       - '.github/workflows/e2e.yml'
       - '.github/actions/setup-turbo/**'
       - 'package.json'
@@ -32,23 +39,32 @@ concurrency:
 
 jobs:
   e2e:
-    name: Playwright (shard ${{ matrix.shard }}/4)
+    name: Playwright (platform ${{ matrix.shard }}/8)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # Advisory during burn-in: a red E2E run annotates the PR but never blocks
-    # it. Nightly and manual runs fail loudly.
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 25
     # The suite outgrew a single serial 30-min run (workers:1 against one
     # backend). Shard the specs across parallel runners so each shard finishes
     # well inside the timeout instead of being cancelled mid-run. Each shard is
     # an independent job: it boots its own hermetic stack and runs the `setup`
     # auth project before its slice. fail-fast:false so one shard's failure
     # doesn't cancel the others — we want every shard's result.
+    #
+    # Shard count: 8. Each shard's cost is the FIXED per-shard boot (Chromium +
+    # Convex + Vite preview + @tale/mocks) plus its serial test slice; a single
+    # worker per shard is mandatory (two starve the local Convex backend on the
+    # 4-vCPU runner — see the run step). Parallelism therefore comes only from
+    # shards, so the lever for wall-clock is the test slice: 8 shards puts ~9 of
+    # the ~74 tests per job (vs ~18 at 4) and halves the serial test time. We stop
+    # at 8 rather than going higher because the boot floor dominates below ~9
+    # tests — more shards would multiply CI minutes for a negligible wall-clock
+    # gain. The prod build that used to sit on every shard's critical path is now
+    # cached across shards/re-runs (see the dist cache step), so test-only e2e PRs
+    # skip it entirely.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     permissions:
       contents: read
 
@@ -63,7 +79,6 @@ jobs:
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          install-python: 'false'
           start-turbo-cache: 'false'
 
       - name: Cache Playwright browsers
@@ -86,9 +101,55 @@ jobs:
         working-directory: services/platform
         run: bunx playwright install --with-deps chromium
 
-      - name: Run E2E suite
+      # Cache the prebuilt dist/ across shards and re-runs. The key hashes the
+      # whole platform package and the shared UI package, MINUS the tests/ tree
+      # (excluded by hashing each source subtree explicitly) — so a test-only
+      # e2e PR, the common case, restores a cached bundle and skips the ~4-min
+      # build on every shard. Exact-match only (no restore-keys): any real source
+      # change rebuilds, so the cache can never serve a stale bundle. On a cold
+      # first run all shards miss and build in parallel; the first to finish
+      # populates the cache for its siblings and every later re-run.
+      - name: Cache platform dist (E2E preview bundle)
+        id: dist-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: services/platform/dist
+          key: e2e-dist-${{ runner.os }}-${{ hashFiles('services/platform/app/**', 'services/platform/lib/**', 'services/platform/convex/**', 'services/platform/public/**', 'services/platform/*.json', 'services/platform/*.ts', 'packages/ui/src/**', 'packages/ui/*.json', 'bun.lock') }}
+
+      # Serve a production build instead of the Vite dev server. `vite dev`
+      # transpiles on the fly — the dominant CPU consumer that, on the 4-vCPU
+      # runner, starved the local Convex backend into flooding its hard 1s
+      # function-execution timeout and flaking the suite. A prebuilt dist/ makes
+      # the webServer (scripts/dev.ts, TALE_E2E_SERVE_BUILD=1) serve via
+      # `vite preview`: static assets + Convex proxy only, no transpilation.
+      # Built here (not inside the webServer) so the boot stays inside the
+      # Playwright webServer timeout. The committed convex/_generated lets the
+      # client bundle build without a live backend. Skipped on a dist-cache hit.
+      - name: Build platform (prod bundle for E2E preview)
+        if: steps.dist-cache.outputs.cache-hit != 'true'
         working-directory: services/platform
-        run: bunx playwright test --shard=${{ matrix.shard }}/4
+        run: bun run build
+
+      - name: Run E2E suite (shard ${{ matrix.shard }}/8)
+        working-directory: services/platform
+        # One worker per shard. Two workers over-subscribed the 4-vCPU runner
+        # (Vite + Convex + mock + the browser workers all share it): the local
+        # Convex backend starved and queries blew its hard 1s function-execution
+        # timeout in floods (100s+ per shard), stranding the WS unauthenticated
+        # and failing tests non-deterministically. Parallelism comes from the 4
+        # shards; each single-worker shard still finishes well inside the 25-min
+        # budget. Tune via E2E_WORKERS.
+        env:
+          E2E_WORKERS: '1'
+          # Serve the prebuilt dist/ via `vite preview` (see the build step
+          # above) instead of the CPU-heavy dev server.
+          TALE_E2E_SERVE_BUILD: '1'
+          # Drops the sub-hourly cron sweeps (convex/crons.ts reads this at
+          # registration). Those minutely/5-min background UDF bursts otherwise
+          # starve interactive queries past the backend's hard 1s timeout
+          # mid-test. Passed through to the deployment env by sync-convex-env.
+          TALE_E2E: '1'
+        run: bunx playwright test --shard=${{ matrix.shard }}/8
 
       - name: Upload Playwright report
         if: failure()
@@ -98,5 +159,57 @@ jobs:
           path: |
             services/platform/playwright-report/
             services/platform/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Smoke suites for the static sites — each boots only its own Vite dev server
+  # (no Convex, no mock LLM), so the job is much lighter than platform's.
+  static-sites:
+    name: Playwright (${{ matrix.service }})
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [web, docs]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          start-turbo-cache: 'false'
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright Chromium
+        working-directory: services/${{ matrix.service }}
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run E2E suite
+        run: bun run --filter @tale/${{ matrix.service }} test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: playwright-report-${{ matrix.service }}
+          path: |
+            services/${{ matrix.service }}/playwright-report/
+            services/${{ matrix.service }}/test-results/
           retention-days: 14
           if-no-files-found: ignore

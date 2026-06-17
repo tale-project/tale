@@ -9,7 +9,7 @@ La région par défaut pour les nouvelles organisations Cloud est la Suisse. Cha
 
 ## Un exemple déroulé — un aller-retour de chat
 
-L'utilisateur à Zurich ouvre Chat et envoie « résume le dernier appel client ». La requête frappe le edge de Tale dans la région choisie, atterrit sur `tale-platform`, qui appelle dans `tale-convex` (la base de données), lit les connaissances liées depuis `tale-rag`, et émet un appel sortant vers le fournisseur de modèles contre lequel l'agent est configuré. Le fournisseur de modèles retourne des tokens ; Tale les streame en retour sur le même chemin. La réponse, les transcripts et les citations atterrissent dans `tale-db`, répliqués dans la région.
+L'utilisateur à Zurich ouvre Chat et envoie « résume le dernier appel client ». La requête frappe le edge de Tale dans la région choisie, atterrit sur `tale-platform`, qui appelle dans `tale-convex` (le backend), lit les connaissances liées depuis la base de connaissances, et émet un appel sortant vers le fournisseur de modèles contre lequel l'agent est configuré. La récupération de connaissances tourne dans le backend Convex — elle interroge directement la base de connaissances, sans service de récupération séparé sur le chemin. Le fournisseur de modèles retourne des tokens ; Tale les streame en retour sur le même chemin. La réponse et les citations atterrissent dans la base de données opérationnelle, le corpus reste dans la base de connaissances, et les deux sont répliqués dans la région.
 
 Deux flèches franchissent la frontière régionale dans ce trajet : l'appel vers le fournisseur de modèles (toujours externe) et tout sous-traitant déclenché par les outils de l'agent (fetch web, lecture OneDrive, serveur MCP dans une autre région). Tout le reste reste dans la région.
 
@@ -36,7 +36,7 @@ Le réplica DR sert au plan de reprise après sinistre, pas au trafic actif. Les
 
 ## Sauvegardes et DR
 
-Tale prend un instantané de `tale-db` chaque jour et du stockage objet chaque heure. Les instantanés sont chiffrés au repos avec des clés détenues par Tale ; le réplica DR reçoit une copie dans la région. Les restaurations à partir d'instantanés sont une opération initiée par le client routée via le support ; le SLA couvre le temps de restauration.
+Tale prend un instantané des deux bases Postgres — la base opérationnelle et le corpus de connaissances — chaque jour, et du stockage objet chaque heure. Les instantanés sont chiffrés au repos avec des clés détenues par Tale ; le réplica DR reçoit une copie dans la région. Les restaurations à partir d'instantanés sont une opération initiée par le client routée via le support ; le SLA couvre le temps de restauration.
 
 ## Changer de région
 

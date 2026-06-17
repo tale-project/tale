@@ -1,6 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';

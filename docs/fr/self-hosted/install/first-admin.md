@@ -1,11 +1,11 @@
 ---
 title: Créer le premier admin
-description: Initialiser le premier compte sur une instance auto-hébergée toute neuve — obtenir la clé admin, s'inscrire, promouvoir Owner, fermer optionnellement les inscriptions.
+description: Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique — le premier compte devient Owner sans clé, les nouveaux arrivent par invitation, et la clé admin ne sert qu'au tableau de bord Convex.
 ---
 
-Une instance Tale toute neuve n'a pas encore d'utilisateurs. La première inscription a besoin d'une clé de bootstrap pour revendiquer le rôle **Owner** ; après ça, l'instance se comporte comme n'importe quelle autre organisation. Ce parcours déroule le bootstrap et pointe vers les réglages qui désactivent l'inscription ouverte une fois l'équipe à l'intérieur.
+Une instance Tale toute neuve n'a pas encore d'utilisateurs. La première personne qui l'ouvre déroule un assistant de configuration unique qui crée son compte, la connecte, en fait l'**Owner** et nomme la première organisation — aucune clé de bootstrap, aucune promotion manuelle. Ce parcours couvre ce premier lancement, comment les coéquipiers arrivent ensuite, et où obtenir la clé admin du tableau de bord Convex si tu dois un jour inspecter le backend directement.
 
-La clé de bootstrap est générée par un script qui la lit depuis le conteneur platform en cours d'exécution ; elle tourne à chaque redémarrage de la plateforme. Si tu prends trop de temps entre générer la clé et l'utiliser, génère-en une fraîche — les anciennes ne s'empilent pas.
+La seule chose à désapprendre des anciennes instructions : la première inscription ne demande plus de clé admin. Tale est sur invitation seulement après le premier compte, donc il n'y a pas non plus de page d'inscription ouverte à verrouiller.
 
 ## Avant de commencer
 
@@ -17,41 +17,39 @@ docker compose ps
 
 Chaque service devrait montrer `running` ou `healthy`. Si l'un est unhealthy, le [dépannage](/fr/self-hosted/operate/observability/troubleshooting) nomme les quatre causes courantes.
 
-## Étape 1 — Lancer get-admin-key.sh
+## Dérouler l'assistant de configuration
 
-Depuis la racine du dépôt :
+Ouvre `SITE_URL`. Comme il n'y a pas encore d'utilisateurs, Tale t'envoie directement dans l'assistant de configuration — il n'y a pas de page d'inscription séparée à chercher, car l'écran de connexion redirige automatiquement une instance vide vers la configuration. L'assistant crée ton compte et te connecte en plein flux, puis nomme ta première organisation.
 
-```bash
-./scripts/get-admin-key.sh
-```
+L'étape du fournisseur est optionnelle : saute-la et ajoute une clé plus tard sous **Paramètres > Fournisseurs IA**, ou connecte OpenRouter maintenant pour discuter tout de suite. Obtiens une clé sur [openrouter.ai/keys](https://openrouter.ai/keys). L'étape finale te dépose dans le tableau de bord.
 
-Le script imprime une clé à usage unique sur stdout. Copie-la — le script ne l'enregistre nulle part. Si tu as installé avec la CLI `tale` plutôt qu'avec un clone, le script n'est pas dans ton arbre, mais il ne fait qu'envelopper un générateur qui vit dans le conteneur platform — lance-le directement avec `docker exec -it $(docker ps --format '{{.Names}}' | grep platform | head -1) ./generate-admin-key.sh`.
+## Confirmer que tu es l'Owner
 
-## Étape 2 — S'inscrire via SITE_URL
+Le premier compte sur une instance neuve est automatiquement l'**Owner** — aucune clé à coller, aucune étape de promotion. Confirme sous **Paramètres > Personnes** que ta ligne porte le badge Owner.
 
-Ouvre `SITE_URL` et clique **Sign up**. Remplis tes nom, e-mail et mot de passe. L'écran suivant demande la clé admin — colle-la et soumets. Crée un nom d'**Organisation** sur l'écran d'après. Tu atterris dans le dashboard.
+## Comment les nouvelles personnes arrivent
 
-## Étape 3 — Se promouvoir Owner
+Il n'y a pas d'inscription en libre-service. Une fois qu'un Owner existe, `SITE_URL/sign-up` redirige les visiteurs vers l'écran de connexion, donc personne ne peut créer un compte de lui-même. Ajoute les coéquipiers par invitation sous **Paramètres > Personnes** ; chaque invitation porte le rôle avec lequel le nouveau membre démarre. Le modèle de rôles complet est dans [Membres et rôles](/fr/platform/admin/members-and-roles).
 
-Sur une instance neuve, le premier compte est automatiquement **Owner** ; aucune promotion manuelle n'est nécessaire. Confirme sous **Paramètres > Personnes** que ta ligne porte le badge Owner.
+## Obtenir la clé admin du tableau de bord Convex
 
-Si tu as rejoint une instance existante en utilisant la clé admin (ce qui est inhabituel mais pris en charge), ton rôle lira **Admin** à la place, et l'Owner existant peut te promouvoir sur le même écran.
+La clé admin ne joue aucun rôle dans les étapes ci-dessus — elle ne débloque que le **tableau de bord Convex**, la vue bas niveau de la base de données du backend. La clé est déterministe : elle est dérivée de `INSTANCE_SECRET`, donc elle reste la même d'un redémarrage à l'autre au lieu de tourner.
 
-## Étape 4 — Désactiver l'inscription ouverte
+Obtiens-la de la façon qui correspond à ton installation :
 
-Par défaut, la page d'inscription est joignable à `SITE_URL/signup` sans clé de bootstrap une fois qu'un Owner existe. Pour la fermer :
+- Avec la CLI : `tale convex admin` trouve le conteneur platform et imprime la clé. `tale start` l'imprime aussi une fois les services en bonne santé.
+- Depuis un clone git : `./scripts/get-admin-key.sh` à la racine du dépôt.
 
-- Ouvre **Paramètres > Organisation** et désactive **Open signup**.
-- Ou règle `ALLOW_OPEN_SIGNUP=false` dans `.env` et redémarre le conteneur platform.
-
-Avec l'inscription ouverte désactivée, les nouveaux comptes ne rejoignent que par invitation de membre sous **Paramètres > Personnes** — voir [Membres et rôles](/fr/platform/admin/members-and-roles).
+Ouvre `SITE_URL/convex-dashboard`, saisis `SITE_URL` comme URL de déploiement, et colle la clé quand on te la demande.
 
 ## Dépannage
 
-- **`get-admin-key.sh` échoue avec « container not running ».** Le conteneur platform n'est pas encore monté. `docker compose ps` dira quel service échoue ; les logs via `docker compose logs platform` montrent pourquoi.
-- **La clé collée est rejetée.** Les clés tournent par démarrage de conteneur platform. Relance le script pour en obtenir une fraîche.
-- **Tu t'es inscrit mais le dashboard lit « no organization ».** L'écran de création d'organisation a été sauté — déconnecte-toi puis reconnecte-toi pour atterrir à nouveau sur le flux de création d'organisation.
+- **L'assistant n'est pas apparu — tu atterris sur l'écran de connexion.** Des utilisateurs existent déjà sur cette instance ; l'assistant ne tourne que sur une instance vraiment vide. Connecte-toi à la place, ou fais-toi inviter par un Owner existant sous **Paramètres > Personnes**.
+- **Un service est unhealthy.** Le conteneur platform n'est pas entièrement monté. `docker compose ps` dit quel service échoue ; `docker compose logs platform` montre pourquoi.
+- **Le tableau de bord rejette la clé admin.** La clé est déterministe à partir de `INSTANCE_SECRET`, donc un rejet signifie généralement que `INSTANCE_NAME` et `INSTANCE_SECRET` diffèrent entre les services platform et Convex, ou que l'URL de déploiement est fausse — utilise `SITE_URL`. Régénère avec `tale convex admin` pour être sûr d'avoir copié la valeur actuelle.
 
 ## Où ça s'utilise
 
-Tu as maintenant un Owner et une organisation. Les étapes suivantes pour le calendrier sont d'inviter le reste des admins (sous **Paramètres > Personnes**), d'ajouter un fournisseur de modèles, et de publier le premier agent — le parcours [Onboarding Cloud](/fr/cloud/onboarding) est identique à partir d'ici, à l'URL près.
+Tu as maintenant un Owner et une organisation, et tu sais que la clé admin est un outil d'inspection du backend, pas une partie de la connexion. Le premier lancement est sans clé par conception : ouvre l'URL, l'assistant te fait Owner, et tous les autres arrivent par invitation.
+
+Les étapes suivantes pour le calendrier sont d'inviter le reste des admins (sous **Paramètres > Personnes**), d'ajouter un fournisseur de modèles, et de publier le premier agent — le parcours [Onboarding Cloud](/fr/cloud/onboarding) est identique à partir d'ici, à l'URL près.

@@ -7,7 +7,7 @@
 import { symmetricDecrypt } from 'better-auth/crypto';
 import { v, type Infer } from 'convex/values';
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { query, type QueryCtx } from '../_generated/server';
 import { getAuthUserIdentity, type AuthenticatedUser } from '../lib/rls';

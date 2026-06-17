@@ -43,8 +43,8 @@ import type {
 } from '@/lib/shared/schemas/approvals';
 import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
-import { stripLeadingPunctuation } from '@/lib/utils/text';
-import { getString, isRecord } from '@/lib/utils/type-guards';
+import { stripLeadingPunctuation } from '@/lib/utils/string';
+import { getString, isRecord } from '@/lib/utils/type-utils';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import {

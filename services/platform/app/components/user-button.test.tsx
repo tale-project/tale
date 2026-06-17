@@ -1,25 +1,50 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { UserButton } from './user-button';
 
+// i18n: the component pulls from three namespaces — `auth`, `navigation`, and
+// `global`. The inner `t()` receives the namespace-relative key, so the map is
+// keyed by relative path. Strings mirror the real en.json values the e2e
+// asserts against (messages/en.json + messages/global.json), so the migrated
+// "user menu" test stays faithful to the spec it replaces.
 vi.mock('@/lib/i18n/client', () => ({
   useT: (_ns: string) => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
+        // auth.userButton.*
         'userButton.defaultName': 'User',
-        'userButton.helpFeedback': 'Help & Feedback',
+        'userButton.helpFeedback': 'Help & feedback',
         'userButton.logOut': 'Log out',
         'userButton.manageAccount': 'Manage account',
         'userButton.toast.signOutFailed': 'Sign out failed',
-        'teamFilter.label': 'Team filter',
-        'teamFilter.allTeams': 'All teams',
+        'userButton.language': 'Language',
+        'userButton.themeSystem': 'System theme',
+        'userButton.themeLight': 'Light theme',
+        'userButton.themeDark': 'Dark theme',
+        // navigation.*
+        'orgSwitcher.label': 'Organization',
+        'teamFilter.label': 'Team',
+        'teamFilter.allTeams': 'All',
+        // global.languages.*
+        'languages.en': 'English',
+        'languages.de': 'Deutsch',
+        'languages.fr': 'Français',
       };
       return translations[key] ?? key;
     },
   }),
+}));
+
+// The org / team / language pickers render as inline collapsibles on mobile and
+// Radix sub-menu triggers (role="menuitem") on larger screens. The e2e runs on
+// a desktop viewport, where those rows are sub-menu triggers, so pin the hook
+// to the desktop branch.
+let mockIsMobile = false;
+vi.mock('@tale/ui/use-is-mobile', () => ({
+  useIsMobile: () => mockIsMobile,
 }));
 
 // Mock toast
@@ -130,10 +155,14 @@ vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ href: '/dashboard/org-123' }),
 }));
 
-// Mock Radix tooltip
+// Mock Radix tooltip. `Portal` is included because the account-header label
+// inside the open menu renders the app `Tooltip` (which uses Portal); the
+// trigger-only tests never opened the menu, but the migrated "user menu" test
+// does.
 vi.mock('@radix-ui/react-tooltip', () => ({
   Provider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Root: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Trigger: ({
     children,
     asChild: _asChild,
@@ -170,6 +199,7 @@ beforeEach(() => {
     isLoadingTeams: false,
     filterByTeam: <T,>(items: T[]) => items,
   };
+  mockIsMobile = false;
 });
 
 describe('UserButton', () => {
@@ -248,6 +278,80 @@ describe('UserButton', () => {
     };
     const { container } = render(<UserButton />);
     expect(getDropdownTrigger(container)).toBeInTheDocument();
+  });
+
+  // Migrated from tests/e2e/specs/preferences.spec.ts
+  // ("user menu: renders the account, preference, and session items"). The
+  // assertion is pure rendered-menu structure — no persistence, navigation, or
+  // backend enforcement — so it belongs in a jsdom component test. We open the
+  // account dropdown and assert the account header, the org/team pickers, the
+  // three theme tabs, the language picker, and the session items all render.
+  describe('user menu', () => {
+    async function openMenu() {
+      const result = render(<UserButton />);
+      // The trigger toggles the controlled `open` state; click it to open the
+      // account dropdown.
+      const trigger = result.container.querySelector(
+        '[aria-haspopup="menu"]',
+      ) as HTMLElement;
+      await result.user.click(trigger);
+      const menu = await screen.findByRole('menu');
+      return { ...result, menu };
+    }
+
+    it('renders the account, preference, and session items', async () => {
+      // Teams must be present for the team-filter row to render.
+      mockTeamFilter = {
+        teams: [
+          { id: 'team-1', name: 'Engineering' },
+          { id: 'team-2', name: 'Design' },
+        ],
+        selectedTeamId: 'team-1',
+        setSelectedTeamId: vi.fn(),
+        isLoadingTeams: false,
+        filterByTeam: <T,>(items: T[]) => items,
+      };
+
+      await openMenu();
+      const menu = screen.getByRole('menu');
+
+      // Account header anchors on the owner's email.
+      expect(menu).toHaveTextContent('john@example.com');
+
+      // Org + team pickers render as sub-menu triggers (menuitems) on desktop.
+      // Each trigger's accessible name is its static label followed by a
+      // trailing "current selection" badge, so match on the label prefix.
+      expect(
+        within(menu).getByRole('menuitem', { name: /^Organization/ }),
+      ).toBeInTheDocument();
+      expect(
+        within(menu).getByRole('menuitem', { name: /^Team/ }),
+      ).toBeInTheDocument();
+
+      // Theme control: the three theme tabs each render with their aria-label.
+      expect(
+        within(menu).getByRole('tab', { name: 'System theme' }),
+      ).toBeInTheDocument();
+      expect(
+        within(menu).getByRole('tab', { name: 'Light theme' }),
+      ).toBeInTheDocument();
+      expect(
+        within(menu).getByRole('tab', { name: 'Dark theme' }),
+      ).toBeInTheDocument();
+
+      // Language control (sub-menu trigger).
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Language' }),
+      ).toBeInTheDocument();
+
+      // Session items: asserted present, never activated.
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Help & feedback' }),
+      ).toBeInTheDocument();
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Log out' }),
+      ).toBeInTheDocument();
+    });
   });
 
   describe('accessibility', () => {

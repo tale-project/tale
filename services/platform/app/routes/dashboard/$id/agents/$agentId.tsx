@@ -57,7 +57,10 @@ function AgentDetailLayout() {
     agentId,
   );
   const agentConfig = data?.ok ? data.config : null;
-  const loadError = data && !data.ok ? data.message : (error?.message ?? null);
+  // A load failure (bad slug, missing or corrupt file) renders a friendly
+  // not-found message — never the raw result message, which leaks the internal
+  // `<slug>.json` storage path (e.g. "File not found: does-not-exist.json").
+  const loadFailed = data ? !data.ok : Boolean(error);
   const { i18n: i18nCtx } = useTranslation();
   const resolvedDisplayName = useMemo(
     () =>
@@ -68,11 +71,11 @@ function AgentDetailLayout() {
   );
 
   // Terminal load failure — not a loading state, so no skeleton here.
-  if (!isLoading && (loadError || !agentConfig)) {
+  if (!isLoading && (loadFailed || !agentConfig)) {
     return (
       <PageLayout>
         <ContentArea variant="narrow" className="py-6">
-          <Text variant="muted">{loadError ?? t('agents.agentNotFound')}</Text>
+          <Text variant="muted">{t('agents.agentNotFound')}</Text>
         </ContentArea>
       </PageLayout>
     );

@@ -19,6 +19,7 @@
     "@inquirer/prompts": "8.4.1",
     "@noble/curves": "1.9.7",
     "@scure/base": "2.0.0",
+    "@tale/shared": "workspace:*",
     "commander": "14.0.3",
     "yaml": "2.8.3"
   },

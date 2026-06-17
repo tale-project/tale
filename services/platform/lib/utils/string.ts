@@ -27,3 +27,10 @@ export function startCase(str: string): string {
       .replace(/\B\w+/g, (word) => word.toLowerCase())
   );
 }
+
+const LEADING_PUNCTUATION_RE = /^[\s:：;；,，.。!！?？…·\-—–]+/;
+
+/** Strips leading whitespace and punctuation from a string. */
+export function stripLeadingPunctuation(text: string): string {
+  return text.replace(LEADING_PUNCTUATION_RE, '');
+}

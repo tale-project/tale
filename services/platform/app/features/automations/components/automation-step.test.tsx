@@ -5,8 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecutionNodeState } from '@/convex/workflows/executions/get_execution_step_statuses';
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render } from '@/tests/utils/render';
 
 const h = vi.hoisted(() => {
   const fixture: {

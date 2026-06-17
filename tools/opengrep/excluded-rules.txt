@@ -1,0 +1,26 @@
+# Registry-pack rules disabled repo-wide because they only ever fire as false
+# positives or non-security style noise in this codebase. One rule id per line.
+# Prefer fixing a finding, or an inline `// nosemgrep: <id> -- <why>` for a
+# single accepted case; use this file only for a rule that is systematically
+# wrong here. Each entry carries a one-line reason. Reviewed when the pinned
+# ruleset (tools/opengrep/vendor-rules.ts) changes.
+#
+# NOTE: ids carry the `tools.opengrep.rules.` prefix because the packs are
+# vendored as a local config (registry-pinned.yml) and opengrep namespaces local
+# rule ids by their file path.
+
+# Compose publishes ports on the host (0.0.0.0) by design for a self-hosted /
+# local-dev stack; that's operator-controlled deployment config, not app code.
+tools.opengrep.rules.trailofbits.yaml.docker-compose.port-all-interfaces.port-all-interfaces
+
+# http:// URLs flagged here are loopback / in-network healthchecks and image
+# downloads from pinned internal hosts, not data exfiltration over the internet.
+tools.opengrep.rules.trailofbits.generic.wget-unencrypted-url.wget-unencrypted-url
+tools.opengrep.rules.trailofbits.generic.curl-unencrypted-url.curl-unencrypted-url
+
+# Running containers as a non-root USER is real hardening, but doing it safely
+# (file ownership, volume mounts, ports) needs per-service runtime validation --
+# tracked as a separate container-hardening effort, not this tooling PR.
+tools.opengrep.rules.dockerfile.security.last-user-is-root.last-user-is-root
+tools.opengrep.rules.dockerfile.security.missing-user.missing-user
+tools.opengrep.rules.dockerfile.security.missing-user-entrypoint.missing-user-entrypoint

@@ -1,4 +1,4 @@
-import { isRecord, getString } from '../../../lib/utils/type-guards';
+import { isRecord, getString } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { httpAction } from '../../_generated/server';

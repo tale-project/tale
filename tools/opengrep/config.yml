@@ -1,0 +1,119 @@
+# Tale SAST ruleset (Opengrep / Semgrep CE syntax). Vendored and pinned on
+# purpose: a BLOCKING gate must be deterministic, so we don't pull floating
+# registry packs whose rule set could change under us and block an unrelated PR.
+# These are high-precision, high-severity patterns that should have ~zero
+# legitimate uses; suppress a true false-positive inline with
+# `// nosemgrep: <rule-id> -- <reason>` (or `# nosemgrep:` in Python).
+#
+# Run via `bun run lint:sast` (tools/opengrep/run.sh). For a deeper, non-gating
+# audit you can additionally point opengrep at registry packs, e.g.
+# `opengrep scan --config p/security-audit --config p/secrets .`.
+#
+# Keep this file ASCII-only: the bundled opengrep Python wrapper reads configs
+# with the ascii codec and crashes on non-ASCII bytes.
+rules:
+  # ---- JavaScript / TypeScript -------------------------------------------------
+  - id: ts-no-eval
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      eval() executes arbitrary code, a code-injection sink. Use JSON.parse, a
+      lookup table, or an explicit parser instead.
+    pattern: eval(...)
+
+  - id: ts-no-new-function
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      new Function(...) compiles strings into code (eval-equivalent). Replace
+      with a real function or a safe interpreter.
+    pattern: new Function(...)
+
+  - id: ts-no-document-write
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      document.write() is an XSS sink and blocks parsing. Build DOM nodes or set
+      textContent instead.
+    patterns:
+      - pattern-either:
+          - pattern: document.write(...)
+          - pattern: document.writeln(...)
+
+  - id: ts-child-process-shell-injection
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Passing an interpolated string to exec/execSync runs it through a shell
+      (command injection). Use execFile/spawn with an argument array.
+    patterns:
+      - pattern-either:
+          - pattern: $CP.exec(`...${...}...`, ...)
+          - pattern: $CP.execSync(`...${...}...`, ...)
+          - pattern: exec(`...${...}...`, ...)
+          - pattern: execSync(`...${...}...`, ...)
+
+  - id: ts-no-private-key-literal
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      A PEM private key is hardcoded. Load secrets from the environment, never
+      from source.
+    pattern-regex: -----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----
+
+  # ---- Python (rag, crawler) ---------------------------------------------------
+  - id: py-no-eval-exec
+    languages: [python]
+    severity: ERROR
+    message: >-
+      eval()/exec() run arbitrary code. Use ast.literal_eval or an explicit
+      parser.
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: exec(...)
+
+  - id: py-subprocess-shell-true
+    languages: [python]
+    severity: ERROR
+    message: >-
+      subprocess with shell=True runs a shell (command injection if any arg is
+      attacker-influenced). Pass an argv list and drop shell=True.
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.run(..., shell=True, ...)
+          - pattern: subprocess.call(..., shell=True, ...)
+          - pattern: subprocess.Popen(..., shell=True, ...)
+          - pattern: subprocess.check_output(..., shell=True, ...)
+
+  - id: py-yaml-unsafe-load
+    languages: [python]
+    severity: ERROR
+    message: >-
+      yaml.load without SafeLoader can instantiate arbitrary objects. Use
+      yaml.safe_load (or Loader=yaml.SafeLoader).
+    patterns:
+      - pattern: yaml.load($X)
+      - pattern-not: yaml.load($X, Loader=yaml.SafeLoader)
+
+  - id: py-requests-verify-false
+    languages: [python]
+    severity: ERROR
+    message: >-
+      verify=False disables TLS certificate validation (MITM risk). Trust the
+      system CA bundle or pass a CA path.
+    patterns:
+      - pattern-either:
+          - pattern: requests.$M(..., verify=False, ...)
+          - pattern: httpx.$M(..., verify=False, ...)
+
+  - id: py-web-debug-true
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Running a web framework with debug=True exposes a remote code-execution
+      console. Gate it behind an env flag, never hardcode True.
+    patterns:
+      - pattern-either:
+          - pattern: $APP.run(..., debug=True, ...)
+          - pattern: uvicorn.run(..., debug=True, ...)

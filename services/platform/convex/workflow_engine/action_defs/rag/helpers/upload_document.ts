@@ -42,23 +42,10 @@ export async function uploadDocument(
 ): Promise<RagUploadResult> {
   const storageId = toId<'_storage'>(fileId);
 
-  const fileUrl = await ctx.storage.getUrl(storageId);
-  if (!fileUrl) {
-    throw new Error(`File URL not available: ${fileId}`);
-  }
-
-  // 30s timeout: the storage CDN can stall; without a timeout the
-  // entire workflow action blocks indefinitely, holding a Convex
-  // concurrency slot until the surrounding 30 min action timeout fires.
-  // Round-2 review HIGH (E.4.3).
-  const fileResponse = await fetch(fileUrl, {
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!fileResponse.ok) {
-    throw new Error(`Failed to download file: ${fileResponse.status}`);
-  }
-  const file = await fileResponse.blob();
-
+  // The in-process `uploadFile` indexer reads the bytes directly from Convex
+  // storage via the `_storage` id, so this helper no longer downloads the file
+  // into a Blob. Existence is validated by the metadata lookup below + the
+  // indexing action's own `ctx.storage.get`.
   const metadata = await ctx.runQuery(
     internal.file_metadata.internal_queries.getByStorageId,
     { storageId },
@@ -108,8 +95,7 @@ export async function uploadDocument(
 
   const orgSlug = await orgSlugFromId(ctx, metadata.organizationId);
 
-  return uploadFile({
-    file,
+  return uploadFile(ctx, {
     filename: fileName,
     contentType,
     fileId,

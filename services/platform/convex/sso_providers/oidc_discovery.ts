@@ -9,7 +9,7 @@
  * infrequent and the document is cacheable), so no endpoint is persisted.
  */
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 
 export interface OidcEndpoints {
   issuer: string;

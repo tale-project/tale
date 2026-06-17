@@ -1,4 +1,6 @@
 #!/bin/bash
+# PostToolUse(Edit|Write): format the just-edited file in place so the tree never drifts.
+# Reads the hook payload on stdin; formats by extension. Silent on failure — never blocks an edit.
 
 INPUT=$(cat)
 

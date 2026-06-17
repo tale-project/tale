@@ -8,7 +8,7 @@ body:
     attributes:
       label: What's wrong or missing?
       description: Describe the documentation issue.
-      placeholder: "e.g. The setup guide doesn't mention the required environment variables for the RAG service."
+      placeholder: "e.g. The setup guide doesn't mention the required environment variables for the knowledge database."
     validations:
       required: true
 

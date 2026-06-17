@@ -1,0 +1,10 @@
+{
+  "name": "@tale/opengrep",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Opengrep SAST gate — runner, custom rules, and a pinned vendored registry snapshot",
+  "scripts": {
+    "lint:sast": "bash run.sh",
+    "vendor-rules": "bun run vendor-rules.ts"
+  }
+}

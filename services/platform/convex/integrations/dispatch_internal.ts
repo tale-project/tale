@@ -15,7 +15,7 @@
 
 import { v } from 'convex/values';
 
-import { getString, isRecord } from '../../lib/utils/type-guards';
+import { getString, isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { internalAction, internalMutation } from '../_generated/server';
 import { orgSlugFromId } from '../lib/helpers/org_slug';

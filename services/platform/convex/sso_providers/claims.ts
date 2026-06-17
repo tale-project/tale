@@ -8,7 +8,7 @@
  */
 
 import type { ProviderFeatures } from '../../lib/shared/schemas/sso_providers';
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 
 /**
  * Resolve a dot-path (e.g. `realm_access.roles`) inside a claims object.

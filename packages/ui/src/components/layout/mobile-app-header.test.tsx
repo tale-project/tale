@@ -1,8 +1,8 @@
 import { Menu, Search } from 'lucide-react';
 import { describe, expect, it } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 import { IconButton } from '../primitives/icon-button';
 import { MobileAppHeader } from './mobile-app-header';

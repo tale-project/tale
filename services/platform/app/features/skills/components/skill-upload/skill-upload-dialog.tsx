@@ -8,7 +8,7 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { fetchJson } from '@/lib/utils/type-cast-helpers';
+import { fetchJson } from '@/lib/utils/type-utils';
 
 import {
   useGenerateSkillUploadUrl,

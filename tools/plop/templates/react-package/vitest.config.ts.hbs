@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
         test: {
           name: 'unit',
           environment: 'jsdom',
-          setupFiles: ['./src/test/setup.ts'],
+          setupFiles: ['./tests/setup.ts'],
           globals: true,
           include: ['src/**/*.test.{ts,tsx}'],
         },
@@ -46,7 +46,7 @@ import { fileURLToPath } from 'node:url';
       },
     ],
 {{else}}    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
+    setupFiles: ['./tests/setup.ts'],
     globals: true,
     include: ['src/**/*.test.{ts,tsx}'],
 {{/if}}  },

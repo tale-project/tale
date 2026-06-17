@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render } from '@/tests/utils/render';
 
 import { CustomerInformation } from './customer-information';
 
@@ -25,7 +25,7 @@ function makeCustomerInfo(overrides = {}) {
     name: 'Jane Doe',
     email: 'jane@example.com',
     status: 'potential',
-    source: 'circuly',
+    source: 'manual_import',
     locale: 'de',
     created_at: new Date().toISOString(),
     ...overrides,

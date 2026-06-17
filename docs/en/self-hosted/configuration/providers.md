@@ -82,7 +82,7 @@ Two guardrails apply:
 
 Resolution order, highest first: model-level `secretsEnv` → provider-level `secretsEnv` → the secrets file (`modelKeys[id]` then `apiKey`). Each tier is skipped when it yields nothing, so a configured-but-empty variable falls back to the file. Env values are trimmed (a trailing newline from a mounted secret is a common cause of `401`s).
 
-Unlike the secrets **file** — which the watcher re-reads on every request — an env-var **value** is read once at process start. Changing it requires **restarting the `tale-platform` container** (it re-syncs env to Convex at boot) and recreating the `tale-rag` / `tale-crawler` containers (they read `os.environ` directly). The variable must be present everywhere the key is consumed: the platform syncs it to Convex automatically; the Python services receive it via their compose `env_file`.
+Unlike the secrets **file** — which the watcher re-reads on every request — an env-var **value** is read once at process start. Changing it requires **restarting the `tale-platform` container** (it re-syncs env to Convex at boot). The platform syncs the variable to the Convex backend automatically, so the in-process RAG and crawler actions pick it up from the same sync — there is no separate service to recreate.
 
 ## Adding a provider
 

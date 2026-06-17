@@ -1,0 +1,16 @@
+import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
+import { expect, test } from '@playwright/test';
+
+/**
+ * Starter smoke spec — passes out of the box for the scaffolded index route.
+ * Extend with real flows. For label-based locators that survive copy edits,
+ * resolve text from `messages/en.json` with `createI18n` (`@tale/e2e/i18n`)
+ * instead of hardcoding strings (AGENTS.md i18n rule).
+ */
+
+test('home page renders without console errors', async ({ page }) => {
+  const errors = collectConsoleErrors(page);
+  await page.goto('/');
+  await expectPageRenders(page);
+  expect(errors).toEqual([]);
+});

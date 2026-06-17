@@ -9,13 +9,9 @@
  *   to resolve pronouns and maintain topic continuity
  */
 
-import { fetchJson } from '../../../lib/utils/type-cast-helpers';
+import { internal } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
-import {
-  UpstreamHttpError,
-  isUpstreamHttpError,
-} from '../../lib/errors/upstream_http_error';
-import { getRagConfig, ragFetch } from '../../lib/helpers/rag_config';
 import {
   buildRagSearchFilters,
   type RagMetadataFilters,
@@ -24,13 +20,12 @@ import {
   extractCitationsFromSearchResults,
   formatSearchResults,
   type ContextCitation,
-  type SearchResponse,
+  type SearchResult,
 } from './format_search_results';
 
 const debugLog = createDebugLog('DEBUG_RAG_QUERY', '[RAGQuery]');
 const DEFAULT_TOP_K = 10;
 const DEFAULT_SIMILARITY_THRESHOLD = 0.51;
-const RAG_REQUEST_TIMEOUT_MS = 10000; // 10 seconds
 
 // Query expansion constants
 const MAX_CONTEXT_MESSAGES = 3; // Number of recent messages to include for context
@@ -170,6 +165,7 @@ export interface RagContextOptions {
  * @returns Formatted context string or undefined if no relevant results
  */
 export async function queryRagContext(
+  ctx: ActionCtx,
   userMessage: string,
   topK: number = DEFAULT_TOP_K,
   similarityThreshold: number = DEFAULT_SIMILARITY_THRESHOLD,
@@ -197,8 +193,6 @@ export async function queryRagContext(
     );
   }
   try {
-    const ragServiceUrl = getRagConfig().serviceUrl;
-
     // Build expanded query with conversation context
     const expandedQuery = buildExpandedQuery(userMessage, recentMessages);
 
@@ -207,130 +201,78 @@ export async function queryRagContext(
       expandedQueryLength: expandedQuery.length,
       hasContextExpansion: expandedQuery !== userMessage,
       topK,
-      ragServiceUrl,
     });
 
-    // Create abort controller for timeout if no signal provided
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      RAG_REQUEST_TIMEOUT_MS,
-    );
-    const fetchSignal = signal || controller.signal;
-
     try {
-      const requestPayload: Record<string, unknown> = {
-        query: expandedQuery,
-        top_k: topK,
-        similarity_threshold: similarityThreshold,
-        include_metadata: true,
-      };
-
       if (!options.fileIds || options.fileIds.length === 0) {
         debugLog('No file IDs provided, skipping RAG query');
-        // Without this, the controller fires `controller.abort()`
-        // RAG_REQUEST_TIMEOUT_MS later against no in-flight fetch — a
-        // resource leak and an unhandled-rejection source under stricter
-        // test runners.
-        clearTimeout(timeoutId);
         return undefined;
       }
-      requestPayload.file_ids = options.fileIds;
 
-      if (options.filters) {
-        const searchFilters = buildRagSearchFilters({
-          folderPath: options.filters.folderPath,
-          metadata: options.filters.metadata,
-        });
-        if (searchFilters) {
-          requestPayload.filters = searchFilters;
-        }
-      }
+      // Folder-path narrowing maps to the action's `folderPath` arg.
+      // NOTE: the `metadata` equality/IN filters that the old `/search`
+      // `filters` object supported are not exposed by
+      // `internal.rag.search.search` yet; only folder-path narrowing is
+      // forwarded here (still narrowing-only — fileIds stays the
+      // authorization boundary).
+      const searchFilters = options.filters
+        ? buildRagSearchFilters({
+            folderPath: options.filters.folderPath,
+            metadata: options.filters.metadata,
+          })
+        : undefined;
 
-      const response = await ragFetch('/api/v1/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestPayload),
+      // The RAG search logic now lives in a Convex internal action; the
+      // HTTP call (and its AbortController timeout / abort signal) was
+      // replaced by an in-process `ctx.runAction`. The action throws plain
+      // Errors on failure, caught by the surrounding try/catch below.
+      const searchResult = await ctx.runAction(internal.rag.search.search, {
         orgSlug: options.orgSlug,
-        signal: fetchSignal,
+        query: expandedQuery,
+        fileIds: options.fileIds,
+        topK,
+        similarityThreshold,
+        folderPath: searchFilters?.folder_path ?? null,
       });
 
-      clearTimeout(timeoutId);
+      // Normalize the action's `file_id` / `filename` (`string | null`) to
+      // the `SearchResult` optional-`string` shape the formatter expects.
+      const results: SearchResult[] = searchResult.results.map((r) => {
+        const mapped: SearchResult = {
+          content: r.content,
+          score: r.score,
+          source_created_at: r.source_created_at,
+          source_modified_at: r.source_modified_at,
+        };
+        if (r.file_id != null) mapped.file_id = r.file_id;
+        if (r.filename != null) mapped.filename = r.filename;
+        return mapped;
+      });
 
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        // 4xx is a caller/config bug: missing or bad X-Tale-Org,
-        // schema-rejected query, etc. Surfacing as a thrown
-        // UpstreamHttpError gives the agent runtime a clear signal
-        // (and prevents the agent from treating "auth misconfigured"
-        // as "knowledge base is empty"). 5xx remains silent fallback
-        // — RAG outage shouldn't break chat completely.
-        if (response.status >= 400 && response.status < 500) {
-          throw UpstreamHttpError.fromResponse(
-            'rag',
-            response,
-            errorText,
-            '/api/v1/search',
-          );
-        }
-        console.error('[rag_query] RAG service unavailable', {
-          status: response.status,
-          // errorText logged engineer-side only; caller gets a graceful
-          // empty-context return so chat continues without RAG.
-          error: errorText,
-        });
-        return undefined;
-      }
-
-      const result = await fetchJson<SearchResponse>(response);
-
-      if (!result.success || result.total_results === 0) {
+      if (results.length === 0) {
         debugLog('No relevant RAG context found', {
-          success: result.success,
-          total_results: result.total_results,
+          total_results: results.length,
         });
         return undefined;
       }
 
-      const ragContext = formatSearchResults(result.results);
+      const ragContext = formatSearchResults(results);
       if (!ragContext) return undefined;
 
-      const citations = extractCitationsFromSearchResults(result.results);
+      const citations = extractCitationsFromSearchResults(results);
 
       debugLog('RAG context retrieved', {
-        resultCount: result.total_results,
+        resultCount: results.length,
         contextLength: ragContext.length,
         citationCount: citations.length,
-        processingTimeMs: result.processing_time_ms,
       });
 
       return { text: ragContext, citations };
     } catch (fetchError) {
-      clearTimeout(timeoutId);
-
-      // Caller/config bugs (4xx → `UpstreamHttpError`) MUST propagate
-      // past this graceful-degrade layer. Otherwise the explicit throw
-      // for missing `X-Tale-Org` / bad query in the `!response.ok`
-      // branch above is silently swallowed here and the agent treats
-      // "auth misconfigured" as "knowledge base is empty" — the very
-      // failure mode the upstream throw was added to prevent.
-      if (isUpstreamHttpError(fetchError)) {
-        throw fetchError;
-      }
-
-      // Handle timeout specifically
-      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        console.error('[rag_query] RAG service request timeout', {
-          timeoutMs: RAG_REQUEST_TIMEOUT_MS,
-        });
-      } else {
-        console.error('[rag_query] RAG service fetch error', {
-          error:
-            fetchError instanceof Error
-              ? fetchError.message
-              : String(fetchError),
-        });
-      }
+      console.error('[rag_query] RAG service fetch error', {
+        error:
+          fetchError instanceof Error ? fetchError.message : String(fetchError),
+      });
       return undefined; // Gracefully degrade on fetch error
     }
   } catch (error) {

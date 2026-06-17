@@ -7,7 +7,7 @@
  * before this callback fires.
  */
 
-import { isRecord, getString } from '../../../../lib/utils/type-guards';
+import { isRecord, getString } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Doc } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
@@ -57,7 +57,7 @@ export async function handleWorkflowComplete(
       // Use the already-persisted output from the serialize action.
       const output = exec.output ?? null;
       await ctx.runMutation(
-        internal.wf_executions.internal_mutations.completeExecution,
+        internal.workflow_executions.internal_mutations.completeExecution,
         {
           executionId: toId<'wfExecutions'>(exec._id),
           output,
@@ -87,7 +87,7 @@ export async function handleWorkflowComplete(
     }
   } else if (kind === 'failed') {
     await ctx.runMutation(
-      internal.wf_executions.internal_mutations.failExecution,
+      internal.workflow_executions.internal_mutations.failExecution,
       {
         executionId: toId<'wfExecutions'>(exec._id),
         error: result.error || 'failed',
@@ -96,7 +96,7 @@ export async function handleWorkflowComplete(
     );
   } else if (kind === 'canceled') {
     await ctx.runMutation(
-      internal.wf_executions.internal_mutations.updateExecutionStatus,
+      internal.workflow_executions.internal_mutations.updateExecutionStatus,
       {
         executionId: toId<'wfExecutions'>(exec._id),
         status: 'failed',

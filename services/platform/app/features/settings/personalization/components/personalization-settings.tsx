@@ -33,7 +33,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import {
   useApprovePendingMemory,

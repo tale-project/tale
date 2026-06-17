@@ -12,7 +12,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { useVoiceCapabilities } from '../hooks/use-voice-capabilities';
 import { useVoiceModeEffective } from '../hooks/use-voice-output';

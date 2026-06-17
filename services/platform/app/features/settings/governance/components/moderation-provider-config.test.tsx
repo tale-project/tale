@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/test/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 // Entry point is exported as `ModerationProviderConfigView` (the guardrails
 // route imports that name); it is the container that owns data + Skeletonize.

@@ -1,6 +1,6 @@
 {
   "title": "AI Image",
-  "description": "Create and edit images with AI. Supports OpenAI (GPT Image, DALL-E), Together AI, and other compatible providers.",
+  "description": "Generate and edit images with AI models.",
   "version": 1,
   "type": "rest_api",
   "authMethod": "bearer_token",

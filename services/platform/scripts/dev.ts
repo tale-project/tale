@@ -22,7 +22,7 @@
   Uses Bun native spawn + wait-on library for proper signal handling (Ctrl+C works correctly).
 */
 
-import { type ChildProcess, spawn } from 'node:child_process';
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
@@ -34,18 +34,29 @@ import kill from 'tree-kill';
 const platformRoot = join(import.meta.dir, '..');
 const repoRoot = join(import.meta.dir, '..', '..', '..');
 
+// Wall-clock boot start, so the orchestrator can show how long each phase took.
+// Convex pre-warm dominates a cold boot (30-90s) — surfacing it turns an opaque
+// wait into a measurable number.
+const BOOT_STARTED_AT = Date.now();
+const sinceBoot = (): string =>
+  `${((Date.now() - BOOT_STARTED_AT) / 1000).toFixed(1)}s`;
+
 // Docker backing services the HOST `bun dev` depends on (Convex + Vite run on
 // the host; these run in docker). Excludes the host-run convex/platform and the
 // dev-irrelevant proxy/docs/controller. `bifrost` is the one with no published
 // port in base compose.yml — see DEV_COMPOSE_FILES.
 //
-// Note: rag/crawler `depends_on convex` in base compose.yml only to wait for it
-// to seed the shared convex-data config volume. compose.bifrost-dev.yml (host
+// Note: knowledge-db `depends_on convex` in base compose.yml only to wait for it
+// to seed the shared convex-data config volume. compose.bifrost.dev.yml (host
 // bun-dev only) drops that edge via `!override` — the host backend owns config
 // here, not the docker convex — so this bring-up does NOT pull up a redundant
 // convex container alongside the host one.
 const DEV_DOCKER_SERVICES = [
   'db',
+  // ParadeDB for the knowledge base / RAG search corpus (formerly the separate
+  // rag + crawler services, consolidated into the tale-db image — see the
+  // knowledge-db migration wiring).
+  'knowledge-db',
   'bifrost',
   'sandbox',
   'sandbox-egress',
@@ -53,12 +64,10 @@ const DEV_DOCKER_SERVICES = [
   // so the in-container MCP integration bridge can reach convex http actions
   // (the `--internal` sandbox net can't otherwise reach the host).
   'convex-relay',
-  'rag',
-  'crawler',
 ];
 // Overlay chain for local dev (matches docs/.../docker-compose-reference): base
 // + source-mounts/debug/extra_hosts (dev) + the loopback bifrost port publish
-// (bifrost-dev). compose.docs.yml is required because compose.dev.yml carries a
+// (bifrost.dev). compose.docs.yml is required because compose.dev.yml carries a
 // `docs` override whose base service lives only in compose.docs.yml — omit it
 // and compose rejects the whole project ("docs has neither an image nor a build
 // context"), even though we never start the docs service here. The base file
@@ -68,7 +77,7 @@ const DEV_COMPOSE_FILES = [
   'compose.yml',
   'compose.dev.yml',
   'compose.docs.yml',
-  'compose.bifrost-dev.yml',
+  'compose.bifrost.dev.yml',
 ];
 
 function parseDotEnv(filePath: string): Record<string, string> {
@@ -467,9 +476,9 @@ async function waitForBifrostGateway(timeoutMs = 30_000): Promise<void> {
 
 /** Bring up the docker backing services the host `bun dev` depends on, WITH the
  *  dev overlays. Host bun dev runs Convex + Vite on the host, but the LLM
- *  gateway (bifrost), sandbox spawner, db, rag and crawler run in docker. The
+ *  gateway (bifrost), sandbox spawner, db and knowledge-db run in docker. The
  *  base compose.yml publishes NO bifrost port (prod posture) — only
- *  compose.bifrost-dev.yml maps 127.0.0.1:8080 — so a plain `docker compose up`
+ *  compose.bifrost.dev.yml maps 127.0.0.1:8080 — so a plain `docker compose up`
  *  silently drops the loopback binding and the host Convex action can't reach
  *  the gateway (every external-agent turn then dies with "fetch failed"). Doing
  *  the bring-up here, with the overlay chain, makes `bun dev` self-sufficient
@@ -526,7 +535,7 @@ async function ensureDockerDependencies(): Promise<void> {
       '[dev]      • sandbox + sandbox-egress down → agent code execution / tool runs unavailable',
     );
     console.warn(
-      '[dev]      • db + rag + crawler down → knowledge base / RAG search / crawling unavailable',
+      '[dev]      • db + knowledge-db down → knowledge base / RAG search unavailable',
     );
     console.warn('[dev]    Start them once Docker is available with:');
     console.warn(
@@ -548,13 +557,34 @@ async function ensureDockerDependencies(): Promise<void> {
     );
     console.log('[dev] ✅ Docker backing services up');
   } catch (err) {
+    // The usual cause is a missing locally-built image (db/sandbox/
+    // sandbox-egress have `build:` blocks). Rather than warn-and-print a
+    // command for the developer to run by hand, retry once WITH `--build` so a
+    // fresh checkout reaches a working stack on the first `bun dev`. The build
+    // is slow (minutes cold), so announce it; still non-fatal if it fails too.
     console.warn(
-      `[dev] ⚠️  docker compose up failed (continuing): ${err instanceof Error ? err.message : String(err)}`,
+      `[dev] ⚠️  docker compose up failed: ${err instanceof Error ? err.message : String(err)}`,
     );
-    console.warn(
-      `[dev]    If images are missing, build them: docker ${dockerComposeArgs(['up', '--build', '-d', ...DEV_DOCKER_SERVICES]).join(' ')}`,
+    console.log(
+      '[dev] 🔨 Retrying with --build (images may be missing — first build can take a few minutes)...',
     );
-    return;
+    try {
+      await runCommand(
+        'docker',
+        dockerComposeArgs(['up', '--build', '-d', ...DEV_DOCKER_SERVICES]),
+        {},
+        repoRoot,
+      );
+      console.log('[dev] ✅ Docker backing services built and up');
+    } catch (buildErr) {
+      console.warn(
+        `[dev] ⚠️  docker compose up --build also failed (continuing): ${buildErr instanceof Error ? buildErr.message : String(buildErr)}`,
+      );
+      console.warn(
+        `[dev]    Build them manually to see full output: docker ${dockerComposeArgs(['up', '--build', '-d', ...DEV_DOCKER_SERVICES]).join(' ')}`,
+      );
+      return;
+    }
   }
 
   await waitForBifrostGateway();
@@ -628,7 +658,9 @@ async function announceWhenReady(port: number, url: string): Promise<void> {
       console.log(
         '[dev] ════════════════════════════════════════════════════════',
       );
-      console.log(`[dev]  ✅  READY — open ${url} in your browser`);
+      console.log(
+        `[dev]  ✅  READY in ${sinceBoot()} — open ${url} in your browser`,
+      );
       console.log(
         '[dev] ════════════════════════════════════════════════════════',
       );
@@ -759,7 +791,7 @@ async function main() {
       '[dev]    (Under `bun run dev`, the lighter web/docs servers come up first.)',
     );
 
-    // Bring up the docker backing stack (gateway, sandbox, db, rag, crawler)
+    // Bring up the docker backing stack (gateway, sandbox, db, knowledge-db)
     // WITH the dev overlays before Convex/Vite. Host bun dev runs Convex+Vite on
     // the host but depends on these in docker; the bifrost gateway in particular
     // has no published port in base compose.yml, so without this an external
@@ -782,6 +814,34 @@ async function main() {
         console.log(`[dev] Convex exited with code ${code}`);
         void shutdown();
       });
+    }
+
+    // E2E mitigation: on the shared 4-vCPU CI runner the local backend competes
+    // with Vite + the browser for CPU and blows its hard ~1s function timeout.
+    // Give `convex-local-backend` a scheduling-priority edge so its UDFs win the
+    // race. Best-effort and E2E/Linux-only — never blocks or fails the boot
+    // (renice needs CAP_SYS_NICE, available via passwordless sudo on GH runners;
+    // a no-op everywhere else). Pairs with the sub-hourly cron skip in crons.ts.
+    function prioritizeConvexForE2E() {
+      if (process.env.TALE_E2E !== '1' || process.platform !== 'linux') return;
+      try {
+        const found = spawnSync('pgrep', ['-f', 'convex-local-backend'], {
+          encoding: 'utf8',
+        });
+        const pids = (found.stdout ?? '')
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean);
+        if (pids.length === 0) return;
+        spawnSync('sudo', ['-n', 'renice', '-n', '-10', '-p', ...pids], {
+          stdio: 'ignore',
+        });
+        console.log(
+          `[dev] ⚡ Raised Convex backend priority for E2E (pids: ${pids.join(', ')})`,
+        );
+      } catch {
+        // Best-effort only; starvation mitigation, not a correctness gate.
+      }
     }
 
     async function waitForConvex() {
@@ -811,6 +871,7 @@ async function main() {
       convexReadyAt = Date.now();
       consecutiveFailures = 0;
       console.log('[dev] ✅ Convex backend is ready!');
+      prioritizeConvexForE2E();
     }
 
     async function restartConvex() {
@@ -905,6 +966,19 @@ async function main() {
       );
       await waitForConvex();
     } else {
+      // Make Convex `node.externalPackages` resolvable from
+      // services/platform/node_modules (they're hoisted to the repo root in
+      // this bun workspace, where Convex's bundler can't find them). Without
+      // this the heavy node-only libs get bundled inline and the push fails
+      // (canvas.node / jsdom default-stylesheet / module-size). Idempotent.
+      try {
+        await runCommand('bun', ['scripts/link-convex-externals.ts']);
+      } catch (err) {
+        console.warn(
+          `[dev] ⚠️  Failed to link Convex external packages; the push may fail. Underlying: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
       // Preflight: `npx convex dev --once` absorbs slow first-run work
       // (binary download, SQLite bootstrap, migrations, function push). We use
       // `npx` (not `bunx`) so the Convex CLI runs under Node, which is what
@@ -918,7 +992,7 @@ async function main() {
         // CONVEX_AGENT_MODE=anonymous is already on process.env (local mode),
         // which runCommand forwards — so the pre-warm runs anonymous too.
         await runCommand('npx', ['convex', 'dev', '--once']);
-        console.log('[dev] ✅ Convex backend pre-warmed');
+        console.log(`[dev] ✅ Convex backend pre-warmed (${sinceBoot()})`);
       } catch (err) {
         throw new Error(
           `Convex preflight (npx convex dev --once) failed. This usually means a stale backend is holding port 3210, or the local deployment state is corrupt. Try: lsof -i :3210 and kill any leftover 'convex-local-backend' processes. Underlying: ${err instanceof Error ? err.message : String(err)}`,
@@ -992,7 +1066,7 @@ async function main() {
 
     console.log('[dev] 🔄 Running code generation...');
     await runCommand('npx', ['convex', 'codegen']);
-    console.log('[dev] ✅ Code generation completed');
+    console.log(`[dev] ✅ Code generation completed (${sinceBoot()})`);
 
     console.log('[dev] ⏳ Waiting for auth routes to serve...');
     await waitForAuthRoutes();
@@ -1008,30 +1082,76 @@ async function main() {
 
     const port = String(appPort);
 
-    console.log('[dev] 🚀 Starting TanStack Start dev server (compiling)...');
-    console.log(
-      `[dev] ⏳ ${appUrl} is NOT reachable yet — wait for the "READY" banner below.`,
+    // Prod-build serve mode (E2E): serve a production build via `vite preview`
+    // instead of the dev server. `vite dev` transpiles on the fly, which is the
+    // dominant CPU consumer — on the 4-vCPU CI runner it starved the local
+    // Convex backend hard enough to blow its 1s function-execution timeout in
+    // floods and flake the suite. A pre-built `dist/` removes that load: preview
+    // just serves static assets and proxies Convex (see vite.config.ts
+    // `preview.proxy` + the plugins' `configurePreviewServer` hooks). Gated to
+    // E2E so `bun run dev` keeps its HMR loop.
+    const serveBuild = /^(1|true|yes|on)$/i.test(
+      process.env.TALE_E2E_SERVE_BUILD ?? '',
     );
-    console.log(
-      `[dev]    (Once ready it is also served on your LAN IP on port ${port}.)`,
-    );
-    console.log('');
 
-    // Run Vite on Node.js (no --bun flag): Bun 1.3.x lacks socket.destroySoon,
-    // which Vite 7's dev proxy requires. Build/preview still use --bun.
-    // `--strictPort`: if 3000 is taken, FAIL loudly instead of silently moving
-    // to the next free port (which would break SITE_URL, the Convex proxy, and
-    // every "localhost:3000" message). The assertPortFree() preflight above
-    // catches this earlier with a friendlier message; this is the safety net.
-    viteProcess = spawn(
-      'bun',
-      ['vite', 'dev', '--port', port, '--strictPort', '--host', '0.0.0.0'],
-      {
-        stdio: 'inherit',
-        cwd: platformRoot,
-        env: process.env,
-      },
-    );
+    if (serveBuild) {
+      const distIndex = join(platformRoot, 'dist', 'index.html');
+      if (!existsSync(distIndex)) {
+        console.log('[dev] 🏗  Building production bundle (vite build)...');
+        await runCommand('bun', ['--bun', 'vite', 'build']);
+        console.log(`[dev] ✅ Build complete (${sinceBoot()})`);
+      } else {
+        console.log('[dev] ♻️  Reusing existing dist/ (skipping vite build)');
+      }
+      console.log(
+        '[dev] 🚀 Starting Vite preview (serving production build)...',
+      );
+      console.log(
+        `[dev] ⏳ ${appUrl} is NOT reachable yet — wait for the "READY" banner below.`,
+      );
+      console.log('');
+      // No `--bun`: preview proxies Convex (preview.proxy in vite.config.ts),
+      // and Vite 7's proxy calls `socket.destroySoon`, which Bun 1.3.x's
+      // runtime lacks — the same reason `vite dev` runs on Node below.
+      viteProcess = spawn(
+        'bun',
+        [
+          'vite',
+          'preview',
+          '--port',
+          port,
+          '--strictPort',
+          '--host',
+          '0.0.0.0',
+        ],
+        { stdio: 'inherit', cwd: platformRoot, env: process.env },
+      );
+    } else {
+      console.log('[dev] 🚀 Starting TanStack Start dev server (compiling)...');
+      console.log(
+        `[dev] ⏳ ${appUrl} is NOT reachable yet — wait for the "READY" banner below.`,
+      );
+      console.log(
+        `[dev]    (Once ready it is also served on your LAN IP on port ${port}.)`,
+      );
+      console.log('');
+
+      // Run Vite on Node.js (no --bun flag): Bun 1.3.x lacks socket.destroySoon,
+      // which Vite 7's dev proxy requires. Build/preview still use --bun.
+      // `--strictPort`: if 3000 is taken, FAIL loudly instead of silently moving
+      // to the next free port (which would break SITE_URL, the Convex proxy, and
+      // every "localhost:3000" message). The assertPortFree() preflight above
+      // catches this earlier with a friendlier message; this is the safety net.
+      viteProcess = spawn(
+        'bun',
+        ['vite', 'dev', '--port', port, '--strictPort', '--host', '0.0.0.0'],
+        {
+          stdio: 'inherit',
+          cwd: platformRoot,
+          env: process.env,
+        },
+      );
+    }
 
     // Print one unmistakable READY banner once Vite has actually bound the
     // port — the messages above only promise the URL.

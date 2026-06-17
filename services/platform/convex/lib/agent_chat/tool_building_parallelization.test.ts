@@ -202,7 +202,7 @@ vi.mock('../error_classification', () => ({
   },
 }));
 
-vi.mock('../../lib/utils/type-guards', () => ({
+vi.mock('../../lib/utils/type-utils', () => ({
   isRecord: (v: unknown) => typeof v === 'object' && v !== null,
   getString: (obj: Record<string, unknown>, key: string) => obj[key],
   narrowStringUnion: (val: string, arr: string[]) =>

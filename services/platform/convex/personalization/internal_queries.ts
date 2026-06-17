@@ -1,7 +1,7 @@
 import type { GenericQueryCtx } from 'convex/server';
 import { v } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import type { DataModel, Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 import { readConfigCacheRow } from '../lib/config_cache/read';

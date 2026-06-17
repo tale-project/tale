@@ -8,7 +8,7 @@ import { useMemo, useState } from 'react';
 
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import type { Integration } from '../hooks/use-integration-manage';
 import { IntegrationRelatedAutomations } from './integration-manage/integration-related-automations';

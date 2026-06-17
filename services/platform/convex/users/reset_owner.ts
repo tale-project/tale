@@ -17,7 +17,7 @@ import {
   isPasswordValid,
   passwordPolicyViolations,
 } from '../../lib/shared/schemas/password';
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { recordPasswordChange } from './password_metadata';

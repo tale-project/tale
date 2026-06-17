@@ -1,0 +1,25 @@
+import { fileURLToPath } from 'node:url';
+
+import { createPlaywrightConfig } from '@tale/e2e/config';
+
+/**
+ * Smoke e2e for this service. Boots its own dev server via the `dev` script and
+ * inherits the shared house defaults (en-US/UTC, reporters, retries) from
+ * `@tale/e2e/config`. Add specs under `tests/e2e/specs/*.spec.ts`; see
+ * `packages/e2e/README.md` for the i18n + smoke helpers.
+ */
+
+const PORT = {{port}};
+
+export default createPlaywrightConfig({
+  testDir: fileURLToPath(new URL('./tests/e2e', import.meta.url)),
+  port: PORT,
+  webServer: {
+    command: 'bun run dev',
+    url: `http://localhost:${PORT}`,
+    // Locally reuse an already-running `bun run dev`; in CI boot fresh.
+    reuseExistingServer: !process.env.CI,
+    stdout: 'pipe',
+    timeout: 120_000,
+  },
+});

@@ -62,10 +62,6 @@ vi.mock('../lib/helpers/pii_hash', () => ({
   hashEmailForAudit: vi.fn(),
 }));
 
-vi.mock('../lib/helpers/rag_config', () => ({
-  ragFetch: vi.fn(),
-}));
-
 vi.mock('../threads/cascade_helpers', () => ({
   cascadeDeleteThreadChildren: vi.fn(),
 }));

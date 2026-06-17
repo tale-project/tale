@@ -4,8 +4,8 @@ import { cleanup, act } from '@testing-library/react';
 import { useState, useCallback } from 'react';
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 let renderCount = 0;
 let capturedOnSend: (() => void) | null = null;

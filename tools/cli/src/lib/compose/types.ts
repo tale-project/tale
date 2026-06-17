@@ -63,7 +63,7 @@ export interface ServiceConfig {
   registry: string;
 }
 
-export const ROTATABLE_SERVICES = ['platform', 'rag', 'crawler'] as const;
+export const ROTATABLE_SERVICES = ['platform'] as const;
 /**
  * Lockstep services — always re-deployed on default `tale deploy`, even
  * though they're stateful (no blue/green rotation). Sandbox-side wire

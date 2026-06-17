@@ -10,7 +10,7 @@ vi.mock('../_generated/server', async (importOriginal) => {
   };
 });
 
-// Minimal api refs the poller hands to runQuery/runMutation/scheduler.
+// Minimal api refs the poller hands to runQuery/runMutation/runAction/scheduler.
 vi.mock('../_generated/api', () => ({
   internal: {
     file_metadata: {
@@ -18,24 +18,25 @@ vi.mock('../_generated/api', () => ({
       internal_mutations: { updateFileRagStatus: 'updateFileRagStatus' },
       internal_actions: { pollFileRagStatus: 'pollFileRagStatus' },
     },
+    rag: {
+      documents: { getStatuses: 'getStatuses' },
+    },
   },
 }));
 
 // Neutralize heavy / network imports the module pulls at load time.
-vi.mock('../lib/helpers/rag_config', () => ({ ragFetch: vi.fn() }));
 vi.mock('../lib/helpers/org_slug', () => ({ orgSlugFromIdOrNull: vi.fn() }));
 vi.mock('../documents/internal_actions', () => ({
   getPollingInterval: vi.fn(() => 1000),
 }));
-vi.mock('../documents/generate_document_helpers', () => ({
-  getCrawlerUrl: vi.fn(),
+vi.mock('../crawler/lib/document_metadata', () => ({
+  extractDocumentMetadata: vi.fn(),
 }));
 vi.mock('../workflow_engine/action_defs/rag/rag_action', () => ({
   ragAction: {},
 }));
 
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { ragFetch } from '../lib/helpers/rag_config';
 import { pollFileRagStatus } from './internal_actions';
 
 const handler = (
@@ -46,39 +47,54 @@ const handler = (
     ) => Promise<unknown>;
   }
 ).handler;
-const ragFetchMock = ragFetch as unknown as ReturnType<typeof vi.fn>;
 const orgSlugMock = orgSlugFromIdOrNull as unknown as ReturnType<typeof vi.fn>;
 
-function createCtx(metadata: Record<string, unknown> | null) {
-  const runMutation = vi.fn().mockResolvedValue(undefined);
-  const runQuery = vi.fn().mockResolvedValue(metadata);
-  const runAfter = vi.fn().mockResolvedValue(undefined);
+/** A serialized status record as `internal.rag.documents.getStatuses` returns. */
+interface SerializedStatus {
+  status: string;
+  error: string | null;
+  progress_phase: string | null;
+  progress_detail: string | null;
+  source_created_at: string | null;
+  source_modified_at: string | null;
+  ocr_applied: boolean | null;
+}
+
+function status(overrides: Partial<SerializedStatus>): SerializedStatus {
   return {
-    ctx: { runQuery, runMutation, scheduler: { runAfter } },
-    runMutation,
-    runAfter,
+    status: 'processing',
+    error: null,
+    progress_phase: null,
+    progress_detail: null,
+    source_created_at: null,
+    source_modified_at: null,
+    ocr_applied: null,
+    ...overrides,
   };
 }
 
-function makeResp(opts: {
-  status?: number;
-  ok?: boolean;
-  body?: unknown;
-  jsonThrows?: boolean;
-}) {
-  const status = opts.status ?? 200;
+function createCtx(
+  metadata: Record<string, unknown> | null,
+  options: {
+    statuses?: Record<string, SerializedStatus | null>;
+    runActionRejects?: Error;
+  } = {},
+) {
+  const runMutation = vi.fn().mockResolvedValue(undefined);
+  const runQuery = vi.fn().mockResolvedValue(metadata);
+  const runAfter = vi.fn().mockResolvedValue(undefined);
+  const runAction = options.runActionRejects
+    ? vi.fn().mockRejectedValue(options.runActionRejects)
+    : vi.fn().mockResolvedValue({ statuses: options.statuses ?? {} });
   return {
-    status,
-    ok: opts.ok ?? (status >= 200 && status < 300),
-    json: async () => {
-      if (opts.jsonThrows) throw new Error('bad json');
-      return opts.body;
-    },
+    ctx: { runQuery, runMutation, runAction, scheduler: { runAfter } },
+    runMutation,
+    runAfter,
+    runAction,
   };
 }
 
 const baseArgs = { storageId: 's1', organizationId: 'org1', attempt: 1 };
-const statusBody = (s: Record<string, unknown>) => ({ statuses: { s1: s } });
 
 describe('pollFileRagStatus', () => {
   beforeEach(() => {
@@ -86,14 +102,14 @@ describe('pollFileRagStatus', () => {
     orgSlugMock.mockResolvedValue('org-slug');
   });
 
-  it('short-circuits on a terminal/absent canonical status (no fetch, no write)', async () => {
+  it('short-circuits on a terminal/absent canonical status (no lookup, no write)', async () => {
     for (const ragStatus of ['completed', 'failed', undefined]) {
-      const { ctx, runMutation, runAfter } = createCtx(
+      const { ctx, runMutation, runAfter, runAction } = createCtx(
         ragStatus === undefined ? { _id: 'fm1' } : { _id: 'fm1', ragStatus },
       );
       const res = await handler(ctx, baseArgs);
       expect(res).toBeNull();
-      expect(ragFetchMock).not.toHaveBeenCalled();
+      expect(runAction).not.toHaveBeenCalled();
       expect(runMutation).not.toHaveBeenCalled();
       expect(runAfter).not.toHaveBeenCalled();
     }
@@ -106,13 +122,13 @@ describe('pollFileRagStatus', () => {
     expect(runMutation).not.toHaveBeenCalled();
   });
 
-  it('marks failed (no fetch) past MAX_POLL_ATTEMPTS', async () => {
-    const { ctx, runMutation } = createCtx({
+  it('marks failed (no lookup) past MAX_POLL_ATTEMPTS', async () => {
+    const { ctx, runMutation, runAction } = createCtx({
       _id: 'fm1',
       ragStatus: 'running',
     });
     await handler(ctx, { ...baseArgs, attempt: 51 });
-    expect(ragFetchMock).not.toHaveBeenCalled();
+    expect(runAction).not.toHaveBeenCalled();
     expect(runMutation).toHaveBeenCalledWith('updateFileRagStatus', {
       storageId: 's1',
       ragStatus: 'failed',
@@ -120,14 +136,14 @@ describe('pollFileRagStatus', () => {
     });
   });
 
-  it('marks failed (no fetch, no retry) when the org slug is unresolvable', async () => {
+  it('marks failed (no lookup, no retry) when the org slug is unresolvable', async () => {
     orgSlugMock.mockResolvedValue(null);
-    const { ctx, runMutation, runAfter } = createCtx({
+    const { ctx, runMutation, runAfter, runAction } = createCtx({
       _id: 'fm1',
       ragStatus: 'queued',
     });
     await handler(ctx, baseArgs);
-    expect(ragFetchMock).not.toHaveBeenCalled();
+    expect(runAction).not.toHaveBeenCalled();
     expect(runMutation).toHaveBeenCalledWith(
       'updateFileRagStatus',
       expect.objectContaining({ ragStatus: 'failed' }),
@@ -135,12 +151,11 @@ describe('pollFileRagStatus', () => {
     expect(runAfter).not.toHaveBeenCalled();
   });
 
-  it('reschedules on 429 without writing status', async () => {
-    ragFetchMock.mockResolvedValue(makeResp({ status: 429, ok: false }));
-    const { ctx, runMutation, runAfter } = createCtx({
-      _id: 'fm1',
-      ragStatus: 'queued',
-    });
+  it('reschedules (no status write) when the status action throws', async () => {
+    const { ctx, runMutation, runAfter } = createCtx(
+      { _id: 'fm1', ragStatus: 'queued' },
+      { runActionRejects: new Error('knowledge-db unavailable') },
+    );
     await handler(ctx, baseArgs);
     expect(runMutation).not.toHaveBeenCalled();
     expect(runAfter).toHaveBeenCalledWith(1000, 'pollFileRagStatus', {
@@ -150,69 +165,21 @@ describe('pollFileRagStatus', () => {
     });
   });
 
-  it('reschedules on 5xx', async () => {
-    ragFetchMock.mockResolvedValue(makeResp({ status: 503, ok: false }));
-    const { ctx, runMutation, runAfter } = createCtx({
-      _id: 'fm1',
-      ragStatus: 'queued',
-    });
-    await handler(ctx, baseArgs);
-    expect(runMutation).not.toHaveBeenCalled();
-    expect(runAfter).toHaveBeenCalledTimes(1);
-  });
-
-  it('marks failed (no retry) on a 4xx', async () => {
-    ragFetchMock.mockResolvedValue(makeResp({ status: 404, ok: false }));
-    const { ctx, runMutation, runAfter } = createCtx({
-      _id: 'fm1',
-      ragStatus: 'queued',
-    });
-    await handler(ctx, baseArgs);
-    expect(runMutation).toHaveBeenCalledWith(
-      'updateFileRagStatus',
-      expect.objectContaining({
-        ragStatus: 'failed',
-        ragError: expect.stringContaining('404'),
-      }),
+  it('reschedules when the corpus has not ingested the file yet (no statuses entry)', async () => {
+    const { ctx, runMutation, runAfter } = createCtx(
+      { _id: 'fm1', ragStatus: 'queued' },
+      { statuses: {} },
     );
-    expect(runAfter).not.toHaveBeenCalled();
-  });
-
-  it('reschedules when the JSON body fails to parse', async () => {
-    ragFetchMock.mockResolvedValue(makeResp({ status: 200, jsonThrows: true }));
-    const { ctx, runMutation, runAfter } = createCtx({
-      _id: 'fm1',
-      ragStatus: 'queued',
-    });
-    await handler(ctx, baseArgs);
-    expect(runMutation).not.toHaveBeenCalled();
-    expect(runAfter).toHaveBeenCalledTimes(1);
-  });
-
-  it('reschedules when RAG has not ingested the file yet (no statuses entry)', async () => {
-    ragFetchMock.mockResolvedValue(
-      makeResp({ status: 200, body: { statuses: {} } }),
-    );
-    const { ctx, runMutation, runAfter } = createCtx({
-      _id: 'fm1',
-      ragStatus: 'queued',
-    });
     await handler(ctx, baseArgs);
     expect(runMutation).not.toHaveBeenCalled();
     expect(runAfter).toHaveBeenCalledTimes(1);
   });
 
   it('writes completed (with ocrApplied) and stops on a completed status', async () => {
-    ragFetchMock.mockResolvedValue(
-      makeResp({
-        status: 200,
-        body: statusBody({ status: 'completed', ocr_applied: true }),
-      }),
+    const { ctx, runMutation, runAfter } = createCtx(
+      { _id: 'fm1', ragStatus: 'running' },
+      { statuses: { s1: status({ status: 'completed', ocr_applied: true }) } },
     );
-    const { ctx, runMutation, runAfter } = createCtx({
-      _id: 'fm1',
-      ragStatus: 'running',
-    });
     await handler(ctx, baseArgs);
     expect(runMutation).toHaveBeenCalledWith('updateFileRagStatus', {
       storageId: 's1',
@@ -223,16 +190,12 @@ describe('pollFileRagStatus', () => {
   });
 
   it('writes failed and stops on a failed status', async () => {
-    ragFetchMock.mockResolvedValue(
-      makeResp({
-        status: 200,
-        body: statusBody({ status: 'failed', error: 'extract error' }),
-      }),
+    const { ctx, runMutation, runAfter } = createCtx(
+      { _id: 'fm1', ragStatus: 'running' },
+      {
+        statuses: { s1: status({ status: 'failed', error: 'extract error' }) },
+      },
     );
-    const { ctx, runMutation, runAfter } = createCtx({
-      _id: 'fm1',
-      ragStatus: 'running',
-    });
     await handler(ctx, baseArgs);
     expect(runMutation).toHaveBeenCalledWith('updateFileRagStatus', {
       storageId: 's1',
@@ -243,20 +206,18 @@ describe('pollFileRagStatus', () => {
   });
 
   it('writes running and reschedules on a processing status', async () => {
-    ragFetchMock.mockResolvedValue(
-      makeResp({
-        status: 200,
-        body: statusBody({
-          status: 'processing',
-          progress_phase: 'embedding',
-          progress_detail: '3/10',
-        }),
-      }),
+    const { ctx, runMutation, runAfter } = createCtx(
+      { _id: 'fm1', ragStatus: 'queued' },
+      {
+        statuses: {
+          s1: status({
+            status: 'processing',
+            progress_phase: 'embedding',
+            progress_detail: '3/10',
+          }),
+        },
+      },
     );
-    const { ctx, runMutation, runAfter } = createCtx({
-      _id: 'fm1',
-      ragStatus: 'queued',
-    });
     await handler(ctx, baseArgs);
     expect(runMutation).toHaveBeenCalledWith('updateFileRagStatus', {
       storageId: 's1',

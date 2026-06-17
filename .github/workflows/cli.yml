@@ -41,9 +41,11 @@ jobs:
     steps:
       - name: Resolve version
         id: version
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
         run: |
-          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
-            VERSION="${{ github.event.inputs.release_tag }}"
+          if [ -n "$RELEASE_TAG" ]; then
+            VERSION="$RELEASE_TAG"
           else
             VERSION="dev"
           fi
@@ -179,9 +181,10 @@ jobs:
       - name: Wait for release to exist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          REPO: ${{ github.repository }}
         run: |
-          TAG="${{ github.event.inputs.release_tag }}"
-          REPO="${{ github.repository }}"
+          TAG="$RELEASE_TAG"
           MAX_ATTEMPTS=10
           DELAY=15
           for i in $(seq 1 $MAX_ATTEMPTS); do

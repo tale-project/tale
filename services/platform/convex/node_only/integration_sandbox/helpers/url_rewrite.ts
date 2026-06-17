@@ -14,6 +14,7 @@ import {
   toInternalStorageUrl,
   isStorageUrl,
 } from '../../../lib/helpers/public_storage_url';
+import { toMockUrl } from './mock_rewrite';
 import { validateHost } from './validate_host';
 
 /**
@@ -26,6 +27,13 @@ export function resolveAndValidateUrl(
   url: string,
   allowedHosts?: string[],
 ): string {
+  // Offline-test redirect (only when `TALE_MOCK_INTEGRATIONS_BASE` is set):
+  // send known third-party origins to the local mock gateway. The mock host is
+  // operator-controlled loopback, so it bypasses the allowedHosts check (which
+  // lists the real upstream, not the mock).
+  const mocked = toMockUrl(url);
+  if (mocked) return mocked;
+
   const resolved = toInternalStorageUrl(url);
   if (!isStorageUrl(resolved) && allowedHosts && allowedHosts.length > 0) {
     validateHost(resolved, allowedHosts);

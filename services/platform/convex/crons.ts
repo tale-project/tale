@@ -11,8 +11,29 @@ import { internal } from './_generated/api';
 
 const crons = cronJobs();
 
+// In E2E/CI the single-node local backend shares ~4 vCPUs with Vite, the mock
+// server and the browser. High-frequency cron ticks (minutely / 2-min / 5-min)
+// fire background UDF bursts mid-test that starve interactive queries past the
+// backend's hard ~1s function-execution timeout — the dominant source of suite
+// flake. Skip the sub-hourly sweeps when running under E2E (TALE_E2E=1, set by
+// the Playwright webServer); the daily/weekly/hourly jobs are harmless and stay.
+const E2E = process.env.TALE_E2E === '1';
+
+// A schedule is sub-hourly when its minute field is wildcarded/stepped
+// (`*`, `*/n`) rather than a fixed minute — i.e. it fires more than once an hour.
+function isSubHourly(schedule: string): boolean {
+  const minuteField = schedule.trim().split(/\s+/)[0] ?? '';
+  return minuteField.includes('*') || minuteField.includes('/');
+}
+
+/** Register a cron, dropping high-frequency ones under E2E (see note above). */
+const cron: typeof crons.cron = (name, schedule, ...rest) => {
+  if (E2E && isSubHourly(schedule)) return;
+  return crons.cron(name, schedule, ...rest);
+};
+
 // Workflow scheduling - scan for scheduled workflows every minute via Convex cron
-crons.cron(
+cron(
   'scan scheduled workflows (minutely)',
   '*/1 * * * *',
   internal.workflow_engine.internal_actions.scanAndTrigger,
@@ -20,7 +41,7 @@ crons.cron(
 );
 
 // Stuck execution recovery - mark hung executions as failed every 5 minutes
-crons.cron(
+cron(
   'recover stuck workflow executions (every 5 min)',
   '*/5 * * * *',
   internal.workflow_engine.internal_mutations.recoverStuck,
@@ -31,7 +52,7 @@ crons.cron(
 // enabled categories (documents, chat history, audit logs, workflow logs,
 // usage ledger, login attempts, temp files) based on each org's
 // retention_policy config. Runs daily at 4 AM UTC.
-crons.cron(
+cron(
   'central retention cleanup (daily)',
   '0 4 * * *',
   internal.governance.retention_cleanup.runRetentionCleanup,
@@ -44,7 +65,7 @@ crons.cron(
 // checker release that has cleared its 24h cooldown can stall
 // indefinitely (compliance regression). Picks an off-peak hour so it
 // doesn't compete with the main 04:00 sweep.
-crons.cron(
+cron(
   'effect approved legal-hold releases (daily)',
   '0 1 * * *',
   internal.governance.retention_cleanup.effectReleasesOnly,
@@ -56,7 +77,7 @@ crons.cron(
 // `modelCapabilityCache`, the layer the resolver reads UNDER operator config.
 // 03:30 avoids the other daily sweeps. Self-healing: a failed fetch is recorded
 // and the existing cache keeps serving.
-crons.cron(
+cron(
   'refresh model capability catalog (daily)',
   '30 3 * * *',
   internal.model_catalog.sync.refreshModelCatalogCron,
@@ -68,7 +89,7 @@ crons.cron(
 // versions, hide superseded), preserving operator edits. Per-org opt-out via
 // the providers settings UI. Mondays 04:30 UTC (after the daily cache refresh,
 // off-peak). Self-healing: offline/transient failures are logged and skipped.
-crons.cron(
+cron(
   'sync provider configs from catalog (weekly)',
   '30 4 * * 1',
   internal.model_catalog.sync.refreshProviderConfigsCron,
@@ -81,7 +102,7 @@ crons.cron(
 // plus a security-category audit row) on any chain break, truncation, or
 // checkpoint mismatch. 02:00 avoids the 01:00 legal-hold release sweep and
 // the 04:00 retention sweep.
-crons.cron(
+cron(
   'verify audit-log integrity (daily)',
   '0 2 * * *',
   internal.audit_logs.integrity_check.runAuditIntegrityCheck,
@@ -90,7 +111,7 @@ crons.cron(
 
 // Plan-review TTL - cancel pending human_input approvals older than 30 min
 // so research runs never hang indefinitely on user input.
-crons.cron(
+cron(
   'expire stale plan-review approvals (every 5 min)',
   '*/5 * * * *',
   internal.thread_todos.plan_review_ttl.expirePlanReviews,
@@ -100,7 +121,7 @@ crons.cron(
 // Transcription watchdog - Convex hard-kills actions at the 30-min timeout
 // without running our catch block, so transcriptionStatus can stick at
 // 'running' forever. Sweep stale rows every 5 min.
-crons.cron(
+cron(
   'recover stuck transcriptions (every 5 min)',
   '*/5 * * * *',
   internal.file_metadata.internal_mutations.recoverStuckTranscriptions,
@@ -111,7 +132,7 @@ crons.cron(
 // the transcription sweep) so a throw in `recoverStuckTranscriptions` does
 // not also disable the video-link recovery path — previously a single
 // transient failure in the fileMetadata loop killed both watchdogs.
-crons.cron(
+cron(
   'recover stuck video-link jobs (every 5 min)',
   '*/5 * * * *',
   internal.video_links.internal_mutations.recoverStuckVideoLinkJobs,
@@ -124,7 +145,7 @@ crons.cron(
 // and the slot they hold permanently shrinks the org's concurrent cap.
 // Heartbeat from `executeCode` keeps `heartbeatAt` fresh while the action
 // is alive; this cron flips rows older than 2× max-timeout to `failed`.
-crons.cron(
+cron(
   'recover stuck sandbox executions (every 5 min)',
   '*/5 * * * *',
   internal.sandbox.internal_mutations.recoverStuckSandboxes,
@@ -139,7 +160,7 @@ crons.cron(
 // unbounded turn legitimately outlives the 24h TTL — guarded inside the
 // mutation). Same shape as the execution watchdog above; this is the row-level
 // counterpart the spawner's liveExecs reaper mirrors container-side.
-crons.cron(
+cron(
   'recover stuck sandbox sessions (every 5 min)',
   '*/5 * * * *',
   internal.sandbox.session_mutations.recoverStuckSessions,
@@ -152,7 +173,7 @@ crons.cron(
 // (VK revoke + usage ledger + clear generation + mark message failed + cancel
 // the lingering exec). The cross-action continuation covers the planned long
 // turn; this covers the crash.
-crons.cron(
+cron(
   'recover stuck external-agent turns (every 2 min)',
   '*/2 * * * *',
   internal.agents.external_agent.recover_external_agent_turns
@@ -167,7 +188,7 @@ crons.cron(
 // without admin recovery. Flip rows past 35 min to `'failed'` so
 // admins can call `retryErasureRequest`. The 30-day Art 12(3) SLA
 // would otherwise elapse with no path forward.
-crons.cron(
+cron(
   'recover stuck gdpr erasure requests (every 5 min)',
   '*/5 * * * *',
   internal.governance.erasure.recoverStuckErasureRequests,
@@ -183,7 +204,7 @@ crons.cron(
 // Hourly (not daily) so a transient failure recovers in ~60 min instead
 // of waiting a full day, and so a deployment with more orgs than
 // `MAX_ORGS_PER_RUN` sees its full org list swept within ~24 hours.
-crons.cron(
+cron(
   'tts orphan sweep (hourly)',
   '0 * * * *',
   internal.tts.cascade_helpers.gcOrgTtsChunks,
@@ -196,7 +217,7 @@ crons.cron(
 // older than the user's strictest org window, catching closed browsers and
 // stolen cookies. Every 5 min keeps worst-case enforcement latency at
 // roughly window + updatedAt staleness (~15 min) + cron tick + JWT tail.
-crons.cron(
+cron(
   'revoke idle sessions (every 5 min)',
   '*/5 * * * *',
   internal.governance.session_idle_enforcement.revokeIdleSessions,
@@ -206,7 +227,7 @@ crons.cron(
 // Auto-route cache purge — drop routing-decision rows older than 30 days so
 // the cache can't grow unbounded. Correctness rests on the candidate-roster
 // hash + read-side TTL, not this sweep; daily off-peak is plenty.
-crons.cron(
+cron(
   'purge stale auto-route cache (daily)',
   '30 3 * * *',
   internal.agents.internal_mutations.purgeAutoRouteCache,
@@ -216,7 +237,7 @@ crons.cron(
 // Workforce metrics rollup — recompute yesterday's per-project and per-agent
 // daily aggregates for every org (cursor-chained pages), heal stuck task
 // runs, and prune rollups past the fixed 400-day aggregate retention.
-crons.cron(
+cron(
   'daily task-metrics rollup (03:00 UTC)',
   '0 3 * * *',
   internal.task_metrics.rollup.runDailyRollup,
@@ -228,10 +249,23 @@ crons.cron(
 // org-create, on every governance write, and on reseed; this hourly sweep is a
 // cheap safety net that guarantees eventual convergence if any trigger is ever
 // missed (the DB mirror is never authoritative).
-crons.cron(
+cron(
   'reconcile config caches (hourly)',
   '15 * * * *',
   internal.lib.config_cache.sync_org.reconcileAllConfigCaches,
+  {},
+);
+
+// Member-mirror reconcile — re-derive `memberMirror` (the RLS read cache of
+// Better Auth `member` rows) from the source of truth, bounded to a slice of
+// orgs per run. Backfills members that predate the mirror and repairs any
+// drift from a missed write-path beat. Same safety-net role as the config
+// reconcile above; the mirror is never authoritative. 45 past the hour keeps
+// it off the :00/:15 sweeps.
+cron(
+  'reconcile member mirror (hourly)',
+  '45 * * * *',
+  internal.members.mirror_reconciliation.reconcileMemberMirrors,
   {},
 );
 

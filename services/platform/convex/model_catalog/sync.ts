@@ -25,7 +25,7 @@ import {
   type ProviderJson,
   providerJsonSchema,
 } from '../../lib/shared/schemas/providers';
-import { getString, isRecord } from '../../lib/utils/type-guards';
+import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { normalizeCatalogPayload } from '../lib/agent_response/model_capabilities/normalize';

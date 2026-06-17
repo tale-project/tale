@@ -4,6 +4,7 @@
 
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
+import { upsertMemberMirror } from '../members/mirror_sync';
 import type { Role } from './types';
 
 export interface AddMemberInternalArgs {
@@ -27,20 +28,31 @@ export async function addMemberInternal(
   args: AddMemberInternalArgs,
 ): Promise<AddMemberInternalResult> {
   // Create member record in Better Auth (no RLS here by design)
+  const role = (args.role ?? 'member').toLowerCase();
+  const createdAt = Date.now();
   const created = await ctx.runMutation(components.betterAuth.adapter.create, {
     input: {
       model: 'member',
       data: {
         organizationId: args.organizationId,
         userId: args.identityId,
-        role: (args.role ?? 'member').toLowerCase(),
-        createdAt: Date.now(),
+        role,
+        createdAt,
       },
     },
   });
   // Better Auth adapter.create returns untyped data (any)
   const rawId = created?._id ?? created?.id;
   const memberId = typeof rawId === 'string' ? rawId : String(created);
+
+  // Seed the RLS read cache with the new membership.
+  await upsertMemberMirror(ctx, {
+    memberId,
+    userId: args.identityId,
+    organizationId: args.organizationId,
+    role,
+    createdAt,
+  });
 
   return {
     memberId,

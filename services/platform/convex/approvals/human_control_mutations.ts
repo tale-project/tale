@@ -1,7 +1,7 @@
 import { saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import {

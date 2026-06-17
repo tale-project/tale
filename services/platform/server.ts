@@ -741,6 +741,7 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     if (nonce) {
       html = html.replace(
         /<script(?![^>]*\bnonce=)/g,
+        // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag -- nonce is a server-generated CSP nonce, not user input
         `<script nonce="${nonce}"`,
       );
     }

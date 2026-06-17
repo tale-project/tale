@@ -50,7 +50,8 @@ export const getWorkflow = withRestAuth('rest:api', async (rc, request) => {
   if (firstSegment === 'executions' && subPath) {
     const executionId = subPath.split('/')[0];
     const execution = await rc.ctx.runQuery(
-      internal.wf_executions.internal_queries.getExecutionStepJournalInternal,
+      internal.workflow_executions.internal_queries
+        .getExecutionStepJournalInternal,
       {
         executionId: toId<'wfExecutions'>(executionId),
         callerOrgId: rc.org.organizationId,
@@ -108,7 +109,8 @@ export const getWorkflow = withRestAuth('rest:api', async (rc, request) => {
     const dateTo = url.searchParams.get('dateTo') ?? undefined;
 
     const executions = await rc.ctx.runQuery(
-      internal.wf_executions.internal_queries.listExecutionsCursorInternal,
+      internal.workflow_executions.internal_queries
+        .listExecutionsCursorInternal,
       {
         wfDefinitionId: slug,
         cursor,

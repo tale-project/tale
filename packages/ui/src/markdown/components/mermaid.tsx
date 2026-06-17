@@ -492,6 +492,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
         // context and fight the transform.
         className="absolute top-0 left-0 [&>svg]:max-w-none"
         // oxlint-disable-next-line react/no-danger -- Mermaid output is SVG by design
+        // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- Mermaid renders the diagram to trusted SVG markup; no untrusted HTML is injected
         dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
       />
     </div>

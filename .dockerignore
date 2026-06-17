@@ -56,7 +56,9 @@ services/platform/.env*.local
 # NOTE: keep tools/, examples/, and patches/ — Dockerfiles reference them:
 #   - platform image copies tools/cli/package.json and patches/
 #   - convex image copies examples/default/{agents,workflows,integrations,providers,branding,skills}
-tests/
+# Integration/container test suites + AI-QA playbooks (live in @tale/platform,
+# never shipped in the image).
+services/platform/tests/
 designs/
 scripts/
 knip-results.json

@@ -17,7 +17,7 @@ import {
   getV8SyncSpec,
   type V8SyncSpec,
 } from '../../../lib/shared/config/registry';
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { resolveDomainDir } from '../config_store/resolvers';

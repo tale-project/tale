@@ -20,8 +20,6 @@ function passingDeps(overrides: Partial<SetupCheckDeps> = {}): SetupCheckDeps {
   return {
     bunVersion: '1.3.10',
     commandVersion: async (cmd) => {
-      if (cmd === 'python3' || cmd === 'python') return 'Python 3.12.4';
-      if (cmd === 'uv') return 'uv 0.5.0';
       if (cmd === 'bunx') return 'convex 1.17.0';
       return null;
     },
@@ -57,7 +55,7 @@ describe('runSetupChecks', () => {
   it('passes every check when all tools are present and ports are free', async () => {
     const results = await runSetupChecks(passingDeps());
 
-    expect(results).toHaveLength(6);
+    expect(results).toHaveLength(4);
     expect(results.every((r) => r.ok)).toBe(true);
     expect(allHardChecksPassed(results)).toBe(true);
     // No remediation is offered when a check passes.
@@ -67,19 +65,15 @@ describe('runSetupChecks', () => {
   it('fails the matching check when a tool is missing', async () => {
     const results = await runSetupChecks(
       passingDeps({
-        // uv is gone; every other command still resolves.
-        commandVersion: async (cmd) => {
-          if (cmd === 'python3' || cmd === 'python') return 'Python 3.12.4';
-          if (cmd === 'bunx') return 'convex 1.17.0';
-          return null; // uv → null
-        },
+        // The Convex CLI is unreachable; every other probe still passes.
+        commandVersion: async () => null,
       }),
     );
 
-    const uv = find(results, 'uv');
-    expect(uv.ok).toBe(false);
-    expect(uv.hard).toBe(true);
-    expect(uv.remediation).toContain('astral.sh/uv');
+    const convexCli = find(results, 'Convex CLI');
+    expect(convexCli.ok).toBe(false);
+    expect(convexCli.hard).toBe(true);
+    expect(convexCli.remediation).toContain('bun install');
 
     // The missing tool is the only failure; everything else still passes.
     expect(results.filter((r) => !r.ok)).toHaveLength(1);
@@ -111,24 +105,6 @@ describe('runSetupChecks', () => {
     const bun = find(results, 'Bun');
     expect(bun.ok).toBe(false);
     expect(bun.remediation).toContain('bun upgrade');
-    expect(allHardChecksPassed(results)).toBe(false);
-  });
-
-  it('fails Python when the version is below 3.12', async () => {
-    const results = await runSetupChecks(
-      passingDeps({
-        commandVersion: async (cmd) => {
-          if (cmd === 'python3' || cmd === 'python') return 'Python 3.11.6';
-          if (cmd === 'uv') return 'uv 0.5.0';
-          if (cmd === 'bunx') return 'convex 1.17.0';
-          return null;
-        },
-      }),
-    );
-
-    const python = find(results, 'Python');
-    expect(python.ok).toBe(false);
-    expect(python.detail).toContain('3.11');
     expect(allHardChecksPassed(results)).toBe(false);
   });
 });

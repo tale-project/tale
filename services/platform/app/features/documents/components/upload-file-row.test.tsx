@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 // Resolves ICU placeholders like {fileName} so `aria-label="Remove foo.pdf"`
 // still works after the refactor that introduced translation calls.
 import enMessages from '@/messages/en.json';
-import { checkAccessibility } from '@/test/utils/a11y';
+import { checkAccessibility } from '@/tests/utils/a11y';
 
 function lookup(ns: string, key: string): string {
   const segments = `${ns}.${key}`.split('.');

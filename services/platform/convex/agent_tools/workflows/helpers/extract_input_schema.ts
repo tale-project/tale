@@ -6,7 +6,7 @@
  * extracts it using runtime checks.
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import type { WorkflowInputSchema } from '../../../workflow_engine/helpers/validation/validate_workflow_input';
 
 export function extractInputSchema(

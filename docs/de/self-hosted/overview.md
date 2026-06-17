@@ -1,9 +1,9 @@
 ---
 title: Selbst gehostete Architektur
-description: Acht Container, eine compose-Datei, eine Postgres-Datenbank. Diese Seite vermittelt das mentale Modell, was jeder Container tut, wo Daten auf dem Storage liegen und welche Secrets beim ersten Boot zählen.
+description: Acht Container, eine compose-Datei, zwei Postgres-Datenbanken. Diese Seite vermittelt das mentale Modell, was jeder Container tut, wo Daten auf dem Storage liegen und welche Secrets beim ersten Boot zählen.
 ---
 
-Eine Tale-Instanz besteht aus acht Containern hinter einem Caddy-Proxy, die mit einer Postgres-Datenbank sprechen; zwei davon sind Sandbox-Container an der Seite für Code-Ausführung. Die compose-Datei ist der Vertrag — was läuft, was exponiert ist, was gemountet ist. Diese Seite vermittelt das mentale Modell, sodass die Install-, Konfigurations- und Betriebsseiten es nicht erneut erklären müssen.
+Eine Tale-Instanz besteht aus acht Containern hinter einem Caddy-Proxy, die mit zwei Postgres-Datenbanken sprechen — einer operativen, einer für den Wissens-Korpus; zwei davon sind Sandbox-Container an der Seite für Code-Ausführung. Die compose-Datei ist der Vertrag — was läuft, was exponiert ist, was gemountet ist. Diese Seite vermittelt das mentale Modell, sodass die Install-, Konfigurations- und Betriebsseiten es nicht erneut erklären müssen.
 
 Lies das, bevor du `docker compose up` ausführst. Komm zurück, wenn du einen Ausfall debuggst und wissen musst, welches Container-Log du zuerst öffnen solltest.
 
@@ -13,23 +13,26 @@ Lies das, bevor du `docker compose up` ausführst. Komm zurück, wenn du einen A
 
 **tale-platform** ist der React + TanStack Start-Server. Er rendert die UI, liefert statische Assets aus und ist der einzige Container, der dem Browser exponiert ist. Er hält keinen Geschäfts-State — alles, was persistieren muss, spricht mit Convex.
 
-**tale-convex** ist das Backend: die Actions, Queries, Mutations und die WebSocket-Schicht, die die UI abonniert. Provider-Keys, Agent-Definitionen, Automatisierungs-Läufe, Audit-Logs — alles davon lebt hier und wird nach Postgres geschrieben.
+**tale-convex** ist das Backend: die Actions, Queries, Mutations und die WebSocket-Schicht, die die UI abonniert. Provider-Keys, Agent-Definitionen, Automatisierungs-Läufe, Audit-Logs — alles davon lebt hier. Es läuft auch die Wissens-Arbeit im Prozess — Dokument-Ingestion, Web-Crawling, RAG-Suche und Dokumentgenerierung sind Convex-Node-Actions, keine separaten Services. Die Headless-Arbeit, die diese Jobs brauchen (eine Webseite rendern, HTML in ein PDF oder Bild verwandeln), wird an die Sandbox-Laufzeit delegiert, die ohnehin schon Chromium und Playwright mitbringt.
 
-**tale-db** ist Postgres. Es hält die Convex-Daten und ist der einzige zustandsbehaftete Container, der für Backups zählt.
+**tale-db** ist das operative Postgres (ParadeDB). Es hält die Daten des Convex-Backends — Agents, Runs, das Audit-Log — und ist einer der zwei zustandsbehafteten Container, die für Backups zählen.
 
-**tale-rag** ist der Retrieval-Service: er extrahiert Text aus hochgeladenen Dokumenten, chunked sie, embeddet die Chunks und liefert den Vektor-Index an die Agent-Laufzeit zurück.
+**tale-knowledge-db** ist das Postgres des Wissens-Korpus (ParadeDB), die `tale_knowledge`-Datenbank mit zwei Schemata: `private_knowledge` (Chunks hochgeladener Dokumente, Embeddings, der BM25-Index, der semantische Cache) und `public_web` (gecrawlte Webseiten). Es ist von `tale-db` getrennt, damit der Korpus — der datenresidenz-sensible Speicher — sich für sich allein verlagern oder ersetzen lässt. Das Convex-Backend verbindet sich direkt mit ihm; nichts sonst tut das.
 
-**tale-crawler** ist der Crawler für Website-Wissen: er holt und indexiert die URLs, die als Website-Entitäten deklariert sind.
+**tale-bifrost** ist das LLM-Gateway für In-Sandbox-Coding-Agents. Es ist der einzige Pfad von einem sandboxierten Agent zu einem Modell-Provider; die Plattform stellt es bereit und prägt Per-Session-Keys.
 
-**tale-sandbox** und **tale-sandbox-egress** führen sandboxierten Code für das **Code-ausführen**-Tool und Fähigkeits-Skripte aus. Der Egress-Container ist der einzige Netzwerkweg, den die Sandbox hat. Egress ist standardmäßig offen — sandboxierter Code erreicht jeden öffentlichen Host über HTTPS, Cloud-Metadaten und private Adressbereiche bleiben auf IP-Ebene blockiert. Einschränken kannst du das mit `SANDBOX_EGRESS_ALLOWLIST` auf eine Hostname-Allowlist; die Anleitung steht in [Hardening](/de/self-hosted/operate/security/hardening).
+**tale-sandbox** und **tale-sandbox-egress** führen sandboxierten Code für das **Code-ausführen**-Tool und Fähigkeits-Skripte aus und dienen als die Headless-Browser-Laufzeit, die das Convex-Backend für Web-Render und Dokumentgenerierung aufruft. Der Egress-Container ist der einzige Netzwerkweg, den die Sandbox hat. Egress ist standardmäßig offen — sandboxierter Code erreicht jeden öffentlichen Host über HTTPS, Cloud-Metadaten und private Adressbereiche bleiben auf IP-Ebene blockiert. Einschränken kannst du das mit `SANDBOX_EGRESS_ALLOWLIST` auf eine Hostname-Allowlist; die Anleitung steht in [Hardening](/de/self-hosted/operate/security/hardening).
+
+Ein weiterer Service kommt mit, bleibt aber standardmäßig aus: **tale-controller** ist ein Opt-in-Sidecar (das `controller`-compose-Profil), der den Convex-Container auf eine signierte Anfrage der App neu startet, damit eine Datenresidenz-Änderung greifen kann, ohne der browserzugewandten Plattform Docker-Socket-Zugriff zu geben.
 
 ## Daten auf dem Storage
 
-Drei Volumes überleben ein `docker compose down`:
+Vier Volumes überleben ein `docker compose down`:
 
-- `db-data` — Postgres-Datenverzeichnis: die Datenbank hinter Agents, Runs und dem Audit-Log.
+- `db-data` — das Datenverzeichnis des operativen Postgres: die Datenbank hinter Agents, Runs und dem Audit-Log.
+- `knowledge-db-data` — das Datenverzeichnis des Postgres für den Wissens-Korpus: Dokument-Chunks, Embeddings, die Such-Indizes und gecrawlte Webseiten. Sichert separat von `db-data`, weil es eine eigene Datenbank ist.
 - `backups` — checksummengesicherte Volume-Snapshots, geschrieben von `tale backup` und automatisch vor migrierenden Deploys; [Backups und Restore](/de/self-hosted/operate/backups-and-restore) ist der Drill.
-- Der Object-Store-Mount der Plattform — hochgeladene Dateien, generierte Bilder, exportierte Bundles.
+- Der Object-Store-Mount von Convex — hochgeladene Dateien, generierte Dokumente, exportierte Bundles.
 
 Alles andere ist flüchtig. Container können ohne Datenverlust ersetzt werden, solange die Volumes überleben.
 
@@ -47,7 +50,7 @@ Die [Authentifizierungs-Referenz](/de/self-hosted/configuration/authentication) 
 
 ## Wenn du Single-Host hinter dir lässt
 
-Die Standard-compose-Datei betreibt alle acht Container auf einem Host. Die Architektur ist single-tenant: nichts im Design teilt Arbeit über Hosts hinweg. Wenn du das hinter dir lässt — typischerweise weil tale-rag oder tale-crawler eigene Ressourcen brauchen, oder du einen Hot-Standby willst — ist der Zug, diese Container auf einen zweiten Host zu extrahieren und die Plattform per Umgebungsvariablen auf sie zu zeigen. Die Convex-Schicht ist immer noch Single-Instance; horizontale Skalierung des Backends ist kein v1-Feature.
+Die Standard-compose-Datei betreibt alle acht Container auf einem Host. Die Architektur ist single-tenant: nichts im Design teilt Arbeit über Hosts hinweg. Das Erste, was du ohne Re-Architektur von der Box bewegen kannst, ist der Wissens-Korpus — `tale-knowledge-db` ist ein eigenständiges Postgres, also ist es eine Connection-String-Änderung, es auf verwaltete Infrastruktur zu zeigen (für Kapazität oder eine Residenz-Anforderung), behandelt in [Datenresidenz](/de/self-hosted/configuration/data-residency). Die Convex-Schicht ist immer noch Single-Instance; horizontale Skalierung des Backends ist kein v1-Feature.
 
 ## Wo das hingehört
 

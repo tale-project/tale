@@ -16,7 +16,7 @@
 import type { WorkflowId } from '@convex-dev/workflow';
 import { ConvexError, v } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import {
   internalMutation,

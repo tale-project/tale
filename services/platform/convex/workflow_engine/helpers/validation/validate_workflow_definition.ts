@@ -10,7 +10,7 @@
  * - Variable references (step existence, execution order, path structure)
  */
 
-import { isRecord, getString } from '../../../../lib/utils/type-guards';
+import { isRecord, getString } from '../../../../lib/utils/type-utils';
 import { validateCircularDependencies } from './circular_dependency_validator';
 import { isValidStepType } from './constants';
 import type { WorkflowValidationResult } from './types';

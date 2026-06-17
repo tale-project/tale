@@ -1,6 +1,6 @@
 {
   "title": "Google Drive",
-  "description": "Sync files from Google Drive folders into Tale documents and RAG.",
+  "description": "Import files from Google Drive into Tale's knowledge base.",
   "version": 1,
   "authMethod": "oauth2",
   "supportedAuthMethods": ["oauth2"],

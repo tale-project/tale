@@ -5,8 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { toId } from '@/convex/lib/type_cast_helpers';
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render } from '@/tests/utils/render';
 
 const h = vi.hoisted(() => {
   const fixture: {

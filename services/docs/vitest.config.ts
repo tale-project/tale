@@ -21,6 +21,8 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           include: ['tests/**/*.test.ts', 'lib/**/*.test.ts'],
+          // `tests/e2e/**` is Playwright's (`*.spec.ts`); keep Vitest out of it.
+          exclude: ['node_modules', 'dist', 'tests/e2e/**'],
         },
       },
       {

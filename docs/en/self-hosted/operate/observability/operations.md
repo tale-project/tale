@@ -9,17 +9,18 @@ The symptom-first index is at [Troubleshooting](/self-hosted/operate/observabili
 
 ## Signals worth alerting on
 
-| Signal                                    | Severity | Why it matters                                      |
-| ----------------------------------------- | -------- | --------------------------------------------------- |
-| `tale-proxy` health probe failing > 1 min | page     | Every user sees a connection error                  |
-| `tale-platform` HTTP 5xx rate > 5 %       | page     | The UI is broken for a meaningful share of requests |
-| `tale-convex` WebSocket reconnect storm   | page     | UI loads but no data flows                          |
-| Postgres connections > 80 % of pool       | warn     | The next spike will start blocking                  |
-| `db-data` volume > 80 % full              | warn     | Postgres goes read-only at full                     |
-| RAG indexing queue depth > 100 for 10 min | warn     | Uploads stuck in "indexing"                         |
-| Provider request error rate > 20 %        | warn     | The upstream LLM provider is having a bad day       |
-| Daily backup did not write                | page     | Restore drill will fail at the worst moment         |
-| TLS cert renewal failed                   | warn     | Renews 30 d before expiry — you have time           |
+| Signal                                      | Severity | Why it matters                                      |
+| ------------------------------------------- | -------- | --------------------------------------------------- |
+| `tale-proxy` health probe failing > 1 min   | page     | Every user sees a connection error                  |
+| `tale-platform` HTTP 5xx rate > 5 %         | page     | The UI is broken for a meaningful share of requests |
+| `tale-convex` WebSocket reconnect storm     | page     | UI loads but no data flows                          |
+| Postgres connections > 80 % of pool         | warn     | The next spike will start blocking                  |
+| `db-data` volume > 80 % full                | warn     | The operational Postgres goes read-only at full     |
+| `knowledge-db-data` volume > 80 % full      | warn     | Ingestion fails when the corpus database is full    |
+| `tale-knowledge-db` unreachable from convex | warn     | Knowledge search returns empty; ingestion stalls    |
+| Provider request error rate > 20 %          | warn     | The upstream LLM provider is having a bad day       |
+| Daily backup did not write                  | page     | Restore drill will fail at the worst moment         |
+| TLS cert renewal failed                     | warn     | Renews 30 d before expiry — you have time           |
 
 The first two pages are the actually-customer-impacting ones. The warns are catching trends before they tip into page territory.
 
@@ -30,7 +31,7 @@ Logs come through stdout per container, captured by Docker's `json-file` driver.
 - `panic` or `unexpected error` in `tale-convex` logs — Convex action crash.
 - `decryption failed` in `tale-platform` logs — SOPS age key mismatch with the file on disk.
 - `429 Too Many Requests` repeated from a provider — rate limit hit, agents will start failing.
-- `connection refused` from `tale-rag` or `tale-crawler` — the platform cannot reach a sibling container.
+- `connection refused` or `ECONNREFUSED` to `knowledge-db` in `tale-convex` logs — the backend cannot reach the corpus database; ingestion and knowledge search fail.
 
 Pipe these to your aggregator as derived alerts; the metrics endpoints do not surface them as gauges.
 
@@ -46,7 +47,7 @@ When a page lands, the first five minutes follow the same shape every time.
 
 ## What does not need oncall
 
-`tale-crawler` and `tale-rag` outages are not pages. The crawler's schedule absorbs hours of downtime without user impact; uploads to RAG queue rather than fail. Catch these in the warn band and fix them in business hours.
+A `tale-knowledge-db` outage is a warn, not a page. The web-crawl schedule absorbs hours of downtime without user impact, and document ingestion retries rather than dropping work — uploads sit in "indexing" until the corpus database is back. Knowledge search returns empty in the meantime, but chats that do not retrieve knowledge keep working. Catch this in the warn band and fix it in business hours.
 
 ## Where this fits
 

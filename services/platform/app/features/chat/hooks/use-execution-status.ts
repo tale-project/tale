@@ -7,7 +7,7 @@ export function useExecutionStatus(
   executionId: Id<'wfExecutions'> | undefined,
 ) {
   return useConvexQuery(
-    api.wf_executions.queries.getExecutionStatus,
+    api.workflow_executions.queries.getExecutionStatus,
     executionId ? { executionId } : 'skip',
   );
 }
@@ -23,5 +23,5 @@ export function useWorkflowHumanInputApproval(approvalId: string | undefined) {
 }
 
 export function useCancelExecution() {
-  return useConvexMutation(api.wf_executions.mutations.cancelExecution);
+  return useConvexMutation(api.workflow_executions.mutations.cancelExecution);
 }

@@ -17,7 +17,7 @@ import { Agent } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { stripModelRefQualifier } from '../../../../../lib/shared/utils/model-ref';
-import { isRecord } from '../../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../../lib/utils/type-utils';
 import { components, internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { ToolName } from '../../../../agent_tools/tool_names';

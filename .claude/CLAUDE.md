@@ -1,14 +1,27 @@
-Follow the coding standards defined in `/AGENTS.md` at the project root. The pre-PR checklist there is mandatory — do not open a PR without ticking every box (or marking N/A) and running `bun run check`.
+# Claude Code — Tale
+
+**Read [`AGENTS.md`](../AGENTS.md) in full first.** It is the canonical contract for working in this
+repository: how to work, the Definition of Done, the Ripple Map, the verification doctrine, the
+coding standards, and the index of skills (deep guides loaded on demand). Everything below is a
+Claude-Code-specific delta on top of it — not a replacement.
+
+## Harness notes
+
+- **Skills live in [`.claude/skills/`](skills/).** Load the relevant guide before working in
+  an area (e.g. `convex`, `react`, `testing`); the index is in `AGENTS.md`. Don't reinvent what a
+  skill already documents.
+- **Commands:** `/qa <area>`, `/verify`, `/ship`. **MCP servers:** Playwright (frontend
+  verification), Convex (backend verification), Pencil (design). See [`.mcp.json`](../.mcp.json).
+- A PostToolUse hook formats every file you edit; don't hand-format or re-run a formatter.
 
 ## Git
 
-- DO NOT include "Co-Authored-By" in commit messages.
-- DO NOT include "Generated with Claude Code" or any similar attribution in PR descriptions.
+- **Never** add `Co-Authored-By` to commit messages.
+- **Never** add "Generated with Claude Code" or any similar attribution to commits or PR
+  descriptions.
 
-## Code Style
+## Other deltas
 
-- NEVER use empty catch blocks. Always log the error (e.g. `console.warn` / `console.error`) or re-throw. Silent swallowing hides bugs.
-
-## Design Comments
-
-- `design/comments.md` is strictly for designer-developer communication about UI/design issues. DO NOT add code-level bug analysis, root cause details, or implementation notes here — use GitHub issues for that.
+- **Never** use an empty catch block — log (`console.warn`/`console.error`) or re-throw.
+- `design/comments.md` is strictly designer↔developer UI communication. Put code-level bug analysis
+  in a GitHub issue, never there.

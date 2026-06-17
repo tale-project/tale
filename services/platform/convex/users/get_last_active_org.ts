@@ -9,7 +9,7 @@
 
 import { v } from 'convex/values';
 
-import { getString, isRecord } from '../../lib/utils/type-guards';
+import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';

@@ -11,7 +11,7 @@
  * lets users add items without switching to source mode.
  */
 
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 type SchemaType =
   | 'string'

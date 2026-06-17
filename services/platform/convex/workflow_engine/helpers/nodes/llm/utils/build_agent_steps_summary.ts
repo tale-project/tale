@@ -4,7 +4,7 @@
  * Builds a compact summary of agent steps to avoid oversized payloads.
  */
 
-import { isRecord } from '../../../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../../../lib/utils/type-utils';
 
 /**
  * Builds a compact summary of agent steps to avoid oversized payloads

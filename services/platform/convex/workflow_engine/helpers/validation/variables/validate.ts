@@ -7,7 +7,7 @@
  * 3. Access valid paths in the step output structure
  */
 
-import { isRecord } from '../../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../../lib/utils/type-utils';
 import { computeStepOrder } from '../../graph/compute_step_order';
 import { getActionOutputSchema } from './action_schemas';
 import {

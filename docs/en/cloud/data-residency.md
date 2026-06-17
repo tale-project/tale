@@ -9,7 +9,7 @@ The default region for new Cloud orgs is Switzerland. Switching region after sig
 
 ## A worked example — one chat round-trip
 
-The user in Zürich opens Chat and sends "summarise the latest customer call". The request hits Tale's edge in the chosen region, lands on `tale-platform`, which calls into `tale-convex` (the database), reads the bound knowledge from `tale-rag`, and emits an outbound call to the model provider the agent is configured against. The model provider returns tokens; Tale streams them back across the same path. The reply, transcripts, and citations land in `tale-db`, replicated within the region.
+The user in Zürich opens Chat and sends "summarise the latest customer call". The request hits Tale's edge in the chosen region, lands on `tale-platform`, which calls into `tale-convex` (the backend), reads the bound knowledge from the knowledge corpus database, and emits an outbound call to the model provider the agent is configured against. Knowledge retrieval runs inside the Convex backend — it queries the corpus database directly, with no separate retrieval service in the path. The model provider returns tokens; Tale streams them back across the same path. The reply and citations land in the operational database, the corpus stays in the knowledge database, and both are replicated within the region.
 
 Two arrows cross the regional boundary in this trip: the call to the model provider (always external) and any sub-processor the agent's tools triggered (web fetch, OneDrive read, MCP server in another region). Everything else stays in region.
 
@@ -36,7 +36,7 @@ The DR replica is for disaster recovery, not active traffic. A region's data nev
 
 ## Backups and DR
 
-Tale snapshots `tale-db` daily and the object store hourly. Snapshots are encrypted at rest with keys held by Tale; the DR replica receives a copy within the region. Restores from snapshot are a customer-initiated operation routed through support; the SLA covers restore time.
+Tale snapshots both Postgres databases — the operational store and the knowledge corpus — daily, and the object store hourly. Snapshots are encrypted at rest with keys held by Tale; the DR replica receives a copy within the region. Restores from snapshot are a customer-initiated operation routed through support; the SLA covers restore time.
 
 ## Changing region
 

@@ -8,6 +8,7 @@
     "incremental": true,
     "types": ["vitest/globals", "@testing-library/jest-dom"],
     "paths": {
+      "@/tests/*": ["./tests/*"],
       "@/*": ["./src/*"]
     }
   },
@@ -15,6 +16,8 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.d.ts",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
     "tailwind-preset.ts"
   ],
   "exclude": ["node_modules", "storybook-static"]

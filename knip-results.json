@@ -790,20 +790,6 @@
       "catalog": []
     },
     {
-      "file": "services/platform/app/features/settings/integrations/components/circuly-integration-dialog.tsx",
-      "dependencies": [],
-      "devDependencies": [],
-      "optionalPeerDependencies": [],
-      "unlisted": [{ "name": "zod", "line": 6, "col": 20, "pos": 164 }],
-      "binaries": [],
-      "unresolved": [],
-      "exports": [],
-      "types": [],
-      "enumMembers": {},
-      "duplicates": [],
-      "catalog": []
-    },
-    {
       "file": "services/platform/app/features/settings/integrations/components/gmail-create-provider-dialog.tsx",
       "dependencies": [],
       "devDependencies": [],
@@ -823,20 +809,6 @@
       "devDependencies": [],
       "optionalPeerDependencies": [],
       "unlisted": [{ "name": "zod", "line": 15, "col": 20, "pos": 762 }],
-      "binaries": [],
-      "unresolved": [],
-      "exports": [],
-      "types": [],
-      "enumMembers": {},
-      "duplicates": [],
-      "catalog": []
-    },
-    {
-      "file": "services/platform/app/features/settings/integrations/components/protel-integration-dialog.tsx",
-      "dependencies": [],
-      "devDependencies": [],
-      "optionalPeerDependencies": [],
-      "unlisted": [{ "name": "zod", "line": 5, "col": 20, "pos": 131 }],
       "binaries": [],
       "unresolved": [],
       "exports": [],

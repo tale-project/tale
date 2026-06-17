@@ -2,9 +2,13 @@
  * Request-scoped memoization of the caller's auth context.
  *
  * The RLS wrappers (`queryWithRLS`/`mutationWithRLS`) and many handlers all
- * derive the same `{ user, userOrganizations, userTeamIds }` triple. Each
- * derivation can cost cross-component Better Auth `findMany` round-trips
- * (`getUserOrganizations`, `getUserTeamIds`), which dominate backend latency.
+ * derive the same `{ user, userOrganizations }` pair. Each derivation can cost
+ * a cross-component Better Auth `findMany` round-trip (`getUserOrganizations`),
+ * which dominates backend latency.
+ *
+ * Team IDs are deliberately NOT resolved here: only the few team-scoped tables
+ * in `rlsRules` consult them, so that lookup is resolved lazily (and memoized)
+ * inside `rlsRules` and skipped entirely by the majority of queries.
  *
  * A single Convex function execution shares one `ctx` (and therefore one
  * `ctx.auth` reference — preserved across the convex-helpers `customCtx`
@@ -16,7 +20,6 @@
 
 import type { MemberRole } from '../../../../lib/shared/schemas/organizations';
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
-import { getUserTeamIds } from '../../get_user_teams';
 import { getAuthUserIdentity } from '../auth/get_auth_user_identity';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import type { AuthenticatedUser, OrganizationMember } from '../types';
@@ -28,7 +31,6 @@ export interface RequestAuthContext {
     role: MemberRole;
     member: OrganizationMember;
   }>;
-  userTeamIds: Set<string>;
 }
 
 // Keyed on the per-request `ctx.auth` object so the cache is request-scoped and
@@ -39,16 +41,11 @@ const cache = new WeakMap<object, Promise<RequestAuthContext>>();
 async function computeRequestAuthContext(
   ctx: QueryCtx | MutationCtx,
 ): Promise<RequestAuthContext> {
-  // JWT identity (0 DB). Org + team lookups run in parallel; each may hit the
-  // Better Auth component unless a JWT-claim short-circuit applies.
+  // JWT identity (0 DB). The org lookup may hit the Better Auth component
+  // unless a JWT-claim short-circuit applies.
   const user = await getAuthUserIdentity(ctx);
-  const [userOrganizations, userTeamIds] = user
-    ? await Promise.all([
-        getUserOrganizations(ctx, user),
-        getUserTeamIds(ctx, user.userId).then((ids) => new Set(ids)),
-      ])
-    : [[], new Set<string>()];
-  return { user, userOrganizations, userTeamIds };
+  const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
+  return { user, userOrganizations };
 }
 
 /**

@@ -3,7 +3,7 @@
 import { memo, useMemo } from 'react';
 
 import { cn } from '@/lib/utils/cn';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { useThreadMessages } from '../hooks/queries';
 import {

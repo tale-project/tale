@@ -694,13 +694,11 @@ export function mimeToExtension(mime: string): string | undefined {
 // ---------------------------------------------------------------------------
 
 /**
- * Extensions (lowercase, no dot) the RAG service can index.
+ * Extensions (lowercase, no dot) in-process RAG indexing can handle.
  *
- * MUST stay in sync with `SUPPORTED_EXTENSIONS` in
- * `services/rag/app/routers/documents.py` (which derives from
- * `tale_knowledge.extraction.router.ALL_SUPPORTED_EXTENSIONS` minus the
- * deliberately-unindexed `SENSITIVE_EXTENSIONS` like `.log`). Parity is
- * enforced by `services/rag/tests/test_extension_sync.py` — update both
+ * MUST stay in sync with `ALL_SUPPORTED_EXTENSIONS` in
+ * `services/platform/convex/lib/knowledge/extraction/router.ts` (minus the
+ * deliberately-unindexed `SENSITIVE_EXTENSIONS` like `.log`). Update both
  * sides in the same commit.
  *
  * The platform accepts more formats than RAG can index (legacy Office

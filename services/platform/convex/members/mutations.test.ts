@@ -68,8 +68,13 @@ function createMockCtx() {
         withIndex: vi.fn().mockReturnValue({
           collect: async () => [],
           take: async () => [],
+          // The inline member-mirror sync looks up the existing row by memberId
+          // before writing; an empty cache means it inserts (no-op here).
+          first: async () => null,
         }),
       }),
+      insert: vi.fn(),
+      patch: vi.fn(),
       delete: vi.fn(),
     },
     storage: {

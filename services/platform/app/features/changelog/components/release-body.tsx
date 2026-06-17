@@ -47,6 +47,7 @@ export function ReleaseBody({ html, className }: ReleaseBodyProps) {
         className,
       )}
       // eslint-disable-next-line react/no-danger
+      // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- `safe` is sanitized markdown HTML
       dangerouslySetInnerHTML={{ __html: safe }}
     />
   );

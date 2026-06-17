@@ -1,6 +1,6 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
-import { isKeyOf } from '../../../../lib/utils/type-guards';
+import { isKeyOf } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Doc, Id } from '../../../_generated/dataModel';
 import { createDebugLog } from '../../../lib/debug_log';

@@ -6,7 +6,7 @@
  */
 
 import { FEEDBACK_KEY } from '../../../lib/shared/schemas/approvals';
-import { getString, isRecord } from '../../../lib/utils/type-guards';
+import { getString, isRecord } from '../../../lib/utils/type-utils';
 
 /**
  * Format compact timestamp (YYYY-MM-DD HH:MM:SS UTC)

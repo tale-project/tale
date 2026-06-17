@@ -8,7 +8,7 @@
 
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { QueryCtx } from '../_generated/server';
 

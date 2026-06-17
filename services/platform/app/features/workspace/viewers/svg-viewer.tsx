@@ -36,6 +36,7 @@ function SvgViewerComponent({ svg }: SvgViewerProps) {
       <div
         className="max-h-full max-w-full [&_svg]:h-auto [&_svg]:max-h-full [&_svg]:max-w-full"
         // eslint-disable-next-line react/no-danger -- sanitized above
+        // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- `safe` is sanitizeSvg() output
         dangerouslySetInnerHTML={{ __html: safe }}
       />
     </div>

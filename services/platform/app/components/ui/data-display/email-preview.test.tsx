@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { render, screen } from '@/test/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import {
   EmailPreview,

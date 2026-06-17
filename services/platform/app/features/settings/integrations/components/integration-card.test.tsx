@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { Code } from 'lucide-react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
+import { checkAccessibility } from '@/tests/utils/a11y';
 
 import { IntegrationCard } from './integration-card';
 

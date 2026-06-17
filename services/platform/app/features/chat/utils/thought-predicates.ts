@@ -8,7 +8,7 @@
  * discriminant — same style as {@link ./build-message-segments}.
  */
 
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 /**
  * Does this message have ANY reasoning or concrete tool step? Equivalent to

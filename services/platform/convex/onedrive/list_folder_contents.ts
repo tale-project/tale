@@ -2,7 +2,7 @@
  * List Folder Contents - Business logic for listing OneDrive folder contents
  */
 
-import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { fetchJson } from '../../lib/utils/type-utils';
 
 export interface FileItem {
   id: string;

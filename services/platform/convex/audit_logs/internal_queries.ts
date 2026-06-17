@@ -7,7 +7,7 @@
 
 import { v } from 'convex/values';
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';

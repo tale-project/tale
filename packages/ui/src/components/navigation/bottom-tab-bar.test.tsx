@@ -1,8 +1,8 @@
 import { MessageSquare, Settings } from 'lucide-react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 import { BottomTabBar, type BottomTabBarItem } from './bottom-tab-bar';
 

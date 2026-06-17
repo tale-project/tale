@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
   "rangeStrategy": "pin",
   "automerge": false,
   "minimumReleaseAge": "90 days",
@@ -35,17 +35,10 @@
       "groupName": "minor updates"
     },
     {
-      "description": "Pin Python Docker image to <=3.11 for RAG service",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["python"],
-      "matchFileNames": ["services/rag/Dockerfile"],
-      "allowedVersions": "<=3.11"
-    },
-    {
-      "description": "Don't pin requires-python in pyproject.toml — it's a compatibility range, not a dependency pin",
-      "matchManagers": ["pep621"],
-      "matchDepNames": ["python"],
-      "enabled": false
+      "description": "GitHub Actions: keep SHA-digest pins current (grouped, short stabilization) so the supply-chain pins don't silently age",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "minimumReleaseAge": "7 days"
     },
     {
       "description": "Disable Convex-related packages (manual upgrades only)",

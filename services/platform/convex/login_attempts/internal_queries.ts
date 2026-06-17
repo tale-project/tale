@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { DEFAULT_TRUSTED_PROXIES } from '../../lib/shared/schemas/governance';
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
 import { readConfigCacheRow } from '../lib/config_cache/read';

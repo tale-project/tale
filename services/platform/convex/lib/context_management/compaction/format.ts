@@ -4,7 +4,7 @@
  * Convex action runtime. Consumed by `./summarize`.
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 
 /** Minimal structural shape these helpers need from an Agent SDK message —
  *  decoupled from the full `MessageDoc` so the formatting is testable with

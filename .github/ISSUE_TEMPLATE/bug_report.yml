@@ -39,15 +39,16 @@ body:
       label: Affected service
       description: Which part of Tale is affected?
       options:
-        - Platform
-        - RAG
-        - Crawler
+        - Platform (web app)
+        - Web (marketing site)
+        - Docs
+        - Sandbox
+        - CLI
         - Database
-        - Graph DB
         - Proxy
         - Not sure
     validations:
-      required: true
+      required: false
 
   - type: input
     id: version

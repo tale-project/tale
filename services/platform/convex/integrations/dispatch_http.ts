@@ -17,7 +17,7 @@
  * the model retry-loops on), so the agent relays the guidance instead.
  */
 
-import { getString, isRecord } from '../../lib/utils/type-guards';
+import { getString, isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { httpAction } from '../_generated/server';
 import { rateLimiter } from '../lib/rate_limiter';

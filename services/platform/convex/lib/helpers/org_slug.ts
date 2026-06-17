@@ -7,7 +7,7 @@
  * carry `organizationId`; this helper bridges to the slug.
  */
 
-import { getString, isRecord } from '../../../lib/utils/type-guards';
+import { getString, isRecord } from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
 
 // Loose ctx shape so all of: Convex ActionCtx, ToolCtx, query/mutation

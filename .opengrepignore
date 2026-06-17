@@ -1,0 +1,35 @@
+# Paths Opengrep skips, gitignore syntax. The repo .gitignore is honored
+# separately (node_modules, dist, .venv, …), so this only adds source-tree
+# paths that are committed but not ours to lint.
+#
+# Generated code — authored by codegen, not by us.
+**/_generated/
+*.gen.ts
+# Handlebars scaffolding, not real source.
+tools/plop/templates/
+# Seed/example configs are data, not code.
+examples/
+# Test scaffolding & fixtures intentionally contain odd inputs (fake API keys,
+# wildcard postMessage, etc.). SAST targets shipped production code.
+**/fixtures/
+**/__mocks__/
+**/e2e/
+tests/stress/
+**/*.test.ts
+**/*.test.tsx
+**/*.browser.test.ts
+**/*.spec.ts
+**/test_*.py
+**/*_test.py
+**/conftest.py
+# Agent review/scratch output (review logs, scan dumps) — generated artifacts,
+# never source. Untracked so CI never sees them, but a local working tree may;
+# excluding keeps the local scan identical to the CI gate.
+.agents/review-out/
+# Static assets and vendored/minified bundles are not our source to lint.
+**/public/
+**/storybook-static/
+*.min.js
+*.min.css
+# Markdown content (docs prose / translations) is not code.
+docs/

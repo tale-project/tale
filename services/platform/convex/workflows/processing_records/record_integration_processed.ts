@@ -9,7 +9,7 @@
  * inclusive `>=` resume semantics are absorbed by the dedupe rows.
  */
 
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import type { ConvexJsonRecord } from '../../lib/validators/json';

@@ -3,22 +3,15 @@
 import { v } from 'convex/values';
 
 import { extractExtension } from '../../lib/shared/file-types';
-import {
-  isRecord,
-  getNumber,
-  getString,
-  getBoolean,
-} from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
-import { getCrawlerUrl } from '../documents/generate_document_helpers';
+// Document metadata (page count, scanned-page detection, dates) is now
+// extracted in-process — this replaces the former crawler
+// `/api/v1/{ext}/extract-metadata` HTTP call (the last crawler dependency).
+import { extractDocumentMetadata } from '../crawler/lib/document_metadata';
 import { getPollingInterval } from '../documents/internal_actions';
-import {
-  isUpstreamHttpError,
-  UpstreamHttpError,
-} from '../lib/errors/upstream_http_error';
+import { isUpstreamHttpError } from '../lib/errors/upstream_http_error';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { ragFetch } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
@@ -170,67 +163,49 @@ export const pollFileRagStatus = internalAction({
       );
 
     try {
-      const response = await ragFetch('/api/v1/documents/statuses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_ids: [args.storageId] }),
-        timeoutMs: 10_000,
-        orgSlug,
-      });
-
-      if (response.status === 429 || (!response.ok && response.status >= 500)) {
-        await reschedule();
-        return null;
-      }
-      if (response.status >= 400 && response.status < 500) {
-        console.error(
-          `[pollFileRagStatus] RAG returned ${response.status} for ${args.storageId}, not retrying`,
-        );
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.updateFileRagStatus,
-          {
-            storageId: args.storageId,
-            ragStatus: 'failed',
-            ragError: `RAG service returned ${response.status}`,
-          },
-        );
-        return null;
-      }
-      if (!response.ok) {
-        await reschedule();
-        return null;
-      }
-
-      let body: unknown;
+      // In-process status lookup (replaces the external RAG
+      // `/api/v1/documents/statuses`). The action throws on a knowledge-db
+      // fault, caught below and rescheduled (the transient-retry path that the
+      // old 5xx/429 branches handled).
+      let docStatus: {
+        status: string;
+        error: string | null;
+        progress_phase: string | null;
+        progress_detail: string | null;
+        ocr_applied: boolean | null;
+      } | null;
       try {
-        body = await response.json();
-      } catch {
-        await reschedule();
-        return null;
-      }
-      if (!isRecord(body) || !isRecord(body.statuses)) {
+        const result = await ctx.runAction(internal.rag.documents.getStatuses, {
+          orgSlug,
+          fileIds: [args.storageId],
+        });
+        docStatus = result.statuses[args.storageId] ?? null;
+      } catch (err) {
+        console.warn(
+          `[pollFileRagStatus] status lookup failed for ${args.storageId}, rescheduling:`,
+          err instanceof Error ? err.message : String(err),
+        );
         await reschedule();
         return null;
       }
 
-      const docStatus = body.statuses[args.storageId];
-      if (!isRecord(docStatus)) {
-        // RAG hasn't ingested it yet — keep polling.
+      if (!docStatus) {
+        // Not yet ingested into the corpus — keep polling.
         await reschedule();
         return null;
       }
 
-      const status = getString(docStatus, 'status');
-      const error = getString(docStatus, 'error');
-      const progressPhase = getString(docStatus, 'progress_phase');
-      const progressDetail = getString(docStatus, 'progress_detail');
+      const status = docStatus.status;
+      const error = docStatus.error;
+      const progressPhase = docStatus.progress_phase;
+      const progressDetail = docStatus.progress_detail;
       const ragProgress =
         progressPhase && progressDetail
           ? `${progressPhase} ${progressDetail}`
           : progressPhase || undefined;
 
       if (status === 'completed') {
-        const ocrApplied = getBoolean(docStatus, 'ocr_applied');
+        const ocrApplied = docStatus.ocr_applied;
         await ctx.runMutation(
           internal.file_metadata.internal_mutations.updateFileRagStatus,
           {
@@ -313,82 +288,26 @@ export const extractFileMetadata = internalAction({
       return null;
     }
 
-    // PDF/DOCX/PPTX: call crawler extract-metadata
+    // PDF/DOCX/PPTX: extract metadata in-process (page/scanned-page detection
+    // + dates), replacing the former crawler `/api/v1/{ext}/extract-metadata`
+    // call.
     if (ext && EXTRACT_METADATA_EXTENSIONS.has(ext)) {
-      // Resolve org slug OUTSIDE the try block. Previously the lookup
-      // sat inside the catch-permanent branch — a slug miss got
-      // classified as "permanent" and stamped `visionRequired:false`,
-      // permanently disabling vision/OCR for legitimate uploads on a
-      // deleted-org race. With `OrNull` we exit cleanly without
-      // stamping a terminal marker, leaving the row's pending state
-      // alone so a subsequent ingest can re-run.
-      const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
-      if (orgSlug === null) {
-        console.warn(
-          `[extractFileMetadata] org ${args.organizationId} unresolvable; skipping vision-metadata extraction for storageId=${args.storageId} (will not stamp permanent-failure marker)`,
-        );
-        return null;
-      }
-
       try {
-        const fileUrl = await ctx.storage.getUrl(args.storageId);
-        if (!fileUrl) {
+        const fileBlob = await ctx.storage.get(args.storageId);
+        if (!fileBlob) {
           console.warn(
-            `[extractFileMetadata] No URL for file ${args.storageId}, skipping`,
+            `[extractFileMetadata] No blob for file ${args.storageId}, skipping`,
           );
           return null;
         }
 
-        const fileResponse = await fetch(fileUrl, {
-          signal: AbortSignal.timeout(30_000),
-        });
-        if (!fileResponse.ok) {
-          throw new Error(
-            `Failed to download file: ${fileResponse.status} ${fileResponse.statusText}`,
-          );
-        }
+        const bytes = new Uint8Array(await fileBlob.arrayBuffer());
+        const meta = await extractDocumentMetadata(bytes, ext);
 
-        const fileBlob = await fileResponse.blob();
-        const crawlerUrl = getCrawlerUrl();
-        const endpoint = `${crawlerUrl}/api/v1/${ext}/extract-metadata`;
-
-        const formData = new FormData();
-        formData.append('file', fileBlob, args.fileName);
-
-        const metadataResponse = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'x-tale-org': orgSlug },
-          body: formData,
-          signal: AbortSignal.timeout(30_000),
-        });
-
-        if (!metadataResponse.ok) {
-          const errorText = await metadataResponse.text().catch(() => '');
-          throw UpstreamHttpError.fromResponse(
-            'crawler',
-            metadataResponse,
-            errorText,
-            `/api/v1/${ext}/extract-metadata`,
-          );
-        }
-
-        let body: unknown;
-        try {
-          body = await metadataResponse.json();
-        } catch {
-          throw new Error('Crawler returned non-JSON response');
-        }
-
-        if (!isRecord(body)) {
-          throw new Error(
-            'Invalid response shape from crawler extract-metadata',
-          );
-        }
-
-        const pageCount = getNumber(body, 'page_count');
-        const scannedPagesDetected = getNumber(body, 'scanned_pages_detected');
-        const createdAt = getNumber(body, 'created_at');
-        const modifiedAt = getNumber(body, 'modified_at');
+        const pageCount = meta.pageCount;
+        const scannedPagesDetected = meta.scannedPagesDetected;
+        const createdAt = meta.createdAt;
+        const modifiedAt = meta.modifiedAt;
 
         // Write vision metadata to fileMetadata
         await ctx.runMutation(
@@ -413,8 +332,8 @@ export const extractFileMetadata = internalAction({
             internal.documents.internal_mutations.updateDocumentDates,
             {
               documentId: fileMetadata.documentId,
-              sourceCreatedAt: createdAt,
-              sourceModifiedAt: modifiedAt,
+              sourceCreatedAt: createdAt ?? undefined,
+              sourceModifiedAt: modifiedAt ?? undefined,
               scannedPagesDetected: scannedPagesDetected ?? undefined,
             },
           );

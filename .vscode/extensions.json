@@ -1,6 +1,8 @@
 {
   "recommendations": [
     "oxc.oxc-vscode",
+    "oven.bun-vscode",
+    "ms-playwright.playwright",
     "foxundermoon.shell-format",
     "charliermarsh.ruff",
     "ms-vscode.powershell",

@@ -8,7 +8,7 @@ import {
   isRecord,
   getString,
   getArray,
-} from '../../../../../../lib/utils/type-guards';
+} from '../../../../../../lib/utils/type-utils';
 import type { ToolDiagnostics } from '../types';
 
 function toRecord(val: unknown): Record<string, unknown> | undefined {

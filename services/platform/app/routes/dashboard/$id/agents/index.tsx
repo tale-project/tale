@@ -1,28 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AgentsTable } from '@/app/features/agents/components/agents-table';
-import { configKeys } from '@/app/hooks/config-query-keys';
-import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/agents/')({
   head: () => ({
     meta: seo('agents'),
   }),
-  loader: ({ context, params }) => {
-    // Warm the agents list (filesystem-backed action) so the table paints
-    // without a skeleton on first nav. Mirrors useListAgents's key + args.
-    void context.queryClient.prefetchQuery({
-      queryKey: configKeys.list('agents', params.id),
-      queryFn: () =>
-        context.convexQueryClient.convexClient.action(
-          api.agents.file_actions.listAgents,
-          { organizationId: params.id },
-        ),
-      staleTime: Infinity,
-      retry: false,
-    });
-  },
+  // No loader prefetch: the filesystem-backed `listAgents` action requires auth,
+  // and a route loader runs BEFORE the Convex WS auth handshake — on a cold load
+  // it fired unauthenticated and logged `UNAUTHENTICATED` on every nav. The
+  // parent dashboard layout already warms this list once auth is ready
+  // (`prewarmConfigCatalog(... listAgents)`), and `useListAgents` is auth-gated,
+  // so the table still paints warm on real navigations without the racing fetch.
   component: AgentsPage,
 });
 

@@ -28,13 +28,13 @@ const rlsConfig: RLSConfig = {
 export const queryWithRLS = customQuery(
   query,
   customCtx(async (ctx: QueryCtx) => {
-    // Resolve the caller's identity, organizations and team IDs once per
-    // request (JWT identity is 0 DB; org/team lookups run in parallel and are
-    // memoized so any handler that re-derives them reuses this computation).
-    const { user, userOrganizations, userTeamIds } =
-      await getRequestAuthContext(ctx);
+    // Resolve the caller's identity and organizations once per request (JWT
+    // identity is 0 DB; the org lookup is memoized so any handler that
+    // re-derives it reuses this computation). Team IDs are resolved lazily
+    // inside rlsRules — only the few team-scoped tables need them.
+    const { user, userOrganizations } = await getRequestAuthContext(ctx);
 
-    const rules = await rlsRules(ctx, { user, userOrganizations, userTeamIds });
+    const rules = await rlsRules(ctx, { user, userOrganizations });
 
     return {
       db: wrapDatabaseReader<

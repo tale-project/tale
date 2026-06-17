@@ -11,7 +11,7 @@ The feature-level story of each integration (what it does, what scopes it asks f
 
 Open **Settings > Integrations** to land on the org's installed integrations. Each row names an integration, shows its category (communication, storage, identity, knowledge, source control, commerce, AI), the credential type (OAuth2, API key, app token), and the connection status (connected, pending, error). The list is filterable by category and by status.
 
-The catalogue of available integrations sits one click away under **Add integration**. The catalogue currently ships Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio, Microsoft 365, Google Drive, Confluence, WebDAV, Tavily, GitHub, Shopify, Protel, Circuly, and AI image; the same catalogue is the source the integrations overview documents.
+The catalogue of available integrations sits one click away under **Add integration**. The catalogue currently ships Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio, Microsoft 365, Google Drive, Confluence, WebDAV, Tavily, GitHub, Shopify, and AI image; the same catalogue is the source the integrations overview documents.
 
 ## Installing an integration
 

@@ -23,18 +23,16 @@ import {
 } from '@convex-dev/agent';
 import type { StreamMessage } from '@convex-dev/agent/validators';
 import type { ModelMessage } from 'ai';
-import { ConvexError } from 'convex/values';
 
 import {
   creativityToScoreOverride,
   effortToTierOverride,
   tuningInstructionSuffix,
 } from '../../../lib/shared/response-tuning';
-import { isRecord, getString } from '../../../lib/utils/type-guards';
+import { isRecord, getString } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
-import { estimateCostCents } from '../../governance/cost_estimation';
 import {
   finalizeSanitize,
   loadGuardrailsSnapshot,
@@ -43,7 +41,6 @@ import {
 import {
   createGuardrailsTransform,
   makeInitialState,
-  type BlockedReason,
   type GuardrailsTransformState,
 } from '../../governance/stream_transform';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
@@ -70,6 +67,11 @@ import { createDebugLog } from '../debug_log';
 import { orgSlugFromId } from '../helpers/org_slug';
 import { summarizeForLog } from '../log_redact';
 import {
+  resolveTurnStartMs,
+  startAbortWatcher,
+  type AbortWatcher,
+} from './abort_watcher';
+import {
   buildProjectInstructions,
   type ProjectInstructionsBlock,
 } from './build_project_instructions';
@@ -81,11 +83,31 @@ import {
   buildUserPersonalization,
   type UserPersonalization,
 } from './build_user_personalization';
+import {
+  extractToolCallMessageMapping,
+  extractToolCallsFromSteps,
+  extractToolNamesFromSteps,
+} from './extract_tool_calls';
+import {
+  applyGuardrailsBlockTombstone,
+  buildBlockedReturn,
+  convexErrorToBlockedReason,
+  OUTPUT_BLOCKED_SENTINEL,
+} from './guardrails_block';
 import { analyzeResponseQuality } from './quality/analyze';
 import { thresholdsFor } from './quality/thresholds';
 import { buildReasoningOptions } from './reasoning/build_reasoning_options';
 import { reasoningScopeKey } from './reasoning/scope';
 import { resolveTemplateVariables } from './resolve_template_variables';
+import {
+  mergeUsage,
+  needsToolResultRetry,
+  shouldRetryGeneration,
+} from './retry_policy';
+import {
+  finalizePersistentStream,
+  linkApprovalsToLatestAssistantMessage,
+} from './stream_finalizers';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
 import type {
   BeforeContextResult,
@@ -95,8 +117,6 @@ import type {
 } from './types';
 import { AgentTimeoutError, withTimeout } from './with_timeout';
 
-const OUTPUT_BLOCKED_SENTINEL = '[blocked by content policy]';
-
 /**
  * Similarity threshold for the auto-RAG query when the turn carries
  * `@`-mentioned (pinned) documents. Matches the `rag_search` tool default —
@@ -104,109 +124,6 @@ const OUTPUT_BLOCKED_SENTINEL = '[blocked by content policy]';
  * "summarize @Doc", and the pinned scope already bounds the result set.
  */
 const PINNED_KB_SIMILARITY_THRESHOLD = 0.3;
-
-function convexErrorToBlockedReason(err: unknown): BlockedReason | null {
-  if (!(err instanceof ConvexError)) return null;
-  const data: unknown = err.data;
-  if (!isRecord(data)) return null;
-  const code = data['code'];
-  if (
-    code !== 'chat_filter.blocked' &&
-    code !== 'moderation_provider.blocked'
-  ) {
-    return null;
-  }
-  const direction = data['direction'];
-  if (direction !== 'input' && direction !== 'output') return null;
-  const categoryIds = data['categoryIds'];
-  if (!Array.isArray(categoryIds)) return null;
-  const runId = data['sanitizationRunId'];
-  if (typeof runId !== 'string') return null;
-  return {
-    code,
-    direction,
-    categoryIds: categoryIds.filter((c): c is string => typeof c === 'string'),
-    sanitizationRunId: runId,
-  };
-}
-
-async function applyGuardrailsBlockTombstone(
-  ctx: GenerateResponseArgs['ctx'],
-  savedMessageId: string | undefined,
-  streamId: string | undefined,
-  threadId: string,
-  reason: BlockedReason,
-): Promise<void> {
-  if (savedMessageId) {
-    try {
-      await ctx.runMutation(components.agent.messages.updateMessage, {
-        messageId: savedMessageId,
-        patch: {
-          message: {
-            role: 'assistant',
-            content: OUTPUT_BLOCKED_SENTINEL,
-          },
-        },
-      });
-    } catch (err) {
-      console.warn(
-        `[guardrails] tombstone updateMessage failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-    try {
-      await ctx.runMutation(
-        internal.message_metadata.internal_mutations.setBlockedReason,
-        {
-          messageId: savedMessageId,
-          threadId,
-          code: reason.code,
-          direction: reason.direction,
-          categoryIds: reason.categoryIds,
-          sanitizationRunId: reason.sanitizationRunId,
-        },
-      );
-    } catch (err) {
-      console.warn(
-        `[guardrails] setBlockedReason failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-  }
-  if (streamId) {
-    try {
-      await ctx.runMutation(components.agent.streams.abort, {
-        streamId,
-        reason: 'blocked_by_content_policy',
-      });
-    } catch (err) {
-      console.warn(
-        `[guardrails] streams.abort failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-  }
-}
-
-function buildBlockedReturn(
-  threadId: string,
-  savedMessageId: string | undefined,
-  usage: GenerateResponseResult['usage'] | undefined,
-  finishReason: string | undefined,
-  startTime: number,
-): GenerateResponseResult {
-  return {
-    threadId,
-    text: OUTPUT_BLOCKED_SENTINEL,
-    savedMessageId,
-    usage,
-    finishReason: finishReason ?? 'content-filter',
-    durationMs: Date.now() - startTime,
-  };
-}
 
 /**
  * Fallback timeout ceiling when no explicit deadline is provided.
@@ -217,215 +134,6 @@ function buildBlockedReturn(
  * from the agent's configured timeoutMs.
  */
 const PLATFORM_HARD_LIMIT_MS = 540_000;
-
-/**
- * How often the abort watcher polls the stream status (ms).
- */
-const ABORT_POLL_INTERVAL_MS = 1500;
-
-interface AbortWatcher {
-  stop: () => void;
-  readonly cancelled: boolean;
-}
-
-/**
- * Polls for cancellation and aborts the controller when detected.
- * Bridges the gap between the `cancelGeneration` mutation (which sets DB
- * flags) and the running action (which needs an AbortSignal).
- *
- * Two detection methods:
- * - Check 1: new aborted SDK streams (mid-stream cancellation)
- * - Check 2: `cancelledAt` on threadMetadata (early cancellation, before
- *   any SDK stream exists)
- *
- * `baselineAbortedIds` filters out streams aborted before this generation.
- * `generationStartTime` distinguishes stale `cancelledAt` from current.
- */
-function startAbortWatcher(
-  ctx: GenerateResponseArgs['ctx'],
-  threadId: string,
-  abortController: AbortController,
-  baselineAbortedIds: Set<string>,
-  generationStartTime: number,
-): AbortWatcher {
-  let stopped = false;
-  let cancelledByWatcher = false;
-
-  const check = async () => {
-    if (stopped || abortController.signal.aborted) return;
-    try {
-      // Check 1: new aborted streams (mid-stream cancellation)
-      const streams = await ctx.runQuery(components.agent.streams.list, {
-        threadId,
-        statuses: ['aborted'] as const,
-      });
-      const hasNewAbort = streams.some(
-        (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
-      );
-      if (hasNewAbort) {
-        cancelledByWatcher = true;
-        abortController.abort();
-        return;
-      }
-
-      // Check 2: cancelledAt on threadMetadata (early + universal). Anchor on
-      // the TURN's start (generationStartTime) so a cancel that landed BEFORE
-      // this action began — the front-load / queued window — is still caught.
-      // The passed baseline is only the fallback for turns with no thread
-      // generationStartTime (resume / sub-agent).
-      const meta = await ctx.runQuery(
-        internal.threads.internal_queries.getThreadMetadata,
-        { threadId },
-      );
-      const turnStartMs = meta?.generationStartTime ?? generationStartTime;
-      if (meta?.cancelledAt && meta.cancelledAt >= turnStartMs) {
-        cancelledByWatcher = true;
-        abortController.abort();
-        return;
-      }
-    } catch (pollError) {
-      console.error('[abortWatcher] Poll failed:', pollError);
-    }
-    if (!stopped && !abortController.signal.aborted) {
-      setTimeout(check, ABORT_POLL_INTERVAL_MS);
-    }
-  };
-
-  setTimeout(check, ABORT_POLL_INTERVAL_MS);
-
-  return {
-    stop: () => {
-      stopped = true;
-    },
-    get cancelled() {
-      return cancelledByWatcher;
-    },
-  };
-}
-
-/**
- * The TURN's wall-clock start — `threadMetadata.generationStartTime`, stamped by
- * `markGenerating` BEFORE Auto routing. Used to report the pre-answer "thinking"
- * time the user actually waited (router-classifier latency included). Falls back
- * to `fallbackMs` (this action's start) for resume / sub-agent turns that carry
- * no thread generationStartTime, or if the read fails. Called post-stream only,
- * so it never sits on the time-to-first-token critical path.
- */
-async function resolveTurnStartMs(
-  ctx: GenerateResponseArgs['ctx'],
-  threadId: string,
-  fallbackMs: number,
-): Promise<number> {
-  try {
-    const meta = await ctx.runQuery(
-      internal.threads.internal_queries.getThreadMetadata,
-      { threadId },
-    );
-    return meta?.generationStartTime ?? fallbackMs;
-  } catch (err) {
-    console.warn(
-      '[generateAgentResponse] resolveTurnStartMs failed; using action start',
-      err instanceof Error ? err.message : err,
-    );
-    return fallbackMs;
-  }
-}
-
-/**
- * Find the first assistant message in the latest response order group and
- * link any pending approvals to it. Pending approvals are queried by
- * threadId but only rendered in the UI once their messageId field is set,
- * so this must complete BEFORE clearGenerationStatus or the user sees the
- * spinner stop, then a "approve this action" panel pop in a beat later.
- *
- * Wrapped in try/catch — approval linking is non-fatal.
- */
-async function linkApprovalsToLatestAssistantMessage(
-  ctx: GenerateResponseArgs['ctx'],
-  threadId: string,
-  debugLog: (...args: unknown[]) => void,
-): Promise<void> {
-  try {
-    const messagesResult = await listMessages(ctx, components.agent, {
-      threadId,
-      paginationOpts: { cursor: null, numItems: 50 },
-      excludeToolMessages: false,
-    });
-
-    // Find the first assistant message in the current response order group.
-    // We must link to an assistant message (not tool messages) because the UI
-    // only loads user/assistant messages — tool message IDs are not in the
-    // rendered message set and approvals linked to them would be invisible.
-    const latestAssistantMessage = messagesResult.page.find(
-      (m: MessageDoc) => m.message?.role === 'assistant',
-    );
-    if (!latestAssistantMessage) return;
-
-    const currentOrder = latestAssistantMessage.order;
-    const firstAssistantInOrder =
-      messagesResult.page
-        .filter(
-          (m: MessageDoc) =>
-            m.order === currentOrder && m.message?.role === 'assistant',
-        )
-        .sort((a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder)[0] ??
-      latestAssistantMessage;
-
-    const linkedCount = await ctx.runMutation(
-      internal.approvals.internal_mutations.linkApprovalsToMessage,
-      {
-        threadId,
-        messageId: firstAssistantInOrder._id,
-      },
-    );
-    if (linkedCount > 0) {
-      debugLog(
-        `Linked ${linkedCount} pending approvals to message ${firstAssistantInOrder._id}`,
-      );
-    }
-  } catch (error) {
-    console.error(
-      '[generateAgentResponse] Failed to link approvals to message:',
-      error,
-    );
-  }
-}
-
-/**
- * Finalize the persistent text stream after a successful generation. The
- * Agent SDK's DeltaStreamer already delivered text to the client in real
- * time; this only updates the persistent stream document used for refresh
- * recovery and HTTP polling. Non-fatal: if the stream is in a terminal
- * state from a prior fallback attempt, these mutations may fail and that
- * must not turn a successful response into a failure.
- *
- * When `cancelled` is true, only `completeStream` is called (no append) —
- * content was already streamed via the SDK before the abort.
- */
-async function finalizePersistentStream(
-  ctx: GenerateResponseArgs['ctx'],
-  streamId: string,
-  text: string,
-  cancelled: boolean,
-): Promise<void> {
-  try {
-    if (!cancelled && text) {
-      await ctx.runMutation(
-        internal.streaming.internal_mutations.appendToStream,
-        { streamId, text },
-      );
-    }
-    await ctx.runMutation(
-      internal.streaming.internal_mutations.completeStream,
-      { streamId },
-    );
-  } catch (streamError) {
-    console.error(
-      '[generateAgentResponse] Persistent stream finalization failed (non-fatal):',
-      streamError,
-    );
-  }
-}
 
 /**
  * Generate an agent response using the provided configuration.
@@ -902,6 +610,7 @@ export async function generateAgentResponse(
         }
         if (orgSlug) {
           knowledgeContextPromise = queryRagContext(
+            ctx,
             promptMessage,
             undefined,
             // Pinned queries relax the similarity threshold (matching the
@@ -2951,460 +2660,8 @@ export async function generateAgentResponse(
   }
 }
 
-/**
- * Safely stringify a value with truncation.
- * Returns `[unserializable]` if JSON.stringify throws.
- */
-function safeStringify(value: unknown, maxLen = 10240): string {
-  if (value === undefined || value === null) return '';
-  try {
-    const json = JSON.stringify(value);
-    if (json.length > maxLen) {
-      return json.slice(0, maxLen) + '[truncated]';
-    }
-    return json;
-  } catch (serializeError) {
-    console.error('[safeStringify] Serialization failed:', serializeError);
-    return '[unserializable]';
-  }
-}
-
-const DUPLICATE_TOOL_RESULT_FIELDS = new Set([
-  'output',
-  'usage',
-  'model',
-  'provider',
-  'citations',
-]);
-
-function stripDuplicateToolResultFields(
-  obj: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(obj)) {
-    if (!DUPLICATE_TOOL_RESULT_FIELDS.has(key)) result[key] = val;
-  }
-  return result;
-}
-
-/**
- * Extract tool calls and tool usage from AI SDK steps.
- * Tracks ALL tool calls (not just delegation tools).
- */
-function extractToolCallsFromSteps(steps: unknown[]): {
-  toolCalls: Array<{ toolName: string; status: string }>;
-  toolsUsage: Array<{
-    toolName: string;
-    model?: string;
-    provider?: string;
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-    durationMs?: number;
-    input?: string;
-    output?: string;
-    costEstimateCents?: number;
-  }>;
-  citations: Array<{
-    index: number;
-    type: 'rag' | 'web';
-    source: string;
-    fileId?: string;
-    url?: string;
-    page?: number;
-    relevance?: number;
-  }>;
-} {
-  type StepWithTools = {
-    toolCalls?: Array<{
-      toolCallId: string;
-      toolName: string;
-      // AI SDK uses 'input'; @convex-dev/agent normalizes to 'args'
-      input?: unknown;
-      args?: unknown;
-    }>;
-    toolResults?: Array<{
-      toolCallId: string;
-      toolName: string;
-      result?: unknown;
-      output?: unknown;
-    }>;
-  };
-
-  const toolCalls: Array<{ toolName: string; status: string }> = [];
-  const toolsUsage: Array<{
-    toolName: string;
-    model?: string;
-    provider?: string;
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-    durationMs?: number;
-    input?: string;
-    output?: string;
-    costEstimateCents?: number;
-  }> = [];
-  const allCitations: Array<{
-    index: number;
-    type: 'rag' | 'web';
-    source: string;
-    fileId?: string;
-    url?: string;
-    page?: number;
-    relevance?: number;
-  }> = [];
-  // Track running offset so citations from different tool calls get unique indices.
-  // Without this, both rag_search and web tools start at index 1, and the frontend
-  // Map<number, CitationInfo> keyed by index would let later tools overwrite earlier ones.
-  let citationIndexOffset = 0;
-
-  for (const rawStep of steps) {
-    if (!isRecord(rawStep)) continue;
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- AI SDK step arrays are typed as unknown[]; structure is verified by isRecord guard above
-    const stepToolCalls = (
-      Array.isArray(rawStep.toolCalls) ? rawStep.toolCalls : []
-    ) as StepWithTools['toolCalls'];
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same as stepToolCalls above
-    const stepToolResults = (
-      Array.isArray(rawStep.toolResults) ? rawStep.toolResults : []
-    ) as StepWithTools['toolResults'];
-
-    // Extract tool call statuses and usage for ALL tools
-    for (const toolCall of stepToolCalls ?? []) {
-      const matchingResult = stepToolResults?.find(
-        (r) => r.toolCallId === toolCall.toolCallId,
-      );
-      const resultRecord = isRecord(matchingResult?.result)
-        ? matchingResult.result
-        : undefined;
-      const outputRecord = isRecord(matchingResult?.output)
-        ? matchingResult.output
-        : undefined;
-      const directSuccess =
-        typeof resultRecord?.success === 'boolean'
-          ? resultRecord.success
-          : undefined;
-      const outputSuccess =
-        typeof outputRecord?.success === 'boolean'
-          ? outputRecord.success
-          : undefined;
-      const isSuccess = directSuccess ?? outputSuccess ?? true;
-      toolCalls.push({
-        toolName: toolCall.toolName,
-        status: isSuccess ? 'completed' : 'failed',
-      });
-
-      // Extract structured citations from raw tool result before safeStringify truncation.
-      // The result may be the direct return value, or wrapped as {value: {...}} by @convex-dev/agent.
-      const rawOutput = matchingResult?.output ?? matchingResult?.result;
-      const citationSource =
-        isRecord(rawOutput) && Array.isArray(rawOutput.citations)
-          ? rawOutput.citations
-          : isRecord(rawOutput) &&
-              isRecord(rawOutput.value) &&
-              Array.isArray(rawOutput.value.citations)
-            ? rawOutput.value.citations
-            : undefined;
-      if (Array.isArray(citationSource)) {
-        let maxIndexThisToolCall = 0;
-        for (const c of citationSource) {
-          if (
-            isRecord(c) &&
-            typeof c.index === 'number' &&
-            typeof c.type === 'string' &&
-            (c.type === 'rag' || c.type === 'web')
-          ) {
-            const citationType: 'rag' | 'web' = c.type;
-            const adjustedIndex =
-              (typeof c.index === 'number' ? c.index : 0) + citationIndexOffset;
-            // Convex validators reject explicit `undefined` — omit undefined fields
-            const entry: (typeof allCitations)[number] = {
-              index: adjustedIndex,
-              type: citationType,
-              source: typeof c.source === 'string' ? c.source : 'Unknown',
-            };
-            if (typeof c.fileId === 'string') entry.fileId = c.fileId;
-            if (typeof c.url === 'string') entry.url = c.url;
-            if (typeof c.page === 'number') entry.page = c.page;
-            if (typeof c.relevance === 'number') entry.relevance = c.relevance;
-            allCitations.push(entry);
-            if (adjustedIndex > maxIndexThisToolCall) {
-              maxIndexThisToolCall = adjustedIndex;
-            }
-          }
-        }
-        // Advance offset so the next tool call's citations don't collide
-        if (maxIndexThisToolCall > 0) {
-          citationIndexOffset = maxIndexThisToolCall;
-        }
-      }
-
-      const inputStr = safeStringify(toolCall.input ?? toolCall.args);
-      // Keep the full tool output so the message-info dialog can show what a
-      // tool actually returned. Strip only fields that duplicate info captured
-      // elsewhere in the metadata (tokens/model/provider live on `usageEntry`,
-      // citations on `allCitations`) and `output` which is a self-reference.
-      // safeStringify truncates at 10KB so oversize payloads are capped.
-      const rawForOutput = matchingResult?.output ?? matchingResult?.result;
-      // Unwrap {value: {...}} wrapper if present (from @convex-dev/agent)
-      const unwrapped =
-        isRecord(rawForOutput) && isRecord(rawForOutput.value)
-          ? rawForOutput.value
-          : isRecord(rawForOutput)
-            ? rawForOutput
-            : undefined;
-      const outputStr = safeStringify(
-        unwrapped ? stripDuplicateToolResultFields(unwrapped) : rawForOutput,
-      );
-
-      const usageEntry: (typeof toolsUsage)[number] = {
-        toolName: toolCall.toolName,
-        input: inputStr,
-        output: outputStr,
-      };
-
-      if (matchingResult) {
-        type ToolResultData = {
-          model?: string;
-          provider?: string;
-          usage?: {
-            inputTokens?: number;
-            outputTokens?: number;
-            totalTokens?: number;
-            durationSeconds?: number;
-          };
-        };
-
-        const extractToolResultData = (
-          val: unknown,
-        ): ToolResultData | undefined => {
-          if (!isRecord(val)) return undefined;
-          return {
-            model: typeof val.model === 'string' ? val.model : undefined,
-            provider:
-              typeof val.provider === 'string' ? val.provider : undefined,
-            usage: isRecord(val.usage)
-              ? {
-                  inputTokens:
-                    typeof val.usage.inputTokens === 'number'
-                      ? val.usage.inputTokens
-                      : undefined,
-                  outputTokens:
-                    typeof val.usage.outputTokens === 'number'
-                      ? val.usage.outputTokens
-                      : undefined,
-                  totalTokens:
-                    typeof val.usage.totalTokens === 'number'
-                      ? val.usage.totalTokens
-                      : undefined,
-                  durationSeconds:
-                    typeof val.usage.durationSeconds === 'number'
-                      ? val.usage.durationSeconds
-                      : undefined,
-                }
-              : undefined,
-          };
-        };
-
-        const directResult = extractToolResultData(matchingResult.result);
-        const outputDirect = extractToolResultData(matchingResult.output);
-        const outputValueRaw = isRecord(matchingResult.output)
-          ? matchingResult.output.value
-          : undefined;
-        const outputValue = extractToolResultData(outputValueRaw);
-
-        const hasRelevantData = (d: ToolResultData | undefined) =>
-          d?.model !== undefined || d?.usage !== undefined;
-        const toolData = hasRelevantData(directResult)
-          ? directResult
-          : hasRelevantData(outputDirect)
-            ? outputDirect
-            : outputValue;
-        const toolUsage = toolData?.usage;
-
-        usageEntry.model = toolData?.model;
-        usageEntry.provider = toolData?.provider;
-        usageEntry.inputTokens = toolUsage?.inputTokens;
-        usageEntry.outputTokens = toolUsage?.outputTokens;
-        usageEntry.totalTokens = toolUsage?.totalTokens;
-        usageEntry.durationMs = toolUsage?.durationSeconds
-          ? Math.round(toolUsage.durationSeconds * 1000)
-          : undefined;
-
-        if (
-          usageEntry.model &&
-          (usageEntry.inputTokens || usageEntry.outputTokens)
-        ) {
-          usageEntry.costEstimateCents = estimateCostCents(
-            usageEntry.model,
-            usageEntry.inputTokens ?? 0,
-            usageEntry.outputTokens ?? 0,
-          );
-        }
-      }
-
-      toolsUsage.push(usageEntry);
-    }
-  }
-
-  return { toolCalls, toolsUsage, citations: allCitations };
-}
-
-/**
- * Merge usage stats from two LLM calls.
- * Used when retrying with empty text.
- */
-function mergeUsage(
-  usage1?: GenerateResponseResult['usage'],
-  usage2?: GenerateResponseResult['usage'],
-): GenerateResponseResult['usage'] {
-  if (!usage1) return usage2;
-  if (!usage2) return usage1;
-  return {
-    inputTokens: (usage1.inputTokens ?? 0) + (usage2.inputTokens ?? 0),
-    outputTokens: (usage1.outputTokens ?? 0) + (usage2.outputTokens ?? 0),
-    totalTokens: (usage1.totalTokens ?? 0) + (usage2.totalTokens ?? 0),
-    reasoningTokens:
-      (usage1.reasoningTokens ?? 0) + (usage2.reasoningTokens ?? 0),
-    cachedInputTokens:
-      (usage1.cachedInputTokens ?? 0) + (usage2.cachedInputTokens ?? 0),
-  };
-}
-
-/**
- * Determine if a retry is needed because tools were called but no
- * substantive follow-up text was generated.
- *
- * Catches two scenarios:
- * 1. Text is completely empty (LLM stopped right after tool calls)
- * 2. Text exists but is only a preamble before tool calls (e.g., "Let me check...")
- *    with no actual response incorporating the tool results
- */
-function needsToolResultRetry(
-  text: string | undefined,
-  steps: unknown[] | undefined,
-): boolean {
-  if (!steps || steps.length === 0) return false;
-
-  // Completely empty text always needs retry if there were steps
-  if (!text?.trim()) return true;
-
-  type StepLike = { toolCalls?: Array<{ toolName: string }>; text?: string };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data from AI SDK
-  const typedSteps = steps as StepLike[];
-  const hasToolSteps = typedSteps.some((s) => (s.toolCalls?.length ?? 0) > 0);
-  if (!hasToolSteps) return false;
-
-  const lastStep = typedSteps[typedSteps.length - 1];
-  const lastStepHasToolCalls = (lastStep?.toolCalls?.length ?? 0) > 0;
-  const lastStepText = lastStep?.text?.trim() ?? '';
-
-  // Retry if:
-  // - The last step itself has tool calls (response ended mid-tool-execution,
-  //   LLM output like "Let me check..." is just preamble before tool calls)
-  // - The last step (follow-up after tool results) has no text
-  return lastStepHasToolCalls || !lastStepText;
-}
-
-/**
- * Finish reasons that indicate a completed or non-retryable state.
- * - "stop": normal LLM completion
- * - "cancelled": user explicitly cancelled the generation
- * - "timeout-recovery" / "timeout-recovery-failed": already a recovery attempt
- */
-const NON_RETRYABLE_FINISH_REASONS = new Set([
-  'stop',
-  'cached',
-  'cancelled',
-  'content-filter',
-  'error',
-  'timeout-recovery',
-  'timeout-recovery-failed',
-]);
-
-/**
- * Determine whether the generation result should be retried based on
- * `finishReason`. Only `"stop"` (and other non-retryable custom reasons)
- * counts as a successful completion. All other finish reasons — `"length"`,
- * `"tool-calls"`, `"content-filter"`, `"unknown"`, `undefined`, etc. —
- * trigger a single retry without tools.
- *
- * Special case: `finishReason === "stop"` with empty text after tool calls
- * (known DeepSeek edge case) still triggers a retry.
- */
-function shouldRetryGeneration(
-  finishReason: string | undefined,
-  text: string | undefined,
-  steps: unknown[] | undefined,
-  alreadyRetried: boolean,
-): { retry: boolean; reason: string } {
-  if (alreadyRetried) return { retry: false, reason: 'already-retried' };
-
-  if (finishReason && NON_RETRYABLE_FINISH_REASONS.has(finishReason)) {
-    if (finishReason === 'stop' && needsToolResultRetry(text, steps)) {
-      return { retry: true, reason: 'stop-with-empty-tool-result' };
-    }
-    return { retry: false, reason: 'non-retryable-finish-reason' };
-  }
-
-  return {
-    retry: true,
-    reason: `finish-reason-${finishReason ?? 'undefined'}`,
-  };
-}
-
-/**
- * Extract unique tool names from AI SDK steps for fallback messages.
- */
-function extractToolNamesFromSteps(steps: unknown[]): string[] {
-  type StepWithToolCalls = { toolCalls?: Array<{ toolName: string }> };
-  const names = new Set<string>();
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data from AI SDK
-  for (const step of steps as StepWithToolCalls[]) {
-    for (const tc of step.toolCalls ?? []) {
-      names.add(tc.toolName);
-    }
-  }
-  return [...names];
-}
-
-/**
- * Walks the SDK's `savedMessages` array (one entry per saved chat
- * message during this generation) and returns the (toolCallId →
- * messageId) pairs for the named tool. Used by the post-generation hook
- * to backfill `userMemories.sourceMessageId` once the assistant turn
- * has been persisted (the convex-agent SDK does not surface the
- * assistant message id at tool-execute time).
- */
-function extractToolCallMessageMapping(
-  savedMessages: unknown,
-  toolName: string,
-): Array<{ toolCallId: string; messageId: string }> {
-  if (!Array.isArray(savedMessages)) return [];
-  const mappings: Array<{ toolCallId: string; messageId: string }> = [];
-  for (const entry of savedMessages) {
-    if (!isRecord(entry)) continue;
-    const messageId = typeof entry._id === 'string' ? entry._id : undefined;
-    if (!messageId) continue;
-    const message = entry.message;
-    if (!isRecord(message)) continue;
-    const content = message.content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if (!isRecord(part)) continue;
-      if (part.type !== 'tool-call') continue;
-      if (part.toolName !== toolName) continue;
-      const toolCallId =
-        typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
-      if (!toolCallId) continue;
-      mappings.push({ toolCallId, messageId });
-    }
-  }
-  return mappings;
-}
-
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-export { shouldRetryGeneration, needsToolResultRetry };
+export { needsToolResultRetry, shouldRetryGeneration } from './retry_policy';

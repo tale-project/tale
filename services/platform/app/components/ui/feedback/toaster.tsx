@@ -117,7 +117,12 @@ export function Toaster() {
         : createPortal(
             <ToastPrimitives.Viewport
               className={cn(
-                'fixed z-100 flex max-h-screen w-auto max-w-sm min-w-[18.75rem] flex-col p-3 pt-[calc(0.75rem+var(--safe-top))] pr-[calc(0.75rem+var(--safe-right))] pl-[calc(0.75rem+var(--safe-left))]',
+                // `pointer-events-none` on the viewport so its empty padding/gap
+                // area never intercepts clicks meant for the controls beneath it
+                // (e.g. the top-right "Create agent" button / the Save bar). Each
+                // toast Root re-enables `pointer-events-auto`, so toasts stay
+                // interactive (close / swipe) while the gaps click through.
+                'pointer-events-none fixed z-100 flex max-h-screen w-auto max-w-sm min-w-[18.75rem] flex-col p-3 pt-[calc(0.75rem+var(--safe-top))] pr-[calc(0.75rem+var(--safe-right))] pl-[calc(0.75rem+var(--safe-left))]',
                 viewportPositionClasses[position],
               )}
             />,

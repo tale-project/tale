@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { Wizard } from '@/app/components/ui/wizard/wizard';
-import { render, screen } from '@/test/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { FinishStep } from './finish-step';
 

@@ -1,5 +1,5 @@
-import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
-import { ragFetch } from '../../../lib/helpers/rag_config';
+import { internal } from '../../../_generated/api';
+import type { ActionCtx } from '../../../_generated/server';
 
 const MAX_CHUNK_WINDOW = 200;
 /** Stop fetching once accumulated content exceeds this size (~15K tokens). */
@@ -23,6 +23,7 @@ export interface DocumentChunksResult {
 }
 
 export async function fetchDocumentChunks(
+  ctx: ActionCtx,
   orgSlug: string,
   fileId: string,
 ): Promise<DocumentChunksResult> {
@@ -38,22 +39,26 @@ export async function fetchDocumentChunks(
   const MAX_ITERATIONS = 30;
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     const chunkEnd = chunkStart + MAX_CHUNK_WINDOW - 1;
-    const response = await ragFetch(
-      `/api/v1/documents/${encodeURIComponent(fileId)}/content?return_chunks=true&chunk_start=${chunkStart}&chunk_end=${chunkEnd}`,
-      // Default ragFetch timeout is 10s; sibling RAG ops in
-      // workflow_engine use 30–120s. Matching that here so chunk
-      // pagination doesn't fail mid-scan on a slow embedding tail.
-      { timeoutMs: 60_000, orgSlug },
+    // The RAG document-content fetch now lives in a Convex internal action;
+    // the HTTP call was replaced by an in-process `ctx.runAction`. A `null`
+    // return means the document was not found.
+    const result: DocumentContentResponse | null = await ctx.runAction(
+      internal.rag.documents.getContent,
+      {
+        orgSlug,
+        fileId,
+        chunkStart,
+        chunkEnd,
+        returnChunks: true,
+      },
     );
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
+    if (result === null) {
       throw new Error(
-        `RAG get_chunks error (${response.status}): ${errorText || 'Unknown error'}`,
+        `RAG get_chunks error: document "${fileId}" not found in the knowledge base.`,
       );
     }
 
-    const result = await fetchJson<DocumentContentResponse>(response);
     documentId = result.file_id;
     title = result.title;
     totalChunks = result.total_chunks;

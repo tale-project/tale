@@ -51,11 +51,9 @@ Microsoft 365 couvre aussi l'identité. La connecter sous **Paramètres > Intég
 
 ## Vertical : commerce et hospitalité
 
-| Intégration | Ce qu'elle fait                                             | Mise en place              |
-| ----------- | ----------------------------------------------------------- | -------------------------- |
-| **Shopify** | Lire commandes, clients et produits.                        | Token API Admin Shopify.   |
-| **Protel**  | PMS hôtelier — lire réservations et données invités.        | Clé API + ID de propriété. |
-| **Circuly** | Plateforme de commerce d'abonnement — lire les abonnements. | Clé API.                   |
+| Intégration | Ce qu'elle fait                      | Mise en place            |
+| ----------- | ------------------------------------ | ------------------------ |
+| **Shopify** | Lire commandes, clients et produits. | Token API Admin Shopify. |
 
 ## Services IA
 

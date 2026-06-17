@@ -2,7 +2,7 @@
  * Extract steps with outputs from execution variables
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 
 export function extractStepsWithOutputs(
   executionVars: Record<string, unknown>,

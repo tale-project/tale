@@ -4,7 +4,7 @@ import {
   DEFAULT_TWO_FACTOR_POLICY,
   type TwoFactorPolicyConfig,
 } from '../../lib/shared/schemas/governance';
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { DataModel } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';

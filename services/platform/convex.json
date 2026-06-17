@@ -9,10 +9,16 @@
       "tedious",
       "mysql2",
       "pg",
+      "postgres",
       "imapflow",
       "mailparser",
       "nodemailer",
-      "@modelcontextprotocol/sdk"
+      "@modelcontextprotocol/sdk",
+      "jsdom",
+      "canvas",
+      "zod",
+      "ai",
+      "yaml"
     ]
   },
   "aiFiles": {

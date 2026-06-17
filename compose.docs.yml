@@ -25,7 +25,12 @@ services:
         DOCS_SITE_URL: ${DOCS_SITE_URL:-https://tale.dev/docs}
 
     env_file:
-      - services/docs/.env
+      # Optional: the docs site runs fine on its build-arg defaults. Marked
+      # not-required so the file's absence doesn't fail compose validation for
+      # the whole project (the platform dev bring-up includes this file only to
+      # satisfy the `docs` override in compose.dev.yml — it never starts docs).
+      - path: services/docs/.env
+        required: false
 
     ports:
       - '3002:3002'

@@ -13,6 +13,7 @@
 import { components } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
 import { logJoinedOrganization } from '../../audit_logs/helpers';
+import { upsertMemberMirror } from '../../members/mirror_sync';
 import type {
   BetterAuthCreateResult,
   BetterAuthFindManyResult,
@@ -159,16 +160,29 @@ export async function findOrCreateUserFromHeaders(
 
       // Add the new user as a member of the existing organization.
       // Use 'member' as placeholder role - actual role comes from session/JWT.
-      await ctx.runMutation(components.betterAuth.adapter.create, {
-        input: {
-          model: 'member',
-          data: {
-            organizationId: existingOrgId,
-            userId,
-            role: 'member',
-            createdAt: Date.now(),
+      const memberCreatedAt = Date.now();
+      const createdMember: BetterAuthCreateResult = await ctx.runMutation(
+        components.betterAuth.adapter.create,
+        {
+          input: {
+            model: 'member',
+            data: {
+              organizationId: existingOrgId,
+              userId,
+              role: 'member',
+              createdAt: memberCreatedAt,
+            },
           },
         },
+      );
+      // Mirror the placeholder membership; the trustedRole JWT override is
+      // applied at read time, so the placeholder role is correct to store.
+      await upsertMemberMirror(ctx, {
+        memberId: createdMember._id,
+        userId,
+        organizationId: existingOrgId,
+        role: 'member',
+        createdAt: memberCreatedAt,
       });
 
       try {
@@ -204,16 +218,27 @@ export async function findOrCreateUserFromHeaders(
       const newOrgId = orgResult._id;
       organizationId = newOrgId;
 
-      await ctx.runMutation(components.betterAuth.adapter.create, {
-        input: {
-          model: 'member',
-          data: {
-            organizationId: newOrgId,
-            userId,
-            role: 'admin', // First user is always admin of their org
-            createdAt: Date.now(),
+      const adminMemberCreatedAt = Date.now();
+      const createdAdminMember: BetterAuthCreateResult = await ctx.runMutation(
+        components.betterAuth.adapter.create,
+        {
+          input: {
+            model: 'member',
+            data: {
+              organizationId: newOrgId,
+              userId,
+              role: 'admin', // First user is always admin of their org
+              createdAt: adminMemberCreatedAt,
+            },
           },
         },
+      );
+      await upsertMemberMirror(ctx, {
+        memberId: createdAdminMember._id,
+        userId,
+        organizationId: newOrgId,
+        role: 'admin',
+        createdAt: adminMemberCreatedAt,
       });
 
       try {

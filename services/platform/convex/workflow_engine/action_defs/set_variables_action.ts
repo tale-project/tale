@@ -18,7 +18,7 @@
 
 import { v } from 'convex/values';
 
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import { createDebugLog } from '../../lib/debug_log';
 import { jsonValueValidator } from '../../lib/validators/json';
 import { replaceVariables } from '../../lib/variables/replace_variables';

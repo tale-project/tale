@@ -53,7 +53,7 @@ export async function completeExecution(
   ) {
     await ctx.scheduler.runAfter(
       INTERMEDIATE_STORAGE_RETENTION_MS,
-      internal.wf_executions.internal_mutations.deleteStorageBlob,
+      internal.workflow_executions.internal_mutations.deleteStorageBlob,
       { storageId: oldVariablesStorageId },
     );
   }
@@ -66,7 +66,7 @@ export async function completeExecution(
   ) {
     await ctx.scheduler.runAfter(
       INTERMEDIATE_STORAGE_RETENTION_MS,
-      internal.wf_executions.internal_mutations.deleteStorageBlob,
+      internal.workflow_executions.internal_mutations.deleteStorageBlob,
       { storageId: oldOutputStorageId },
     );
   }
@@ -80,7 +80,7 @@ export async function completeExecution(
   if (finalVariablesStorageId || finalOutputStorageId) {
     await ctx.scheduler.runAfter(
       STORAGE_RETENTION_MS,
-      internal.wf_executions.internal_mutations.cleanupExecutionStorage,
+      internal.workflow_executions.internal_mutations.cleanupExecutionStorage,
       {
         executionId: args.executionId,
         variablesStorageId: finalVariablesStorageId,

@@ -1026,6 +1026,8 @@ function ChatRow({ chat }: { chat: ChatItem }) {
     <div
       ref={setNodeRef}
       {...(isEditing ? {} : listeners)}
+      data-testid="chat-history-row"
+      data-thread-id={chat._id}
       className={cn(
         'group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
         !isEditing &&

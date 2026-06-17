@@ -1,4 +1,4 @@
-import { getBoolean, isRecord } from '../../../lib/utils/type-guards';
+import { getBoolean, isRecord } from '../../../lib/utils/type-utils';
 
 /**
  * Shape returned by the integration-execution action when a write operation

@@ -25,7 +25,7 @@ import {
   isFilePolicyType,
   POLICY_SCHEMAS,
 } from '../../lib/shared/schemas/governance';
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { action, internalAction } from '../_generated/server';

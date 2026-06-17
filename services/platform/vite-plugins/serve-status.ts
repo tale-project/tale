@@ -1,6 +1,6 @@
 import type { ServerResponse } from 'node:http';
 
-import { type Plugin } from 'vite';
+import { type Connect, type Plugin } from 'vite';
 
 import {
   buildStatusFeed,
@@ -20,25 +20,32 @@ import {
 // both Hono routes need a Vite dev shim because Vite owns request handling
 // in dev.
 export function serveStatus(): Plugin {
+  // Shared by dev (`configureServer`) and prod-build preview
+  // (`configurePreviewServer`, the E2E serving path) — both expose a connect
+  // `middlewares` stack. No `apply: 'serve'` so the preview hook can fire.
+  const handler: Connect.NextHandleFunction = (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (!req.url) return next();
+    const path = req.url.split('?')[0];
+    if (path !== '/status' && path !== '/status.json') return next();
+
+    const acceptLanguage =
+      (Array.isArray(req.headers['accept-language'])
+        ? req.headers['accept-language'][0]
+        : req.headers['accept-language']) ?? '';
+    // Fire-and-forget — handler always terminates the response and
+    // never delegates to `next()`, so this can't double-respond.
+    // Errors are caught and rendered as 500.
+    void handleStatus(res, path, acceptLanguage, req.method);
+  };
+
   return {
     name: 'serve-status',
-    apply: 'serve',
     configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        if (req.method !== 'GET' && req.method !== 'HEAD') return next();
-        if (!req.url) return next();
-        const path = req.url.split('?')[0];
-        if (path !== '/status' && path !== '/status.json') return next();
-
-        const acceptLanguage =
-          (Array.isArray(req.headers['accept-language'])
-            ? req.headers['accept-language'][0]
-            : req.headers['accept-language']) ?? '';
-        // Fire-and-forget — handler always terminates the response and
-        // never delegates to `next()`, so this can't double-respond.
-        // Errors are caught and rendered as 500.
-        void handleStatus(res, path, acceptLanguage, req.method);
-      });
+      server.middlewares.use(handler);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(handler);
     },
   };
 }

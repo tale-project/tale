@@ -22,7 +22,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import type { PlanApprovalMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 

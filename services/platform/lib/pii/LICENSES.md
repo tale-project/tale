@@ -8,7 +8,7 @@ Raw datasets are never bundled with the engine. The maintainer workflow
 at [`scripts/pii-fixtures/refresh/`](../../scripts/pii-fixtures/refresh/)
 extracts small, locale-keyed slices from those datasets and commits the
 results to [`scripts/pii-fixtures/datasets/`](../../scripts/pii-fixtures/datasets/).
-Generated fixtures under [`test/pii/fixtures/`](../../test/pii/fixtures/)
+Generated fixtures under [`tests/pii/fixtures/`](../../tests/pii/fixtures/)
 are derivative works of those committed slices.
 
 ## Upstream sources

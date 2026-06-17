@@ -181,8 +181,8 @@ describe('rollback gate', () => {
 
     await rollback({ env }, { pullImage: pullImageMock });
 
-    // platform, rag, crawler — the rotatable services
-    expect(pullImageMock).toHaveBeenCalledTimes(3);
+    // platform — the only rotatable service
+    expect(pullImageMock).toHaveBeenCalledTimes(1);
     expect(pullImageMock).toHaveBeenCalledWith(
       'ghcr.io/tale-project/tale/tale-platform:0.9.2',
     );

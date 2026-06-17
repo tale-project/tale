@@ -65,6 +65,8 @@ const files = [
   'vite.config.ts.hbs',
   'vitest.config.ts.hbs',
   'vitest.ui.config.ts.hbs',
+  'playwright.config.ts.hbs',
+  'tests/e2e/specs/smoke.spec.ts.hbs',
   'tailwind.config.ts.hbs',
   'postcss.config.mjs',
   'index.html.hbs',

@@ -6,7 +6,7 @@
     "STORYBOOK_DISABLE_TELEMETRY",
     "TELEMETRY_DISABLED",
     "SCARF_ANALYTICS",
-    "HF_HUB_DISABLE_TELEMETRY"
+    "SANDBOX_TOKEN"
   ],
   "tasks": {
     "setup": {
@@ -17,16 +17,10 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
-    "@tale/crawler#build": {
-      "outputs": []
-    },
     "@tale/db#build": {
       "outputs": []
     },
     "@tale/proxy#build": {
-      "outputs": []
-    },
-    "@tale/rag#build": {
       "outputs": []
     },
     "dev": {
@@ -81,6 +75,9 @@
       "persistent": true
     },
     "test:ui": {
+      "outputs": []
+    },
+    "test:browser": {
       "outputs": []
     },
     "test:e2e": {

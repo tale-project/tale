@@ -23,7 +23,7 @@ export interface IncrementalConfig {
 }
 
 export interface IntegrationDataSourceConfig {
-  /** Integration slug, e.g. 'protel', 'shopify'. */
+  /** Integration slug, e.g. 'shopify', 'stripe'. */
   integrationName: string;
   /** Read-only integration operation, e.g. 'list_guests', 'list_orders'. */
   fetchOperation: string;

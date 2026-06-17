@@ -12,7 +12,6 @@ import { zCustomMutation } from 'convex-helpers/server/zod4';
 
 import type { DataModel } from '../../../_generated/dataModel';
 import { mutation, type MutationCtx } from '../../../_generated/server';
-import { getUserTeamIds } from '../../get_user_teams';
 import { getAuthUserIdentity } from '../auth/get_auth_user_identity';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import { rlsRules } from './rls_rules';
@@ -52,14 +51,11 @@ export const zMutationWithRLS = zCustomMutation(
   customCtx(async (ctx: MutationCtx) => {
     const user = await getAuthUserIdentity(ctx);
 
-    const [userOrganizations, userTeamIds] = user
-      ? await Promise.all([
-          getUserOrganizations(ctx, user),
-          getUserTeamIds(ctx, user.userId).then((ids) => new Set(ids)),
-        ])
-      : [[], new Set<string>()];
+    // Team IDs are resolved lazily inside rlsRules (only team-scoped tables
+    // need them); the org lookup is the one cross-component call we still make.
+    const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
 
-    const rules = await rlsRules(ctx, { user, userOrganizations, userTeamIds });
+    const rules = await rlsRules(ctx, { user, userOrganizations });
 
     return {
       db: wrapDatabaseWriter<

@@ -48,12 +48,16 @@ Replace the values that ship in `.env.example` before exposing the instance — 
 
 ## Database
 
-| Name           | Default                        | Description                                                                                                                        |
-| -------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `DB_PASSWORD`  | `tale_password_change_me`      | **Required.** Password for the self-hosted Postgres user. Change before production. Used by every service in compose.              |
-| `POSTGRES_URL` | constructed from `DB_PASSWORD` | **Optional.** Override the auto-constructed connection URL. Use when pointing at an external Postgres or a non-standard host/port. |
+Tale runs two Postgres databases: the operational store (`db`, port 5432) behind the Convex backend, and the knowledge corpus (`knowledge-db`, port 5433) that holds document chunks, embeddings, and crawled pages. Both are ParadeDB and share `DB_PASSWORD`, but they are independent — point either at external infrastructure on its own.
 
-The auto-constructed form is `postgresql://tale:${DB_PASSWORD}@db:5432`. Convex expects the URL without a database name; the name is derived from the instance configuration.
+| Name                     | Default                                                             | Description                                                                                                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DB_PASSWORD`            | `tale_password_change_me`                                           | **Required.** Password for the self-hosted Postgres user. Change before production. Used by both database containers.                                                                                 |
+| `POSTGRES_URL`           | constructed from `DB_PASSWORD`                                      | **Optional.** Override the auto-constructed operational-database URL. Use when pointing at an external Postgres or a non-standard host/port.                                                          |
+| `KNOWLEDGE_DATABASE_URL` | `postgresql://tale:${DB_PASSWORD}@knowledge-db:5432/tale_knowledge` | **Optional.** Connection URL the Convex backend uses for the knowledge corpus. Override to relocate the corpus to your own managed ParadeDB — the data-residency-sensitive store moves independently. |
+| `KNOWLEDGE_DB_NAME`      | `tale_knowledge`                                                    | **Optional.** Name of the knowledge database. The bundled `knowledge-db` container creates this database on first boot.                                                                               |
+
+The auto-constructed operational form is `postgresql://tale:${DB_PASSWORD}@db:5432`. Convex expects this URL without a database name; the name is derived from the instance configuration. The knowledge corpus lives in `tale_knowledge` with the `private_knowledge` and `public_web` schemas; the **Settings > Data residency** UI writes a richer per-store config than these raw variables, covered in [Data residency](/self-hosted/configuration/data-residency).
 
 ## Observability
 
@@ -63,7 +67,7 @@ The auto-constructed form is `postgresql://tale:${DB_PASSWORD}@db:5432`. Convex 
 | `SENTRY_TRACES_SAMPLE_RATE` | unset   | Optional sample rate for performance traces (`0.0`–`1.0`). Default behaviour depends on the deployment.                                |
 | `METRICS_BEARER_TOKEN`      | unset   | Bearer token required to access the Prometheus `/metrics/*` endpoints. Leave unset to keep metrics endpoints unreachable from outside. |
 
-Setting `METRICS_BEARER_TOKEN` exposes four endpoints behind the token: `/metrics/crawler`, `/metrics/rag`, `/metrics/platform`, and `/metrics/convex` (Convex's 261 built-in metrics). See [Observability config](/self-hosted/configuration/observability-config) for the scrape config.
+Setting `METRICS_BEARER_TOKEN` exposes two endpoints behind the token: `/metrics/platform` and `/metrics/convex` (Convex's 261 built-in metrics, which now carry the RAG and crawl timings as well). See [Observability config](/self-hosted/configuration/observability-config) for the scrape config.
 
 ## Provider secrets encryption
 
@@ -89,19 +93,19 @@ Optional toggles for features not enabled by default. Each flag turns one featur
 
 ## RAG retrieval tuning
 
-Optional knobs for the RAG service's search pipeline. All carry the `RAG_` prefix and are read by the `tale-rag` container at boot; after changing one, run `docker compose restart tale-rag` for it to take effect.
+Optional knobs for knowledge-base search. The in-process RAG path (Convex node-actions) re-scores results with a cross-encoder when re-ranking is on. All carry the `RAG_` prefix and are read by the `platform` and `convex` containers at boot; after changing one, run `docker compose restart platform convex` for it to take effect.
 
-| Name                         | Default                                | Description                                                                                                                                             |
-| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RAG_RERANKING_ENABLED`      | `false`                                | Re-scores the merged BM25 + vector candidates with a cross-encoder before results are returned. Improves precision at the cost of per-query latency.    |
-| `RAG_RERANKING_MODEL`        | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-encoder model identifier. The `local` provider downloads it from Hugging Face on first use (about 90 MB, cached in the `rag-data` volume).        |
-| `RAG_RERANKING_PROVIDER`     | `local`                                | `local` runs the model on CPU inside the RAG container; `api` posts the candidates to an external `/rerank` endpoint (Cohere/Jina-compatible contract). |
-| `RAG_RERANKING_TOP_K`        | `10`                                   | Maximum number of results the reranker returns. The response never exceeds the request's own `top_k`.                                                   |
-| `RAG_RERANKING_CANDIDATES`   | `30`                                   | Size of the candidate pool fed to the reranker. A wider pool improves re-scoring quality and costs proportionally more time per query.                  |
-| `RAG_RERANKING_API_BASE_URL` | unset                                  | Base URL for `provider=api`; the service calls `{base_url}/rerank`. Required when the provider is `api`.                                                |
-| `RAG_RERANKING_API_KEY`      | unset                                  | Bearer token sent to the external rerank endpoint. Leave unset for unauthenticated endpoints.                                                           |
+| Name                         | Default                                | Description                                                                                                                                                                    |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RAG_RERANKING_ENABLED`      | `false`                                | Re-scores the merged BM25 + vector candidates with a cross-encoder before results are returned. Improves precision at the cost of per-query latency.                           |
+| `RAG_RERANKING_MODEL`        | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-encoder model identifier passed to the rerank provider.                                                                                                                  |
+| `RAG_RERANKING_PROVIDER`     | `local`                                | Must be set to `api` to enable re-ranking — it posts the candidates to an external `/rerank` endpoint (Cohere/Jina-compatible). `local` is no longer supported and fails fast. |
+| `RAG_RERANKING_TOP_K`        | `10`                                   | Maximum number of results the reranker returns. The response never exceeds the request's own `top_k`.                                                                          |
+| `RAG_RERANKING_CANDIDATES`   | `30`                                   | Size of the candidate pool fed to the reranker. A wider pool improves re-scoring quality and costs proportionally more time per query.                                         |
+| `RAG_RERANKING_API_BASE_URL` | unset                                  | Base URL for the rerank provider; the platform calls `{base_url}/rerank`. Required when re-ranking is enabled.                                                                 |
+| `RAG_RERANKING_API_KEY`      | unset                                  | Bearer token sent to the external rerank endpoint. Leave unset for unauthenticated endpoints.                                                                                  |
 
-Re-ranking ships disabled because the local cross-encoder costs memory (the ~90 MB model stays resident) and per-query latency (roughly 5–15 ms per candidate on CPU). Enable it when retrieval precision matters more than response time, and prefer `provider=api` when you already operate a hosted rerank service. Air-gapped deployments must pre-seed the Hugging Face cache inside the `rag-data` volume — otherwise the first re-ranked query tries to download the model and fails closed to plain hybrid ranking.
+Re-ranking ships disabled because it adds per-query latency and depends on an external endpoint. Enable it — by setting `RAG_RERANKING_PROVIDER=api` and pointing `RAG_RERANKING_API_BASE_URL` at a hosted rerank service — when retrieval precision matters more than response time. There is no in-process model to download or cache; with re-ranking off, search returns the plain merged BM25 + vector ranking.
 
 ## Sessions
 

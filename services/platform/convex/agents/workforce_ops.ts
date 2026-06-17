@@ -25,7 +25,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { RESERVED_AGENT_SLUGS } from '../../lib/shared/constants/agents';
 import { agentWorkforceConfigSchema } from '../../lib/shared/schemas/governance';
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { type ActionCtx, internalAction } from '../_generated/server';
 import { loadDelegateAgents } from '../agent_tools/delegation/load_delegation_agents';

@@ -16,7 +16,7 @@ vi.mock('../../_generated/api', () => ({
   },
 }));
 
-vi.mock('../../../lib/utils/type-guards', () => ({
+vi.mock('../../../lib/utils/type-utils', () => ({
   isRecord: (v: unknown): v is Record<string, unknown> =>
     typeof v === 'object' && v !== null,
   getString: (obj: Record<string, unknown>, key: string) => {

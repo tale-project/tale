@@ -8,9 +8,9 @@ description: Run task work on your own machines with local coding-agent CLIs (Cl
 ## Setup
 
 ```sh
-bunx tale-daemon setup    # base URL, API key, workspace, permission ceiling
-bunx tale-daemon start    # register + claim loop (Ctrl-C drains the run)
-bunx tale-daemon status   # config, detected CLIs, server connectivity
+tale daemon setup    # base URL, API key, workspace, permission ceiling
+tale daemon start    # register + claim loop (Ctrl-C drains the run)
+tale daemon status   # config, detected CLIs, server connectivity
 ```
 
 `setup` generates a stable daemon identity and stores configuration at `~/.tale-daemon/config.json` (mode 600). Use a normal Tale API key (**Settings → API → REST**); set `TALE_DAEMON_API_KEY` to keep the key out of the file. Connected daemons appear under **Settings → API → Runtimes** with live status.

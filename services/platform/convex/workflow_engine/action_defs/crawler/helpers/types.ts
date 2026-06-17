@@ -26,21 +26,6 @@ export type CrawlerActionParams =
       timeout?: number;
     };
 
-// Raw response from crawler service
-export interface DiscoverUrlsRawData {
-  success: boolean;
-  domain: string;
-  urls_discovered: number;
-  total_urls: number;
-  urls: Array<{
-    url: string;
-    status: string;
-    lastmod: string | null;
-  }>;
-  is_complete: boolean;
-  offset: number;
-}
-
 // Simplified result returned by action (only URL strings to avoid memory issues)
 export interface DiscoverUrlsData {
   success: boolean;
@@ -65,20 +50,6 @@ export interface FetchUrlsData {
     structured_data?: Record<string, unknown>;
   }>;
   failed: Array<{ url: string; status_code: number | null; error: string }>;
-}
-
-// Response from GET /api/v1/websites/{domain}/urls
-export interface QueryUrlsRawData {
-  domain: string;
-  urls: Array<{
-    url: string;
-    content_hash: string | null;
-    status: string;
-    last_crawled_at: number | null;
-  }>;
-  total: number;
-  offset: number;
-  has_more: boolean;
 }
 
 export interface QueryUrlsResult {

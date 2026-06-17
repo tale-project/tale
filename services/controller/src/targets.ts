@@ -1,11 +1,14 @@
 // Resolving which compose containers a restart targets, across deploy
-// topologies. The CLI deploys rotatable services blue/green — at runtime `rag`
-// is compose service `rag-<color>` under project `<project>-<color>` (container
-// `tale-rag-blue`) — while the hand-written compose runs them as plain `rag`
-// under `<project>`. Matching both shapes keeps "Apply & restart" working on
-// every deployment. Stateful services (`convex`) are never colored.
+// topologies. The CLI deploys rotatable services blue/green — at runtime
+// `platform` is compose service `platform-<color>` under project
+// `<project>-<color>` (container `tale-platform-blue`) — while the hand-written
+// compose runs them as plain `platform` under `<project>`. Matching both shapes
+// keeps "Apply & restart" working on every deployment. Stateful services
+// (`convex`) are never colored. The controller's allowlist currently scopes
+// restarts to `convex` only, so no colored candidate is produced today; the set
+// stays here so re-adding a rotatable target needs no machinery change.
 
-const ROTATABLE = new Set(['rag']);
+const ROTATABLE = new Set<string>();
 const COLORS = ['blue', 'green'] as const;
 
 /** Candidate compose service labels for a service across blue/green topologies. */

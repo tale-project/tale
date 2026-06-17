@@ -10,3 +10,15 @@ bun run --filter @tale/web test
 ```
 
 Stack: Vite · TanStack Router · React 19 · Tailwind v4 (extends `@tale/ui/tailwind-preset`) · framer-motion · Zod · Vitest.
+
+## Configuration
+
+All config is read from `process.env` — no `.env` is required, defaults work out
+of the box. Set these at deploy time (compose, systemd, K8s), or via a local
+`.env` if you prefer:
+
+- `PORT` — HTTP listen port (default `3001`; the Dockerfile already sets it).
+- `WEB_DISCORD_WEBHOOK_URL` — enables the Contact / Request Demo forms
+  (`/api/forms/submit` forwards a Discord embed here). If unset, the endpoint
+  returns `503` and the forms are disabled. Create one in Discord via Server
+  Settings → Integrations → Webhooks → New Webhook.

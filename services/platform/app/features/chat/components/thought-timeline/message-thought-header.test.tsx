@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/tests/utils/a11y';
+
 import type { ThoughtStep } from '../../utils/thought-step-types';
 import { MessageThoughtHeader } from './message-thought-header';
 
@@ -209,5 +211,29 @@ describe('MessageThoughtHeader', () => {
     expect(
       screen.getByText('Thought about this privately'),
     ).toBeInTheDocument();
+  });
+
+  // Mirrors the e2e "reasoning: streams a collapsed Thinking disclosure that
+  // expands on click": the latched-summary toggle is collapsed by default
+  // (aria-expanded=false, prose hidden) and reveals the reasoning prose on click
+  // (aria-expanded=true, prose visible) — with the expanded state a11y-clean.
+  it('is accessible in the expanded reasoning state', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MessageThoughtHeader
+        {...base}
+        isStreaming={false}
+        hasAnswerStarted
+        durationMs={3000}
+        hasReasoning
+        reasoningSteps={[reasoning('r1', 'Reasoning prose alpha')]}
+      />,
+    );
+    const toggle = screen.getByRole('button', { name: /Thought for 3s/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(/Reasoning prose alpha/)).toBeInTheDocument();
+    await checkAccessibility(container);
   });
 });

@@ -26,7 +26,7 @@ describe('executeHttpRequest allowedHosts enforcement', () => {
     await expect(
       executeHttpRequest(
         { url: 'https://evil.com/api/data', options: { method: 'GET' } },
-        ['circuly.io'],
+        ['example-api.com'],
       ),
     ).rejects.toThrow('HTTP request to "evil.com" blocked');
 
@@ -40,7 +40,7 @@ describe('executeHttpRequest allowedHosts enforcement', () => {
           url: 'https://malicious.example.com/steal',
           options: { method: 'GET' },
         },
-        ['circuly.io', 'shopify.com'],
+        ['example-api.com', 'shopify.com'],
       ),
     ).rejects.toThrow('HTTP request to "malicious.example.com" blocked');
 
@@ -51,18 +51,18 @@ describe('executeHttpRequest allowedHosts enforcement', () => {
     await expect(
       executeHttpRequest(
         { url: 'https://evil.com/api', options: { method: 'GET' } },
-        ['circuly.io', 'shopify.com'],
+        ['example-api.com', 'shopify.com'],
       ),
-    ).rejects.toThrow('allowedHosts [circuly.io, shopify.com]');
+    ).rejects.toThrow('allowedHosts [example-api.com, shopify.com]');
   });
 
   it('should allow requests to exact matching hosts', async () => {
     await executeHttpRequest(
       {
-        url: 'https://circuly.io/api/products',
+        url: 'https://example-api.com/api/products',
         options: { method: 'GET' },
       },
-      ['circuly.io'],
+      ['example-api.com'],
     );
 
     expect(globalThis.fetch).toHaveBeenCalledOnce();
@@ -71,10 +71,10 @@ describe('executeHttpRequest allowedHosts enforcement', () => {
   it('should allow requests to subdomains of allowedHosts', async () => {
     await executeHttpRequest(
       {
-        url: 'https://api.circuly.io/api/products',
+        url: 'https://api.example-api.com/api/products',
         options: { method: 'GET' },
       },
-      ['circuly.io'],
+      ['example-api.com'],
     );
 
     expect(globalThis.fetch).toHaveBeenCalledOnce();
@@ -110,14 +110,14 @@ describe('executeHttpRequest allowedHosts enforcement', () => {
     expect(globalThis.fetch).toHaveBeenCalledOnce();
   });
 
-  it('should prevent subdomain spoofing (e.g., evilcirculy.io)', async () => {
+  it('should prevent subdomain spoofing (e.g., evilexample-api.com)', async () => {
     await expect(
       executeHttpRequest(
         {
-          url: 'https://evilcirculy.io/api/data',
+          url: 'https://evilexample-api.com/api/data',
           options: { method: 'GET' },
         },
-        ['circuly.io'],
+        ['example-api.com'],
       ),
     ).rejects.toThrow('blocked');
 

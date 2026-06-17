@@ -81,7 +81,9 @@ export interface EncryptedSecret {
 export function encryptSecret(plaintext: string): EncryptedSecret {
   const key = readKey();
   const nonce = randomBytes(NONCE_BYTES);
-  const cipher = createCipheriv('aes-256-gcm', key, nonce);
+  const cipher = createCipheriv('aes-256-gcm', key, nonce, {
+    authTagLength: 16,
+  });
   const ciphertext = Buffer.concat([
     cipher.update(plaintext, 'utf-8'),
     cipher.final(),
@@ -109,6 +111,8 @@ export function decryptSecret(input: EncryptedSecret): string {
     'aes-256-gcm',
     key,
     Buffer.from(input.nonce, 'base64'),
+    // Pin the GCM tag to 128 bits so a truncated-tag forgery attempt is rejected.
+    { authTagLength: 16 },
   );
   decipher.setAuthTag(Buffer.from(input.authTag, 'base64'));
   const plaintext = Buffer.concat([

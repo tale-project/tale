@@ -16,6 +16,7 @@ import { exec } from '../docker/exec';
 import { findChildProject, findProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
 import { withLock } from '../state/with-lock';
+import { getAdminKey } from './convex-admin';
 import { init } from './init';
 
 async function assertDockerAvailable(): Promise<void> {
@@ -107,6 +108,33 @@ async function waitForHealthAndOpenBrowser(
     `Services did not become healthy within ${maxAttempts}s. Check logs: docker compose -p ${getProjectId()}-dev logs`,
   );
   return false;
+}
+
+/**
+ * Derive the Convex dashboard admin key once the platform container is up,
+ * retrying while it boots. Best-effort: the key is a convenience for reaching
+ * the dashboard, so a failure here must never fail `tale start` — callers log
+ * and move on. Returns null if the key can't be derived before `signal` aborts
+ * or the attempt budget runs out.
+ */
+async function fetchAdminKeyWhenReady(
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const maxAttempts = 60;
+  for (let i = 0; i < maxAttempts; i++) {
+    if (signal?.aborted) return null;
+    try {
+      return await getAdminKey();
+    } catch (err) {
+      // Expected while the container starts (no container yet / generate_key
+      // not ready). Log at debug so it's available when diagnosing, then retry.
+      logger.debug(
+        `Admin key fetch attempt ${i + 1} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    await Bun.sleep(1000);
+  }
+  return null;
 }
 
 const URL_PATTERN = /https?:\/\/\S+/;
@@ -269,6 +297,16 @@ export async function start(options: StartOptions): Promise<void> {
           `${getProjectId()}-dev logs`,
       );
     }
+    // Surface the Convex dashboard admin key so operators don't have to
+    // discover `tale convex admin`. Deterministic from INSTANCE_SECRET, so it's
+    // stable across restarts. Best-effort — never blocks or fails the command.
+    const adminKey = await fetchAdminKeyWhenReady(abortController.signal);
+    if (adminKey) {
+      logger.blank();
+      logger.info('Convex dashboard:');
+      logger.info(`  URL:       ${url}/convex-dashboard`);
+      logger.info(`  Admin key: ${adminKey}`);
+    }
     logger.blank();
     logger.info(
       'Per-org config (`<org>/agents/`, `<org>/workflows/`, `<org>/integrations/`, `<org>/branding/`, `<org>/providers/`, `<org>/skills/`)',
@@ -284,6 +322,15 @@ export async function start(options: StartOptions): Promise<void> {
   // Interactive mode: status header + filtered log streaming
   const header = new StatusHeader(version);
   header.setup();
+
+  // Derive the dashboard admin key concurrently and drop it into the ready
+  // block when it lands. Best-effort: a failure just leaves the key off the
+  // header (logged at debug), it never disrupts the foreground compose stream.
+  const adminKeyTask = fetchAdminKeyWhenReady(abortController.signal).then(
+    (key) => {
+      if (key) header.setAdminKey(key);
+    },
+  );
 
   // State for parsing platform status block
   let capturingStatus = false;
@@ -347,6 +394,7 @@ export async function start(options: StartOptions): Promise<void> {
   // Stop health polling now that docker compose has exited
   abortController.abort();
   await browserTask;
+  await adminKeyTask;
   header.cleanup();
 
   if (!result.success && !isUserInterrupt(result.exitCode)) {

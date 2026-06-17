@@ -30,7 +30,7 @@ export default defineConfig({
             'node_modules',
             'dist',
             // Playwright E2E suite — owned by playwright.config.ts.
-            'e2e/**',
+            'tests/e2e/**',
             '**/*.config.{js,ts}',
             '**/.{idea,git,cache,output,temp}/**',
             'app/components/**/*.test.{ts,tsx}',
@@ -40,8 +40,11 @@ export default defineConfig({
             // PII tests run in their own project below — they need
             // `isolate: false` to amortize the pre-built scrubber across
             // 67k+ data-driven cases.
-            'test/pii/**',
+            'tests/pii/**',
             'lib/pii/**/*.test.{ts,tsx}',
+            // Bun container/integration suites (`*-test.ts`) are run directly
+            // via `bun tests/integration/<name>.ts`, never by vitest.
+            'tests/integration/**',
           ],
         },
       },
@@ -50,7 +53,7 @@ export default defineConfig({
         test: {
           name: 'pii',
           environment: 'node',
-          include: ['test/pii/**/*.test.ts', 'lib/pii/**/*.test.ts'],
+          include: ['tests/pii/**/*.test.ts', 'lib/pii/**/*.test.ts'],
           // 67k+ data-driven cases — disable per-test isolation to
           // amortize the pre-built `Scrubber` across cases. The detector
           // is pure; tests do not share mutable state.
@@ -70,7 +73,7 @@ export default defineConfig({
             instances: [{ browser: 'chromium' }],
           },
           include: ['**/*.browser.test.{ts,tsx}'],
-          exclude: ['node_modules', 'dist', 'e2e/**'],
+          exclude: ['node_modules', 'dist', 'tests/e2e/**'],
         },
       },
       {
@@ -78,12 +81,14 @@ export default defineConfig({
         test: {
           name: 'client',
           environment: 'jsdom',
-          setupFiles: ['./test/setup-ui.ts'],
+          setupFiles: ['./tests/setup-ui.ts'],
           include: [
             'app/components/**/*.test.{ts,tsx}',
             'app/features/**/*.test.{ts,tsx}',
             'app/hooks/**/*.test.{ts,tsx}',
           ],
+          // `*.browser.test.tsx` belong to the `browser` project (real Chromium).
+          exclude: ['node_modules', 'dist', '**/*.browser.test.{ts,tsx}'],
         },
       },
       {

@@ -17,16 +17,11 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { internal } from '../../_generated/api';
 import { stripReservedPromptTags } from '../../lib/agent_response/sanitize_prompt';
 import { createDebugLog } from '../../lib/debug_log';
-import {
-  isUpstreamHttpError,
-  UpstreamHttpError,
-} from '../../lib/errors/upstream_http_error';
+import { isUpstreamHttpError } from '../../lib/errors/upstream_http_error';
 import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
-import { ragFetch } from '../../lib/helpers/rag_config';
 import {
   MAX_FOLDER_PATH_LENGTH,
   normalizeFolderPath,
@@ -62,10 +57,6 @@ const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 const DEFAULT_TOP_K = 10;
 const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
-// Aligns with workflow_engine/action_defs/rag/rag_action.ts. The 10s
-// ragFetch default is too tight for /search whenever the embedding
-// provider hits a cold path.
-const SEARCH_TIMEOUT_MS = 30_000;
 
 /**
  * Resolve the agent's pre-configured RAG scope (the default-search
@@ -317,17 +308,46 @@ RESPONSE (list_indexed):
           };
         }
 
-        let response: Response;
+        interface RetrieveResponse {
+          file_id: string;
+          title: string | null;
+          total_chunks: number;
+          total_chars: number;
+          chunk_range: { start: number; end: number };
+          chunks: Array<{ index: number; content: string }> | null;
+          source_created_at: string | null;
+          source_modified_at: string | null;
+        }
+
+        // The RAG document-content fetch now lives in a Convex internal
+        // action; the HTTP call was replaced by an in-process
+        // `ctx.runAction`. A `null` return means the document is not found
+        // (the action's not-found contract) → safe summary. The action
+        // throws plain Errors on failure, caught below.
+        let result: RetrieveResponse;
         try {
-          response = await ragFetch(
-            `/api/v1/documents/${encodeURIComponent(args.fileId)}/content?return_chunks=true&chunk_start=${start}&chunk_end=${end}`,
-            { orgSlug: retrieveOrgSlug },
+          const retrieved = await ctx.runAction(
+            internal.rag.documents.getContent,
+            {
+              orgSlug: retrieveOrgSlug,
+              fileId: args.fileId,
+              chunkStart: start,
+              chunkEnd: end,
+              returnChunks: true,
+            },
           );
+          if (retrieved === null) {
+            return {
+              success: false,
+              response:
+                'File is not accessible from this thread or does not exist.',
+            };
+          }
+          result = retrieved;
         } catch (fetchError) {
-          // ragFetch SSRF guard, abort, network, etc. — agent-facing
-          // tool path returns a safe summary instead of throwing so
-          // the agent loop can recover with a user-visible "not
-          // reachable" message.
+          // Agent-facing tool path returns a safe summary instead of
+          // throwing so the agent loop can recover with a user-visible
+          // "not reachable" message.
           if (isUpstreamHttpError(fetchError)) {
             return { success: false, response: fetchError.safeMessage };
           }
@@ -342,32 +362,6 @@ RESPONSE (list_indexed):
             response: 'Knowledge base temporarily unavailable.',
           };
         }
-
-        if (!response.ok) {
-          const errorText = await response.text().catch(() => '');
-          const err = UpstreamHttpError.fromResponse(
-            'rag',
-            response,
-            errorText,
-            `/api/v1/documents/${args.fileId}/content`,
-          );
-          // Agent-facing tool path: return the safe summary instead of throwing
-          // so the agent can recover (e.g. show the user "not found" rather than
-          // an opaque tool error).
-          return { success: false, response: err.safeMessage };
-        }
-
-        interface RetrieveResponse {
-          file_id: string;
-          title: string | null;
-          total_chunks: number;
-          total_chars: number;
-          chunk_range: { start: number; end: number };
-          chunks: Array<{ index: number; content: string }> | null;
-          source_created_at: string | null;
-          source_modified_at: string | null;
-        }
-        const result = await fetchJson<RetrieveResponse>(response);
 
         // SEC1: retrieved chunks land in the model context as-is. Strip
         // reserved wrapper tags (same defense as the search-path sanitizer)
@@ -492,15 +486,6 @@ RESPONSE (list_indexed):
 
       const folderPath = normalizeFolderPath(args.folderPath);
 
-      const payload = {
-        query: args.query,
-        file_ids: fileIds,
-        top_k: args.topK ?? DEFAULT_TOP_K,
-        similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
-        include_metadata: true,
-        ...(folderPath ? { folder_path: folderPath } : {}),
-      };
-
       debugLog('tool:rag_search requesting search', {
         fileCount: fileIds.length,
         fileIds,
@@ -523,26 +508,54 @@ RESPONSE (list_indexed):
             response: 'Knowledge base temporarily unavailable.',
           };
         }
-        const response = await ragFetch('/api/v1/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          timeoutMs: SEARCH_TIMEOUT_MS,
+
+        // The RAG search logic now lives in a Convex internal action; the
+        // HTTP call was replaced by an in-process `ctx.runAction`. The action
+        // returns `{ results, usage }`; reconstruct the `SearchResponse`
+        // shape the downstream formatting/citation code expects. The action
+        // throws plain Errors on failure → the non-upstream catch branch
+        // below returns a safe summary.
+        const searchResult = await ctx.runAction(internal.rag.search.search, {
           orgSlug: searchOrgSlug,
+          query: args.query,
+          fileIds,
+          topK: args.topK ?? DEFAULT_TOP_K,
+          similarityThreshold: DEFAULT_SIMILARITY_THRESHOLD,
+          folderPath: folderPath ?? null,
         });
-        // searchOrgSlug guaranteed non-null past the OrNull guard above
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw UpstreamHttpError.fromResponse(
-            'rag',
-            response,
-            errorText,
-            '/api/v1/search',
-          );
-        }
-
-        const result = await fetchJson<SearchResponse>(response);
+        // The action returns `file_id` / `filename` as `string | null`;
+        // `SearchResult` uses optional `string`. Normalize null → undefined.
+        const mappedResults: SearchResult[] = searchResult.results.map((r) => {
+          const mapped: SearchResult = {
+            content: r.content,
+            score: r.score,
+            source_created_at: r.source_created_at,
+            source_modified_at: r.source_modified_at,
+          };
+          if (r.file_id != null) mapped.file_id = r.file_id;
+          if (r.filename != null) mapped.filename = r.filename;
+          return mapped;
+        });
+        // The action's `usage` is an `EmbeddingUsage`
+        // (`{ promptTokens, totalTokens, model }`); map it to the
+        // `ServiceUsageInfo` shape downstream code reads
+        // (`{ input_tokens, output_tokens?, total_tokens, model? }`).
+        const result: SearchResponse = {
+          success: true,
+          query: args.query,
+          results: mappedResults,
+          total_results: mappedResults.length,
+          processing_time_ms: 0,
+          ...(searchResult.usage
+            ? {
+                usage: {
+                  input_tokens: searchResult.usage.promptTokens,
+                  total_tokens: searchResult.usage.totalTokens,
+                  model: searchResult.usage.model,
+                },
+              }
+            : {}),
+        };
 
         // SEC1 (prompt-injection defense): `<system>…</system>` and the
         // other reserved-wrapper tag stripping happens inside

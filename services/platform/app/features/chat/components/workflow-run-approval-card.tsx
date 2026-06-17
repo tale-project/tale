@@ -46,7 +46,7 @@ import { useT } from '@/lib/i18n/client';
 import type { HumanInputField } from '@/lib/shared/schemas/approvals';
 import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
-import { stripLeadingPunctuation } from '@/lib/utils/text';
+import { stripLeadingPunctuation } from '@/lib/utils/string';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { HumanInputFields } from './human-input-fields';

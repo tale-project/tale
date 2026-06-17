@@ -1,4 +1,4 @@
-import { getString, isRecord } from '../../lib/utils/type-guards';
+import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx, MutationCtx } from '../_generated/server';

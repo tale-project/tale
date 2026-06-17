@@ -1,9 +1,9 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack, VStack } from '@tale/ui/layout';
+import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { X, ArrowUp, CircleStop, Eye, Loader, RotateCcw } from 'lucide-react';
+import { ArrowUp, CircleStop } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
   useCallback,
@@ -15,7 +15,6 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -25,9 +24,8 @@ import { useUploadPolicy } from '@/app/features/settings/governance/hooks/querie
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { CHAT_UPLOAD_ACCEPT, isAudioOrVideo } from '@/lib/shared/file-types';
+import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
-import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
@@ -43,6 +41,8 @@ import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaModelSelector } from './arena/arena-model-selector';
+import { AttachmentTray } from './chat-input/attachment-tray';
+import { toBcp47 } from './chat-input/locale-defaults';
 import { ComposerCapabilityPills } from './composer-capability-pills';
 import { ComposerModeMenu } from './composer-mode-menu';
 import {
@@ -59,20 +59,6 @@ import { SandboxStateIndicator } from './sandbox-state-indicator';
 import { SavePromptMenu } from './save-prompt-menu';
 import { VideoLinkChip } from './video-link-chip';
 import { VoiceModeToggle } from './voice-mode-toggle';
-
-// Web Speech requires a fully-qualified BCP-47 tag. Already-regional codes
-// (`de-CH`, future `fr-CA`) pass through; bare base locales pick the most
-// common region default. Unknown locales fall back to en-US at the call site.
-const BASE_LOCALE_DEFAULTS: Record<string, string> = {
-  en: 'en-US',
-  de: 'de-DE',
-  fr: 'fr-FR',
-};
-
-function toBcp47(locale: string): string | undefined {
-  if (locale.includes('-')) return locale;
-  return BASE_LOCALE_DEFAULTS[locale];
-}
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -791,313 +777,20 @@ export function ChatInput({
           {(attachments.length > 0 ||
             uploadingFiles.length > 0 ||
             (kbMentionsEnabled && (kbMentions?.length ?? 0) > 0)) && (
-            <HStack gap={1} wrap className="mb-2">
-              {kbMentionsEnabled &&
-                kbMentions?.map((mention) => (
-                  <div
-                    key={mention.documentId}
-                    className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
-                  >
-                    <DocumentIcon
-                      fileName={
-                        mention.extension
-                          ? `${mention.title}.${mention.extension}`
-                          : mention.title
-                      }
-                      mimeType={mention.fileType}
-                    />
-                    <VStack className="min-w-0 flex-1 gap-1">
-                      <Text as="div" variant="label" title={mention.title}>
-                        {middleEllipsis(mention.title, 28)}
-                      </Text>
-                      <Text
-                        as="span"
-                        variant="caption"
-                        className="text-muted-foreground/50"
-                      >
-                        {tComposer('kbMention.chipLabel')}
-                      </Text>
-                    </VStack>
-                    <button
-                      type="button"
-                      aria-label={tComposer('kbMention.removeMention', {
-                        title: mention.title,
-                      })}
-                      onClick={() => removeKbMention?.(mention.documentId)}
-                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                    >
-                      <X className="text-muted-foreground size-3" />
-                    </button>
-                  </div>
-                ))}
-              {imageAttachments.map((attachment) => (
-                <div
-                  key={attachment.fileId}
-                  className="ring-border group relative size-9 overflow-hidden rounded-lg ring-1"
-                >
-                  <button
-                    type="button"
-                    aria-label={tChat('viewImage')}
-                    onClick={() =>
-                      attachment.previewUrl &&
-                      setPreviewImage({
-                        src: attachment.previewUrl,
-                        alt: attachment.fileName,
-                      })
-                    }
-                    className="bg-muted focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
-                  >
-                    {attachment.previewUrl ? (
-                      <img
-                        src={attachment.previewUrl}
-                        alt={attachment.fileName}
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex size-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200">
-                        <span className="text-xs text-blue-600">
-                          {tChat('fileTypes.image')}
-                        </span>
-                      </div>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={tChat('removeAttachment')}
-                    onClick={() => removeAttachment(attachment.fileId)}
-                    className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  >
-                    <X className="text-muted-foreground size-3" />
-                  </button>
-                </div>
-              ))}
-
-              {fileAttachments.map((attachment) => {
-                const audioInfo = isAudioOrVideo(attachment.fileType)
-                  ? transcriptionStatuses?.get(attachment.fileId)
-                  : undefined;
-                const canPreviewTranscript =
-                  audioInfo?.status === 'completed' && !!audioInfo.transcript;
-
-                return (
-                  <div
-                    key={attachment.fileId}
-                    className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
-                  >
-                    <DocumentIcon fileName={attachment.fileName} />
-                    <VStack className="min-w-0 flex-1 gap-1">
-                      <Text
-                        as="div"
-                        variant="label"
-                        title={attachment.fileName}
-                      >
-                        {middleEllipsis(attachment.fileName, 28)}
-                      </Text>
-                      {(() => {
-                        // Audio + video attachments: show two-phase status
-                        // (transcribing → indexing → indexed) instead of the
-                        // RAG-indexing status we show for other uploads.
-                        if (isAudioOrVideo(attachment.fileType)) {
-                          const info = transcriptionStatuses?.get(
-                            attachment.fileId,
-                          );
-                          const status = info?.status;
-                          const ragStatus = info?.ragStatus;
-                          if (status === 'queued' || status === 'running') {
-                            return (
-                              <HStack gap={1} align="center">
-                                <Loader className="text-muted-foreground/50 size-3 animate-spin" />
-                                <Text
-                                  as="span"
-                                  variant="caption"
-                                  className="text-muted-foreground/50"
-                                >
-                                  {info?.progress ||
-                                    tChat('transcription.transcribing')}
-                                </Text>
-                              </HStack>
-                            );
-                          }
-                          if (
-                            status === 'completed' &&
-                            (ragStatus === 'queued' || ragStatus === 'running')
-                          ) {
-                            return (
-                              <HStack gap={1} align="center">
-                                <Loader className="text-muted-foreground/50 size-3 animate-spin" />
-                                <Text
-                                  as="span"
-                                  variant="caption"
-                                  className="text-muted-foreground/50"
-                                >
-                                  {tChat('transcription.indexing')}
-                                </Text>
-                              </HStack>
-                            );
-                          }
-                          if (status === 'completed') {
-                            // `ragStatus` completed → "Indexed" (agent can
-                            // retrieve). `ragStatus === 'failed'` → show
-                            // "Transcribed" but warn the agent retrieval
-                            // will be unavailable.
-                            const label =
-                              ragStatus === 'completed'
-                                ? tChat('transcription.indexed')
-                                : ragStatus === 'failed'
-                                  ? tChat('transcription.indexingFailed')
-                                  : tChat('transcription.transcribed');
-                            return (
-                              <Text
-                                as="span"
-                                variant="caption"
-                                className={
-                                  ragStatus === 'failed'
-                                    ? 'text-destructive'
-                                    : 'text-muted-foreground/70'
-                                }
-                              >
-                                {label}
-                              </Text>
-                            );
-                          }
-                          if (status === 'failed' || status === 'skipped') {
-                            return (
-                              <Text
-                                as="span"
-                                variant="caption"
-                                className="text-destructive"
-                              >
-                                {tChat('transcription.couldNotTranscribe')}
-                              </Text>
-                            );
-                          }
-                          return (
-                            <Text
-                              as="div"
-                              variant="caption"
-                              className="text-muted-foreground/50"
-                            >
-                              {formatFileSize(attachment.fileSize)}
-                            </Text>
-                          );
-                        }
-
-                        const info = indexingStatuses?.get(attachment.fileId);
-                        const ragStatus = info?.status;
-                        if (ragStatus === 'queued' || ragStatus === 'running') {
-                          const raw = info?.progress;
-                          // Convert "extracting 42/108" → "39%"
-                          let progressLabel = tChat('indexing');
-                          if (raw) {
-                            const match = /(\d+)\/(\d+)/.exec(raw);
-                            if (match) {
-                              const pct = Math.round(
-                                (Number(match[1]) / Number(match[2])) * 100,
-                              );
-                              progressLabel = `${pct}%`;
-                            } else {
-                              progressLabel = raw;
-                            }
-                          }
-                          return (
-                            <HStack gap={1} align="center">
-                              <Loader className="text-muted-foreground/50 size-3 animate-spin" />
-                              <Text
-                                as="span"
-                                variant="caption"
-                                className="text-muted-foreground/50"
-                              >
-                                {progressLabel}
-                              </Text>
-                            </HStack>
-                          );
-                        }
-                        if (ragStatus === 'failed') {
-                          // Surface the stored failure reason (ragError) so
-                          // the user can tell a transient outage from a
-                          // rejected file without digging into logs.
-                          return (
-                            <Text
-                              as="span"
-                              variant="caption"
-                              className="text-destructive"
-                              title={info?.error}
-                            >
-                              {tChat('indexingFailed')}
-                            </Text>
-                          );
-                        }
-                        return (
-                          <Text
-                            as="div"
-                            variant="caption"
-                            className="text-muted-foreground/50"
-                          >
-                            {formatFileSize(attachment.fileSize)}
-                          </Text>
-                        );
-                      })()}
-                    </VStack>
-                    <button
-                      type="button"
-                      aria-label={tChat('removeAttachment')}
-                      onClick={() => removeAttachment(attachment.fileId)}
-                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                    >
-                      <X className="text-muted-foreground size-3" />
-                    </button>
-                    {canPreviewTranscript && (
-                      <button
-                        type="button"
-                        aria-label={tChat('transcription.viewTranscript')}
-                        title={tChat('transcription.viewTranscript')}
-                        onClick={() =>
-                          setPreviewTranscript({
-                            fileName: attachment.fileName,
-                            transcript: audioInfo?.transcript ?? '',
-                            durationSec: audioInfo?.durationSec,
-                          })
-                        }
-                        className="bg-background text-muted-foreground hover:text-foreground absolute right-0.5 bottom-0.5 flex size-5 items-center justify-center rounded-full transition-colors"
-                      >
-                        <Eye className="size-3" />
-                      </button>
-                    )}
-                    {audioInfo?.status === 'failed' &&
-                      retryAudioTranscription && (
-                        // Retry a failed transcription — reuses the persisted
-                        // `_storage` blob (no re-upload). Mutually exclusive
-                        // with the view-transcript (Eye) button, which only
-                        // renders on `completed`, so both can share the
-                        // bottom-right corner. Mirrors the video-link chip's
-                        // retry affordance.
-                        <button
-                          type="button"
-                          aria-label={tChat('transcription.retry')}
-                          title={tChat('transcription.retry')}
-                          onClick={() =>
-                            retryAudioTranscription(attachment.fileId)
-                          }
-                          className="bg-background text-muted-foreground hover:text-foreground absolute right-0.5 bottom-0.5 flex size-5 items-center justify-center rounded-full transition-colors"
-                        >
-                          <RotateCcw className="size-3" />
-                        </button>
-                      )}
-                  </div>
-                );
-              })}
-
-              {uploadingFiles.map((fileId) => (
-                <div
-                  key={fileId}
-                  role="status"
-                  aria-label={tChat('uploadingFile')}
-                  className="border-border bg-muted flex size-9 items-center justify-center overflow-hidden rounded-lg border"
-                >
-                  <Loader className="text-muted-foreground size-4 animate-spin" />
-                </div>
-              ))}
-            </HStack>
+            <AttachmentTray
+              kbMentionsEnabled={kbMentionsEnabled}
+              kbMentions={kbMentions}
+              removeKbMention={removeKbMention}
+              imageAttachments={imageAttachments}
+              fileAttachments={fileAttachments}
+              uploadingFiles={uploadingFiles}
+              transcriptionStatuses={transcriptionStatuses}
+              indexingStatuses={indexingStatuses}
+              retryAudioTranscription={retryAudioTranscription}
+              removeAttachment={removeAttachment}
+              onPreviewImage={setPreviewImage}
+              onPreviewTranscript={setPreviewTranscript}
+            />
           )}
 
           <QuotedReferenceChip />

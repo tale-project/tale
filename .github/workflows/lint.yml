@@ -6,8 +6,6 @@ on:
       - main
     paths:
       - 'services/platform/**'
-      - 'services/crawler/**'
-      - 'services/rag/**'
       - 'packages/**'
       - 'services/db/**'
       - 'services/proxy/**'
@@ -33,8 +31,6 @@ on:
       - main
     paths:
       - 'services/platform/**'
-      - 'services/crawler/**'
-      - 'services/rag/**'
       - 'packages/**'
       - 'services/db/**'
       - 'services/proxy/**'
@@ -129,7 +125,6 @@ jobs:
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          install-python: 'false'
 
       - name: Run type check
         run: bunx turbo run typecheck
@@ -152,7 +147,6 @@ jobs:
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          install-python: 'false'
           start-turbo-cache: 'false'
 
       - name: Run knip

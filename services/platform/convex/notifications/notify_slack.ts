@@ -8,7 +8,7 @@
  * "deliver this rendered message to Slack".
  */
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';

@@ -1,11 +1,9 @@
 import { Stack } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
-import { Link } from '@tanstack/react-router';
 import { Upload } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
-import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
 import { FilePreviewCard } from '@/app/components/ui/data-display/file-preview-card';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -29,7 +27,6 @@ export type DataSource = Doc<'customers'>['source'];
 
 export function CustomerImportForm({
   hideTabs,
-  organizationId,
   mode,
 }: CustomerImportFormProps) {
   const { t } = useT('customers');
@@ -72,50 +69,12 @@ export function CustomerImportForm({
             setValue('dataSource', value, { shouldDirty: true })
           }
           className="w-full"
-          listClassName="grid w-auto grid-cols-3"
+          listClassName="grid w-auto grid-cols-2"
           items={[
-            { value: 'circuly', label: t('importForm.circuly') },
             { value: 'manual_import', label: t('importForm.manualEntry') },
             { value: 'file_upload', label: t('importForm.upload') },
           ]}
         />
-      )}
-      {dataSource === 'circuly' && (
-        <Link
-          to="/dashboard/$id/settings/integrations"
-          params={{ id: organizationId }}
-          search={{ tab: 'shopify' }}
-          className="bg-background hover:bg-muted relative box-border flex size-full cursor-pointer content-stretch items-center justify-start gap-[12px] rounded-[8px] p-[12px] text-left transition-colors"
-        >
-          <div
-            aria-hidden="true"
-            className="border-border pointer-events-none absolute inset-0 rounded-[8px] border border-solid shadow-xs"
-          />
-          <div className="bg-background relative size-[40px] shrink-0 rounded-[6px]">
-            <div
-              aria-hidden="true"
-              className="border-border pointer-events-none absolute inset-0 rounded-[6px] border border-solid"
-            />
-            <div
-              className="absolute top-1/2 size-[24px] translate-x-[-50%] translate-y-[-50%] overflow-clip"
-              style={{ left: 'calc(50% + 0.5px)' }}
-            >
-              <ShopifyIcon />
-            </div>
-          </div>
-          <div className="relative shrink-0 items-start justify-start not-italic">
-            <Text
-              as="div"
-              variant="label"
-              className="relative w-full shrink-0 text-base"
-            >
-              {t('importForm.fromShopify')}
-            </Text>
-            <Text as="div" variant="muted" className="relative w-full shrink-0">
-              {t('importForm.syncBusinessData')}
-            </Text>
-          </div>
-        </Link>
       )}
       {dataSource === 'manual_import' && (
         <FormSection>

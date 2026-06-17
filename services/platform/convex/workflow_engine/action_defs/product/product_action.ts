@@ -31,7 +31,7 @@
 
 import { v } from 'convex/values';
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';

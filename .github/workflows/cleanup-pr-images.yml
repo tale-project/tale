@@ -33,8 +33,6 @@ jobs:
             db,
             convex,
             controller,
-            crawler,
-            rag,
             platform,
             proxy,
             sandbox,

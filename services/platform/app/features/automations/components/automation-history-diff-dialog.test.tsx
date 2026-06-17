@@ -3,8 +3,8 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, vi } from 'vitest';
 
 import type { WorkflowJsonConfig } from '@/lib/shared/schemas/workflows';
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render } from '@/tests/utils/render';
 
 import { AutomationHistoryDiffDialog } from './automation-history-diff-dialog';
 

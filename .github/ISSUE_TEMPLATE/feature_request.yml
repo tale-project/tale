@@ -27,11 +27,12 @@ body:
       label: Affected service
       description: Which part of Tale would this affect?
       options:
-        - Platform
-        - RAG
-        - Crawler
+        - Platform (web app)
+        - Web (marketing site)
+        - Docs
+        - Sandbox
+        - CLI
         - Database
-        - Graph DB
         - Proxy
         - Not sure
     validations:

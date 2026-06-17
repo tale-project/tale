@@ -9,7 +9,7 @@
  * `event_catalog_meta` directly — not from here.
  */
 
-import { getString, isRecord } from '../../lib/utils/type-guards';
+import { getString, isRecord } from '../../lib/utils/type-utils';
 import {
   escapeSlackText,
   renderNotificationMessage,

@@ -23,47 +23,42 @@ export const INTEGRATION_TEMPLATES: IntegrationTemplate[] = [
   {
     name: 'github',
     title: 'GitHub',
-    description:
-      'GitHub REST API integration for repositories, issues, pull requests, and code search',
+    description: 'Manage repositories, issues, and pull requests on GitHub.',
     authMethod: 'bearer_token',
     type: 'rest_api',
   },
   {
     name: 'slack',
     title: 'Slack',
-    description: 'Slack API integration for channels, messages, and users',
+    description: 'Send messages and interact with channels in Slack.',
     authMethod: 'oauth2',
     type: 'rest_api',
   },
   {
     name: 'discord',
     title: 'Discord',
-    description:
-      'Discord Bot API integration for guilds, channels, and messages',
+    description: 'Post messages and manage channels in your Discord server.',
     authMethod: 'bearer_token',
     type: 'rest_api',
   },
   {
     name: 'gmail',
     title: 'Gmail',
-    description:
-      'Google Gmail API integration for email, labels, threads, and drafts',
+    description: 'Read, send, and organize email in Gmail.',
     authMethod: 'oauth2',
     type: 'rest_api',
   },
   {
     name: 'outlook',
     title: 'Microsoft Outlook',
-    description:
-      'Microsoft Graph API integration for Outlook mail, calendar, and contacts',
+    description: 'Manage Outlook mail, calendar, and contacts.',
     authMethod: 'oauth2',
     type: 'rest_api',
   },
   {
     name: 'teams',
     title: 'Microsoft Teams',
-    description:
-      'Microsoft Graph API integration for Teams channels, messages, and chats',
+    description: 'Send messages and manage channels in Microsoft Teams.',
     authMethod: 'oauth2',
     type: 'rest_api',
   },
@@ -71,32 +66,15 @@ export const INTEGRATION_TEMPLATES: IntegrationTemplate[] = [
     name: 'shopify',
     title: 'Shopify',
     description:
-      'Shopify Admin API integration for products, customers, and orders',
+      'Sync products, customers, and orders from your Shopify store.',
     authMethod: 'api_key',
     type: 'rest_api',
   },
   {
     name: 'twilio',
     title: 'Twilio',
-    description:
-      'Twilio API integration for SMS messaging, voice calls, and phone number management',
+    description: 'Send SMS and make voice calls with Twilio.',
     authMethod: 'basic_auth',
     type: 'rest_api',
-  },
-  {
-    name: 'circuly',
-    title: 'Circuly',
-    description:
-      'Circuly API integration for products, customers, and subscriptions',
-    authMethod: 'basic_auth',
-    type: 'rest_api',
-  },
-  {
-    name: 'protel',
-    title: 'Protel PMS',
-    description:
-      'Hotel Property Management System - Direct SQL Access for reservations, guest profiles, rooms, and postings',
-    authMethod: 'basic_auth',
-    type: 'sql',
   },
 ];

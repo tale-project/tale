@@ -82,7 +82,7 @@ Deux garde-fous s'appliquent :
 
 Ordre de résolution, le plus haut d'abord : `secretsEnv` au niveau modèle → `secretsEnv` au niveau fournisseur → le fichier de secrets (`modelKeys[id]` puis `apiKey`). Chaque palier est sauté quand il ne donne rien, donc une variable configurée mais vide retombe sur le fichier. Les valeurs d'env sont trimmées (un retour à la ligne en queue venant d'un secret monté est une cause fréquente de `401`).
 
-Contrairement au **fichier** de secrets — que le watcher relit à chaque requête — une **valeur** de variable d'environnement est lue une seule fois au démarrage du processus. La changer demande de **redémarrer le conteneur `tale-platform`** (il resynchronise l'env vers Convex au boot) et de recréer les conteneurs `tale-rag` / `tale-crawler` (ils lisent `os.environ` directement). La variable doit être présente partout où la clé est consommée : la plateforme la synchronise automatiquement vers Convex ; les services Python la reçoivent via leur `env_file` compose.
+Contrairement au **fichier** de secrets — que le watcher relit à chaque requête — une **valeur** de variable d'environnement est lue une seule fois au démarrage du processus. La changer demande de **redémarrer le conteneur `tale-platform`** (il resynchronise l'env vers Convex au boot). La plateforme synchronise automatiquement la variable vers le backend Convex, donc les actions RAG et crawler en in-process la récupèrent depuis la même synchronisation — il n'y a pas de service séparé à recréer.
 
 ## Ajouter un fournisseur
 

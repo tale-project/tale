@@ -3,7 +3,7 @@ title: Document comparison
 description: The side-by-side diff dialog that takes two documents — uploaded or pulled from the library — and walks the differences paragraph by paragraph with a RAG-assisted summary.
 ---
 
-Document comparison is the dialog that answers the question "what changed between these two versions". You point it at a base document and a comparison document; Tale runs both through the same extraction pipeline that feeds the knowledge base, hands them to a deterministic diff endpoint on the RAG service, and renders the result as a structured walk-through of added, deleted, and modified paragraphs. It is the right tool for contracts before-and-after, policy revisions, two drafts of the same proposal — anything where the words matter and the words moved.
+Document comparison is the dialog that answers the question "what changed between these two versions". You point it at a base document and a comparison document; Tale runs both through the same extraction pipeline that feeds the knowledge base, runs a deterministic paragraph-level diff, and renders the result as a structured walk-through of added, deleted, and modified paragraphs. It is the right tool for contracts before-and-after, policy revisions, two drafts of the same proposal — anything where the words matter and the words moved.
 
 The dialog lives next to the documents you compare: open it from **Knowledge > Documents** with the **Compare documents** action. The base and comparison files can each be either an already-indexed document from the library or a one-off upload, so there is no need to load both sides into the knowledge base if you only want to look at one diff.
 
@@ -17,9 +17,9 @@ Mix the tabs freely. Compare two uploads against each other when neither version
 
 ## Running the diff
 
-Click **Compare**. The dialog shows a spinner while the RAG service downloads both files, extracts the text, normalises paragraph boundaries, and runs a paragraph-level deterministic diff. The endpoint is the comparison feature's only model-free path — the diff itself is plain string-matching, so the output is reproducible for the same inputs.
+Click **Compare**. The dialog shows a spinner while Tale downloads both files, extracts the text, normalises paragraph boundaries, and runs a paragraph-level deterministic diff. The comparison is the feature's only model-free path — the diff itself is plain string-matching, so the output is reproducible for the same inputs.
 
-The wait is bounded — the request times out at two minutes if the RAG service has not returned. Large files hit the timeout more often than small ones; if it trips, retry once and consider trimming the file to the part that matters.
+The wait is bounded — the request times out at two minutes if the comparison has not returned. Large files hit the timeout more often than small ones; if it trips, retry once and consider trimming the file to the part that matters.
 
 ## Reading the result
 

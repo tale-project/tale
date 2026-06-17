@@ -2,17 +2,26 @@
 
 import { v } from 'convex/values';
 
-import { fetchJson } from '../../lib/utils/type-cast-helpers';
-import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
+import {
+  fetchJson,
+  getBoolean,
+  getString,
+  isRecord,
+} from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
-import { internalAction } from '../_generated/server';
+import { internalAction, type ActionCtx } from '../_generated/server';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
-import { ragFetch } from '../lib/helpers/rag_config';
+import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
-import type { GenerateDocxResult } from './generate_docx';
-import * as DocumentsHelpers from './helpers';
+// `generate_document` / `generate_docx` are `'use node'` modules and are NOT
+// re-exported by the V8-reachable `./helpers` barrel — import them directly.
+import { generateDocument as generateDocumentImpl } from './generate_document';
+import {
+  generateDocx as generateDocxImpl,
+  type GenerateDocxResult,
+} from './generate_docx';
 import type { GenerateDocumentResult } from './types';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
@@ -24,8 +33,7 @@ const INITIAL_POLLING_DELAY_MS = 10_000;
  * chunks but does not regress the user-visible reindex result.
  */
 async function deleteOldRagEntry(
-  // oxlint-disable-next-line typescript/no-explicit-any -- ActionCtx is heavy to pull in just for runQuery shape; orgSlugFromIdOrNull accepts a structural ctx
-  ctx: any,
+  ctx: ActionCtx,
   organizationId: string,
   oldFileId: string,
   documentId: string,
@@ -37,20 +45,13 @@ async function deleteOldRagEntry(
     );
     return;
   }
-  try {
-    const response = await ragFetch(
-      `/api/v1/documents/${encodeURIComponent(oldFileId)}`,
-      { method: 'DELETE', timeoutMs: 60_000, orgSlug },
-    );
-    if (!response.ok && response.status !== 404) {
-      console.warn(
-        `[reindexDocumentInRag] Failed to delete old RAG entry ${oldFileId}: ${response.status}`,
-      );
-    }
-  } catch (error) {
+  // In-process delete (replaces the external RAG DELETE). The in-process
+  // delete is idempotent — a missing document returns success with
+  // `deletedCount: 0` (no 404 to special-case).
+  const result = await deleteDocumentById(ctx, { orgSlug, fileId: oldFileId });
+  if (!result.success) {
     console.warn(
-      `[reindexDocumentInRag] Error deleting old RAG entry ${oldFileId}:`,
-      error,
+      `[reindexDocumentInRag] Failed to delete old RAG entry ${oldFileId}: ${result.error ?? result.message}`,
     );
   }
 }
@@ -141,7 +142,7 @@ export const generateDocument = internalAction({
     wrapInTemplate: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<GenerateDocumentResult> => {
-    return await DocumentsHelpers.generateDocument(ctx, args);
+    return await generateDocumentImpl(ctx, args);
   },
 });
 
@@ -152,7 +153,7 @@ export const generateDocx = internalAction({
     content: docxContentValidator,
   },
   handler: async (ctx, args): Promise<GenerateDocxResult> => {
-    return await DocumentsHelpers.generateDocx(ctx, args);
+    return await generateDocxImpl(ctx, args);
   },
 });
 
@@ -294,21 +295,20 @@ export const deleteDocumentFromRag = internalAction({
     }
 
     // Tale row is now gone (either by this attempt or a previous one).
-    // Best-effort RAG-side delete; retry only the RAG step if it fails.
+    // Best-effort corpus-side delete; retry only the delete step if it fails.
+    // In-process delete is idempotent — a never-indexed / already-deleted
+    // document returns success with `deletedCount: 0`.
     let ragSuccess = false;
     try {
-      const response = await ragFetch(
-        `/api/v1/documents/${encodeURIComponent(ragKey)}`,
-        { method: 'DELETE', timeoutMs: 60_000, orgSlug },
-      );
-
-      if (response.ok || response.status === 404) {
-        // 404 means the RAG entry was never indexed (or was already deleted).
+      const result = await deleteDocumentById(ctx, {
+        orgSlug,
+        fileId: ragKey,
+      });
+      if (result.success) {
         ragSuccess = true;
       } else {
-        const errorText = await response.text();
         console.error(
-          `[deleteDocumentFromRag] RAG delete failed for ${args.documentId}: ${response.status} ${errorText}`,
+          `[deleteDocumentFromRag] RAG delete failed for ${args.documentId}: ${result.error ?? result.message}`,
         );
       }
     } catch (error) {
@@ -640,24 +640,15 @@ export const syncRagFolderPaths = internalAction({
     for (let i = 0; i < args.updates.length; i += FOLDER_PATH_SYNC_BATCH_SIZE) {
       const batch = args.updates.slice(i, i + FOLDER_PATH_SYNC_BATCH_SIZE);
       try {
-        const response = await ragFetch('/api/v1/documents/folder-paths', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            updates: batch.map((u) => ({
-              file_id: u.fileId,
-              folder_path: u.folderPath ?? null,
-            })),
-          }),
-          timeoutMs: 30_000,
+        // In-process folder-path update (replaces the external RAG PATCH
+        // `/api/v1/documents/folder-paths`).
+        await ctx.runAction(internal.rag.documents.updateFolderPaths, {
           orgSlug,
+          updates: batch.map((u) => ({
+            file_id: u.fileId,
+            folder_path: u.folderPath ?? null,
+          })),
         });
-        if (!response.ok) {
-          const errorText = await response.text().catch(() => '');
-          console.warn(
-            `[syncRagFolderPaths] RAG folder-path sync failed (${response.status}) for ${batch.length} file(s): ${errorText.slice(0, 200)}`,
-          );
-        }
       } catch (error) {
         console.warn(
           '[syncRagFolderPaths] Error syncing folder paths to RAG:',

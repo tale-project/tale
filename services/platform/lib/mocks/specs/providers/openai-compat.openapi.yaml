@@ -1,0 +1,237 @@
+openapi: 3.1.0
+info:
+  title: OpenAI-compatible AI provider (mock)
+  version: 1.0.0
+  description: >-
+    Trimmed spec for the OpenAI-compatible endpoints the platform's providers
+    call through `convex/providers/resolve_model.ts`. One spec because every
+    endpoint shares a single `baseUrl`. Mounted at `/v1` by the mock gateway.
+    `POST /chat/completions` is documented here for contract completeness, but
+    the gateway serves it from the streaming chat override (Prism can't stream
+    SSE) — so its example is the non-streaming JSON completion shape.
+servers:
+  - url: /v1
+paths:
+  /chat/completions:
+    post:
+      operationId: createChatCompletion
+      summary: Create a chat completion (served by the streaming override).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model: { type: string }
+                stream: { type: boolean }
+                messages:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: A chat completion.
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: chatcmpl-mock
+                object: chat.completion
+                created: 1717200000
+                model: e2e-chat-model
+                choices:
+                  - index: 0
+                    message:
+                      role: assistant
+                      content: Hello from the Tale mock assistant.
+                    finish_reason: stop
+                usage:
+                  prompt_tokens: 16
+                  completion_tokens: 16
+                  total_tokens: 32
+  /embeddings:
+    post:
+      operationId: createEmbedding
+      summary: Create embeddings for the given input.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model: { type: string }
+                input:
+                  oneOf:
+                    - type: string
+                    - type: array
+              required: [model, input]
+      responses:
+        '200':
+          description: A list of embedding vectors.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [object, data, model, usage]
+                properties:
+                  object: { type: string }
+                  model: { type: string }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [object, index, embedding]
+                      properties:
+                        object: { type: string }
+                        index: { type: integer }
+                        embedding:
+                          type: array
+                          items: { type: number }
+                  usage:
+                    type: object
+                    properties:
+                      prompt_tokens: { type: integer }
+                      total_tokens: { type: integer }
+              example:
+                object: list
+                model: e2e-embedding-model
+                data:
+                  - object: embedding
+                    index: 0
+                    embedding: [0.0123, -0.0456, 0.0789, -0.0011, 0.0222]
+                usage:
+                  prompt_tokens: 8
+                  total_tokens: 8
+  /images/generations:
+    post:
+      operationId: createImage
+      summary: Generate an image from a prompt.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model: { type: string }
+                prompt: { type: string }
+                n: { type: integer }
+                size: { type: string }
+              required: [prompt]
+      responses:
+        '200':
+          description: Generated image data.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [created, data]
+                properties:
+                  created: { type: integer }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        b64_json: { type: string }
+                        url: { type: string }
+              example:
+                created: 1717200000
+                data:
+                  # 1x1 transparent PNG — valid base64 so image decoders succeed.
+                  - b64_json: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=
+  /audio/transcriptions:
+    post:
+      operationId: createTranscription
+      summary: Transcribe audio to text (multipart or json-base64 modes).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                model: { type: string }
+                response_format: { type: string }
+          application/json:
+            schema:
+              type: object
+              properties:
+                model: { type: string }
+                input_audio:
+                  type: object
+      responses:
+        '200':
+          description: The transcription result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [text]
+                properties:
+                  text: { type: string }
+                  duration: { type: number }
+                  segments:
+                    type: array
+                    items:
+                      type: object
+              example:
+                text: This is a deterministic mock transcription.
+                duration: 1.5
+                segments:
+                  - id: 0
+                    start: 0.0
+                    end: 1.5
+                    text: This is a deterministic mock transcription.
+  /audio/speech:
+    post:
+      operationId: createSpeech
+      summary: Synthesize speech from text.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model: { type: string }
+                input: { type: string }
+                voice: { type: string }
+                response_format: { type: string }
+              required: [model, input]
+      responses:
+        '200':
+          description: Binary audio stream.
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+              example: TALE-MOCK-AUDIO
+  /models:
+    get:
+      operationId: listModels
+      summary: List available models.
+      responses:
+        '200':
+          description: The model catalog.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [object, data]
+                properties:
+                  object: { type: string }
+                  data:
+                    type: array
+                    items:
+                      type: object
+              example:
+                object: list
+                data:
+                  - id: e2e-chat-model
+                    object: model
+                    owned_by: tale-mock

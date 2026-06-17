@@ -60,6 +60,10 @@ import {
 } from './login_attempts/schema';
 import { mcpServersTable } from './mcp_servers/schema';
 import {
+  memberMirrorTable,
+  memberMirrorReconcileCursorTable,
+} from './members/schema';
+import {
   migrationLedgerTable,
   migrationSnapshotsTable,
 } from './migrations/framework/schema';
@@ -172,6 +176,11 @@ export default defineSchema({
   promptDefaultProvisions: promptDefaultProvisionsTable,
   messageFeedback: messageFeedbackTable,
   mcpServers: mcpServersTable,
+  // App-native cache of Better Auth `member` rows for the RLS hot path
+  // (getUserOrganizations / isOrgMember). Performance optimization only —
+  // never the authoritative gate. See `members/schema.ts`.
+  memberMirror: memberMirrorTable,
+  memberMirrorReconcileCursor: memberMirrorReconcileCursorTable,
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
   agentBindings: agentBindingsTable,

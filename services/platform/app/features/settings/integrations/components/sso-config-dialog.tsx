@@ -19,7 +19,7 @@ import type {
   PlatformRole,
   SsoProvider,
 } from '@/lib/shared/schemas/sso_providers';
-import { narrowStringUnion } from '@/lib/utils/type-guards';
+import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import {
   type SsoProviderType,

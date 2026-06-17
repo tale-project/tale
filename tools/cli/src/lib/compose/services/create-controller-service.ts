@@ -5,14 +5,14 @@ import { DEFAULT_LOGGING } from '../types';
 /**
  * Controller — privileged control-plane sidecar (OPT-IN).
  *
- * Restarts the allowlisted compose services {rag, convex} on an HMAC-signed
+ * Restarts the allowlisted compose service {convex} on an HMAC-signed
  * request so a deployment-config change (external knowledge Postgres / Convex
  * S3 storage) takes effect — WITHOUT giving the browser-facing platform
  * docker-socket access.
  *
  * SECURITY: mounts /var/run/docker.sock = host root, the same accepted
  * boundary as the sandbox spawner, but far more constrained — list+restart of
- * two services only (no run/exec), HMAC-verified, internal-network-only, no
+ * the convex service only (no run/exec), HMAC-verified, internal-network-only, no
  * published port. Emitted only when CONTROLLER_TOKEN is set (the shared HMAC
  * secret); the platform/convex sign restart requests with the same token.
  *

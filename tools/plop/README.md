@@ -13,8 +13,6 @@ bun run gen                       # interactive prompt
 bun run gen:react-service
 bun run gen:react-package
 bun run gen:typescript-package
-bun run gen:python-service
-bun run gen:python-package
 bun run gen:docker-service
 ```
 

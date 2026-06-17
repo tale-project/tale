@@ -107,7 +107,7 @@ vi.mock('../hooks/mutations', () => ({
     hasFailures: mockHookState.hasFailures,
   }),
 }));
-import { checkAccessibility } from '@/test/utils/a11y';
+import { checkAccessibility } from '@/tests/utils/a11y';
 
 import { DocumentUploadDialog } from './document-upload-dialog';
 

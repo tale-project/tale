@@ -125,10 +125,6 @@ services/web/
 !services/web/package.json
 services/convex/
 !services/convex/package.json
-services/crawler/
-!services/crawler/package.json
-services/rag/
-!services/rag/package.json
 services/db/
 !services/db/package.json
 services/proxy/

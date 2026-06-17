@@ -11,7 +11,7 @@ Die funktionale Geschichte jeder Integration (was sie tut, welche Scopes sie ver
 
 Öffne **Einstellungen > Integrationen**, um auf den installierten Integrationen der Organisation zu landen. Jede Zeile nennt eine Integration, zeigt ihre Kategorie (Kommunikation, Speicher, Identität, Wissen, Quellcode, Handel, KI), den Anmeldedaten-Typ (OAuth2, API-Schlüssel, App-Token) und den Verbindungs-Status (verbunden, ausstehend, Fehler). Die Liste ist nach Kategorie und Status filterbar.
 
-Der Katalog verfügbarer Integrationen sitzt einen Klick entfernt unter **Integration hinzufügen**. Der Katalog liefert aktuell Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio, Microsoft 365, Google Drive, Confluence, WebDAV, Tavily, GitHub, Shopify, Protel, Circuly und AI-Image; derselbe Katalog ist die Quelle, die die Integrations-Übersicht dokumentiert.
+Der Katalog verfügbarer Integrationen sitzt einen Klick entfernt unter **Integration hinzufügen**. Der Katalog liefert aktuell Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio, Microsoft 365, Google Drive, Confluence, WebDAV, Tavily, GitHub, Shopify und AI-Image; derselbe Katalog ist die Quelle, die die Integrations-Übersicht dokumentiert.
 
 ## Eine Integration installieren
 

@@ -6,7 +6,7 @@ import type { WorkflowCtx } from '@convex-dev/workflow';
 import type { RetryBehavior } from '@convex-dev/workpool';
 import { Infer, v } from 'convex/values';
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import { jsonValueValidator } from '../../../lib/validators/json';
@@ -143,7 +143,7 @@ export async function handleDynamicWorkflow(
       // Surface the pause on the execution row (status stays 'running', same
       // convention as human-input approvals — watchdog/filter safe).
       await step.runMutation(
-        internal.wf_executions.internal_mutations.updateExecutionStatus,
+        internal.workflow_executions.internal_mutations.updateExecutionStatus,
         {
           executionId,
           status: 'running',
@@ -165,7 +165,7 @@ export async function handleDynamicWorkflow(
       // Clear waitingFor (empty string signals "clear" since Convex strips
       // undefined values from serialized args).
       await step.runMutation(
-        internal.wf_executions.internal_mutations.updateExecutionStatus,
+        internal.workflow_executions.internal_mutations.updateExecutionStatus,
         {
           executionId,
           status: 'running',
@@ -303,7 +303,7 @@ export async function handleDynamicWorkflow(
 
       // Mark execution as failed before throwing
       await step.runMutation(
-        internal.wf_executions.internal_mutations.failExecution,
+        internal.workflow_executions.internal_mutations.failExecution,
         {
           executionId,
           error: errorMsg,
@@ -323,7 +323,7 @@ export async function handleDynamicWorkflow(
 
       // Set waitingFor on execution for UI visibility
       await step.runMutation(
-        internal.wf_executions.internal_mutations.updateExecutionStatus,
+        internal.workflow_executions.internal_mutations.updateExecutionStatus,
         {
           executionId,
           status: 'running',
@@ -348,7 +348,7 @@ export async function handleDynamicWorkflow(
       // Clear waitingFor after resume (empty string signals "clear" since
       // Convex strips undefined values from serialized args)
       await step.runMutation(
-        internal.wf_executions.internal_mutations.updateExecutionStatus,
+        internal.workflow_executions.internal_mutations.updateExecutionStatus,
         {
           executionId,
           status: 'running',

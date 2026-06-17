@@ -59,7 +59,7 @@ function baseDataSource(
   overrides: Partial<IntegrationDataSourceConfig> = {},
 ): IntegrationDataSourceConfig {
   return {
-    integrationName: 'protel',
+    integrationName: 'shopify',
     fetchOperation: 'list_guests',
     recordIdField: 'guest_id',
     sourceIdentifier: 'guests',
@@ -81,7 +81,7 @@ describe('findUnprocessedIntegration', () => {
   it('returns the envelope for the first unprocessed record (SQL shape)', async () => {
     executeMock.mockResolvedValue({
       requiresApproval: false,
-      name: 'protel',
+      name: 'shopify',
       operation: 'list_guests',
       engine: 'mssql',
       data: [{ guest_id: 'g1' }, { guest_id: 'g2' }],
@@ -101,7 +101,7 @@ describe('findUnprocessedIntegration', () => {
       record: { guest_id: 'g2' },
       recordId: 'g2',
       incrementalValue: null,
-      tableName: 'integration:protel:guests',
+      tableName: 'integration:shopify:guests',
     });
     expect(claimCalls).toHaveLength(1);
     expect(claimCalls[0].candidates.map((c) => c.recordId)).toEqual([
@@ -172,7 +172,7 @@ describe('findUnprocessedIntegration', () => {
     expect(executeMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        name: 'protel',
+        name: 'shopify',
         operation: 'list_guests',
         params: { status: 'active', fromDate: '2026-06-01T00:00:00.000Z' },
       }),

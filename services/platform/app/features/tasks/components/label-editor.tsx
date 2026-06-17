@@ -11,7 +11,7 @@ import { useT } from '@/lib/i18n/client';
 import {
   TASK_LABEL_COLORS,
   type TaskLabelColor,
-} from '@/lib/shared/task_label_colors';
+} from '@/lib/shared/task-label-colors';
 import { cn } from '@/lib/utils/cn';
 
 import { useSetLabelColor } from '../hooks/mutations';

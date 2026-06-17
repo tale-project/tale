@@ -27,7 +27,7 @@ Vérification : la page Workforce affiche l'automatisation **coupée** ; les nou
 | Travail bloqué _En cours_ > 24 h                      | Exécution morte ; le balayage la ramènera            | Vérifier l'historique d'exécutions ; le balayage horaire remet à _À faire_         |
 | Un agent refuse toute exécution                       | Pause budgétaire ou disjoncteur                      | Workforce → files « à traiter » ; relever le budget ou changer le statut en humain |
 | Les revues s'accumulent                               | Les relecteurs manquent la boîte de réception        | Les rappels escaladent automatiquement à 4 h / 24 h ; vérifier les préférences     |
-| Les exécutions externes échouent en `runtime_offline` | Aucun daemon en ligne pour l'adaptateur              | Paramètres → API → Runtimes : statut ; `tale-daemon status` sur la machine         |
+| Les exécutions externes échouent en `runtime_offline` | Aucun daemon en ligne pour l'adaptateur              | Paramètres → API → Runtimes : statut ; `tale daemon status` sur la machine         |
 | La synthèse signale des chiffres `capped`             | Journée très active ayant atteint un plafond de scan | Les chiffres sont des bornes basses ; aucune action                                |
 
 ## Où regarder

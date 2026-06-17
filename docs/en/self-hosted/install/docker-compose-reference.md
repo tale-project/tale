@@ -25,16 +25,16 @@ The leftmost file is the base; each subsequent file merges its keys on top. Conf
 
 ## The compose files
 
-| File                           | Use case                                       | Notable overrides                                                     |
-| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------- |
-| `compose.yml`                  | Production single-host                         | The base — every service, healthchecks, restart policy                |
-| `compose.dev.yml`              | Local development with hot-reload              | Mounts source into containers, swaps to dev images, exposes dev ports |
-| `compose.docs.yml`             | Adds the docs site service                     | Brings up `tale-docs` and routes `/docs` through the proxy            |
-| `compose.web.yml`              | Adds the marketing site service                | Brings up `tale-web` and routes `/` (root) through the proxy          |
-| `compose.test.yml`             | Runs the platform test suite against the stack | Replaces the platform image with the test-shaped variant              |
-| `compose.web.test.yml`         | Runs web tests                                 | Like `web.yml` but the test-shaped variant                            |
-| `compose.docs.test.yml`        | Runs docs tests                                | Like `docs.yml` but the test-shaped variant                           |
-| `docker-compose.test-mock.yml` | Mock-backed integration tests                  | Swaps providers for mock implementations                              |
+| File                    | Use case                                       | Notable overrides                                                     |
+| ----------------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
+| `compose.yml`           | Production single-host                         | The base — every service, healthchecks, restart policy                |
+| `compose.dev.yml`       | Local development with hot-reload              | Mounts source into containers, swaps to dev images, exposes dev ports |
+| `compose.docs.yml`      | Adds the docs site service                     | Brings up `tale-docs` and routes `/docs` through the proxy            |
+| `compose.web.yml`       | Adds the marketing site service                | Brings up `tale-web` and routes `/` (root) through the proxy          |
+| `compose.test.yml`      | Runs the platform test suite against the stack | Replaces the platform image with the test-shaped variant              |
+| `compose.web.test.yml`  | Runs web tests                                 | Like `web.yml` but the test-shaped variant                            |
+| `compose.docs.test.yml` | Runs docs tests                                | Like `docs.yml` but the test-shaped variant                           |
+| `compose.test.mock.yml` | Mock-backed integration tests                  | Swaps providers for mock implementations                              |
 
 ## Services and their roles
 
@@ -42,13 +42,13 @@ The base graph brings up eight containers:
 
 - `tale-proxy` — Caddy. TLS, reverse proxy, 301s.
 - `tale-platform` — the TanStack Start app. The user-facing UI and API.
-- `tale-convex` — the Convex backend. WebSocket, queries, mutations, actions.
-- `tale-db` — Postgres. The persistent store.
-- `tale-rag` — Python FastAPI. Embeddings, retrieval.
-- `tale-crawler` — the crawler service. Website knowledge sources.
-- `tale-sandbox-egress` and `tale-sandbox` — the sandbox plane. Run-code containers behind an egress proxy (open by default; lock down with `SANDBOX_EGRESS_ALLOWLIST`).
+- `tale-convex` — the Convex backend. WebSocket, queries, mutations, actions — and the in-process RAG search, document ingestion, web crawling, and document generation that used to be separate services.
+- `tale-db` — operational Postgres (ParadeDB). The Convex backend's persistent store.
+- `tale-knowledge-db` — knowledge corpus Postgres (ParadeDB). The `tale_knowledge` database holding document chunks, embeddings, and crawled pages, on port 5433 so it never clashes with `tale-db` on 5432.
+- `tale-bifrost` — the LLM gateway for in-sandbox coding agents (pinned external image).
+- `tale-sandbox-egress` and `tale-sandbox` — the sandbox plane. Run-code containers behind an egress proxy (open by default; lock down with `SANDBOX_EGRESS_ALLOWLIST`), also the headless-browser runtime the convex backend calls for web rendering and document generation.
 
-[Container architecture](/self-hosted/operate/container-architecture) goes deeper on what owns what.
+The stack is now entirely TypeScript — there is no Python service in the graph. [Container architecture](/self-hosted/operate/container-architecture) goes deeper on what owns what.
 
 ## Overriding
 
@@ -71,10 +71,10 @@ This pattern keeps `git pull` clean — no merge conflicts on the shipped files.
 
 ## Profiles
 
-A handful of services in the base file use Docker Compose profiles. Profiles let a service exist in the graph but not start unless its profile is activated. The two profiles in use are `gpu` (for hosts with GPU-backed local inference) and `monitoring` (for the optional Prometheus and Grafana). Activate with:
+One service in the base file uses a Docker Compose profile. Profiles let a service exist in the graph but not start unless its profile is activated. The profile in use is `controller` — the opt-in `tale-controller` sidecar that restarts the convex container on a signed request so a data-residency change applies without giving the platform Docker-socket access. Activate it with:
 
 ```bash
-docker compose --profile monitoring up -d
+docker compose --profile controller up -d
 ```
 
 ## Where this fits

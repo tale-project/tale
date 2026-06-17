@@ -10,7 +10,7 @@ import {
   type TwoFactorPolicyConfig,
   twoFactorPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import type { DataModel } from '../_generated/dataModel';
 import { readConfigCacheRow } from '../lib/config_cache/read';
 

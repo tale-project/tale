@@ -1,4 +1,4 @@
-import { getString, isRecord } from '../../../lib/utils/type-guards';
+import { getString, isRecord } from '../../../lib/utils/type-utils';
 
 /**
  * Safely extract a string value from untyped metadata object.

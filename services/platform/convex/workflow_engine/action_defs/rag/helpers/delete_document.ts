@@ -1,102 +1,51 @@
 import { v } from 'convex/values';
 
-import {
-  getString,
-  getNumber,
-  getBoolean,
-  getArray,
-  isRecord,
-} from '../../../../../lib/utils/type-guards';
-import { internalAction } from '../../../../_generated/server';
-import {
-  isUpstreamHttpError,
-  UpstreamHttpError,
-} from '../../../../lib/errors/upstream_http_error';
-import { ragFetch } from '../../../../lib/helpers/rag_config';
+import { internal } from '../../../../_generated/api';
+import { internalAction, type ActionCtx } from '../../../../_generated/server';
 import type { RagDeleteResult } from './types';
 
 export interface DeleteDocumentByIdArgs {
   orgSlug: string;
   fileId: string;
-  timeoutMs?: number;
 }
 
 /**
- * Delete document from RAG service by document ID, scoped to `orgSlug`.
+ * Delete a document from the knowledge corpus by id, scoped to `orgSlug`.
  *
- * RAG now scopes documents by `org_slug`, so the caller's org must be
- * passed through. A foreign-org `fileId` returns 0 deletions rather than
- * touching another tenant's data.
+ * Rewired from the external RAG service (`DELETE /api/v1/documents/{id}`) to the
+ * in-process `internal.rag.documents.deleteDocument` action, which deletes the
+ * `documents` row + its chunks from the knowledge-db within the org's namespace.
+ *
+ * The in-process delete is INHERENTLY idempotent: a missing document returns
+ * `{ success: true, deleted_count: 0 }` (no 404 to special-case), so retention
+ * re-runs and cascade purges stay safe to repeat. Any thrown error (e.g. a
+ * transient knowledge-db fault, surfaced via the action's own `withRetry`) is
+ * folded into a structured `{ success: false }` result so batch callers don't
+ * abort the whole loop on a single bad fileId — except that, unlike the HTTP
+ * path, there is no longer a distinct retryable-vs-permanent signal to
+ * propagate (the in-process pool already retries transient faults internally).
  */
-export async function deleteDocumentById({
-  orgSlug,
-  fileId,
-  timeoutMs = 60000,
-}: DeleteDocumentByIdArgs): Promise<RagDeleteResult> {
+export async function deleteDocumentById(
+  ctx: ActionCtx,
+  { orgSlug, fileId }: DeleteDocumentByIdArgs,
+): Promise<RagDeleteResult> {
   const startTime = Date.now();
 
   try {
-    const response = await ragFetch(
-      `/api/v1/documents/${encodeURIComponent(fileId)}`,
-      { method: 'DELETE', timeoutMs, orgSlug },
-    );
-
-    // Round-2 review HIGH: 404 means the document was already deleted
-    // — treat as a successful no-op so retention re-runs and cascade
-    // RAG purges are idempotent. Without this, a previously-purged
-    // document would surface as `success: false` on every subsequent
-    // run, producing a permanent failure indicator on retention
-    // receipts that operators cannot clear.
-    if (response.status === 404) {
-      return {
-        success: true,
-        deletedCount: 0,
-        deletedDataIds: [],
-        message: 'already_deleted',
-        processingTimeMs: Date.now() - startTime,
-        timestamp: Date.now(),
-      };
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw UpstreamHttpError.fromResponse(
-        'rag',
-        response,
-        errorText,
-        `/api/v1/documents/${fileId}`,
-      );
-    }
-
-    const rawResult: unknown = await response.json();
-    const result = isRecord(rawResult) ? rawResult : {};
-
-    const deletedDataIdsRaw = getArray(result, 'deleted_data_ids');
-    const deletedDataIds = deletedDataIdsRaw
-      ? deletedDataIdsRaw.filter((id): id is string => typeof id === 'string')
-      : [];
+    const result = await ctx.runAction(internal.rag.documents.deleteDocument, {
+      orgSlug,
+      fileId,
+    });
 
     return {
-      success: getBoolean(result, 'success') ?? false,
-      deletedCount: getNumber(result, 'deleted_count') || 0,
-      deletedDataIds,
-      message: getString(result, 'message') || '',
-      processingTimeMs:
-        getNumber(result, 'processing_time_ms') || Date.now() - startTime,
+      success: result.success,
+      deletedCount: result.deleted_count,
+      deletedDataIds: result.deleted_data_ids,
+      message: result.message,
+      processingTimeMs: result.processing_time_ms,
       timestamp: Date.now(),
     };
   } catch (error) {
-    // Retryable upstream failures (5xx / 429 / 408) must propagate so
-    // the action-level retry harness (workflow scheduler or callsite
-    // re-try loop) gets a chance to recover. Folding them into
-    // `{ success: false }` silently — as the earlier code did —
-    // converted transient unavailability into permanent failures.
-    // Non-retryable failures (4xx) and non-UpstreamHttpError throws
-    // still return the structured result so batch callers don't abort
-    // the whole loop on a single bad fileId.
-    if (isUpstreamHttpError(error) && error.retryable) {
-      throw error;
-    }
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       success: false,
@@ -111,16 +60,14 @@ export async function deleteDocumentById({
 }
 
 /**
- * Scheduler-friendly wrapper around `deleteDocumentById` that fans out
- * over a list of fileIds. Mutations cannot reach the RAG service
- * directly (HTTP requires an action context), so cascading thread
- * deletes that need to purge RAG-side vector chunks schedule this
- * action with the storageIds of the chat-upload files they removed.
- * Best-effort: failures per file log but do not abort the batch.
- * Round-2 review CRITICAL #17.
+ * Scheduler-friendly wrapper around `deleteDocumentById` that fans out over a
+ * list of fileIds. Cascading thread deletes that need to purge knowledge-corpus
+ * vector chunks schedule this action with the storageIds of the chat-upload
+ * files they removed. Best-effort: failures per file log but do not abort the
+ * batch. Round-2 review CRITICAL #17.
  *
- * Now per-tenant: `orgSlug` is required so the per-org RAG namespace is
- * targeted. All `fileIds` in a single call MUST belong to that org.
+ * Per-tenant: `orgSlug` is required so the per-org corpus namespace is targeted.
+ * All `fileIds` in a single call MUST belong to that org.
  */
 export const deleteFromRagBatch = internalAction({
   args: {
@@ -128,14 +75,10 @@ export const deleteFromRagBatch = internalAction({
     fileIds: v.array(v.string()),
   },
   returns: v.null(),
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
     for (const fileId of args.fileIds) {
-      // Best-effort per file. `deleteDocumentById` re-throws retryable
-      // UpstreamHttpError, but in a batch context one transient 5xx
-      // should not abort cleanup of the other ids — log + move on so
-      // the next retention sweep gets to retry.
       try {
-        const result = await deleteDocumentById({
+        const result = await deleteDocumentById(ctx, {
           orgSlug: args.orgSlug,
           fileId,
         });
@@ -147,7 +90,7 @@ export const deleteFromRagBatch = internalAction({
         }
       } catch (err) {
         console.warn(
-          `[deleteFromRagBatch] retryable upstream error on ${fileId}; skipping:`,
+          `[deleteFromRagBatch] error on ${fileId}; skipping:`,
           err instanceof Error ? err.message : String(err),
         );
       }

@@ -1,0 +1,39 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "bun",
+      "request": "launch",
+      "name": "Debug platform dev (orchestrator)",
+      "program": "scripts/dev.ts",
+      "cwd": "${workspaceFolder}/services/platform",
+      "stopOnEntry": false,
+      "watchMode": false
+    },
+    {
+      "type": "bun",
+      "request": "launch",
+      "name": "Debug current file (bun)",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "stopOnEntry": false,
+      "watchMode": false
+    },
+    {
+      "type": "bun",
+      "request": "launch",
+      "name": "Debug current Vitest file",
+      "program": "vitest",
+      "args": ["run", "${relativeFile}"],
+      "cwd": "${fileWorkspaceFolder}",
+      "stopOnEntry": false,
+      "watchMode": false
+    },
+    {
+      "type": "node",
+      "request": "attach",
+      "name": "Attach to bun --inspect (:9229)",
+      "port": 9229
+    }
+  ]
+}

@@ -71,7 +71,7 @@ export async function failExecution(
   if (variablesStorageId || outputStorageId) {
     await ctx.scheduler.runAfter(
       STORAGE_RETENTION_MS,
-      internal.wf_executions.internal_mutations.cleanupExecutionStorage,
+      internal.workflow_executions.internal_mutations.cleanupExecutionStorage,
       {
         executionId: args.executionId,
         variablesStorageId,

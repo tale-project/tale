@@ -7,8 +7,6 @@
 export const SNAPSHOT_VOLUMES = [
   'db-data',
   'convex-data',
-  'rag-data',
-  'crawler-data',
   'caddy-data',
   'caddy-config',
 ] as const;

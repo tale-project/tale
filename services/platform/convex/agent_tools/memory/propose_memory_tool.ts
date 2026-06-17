@@ -33,7 +33,7 @@ import { createTool } from '@convex-dev/agent';
 import { ConvexError } from 'convex/values';
 import { z } from 'zod/v4';
 
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import { ILLEGAL_CONTENT_RE } from '../../user_memories/constants';
 import type { ToolDefinition } from '../types';

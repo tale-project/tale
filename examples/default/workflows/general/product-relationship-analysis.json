@@ -77,7 +77,7 @@
             },
             {
               "name": "shopVariantIds",
-              "value": "{{steps.find_unprocessed_product.output.data.metadata.circuly.variants|map('shop_variant_id')|unique}}"
+              "value": "{{steps.find_unprocessed_product.output.data.metadata.shopify.variants|map('shop_variant_id')|unique}}"
             },
             {
               "name": "analysisTimestamp",
@@ -145,7 +145,7 @@
         "type": "product",
         "parameters": {
           "operation": "filter",
-          "expression": "(metadata && metadata.circuly && metadata.circuly.variants) ? metadata.circuly.variants|map('shop_variant_id')|hasOverlap({{customerProductIds}}) : false"
+          "expression": "(metadata && metadata.shopify && metadata.shopify.variants) ? metadata.shopify.variants|map('shop_variant_id')|hasOverlap({{customerProductIds}}) : false"
         }
       },
       "nextSteps": {
@@ -166,7 +166,7 @@
             },
             {
               "name": "productList",
-              "value": "{{allProducts|formatList(\"Product ID: {_id}\\nName: {name}\\nCategory: {category}\\nPrice: \\u20ac{price}/month\\nDescription: {description}\\nShop Variant IDs: {metadata.circuly.variants|map('shop_variant_id')|join(', ')}\", \"\\n\\n---\\n\\n\")}}"
+              "value": "{{allProducts|formatList(\"Product ID: {_id}\\nName: {name}\\nCategory: {category}\\nPrice: \\u20ac{price}/month\\nDescription: {description}\\nShop Variant IDs: {metadata.shopify.variants|map('shop_variant_id')|join(', ')}\", \"\\n\\n---\\n\\n\")}}"
             },
             {
               "name": "aiPrompt",

@@ -1,0 +1,183 @@
+#!/usr/bin/env bun
+/*
+  Root dev bootstrap for `bun run dev`.
+
+  Runs BEFORE turbo so the whole dev fleet (platform + sandbox + …) starts from a
+  production-shaped secret set instead of insecure hardcoded fallbacks:
+
+    1) Ensure INSTANCE_SECRET, BETTER_AUTH_SECRET and SANDBOX_TOKEN exist.
+       Any that are genuinely missing get a cryptographically-random value
+       (same shapes the CLI's `ensureEnv` mints for the container path) and are
+       PERSISTED to a gitignored repo-root `.env` so they're STABLE across
+       restarts. Values already supplied by any .env / .env.local (e.g. a real
+       `tale init` deploy) are respected and never overwritten — we only fill
+       gaps, so host dev and the container path converge on one secret set.
+       Repo-root `.env` (not `.env.local`) is deliberate: `docker compose`
+       auto-loads `.env` as its env_file, so the dockerized sandbox spawner
+       picks up the SAME SANDBOX_TOKEN as the host process and Convex — keeping
+       the HMAC handshake consistent whichever spawner serves :8003.
+    2) Load the merged secrets into this process's env and spawn turbo as a
+       child so the sandbox dev task inherits SANDBOX_TOKEN. SANDBOX_TOKEN is
+       also declared in turbo.json `globalPassThroughEnv` so turbo's strict env
+       mode actually forwards it. The platform dev orchestrator
+       (services/platform/scripts/dev.ts) re-reads the .env files directly and
+       syncs SANDBOX_TOKEN into the local Convex deployment, so Convex and the
+       spawner share one HMAC key with zero manual setup.
+
+  Why here and not inside each service: the secrets must MATCH across processes
+  (the Convex → sandbox spawner HMAC handshake), and the services start
+  concurrently under turbo. Minting once, up front, removes the first-run race.
+*/
+
+import { type ChildProcess, spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import {
+  appendFileSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import process from 'node:process';
+
+const repoRoot = join(import.meta.dir, '..');
+const platformRoot = join(repoRoot, 'services', 'platform');
+
+function parseDotEnv(filePath: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!existsSync(filePath)) return result;
+  const raw = readFileSync(filePath, 'utf8');
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
+// Same generators (and value shapes) the CLI uses in
+// tools/cli/src/lib/config/ensure-env.ts, so a host `bun dev` secret is
+// indistinguishable in strength from a `tale init` one.
+const SECRET_GENERATORS: Record<string, () => string> = {
+  INSTANCE_SECRET: () => randomBytes(32).toString('hex'),
+  BETTER_AUTH_SECRET: () => randomBytes(32).toString('base64'),
+  // Shared HMAC key for Convex → sandbox spawner request signing. Hex, 32 bytes
+  // (mirrors services/sandbox/src/auth.ts and the CLI's SANDBOX_TOKEN).
+  SANDBOX_TOKEN: () => randomBytes(32).toString('hex'),
+};
+
+/** Merge the same dotenv files the platform orchestrator reads, lowest →
+ *  highest precedence (process.env wins last — an explicit shell override
+ *  should never be regenerated). */
+function mergedEnv(): Record<string, string> {
+  const files = [
+    join(repoRoot, '.env'),
+    join(repoRoot, '.env.local'),
+    join(platformRoot, '.env'),
+    join(platformRoot, '.env.local'),
+  ];
+  const merged: Record<string, string> = {};
+  for (const file of files) Object.assign(merged, parseDotEnv(file));
+  for (const [k, v] of Object.entries(process.env)) {
+    if (typeof v === 'string' && v.length > 0) merged[k] = v;
+  }
+  return merged;
+}
+
+/** Generate + persist any of the shared dev secrets that no .env / shell value
+ *  supplies. Writes only the missing ones to a gitignored repo-root .env
+ *  (created on demand — also docker compose's auto-loaded env_file) and loads
+ *  every resolved secret into process.env so the spawned turbo fleet inherits
+ *  them. */
+function ensureDevSecrets(): void {
+  const env = mergedEnv();
+  const generated: Record<string, string> = {};
+
+  for (const [key, generate] of Object.entries(SECRET_GENERATORS)) {
+    const existing = env[key]?.trim();
+    if (existing && existing.length > 0) {
+      process.env[key] = existing;
+      continue;
+    }
+    const value = generate();
+    generated[key] = value;
+    process.env[key] = value;
+  }
+
+  if (Object.keys(generated).length === 0) {
+    console.log(
+      '[dev] 🔐 Dev secrets present (INSTANCE_SECRET, BETTER_AUTH_SECRET, SANDBOX_TOKEN)',
+    );
+    return;
+  }
+
+  const envPath = join(repoRoot, '.env');
+  const block = [
+    '',
+    '# ----------------------------------------------------------------------------',
+    '# Auto-generated dev secrets (bun run dev). Random + machine-local + gitignored.',
+    '# Delete a line to have it regenerated; set your own to override. The container',
+    '# path (`tale init`/`tale start`) reuses these same keys from this .env.',
+    '# ----------------------------------------------------------------------------',
+    ...Object.entries(generated).map(([k, v]) => `${k}=${v}`),
+    '',
+  ].join('\n');
+
+  if (existsSync(envPath)) {
+    appendFileSync(envPath, `${block}\n`, 'utf8');
+  } else {
+    writeFileSync(envPath, `${block.replace(/^\n/, '')}\n`, 'utf8');
+  }
+
+  console.log(
+    `[dev] 🔐 Generated ${Object.keys(generated).length} dev secret(s) → .env: ${Object.keys(generated).join(', ')}`,
+  );
+}
+
+function main(): void {
+  ensureDevSecrets();
+
+  // Mirror the existing root `dev` filter: skip the marketing site + docs, which
+  // are heavy and dev-irrelevant for platform work.
+  const turbo: ChildProcess = spawn(
+    'bunx',
+    [
+      'turbo',
+      'run',
+      'dev',
+      '--filter=!@tale/docs',
+      '--filter=!@tale/web',
+      ...process.argv.slice(2),
+    ],
+    { stdio: 'inherit', cwd: repoRoot, env: process.env },
+  );
+
+  const forward = (signal: 'SIGINT' | 'SIGTERM') => () => {
+    if (turbo.pid) turbo.kill(signal);
+  };
+  process.on('SIGINT', forward('SIGINT'));
+  process.on('SIGTERM', forward('SIGTERM'));
+
+  turbo.on('exit', (code: number | null, signal: string | null) => {
+    if (signal) {
+      process.exit(1);
+    }
+    process.exit(code ?? 0);
+  });
+  turbo.on('error', (err: Error) => {
+    console.error('[dev] ❌ Failed to start turbo:', err);
+    process.exit(1);
+  });
+}
+
+main();

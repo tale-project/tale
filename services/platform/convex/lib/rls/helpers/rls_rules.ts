@@ -32,7 +32,7 @@ export async function rlsRules(
       role: MemberRole;
       member: OrganizationMember;
     }>;
-    userTeamIds: Set<string>;
+    userTeamIds?: Set<string>;
   },
 ): Promise<Rules<RLSRuleContext, DataModel>> {
   // Use pre-fetched data if available, otherwise fetch
@@ -44,16 +44,21 @@ export async function rlsRules(
     userOrganizations.map((org) => org.organizationId),
   );
 
-  // Use pre-fetched team IDs if available (parallel fetch in queryWithRLS),
-  // otherwise fetch sequentially as fallback
-  const userTeamIds =
-    prefetchedData?.userTeamIds ??
-    (user?.userId
-      ? new Set(await getUserTeamIds(ctx, user.userId))
-      : new Set<string>());
-
-  const hasDocumentTeamAccess = (doc: { teamId?: string | null }): boolean =>
-    hasTeamAccess(doc, userTeamIds);
+  // Team IDs cost a cross-component Better Auth round-trip, but only the
+  // handful of team-scoped tables below (agentBindings, documents,
+  // promptTemplates, promptCategories) ever consult them. The vast majority of
+  // wrapped queries touch none of those tables, so resolving teams eagerly here
+  // burned a round-trip per query for nothing. Resolve them lazily and memoize:
+  // the cost is paid once, only when a team-scoped row policy actually runs.
+  let teamIdsPromise: Promise<Set<string>> | undefined;
+  const resolveTeamIds = (): Promise<Set<string>> => {
+    if (prefetchedData?.userTeamIds) {
+      return Promise.resolve(prefetchedData.userTeamIds);
+    }
+    return (teamIdsPromise ??= user?.userId
+      ? getUserTeamIds(ctx, user.userId).then((ids) => new Set(ids))
+      : Promise.resolve(new Set<string>()));
+  };
 
   return {
     // Agents - organization-scoped with team-based access control
@@ -61,7 +66,7 @@ export async function rlsRules(
       read: async (_, agent) => {
         if (!user) return false;
         if (!userOrgIds.has(agent.organizationId)) return false;
-        if (!hasTeamAccess(agent, userTeamIds)) return false;
+        if (!hasTeamAccess(agent, await resolveTeamIds())) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === agent.organizationId,
         );
@@ -70,7 +75,7 @@ export async function rlsRules(
       modify: async (_, agent) => {
         if (!user) return false;
         if (!userOrgIds.has(agent.organizationId)) return false;
-        if (!hasTeamAccess(agent, userTeamIds)) return false;
+        if (!hasTeamAccess(agent, await resolveTeamIds())) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === agent.organizationId,
         );
@@ -91,7 +96,7 @@ export async function rlsRules(
       read: async (_, doc) => {
         if (!user) return false;
         if (!userOrgIds.has(doc.organizationId)) return false;
-        if (!hasDocumentTeamAccess(doc)) return false;
+        if (!hasTeamAccess(doc, await resolveTeamIds())) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === doc.organizationId,
         );
@@ -100,7 +105,7 @@ export async function rlsRules(
       modify: async (_, doc) => {
         if (!user) return false;
         if (!userOrgIds.has(doc.organizationId)) return false;
-        if (!hasDocumentTeamAccess(doc)) return false;
+        if (!hasTeamAccess(doc, await resolveTeamIds())) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === doc.organizationId,
         );
@@ -109,7 +114,7 @@ export async function rlsRules(
       insert: async ({ user: ruleUser }, doc) => {
         if (!ruleUser) return false;
         if (!userOrgIds.has(doc.organizationId)) return false;
-        if (!hasDocumentTeamAccess(doc)) return false;
+        if (!hasTeamAccess(doc, await resolveTeamIds())) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === doc.organizationId,
         );
@@ -443,7 +448,7 @@ export async function rlsRules(
       read: async (_, prompt) => {
         if (!user) return false;
         if (!userOrgIds.has(prompt.organizationId)) return false;
-        if (!hasTeamAccess(prompt, userTeamIds)) return false;
+        if (!hasTeamAccess(prompt, await resolveTeamIds())) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === prompt.organizationId,
         );
@@ -452,7 +457,7 @@ export async function rlsRules(
       modify: async (_, prompt) => {
         if (!user) return false;
         if (!userOrgIds.has(prompt.organizationId)) return false;
-        if (!hasTeamAccess(prompt, userTeamIds)) return false;
+        if (!hasTeamAccess(prompt, await resolveTeamIds())) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === prompt.organizationId,
         );
@@ -461,7 +466,7 @@ export async function rlsRules(
       insert: async ({ user: ruleUser }, prompt) => {
         if (!ruleUser) return false;
         if (!userOrgIds.has(prompt.organizationId)) return false;
-        if (!hasTeamAccess(prompt, userTeamIds)) return false;
+        if (!hasTeamAccess(prompt, await resolveTeamIds())) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === prompt.organizationId,
         );
@@ -480,7 +485,10 @@ export async function rlsRules(
         if (category.scope === 'global') {
           // visible to any org member
         } else if (category.scope === 'team') {
-          if (!category.teamId || !userTeamIds.has(category.teamId))
+          if (
+            !category.teamId ||
+            !(await resolveTeamIds()).has(category.teamId)
+          )
             return false;
         } else if (category.scope === 'personal') {
           if (category.createdBy !== user.userId) return false;
@@ -513,7 +521,9 @@ export async function rlsRules(
         }
         if (category.scope === 'team') {
           if (!isAdminRole) return false;
-          return !!category.teamId && userTeamIds.has(category.teamId);
+          return (
+            !!category.teamId && (await resolveTeamIds()).has(category.teamId)
+          );
         }
         if (category.scope === 'global') {
           return isAdminRole;
@@ -536,7 +546,9 @@ export async function rlsRules(
         }
         if (category.scope === 'team') {
           if (!isAdminRole) return false;
-          return !!category.teamId && userTeamIds.has(category.teamId);
+          return (
+            !!category.teamId && (await resolveTeamIds()).has(category.teamId)
+          );
         }
         if (category.scope === 'global') {
           return isAdminRole;

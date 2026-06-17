@@ -17,7 +17,7 @@
 
 import { v } from 'convex/values';
 
-import { getString } from '../../lib/utils/type-guards';
+import { getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { jsonRecordValidator } from '../lib/validators/json';

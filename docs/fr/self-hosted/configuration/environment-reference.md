@@ -48,12 +48,16 @@ Remplace les valeurs livrées dans `.env.example` avant d'exposer l'instance —
 
 ## Base de données
 
-| Nom            | Défaut                         | Description                                                                                                                                             |
-| -------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DB_PASSWORD`  | `tale_password_change_me`      | **Obligatoire.** Mot de passe pour l'utilisateur Postgres auto-hébergé. Change-le avant la production. Utilisé par chaque service compose.              |
-| `POSTGRES_URL` | construit depuis `DB_PASSWORD` | **Optionnel.** Override de l'URL de connexion construite automatiquement. Utilise-le pour pointer sur un Postgres externe ou un hôte/port non standard. |
+Tale fait tourner deux bases Postgres : la base opérationnelle (`db`, port 5432) derrière le backend Convex, et le corpus de connaissances (`knowledge-db`, port 5433) qui détient les fragments de documents, les embeddings et les pages crawlées. Les deux sont ParadeDB et partagent `DB_PASSWORD`, mais elles sont indépendantes — pointe l'une ou l'autre vers une infrastructure externe séparément.
 
-La forme auto-construite est `postgresql://tale:${DB_PASSWORD}@db:5432`. Convex attend l'URL sans nom de base ; le nom est dérivé de la configuration d'instance.
+| Nom                      | Défaut                                                              | Description                                                                                                                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DB_PASSWORD`            | `tale_password_change_me`                                           | **Obligatoire.** Mot de passe pour l'utilisateur Postgres auto-hébergé. Change-le avant la production. Utilisé par les deux conteneurs de base de données.                                                                      |
+| `POSTGRES_URL`           | construit depuis `DB_PASSWORD`                                      | **Optionnel.** Override de l'URL de la base opérationnelle construite automatiquement. Utilise-le pour pointer sur un Postgres externe ou un hôte/port non standard.                                                            |
+| `KNOWLEDGE_DATABASE_URL` | `postgresql://tale:${DB_PASSWORD}@knowledge-db:5432/tale_knowledge` | **Optionnel.** URL de connexion que le backend Convex utilise pour le corpus de connaissances. Override pour relocaliser le corpus vers ton propre ParadeDB géré — la banque sensible à la résidence se déplace indépendamment. |
+| `KNOWLEDGE_DB_NAME`      | `tale_knowledge`                                                    | **Optionnel.** Nom de la base de connaissances. Le conteneur `knowledge-db` fourni crée cette base au premier boot.                                                                                                             |
+
+La forme opérationnelle auto-construite est `postgresql://tale:${DB_PASSWORD}@db:5432`. Convex attend cette URL sans nom de base ; le nom est dérivé de la configuration d'instance. Le corpus de connaissances vit dans `tale_knowledge` avec les schémas `private_knowledge` et `public_web` ; l'UI **Paramètres > Résidence des données** écrit une config par banque plus riche que ces variables brutes, couverte dans [Résidence des données](/fr/self-hosted/configuration/data-residency).
 
 ## Observabilité
 
@@ -63,7 +67,7 @@ La forme auto-construite est `postgresql://tale:${DB_PASSWORD}@db:5432`. Convex 
 | `SENTRY_TRACES_SAMPLE_RATE` | non défini | Taux d'échantillonnage optionnel pour les traces de performance (`0.0`–`1.0`). Le comportement par défaut dépend du déploiement.             |
 | `METRICS_BEARER_TOKEN`      | non défini | Token bearer requis pour accéder aux endpoints Prometheus `/metrics/*`. Laisse vide pour rendre les endpoints inatteignables de l'extérieur. |
 
-Définir `METRICS_BEARER_TOKEN` expose quatre endpoints derrière le token : `/metrics/crawler`, `/metrics/rag`, `/metrics/platform` et `/metrics/convex` (les 261 métriques intégrées de Convex). Voir [Configuration d'observabilité](/fr/self-hosted/configuration/observability-config) pour la configuration de scrape.
+Définir `METRICS_BEARER_TOKEN` expose deux endpoints derrière le token : `/metrics/platform` et `/metrics/convex` (les 261 métriques intégrées de Convex, qui portent désormais aussi les timings RAG et de crawl). Voir [Configuration d'observabilité](/fr/self-hosted/configuration/observability-config) pour la configuration de scrape.
 
 ## Chiffrement des secrets de fournisseur
 
@@ -80,28 +84,28 @@ La source de clé par variable d'environnement ne nécessite aucun commutateur d
 
 Bascules optionnelles pour des fonctionnalités non activées par défaut. Chaque drapeau active ou désactive une fonctionnalité au boot ; basculer demande un redémarrage du conteneur plateforme.
 
-| Nom                             | Défaut  | Description                                                                                                                                                           |
-| ------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MICROSOFT_AUTH_ENABLED`        | `false` | Active l'option de sign-in Microsoft Entra.                                                                                                                           |
-| `TRUSTED_HEADERS_ENABLED`       | `false` | Active le mode auth par trusted headers (identité fournie par le reverse proxy).                                                                                      |
-| `FILE_EVENTS_ENABLED`           | `false` | Active les événements de surveillance de fichiers pour l'intégration OneDrive-sync.                                                                                   |
-| `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Allowlist de courriels (séparés par des virgules) des opérateurs autorisés à modifier la résidence des données. Vide/non défini = lecture seule pour tous les admins. |
+| Nom                             | Défaut     | Description                                                                                                                                                                          |
+| ------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MICROSOFT_AUTH_ENABLED`        | `false`    | Active l'option de sign-in Microsoft Entra.                                                                                                                                          |
+| `TRUSTED_HEADERS_ENABLED`       | `false`    | Active le mode auth par trusted headers (identité fournie par le reverse proxy).                                                                                                     |
+| `FILE_EVENTS_ENABLED`           | `false`    | Active les événements de surveillance de fichiers pour l'intégration OneDrive-sync.                                                                                                  |
+| `TALE_DEPLOYMENT_CONFIG_ADMINS` | non défini | Allowlist de courriels (séparés par des virgules) des opérateurs autorisés à modifier la résidence des données du déploiement. Vide/non défini = lecture seule pour tous les admins. |
 
 ## Réglage du retrieval RAG
 
-Réglages optionnels pour la pipeline de recherche du service RAG. Tous portent le préfixe `RAG_` et sont lus par le conteneur `tale-rag` au boot ; après un changement, lance `docker compose restart tale-rag` pour qu'il prenne effet.
+Réglages optionnels pour la recherche dans la base de connaissances. Le chemin RAG en in-process (node-actions Convex) re-note les résultats avec un cross-encoder quand le re-ranking est activé. Tous portent le préfixe `RAG_` et sont lus par les conteneurs `platform` et `convex` au boot ; après un changement, lance `docker compose restart platform convex` pour qu'il prenne effet.
 
-| Nom                          | Défaut                                 | Description                                                                                                                                                          |
-| ---------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RAG_RERANKING_ENABLED`      | `false`                                | Re-note les candidats fusionnés BM25 + vecteur avec un cross-encoder avant de renvoyer les résultats. Plus de précision, plus de latence par requête.                |
-| `RAG_RERANKING_MODEL`        | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Identifiant du modèle cross-encoder. Le provider `local` le télécharge depuis Hugging Face au premier usage (environ 90 Mo, mis en cache dans le volume `rag-data`). |
-| `RAG_RERANKING_PROVIDER`     | `local`                                | `local` exécute le modèle sur CPU dans le conteneur RAG ; `api` envoie les candidats à un endpoint `/rerank` externe (contrat compatible Cohere/Jina).               |
-| `RAG_RERANKING_TOP_K`        | `10`                                   | Nombre maximal de résultats que le reranker renvoie. La réponse ne dépasse jamais le `top_k` de la requête.                                                          |
-| `RAG_RERANKING_CANDIDATES`   | `30`                                   | Taille du pool de candidats fourni au reranker. Un pool plus large améliore la re-notation et coûte proportionnellement plus de temps par requête.                   |
-| `RAG_RERANKING_API_BASE_URL` | non défini                             | URL de base pour `provider=api` ; le service appelle `{base_url}/rerank`. Obligatoire quand le provider est `api`.                                                   |
-| `RAG_RERANKING_API_KEY`      | non défini                             | Token Bearer envoyé à l'endpoint de rerank externe. Laisse-le non défini pour les endpoints sans authentification.                                                   |
+| Nom                          | Défaut                                 | Description                                                                                                                                                                                  |
+| ---------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RAG_RERANKING_ENABLED`      | `false`                                | Re-note les candidats fusionnés BM25 + vecteur avec un cross-encoder avant de renvoyer les résultats. Améliore la précision au prix de la latence par requête.                               |
+| `RAG_RERANKING_MODEL`        | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Identifiant du modèle cross-encoder transmis au fournisseur de rerank.                                                                                                                       |
+| `RAG_RERANKING_PROVIDER`     | `local`                                | Doit être réglé sur `api` pour activer le re-ranking — il poste les candidats à un endpoint `/rerank` externe (compatible Cohere/Jina). `local` n'est plus supporté et échoue tout de suite. |
+| `RAG_RERANKING_TOP_K`        | `10`                                   | Nombre maximal de résultats que le reranker renvoie. La réponse ne dépasse jamais le `top_k` de la requête.                                                                                  |
+| `RAG_RERANKING_CANDIDATES`   | `30`                                   | Taille du pool de candidats fourni au reranker. Un pool plus large améliore la qualité de re-notation et coûte proportionnellement plus de temps par requête.                                |
+| `RAG_RERANKING_API_BASE_URL` | non défini                             | URL de base du fournisseur de rerank ; la plateforme appelle `{base_url}/rerank`. Obligatoire quand le re-ranking est activé.                                                                |
+| `RAG_RERANKING_API_KEY`      | non défini                             | Token Bearer envoyé à l'endpoint de rerank externe. Laisse-le non défini pour les endpoints sans authentification.                                                                           |
 
-Le re-ranking est désactivé par défaut parce que le cross-encoder local coûte de la mémoire (le modèle d'environ 90 Mo reste résident) et de la latence par requête (grossièrement 5–15 ms par candidat sur CPU). Active-le quand la précision du retrieval compte plus que le temps de réponse, et préfère `provider=api` quand tu exploites déjà un service de rerank hébergé. Les déploiements air-gapped doivent pré-remplir le cache Hugging Face dans le volume `rag-data` — sinon la première requête re-notée tente de télécharger le modèle et retombe sur le classement hybride simple.
+Le re-ranking est livré désactivé parce qu'il ajoute de la latence par requête et dépend d'un endpoint externe. Active-le — en réglant `RAG_RERANKING_PROVIDER=api` et en pointant `RAG_RERANKING_API_BASE_URL` vers un service de rerank hébergé — quand la précision du retrieval compte plus que le temps de réponse. Il n'y a aucun modèle en in-process à télécharger ou à mettre en cache ; le re-ranking désactivé, la recherche renvoie le classement hybride BM25 + vecteur simple.
 
 ## Sessions
 

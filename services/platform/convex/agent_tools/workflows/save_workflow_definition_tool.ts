@@ -125,7 +125,7 @@ Inform the user the update is ready for review. Only say the approval card has b
       workflowSlug: z
         .string()
         .describe(
-          'Slug of the workflow to update (e.g., "conversation-sync", "circuly/sync-customers"). Required.',
+          'Slug of the workflow to update (e.g., "conversation-sync", "shopify/sync-customers"). Required.',
         ),
       updateSummary: z
         .string()

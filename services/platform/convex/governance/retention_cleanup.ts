@@ -4,13 +4,13 @@ import { v } from 'convex/values';
 
 import type { RetentionPolicyConfig } from '../../lib/shared/schemas/governance';
 import type { AppliedBoundsByCategory } from '../../lib/shared/schemas/retention';
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { ragFetch } from '../lib/helpers/rag_config';
+import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import type { ActiveHolds } from './legal_hold';
 import {
   clampConfigToBounds,
@@ -107,19 +107,19 @@ interface OrgPolicy {
 }
 
 async function deleteRagEntry(
+  ctx: ActionCtx,
   orgSlug: string,
   fileId: string,
   label: string,
 ): Promise<void> {
   try {
-    const res = await ragFetch(
-      `/api/v1/documents/${encodeURIComponent(fileId)}`,
-      { method: 'DELETE', timeoutMs: 10_000, orgSlug },
-    );
-    // 404 is success on DELETE — already gone.
-    if (!res.ok && res.status !== 404) {
+    // In-process delete (replaces the external RAG DELETE). Idempotent: an
+    // already-deleted / never-indexed document returns success with
+    // `deletedCount: 0`.
+    const result = await deleteDocumentById(ctx, { orgSlug, fileId });
+    if (!result.success) {
       console.warn(
-        `[RetentionCleanup] RAG DELETE returned ${res.status} for ${label}`,
+        `[RetentionCleanup] RAG delete failed for ${label}: ${result.error ?? result.message}`,
       );
     }
   } catch (error) {
@@ -217,7 +217,7 @@ async function cleanupDocuments(
     }
 
     if (doc.fileId && orgSlug !== null) {
-      await deleteRagEntry(orgSlug, doc.fileId, `document ${doc._id}`);
+      await deleteRagEntry(ctx, orgSlug, doc.fileId, `document ${doc._id}`);
     }
 
     await ctx.runMutation(
@@ -330,6 +330,7 @@ async function cleanupTempFiles(
 
     if (tempOrgSlug !== null) {
       await deleteRagEntry(
+        ctx,
         tempOrgSlug,
         file.storageId,
         `temp file ${file._id}`,

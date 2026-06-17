@@ -14,7 +14,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import { isTaskLabelColor } from '../../lib/shared/task_label_colors';
+import { isTaskLabelColor } from '../../lib/shared/task-label-colors';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';

@@ -45,9 +45,9 @@ La preuve que le câblage marche est une transcription visible dans la Base de c
 
 Ouvre le projet cible, navigue vers sa Base de connaissances et cherche la nouvelle transcription en haut de la liste des documents. Clique dans l'aperçu — la transcription se rend comme document avec le titre de la réunion en nom de document et la date de la réunion en created-at. Attends que le badge d'indexation se libère (quelques secondes pour une courte transcription, jusqu'à une minute pour une longue), puis lance une recherche sur un nom ou une phrase dont tu te souviens de la réunion de test. La transcription devrait être le premier résultat avec la phrase surlignée.
 
-Si le document est là mais que le badge d'indexation reste orange, le service RAG est en retard — la page [Dépannage](/fr/self-hosted/operate/observability/troubleshooting) nomme les symptômes.
+Si le document est là mais que le badge d'indexation reste orange, l'indexation est en retard — la page [Dépannage](/fr/self-hosted/operate/observability/troubleshooting) nomme les symptômes.
 
-## Frontière de confiance
+## Notes de confidentialité
 
 L'intégration traverse un réseau dans chaque direction et la forme des données compte.
 

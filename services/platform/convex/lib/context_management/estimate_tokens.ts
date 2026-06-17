@@ -12,7 +12,7 @@
 
 import type { ModelMessage } from '@ai-sdk/provider-utils';
 
-import { isRecord, getString } from '../../../lib/utils/type-guards';
+import { isRecord, getString } from '../../../lib/utils/type-utils';
 
 /**
  * Approximate characters per token for different content types.

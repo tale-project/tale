@@ -6,7 +6,7 @@
  * Applies team-based access control and returns a lightweight response.
  */
 
-import { getNumber } from '../../lib/utils/type-guards';
+import { getNumber } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { buildBreadcrumb } from '../folders/queries';

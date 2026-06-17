@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { ChatItem } from '@/app/features/chat/hooks/use-merged-chat-items';
 import type { ChatMessage } from '@/app/features/chat/hooks/use-message-processing';
 import type { Id } from '@/convex/_generated/dataModel';
-import { render, screen } from '@/test/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import {
   ChatMessages,
