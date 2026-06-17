@@ -94,6 +94,93 @@ function stub(createSecret: () => Promise<unknown>): {
   return { client: { core, namespace: 'tale-sandbox' }, calls };
 }
 
+/**
+ * Stub for a RESUME (PVC already exists). `podPhase` is what the FIRST
+ * readNamespacedPod returns (the reap probe); subsequent reads are 404 (gone),
+ * so the reap's poll-until-gone exits at once. createNamespacedPod rejects with
+ * a sentinel to halt the flow before runnerd readiness (which would do real
+ * HTTP). The op log records call order so we can assert reap-before-recreate.
+ */
+function resumeStub(podPhase: 'Failed' | 'Succeeded' | 'Running' | 'Pending'): {
+  client: K8sClient;
+  log: string[];
+} {
+  const log: string[] = [];
+  let podReads = 0;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+  const core = {
+    readNamespacedPersistentVolumeClaim: () => {
+      log.push('readPvc');
+      return Promise.resolve({}); // PVC exists ⇒ resume
+    },
+    createNamespacedPersistentVolumeClaim: () => Promise.resolve({}),
+    deleteNamespacedPersistentVolumeClaim: () => {
+      log.push('deletePvc');
+      return Promise.resolve({});
+    },
+    readNamespacedPod: () => {
+      podReads += 1;
+      if (podReads === 1) {
+        log.push('readPod:probe');
+        return Promise.resolve({ status: { phase: podPhase } });
+      }
+      log.push('readPod:gone');
+      return notFound();
+    },
+    deleteNamespacedPod: () => {
+      log.push('deletePod');
+      return Promise.resolve({});
+    },
+    deleteNamespacedSecret: () => {
+      log.push('deleteSecret');
+      return Promise.resolve({});
+    },
+    createNamespacedSecret: () => {
+      log.push('createSecret');
+      return Promise.resolve({});
+    },
+    createNamespacedPod: () => {
+      log.push('createPod');
+      // Halt before readiness polling (no real runnerd in a unit test). 400 is
+      // non-retryable, so withRetry rethrows at once (no retry backoff/noise).
+      return Promise.reject(Object.assign(new Error('halt'), { code: 400 }));
+    },
+  } as unknown as CoreV1Api;
+  return { client: { core, namespace: 'tale-sandbox' }, log };
+}
+
+describe('KubernetesSessionBackend.createSession — reap a terminal Pod on resume', () => {
+  /** Run a resume against a Pod stuck in `phase` and report whether the orphan
+   * was deleted BEFORE the new Secret/Pod was created (i.e. proactively reaped).
+   * createNamespacedPod halts the flow before readiness — the reap, not the
+   * happy path, is what we assert. A `deletePod` after `createSecret` is the
+   * halt-driven failed-create cleanup, NOT a proactive reap. */
+  async function reapedBeforeRecreate(
+    phase: 'Failed' | 'Succeeded' | 'Running' | 'Pending',
+  ): Promise<boolean> {
+    const { client, log } = resumeStub(phase);
+    const backend = new KubernetesSessionBackend(cfg, client);
+    await backend.createSession(spec).catch(() => {});
+    const firstDeletePod = log.indexOf('deletePod');
+    const createSecretIdx = log.indexOf('createSecret');
+    expect(createSecretIdx).toBeGreaterThanOrEqual(0); // recreate was attempted
+    return firstDeletePod >= 0 && firstDeletePod < createSecretIdx;
+  }
+
+  test('a provably-dead Pod (Failed/Succeeded) is reaped before the recreate', async () => {
+    expect(await reapedBeforeRecreate('Failed')).toBe(true);
+    expect(await reapedBeforeRecreate('Succeeded')).toBe(true);
+  });
+
+  test('a Running OR Pending peer is left untouched (concurrent-winner safety)', async () => {
+    // The whole point: a Pending Pod is a peer still scheduling on another
+    // replica, NOT a dead orphan — reaping it would stomp a healthy session.
+    // (Regression guard for the cross-replica reap bug.)
+    expect(await reapedBeforeRecreate('Running')).toBe(false);
+    expect(await reapedBeforeRecreate('Pending')).toBe(false);
+  });
+});
+
 describe('KubernetesSessionBackend.createSession — PVC cleanup on Secret failure (C4)', () => {
   test('a fresh-create Secret failure deletes the just-created workspace PVC', async () => {
     const { client, calls } = stub(conflict);

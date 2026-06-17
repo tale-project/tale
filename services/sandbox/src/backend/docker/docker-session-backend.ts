@@ -30,6 +30,26 @@ import {
 } from '../../volume.ts';
 import type { BackendSession, SessionBackend, SessionSpec } from '../types.ts';
 
+/** Does a `docker run` stderr report a container-name collision? */
+export function isDockerNameConflict(stderr: string): boolean {
+  return /already in use|conflict/i.test(stderr);
+}
+
+/**
+ * Is a container in a state safe to REAP on a create-time name conflict?
+ *
+ * Session containers never restart, so `exited`/`dead` are terminal — a dead
+ * orphan whose name can be reclaimed. Every other state (`running`, `created`,
+ * `restarting`, `paused`, `removing`) is left alone: it could be a concurrent
+ * winner's healthy session on another spawner replica, or one still starting,
+ * and reaping it would kill a live session. An unknown/unreadable state is
+ * treated as NOT reapable by the caller for the same reason.
+ */
+export function isReapableContainerStatus(status: string): boolean {
+  const s = status.trim();
+  return s === 'exited' || s === 'dead';
+}
+
 export class DockerSessionBackend implements SessionBackend {
   readonly kind = 'docker' as const;
 
@@ -121,15 +141,48 @@ export class DockerSessionBackend implements SessionBackend {
     // via `docker inspect`, and the seed env can carry secrets. It is instead
     // pushed to runnerd over POST /env after readiness (below), mirroring the
     // K8s backend, which routes it through a Secret rather than a visible arg.
-    const run = await runDocker(argv, { timeoutMs: 30_000 });
+    let run = await runDocker(argv, { timeoutMs: 30_000 });
+
+    // Reconcile a stale name conflict. A container with our DETERMINISTIC name
+    // already exists. Within a single spawner the route serializes creates (the
+    // `creating` set + a registry 409), so this is NOT an in-flight peer — it's
+    // a leftover from a prior life: a container that died out-of-band (daemon
+    // restart, OOM, exit 255) whose registry entry was already evicted as
+    // "gone" (sessionExists keys on State.Running, so an exited container reads
+    // as not-present and the platform resumes — landing right here). Such an
+    // orphan would otherwise 502 every future resume forever. Reap it and retry
+    // ONCE, but only when it is in a TERMINAL state — a running/created
+    // container could be a concurrent winner's healthy session on another
+    // replica and must never be reaped. The host workspace dir survives the
+    // reap, so the retry is a true resume.
+    if (run.exitCode !== 0 && isDockerNameConflict(run.stderr)) {
+      const status = await this.containerStatus(containerName);
+      if (status !== null && isReapableContainerStatus(status)) {
+        console.warn(
+          `[sandbox.session] reaping dead container ${containerName} (status=${status}) and retrying create for ${spec.sessionId}`,
+        );
+        await dockerRm(containerName).catch((err) =>
+          console.warn('[sandbox.session] orphan reap dockerRm failed:', err),
+        );
+        // The dead container may still have pinned the dind volume, so the
+        // earlier ensureFreshDindVolume could not actually recreate it; redo it
+        // now that the container is gone so the retry mounts a genuinely fresh
+        // inner store. (Volume name is deterministic, so argv stays valid.)
+        if (this.cfg.dockerInContainer) {
+          await this.ensureFreshDindVolume(spec.sessionId);
+        }
+        run = await runDocker(argv, { timeoutMs: 30_000 });
+      }
+    }
+
     if (run.exitCode !== 0) {
       const stderr = run.stderr.trim();
-      // A name conflict means a CONCURRENT createSession for the same id already
-      // created the container — it is the WINNER's, not ours. Never run the
-      // destructive cleanup below against it; just surface the failure (the
-      // route layer reserves the id and returns 409 to keep the two from
-      // racing in the first place; this is defense-in-depth).
-      const nameConflict = /already in use|conflict/i.test(stderr);
+      // A name conflict that survived the reconcile above (the container is
+      // running/created — a likely concurrent winner — or a retry that re-lost
+      // the race) is NOT ours to tear down: surface it without the destructive
+      // cleanup below. adoptExisting + the route's 409-reuse path recover a
+      // running peer on a later turn.
+      const nameConflict = isDockerNameConflict(stderr);
       if (!nameConflict) {
         // Clean up a half-created container before surfacing the failure. On a
         // resume (preexisting dir), preserve the workspace; only a fresh create
@@ -209,6 +262,19 @@ export class DockerSessionBackend implements SessionBackend {
     throw new Error(
       `docker inspect ${containerName} failed: ${inspect.stderr.trim() || inspect.stdout.trim()}`,
     );
+  }
+
+  /** Current `State.Status` of the named container, or null when it can't be
+   * read (no such object, or a daemon hiccup). Drives the create-conflict
+   * reconcile: a null/unknown status is never treated as reapable, so a daemon
+   * blip can't trigger a destructive reap of a possibly-live peer. */
+  private async containerStatus(containerName: string): Promise<string | null> {
+    const inspect = await runDocker(
+      ['inspect', '--format', '{{.State.Status}}', containerName],
+      { timeoutMs: 5_000 },
+    );
+    if (inspect.exitCode !== 0) return null;
+    return inspect.stdout.trim();
   }
 
   /** Does the host workspace dir already exist? Distinguishes a resume (dir
