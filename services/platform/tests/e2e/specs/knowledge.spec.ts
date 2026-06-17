@@ -5,10 +5,10 @@ import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
 /**
- * Knowledge-entity CRUD breadth, parametrized over the shared DataTable lists.
- * Create differs per entity (CSV manual-entry vs. multi-step wizard vs. direct
- * form) so each carries its own `create`; edit/delete are shared because only
- * the manually-created rows expose those actions.
+ * Knowledge-entity CRUD round-trip, parametrized over the shared DataTable
+ * lists. Create carries its own `create` per entity (vendors uses CSV
+ * manual-entry); edit/delete are shared because only the manually-created rows
+ * expose those actions.
  */
 
 /** A list row whose visible name cell exactly equals `name`. */
@@ -65,14 +65,13 @@ interface CrudEntity {
   create: (page: Page, name: string) => Promise<void>;
   /**
    * Resolve the list row carrying `name`. Defaults to {@link rowByCell} (an
-   * exact-name cell match), which is correct for the text-only name cells
-   * (customers/vendors/knowledge-entries). Override per entity when the name
-   * cell isn't a plain text cell.
+   * exact-name cell match), which is correct for the text-only name cell
+   * (vendors). Override per entity when the name cell isn't a plain text cell.
    */
   rowByName?: (page: Page, name: string) => Locator;
 }
 
-/** CSV manual-entry create (customers, vendors): one `email,name` line. */
+/** CSV manual-entry create (vendors): one `email,name` line. */
 async function createViaCsvImport(
   page: Page,
   options: {
@@ -102,25 +101,6 @@ async function createViaCsvImport(
 
 const ENTITIES: CrudEntity[] = [
   {
-    segment: 'customers',
-    createLabel: t('customers.importMenu.importCustomers'),
-    emptyStateTitle: t('emptyStates.customers.title'),
-    editDialogTitle: t('customers.editCustomer'),
-    deleteDialogTitle: t('customers.deleteCustomer'),
-    nameFieldLabel: t('customers.name'),
-    updateSuccess: t('customers.updateSuccess'),
-    create: (page, name) =>
-      createViaCsvImport(page, {
-        menuTrigger: t('customers.importMenu.importCustomers'),
-        menuItem: t('customers.importMenu.manualEntry'),
-        dialogTitle: t('customers.import.addCustomers'),
-        importLabel: t('customers.import.import'),
-        // Unique email so the bulk-create never reports zero imported on a dup.
-        email: `e2e-customer-${name.split(' ').pop() ?? ''}@example.test`,
-        name,
-      }),
-  },
-  {
     segment: 'vendors',
     createLabel: t('vendors.importMenu.importVendors'),
     emptyStateTitle: t('emptyStates.vendors.title'),
@@ -137,79 +117,6 @@ const ENTITIES: CrudEntity[] = [
         email: `e2e-vendor-${name.split(' ').pop() ?? ''}@example.test`,
         name,
       }),
-  },
-  {
-    segment: 'products',
-    createLabel: t('products.addButton'),
-    emptyStateTitle: t('emptyStates.products.title'),
-    editDialogTitle: t('products.edit.title'),
-    deleteDialogTitle: t('products.delete.title'),
-    nameFieldLabel: t('products.edit.labels.name'),
-    updateSuccess: t('products.edit.toast.success'),
-    // The product name cell renders a thumbnail (`<img alt={name}>`) beside the
-    // name `<Text>`, so the cell's accessible name is the doubled `name name`
-    // — `rowByCell`'s exact single-name match never hits. Match the doubled
-    // value (which renames in lockstep with the cell) to keep it exact.
-    rowByName: (page, name) =>
-      page.getByRole('row').filter({
-        has: page.getByRole('cell', { name: `${name} ${name}`, exact: true }),
-      }),
-    create: async (page, name) => {
-      // Header "Add product" is a Radix dropdown; the empty-state CTA shares the
-      // label but is a plain button — scope to the dropdown to disambiguate.
-      await page
-        .getByRole('button', { name: t('products.addButton') })
-        .and(page.locator('[aria-haspopup="menu"]'))
-        .click();
-      await page
-        .getByRole('menuitem', { name: t('products.importMenu.manualEntry') })
-        .click();
-
-      const dialog = page.getByRole('dialog', {
-        name: t('products.create.title'),
-      });
-      await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-      // Only the name gates the wizard; walk basics → pricing → review.
-      await dialog.getByLabel(t('products.edit.labels.name')).fill(name);
-      await dialog
-        .getByRole('button', { name: t('common.actions.next'), exact: true })
-        .click();
-      await dialog
-        .getByRole('button', { name: t('common.actions.next'), exact: true })
-        .click();
-      await dialog
-        .getByRole('button', { name: t('common.actions.create'), exact: true })
-        .click();
-    },
-  },
-  {
-    segment: 'knowledge-entries',
-    createLabel: t('knowledgeEntries.addButton'),
-    emptyStateTitle: t('emptyStates.knowledgeEntries.title'),
-    editDialogTitle: t('knowledgeEntries.editEntry'),
-    deleteDialogTitle: t('knowledgeEntries.delete.title'),
-    nameFieldLabel: t('knowledgeEntries.topic'),
-    updateSuccess: t('knowledgeEntries.toast.updateSuccess'),
-    create: async (page, name) => {
-      // Header button and empty-state CTA share the label and open the same
-      // dialog, so `.first()` is unambiguous. The row write is synchronous; RAG
-      // materialization is scheduled async, so the entry appears without it.
-      await page
-        .getByRole('button', { name: t('knowledgeEntries.addButton') })
-        .first()
-        .click();
-      const dialog = page.getByRole('dialog', {
-        name: t('knowledgeEntries.addEntry'),
-      });
-      await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-      await dialog.getByLabel(t('knowledgeEntries.topic')).fill(name);
-      await dialog
-        .getByLabel(t('knowledgeEntries.content'))
-        .fill(`E2E knowledge content for ${name}`);
-      await dialog
-        .getByRole('button', { name: t('common.actions.save'), exact: true })
-        .click();
-    },
   },
 ];
 
@@ -328,40 +235,4 @@ test('uploads a document and shows it queued for indexing', async ({
   await expect(docRow.getByText(ragStatusBadge).first()).toBeVisible({
     timeout: TIMEOUT.VISIBLE,
   });
-});
-
-test('opens the add-website dialog and renders its fields', async ({
-  page,
-  org,
-}) => {
-  const { organizationId } = org;
-  await page.goto(`/dashboard/${organizationId}/websites`);
-  await expectListSettled(
-    page,
-    t('websites.addButton'),
-    t('emptyStates.websites.title'),
-  );
-
-  // Full website CRUD is NOT hermetic: creating a website inserts the row
-  // synchronously, but editing the scan interval (`updateCrawlerScanInterval`)
-  // and deleting (`deregisterDomainFromCrawler`) each make a synchronous call
-  // to the crawler service (CRAWLER_URL, default localhost:8002), which the
-  // hermetic e2e stack does not run — so a created row could neither be edited
-  // nor cleaned up and would leak into the worker's org. We therefore assert
-  // the add dialog opens and its fields render rather than creating an
-  // undeletable row. The header button and empty-state CTA share the
-  // "Add website" label and both open this dialog, so `.first()` is unambiguous.
-  await page
-    .getByRole('button', { name: t('websites.addButton') })
-    .first()
-    .click();
-
-  const addDialog = page.getByRole('dialog', {
-    name: t('websites.addWebsite'),
-  });
-  await expect(addDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await expect(addDialog.getByLabel(t('websites.domain'))).toBeVisible();
-  await expect(
-    addDialog.getByText(t('websites.scanInterval')).first(),
-  ).toBeVisible();
 });

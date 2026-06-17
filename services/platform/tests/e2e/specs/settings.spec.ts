@@ -6,10 +6,9 @@ import { reloadAndSettle } from '../helpers/forms';
 import { t } from '../helpers/i18n';
 
 /**
- * Core (non-governance) settings flows: the account display-name round-trip, the
- * read-only org-name anchor, the providers list/drawer, and the provider
- * General-details write-path. Each write captures and restores its original
- * value so the worker's isolated org is left as it was found.
+ * Core (non-governance) settings flows: the account display-name round-trip and
+ * the provider General-details write-path. Each write captures and restores its
+ * original value so the worker's isolated org is left as it was found.
  */
 
 // Seeded fixture provider (`fixtures/config/default/providers/e2e-mock.json`):
@@ -83,58 +82,6 @@ test.describe('core settings', () => {
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(originalName, {
       timeout: TIMEOUT.PERSIST,
-    });
-  });
-
-  test('organization: page loads and shows the current org name', async ({
-    page,
-    org,
-  }) => {
-    const { organizationId } = org;
-    await page.goto(settingsUrl(organizationId, 'organization'));
-
-    await expect(
-      page.getByRole('heading', {
-        name: t('settings.organization.detailsTitle'),
-        level: 2,
-      }),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-    // Read-only here (never mutated). Assert it loaded a non-empty value rather
-    // than a specific name, since the wizard names each worker's org.
-    const orgNameField = page.getByLabel(t('settings.organization.title'));
-    await expect(orgNameField).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(orgNameField).not.toHaveValue('', {
-      timeout: TIMEOUT.PERSIST,
-    });
-  });
-
-  test('providers: lists the seeded provider and opens its detail drawer', async ({
-    page,
-    org,
-  }) => {
-    const { organizationId } = org;
-    await page.goto(settingsUrl(organizationId, 'providers'));
-
-    // Section heading (the providers list title), then the seeded provider row.
-    await expect(
-      page.getByRole('heading', { name: t('navigation.providers'), level: 2 }),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await expect(page.getByText(PROVIDER_DISPLAY_NAME).first()).toBeVisible({
-      timeout: TIMEOUT.VISIBLE,
-    });
-
-    // The detail deep-link re-renders the list with the provider drawer
-    // auto-opened. Assert the drawer's "General" section + the seeded name.
-    await page.goto(settingsUrl(organizationId, `providers/${PROVIDER_SLUG}`));
-    await expect(
-      page.getByRole('heading', {
-        name: t('settings.providers.general'),
-        level: 3,
-      }),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await expect(page.getByText(PROVIDER_DISPLAY_NAME).first()).toBeVisible({
-      timeout: TIMEOUT.VISIBLE,
     });
   });
 

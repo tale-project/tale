@@ -1,7 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 
 import {
-  assistantMessages,
   composer,
   deleteThreadById,
   expectCannedReply,
@@ -16,11 +15,10 @@ import { t } from '../helpers/i18n';
 
 /**
  * Chat feature surface that genuinely needs the real stack: feedback (backend
- * RBAC round-trip), save-prompt-from-composer (real persist seam), and
- * selection→Quote (needs real `getBoundingClientRect` layout). The pure-UI
- * surfaces — export dialog, message-info dialog, composer mode menu — moved to
- * component tests (`export-chat-dialog`/`message-info-dialog`/`composer-mode-menu`
- * `.test.tsx`).
+ * RBAC round-trip) and save-prompt-from-composer (real persist seam). The
+ * pure-UI surfaces — export dialog, message-info dialog, composer mode menu,
+ * and selection→Quote — moved to component tests (`export-chat-dialog`/
+ * `message-info-dialog`/`composer-mode-menu`/`selection-quote` `.test.tsx`).
  */
 
 /** The completed assistant reply's "Helpful" thumbs-up (renders post-answer). */
@@ -158,60 +156,4 @@ test('saves a composer draft as a prompt, finds it in the library, then deletes 
     .getByRole('button', { name: t('prompts.actions.delete'), exact: true })
     .click();
   await expect(promptRow).toBeHidden({ timeout: TIMEOUT.VISIBLE });
-});
-
-test('selecting assistant text and clicking Quote stages a quoted-reference chip', async ({
-  page,
-  org,
-}) => {
-  await page.goto(`/dashboard/${org.organizationId}/chat`);
-  await expect(composer(page)).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-  const message = `E2E quote probe ${Date.now().toString(36)}`;
-  const threadId = await sendNewThreadMessage(page, message);
-  await expectCannedReply(page);
-  await waitForReplyComplete(page);
-
-  // SelectionQuoteButton listens for `mouseup` and reads the live selection;
-  // Playwright's selectText() doesn't emit it. Scope the Range to the LAST
-  // assistant bubble via its `data-message-id` (a known node inside the chat
-  // scroll container, which the button requires), then dispatch a real mouseup.
-  const assistantId = await assistantMessages(page)
-    .last()
-    .getAttribute('data-message-id');
-  expect(assistantId).toBeTruthy();
-  const selected = await page.evaluate((id) => {
-    const bubble = document.querySelector(`[data-message-id="${id}"]`);
-    if (!bubble) return null;
-    const range = document.createRange();
-    range.selectNodeContents(bubble);
-    const selection = window.getSelection();
-    if (!selection) return null;
-    selection.removeAllRanges();
-    selection.addRange(range);
-    const text = selection.toString().trim();
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    return text.length > 0 ? text : null;
-  }, assistantId);
-  expect(selected).toBeTruthy();
-
-  const quoteButton = page.getByRole('button', {
-    name: t('chat.quote.button'),
-  });
-  await expect(quoteButton).toBeVisible({ timeout: TIMEOUT.PERSIST });
-  await quoteButton.click();
-
-  // The quoted-reference chip stages over the composer (chat-layout context).
-  await expect(
-    page.getByText(t('chat.quote.label'), { exact: true }).first(),
-  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
-  const removeQuote = page.getByRole('button', {
-    name: t('chat.quote.remove'),
-  });
-  await expect(removeQuote).toBeVisible({ timeout: TIMEOUT.PERSIST });
-  // Remove the chip again (proves the remove affordance + leaves it clean).
-  await removeQuote.click();
-  await expect(removeQuote).toBeHidden({ timeout: TIMEOUT.PERSIST });
-
-  await deleteThreadById(page, threadId);
 });

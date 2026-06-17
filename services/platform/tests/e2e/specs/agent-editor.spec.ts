@@ -13,9 +13,7 @@ import { t } from '../helpers/i18n';
  *
  * The webhook/delegation/metrics tabs aren't hermetically mutable (real HTTP
  * delivery, a React Flow graph editor, and no seeded run data respectively), so
- * those are RENDER-ONLY: each asserts its tab's primary section + main
- * affordance rather than a write. They read no per-test state, so they're safe
- * in the shared serial order and leave the throwaway agent untouched.
+ * their render-only coverage lives in component tests rather than here.
  */
 
 const NEW_AGENT_SUFFIX = Date.now().toString(36);
@@ -318,28 +316,7 @@ test.describe('agent editor depth', () => {
     ).toBeChecked({ timeout: TIMEOUT.PERSIST });
   });
 
-  // The webhook-tab and metrics-tab render-only smokes moved to component tests
-  // (agent-webhook-section.test.tsx, agent-metrics-scorecard.test.tsx). The
-  // delegation tab stays e2e: it mounts the React Flow organigram editor, whose
-  // canvas chrome needs real layout that jsdom cannot provide.
-  test('delegation tab: renders the organigram editor (render-only)', async ({
-    page,
-    org,
-  }) => {
-    // Delegation IS the org-chart editor (React Flow); a graph drag/save isn't
-    // a hermetic JSON write, so assert the section + the flow canvas chrome.
-    await openAgentTab(page, org.organizationId, 'delegation');
-
-    await expect(
-      page.getByRole('heading', {
-        name: t('settings.agents.delegation.title'),
-        level: 2,
-      }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    // The React Flow corner controls' "Reset view" button is a stable signal
-    // the canvas mounted.
-    await expect(
-      page.getByRole('button', { name: t('common.flow.resetView') }),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  });
+  // The webhook-tab, metrics-tab, and delegation-tab render-only smokes moved to
+  // component tests (agent-webhook-section.test.tsx,
+  // agent-metrics-scorecard.test.tsx, and the organigram editor's own test).
 });

@@ -87,6 +87,8 @@ export default defineConfig({
             'app/features/**/*.test.{ts,tsx}',
             'app/hooks/**/*.test.{ts,tsx}',
           ],
+          // `*.browser.test.tsx` belong to the `browser` project (real Chromium).
+          exclude: ['node_modules', 'dist', '**/*.browser.test.{ts,tsx}'],
         },
       },
       {

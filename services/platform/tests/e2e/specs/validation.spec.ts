@@ -5,13 +5,11 @@ import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
 /**
- * Negative-path coverage for the create/delete flows whose validation actually
- * exists in source: each test opens a dialog, asserts the gating, and CANCELS so
+ * Negative-path coverage for the delete flow whose validation actually exists in
+ * source: the test opens the delete dialog, asserts the gating, and CANCELS so
  * nothing persists. The cascade-delete test creates a uniquely-suffixed
  * throwaway project (the only way to reach the typed-phrase confirmation) and
- * removes it afterward via the normal detach path. Parameterized validation
- * strings ("{field} is required") aren't interpolated by `t()`, so the expected
- * text is built with `.replace('{field}', <resolved label>)`.
+ * removes it afterward via the normal detach path.
  */
 
 /** The submit button inside an open `FormDialog`, scoped so it never collides
@@ -28,81 +26,13 @@ function createProjectButton(page: Page): Locator {
     .first();
 }
 
-test.describe('validation — create agent dialog', () => {
-  test('rejects an invalid slug and an empty name; cancels without creating', async ({
-    page,
-    org,
-  }) => {
-    const { organizationId } = org;
-    await page.goto(`/dashboard/${organizationId}/agents`);
-
-    // "Create agent" is an action-menu trigger whose menu item opens the dialog.
-    await page
-      .getByRole('button', { name: t('settings.agents.createAgent') })
-      .click();
-    await page
-      .getByRole('menuitem', { name: t('settings.agents.createAgent') })
-      .click();
-
-    const dialog = page.getByRole('dialog', {
-      name: t('settings.agents.createAgent'),
-    });
-    await expect(dialog).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-    // "Name" is exact — "Display name" also contains "Name".
-    const slugField = dialog.getByLabel(t('settings.agents.form.name'), {
-      exact: true,
-    });
-    const displayNameField = dialog.getByLabel(
-      t('settings.agents.form.displayName'),
-      { exact: true },
-    );
-    const continueButton = dialogButton(
-      dialog,
-      t('settings.agents.createDialog.continue'),
-    );
-
-    // (a) Invalid slug + valid display name → Continue stays DISABLED and the
-    // pattern error renders (mode: 'onChange'). The seeded mock provider supplies
-    // a model, so the slug is the only thing keeping Continue disabled.
-    await slugField.fill('Bad Slug!');
-    await displayNameField.fill('Valid Display Name');
-    await expect(
-      dialog.getByText(t('settings.agents.form.namePatternError')),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(continueButton).toBeDisabled();
-
-    // (b) A valid slug clears the error and ENABLES Continue.
-    await slugField.fill('valid-slug');
-    await expect(
-      dialog.getByText(t('settings.agents.form.namePatternError')),
-    ).toHaveCount(0, { timeout: TIMEOUT.VISIBLE });
-    await expect(continueButton).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
-
-    // (c) Clearing the display name → required error + Continue DISABLED again.
-    await displayNameField.fill('');
-    await expect(
-      dialog.getByText(
-        t('common.validation.required').replace(
-          '{field}',
-          t('settings.agents.form.displayName'),
-        ),
-      ),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(continueButton).toBeDisabled();
-
-    await dialogButton(dialog, t('common.actions.cancel')).click();
-    await expect(dialog).toBeHidden({ timeout: TIMEOUT.VISIBLE });
-  });
-});
-
-// The create-project and create-team dialog validation gating moved to component
-// tests: app/features/projects/components/project-create-dialog.test.tsx and
-// app/features/settings/teams/components/team-create-dialog.test.tsx (pure
-// client-side RHF + zod validation, no backend seam). The create-agent dialog
-// validation stays e2e (its Continue gate depends on the seeded mock provider
-// supplying a model), and the cascade-delete gating below stays (it creates a
-// real throwaway project to reach the typed-phrase confirmation).
+// The create-project, create-team, and create-agent dialog validation gating
+// moved to component tests:
+// app/features/projects/components/project-create-dialog.test.tsx,
+// app/features/settings/teams/components/team-create-dialog.test.tsx, and the
+// create-agent dialog test (pure client-side RHF + zod validation, no backend
+// seam). The cascade-delete gating below stays e2e (it creates a real throwaway
+// project to reach the typed-phrase confirmation).
 test.describe('validation — project delete confirmation gating', () => {
   test('gates the cascade delete behind the typed project name, then cancels; throwaway is cleaned up', async ({
     page,

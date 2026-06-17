@@ -160,30 +160,6 @@ test.describe.serial('automation editor', () => {
     expect(await bodyRows.count()).toBeGreaterThan(0);
   });
 
-  test('triggers tab renders its schedule/webhook/event sections', async ({
-    page,
-    org,
-  }) => {
-    const { organizationId } = org;
-    await page.goto(
-      `/dashboard/${organizationId}/automations/${automationSlug}/triggers`,
-    );
-
-    // Each trigger section is a collapsible `<h3>` (CollapsibleSection). Their
-    // presence proves the triggers route mounted its primary affordances; the
-    // accessible name includes a trailing count badge, so match by substring
-    // (no `exact`).
-    for (const titleKey of [
-      'automations.triggers.schedules.title',
-      'automations.triggers.webhooks.title',
-      'automations.triggers.events.title',
-    ]) {
-      await expect(
-        page.getByRole('heading', { name: t(titleKey), level: 3 }),
-      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    }
-  });
-
   test('webhook trigger fires an execution', async ({ page, org }) => {
     const { organizationId } = org;
     await page.goto(

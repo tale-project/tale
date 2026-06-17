@@ -368,6 +368,68 @@ describe('AgentSelector', () => {
     expect(selected[0]).toHaveTextContent('Assistant');
   });
 
+  // Mirrors the chat-depth e2e "agent picker lists the seeded agent": open the
+  // picker, confirm the single seeded agent is offered as a selectable option,
+  // pick it, and confirm the selection is committed and reflected on the
+  // trigger. The seeded display name comes from the e2e fixture
+  // (`SEEDED_AGENT_DISPLAY_NAME = 'E2E Assistant'`).
+  describe('seeded agent picker (e2e parity)', () => {
+    const seededAgent: MockAgent = {
+      name: 'e2e-assistant',
+      displayName: 'E2E Assistant',
+      description: 'The seeded e2e agent',
+    };
+
+    it('lists the seeded agent as a selectable option and selecting it commits + reflects on the trigger', async () => {
+      // A single seeded agent (as in the e2e fixture): "Auto" is not offered, so
+      // the seeded agent is the effective + only option.
+      mockAgents = [seededAgent];
+      mockEffectiveAgent = {
+        name: seededAgent.name,
+        displayName: seededAgent.displayName,
+      };
+
+      const { user, rerender } = render(
+        <AgentSelector organizationId="org-1" />,
+      );
+
+      const trigger = screen.getByRole('button', { name: 'Select agent' });
+      // The e2e waits for the trigger to enable (it's disabled while the agent
+      // resolves) before opening — here the effective agent is already loaded.
+      expect(trigger).toBeEnabled();
+      await user.click(trigger);
+
+      // The seeded agent is listed as a selectable option in the open popover.
+      const seededOption = screen
+        .getAllByRole('option')
+        .find((el) => el.textContent?.includes('E2E Assistant'));
+      expect(seededOption).toBeDefined();
+
+      await user.click(seededOption as HTMLElement);
+
+      // Selecting it commits the seeded agent (the pin the e2e then observes on
+      // the trigger).
+      expect(mockSetSelectedAgent).toHaveBeenCalledWith({
+        name: seededAgent.name,
+        displayName: seededAgent.displayName,
+      });
+
+      // The trigger reflects the seeded agent once selected/resolved. Drive the
+      // mocked layout selection to the committed value and re-render (the e2e
+      // observes the trigger text after the click commits the selection).
+      mockSelectedAgent = {
+        name: seededAgent.name,
+        displayName: seededAgent.displayName,
+      };
+      rerender(<AgentSelector organizationId="org-1" />);
+      expect(
+        within(screen.getByRole('button', { name: 'Select agent' })).getByText(
+          'E2E Assistant',
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(<AgentSelector organizationId="org-1" />);

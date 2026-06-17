@@ -8,10 +8,9 @@ import { reloadAndSettle } from '../helpers/forms';
 import { t } from '../helpers/i18n';
 
 /**
- * User-preference coverage: theme switch, UI-language switch, and the account
- * (user-button) menu that hosts both. Theme + locale are per-origin client
- * preferences on the worker's owner session, so each mutating test CAPTURES the
- * original value and RESTORES it unconditionally; the menu test is read-only.
+ * User-preference coverage: theme switch and UI-language switch. Theme + locale
+ * are per-origin client preferences on the worker's owner session, so each
+ * mutating test CAPTURES the original value and RESTORES it unconditionally.
  *
  * Both controls live inside the account dropdown (`user-button.tsx`), opened
  * from the sidebar user button whose accessible name is
@@ -225,67 +224,5 @@ test.describe('user preferences', () => {
         window.localStorage.setItem('user-locale', loc);
       }, originalLocale);
     }
-  });
-
-  test('user menu: renders the account, preference, and session items', async ({
-    page,
-    org,
-  }) => {
-    const { organizationId, ownerEmail } = org;
-    await page.goto(chatUrl(organizationId));
-    await expect(accountTrigger(page)).toBeVisible({
-      timeout: TIMEOUT.FIRST_PAINT,
-    });
-
-    await openAccountMenu(page);
-    const menu = page.getByRole('menu').first();
-
-    // Account header anchors on the owner's email.
-    await expect(menu.getByText(ownerEmail).first()).toBeVisible({
-      timeout: TIMEOUT.VISIBLE,
-    });
-
-    // Org + team pickers (sub-menu triggers on this viewport).
-    await expect(
-      menu.getByRole('menuitem', { name: t('navigation.orgSwitcher.label') }),
-    ).toBeVisible();
-    await expect(
-      menu.getByRole('menuitem', { name: t('navigation.teamFilter.label') }),
-    ).toBeVisible();
-
-    // Theme control: the three theme tabs each render with their aria-label.
-    await expect(
-      menu.getByRole('tab', {
-        name: t('auth.userButton.themeSystem'),
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(
-      menu.getByRole('tab', {
-        name: t('auth.userButton.themeLight'),
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(
-      menu.getByRole('tab', {
-        name: t('auth.userButton.themeDark'),
-        exact: true,
-      }),
-    ).toBeVisible();
-
-    // Language control (sub-menu trigger).
-    await expect(
-      menu.getByRole('menuitem', { name: t('auth.userButton.language') }),
-    ).toBeVisible();
-
-    // Session items: asserted present, NEVER clicked.
-    await expect(
-      menu.getByRole('menuitem', { name: t('auth.userButton.helpFeedback') }),
-    ).toBeVisible();
-    await expect(
-      menu.getByRole('menuitem', { name: t('auth.userButton.logOut') }),
-    ).toBeVisible();
-
-    await closeMenu(page);
   });
 });

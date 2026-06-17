@@ -256,50 +256,10 @@ test('guardrails content-safety: toggles, persists, and restores', async ({
 });
 
 // =============================================================================
-// Safe dialogs/tabs (DSAR file-request, legal-hold place-hold open/close) and
-// the read-only Usage/Audit-logs pages moved to component tests:
-// data-subject-requests/file-request-dialog, legal-hold/legal-hold-dialog,
-// settings/audit-logs/audit-logs-page, analytics/usage/usage-metrics-page
+// Safe dialogs/tabs (DSAR file-request, legal-hold place-hold open/close), the
+// read-only Usage/Audit-logs pages, and the Trash + Feedback render checks
+// moved to component tests: data-subject-requests/file-request-dialog,
+// legal-hold/legal-hold-dialog, settings/audit-logs/audit-logs-page,
+// analytics/usage/usage-metrics-page, governance/trash, analytics/feedback
 // (*.test.tsx). Only the real save→reload→read persistence flows stay here.
 // =============================================================================
-
-// =============================================================================
-// Trash — render the page (table or empty state). Restore is NOT exercised
-// (it mutates the trash pool); render + the column header proves the table.
-// =============================================================================
-
-test('trash: renders the page and its table/empty state', async ({
-  page,
-  org,
-}) => {
-  const { organizationId } = org;
-  await page.goto(`${governanceBase(organizationId)}/trash`);
-
-  await expect(
-    page.getByRole('heading', { name: t('governance.trash.title') }).first(),
-  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-  // The page is past its skeleton when EITHER the loaded-empty notice OR the
-  // table header column ("Type") is present. A fresh backend has nothing
-  // trashed, so the empty notice is the common case; assert either.
-  const emptyNotice = page.getByText(t('governance.trash.empty'));
-  const typeColumn = page
-    .getByRole('columnheader', { name: t('governance.trash.column.type') })
-    .first();
-  await expect(emptyNotice.or(typeColumn).first()).toBeVisible({
-    timeout: TIMEOUT.FIRST_PAINT,
-  });
-});
-
-// =============================================================================
-// Feedback — the analytics page renders its sections.
-// =============================================================================
-
-test('feedback: renders the analytics page', async ({ page, org }) => {
-  const { organizationId } = org;
-  await page.goto(`${governanceBase(organizationId)}/feedback`);
-
-  await expect(
-    page.getByRole('heading', { name: t('analytics.feedback.title') }).first(),
-  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-});

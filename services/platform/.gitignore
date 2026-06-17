@@ -67,3 +67,6 @@ stress-tests/report-*.json
 
 # TanStack
 .tanstack/tmp
+# vitest browser-mode failure-capture screenshots (not snapshot baselines)
+__screenshots__/
+.vitest-attachments/
