@@ -5,6 +5,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import {
   render,
   screen,
+  waitFor,
   waitForElementToBeRemoved,
 } from '@/tests/utils/render';
 
@@ -155,17 +156,29 @@ describe('ChatHeader', () => {
       // a document-level keypress reaches it.
       await user.keyboard('{Control>}k{/Control}');
 
-      const paletteInput = await screen.findByRole('combobox', {
-        name: enMessages.dialogs.searchChat.placeholder,
+      // Generous timeout: the Radix dialog mount is async and this whole suite
+      // runs across saturated parallel workers, where the default 1s findBy
+      // occasionally loses the race (the open itself is reliable).
+      const paletteInput = await screen.findByRole(
+        'combobox',
+        { name: enMessages.dialogs.searchChat.placeholder },
+        { timeout: 5000 },
+      );
+      // The combobox enters the a11y tree as soon as the dialog mounts, but the
+      // Radix open transition can lag a tick behind under saturated parallel
+      // workers — poll for visibility rather than asserting it synchronously.
+      await waitFor(() => expect(paletteInput).toBeVisible(), {
+        timeout: 5000,
       });
-      expect(paletteInput).toBeVisible();
 
       // Escape dismisses the Radix dialog the palette is built on.
       await user.keyboard('{Escape}');
-      await waitForElementToBeRemoved(() =>
-        screen.queryByRole('combobox', {
-          name: enMessages.dialogs.searchChat.placeholder,
-        }),
+      await waitForElementToBeRemoved(
+        () =>
+          screen.queryByRole('combobox', {
+            name: enMessages.dialogs.searchChat.placeholder,
+          }),
+        { timeout: 5000 },
       );
     });
   });
