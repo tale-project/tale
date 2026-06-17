@@ -61,6 +61,11 @@ export const continueExternalAgentTurn = internalAction({
     permissionMode: v.optional(
       v.union(v.literal('plan'), v.literal('execute')),
     ),
+    /** Interaction posture, frozen at exec start — carried so the resumed
+     * segment keeps suppressing the human-in-loop seams for an autonomous run. */
+    interactionMode: v.optional(
+      v.union(v.literal('interactive'), v.literal('autonomous')),
+    ),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -76,6 +81,9 @@ export const continueExternalAgentTurn = internalAction({
       continuationCount: args.continuationCount,
       ...(args.permissionMode !== undefined && {
         permissionMode: args.permissionMode,
+      }),
+      ...(args.interactionMode !== undefined && {
+        interactionMode: args.interactionMode,
       }),
       ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
       ...(args.userId !== undefined && { userId: args.userId }),
@@ -151,26 +159,33 @@ export const continueExternalAgentTurn = internalAction({
         ...(args.permissionMode !== undefined && {
           permissionMode: args.permissionMode,
         }),
+        ...(args.interactionMode !== undefined && {
+          interactionMode: args.interactionMode,
+        }),
         resumeFrom,
         onTimeline: async (content) => {
           await patchStreamingMessage(ctx, args.assistantMessageId, content);
         },
         // Handoff requested in a continuation segment → raise the card now too
-        // (idempotent on the mutation side).
-        onHumanControlRequest: async (reason: string) => {
-          await ctx.runMutation(
-            internal.approvals.internal_mutations.createHumanControlRequest,
-            {
-              organizationId: turn.organizationId,
-              threadId: turn.threadId,
-              messageId: turn.assistantMessageId,
-              agentSlug: turn.agentSlug ?? turn.agentKind,
-              modelRef: turn.modelRef,
-              reason,
-              ...(turn.userId !== undefined && { requestedBy: turn.userId }),
-            },
-          );
-        },
+        // (idempotent on the mutation side). Autonomous runs have no human to
+        // take over, so the callback is never wired (defense-in-depth — the
+        // tool is also gated off in the adapter).
+        ...(args.interactionMode !== 'autonomous' && {
+          onHumanControlRequest: async (reason: string) => {
+            await ctx.runMutation(
+              internal.approvals.internal_mutations.createHumanControlRequest,
+              {
+                organizationId: turn.organizationId,
+                threadId: turn.threadId,
+                messageId: turn.assistantMessageId,
+                agentSlug: turn.agentSlug ?? turn.agentKind,
+                modelRef: turn.modelRef,
+                reason,
+                ...(turn.userId !== undefined && { requestedBy: turn.userId }),
+              },
+            );
+          },
+        }),
       });
       await handleTurnOutcome(ctx, turn, result);
     } catch (err) {

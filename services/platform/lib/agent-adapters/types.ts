@@ -27,6 +27,11 @@ export interface AgentRunSpec {
    * = the existing full-access behavior. Adapters without the concept ignore
    * it. Fixed for the whole turn — continuations re-attach to the same exec. */
   permissionMode?: 'plan' | 'execute';
+  /** Turn interaction posture. `autonomous` = no human in the loop: adapters
+   * gate off the human-in-loop affordances (e.g. the request_human_control MCP
+   * server). `interactive` (default / absent) keeps them. Independent of
+   * permissionMode. Adapters without the concept ignore it. */
+  interactionMode?: 'interactive' | 'autonomous';
   /** Extra system-prompt text appended to the agent's defaults. */
   systemPromptAppend?: string;
   /**

@@ -162,12 +162,34 @@ export function buildAssistantContent(
   // seam so a sub-agent tool-result landing in a later segment still resolves
   // to its top-level Task ancestor (mirrors knownToolNames).
   knownToolParents?: ReadonlyMap<string, string>,
+  // Live in-progress MAIN-agent text: the currently-open text block accumulated
+  // from `text-delta` partials that haven't coalesced into a complete `text`
+  // event yet. Threaded by the streaming flush so a long answer reveals as it
+  // streams (and a mid-write Stop keeps it) instead of appearing only at block
+  // end. The caller clears it the instant the block's `text` event lands in
+  // `events`, so a completed block is never double-counted. Empty at terminal.
+  liveText: string = '',
 ): AgentAssistantContent {
   const hasToolTimeline = events.some(
     (e) => e.type === 'tool-use' || e.type === 'tool-result',
   );
   // No tools → the message is just its answer; keep it a plain string.
-  if (!hasToolTimeline) return finalText;
+  // `finalText` (set at the terminal `result`) is authoritative when present.
+  // While streaming it's empty, so fall back to the main-agent text so far —
+  // the closed `text` blocks plus the open `liveText` — so a plain answer
+  // renders incrementally and survives a mid-write Stop instead of staying
+  // blank until the turn ends.
+  if (!hasToolTimeline) {
+    if (finalText.trim() !== '') return finalText;
+    const streamed: string[] = [];
+    for (const e of events) {
+      if (e.type === 'text' && !e.parentToolUseId && e.text.trim() !== '') {
+        streamed.push(e.text);
+      }
+    }
+    if (liveText.trim() !== '') streamed.push(liveText);
+    return streamed.join('\n\n');
+  }
 
   const parts: Exclude<AgentAssistantContent, string> = [];
   // toolUseId → toolName, so a tool-result (which carries no toolName) pairs
@@ -296,6 +318,15 @@ export function buildAssistantContent(
         ...(e.isError ? { isError: true } : {}),
       });
     }
+  }
+
+  // Open (still-streaming) main-agent text block: not yet coalesced into a
+  // `text` event, so render it as a trailing text part. The caller clears it
+  // the instant its `text` event lands (which the loop above already emitted as
+  // a part), so a completed block is never duplicated. Empty at terminal.
+  if (liveText.trim() !== '') {
+    parts.push({ type: 'text', text: liveText });
+    lastText = liveText;
   }
 
   // Ensure the final answer is present exactly once (the stream usually already

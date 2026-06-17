@@ -114,7 +114,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       // Human takeover only applies to the live headed browser (browserCdp) —
       // that's the one a human can drive via x11vnc. The self-launched headless
       // browser has no VNC surface, so the tool would be a dead end there.
-      if (spec.browserCdp === true) {
+      // Autonomous runs have no human to take over, so the tool is never offered.
+      if (spec.browserCdp === true && spec.interactionMode !== 'autonomous') {
         mcpServers.humanControl = HUMAN_CONTROL_MCP_SERVER;
       }
     }
@@ -139,6 +140,17 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         '--strict-mcp-config',
       );
     }
+    // Collected deny list (a deny rule with a bare built-in name removes the
+    // tool from the model's context entirely — verified against the permissions
+    // docs).
+    const disallowedTools: string[] = [];
+    // AskUserQuestion (built-in): there is NO answer path in our chat surface —
+    // the agent is a conversational worker, so it asks in prose (interactive,
+    // the user replies in chat) or makes assumptions (autonomous). The built-in
+    // structured-question tool would dead-end, so deny it in BOTH modes and for
+    // BOTH managed and BYO — this is interaction-correctness, not governance, so
+    // it is NOT lifted for BYO.
+    disallowedTools.push('AskUserQuestion');
     // Deny the built-in WebSearch AND WebFetch. Both are model-coupled and
     // ungoverned: WebSearch is a provider-run search, and WebFetch pipes the
     // fetched page through a model to extract the answer — neither flows
@@ -152,7 +164,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // user's own credential). The container + egress policy stay the isolation
     // boundary.
     if (!byo) {
-      argv.push('--disallowedTools', 'WebSearch,WebFetch');
+      disallowedTools.push('WebSearch', 'WebFetch');
+    }
+    if (disallowedTools.length > 0) {
+      argv.push('--disallowedTools', disallowedTools.join(','));
     }
 
     const env: Record<string, string> = {

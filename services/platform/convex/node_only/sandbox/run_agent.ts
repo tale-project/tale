@@ -111,6 +111,11 @@ export interface RunAgentInSessionArgs {
    * capture below: in execute mode a captured plan is discarded if any other
    * tool call follows it (the agent kept working — see recordEvents). */
   permissionMode?: 'plan' | 'execute';
+  /** Turn interaction posture (interactive = human in the loop, default;
+   * autonomous = unsupervised). Threaded to the adapter spec AND used here to
+   * skip mid-turn steering / the human-control card for autonomous runs.
+   * Independent of permissionMode. */
+  interactionMode?: 'interactive' | 'autonomous';
   /** Extra system-prompt text appended to the agent CLI's own prompt. */
   systemPromptAppend?: string;
   /** Credential mode (default 'managed'). 'byo' skips the gateway entirely. */
@@ -258,6 +263,9 @@ export async function runAgentInSessionImpl(
         ...(args.permissionMode !== undefined && {
           permissionMode: args.permissionMode,
         }),
+        ...(args.interactionMode !== undefined && {
+          interactionMode: args.interactionMode,
+        }),
         ...(args.systemPromptAppend !== undefined && {
           systemPromptAppend: args.systemPromptAppend,
         }),
@@ -287,6 +295,12 @@ export async function runAgentInSessionImpl(
   // (S4 segmentation), so a resumed segment starts with an EMPTY timeline — only
   // the cursor + captured session id carry across the handoff.
   let progressText = '';
+  // The currently-OPEN main-agent text block, accumulated from `text-delta`
+  // partials and threaded into the streaming flush so a long answer reveals as
+  // it streams (and a mid-write Stop keeps it). Cleared when the block's `text`
+  // event lands (it is then in `timeline`). Main-level only — sub-agent text
+  // stays folded. Per-segment, like the rest of this progress state.
+  let liveText = '';
   const recentEvents: string[] = [];
   const timeline: AgentEvent[] = [];
   // Reconnect cursor: starts at the handoff seq on resume so the re-attach skips
@@ -617,8 +631,14 @@ export async function runAgentInSessionImpl(
         setAgentIdle(true);
         await flushProgress(true);
       }
-      if (args.threadId === undefined) {
-        // No thread ⇒ no steering; just close once background work drains.
+      if (
+        args.threadId === undefined ||
+        args.interactionMode === 'autonomous'
+      ) {
+        // No thread, or autonomous (no human in the loop) ⇒ no mid-turn
+        // steering; just close once background work drains. An autonomous run
+        // still carries a threadId (for the transcript), so the mode check is
+        // what gates steering, not just the missing-thread case.
         if (agentResultSeen && pendingTasks.size === 0) await sendEof();
         return;
       }
@@ -741,6 +761,14 @@ export async function runAgentInSessionImpl(
       }
       if (e.type === 'text-delta' || e.type === 'text') {
         progressText += e.text;
+        // Track the open MAIN-agent block for incremental reveal. A `text`
+        // event is the coalesced complete block (pushed to `timeline` below),
+        // so clear the live buffer when it lands to avoid double-counting; a
+        // delta extends the open block. Sub-agent text (parentToolUseId set)
+        // stays folded and never enters the main message body.
+        if (!e.parentToolUseId) {
+          liveText = e.type === 'text' ? '' : liveText + e.text;
+        }
       } else if (e.type === 'run-started' && e.agentSessionId) {
         capturedSessionId = e.agentSessionId;
       } else if (e.type === 'result') {
@@ -905,6 +933,7 @@ export async function runAgentInSessionImpl(
       finalText ?? '',
       toolNames,
       toolUseParents,
+      liveText,
     );
     if (args.onTimeline) {
       try {
@@ -1201,6 +1230,10 @@ export async function runAgentInSessionImpl(
     finalText ?? '',
     toolNames,
     toolUseParents,
+    // Include the open block so a mid-write Stop (terminal 'cancelled') keeps
+    // the partial answer. On a clean end it is '' (the block's `text` event
+    // already cleared it), so terminal content is byte-identical to before.
+    liveText,
   );
 
   return {

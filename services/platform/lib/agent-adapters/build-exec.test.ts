@@ -55,12 +55,13 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     ]);
     // No integration bridge unless integrationsBaseUrl is set.
     expect(mcpConfig.mcpServers.integrations).toBeUndefined();
-    // Built-in WebSearch AND WebFetch are denied — both are model-coupled and
-    // ungoverned, so ALL web access routes through a connected integration via
-    // the dispatch bridge (search op + extract/fetch op), audited and wrapped.
+    // Built-in AskUserQuestion is always denied (no answer path in chat), plus
+    // WebSearch AND WebFetch on managed runs — both model-coupled and ungoverned,
+    // so ALL web access routes through a connected integration via the dispatch
+    // bridge (search op + extract/fetch op), audited and wrapped.
     expect(argv).toContain('--disallowedTools');
     expect(argv[argv.indexOf('--disallowedTools') + 1]).toBe(
-      'WebSearch,WebFetch',
+      'AskUserQuestion,WebSearch,WebFetch',
     );
     // prompt rides stdin as ONE stream-json user-message NDJSON line (a
     // malformed line kills the CLI's stream-json reader), never argv.
@@ -195,6 +196,40 @@ describe('ClaudeCodeAdapter.buildExec', () => {
       'bypassPermissions',
     );
   });
+
+  it('gates the human-control MCP server off for autonomous runs (no human to take over)', () => {
+    const interactive = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      browserCdp: true,
+      interactionMode: 'interactive',
+    });
+    const interactiveMcp = JSON.parse(
+      interactive.argv[interactive.argv.indexOf('--mcp-config') + 1] ?? '{}',
+    );
+    expect(interactiveMcp.mcpServers.humanControl).toBeDefined();
+
+    const autonomous = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      browserCdp: true,
+      interactionMode: 'autonomous',
+    });
+    const autonomousMcp = JSON.parse(
+      autonomous.argv[autonomous.argv.indexOf('--mcp-config') + 1] ?? '{}',
+    );
+    expect(autonomousMcp.mcpServers.humanControl).toBeUndefined();
+    // Playwright is still attached — an autonomous run can still drive the browser.
+    expect(autonomousMcp.mcpServers.playwright).toBeDefined();
+  });
+
+  it('denies AskUserQuestion in autonomous mode too (unchanged deny list)', () => {
+    const { argv } = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      interactionMode: 'autonomous',
+    });
+    expect(argv[argv.indexOf('--disallowedTools') + 1]).toBe(
+      'AskUserQuestion,WebSearch,WebFetch',
+    );
+  });
 });
 
 describe('ClaudeCodeAdapter.buildExec — BYO mode', () => {
@@ -231,9 +266,12 @@ describe('ClaudeCodeAdapter.buildExec — BYO mode', () => {
     expect(env.CLAUDE_CODE_SUBAGENT_MODEL).toBeUndefined();
   });
 
-  it('lifts the governance-motivated WebSearch/WebFetch denial (native tools enabled)', () => {
+  it('lifts the governance-motivated WebSearch/WebFetch denial but still denies AskUserQuestion (no chat answer path)', () => {
     const { argv } = new ClaudeCodeAdapter().buildExec(byoBase);
-    expect(argv).not.toContain('--disallowedTools');
+    // BYO opts out of governance (web tools enabled) but AskUserQuestion has no
+    // answer path in chat regardless of credential mode, so it stays denied.
+    expect(argv).toContain('--disallowedTools');
+    expect(argv[argv.indexOf('--disallowedTools') + 1]).toBe('AskUserQuestion');
   });
 
   it('omits the integration bridge even if integrationsBaseUrl is set (no session key to auth it)', () => {

@@ -436,3 +436,100 @@ describe('estimateContentBytes (S4 segmentation guard)', () => {
     expect(estimateContentBytes(content)).toBeLessThan(MAX_MESSAGE_BYTES);
   });
 });
+
+describe('buildAssistantContent — live in-progress text (incremental reveal)', () => {
+  // `liveText` is the open MAIN-agent block (delta-accumulated) the streaming
+  // flush passes so a long answer renders as it streams; the caller clears it
+  // the instant the block's `text` event lands in the timeline.
+
+  it('no-tools, streaming: returns the open block when finalText is empty', () => {
+    expect(
+      buildAssistantContent([], '', undefined, undefined, 'The history of'),
+    ).toBe('The history of');
+  });
+
+  it('no-tools, streaming: joins closed blocks with the open block', () => {
+    const events: AgentEvent[] = [{ type: 'text', text: 'First paragraph.' }];
+    expect(
+      buildAssistantContent(events, '', undefined, undefined, 'Second para so'),
+    ).toBe('First paragraph.\n\nSecond para so');
+  });
+
+  it('no-tools, terminal: finalText wins (liveText already cleared)', () => {
+    const events: AgentEvent[] = [{ type: 'text', text: 'the answer' }];
+    expect(
+      buildAssistantContent(events, 'the answer', undefined, undefined, ''),
+    ).toBe('the answer');
+  });
+
+  it('tools, streaming: the open block renders as a trailing text part', () => {
+    const events: AgentEvent[] = [
+      { type: 'tool-use', toolUseId: 't1', toolName: 'Bash', input: {} },
+      { type: 'tool-result', toolUseId: 't1', output: 'ok', isError: false },
+    ];
+    const parts = buildAssistantContent(
+      events,
+      '',
+      undefined,
+      undefined,
+      'Now analyzing the',
+    ) as Array<Record<string, unknown>>;
+    expect(parts[parts.length - 1]).toEqual({
+      type: 'text',
+      text: 'Now analyzing the',
+    });
+  });
+
+  it('coalesce: a completed block (cleared liveText) is never duplicated', () => {
+    const events: AgentEvent[] = [
+      { type: 'tool-use', toolUseId: 't1', toolName: 'Bash', input: {} },
+      { type: 'tool-result', toolUseId: 't1', output: 'ok', isError: false },
+      { type: 'text', text: 'The final answer.' },
+    ];
+    const parts = buildAssistantContent(
+      events,
+      'The final answer.',
+      undefined,
+      undefined,
+      '',
+    ) as Array<Record<string, unknown>>;
+    const textParts = parts.filter((p) => p.type === 'text');
+    expect(textParts).toEqual([{ type: 'text', text: 'The final answer.' }]);
+  });
+
+  it('Stop mid-write (no tools): keeps the partial answer', () => {
+    expect(
+      buildAssistantContent([], '', undefined, undefined, 'partial so far'),
+    ).toBe('partial so far');
+  });
+
+  it('Stop mid-write (with tools): the partial survives as a trailing part', () => {
+    const events: AgentEvent[] = [
+      { type: 'tool-use', toolUseId: 't1', toolName: 'Bash', input: {} },
+      { type: 'tool-result', toolUseId: 't1', output: 'ok', isError: false },
+    ];
+    const parts = buildAssistantContent(
+      events,
+      '',
+      undefined,
+      undefined,
+      'partial after tool',
+    ) as Array<Record<string, unknown>>;
+    expect(
+      parts.some((p) => p.type === 'text' && p.text === 'partial after tool'),
+    ).toBe(true);
+  });
+
+  it('omitting liveText (default) preserves the prior behavior', () => {
+    expect(buildAssistantContent([], '')).toBe('');
+  });
+
+  it('sub-agent text is not folded into the main body', () => {
+    const events: AgentEvent[] = [
+      { type: 'text', text: 'sub narration', parentToolUseId: 'task1' },
+    ];
+    expect(buildAssistantContent(events, '', undefined, undefined, '')).toBe(
+      '',
+    );
+  });
+});
