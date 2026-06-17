@@ -97,6 +97,13 @@ export function useDocumentsTableConfig({
       {
         accessorKey: 'name',
         header: tTables('headers.document'),
+        // The document name is the primary, longest column — opt it in as the
+        // table's flex column so it absorbs all the container slack while the
+        // fixed-width metadata columns keep their declared px. Without this the
+        // name shares width equally with every sibling under `table-fixed`,
+        // squeezing it so long filenames overflow their cell (and the inner
+        // `truncate` can't engage — see the `min-w-0` on the button below).
+        meta: { flex: true },
         cell: ({ row }) => {
           const fullPath = row.original.name ?? '';
           const fileName = fullPath.split('/').pop() || fullPath;
@@ -104,6 +111,7 @@ export function useDocumentsTableConfig({
           return (
             <HStack gap={3}>
               <DocumentIcon
+                className="shrink-0"
                 fileName={fileName}
                 mimeType={row.original.mimeType}
                 isFolder={row.original.type === 'folder'}
@@ -111,7 +119,10 @@ export function useDocumentsTableConfig({
               <button
                 type="button"
                 title={fullPath}
-                className="cursor-pointer text-left"
+                // `min-w-0` lets this flex item shrink below its content width so
+                // the inner `truncate` clips long names with an ellipsis instead
+                // of overflowing into the next column.
+                className="min-w-0 cursor-pointer text-left"
                 aria-label={
                   row.original.type === 'folder'
                     ? tDocuments('aria.openFolder', { name: fileName })
