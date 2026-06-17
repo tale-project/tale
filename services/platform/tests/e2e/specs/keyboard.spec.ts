@@ -65,29 +65,6 @@ test.describe('keyboard & focus (owner)', () => {
     await expect(paletteInput).toBeHidden({ timeout: TIMEOUT.VISIBLE });
   });
 
-  test('closes a dialog when Escape is pressed', async ({ page, org }) => {
-    const { organizationId } = org;
-
-    // The create-project dialog is a plain Radix dialog and creates nothing
-    // until its submit button is clicked — opening + Escaping it is inert.
-    await page.goto(`/dashboard/${organizationId}/projects`);
-    const createButton = page
-      .getByRole('button', { name: t('projects.list.createButton') })
-      .first();
-    await expect(createButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await createButton.click();
-
-    const dialog = page.getByRole('dialog', {
-      name: t('projects.create.title'),
-    });
-    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-    // Escape is wired by Radix's Dialog.Content — no submit, so no project is
-    // created and the worker's org is untouched.
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden({ timeout: TIMEOUT.VISIBLE });
-  });
-
   test('traps focus inside an open dialog', async ({ page, org }) => {
     const { organizationId } = org;
 

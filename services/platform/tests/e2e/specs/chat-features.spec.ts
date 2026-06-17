@@ -10,17 +10,17 @@ import {
   sendNewThreadMessage,
   waitForReplyComplete,
 } from '../helpers/chat';
-import { isMockLlmMode, TIMEOUT } from '../helpers/env';
+import { TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
 /**
- * Chat feature surface (feedback, export, message-info, save-prompt-from-
- * composer, selection→Quote, composer mode menu). All are backend-mutation-or-
- * client-only (no live model), so they hold in mock mode. The PDF export is
- * never clicked — it calls `iframe.print()`, which opens the OS print dialog
- * (not hermetic). The only LLM-CONTENT assertion (the info dialog's seeded
- * model id) is gated behind `isMockLlmMode()`.
+ * Chat feature surface that genuinely needs the real stack: feedback (backend
+ * RBAC round-trip), save-prompt-from-composer (real persist seam), and
+ * selection→Quote (needs real `getBoundingClientRect` layout). The pure-UI
+ * surfaces — export dialog, message-info dialog, composer mode menu — moved to
+ * component tests (`export-chat-dialog`/`message-info-dialog`/`composer-mode-menu`
+ * `.test.tsx`).
  */
 
 /** The completed assistant reply's "Helpful" thumbs-up (renders post-answer). */
@@ -80,70 +80,6 @@ test('thumbs-up latches and toggles off; thumbs-down latches and opens the comme
   await expect(down).toHaveAttribute('aria-pressed', 'false', {
     timeout: TIMEOUT.PERSIST,
   });
-
-  await deleteThreadById(page, threadId);
-});
-
-test('the export dialog renders its options and the Markdown export downloads', async ({
-  page,
-  org,
-}) => {
-  await page.goto(`/dashboard/${org.organizationId}/chat`);
-  await expect(composer(page)).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-  const message = `E2E export probe ${Date.now().toString(36)}`;
-  const threadId = await sendNewThreadMessage(page, message);
-  // Wait for the reply so the export dialog's message list has both turns.
-  await expectCannedReply(page);
-  await waitForReplyComplete(page);
-
-  // Export lives behind the header's "More actions" menu. The history sidebar
-  // is closed by default, so no chat-row menu of the same label exists yet —
-  // the header trigger is the only `chat.moreActions` button on the surface.
-  await page
-    .getByRole('button', { name: t('chat.moreActions') })
-    .first()
-    .click();
-  await page
-    .getByRole('menuitem', { name: t('chat.export.button'), exact: true })
-    .click();
-
-  const exportDialog = page.getByRole('dialog').filter({
-    has: page.getByText(t('chat.export.title'), { exact: true }),
-  });
-  await expect(exportDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-  // Both format buttons render (Markdown is client-side; PDF opens the OS print
-  // dialog so we never click it).
-  const markdownButton = exportDialog.getByRole('button', {
-    name: t('chat.export.downloadMarkdown'),
-    exact: true,
-  });
-  await expect(markdownButton).toBeVisible({ timeout: TIMEOUT.PERSIST });
-  await expect(
-    exportDialog.getByRole('button', {
-      name: t('chat.export.downloadPdf'),
-      exact: true,
-    }),
-  ).toBeVisible();
-  // The select/deselect-all control proves the message picker rendered.
-  await expect(
-    exportDialog.getByRole('button', { name: t('chat.export.deselectAll') }),
-  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
-
-  // The Markdown export is a fully client-side Blob download (no backend).
-  if (await markdownButton.isEnabled()) {
-    const downloadPromise = page.waitForEvent('download', {
-      timeout: TIMEOUT.PERSIST,
-    });
-    await markdownButton.click();
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toBe('chat-export.md');
-  } else {
-    // Defensive: the render assertions already proved the dialog opened.
-    console.warn('[chat-features] export Markdown disabled — no messages yet');
-    await page.keyboard.press('Escape');
-  }
 
   await deleteThreadById(page, threadId);
 });
@@ -278,66 +214,4 @@ test('selecting assistant text and clicking Quote stages a quoted-reference chip
   await expect(removeQuote).toBeHidden({ timeout: TIMEOUT.PERSIST });
 
   await deleteThreadById(page, threadId);
-});
-
-test('the message info dialog surfaces the seeded model name', async ({
-  page,
-  org,
-}) => {
-  await page.goto(`/dashboard/${org.organizationId}/chat`);
-  await expect(composer(page)).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-  const message = `E2E info probe ${Date.now().toString(36)}`;
-  const threadId = await sendNewThreadMessage(page, message);
-  await expectCannedReply(page);
-  // The assistant toolbar (with the info button) renders only post-answer.
-  await waitForReplyComplete(page);
-
-  // The info button is a ghost icon button with no accessible name (tooltip
-  // only), but it carries a stable testid. Scope to the LAST assistant bubble.
-  const infoButton = assistantMessages(page)
-    .last()
-    .locator('[data-testid="message-info-button"]');
-  await expect(infoButton).toBeVisible({ timeout: TIMEOUT.REPLY });
-  await infoButton.click();
-
-  // The dialog opens (title from `chat.messageInfo.title`)...
-  const infoDialog = page.getByRole('dialog').filter({
-    has: page.getByText(t('chat.messageInfo.title'), { exact: true }),
-  });
-  await expect(infoDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  // ...and its "Model" field surfaces the seeded model id from
-  // `metadata.model`. That metadata-bearing field is written only by the canned
-  // mock turn (in live mode the model id is provider-dependent), so the id
-  // assertion is gated on mock mode. The id `e2e-chat-model` is fixture content
-  // (`fixtures/config/default/providers/e2e-mock.json`), so it stays a literal.
-  if (isMockLlmMode()) {
-    await expect(
-      infoDialog.getByText('e2e-chat-model', { exact: true }).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  }
-  await page.keyboard.press('Escape');
-
-  await deleteThreadById(page, threadId);
-});
-
-test('the composer mode menu lists the add-files entry', async ({
-  page,
-  org,
-}) => {
-  await page.goto(`/dashboard/${org.organizationId}/chat`);
-  await expect(composer(page)).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-  // The composer mode menu (the leading "+" control) opens a menu that always
-  // includes the attach-files entry in the seeded fixture (file upload on). No
-  // thread is created by this flow, so there's nothing to clean up.
-  await page
-    .getByRole('button', { name: t('composer.openMenu') })
-    .first()
-    .click();
-  await expect(
-    page.getByRole('menuitem', { name: t('composer.addFiles'), exact: true }),
-  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  // Close the menu without taking an action.
-  await page.keyboard.press('Escape');
 });
