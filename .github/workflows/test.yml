@@ -130,3 +130,43 @@ jobs:
 
       - name: Run UI tests
         run: bunx turbo run test:ui
+
+  # ---------------------------------------------------------------------------
+  # Browser-mode component tests (`*.browser.test.tsx`) — Vitest Browser Mode
+  # mounts components in a real Chromium for the assertions jsdom can't fake
+  # (real layout/getBoundingClientRect, React Flow geometry, the Clipboard API,
+  # real focus/breakpoints). This lane boots NO backend, build, or hermetic
+  # stack, so it is far cheaper than a Playwright E2E shard — it is where UI
+  # tests that need a real browser but not a real backend belong. Draft PRs skip.
+  # ---------------------------------------------------------------------------
+  test-browser:
+    name: Browser
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright Chromium
+        working-directory: services/platform
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run browser-mode component tests
+        run: bunx turbo run test:browser

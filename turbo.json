@@ -77,6 +77,9 @@
     "test:ui": {
       "outputs": []
     },
+    "test:browser": {
+      "outputs": []
+    },
     "test:e2e": {
       "cache": false,
       "outputs": []
