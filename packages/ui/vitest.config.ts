@@ -12,6 +12,10 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      // More-specific first: `@/tests/*` resolves to the package-root `tests/`
+      // dir, while `@/*` continues to resolve to `src/*`. Vite matches aliases
+      // in order, so this entry must precede `@`.
+      '@/tests': fileURLToPath(new URL('./tests', import.meta.url)),
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
@@ -22,7 +26,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'jsdom',
-          setupFiles: ['./src/test/setup.ts'],
+          setupFiles: ['./tests/setup.ts'],
           globals: true,
           include: ['src/**/*.test.{ts,tsx}'],
         },

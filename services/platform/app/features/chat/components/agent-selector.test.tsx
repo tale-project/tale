@@ -2,8 +2,8 @@ import { within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 import { AgentSelector } from './agent-selector';
 

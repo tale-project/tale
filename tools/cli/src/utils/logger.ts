@@ -1,60 +1,56 @@
-const isTTY = process.stdout.isTTY && !process.env.NO_COLOR;
+/**
+ * CLI terminal output, built on the one reusable `@tale/shared` logger.
+ *
+ * The leveled methods (`info`/`warn`/`error`/`debug`) delegate to the shared
+ * factory in pretty mode, so the CLI shares the single logging approach. The
+ * extras below (`success`/`step`/`notice`/`header`/`table`/`bannerText`/…) are
+ * interactive-terminal presentation, layered on the same `ansi` palette +
+ * `timestamp` so every line stays visually consistent.
+ */
 
-const RESET = isTTY ? '\x1b[0m' : '';
-const BOLD = isTTY ? '\x1b[1m' : '';
-const DIM = isTTY ? '\x1b[2m' : '';
+import { ansi, createLogger, timestamp } from '@tale/shared/logging/logger';
 
-const RED = isTTY ? '\x1b[31m' : '';
-const GREEN = isTTY ? '\x1b[32m' : '';
-const YELLOW = isTTY ? '\x1b[33m' : '';
-const BLUE = isTTY ? '\x1b[34m' : '';
-const CYAN = isTTY ? '\x1b[36m' : '';
-
-function timestamp() {
-  return new Date().toISOString().slice(11, 19);
-}
+const log = createLogger({ pretty: true });
 
 export function info(message: string) {
-  console.log(`${DIM}[${timestamp()}]${RESET} ${BLUE}INFO${RESET}  ${message}`);
+  log.info(message);
+}
+
+export function warn(message: string) {
+  log.warn(message);
+}
+
+export function error(message: string) {
+  log.error(message);
+}
+
+export function debug(message: string) {
+  log.debug(message);
 }
 
 export function success(message: string) {
   console.log(
-    `${DIM}[${timestamp()}]${RESET} ${GREEN}${BOLD}OK${RESET}    ${message}`,
-  );
-}
-
-export function warn(message: string) {
-  console.log(
-    `${DIM}[${timestamp()}]${RESET} ${YELLOW}WARN${RESET}  ${message}`,
-  );
-}
-
-export function error(message: string) {
-  console.error(
-    `${DIM}[${timestamp()}]${RESET} ${RED}${BOLD}ERROR${RESET} ${message}`,
+    `${ansi.dim}[${timestamp()}]${ansi.reset} ${ansi.green}${ansi.bold}OK${ansi.reset}    ${message}`,
   );
 }
 
 export function step(message: string) {
-  console.log(`${DIM}[${timestamp()}]${RESET} ${CYAN}STEP${RESET}  ${message}`);
+  console.log(
+    `${ansi.dim}[${timestamp()}]${ansi.reset} ${ansi.cyan}STEP${ansi.reset}  ${message}`,
+  );
 }
 
 export function notice(message: string) {
   console.log(
-    `${DIM}[${timestamp()}]${RESET} ${YELLOW}${BOLD}NOTE${RESET}  ${YELLOW}${message}${RESET}`,
+    `${ansi.dim}[${timestamp()}]${ansi.reset} ${ansi.yellow}${ansi.bold}NOTE${ansi.reset}  ${ansi.yellow}${message}${ansi.reset}`,
   );
 }
 
 export function containerLog(service: string, line: string) {
   const truncated = line.length > 200 ? `${line.slice(0, 200)}...` : line;
-  console.log(`  ${DIM}[${service}]${RESET} ${DIM}${truncated}${RESET}`);
-}
-
-export function debug(message: string) {
-  if (process.env.DEBUG) {
-    console.log(`${DIM}[${timestamp()}] DEBUG ${message}${RESET}`);
-  }
+  console.log(
+    `  ${ansi.dim}[${service}]${ansi.reset} ${ansi.dim}${truncated}${ansi.reset}`,
+  );
 }
 
 export function blank() {
@@ -63,14 +59,16 @@ export function blank() {
 
 export function header(title: string) {
   blank();
-  console.log(`${BOLD}${CYAN}=== ${title} ===${RESET}`);
+  console.log(`${ansi.bold}${ansi.cyan}=== ${title} ===${ansi.reset}`);
   blank();
 }
 
 export function table(rows: [string, string][]) {
   const maxKeyLength = Math.max(...rows.map(([key]) => key.length));
   for (const [key, value] of rows) {
-    console.log(`  ${key.padEnd(maxKeyLength)}  ${DIM}${value}${RESET}`);
+    console.log(
+      `  ${key.padEnd(maxKeyLength)}  ${ansi.dim}${value}${ansi.reset}`,
+    );
   }
 }
 
@@ -79,5 +77,5 @@ export function table(rows: [string, string][]) {
  * minimal — no heavy ASCII art, no extra deps.
  */
 export function bannerText(version: string): string {
-  return `  ${BOLD}${CYAN}◆ Tale${RESET} ${DIM}v${version}${RESET}  ${DIM}— your self-hosted AI workforce${RESET}`;
+  return `  ${ansi.bold}${ansi.cyan}◆ Tale${ansi.reset} ${ansi.dim}v${version}${ansi.reset}  ${ansi.dim}— your self-hosted AI workforce${ansi.reset}`;
 }

@@ -11,7 +11,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import { isSqlIntegration } from '../../integrations/helpers';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';

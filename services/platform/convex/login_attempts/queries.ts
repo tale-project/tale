@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { query } from '../_generated/server';

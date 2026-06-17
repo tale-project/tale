@@ -2,8 +2,8 @@ import { Mail } from 'lucide-react';
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
-import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 import { Button, LinkButton } from './button';
 

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { defineConfig, devices } from '@playwright/test';
+import { createPlaywrightConfig, devices } from '@tale/e2e/config';
 
 /**
  * Full-app E2E suite (issue #179). Runs the platform smoke flows — auth
@@ -9,15 +9,21 @@ import { defineConfig, devices } from '@playwright/test';
  * conversations, agents, projects & tasks, knowledge, settings, governance, and
  * automation — against the real local stack: anonymous Convex backend + Vite,
  * both booted by the webServer entries below via `scripts/dev.ts`. See
- * `e2e/README.md` for the per-spec breakdown.
+ * `tests/e2e/README.md` for the per-spec breakdown.
  *
- * Determinism: the stack is pointed at `e2e/fixtures/config` (one agent, one
- * provider whose `baseUrl` is the mock OpenAI-compatible SSE server in
- * `e2e/mock-llm/server.ts`), so chat assertions never depend on a live LLM.
- * Set `E2E_MOCK_LLM=0` to run the suite against an already-running dev stack
- * with real provider keys — canned-text assertions are skipped in that mode.
+ * Shared house defaults (locale/UTC, reporters, retries, timeouts) come from
+ * `@tale/e2e/config`; everything below is platform-specific: the hermetic
+ * mock-LLM + dev-stack webServer, and the auth `setup` project the specs depend
+ * on. The mostly-static `web`/`docs` suites reuse the same factory with a much
+ * thinner config.
  *
- * See `e2e/README.md` for how to run and extend the suite.
+ * Determinism: the stack is pointed at `tests/e2e/fixtures/config` (one agent, one
+ * provider whose `baseUrl` is the OpenAPI-driven mock gateway in the
+ * `@tale/mocks` package), so chat assertions never depend on a live LLM. The
+ * gateway serves the deterministic chat-completions override plus Prism-mocked
+ * AI endpoints and third-party integration APIs (all offline). Set
+ * `E2E_MOCK_LLM=0` to run the suite against an already-running dev stack with
+ * real provider keys — canned-text assertions are skipped in that mode.
  */
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -25,52 +31,41 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 const useMockLlm = process.env.E2E_MOCK_LLM !== '0';
 
+// Parallelism: each WORKER mints its own isolated, fully-seeded org (see
+// `tests/e2e/helpers/fixtures.ts`), so specs no longer share one backend account and
+// can run concurrently. Workers are capped per shard to bound load on the
+// single shared Convex backend; CI fans the suite across runners with
+// `--shard`, so each shard boots its own stack and runs this many workers.
+const workers = process.env.E2E_WORKERS
+  ? Number(process.env.E2E_WORKERS)
+  : process.env.CI
+    ? 3
+    : 4;
+
 // Fixed port — must match the provider fixture's `baseUrl`
-// (`e2e/fixtures/config/default/providers/e2e-mock.json`), which is loaded
-// verbatim into Convex and cannot interpolate env. Keep this and the mock
-// server's `MOCK_LLM_PORT` in sync with that fixture.
+// (`tests/e2e/fixtures/config/default/providers/e2e-mock.json`), which is loaded
+// verbatim into Convex and cannot interpolate env. The `@tale/mocks` gateway
+// defaults to this port (`MOCKS_PORT`); keep the three in sync.
 const MOCK_LLM_PORT = 4141;
 
-export default defineConfig({
-  testDir: './e2e',
+export default createPlaywrightConfig({
+  testDir: path.join(dirname, 'tests/e2e'),
+  port: 3000,
+  baseURL,
   // Vitest owns `*.test.ts` / `*.browser.test.ts`; Playwright owns
-  // `e2e/**/*.spec.ts` plus the auth setup project.
-  testMatch: ['setup/**/*.setup.ts', 'specs/**/*.spec.ts'],
-  outputDir: './test-results',
-  // One worker: the specs share a single backend (one owner account/org) and
-  // the chat/automation flows mutate org state. Revisit sharding when the
-  // suite outgrows a handful of specs.
-  fullyParallel: false,
-  workers: 1,
-  retries: process.env.CI ? 2 : 0,
-  forbidOnly: !!process.env.CI,
-  // Cold Vite dev-server compiles on first navigation are slow; keep per-test
-  // budgets generous rather than flaky.
-  timeout: 180_000,
-  expect: { timeout: 20_000 },
-  reporter: [['list'], ['html', { open: 'never' }]],
-  use: {
-    baseURL,
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-    // Pin the browser locale so i18n-derived locators resolve against
-    // `messages/en.json` (the app follows the browser language).
-    locale: 'en-US',
-    timezoneId: 'UTC',
-  },
+  // `tests/e2e/**/*.spec.ts` plus the auth setup project.
+  testMatch: ['specs/**/*.spec.ts'],
+  // Each test in a worker authenticates as that worker's owner via the
+  // worker-scoped `org` fixture (which overrides `storageState`); specs that
+  // need no auth import the base `@playwright/test` with an empty storageState.
+  // So the project sets no static storageState and depends on no setup project.
+  fullyParallel: true,
+  workers,
   projects: [
-    {
-      name: 'setup',
-      testMatch: 'setup/**/*.setup.ts',
-    },
     {
       name: 'chromium',
       testMatch: 'specs/**/*.spec.ts',
-      dependencies: ['setup'],
-      use: {
-        ...devices['Desktop Chrome'],
-        storageState: path.join(dirname, 'e2e/.auth/owner.json'),
-      },
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
   webServer: [
@@ -80,7 +75,10 @@ export default defineConfig({
     ...(useMockLlm
       ? [
           {
-            command: 'bun e2e/mock-llm/server.ts',
+            // OpenAPI-driven mock gateway (@tale/mocks): the deterministic
+            // chat-completions override + Prism-mocked AI endpoints and
+            // third-party integration APIs, all offline.
+            command: 'bun lib/mocks/start.ts',
             url: `http://127.0.0.1:${MOCK_LLM_PORT}/health`,
             reuseExistingServer: !process.env.CI,
             timeout: 30_000,
@@ -106,19 +104,33 @@ export default defineConfig({
         // the E2E CI job, so the bring-up can only fail and waste the cold-boot
         // budget — skip it. Applies in both mock and live-stack modes.
         TALE_DEV_SKIP_DOCKER: '1',
+        // Deterministic 32-byte (hex) key so the hermetic stack can encrypt
+        // secret-box values (project secrets, guardrails) — without it
+        // `convex/lib/secret_box.ts` throws and secret-create flows fail. A
+        // fixed throwaway test key, never a real secret (mirrors the
+        // TALE_PROVIDER_KEY_E2E_MOCK pattern below); synced into the deployment
+        // by scripts/sync-convex-env-from-dotenv.ts via the process-env fallback.
+        // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
+        ENCRYPTION_SECRET_HEX:
+          '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
         ...(useMockLlm
           ? {
               // Hermetic config dir: seeds every new org with the single E2E
               // agent + the mock provider + the trivial `test` workflow.
-              TALE_CONFIG_DIR: path.join(dirname, 'e2e/fixtures/config'),
+              TALE_CONFIG_DIR: path.join(dirname, 'tests/e2e/fixtures/config'),
               // Resolved by the fixture provider's `secretsEnv`; pushed into
               // the Convex deployment env by
               // scripts/sync-convex-env-from-dotenv.ts (TALE_PROVIDER_KEY_*
               // passthrough).
               TALE_PROVIDER_KEY_E2E_MOCK: 'tale-e2e-mock-key',
-              // The mock LLM lives on 127.0.0.1, which the provider host policy
-              // blocks by default (SSRF defence) — opt in for the E2E stack.
+              // The mock gateway lives on 127.0.0.1, which the provider host
+              // policy blocks by default (SSRF defence) — opt in for the E2E
+              // stack. Also authorizes the loopback integration-mock host.
               TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+              // Redirect third-party integration connector calls (Slack/GitHub/
+              // …) to the mock gateway so integration flows run offline too.
+              // Consumed by the sandbox URL rewrite (`mock_rewrite.ts`).
+              TALE_MOCK_INTEGRATIONS_BASE: `http://127.0.0.1:${MOCK_LLM_PORT}`,
             }
           : {}),
       },

@@ -31,7 +31,7 @@
 import { v } from 'convex/values';
 
 import type { DataSource } from '../../../../lib/shared/schemas/common';
-import { narrowStringUnion } from '../../../../lib/utils/type-guards';
+import { narrowStringUnion } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import {
@@ -221,7 +221,6 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
               ? narrowStringUnion(params.source, [
                   'manual_import',
                   'file_upload',
-                  'circuly',
                 ] as const)
               : undefined,
             paginationOpts: params.paginationOpts,

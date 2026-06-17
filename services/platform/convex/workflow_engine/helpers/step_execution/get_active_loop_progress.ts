@@ -3,7 +3,7 @@
  * Returns null when no loop is active or loop has completed.
  */
 
-import { isLoopProgress, isRecord } from '../../../../lib/utils/type-guards';
+import { isLoopProgress, isRecord } from '../../../../lib/utils/type-utils';
 
 export function getActiveLoopProgress(
   loop: unknown,

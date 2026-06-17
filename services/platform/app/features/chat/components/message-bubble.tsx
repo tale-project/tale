@@ -57,6 +57,7 @@ import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { hasThoughtSteps } from '../utils/thought-predicates';
 import { BlockedNotice } from './blocked-notice';
 import { ChatErrorDisplay } from './chat-error-display';
+import { MessageArtifactPills } from './message-bubble/artifact-pills';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
@@ -113,20 +114,6 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
    */
   isFreshSinceMount?: boolean;
 }
-
-interface MessageArtifactPillsProps {
-  organizationId: string;
-  threadId: string;
-  messageId: string;
-}
-
-// Artifact pills retired with the artifacts module — workspace files now
-// surface via the right-pane workspace sidebar.
-function MessageArtifactPillsComponent(_props: MessageArtifactPillsProps) {
-  return null;
-}
-
-const MessageArtifactPills = memo(MessageArtifactPillsComponent);
 
 function useMessageGallery(message: Message) {
   const imageAttachments = useMemo(
@@ -698,6 +685,7 @@ function MessageBubbleComponent({
         size="icon"
         className="p-1"
         onClick={handleInfoClick}
+        data-testid="message-info-button"
       >
         <Info className="size-4" />
       </Button>
@@ -712,6 +700,9 @@ function MessageBubbleComponent({
         className,
       )}
       {...restProps}
+      data-testid="chat-message"
+      data-message-role={message.role}
+      data-message-id={message.id}
     >
       <div
         className={cn(
@@ -956,6 +947,7 @@ function MessageBubbleComponent({
                           size="icon"
                           className="p-1"
                           onClick={handleCopy}
+                          data-testid="message-copy-button"
                         >
                           {isCopied ? (
                             <CheckIcon className="text-success size-4" />
@@ -996,6 +988,7 @@ function MessageBubbleComponent({
                       size="icon"
                       className="p-1"
                       onClick={handleCopy}
+                      data-testid="message-copy-button"
                     >
                       {isCopied ? (
                         <CheckIcon className="text-success size-4" />

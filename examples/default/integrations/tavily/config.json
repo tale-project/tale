@@ -1,6 +1,6 @@
 {
   "title": "Tavily",
-  "description": "Open-web search and page extraction optimised for LLM agents. Use with the Researcher agent for real-time research with cited sources.",
+  "description": "Real-time web search and page extraction for AI research.",
   "version": 1,
   "type": "rest_api",
   "authMethod": "api_key",

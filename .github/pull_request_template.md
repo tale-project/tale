@@ -1,34 +1,32 @@
 ## Summary
 
-<!-- 1–3 sentences. What changed and why. Link issues / discussions. -->
+<!-- 1–3 sentences: what changed and why. Link issues / discussions. -->
 
-## Pre-merge checklist
+## Checklist
 
-Tick each box or mark **N/A** with a short reason. Empty boxes are a blocker.
+Tick each box or mark **N/A** with a short reason. Empty boxes block review.
 
-- [ ] Ran `bun run check` (format, lint, typecheck, all tests).
-- [ ] Updated `services/platform/messages/{en,de,fr}.json` for any new/renamed/removed keys — or N/A.
-- [ ] Updated `docs/`, `docs/de/`, and `docs/fr/` for every user-visible change — or N/A.
-- [ ] Ran `bun run --filter @tale/docs lint` (broken links + oxlint) — or N/A.
-- [ ] Updated `README.md`, `README.de.md`, `README.fr.md` if the change affects what they document — or N/A.
+- [ ] `bun run check` passes (format, lint, typecheck, all tests).
+- [ ] `bun run lint:sast` passes (Opengrep) — or N/A.
+- [ ] Translations updated in `services/platform/messages/{en,de,fr}.json` — or N/A.
+- [ ] Docs updated in `docs/{en,de,fr}/` for any user-visible change — or N/A.
+- [ ] `README.md` / `README.de.md` / `README.fr.md` updated — or N/A.
 
 <details>
-<summary><strong>Does this change need docs and translations?</strong> (decision tree)</summary>
+<summary><strong>Does this need docs & translations?</strong> (decision tree)</summary>
 
-Walk top-down. First **yes** wins.
+Walk top-down; first **yes** wins. If unsure, default to **yes**.
 
-- Did you add, rename, or remove a key in `services/platform/messages/`? → **Yes.**
-- Did you add, change, or remove a UI element a user can click, see, or read? → **Yes.**
-- Did you add, rename, remove, or change the default of an env var, CLI flag, config file key, or API field? → **Yes.**
-- Did you change error wording, validation rules, or rate limits a user can hit? → **Yes.**
-- Pure refactor, internal type, test, build script, or comment? → **No.** Note the scope in the commit body.
-
-If unsure, default to **yes**. Reviewer time is cheaper than stale docs.
+- Added/renamed/removed a key in `services/platform/messages/`? → **Yes.**
+- Added/changed/removed something a user can click, see, or read? → **Yes.**
+- Changed an env var, CLI flag, config key, API field, or its default? → **Yes.**
+- Changed error wording, validation, or rate limits a user can hit? → **Yes.**
+- Pure refactor, internal type, test, or build script? → **No** (note it in the commit body).
 
 </details>
 
 ## Test plan
 
-<!-- How a reviewer can verify this works. Bullet checklist. -->
+<!-- How a reviewer can verify this works. -->
 
 -

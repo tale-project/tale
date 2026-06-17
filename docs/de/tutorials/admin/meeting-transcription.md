@@ -45,7 +45,7 @@ Der Beweis, dass die Verdrahtung funktioniert, ist ein Transkript, das in der Wi
 
 Öffne das Zielprojekt, navigiere zu seiner Wissensdatenbank und such das neue Transkript oben in der Dokumentenliste. Klick in die Vorschau — das Transkript rendert als Dokument mit dem Meeting-Titel als Dokumentnamen und dem Meeting-Datum als Created-at. Wart, bis das Indizier-Badge sich klärt (wenige Sekunden für ein kurzes Transkript, bis zu eine Minute für ein langes), dann lauf eine Suche nach einem Namen oder einer Phrase, die du aus dem Test-Meeting erinnerst. Das Transkript sollte das erste Ergebnis mit der hervorgehobenen Phrase sein.
 
-Liegt das Dokument vor, bleibt das Indizier-Badge aber orange, ist der RAG-Dienst im Rückstand — die Seite [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting) nennt die Symptome.
+Liegt das Dokument vor, bleibt das Indizier-Badge aber orange, ist die Indexierung im Rückstand — die Seite [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting) nennt die Symptome.
 
 ## Vertrauensgrenze
 

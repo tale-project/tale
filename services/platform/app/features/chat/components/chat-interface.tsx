@@ -1,10 +1,7 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
-import { m, AnimatePresence } from 'framer-motion';
-import { Archive, ArrowDown, Share } from 'lucide-react';
 import {
   useRef,
   useEffect,
@@ -78,6 +75,9 @@ import type { FileAttachment } from '../types';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { ChatInput } from './chat-input';
+import { ArchivedBanner } from './chat-interface/archived-banner';
+import { ReadOnlyBanner } from './chat-interface/read-only-banner';
+import { ScrollToBottomButton } from './chat-interface/scroll-to-bottom-button';
 import { ChatMessages } from './chat-messages';
 import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { ChatMessagesSkeleton } from './chat-messages-skeleton';
@@ -1292,54 +1292,22 @@ export function ChatInterface({
 
       <PanelFooter className="bg-background/95 backdrop-blur-xs">
         <div className="relative mx-auto w-full max-w-(--chat-max-width)">
-          <AnimatePresence>
-            {showScrollButton && (
-              <m.div
-                initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-                className="absolute -top-10 right-2 z-10 sm:right-0"
-              >
-                <Button
-                  onClick={scrollToBottom}
-                  size="icon"
-                  variant="secondary"
-                  className="bg-background/95 rounded-full shadow-lg backdrop-blur-xs"
-                  aria-label={t('aria.scrollToBottom')}
-                >
-                  <ArrowDown className="h-4 w-4" />
-                </Button>
-              </m.div>
-            )}
-          </AnimatePresence>
+          <ScrollToBottomButton
+            show={showScrollButton}
+            onClick={scrollToBottom}
+          />
         </div>
         {readOnly ? (
-          <div className="border-border bg-muted/50 flex items-center justify-center gap-2 border-t px-3 py-3">
-            <Share className="text-muted-foreground size-4" />
-            <span className="text-muted-foreground text-sm">
-              {t('share.readOnlyBanner')}
-            </span>
-          </div>
+          <ReadOnlyBanner />
         ) : isArchived ? (
-          <div className="border-border bg-muted/50 flex items-center justify-center gap-2 border-t px-3 py-3">
-            <Archive className="text-muted-foreground size-4" />
-            <span className="text-muted-foreground text-sm">
-              {t('archivedBanner')}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={isUnarchiving}
-              onClick={() => {
-                if (threadId) {
-                  unarchiveThread({ threadId });
-                }
-              }}
-            >
-              {t('unarchive')}
-            </Button>
-          </div>
+          <ArchivedBanner
+            isUnarchiving={isUnarchiving}
+            onUnarchive={() => {
+              if (threadId) {
+                unarchiveThread({ threadId });
+              }
+            }}
+          />
         ) : (
           <FileUpload.Root>
             <div className="px-3">

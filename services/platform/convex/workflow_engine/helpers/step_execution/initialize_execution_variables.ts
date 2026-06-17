@@ -2,7 +2,7 @@
  * Initialize execution variables
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import { ActionCtx } from '../../../_generated/server';
 import { toId } from '../../../lib/type_cast_helpers';
@@ -77,7 +77,7 @@ export async function initializeExecutionVariables(
     );
 
     await ctx.runMutation(
-      internal.wf_executions.internal_mutations.updateExecutionVariables,
+      internal.workflow_executions.internal_mutations.updateExecutionVariables,
       {
         executionId: toId<'wfExecutions'>(args.executionId),
         variablesSerialized: serialized,

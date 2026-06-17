@@ -61,5 +61,5 @@ export function useRestoreFromHistory() {
 }
 
 export function useStartWorkflowFromFile() {
-  return useConvexAction(api.wf_executions.actions.startWorkflowFromFile);
+  return useConvexAction(api.workflow_executions.actions.startWorkflowFromFile);
 }

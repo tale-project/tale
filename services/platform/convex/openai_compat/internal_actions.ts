@@ -11,7 +11,7 @@ import { streamText, type ModelMessage } from 'ai';
 import { v } from 'convex/values';
 
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';

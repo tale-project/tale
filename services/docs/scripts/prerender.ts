@@ -77,6 +77,7 @@ function injectSeo(template: string, route: Route): string {
 }
 
 async function main() {
+  const started = Date.now();
   const template = await readFile(resolve(DIST, 'index.html'), 'utf-8');
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const mod = (await import(pathToFileURL(SSR_BUNDLE).href)) as {
@@ -99,6 +100,7 @@ async function main() {
 
   // De-duplicate (the locale fallback chain doesn't apply to URLs, only content).
   const seen = new Set<string>();
+  process.stdout.write(`prerendering up to ${routes.length} routes...\n`);
   for (const route of routes) {
     if (seen.has(route.url)) continue;
     seen.add(route.url);
@@ -117,6 +119,10 @@ async function main() {
     await writeFile(outPath, final, 'utf-8');
     process.stdout.write('done\n');
   }
+
+  process.stdout.write(
+    `prerendered ${seen.size} routes in ${((Date.now() - started) / 1000).toFixed(1)}s\n`,
+  );
 }
 
 await main();

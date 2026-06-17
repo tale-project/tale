@@ -75,7 +75,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
       {
         field: 'source',
         type: 'string',
-        note: 'Data source (e.g., "manual_import", "file_upload", "circuly", "shopify")',
+        note: 'Data source (e.g., "manual_import", "file_upload", "shopify")',
       },
       {
         field: 'locale',

@@ -6,7 +6,7 @@
  * Note: Uses parallel individual lookups since Better Auth adapter doesn't support IN queries.
  */
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { QueryCtx } from '../_generated/server';
 import { isExternalOwnerId } from '../identities/external_identities';

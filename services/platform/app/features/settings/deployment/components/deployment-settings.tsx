@@ -850,9 +850,9 @@ function DeploymentSettingsView({
               <>
                 <strong>{t('dataResidency.saved.title')}</strong>{' '}
                 {t('dataResidency.saved.runPrefix')}{' '}
-                <code>docker compose restart rag convex</code>{' '}
+                <code>docker compose restart convex</code>{' '}
                 {t('dataResidency.saved.orPrefix')}{' '}
-                <code>tale deploy --services rag</code>{' '}
+                <code>tale deploy --services convex</code>{' '}
                 {t('dataResidency.saved.tail')}
               </>
             }

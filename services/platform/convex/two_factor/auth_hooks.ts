@@ -13,7 +13,7 @@ import {
 } from '@convex-dev/better-auth/utils';
 import { APIError } from 'better-auth/api';
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { DataModel } from '../_generated/dataModel';
 

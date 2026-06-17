@@ -9,7 +9,7 @@
 
 import { v } from 'convex/values';
 
-import { fetchJson } from '../lib/utils/type-cast-helpers';
+import { fetchJson } from '../lib/utils/type-utils';
 import { internalAction } from './_generated/server';
 
 interface RefreshTokenResult {

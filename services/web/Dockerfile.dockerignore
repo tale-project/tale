@@ -117,14 +117,10 @@ compose.*.yml
 # =============================================================================
 services/platform/
 services/convex/
-services/crawler/
-services/rag/
 services/db/
 services/proxy/
 services/sandbox/
-packages/tale_knowledge/
-packages/tale_shared/
-packages/tale_telemetry/
+packages/shared/
 tools/
 examples/
 
@@ -132,13 +128,10 @@ examples/
 # path so the workspace graph resolves. Re-include just the manifests —
 # source trees stay excluded by the rules above.
 !services/platform/package.json
-!services/crawler/package.json
-!services/rag/package.json
 !services/db/package.json
 !services/proxy/package.json
 !services/sandbox/package.json
-!packages/tale_knowledge/package.json
-!packages/tale_shared/package.json
-!packages/tale_telemetry/package.json
+!packages/shared/package.json
 !tools/cli/package.json
 !tools/plop/package.json
+!tools/opengrep/package.json

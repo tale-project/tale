@@ -15,7 +15,7 @@
 
 import { set, merge } from 'lodash';
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { UpdateCustomersResult } from './types';

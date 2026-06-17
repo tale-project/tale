@@ -1,29 +1,28 @@
-import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { _resetRagConfigForTests } from '../../lib/helpers/rag_config';
+import { internal } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 import { fetchDocumentContent } from './helpers/fetch_document_content';
 
-const RAG_URL = 'http://mock-rag:8001';
-
-beforeAll(() => {
-  process.env.RAG_URL = RAG_URL;
-  process.env.RAG_AUTH_TOKEN = 'test-token';
-  _resetRagConfigForTests();
-});
 const FILE_ID = 'file-storage-123';
 const ORG_SLUG = 'test-org';
 
-const originalFetch = globalThis.fetch;
+/** The serialized shape `internal.rag.documents.getContent` resolves to. */
+interface RagContentResult {
+  file_id: string;
+  title: string | null;
+  content: string;
+  chunk_range: { start: number; end: number };
+  total_chunks: number;
+  total_chars: number;
+  source_created_at: string | null;
+  source_modified_at: string | null;
+  chunks: { index: number; content: string }[] | null;
+}
 
-function createRagResponse(overrides?: Record<string, unknown>) {
+function createRagResult(
+  overrides?: Partial<RagContentResult>,
+): RagContentResult {
   return {
     file_id: FILE_ID,
     title: 'Test Document',
@@ -31,33 +30,55 @@ function createRagResponse(overrides?: Record<string, unknown>) {
     chunk_range: { start: 1, end: 5 },
     total_chunks: 10,
     total_chars: 11,
+    source_created_at: null,
+    source_modified_at: null,
+    chunks: null,
     ...overrides,
   };
 }
 
-function mockFetchSuccess(body: Record<string, unknown>) {
-  globalThis.fetch = Object.assign(
-    vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(body), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    ),
-    { preconnect: vi.fn() },
-  );
+/**
+ * Build a typed `ActionCtx` mock whose `runAction` resolves to `result`. The
+ * RAG document-content fetch now flows through an in-process `ctx.runAction`,
+ * so the test exercises that contract instead of `globalThis.fetch`/`RAG_URL`.
+ * The returned `runAction` spy is asserted against; all other members are
+ * typed stubs (never invoked by the helper).
+ */
+function createCtx(result: RagContentResult | null) {
+  const runAction = vi.fn().mockResolvedValue(result);
+  const ctx: ActionCtx = {
+    runQuery: vi.fn(),
+    runMutation: vi.fn(),
+    runAction,
+    scheduler: { runAfter: vi.fn(), runAt: vi.fn(), cancel: vi.fn() },
+    auth: { getUserIdentity: vi.fn() },
+    storage: {
+      generateUploadUrl: vi.fn(),
+      getUrl: vi.fn(),
+      getMetadata: vi.fn(),
+      delete: vi.fn(),
+      get: vi.fn(),
+      store: vi.fn(),
+    },
+    vectorSearch: vi.fn(),
+  };
+  return { ctx, runAction };
+}
+
+let runAction: ReturnType<typeof createCtx>['runAction'];
+let ctx: ActionCtx;
+
+function mockResult(result: RagContentResult | null): void {
+  ({ ctx, runAction } = createCtx(result));
 }
 
 beforeEach(() => {
-  mockFetchSuccess(createRagResponse());
-});
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
+  mockResult(createRagResult());
 });
 
 describe('fetchDocumentContent', () => {
   it('returns correct result shape on happy path', async () => {
-    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
+    const result = await fetchDocumentContent(ctx, ORG_SLUG, FILE_ID);
 
     expect(result).toEqual({
       fileId: FILE_ID,
@@ -67,32 +88,40 @@ describe('fetchDocumentContent', () => {
       totalChunks: 10,
       truncated: false,
       totalChars: 11,
+      chunks: undefined,
     });
   });
 
-  it('builds URL without query params when no options provided', async () => {
-    await fetchDocumentContent(ORG_SLUG, FILE_ID);
+  it('calls getContent with null chunk args when no options provided', async () => {
+    await fetchDocumentContent(ctx, ORG_SLUG, FILE_ID);
 
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const url = fetchCall?.[0] ?? '';
-    expect(url).toBe(`${RAG_URL}/api/v1/documents/${FILE_ID}/content`);
+    expect(runAction).toHaveBeenCalledWith(internal.rag.documents.getContent, {
+      orgSlug: ORG_SLUG,
+      fileId: FILE_ID,
+      chunkStart: null,
+      chunkEnd: null,
+      returnChunks: null,
+    });
   });
 
-  it('appends chunk_start and chunk_end query params', async () => {
-    await fetchDocumentContent(ORG_SLUG, FILE_ID, {
+  it('forwards chunkStart and chunkEnd as runAction args', async () => {
+    await fetchDocumentContent(ctx, ORG_SLUG, FILE_ID, {
       chunkStart: 3,
       chunkEnd: 8,
     });
 
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const url = fetchCall?.[0] ?? '';
-    expect(url).toContain('chunk_start=3');
-    expect(url).toContain('chunk_end=8');
+    expect(runAction).toHaveBeenCalledWith(internal.rag.documents.getContent, {
+      orgSlug: ORG_SLUG,
+      fileId: FILE_ID,
+      chunkStart: 3,
+      chunkEnd: 8,
+      returnChunks: null,
+    });
   });
 
-  it('appends return_chunks=true when returnChunks is set', async () => {
-    mockFetchSuccess(
-      createRagResponse({
+  it('forwards returnChunks and maps returned chunks', async () => {
+    mockResult(
+      createRagResult({
         chunks: [
           { index: 1, content: 'chunk 1' },
           { index: 2, content: 'chunk 2' },
@@ -100,40 +129,45 @@ describe('fetchDocumentContent', () => {
       }),
     );
 
-    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID, {
+    const result = await fetchDocumentContent(ctx, ORG_SLUG, FILE_ID, {
       returnChunks: true,
     });
 
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const url = fetchCall?.[0] ?? '';
-    expect(url).toContain('return_chunks=true');
+    expect(runAction).toHaveBeenCalledWith(internal.rag.documents.getContent, {
+      orgSlug: ORG_SLUG,
+      fileId: FILE_ID,
+      chunkStart: null,
+      chunkEnd: null,
+      returnChunks: true,
+    });
     expect(result.chunks).toHaveLength(2);
     expect(result.chunks?.[0]).toEqual({ index: 1, content: 'chunk 1' });
   });
 
-  it('omits return_chunks param when not set', async () => {
-    await fetchDocumentContent(ORG_SLUG, FILE_ID);
+  it('passes returnChunks:null as runAction arg when not set', async () => {
+    await fetchDocumentContent(ctx, ORG_SLUG, FILE_ID);
 
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const url = fetchCall?.[0] ?? '';
-    expect(url).not.toContain('return_chunks');
+    const [, args] = runAction.mock.calls[0] ?? [];
+    expect(args).toMatchObject({ returnChunks: null });
   });
 
-  it('encodes fileId in URL', async () => {
-    await fetchDocumentContent(ORG_SLUG, 'file/with spaces');
+  it('forwards the raw fileId untouched (no URL encoding)', async () => {
+    await fetchDocumentContent(ctx, ORG_SLUG, 'file/with spaces');
 
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const url = fetchCall?.[0] ?? '';
-    expect(url).toContain('file%2Fwith%20spaces');
+    expect(runAction).toHaveBeenCalledWith(internal.rag.documents.getContent, {
+      orgSlug: ORG_SLUG,
+      fileId: 'file/with spaces',
+      chunkStart: null,
+      chunkEnd: null,
+      returnChunks: null,
+    });
   });
 
   it('truncates content exceeding 50K chars', async () => {
     const longContent = 'x'.repeat(60_000);
-    mockFetchSuccess(
-      createRagResponse({ content: longContent, total_chars: 60_000 }),
-    );
+    mockResult(createRagResult({ content: longContent, total_chars: 60_000 }));
 
-    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
+    const result = await fetchDocumentContent(ctx, ORG_SLUG, FILE_ID);
 
     expect(result.truncated).toBe(true);
     expect(result.content).toHaveLength(50_000);
@@ -142,155 +176,54 @@ describe('fetchDocumentContent', () => {
 
   it('does not truncate content at exactly 50K chars', async () => {
     const exactContent = 'x'.repeat(50_000);
-    mockFetchSuccess(
-      createRagResponse({ content: exactContent, total_chars: 50_000 }),
-    );
+    mockResult(createRagResult({ content: exactContent, total_chars: 50_000 }));
 
-    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
+    const result = await fetchDocumentContent(ctx, ORG_SLUG, FILE_ID);
 
     expect(result.truncated).toBe(false);
     expect(result.content).toHaveLength(50_000);
   });
 
   it('handles empty content', async () => {
-    mockFetchSuccess(createRagResponse({ content: '', total_chars: 0 }));
+    mockResult(createRagResult({ content: '', total_chars: 0 }));
 
-    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
+    const result = await fetchDocumentContent(ctx, ORG_SLUG, FILE_ID);
 
     expect(result.content).toBe('');
     expect(result.truncated).toBe(false);
     expect(result.totalChars).toBe(0);
   });
 
-  it('handles null content as empty string', async () => {
-    mockFetchSuccess(createRagResponse({ content: null, total_chars: 0 }));
-
-    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
-
-    expect(result.content).toBe('');
-    expect(result.truncated).toBe(false);
-  });
-
   it('returns "Untitled" when RAG title is null', async () => {
-    mockFetchSuccess(createRagResponse({ title: null }));
+    mockResult(createRagResult({ title: null }));
 
-    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
+    const result = await fetchDocumentContent(ctx, ORG_SLUG, FILE_ID);
 
     expect(result.name).toBe('Untitled');
   });
 
-  it('throws on RAG 404', async () => {
-    globalThis.fetch = Object.assign(
-      vi.fn().mockResolvedValue(new Response('Not found', { status: 404 })),
-      { preconnect: vi.fn() },
-    );
+  it('throws "not found" when getContent returns null', async () => {
+    mockResult(null);
 
-    await expect(fetchDocumentContent(ORG_SLUG, FILE_ID)).rejects.toThrow(
+    await expect(fetchDocumentContent(ctx, ORG_SLUG, FILE_ID)).rejects.toThrow(
       'was not found in the knowledge base',
     );
   });
 
-  it('throws with status on RAG 500', async () => {
-    globalThis.fetch = Object.assign(
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response('Internal Server Error', { status: 500 }),
-        ),
-      { preconnect: vi.fn() },
-    );
+  it('combines chunkStart with returnChunks in runAction args', async () => {
+    mockResult(createRagResult({ chunks: [{ index: 5, content: 'chunk 5' }] }));
 
-    await expect(fetchDocumentContent(ORG_SLUG, FILE_ID)).rejects.toThrow(
-      /HTTP 500/,
-    );
-  });
-
-  it('throws an UpstreamHttpError shaped from the response on non-ok', async () => {
-    globalThis.fetch = Object.assign(
-      vi.fn().mockResolvedValue(new Response('Rate limited', { status: 429 })),
-      { preconnect: vi.fn() },
-    );
-
-    // `.message` carries the safe summary (status + endpoint); the
-    // raw "Rate limited" body now lives only on `.bodySnippet`.
-    const err = await fetchDocumentContent(ORG_SLUG, FILE_ID).then(
-      () => null,
-      (e: unknown) => e,
-    );
-    expect(err).toBeInstanceOf(Error);
-    expect((err as Error).message).toMatch(/HTTP 429|throttling/);
-    expect((err as { bodySnippet?: string }).bodySnippet).toMatch(
-      /Rate limited/,
-    );
-  });
-
-  it('wraps non-JSON response parse error', async () => {
-    globalThis.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response('<html>Error</html>', {
-          status: 200,
-          headers: { 'content-type': 'text/html' },
-        }),
-      ),
-      { preconnect: vi.fn() },
-    );
-
-    await expect(fetchDocumentContent(ORG_SLUG, FILE_ID)).rejects.toThrow(
-      'Failed to parse RAG response',
-    );
-  });
-
-  it('throws timeout error when fetch is aborted', async () => {
-    globalThis.fetch = Object.assign(
-      vi
-        .fn()
-        .mockRejectedValue(
-          new DOMException('The operation was aborted', 'AbortError'),
-        ),
-      { preconnect: vi.fn() },
-    );
-
-    await expect(fetchDocumentContent(ORG_SLUG, FILE_ID)).rejects.toThrow(
-      'timed out after 60s',
-    );
-  });
-
-  it('re-throws network errors from fetch', async () => {
-    globalThis.fetch = Object.assign(
-      vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
-      { preconnect: vi.fn() },
-    );
-
-    await expect(fetchDocumentContent(ORG_SLUG, FILE_ID)).rejects.toThrow(
-      'Failed to fetch',
-    );
-  });
-
-  it('passes AbortSignal to fetch', async () => {
-    await fetchDocumentContent(ORG_SLUG, FILE_ID);
-
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const options = fetchCall?.[1];
-    expect(options).toHaveProperty('signal');
-    expect(options?.signal).toBeInstanceOf(AbortSignal);
-  });
-
-  it('combines chunkStart with returnChunks in query params', async () => {
-    mockFetchSuccess(
-      createRagResponse({
-        chunks: [{ index: 5, content: 'chunk 5' }],
-      }),
-    );
-
-    await fetchDocumentContent(ORG_SLUG, FILE_ID, {
+    await fetchDocumentContent(ctx, ORG_SLUG, FILE_ID, {
       chunkStart: 5,
       returnChunks: true,
     });
 
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    const url = fetchCall?.[0] ?? '';
-    expect(url).toContain('chunk_start=5');
-    expect(url).toContain('return_chunks=true');
-    expect(url).not.toContain('chunk_end');
+    expect(runAction).toHaveBeenCalledWith(internal.rag.documents.getContent, {
+      orgSlug: ORG_SLUG,
+      fileId: FILE_ID,
+      chunkStart: 5,
+      chunkEnd: null,
+      returnChunks: true,
+    });
   });
 });

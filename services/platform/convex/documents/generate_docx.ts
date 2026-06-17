@@ -1,45 +1,38 @@
+'use node';
+
 /**
- * Generate a DOCX document via the crawler service and store it in Convex storage.
+ * Generate a DOCX document from structured content in-process and store it in
+ * Convex storage.
  *
- * This is the model-layer helper; Convex actions should call this via a thin
- * wrapper in `convex/documents.ts`.
+ * `'use node'`: value-imports the `'use node'` `crawler/lib/docx_generate`
+ * (jszip OOXML). Invoked only from `'use node'` internalActions and NOT
+ * re-exported by the V8-reachable `documents/helpers` barrel — see
+ * `generate_document.ts` for the Node/V8 boundary rationale.
+ *
+ * Replaces the former `services/crawler` HTTP call (`POST /api/v1/docx`): the
+ * OOXML package is now assembled in-process via `crawler/lib/docx_generate`
+ * (jszip + hand-written `word/document.xml`).
+ *
+ * This is the model-layer helper; Convex actions call it via a thin wrapper in
+ * `convex/documents.ts`.
  */
 
-import { decode as decodeBase64 } from 'base64-arraybuffer';
-
-import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { fetchJson } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
+import {
+  generateDocxBytes,
+  type DocxContent,
+  type DocxSection,
+} from '../crawler/lib/docx_generate';
 import { createDebugLog } from '../lib/debug_log';
-import { UpstreamHttpError } from '../lib/errors/upstream_http_error';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
-import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
+import { buildDownloadUrl } from './generate_document_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 
-export interface DocxSection {
-  type:
-    | 'heading'
-    | 'paragraph'
-    | 'bullets'
-    | 'numbered'
-    | 'table'
-    | 'quote'
-    | 'code';
-  text?: string;
-  level?: number; // For headings (1-6)
-  items?: string[]; // For bullets/numbered lists
-  headers?: string[]; // For tables
-  rows?: string[][]; // For tables
-}
-
-export interface DocxContent {
-  title?: string;
-  subtitle?: string;
-  sections: DocxSection[];
-}
+export type { DocxContent, DocxSection };
 
 export interface GenerateDocxArgs {
   organizationId: string;
@@ -56,81 +49,35 @@ export interface GenerateDocxResult {
   size: number;
 }
 
+const DOCX_CONTENT_TYPE =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 /**
- * Generate a DOCX document from structured content using the crawler service.
+ * Generate a DOCX document from structured content (in-process OOXML build).
  */
 export async function generateDocx(
   ctx: ActionCtx,
   args: GenerateDocxArgs,
 ): Promise<GenerateDocxResult> {
-  const crawlerUrl = getCrawlerUrl();
-  const apiUrl = `${crawlerUrl}/api/v1/docx`;
-  const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-
-  const requestBody = {
-    content: args.content,
-  };
-
   debugLog('documents.generateDocx start', {
     fileName: args.fileName,
     sectionsCount: args.content.sections.length,
   });
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-tale-org': orgSlug,
-    },
-    body: JSON.stringify(requestBody),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw UpstreamHttpError.fromResponse(
-      'crawler',
-      response,
-      errorText,
-      '/api/v1/docx',
-    );
-  }
-
-  const result = await response.json();
-
-  if (!result.success || !result.file_base64) {
-    // Sanitise the upstream `result.error` before it lands in the
-    // thrown message. The HTTP-error path above already runs through
-    // `sanitizeError` via `UpstreamHttpError.fromResponse`; this
-    // body-level branch is the second escape hatch and must scrub
-    // too — otherwise a crawler that 200s with `{"success":false,
-    // "error":"Authorization: Bearer ..."}` would leak the secret
-    // straight into the agent boundary.
-    const rawErr =
-      typeof result.error === 'string'
-        ? result.error
-        : 'Failed to generate DOCX';
-    throw new Error(sanitizeError(rawErr));
-  }
-
-  // Decode base64 and upload to Convex storage
-  const docxArrayBuffer = decodeBase64(result.file_base64);
-  const docxBytes = new Uint8Array(docxArrayBuffer);
-  const contentType =
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const docxBytes = await generateDocxBytes(args.content);
 
   const uploadUrl = await ctx.storage.generateUploadUrl();
   const uploadResponse = await fetch(uploadUrl, {
     method: 'POST',
-    headers: { 'Content-Type': contentType },
+    headers: { 'Content-Type': DOCX_CONTENT_TYPE },
     body: docxBytes,
   });
 
   if (!uploadResponse.ok) {
     const uploadErrorText = await uploadResponse.text().catch(() => '');
-    // Storage upload (Convex `_storage`) is not in the UpstreamHttpError
-    // service union; scrub body via sanitizeError before logging so any
-    // signed URL or token in the response can't leak. Throw a status-
-    // only error to the caller.
+    // Storage upload (Convex `_storage`) — scrub body via sanitizeError before
+    // logging so any signed URL or token in the response can't leak. Throw a
+    // status-only error to the caller.
     console.error('[documents.generateDocx] upload error', {
       status: uploadResponse.status,
       statusText: uploadResponse.statusText,
@@ -153,14 +100,12 @@ export async function generateDocx(
       organizationId: args.organizationId,
       storageId,
       fileName: finalFileName,
-      contentType,
+      contentType: DOCX_CONTENT_TYPE,
       size: docxBytes.length,
       source: 'agent',
     },
   );
 
-  // Build download URL using our custom HTTP endpoint that sets Content-Disposition
-  // This ensures the downloaded file has the correct filename instead of the storage ID
   const downloadUrl = buildDownloadUrl(storageId, finalFileName);
 
   debugLog('documents.generateDocx success', {
@@ -174,7 +119,7 @@ export async function generateDocx(
     fileStorageId: storageId,
     downloadUrl,
     fileName: finalFileName,
-    contentType,
+    contentType: DOCX_CONTENT_TYPE,
     size: docxBytes.length,
   };
 }

@@ -8,9 +8,9 @@ description: Exécuter le travail des tâches sur vos propres machines avec des 
 ## Installation
 
 ```sh
-bunx tale-daemon setup    # URL de base, clé API, espace de travail, plafond de permission
-bunx tale-daemon start    # enregistrement + boucle de réclamation (Ctrl-C draine l'exécution)
-bunx tale-daemon status   # configuration, CLIs détectées, connectivité serveur
+tale daemon setup    # URL de base, clé API, espace de travail, plafond de permission
+tale daemon start    # enregistrement + boucle de réclamation (Ctrl-C draine l'exécution)
+tale daemon status   # configuration, CLIs détectées, connectivité serveur
 ```
 
 `setup` génère une identité stable et stocke la configuration dans `~/.tale-daemon/config.json` (mode 600). Utilisez une clé API Tale normale (**Paramètres → API → REST**) ; définissez `TALE_DAEMON_API_KEY` pour garder la clé hors du fichier. Les daemons connectés apparaissent sous **Paramètres → API → Runtimes** avec leur statut en direct.

@@ -19,7 +19,7 @@ import {
   type ChatFilterConfig,
   type ModerationProviderConfig,
 } from '../../lib/shared/schemas/governance';
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { runChatFilter } from './chat_filter';

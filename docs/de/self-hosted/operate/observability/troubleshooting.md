@@ -36,14 +36,14 @@ Der Convex-Container startet wahrscheinlich neu (such nach `panic` in den Logs) 
 
 ## Uploads stecken in „indexing"
 
-Der RAG-Container indexiert Uploads asynchron. Ein langer „indexing"-Zustand bedeutet entweder die Queue staut oder der Container hat aufgehört, sie zu konsumieren. Prüf die Queue-Tiefe über den Metric-Endpoint:
+Die Dokument-Ingestion läuft im Convex-Backend und schreibt die extrahierten Chunks und Embeddings in die Datenbank des Wissens-Korpus. Ein langer „indexing"-Zustand bedeutet entweder, dass das Backend `tale-knowledge-db` nicht erreicht oder dass die Datei selbst nicht extrahiert werden konnte. Prüf zuerst die Convex-Logs und die Korpus-Datenbank:
 
 ```bash
-curl -H "Authorization: Bearer $METRICS_BEARER_TOKEN" \
-  https://$HOST/metrics/rag | grep queue_depth
+docker compose logs --tail=200 tale-convex | grep -iE "knowledge|ingest|embed"
+docker compose ps tale-knowledge-db
 ```
 
-Steigt die Queue-Tiefe, ohne zu entleeren, starte RAG neu: `docker compose restart tale-rag`. Der Container hebt dort wieder an, wo er aufgehört hat; Uploads müssen nicht erneut eingereicht werden. Ist die Queue leer, aber ein bestimmter Upload steckt, ist die Datei selbst der Verdächtige — beschädigte PDFs und passwortgeschützte Dokumente landen in einem Fehlzustand und brauchen Löschung + Re-Upload.
+Zeigen die Logs Verbindungsfehler zu `knowledge-db`, starte die Korpus-Datenbank neu (`docker compose restart tale-knowledge-db`); die Ingestion versucht es beim nächsten Durchlauf erneut, Uploads müssen also nicht erneut eingereicht werden. Ist die Datenbank healthy, aber ein bestimmter Upload steckt, ist die Datei selbst der Verdächtige — beschädigte PDFs und passwortgeschützte Dokumente landen in einem Fehlzustand und brauchen Löschung und Re-Upload.
 
 ## Chat-Antworten hören mitten im Stream auf
 

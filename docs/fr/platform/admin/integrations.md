@@ -11,7 +11,7 @@ L'histoire fonctionnelle de chaque intégration (ce qu'elle fait, quels périmè
 
 Ouvre **Paramètres > Intégrations** pour atterrir sur les intégrations installées de l'org. Chaque ligne nomme une intégration, montre sa catégorie (communication, stockage, identité, connaissance, contrôle de source, commerce, IA), le type d'identifiant (OAuth2, clé API, jeton d'app) et le statut de connexion (connectée, en attente, erreur). La liste est filtrable par catégorie et par statut.
 
-Le catalogue des intégrations disponibles est à un clic sous **Ajouter une intégration**. Le catalogue ship actuellement Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio, Microsoft 365, Google Drive, Confluence, WebDAV, Tavily, GitHub, Shopify, Protel, Circuly et AI image ; le même catalogue est la source que documente la vue d'ensemble des intégrations.
+Le catalogue des intégrations disponibles est à un clic sous **Ajouter une intégration**. Le catalogue ship actuellement Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio, Microsoft 365, Google Drive, Confluence, WebDAV, Tavily, GitHub, Shopify et AI image ; le même catalogue est la source que documente la vue d'ensemble des intégrations.
 
 ## Installer une intégration
 

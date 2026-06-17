@@ -1,8 +1,8 @@
 import { FileText } from 'lucide-react';
 import { describe, it, expect } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 import { EmptyState } from './empty-state';
 

@@ -8,9 +8,6 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'services/*/package.json'
-      - 'services/*/uv.lock'
-      - 'services/*/pyproject.toml'
-      - 'packages/*/pyproject.toml'
       # Dockerfile + dockerignore changes alter what trivy's misconfig
       # scanner sees on the fs-scan path; .trivyignore.yaml changes can
       # silently un-suppress findings. Round-2 R2-B11 found this branch
@@ -19,7 +16,6 @@ on:
       - 'services/*/Dockerfile'
       - 'services/*/Dockerfile.dockerignore'
       - '.trivyignore.yaml'
-      - '.trivyignore'
       - '.github/workflows/security.yml'
   push:
     branches:
@@ -28,13 +24,9 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'services/*/package.json'
-      - 'services/*/uv.lock'
-      - 'services/*/pyproject.toml'
-      - 'packages/*/pyproject.toml'
       - 'services/*/Dockerfile'
       - 'services/*/Dockerfile.dockerignore'
       - '.trivyignore.yaml'
-      - '.trivyignore'
       - '.github/workflows/security.yml'
   schedule:
     - cron: '0 3 * * 1' # Monday 03:00 UTC
@@ -95,9 +87,9 @@ jobs:
   # Uploads SARIF to GitHub Security (all scanners, HIGH+CRITICAL, informational),
   # then a vuln-only gate fails the build on FIXABLE HIGH or CRITICAL dependency
   # CVEs. Secret/misconfig findings stay informational (SARIF) to avoid blocking
-  # on scanner noise. Unlike bun audit, this scans every lockfile in the tree
-  # (bun.lock and services/*/uv.lock) with no prod/dev split; unfixable findings
-  # are suppressed via dated accept-risk entries in .trivyignore.yaml.
+  # on scanner noise. Unlike bun audit, this scans the whole tree (bun.lock,
+  # every workspace) with no prod/dev split; unfixable findings are suppressed
+  # via dated accept-risk entries in .trivyignore.yaml.
   # ---------------------------------------------------------------------------
   trivy-fs:
     name: Trivy filesystem scan

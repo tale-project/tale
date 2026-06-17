@@ -28,7 +28,7 @@ export interface ParsedCustomer {
 
 // Type for the form data
 type FormValues = {
-  dataSource: 'circuly' | 'manual_import' | 'file_upload';
+  dataSource: 'manual_import' | 'file_upload';
   customers?: string;
   file?: File;
   syncSource?: string;
@@ -64,7 +64,7 @@ export function ImportCustomersDialog({
     () =>
       z
         .object({
-          dataSource: z.enum(['circuly', 'manual_import', 'file_upload'], {
+          dataSource: z.enum(['manual_import', 'file_upload'], {
             message: tCustomers('import.selectDataSource'),
           }),
           customers: z.string().optional(),
@@ -130,14 +130,7 @@ export function ImportCustomersDialog({
         let parseErrors: string[] = [];
 
         // Handle different data sources
-        if (values.dataSource === 'circuly') {
-          toast({
-            title: tCustomers('import.syncFeature'),
-            description: tCustomers('import.syncNotImplemented'),
-            variant: 'destructive',
-          });
-          return;
-        } else if (values.dataSource === 'manual_import' && values.customers) {
+        if (values.dataSource === 'manual_import' && values.customers) {
           const result = parseCSV(values.customers);
           customers = result.data;
           parseErrors = result.errors;

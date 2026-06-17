@@ -14,7 +14,7 @@
 
 import { get } from 'lodash';
 
-import { isRecord } from '../../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../../lib/utils/type-utils';
 import { internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
 import type {

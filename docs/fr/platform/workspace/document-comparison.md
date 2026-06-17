@@ -3,9 +3,9 @@ title: Comparaison de documents
 description: La boîte de dialogue diff côte à côte qui prend deux documents — téléversés ou tirés de la bibliothèque — et parcourt les différences paragraphe par paragraphe avec un résumé assisté par RAG.
 ---
 
-La comparaison de documents est la boîte de dialogue qui répond à la question « qu'est-ce qui a changé entre ces deux versions ». Tu lui pointes un document de base et un document de comparaison ; Tale les passe tous deux dans le même pipeline d'extraction qui alimente la base de connaissances, les remet à un endpoint diff déterministe sur le service RAG, et rend le résultat sous la forme d'un parcours structuré des paragraphes ajoutés, supprimés et modifiés. C'est le bon outil pour les contrats avant-après, les révisions de politique, deux brouillons d'une même proposition — tout ce où les mots comptent et où les mots ont bougé.
+La comparaison de documents est la boîte de dialogue qui répond à la question « qu'est-ce qui a changé entre ces deux versions ». Tu lui pointes un document de base et un document de comparaison ; Tale les passe tous deux dans le même pipeline d'extraction qui alimente la base de connaissances, lance un diff déterministe au niveau du paragraphe, et rend le résultat sous la forme d'un parcours structuré des paragraphes ajoutés, supprimés et modifiés. C'est le bon outil pour les contrats avant-après, les révisions de politique, deux brouillons d'une même proposition — tout ce où les mots comptent et où les mots ont bougé.
 
-La boîte de dialogue vit à côté des documents que tu compares : ouvre-la depuis **Connaissance > Documents** avec l'action **Comparer les documents**. Les fichiers de base et de comparaison peuvent chacun être un document déjà indexé de la bibliothèque ou un téléversement ponctuel, donc il n'y a pas besoin de charger les deux côtés dans la base de connaissances si tu veux seulement regarder un diff.
+La boîte de dialogue vit à côté des documents que tu compares : ouvre-la depuis **Connaissances > Documents** avec l'action **Comparer les documents**. Les fichiers de base et de comparaison peuvent chacun être un document déjà indexé de la bibliothèque ou un téléversement ponctuel, donc il n'y a pas besoin de charger les deux côtés dans la base de connaissances si tu veux seulement regarder un diff.
 
 ## Choisir les deux côtés
 
@@ -13,13 +13,13 @@ Deux sélecteurs siègent côte à côte : **Document de base** à gauche, **Doc
 
 L'onglet Téléverser prend n'importe lequel des formats que le pipeline de la base de connaissances gère déjà : PDF, DOCX, DOC, XLSX, PPTX, texte brut, Markdown, CSV. Le fichier part dans le stockage objet de Tale, le même endroit que vivent les pièces jointes de chat et les documents de la bibliothèque ; il n'est pas indexé et pas lié à un agent, donc le téléversement est une entrée ponctuelle pour ce diff et rien d'autre. L'onglet Existant liste chaque document de la bibliothèque ayant un fichier téléchargeable — choisis-en un via le sélecteur recherchable et la fente se remplit avec le nom du document.
 
-Mélange les onglets librement. Compare deux téléversements l'un contre l'autre quand aucune version n'est dans la bibliothèque, compare un téléversement contre un document de bibliothèque existant quand tu veux voir ce qu'un brouillon entrant change, ou compare deux documents de bibliothèque quand tu les as versionnés dans Connaissance.
+Mélange les onglets librement. Compare deux téléversements l'un contre l'autre quand aucune version n'est dans la bibliothèque, compare un téléversement contre un document de bibliothèque existant quand tu veux voir ce qu'un brouillon entrant change, ou compare deux documents de bibliothèque quand tu les as versionnés dans Connaissances.
 
 ## Lancer le diff
 
-Clique **Comparer**. La boîte de dialogue affiche un spinner pendant que le service RAG télécharge les deux fichiers, extrait le texte, normalise les frontières de paragraphes, et lance un diff déterministe au niveau du paragraphe. L'endpoint est le seul chemin sans modèle de la fonctionnalité de comparaison — le diff lui-même est du pur appariement de chaînes, donc la sortie est reproductible pour les mêmes entrées.
+Clique **Comparer**. La boîte de dialogue affiche un spinner pendant que Tale télécharge les deux fichiers, extrait le texte, normalise les frontières de paragraphes, et lance un diff déterministe au niveau du paragraphe. La comparaison est le seul chemin sans modèle de la fonctionnalité — le diff lui-même est du pur appariement de chaînes, donc la sortie est reproductible pour les mêmes entrées.
 
-L'attente est bornée — la requête timeoute à deux minutes si le service RAG n'a pas répondu. Les gros fichiers atteignent le timeout plus souvent que les petits ; s'il déclenche, retente une fois et envisage de tailler le fichier sur la partie qui compte.
+L'attente est bornée — la requête timeoute à deux minutes si la comparaison n'a pas renvoyé de résultat. Les gros fichiers atteignent le timeout plus souvent que les petits ; s'il déclenche, retente une fois et envisage de tailler le fichier sur la partie qui compte.
 
 ## Lire le résultat
 

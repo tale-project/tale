@@ -17,7 +17,7 @@ import {
   type TwoFactorPolicyConfig,
 } from '@/lib/shared/schemas/governance';
 import { cn } from '@/lib/utils/cn';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';

@@ -13,7 +13,7 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';

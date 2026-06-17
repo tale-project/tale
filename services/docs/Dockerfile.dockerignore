@@ -115,17 +115,13 @@ compose.*.yml
 services/platform/
 services/web/
 services/convex/
-services/crawler/
-services/rag/
 services/db/
 services/proxy/
 services/sandbox/
 services/sandbox-egress/
 services/sandbox-runtime/
 !services/sandbox-runtime/daemon/package.json
-packages/tale_knowledge/
-packages/tale_shared/
-packages/tale_telemetry/
+packages/shared/
 tools/
 examples/
 
@@ -134,13 +130,10 @@ examples/
 # source trees stay excluded by the rules above.
 !services/platform/package.json
 !services/web/package.json
-!services/crawler/package.json
-!services/rag/package.json
 !services/db/package.json
 !services/proxy/package.json
 !services/sandbox/package.json
-!packages/tale_knowledge/package.json
-!packages/tale_shared/package.json
-!packages/tale_telemetry/package.json
+!packages/shared/package.json
 !tools/cli/package.json
 !tools/plop/package.json
+!tools/opengrep/package.json

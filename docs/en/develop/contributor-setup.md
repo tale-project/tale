@@ -1,11 +1,11 @@
 ---
 title: Contributor setup
-description: The single source of truth for setting up Tale's source for local development — prerequisites, bun install, the pre-flight check, what bun run dev does, port conflicts, Python services, and the pre-PR checklist.
+description: The single source of truth for setting up Tale's source for local development — prerequisites, bun install, the pre-flight check, what bun run dev does, port conflicts, and the pre-PR checklist.
 ---
 
 This page is for contributors who want to run Tale from source and ship a change back. It covers the prerequisites, the one-time setup, the pre-flight check that catches a broken machine before a long boot, and what to expect from `bun run dev`. It is not the operator path — if you want to run Tale to use it, not change it, the [self-hosted quickstart](/self-hosted/install/quickstart) installs the packaged stack with the CLI instead.
 
-The source runs on Bun workspaces. A single `bun install` wires up every service, and `bun run dev` boots the platform with a local Convex backend, generated dev secrets, and Vite — no cloud account, no hand-edited `.env`. The Python services (`rag`, `crawler`) are managed separately with `uv` and only matter when you touch them.
+The source is one Bun workspace, end to end — the whole stack is TypeScript, with no Python and no second package manager to install. A single `bun install` wires up every service, and `bun run dev` boots the platform with a local Convex backend, generated dev secrets, and Vite — no cloud account, no hand-edited `.env`. Knowledge work that used to live in standalone services (RAG search, document ingestion, web crawling, document generation) now runs inside the Convex backend, so there is nothing extra to start for it.
 
 ## A working setup, start to finish
 
@@ -13,7 +13,7 @@ The shortest path from a fresh clone to a running app is four commands. The pre-
 
 ```bash
 bun install            # wire up every workspace
-bun run setup:check    # validate Bun, Python, uv, ports, the Convex CLI
+bun run setup:check    # validate Bun, the dev ports, and the Convex CLI
 bun run dev            # boot Convex + Vite (watch for the READY banner)
 ```
 
@@ -21,11 +21,9 @@ If `setup:check` prints all green and `bun run dev` reaches its `READY` banner, 
 
 ## Prerequisites
 
-Three tools have to be on your `PATH` before anything else. The platform runs on Bun; the `rag` and `crawler` services run on Python, managed by `uv`.
+Only one tool has to be on your `PATH` before anything else, because the whole stack is TypeScript on a single runtime:
 
-- **Bun 1.3 or higher** — the workspace runtime and package manager. Install it from [bun.sh](https://bun.sh/docs/installation), then confirm with `bun --version`.
-- **Python 3.12** — the `rag` and `crawler` services need it. Install it from [python.org](https://www.python.org/downloads/); a newer 3.x also works.
-- **uv** — the Python package manager that resolves and installs the service dependencies. Install it from [the uv docs](https://github.com/astral-sh/uv).
+- **Bun 1.3 or higher** — the workspace runtime and package manager. Install it from [bun.sh](https://bun.sh/docs/installation), then confirm with `bun --version`. Everything else the source needs (the Convex CLI, every service dependency) is resolved by `bun install`.
 
 You do not need Docker for local development with `bun run dev` — it spawns Convex directly on your machine. Docker only enters the picture for the containerised hybrid mode below and for the operator install.
 
@@ -37,13 +35,13 @@ A single install covers every workspace, because the repo is one Bun workspace g
 bun install
 ```
 
-Before the first `bun run dev`, run the pre-flight check. It validates Bun, Python, uv, that ports 3000 and 3210 are free, and that the Convex CLI is reachable — and prints the exact fix for anything missing, so you do not discover a wrong Bun version halfway through a cold boot:
+Before the first `bun run dev`, run the pre-flight check. It validates your Bun version, that ports 3000 and 3210 are free, and that the Convex CLI is reachable — and prints the exact fix for anything missing, so you do not discover a wrong Bun version halfway through a cold boot:
 
 ```bash
 bun run setup:check
 ```
 
-Each failing line carries its remediation: a `bun upgrade` for an old Bun, an install link for a missing Python or uv, an `lsof`/`kill` pair for a busy port. A clean run exits zero and tells you to go ahead with `bun run dev`.
+Each failing line carries its remediation: a `bun upgrade` for an old Bun, an `lsof`/`kill` pair for a busy port. A clean run exits zero and tells you to go ahead with `bun run dev`.
 
 ## What `bun run dev` does
 
@@ -66,17 +64,6 @@ kill <PID>                         # stop it
 
 To run the app on a different port instead, set `PORT`: `PORT=3005 bun run dev`. If the Convex deployment itself gets into a bad state — a stale schema after an aborted migration, a corrupt local SQLite file — `bun run setup:clean` removes `services/platform/.convex/local/` so the next boot bootstraps a fresh backend.
 
-## The Python services
-
-The `rag` and `crawler` services live outside the Bun graph and are managed with `uv`. You only set them up when your change touches them; the platform boots without them for most front-end and Convex work. Each service installs its own dependencies:
-
-```bash
-cd services/rag && uv sync --extra dev
-cd services/crawler && uv sync --extra dev
-```
-
-`bun run check` and `bun run test` run the Python suites alongside the TypeScript ones through Turbo, so a change to either Python service has its tests run as part of the standard gate. When you have only touched TypeScript, the Python suites still run but pass untouched; when you touch `services/rag` or `services/crawler`, run that service's tests directly with `uv run pytest` from the service directory while iterating.
-
 ## Hybrid mode against a containerised Convex
 
 `bun run dev` spawns an ephemeral Convex backend by default, which is the right thing for most work. When you want fast Vite reloads against a stable Convex that mirrors production, run the dedicated `convex` container and point Vite at it instead:
@@ -90,7 +77,7 @@ Set `CONVEX_URL` if your container exposes Convex on a non-default host or port.
 
 ## Before you open a PR
 
-Every PR runs through one gate: `bun run check`, which is format, lint, typecheck, and the full test suite (TypeScript and Python) across every touched workspace. A green run is the merge signal; a red one blocks. The pre-PR checklist in [`AGENTS.md`](https://github.com/tale-project/tale/blob/main/AGENTS.md) lists the rest — docs and translations ship in the same PR as the code that changed them.
+Every PR runs through one gate: `bun run check`, which is format, lint, typecheck, and the full test suite across every touched workspace. A green run is the merge signal; a red one blocks. The pre-PR checklist in [`AGENTS.md`](https://github.com/tale-project/tale/blob/main/AGENTS.md) lists the rest — docs and translations ship in the same PR as the code that changed them.
 
 If your change touches `services/docs/`, also run the docs gate (`bun run --filter @tale/docs test`) so structural parity, terminology, and prose checks pass before review. Anything a user can see, configure, or call needs its docs updated in all three base locales in the same commit.
 

@@ -9,37 +9,37 @@ Lies das, wenn du Bereitschaft hast. Komm zurück, wenn du entscheidest, welchen
 
 ## Die acht Container, mit ihren Jobs
 
-| Container             | Job                                           | Ausfälle betreffen                               |
-| --------------------- | --------------------------------------------- | ------------------------------------------------ |
-| `tale-proxy`          | TLS-Terminierung + Edge-Routing               | Jeden Ingress — kein Client erreicht die UI      |
-| `tale-platform`       | UI-Server, statische Asset-Auslieferung       | Browser sieht 502; die API ist erreichbar        |
-| `tale-convex`         | Backend Actions/Queries/Mutations + WebSocket | UI lädt, aber ohne Daten; laufende Chats stocken |
-| `tale-db`             | Postgres für Convex                           | Convex fällt in Read-only; Writes blockieren     |
-| `tale-rag`            | Dokument-Indexierung + Vektor-Retrieval       | Uploads stauen; Agents verlieren RAG-Ergebnisse  |
-| `tale-crawler`        | Website-Entitäts-Abruf                        | Crawl-Plan pausiert; bestehender Inhalt bleibt   |
-| `tale-sandbox-egress` | Netzwerk-Egress für sandboxierten Code        | **Code-ausführen** scheitert mit „Egress denied" |
-| `tale-sandbox`        | Sandbox-Laufzeit                              | **Code-ausführen** scheitert; Fähigkeits-Skripte |
+| Container             | Job                                                                                          | Ausfälle betreffen                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `tale-proxy`          | TLS-Terminierung + Edge-Routing                                                              | Jeden Ingress — kein Client erreicht die UI                                 |
+| `tale-platform`       | UI-Server, statische Asset-Auslieferung                                                      | Browser sieht 502; die API ist erreichbar                                   |
+| `tale-convex`         | Backend Actions/Queries/Mutations + WebSocket, plus In-Process-RAG, Crawling und Dokumentgen | UI lädt, aber ohne Daten; laufende Chats stocken; Ingestion stockt          |
+| `tale-db`             | Operatives Postgres für Convex                                                               | Convex fällt in Read-only; Writes blockieren                                |
+| `tale-knowledge-db`   | Postgres des Wissens-Korpus (Dokument-Chunks, Embeddings, gecrawlte Seiten)                  | Wissens-Suche liefert leer; Ingestion scheitert                             |
+| `tale-bifrost`        | LLM-Gateway für In-Sandbox-Coding-Agents                                                     | Sandboxierte Agents erreichen kein Modell; Chat ist unbetroffen             |
+| `tale-sandbox-egress` | Netzwerk-Egress für sandboxierten Code                                                       | **Code-ausführen**-Tool scheitert mit „Egress denied"; Web-Render scheitert |
+| `tale-sandbox`        | Sandbox-Laufzeit + Headless-Browser für Web-Render und Dokumentgenerierung                   | **Code-ausführen**, Web-Crawl-Render und Dokumentgenerierung scheitern alle |
 
-Zwei Container sind dem öffentlichen Netz exponiert (`tale-proxy` für HTTPS, optional `tale-sandbox-egress` ausgehend für die Sandbox); sechs nur intern.
+Ein Container ist dem öffentlichen Netz exponiert (`tale-proxy` für HTTPS, optional `tale-sandbox-egress` ausgehend für die Sandbox); der Rest nur intern. Der Opt-in-Sidecar `tale-controller` (das `controller`-Profil) ist standardmäßig aus; aktiviert startet er `tale-convex` auf eine signierte Anfrage neu, damit eine Datenresidenz-Änderung greifen kann, ohne der Plattform Docker-Zugriff zu geben.
 
 ## Der Request-Pfad
 
-Eine Chat-Nachricht macht einen Durchlauf durch fünf der Container:
+Eine Chat-Nachricht macht einen Durchlauf durch die Container:
 
 1. Browser → `tale-proxy` (TLS terminiert).
 2. `tale-proxy` → `tale-platform` für HTML/JS, → `tale-convex` für API + WebSocket.
 3. `tale-convex` liest die Provider-Config der Organisation, wählt das Modell, öffnet einen Stream zum Upstream-Provider.
-4. Holt der Agent Wissen: `tale-convex` → `tale-rag` für Vektor-Suche.
+4. Holt der Agent Wissen: `tale-convex` fährt die RAG-Suche im Prozess und fragt `tale-knowledge-db` direkt ab — kein separater Retrieval-Dienst im Pfad.
 5. Führt der Agent Code aus: `tale-convex` → `tale-sandbox` → `tale-sandbox-egress` für ausgehende Netzwerk-Aufrufe.
 6. Der Provider-Stream gibt Tokens durch `tale-convex` zurück an den Browser über den WebSocket.
 
-Der heisse Pfad ist kurz. Fühlt sich die Chat-Latenz falsch an, ist der Container, der schuld ist, fast immer der Upstream-Provider, nicht Tale; die Metric-Endpoints auf `tale-convex` und `tale-rag` zeigen die Zeit in jedem Sprung.
+Der heisse Pfad ist kurz. Fühlt sich die Chat-Latenz falsch an, ist der Container, der schuld ist, fast immer der Upstream-Provider, nicht Tale; die Metric-Endpoints auf `tale-convex` (das jetzt auch die RAG- und Crawl-Timings trägt) zeigen die Zeit in jedem Sprung.
 
 ## Die Sandbox-Ebene
 
 Sandboxierte Code-Ausführung läuft in `tale-sandbox`, mit `tale-sandbox-egress` als der einzigen Netzwerk-Naht. Die Zwei-Container-Trennung ist Absicht: `tale-sandbox` selbst hat kein ausgehendes Netz; jeder Request, den der sandboxierte Code macht, geht durch `tale-sandbox-egress`, der Cloud-Metadaten und private Adressbereiche auf IP-Ebene blockiert und — wenn der Operator `SANDBOX_EGRESS_ALLOWLIST` setzt — zusätzlich eine Default-Deny-Hostname-Allowlist durchsetzt. Ist der Egress-Container down, scheitert sandboxierter Code, der das Netz braucht, geschlossen mit „Egress denied" — nicht stiller Timeout.
 
-Die Sandbox ist der einzige Container, der nicht-vertrauenswürdigen Code läuft (User-gelieferte Fähigkeits-Skripte, Agent **Code-ausführen**-Aufrufe). Der Rest des Stacks läuft den eigenen Code der Plattform.
+Die Sandbox-Laufzeit trägt Chromium und Playwright, also nutzt das Convex-Backend sie für die Headless-Arbeit, die es im Prozess nicht erledigen kann, erneut: das Rendern einer JavaScript-Seite während eines Web-Crawls und das Verwandeln von generiertem HTML in ein PDF oder Bild. Diese Jobs laufen als ephemere Sandbox-Ausführungen statt als User-Code, reiten aber dieselbe Egress- und Isolations-Naht. Die Sandbox ist der einzige Container, der eher-nicht-vertrauenswürdigen Code läuft (User-gelieferte Fähigkeits-Skripte, Agent-**Code-ausführen**-Aufrufe); der Rest des Stacks läuft den eigenen Code der Plattform.
 
 ## Fehler-Modi — wie der Ausfall jedes Containers aussieht
 
@@ -51,11 +51,11 @@ Die Sandbox ist der einzige Container, der nicht-vertrauenswürdigen Code läuft
 
 **`tale-db` down.** Convex tritt in seinen degradierten Modus: Reads aus dem Cache, Writes werden gepuffert. Lange Ausfälle zeigen sich irgendwann als „Speichern fehlgeschlagen"-Toasts.
 
-**`tale-rag` down.** Uploads bleiben im „Indexiert"-Zustand; Agents, die Wissen abrufen wollen, bekommen eine leere Ergebnismenge und eine Warnung im Ausführungs-Log. Rag neu zu starten entleert die Queue.
+**`tale-knowledge-db` down.** Dokument-Ingestion scheitert und die Wissens-Suche liefert leer — Agents, die Wissen abrufen, bekommen eine leere Ergebnismenge und eine Warnung im Ausführungs-Log. Der Rest der App arbeitet weiter; Chats ohne Wissen sind unbetroffen. Den Container neu zu starten räumt das, und laufende Uploads versuchen es beim nächsten Durchlauf erneut.
 
-**`tale-crawler` down.** Website-Entitäts-Aktualisierung stoppt. Bestehender gecrawlter Inhalt bleibt verfügbar. Keine nutzersichtbare Auswirkung für Stunden; der Plan des Crawlers absorbiert kurze Ausfälle.
+**`tale-sandbox` / `tale-sandbox-egress` down.** **Code-ausführen**-Tool-Aufrufe geben einen Fehler zurück und Fähigkeits-Skripte scheitern. Weil das Convex-Backend Webseiten rendert und Dokumente über die Sandbox-Laufzeit generiert, scheitern auch ein Web-Crawl, der JavaScript-Rendering braucht, und die Dokumentgenerierung geschlossen, solange die Sandbox down ist. Agents, die keines davon nutzen, arbeiten weiter.
 
-**Sandbox-Container down.** **Code-ausführen**-Tool-Aufrufe geben einen Fehler zurück; Fähigkeits-Skripte scheitern. Agents, die keines von beiden nutzen, arbeiten weiter.
+**`tale-bifrost` down.** In-Sandbox-Coding-Agents verlieren ihren Pfad zu einem Modell-Provider. Regulärer Chat — der Provider direkt aus Convex aufruft, nicht über Bifrost — ist unbetroffen.
 
 ## Wo das hingehört
 

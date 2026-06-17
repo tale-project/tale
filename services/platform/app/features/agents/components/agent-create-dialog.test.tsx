@@ -2,8 +2,8 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen, waitFor } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({

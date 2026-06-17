@@ -1,4 +1,4 @@
-import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { fetchJson } from '../../lib/utils/type-utils';
 
 export interface SharePointItem {
   id: string;

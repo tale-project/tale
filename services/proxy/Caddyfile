@@ -187,19 +187,11 @@
 	# ============================================================================
 
 	@metricsAuth {
-		path /metrics/crawler /metrics/rag /metrics/platform /metrics/convex
+		path /metrics/platform /metrics/convex
 		expression `"{$METRICS_BEARER_TOKEN:}" != ""`
 		header Authorization "Bearer {$METRICS_BEARER_TOKEN:}"
 	}
 	handle @metricsAuth {
-		handle /metrics/crawler {
-			rewrite * /metrics
-			reverse_proxy crawler:8002
-		}
-		handle /metrics/rag {
-			rewrite * /metrics
-			reverse_proxy rag:8001
-		}
 		handle /metrics/platform {
 			rewrite * /metrics
 			reverse_proxy platform:3000

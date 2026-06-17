@@ -9,7 +9,7 @@
  * transitioning status to 'completed'.
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
@@ -33,7 +33,7 @@ export async function handleSerializeExecutionOutput(
   });
 
   const execution = await ctx.runQuery(
-    internal.wf_executions.internal_queries.getRawExecution,
+    internal.workflow_executions.internal_queries.getRawExecution,
     { executionId: args.executionId },
   );
 
@@ -76,7 +76,7 @@ export async function handleSerializeExecutionOutput(
 
   // Persist output and variables separately — do NOT change execution status
   await ctx.runMutation(
-    internal.wf_executions.internal_mutations.persistExecutionOutput,
+    internal.workflow_executions.internal_mutations.persistExecutionOutput,
     {
       executionId: args.executionId,
       output: outputParsed,
@@ -85,7 +85,7 @@ export async function handleSerializeExecutionOutput(
   );
 
   await ctx.runMutation(
-    internal.wf_executions.internal_mutations.updateExecutionVariables,
+    internal.workflow_executions.internal_mutations.updateExecutionVariables,
     {
       executionId: args.executionId,
       variablesSerialized: varsSerialized,

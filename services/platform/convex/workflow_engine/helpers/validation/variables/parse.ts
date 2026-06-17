@@ -10,7 +10,7 @@
  * - {{input.fieldName}}
  */
 
-import { isRecord } from '../../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../../lib/utils/type-utils';
 import type { ParsedVariableReference } from './types';
 
 // Regex pattern to match mustache-style template expressions

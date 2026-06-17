@@ -1,8 +1,8 @@
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { describe, it, expect, vi } from 'vitest';
 
-import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
-import { render, screen, waitFor } from '@/test/utils/render';
+import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { SearchInput } from './search-input';
 

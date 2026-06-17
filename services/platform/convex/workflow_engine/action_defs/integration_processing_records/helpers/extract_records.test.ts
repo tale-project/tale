@@ -16,7 +16,7 @@ describe('extractRecords', () => {
   it('reads SQL results from "data"', () => {
     const sqlResult = {
       requiresApproval: false,
-      name: 'protel',
+      name: 'shopify',
       operation: 'list_guests',
       engine: 'mssql',
       data: rows,
@@ -88,7 +88,7 @@ function dataSource(
   overrides: Partial<IntegrationDataSourceConfig>,
 ): IntegrationDataSourceConfig {
   return {
-    integrationName: 'protel',
+    integrationName: 'shopify',
     fetchOperation: 'list_guests',
     recordIdField: 'guest_id',
     sourceIdentifier: 'guests',

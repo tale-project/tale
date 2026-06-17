@@ -7,9 +7,9 @@
 # across files, enum-driven dispatch, etc.) — or when a static key is consumed
 # from outside this service's scanned source tree.
 
-# --- shared switchers consume their keys from @tale/webui ---
+# --- shared switchers consume their keys from @tale/ui ---
 # `languageSwitcher.*` and `themeSwitcher.*` are referenced inside
-# packages/webui/src/layout/, but the scanner only walks services/docs/.
+# packages/ui/src/layout/, but the scanner only walks services/docs/.
 languageSwitcher
 themeSwitcher
 

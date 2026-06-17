@@ -2,8 +2,8 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen, waitFor } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { ModelSelector } from './model-selector';
 

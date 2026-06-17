@@ -2,7 +2,7 @@
  * Refresh Token - Business logic for refreshing Microsoft OAuth tokens
  */
 
-import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { fetchJson } from '../../lib/utils/type-utils';
 
 export interface RefreshTokenResult {
   success: boolean;

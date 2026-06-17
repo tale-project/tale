@@ -142,6 +142,7 @@ export function HighlightedCode({
             numbered && 'code-block-numbered',
           )}
           // oxlint-disable-next-line react/no-danger -- Shiki output is HTML by design
+          // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- Shiki highlighter output is escaped HTML by design (code text is HTML-encoded, only span wrappers added)
           dangerouslySetInnerHTML={{ __html: html }}
         />
       ) : (

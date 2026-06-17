@@ -25,7 +25,7 @@ export const agentRuntimesTable = defineTable({
   organizationId: v.string(),
   daemonId: v.string(),
   adapterType: v.string(),
-  /** Friendly machine/workspace label chosen at `tale-daemon setup`. */
+  /** Friendly machine/workspace label chosen at `tale daemon setup`. */
   name: v.optional(v.string()),
   /** Adapter CLI version from `detect()` — feature gates key off this. */
   version: v.optional(v.string()),

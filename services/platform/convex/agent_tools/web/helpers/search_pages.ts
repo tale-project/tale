@@ -9,11 +9,9 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
-import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { formatWebResults } from './format_web_results';
 import { formatWebsiteSummaries } from './format_website_summaries';
-import { getCrawlerServiceUrl } from './get_crawler_service_url';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -24,12 +22,12 @@ const DOMAIN_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*\.)*[a-zA-Z0-9-]+(:\d+)?$/;
 
 interface SearchResult {
   url: string;
-  title?: string;
+  title: string | null;
   chunk_content: string;
   chunk_index: number;
   score: number;
   // Part B Phase 1+: empty for legacy rows, populated after crawler reindex.
-  core_content?: string;
+  core_content: string;
 }
 
 interface SearchApiResponse {
@@ -42,55 +40,24 @@ export function isValidDomain(domain: string): boolean {
   return DOMAIN_PATTERN.test(domain);
 }
 
-// 15 s aligns with `query_web_context.ts` (10 s) at the short end and
-// stays well below the agent-runtime tool budget. A hung crawler
-// connection used to block here indefinitely (no signal/timeout) and
-// tie the entire agent step to the crawler's stall window.
-const SEARCH_TIMEOUT_MS = 15_000;
-
 async function fetchSearch(
-  crawlerUrl: string,
+  ctx: ToolCtx,
   orgSlug: string,
   query: string,
   domain?: string,
 ): Promise<SearchApiResponse> {
-  const endpoint = domain
-    ? `${crawlerUrl}/api/v1/search/${encodeURIComponent(domain)}`
-    : `${crawlerUrl}/api/v1/search`;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
-
-  let response: Response;
-  try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-tale-org': orgSlug,
-      },
-      body: JSON.stringify({
-        query,
-        limit: DEFAULT_LIMIT,
-        similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
-      }),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw UpstreamHttpError.fromResponse(
-      'crawler',
-      response,
-      errorText,
-      endpoint.replace(crawlerUrl, ''),
-    );
-  }
-
-  return response.json();
+  // The crawler search logic now lives in a Convex internal action; the
+  // network call was replaced by an in-process `ctx.runAction`. The action
+  // throws plain Errors on failure, caught by the caller's try/catch and
+  // turned into a safe "search unavailable" reply.
+  const { results } = await ctx.runAction(internal.crawler.search.search, {
+    orgSlug,
+    query,
+    domain: domain ?? null,
+    limit: DEFAULT_LIMIT,
+    similarityThreshold: DEFAULT_SIMILARITY_THRESHOLD,
+  });
+  return { query, results, total: results.length };
 }
 
 interface Citation {
@@ -151,7 +118,6 @@ export async function searchPages(
     };
   }
 
-  const crawlerUrl = getCrawlerServiceUrl();
   if (!ctx.organizationId) {
     throw new Error('search_pages requires organizationId in ToolCtx.');
   }
@@ -164,14 +130,14 @@ export async function searchPages(
   let data: Awaited<ReturnType<typeof fetchSearch>>;
   let domainFallback = false;
   try {
-    data = await fetchSearch(crawlerUrl, orgSlug, args.query, validDomain);
+    data = await fetchSearch(ctx, orgSlug, args.query, validDomain);
     // Fallback to global search if domain-scoped search returns no results
     if ((!data.results || data.results.length === 0) && validDomain) {
       debugLog('web:search_pages domain fallback', {
         query: args.query,
         domain: validDomain,
       });
-      data = await fetchSearch(crawlerUrl, orgSlug, args.query);
+      data = await fetchSearch(ctx, orgSlug, args.query);
       domainFallback = true;
     }
   } catch (err) {

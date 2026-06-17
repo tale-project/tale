@@ -30,7 +30,7 @@ export function WorkflowMetricsPage({
   const { t } = useT('automations');
 
   const { data, isLoading } = useConvexQuery(
-    api.wf_executions.queries.getOrgWorkflowMetrics,
+    api.workflow_executions.queries.getOrgWorkflowMetrics,
     { organizationId, periodDays },
   );
 

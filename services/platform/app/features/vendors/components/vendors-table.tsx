@@ -94,7 +94,6 @@ export function VendorsTable({
         options: [
           { value: 'manual_import', label: tVendors('filter.source.manual') },
           { value: 'file_upload', label: tVendors('filter.source.upload') },
-          { value: 'circuly', label: tVendors('filter.source.circuly') },
         ],
         selectedValues: source ? [source] : [],
         onChange: handleSourceChange,

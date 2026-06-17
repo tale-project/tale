@@ -80,11 +80,23 @@ echo "=================================================="
 # namespaces, and role grants. They use IF NOT EXISTS / CREATE OR REPLACE /
 # DROP IF EXISTS so they are safe to re-run on every container start.
 #
-# NOTE: Service-specific tables and indexes are NOT created here. Each service
-# (rag, crawler) owns its own schema via dbmate migrations under
-# services/<service>/migrations/, applied at that service's container startup.
+# After the init scripts, the migration set for this container's role is applied
+# from the dbmate migrations baked into the image — see apply_migrations_for_role
+# below. The db and knowledge-db services run the same image, so TALE_DB_ROLE (set
+# per-service in compose.yml), not the image, decides which set applies:
+#   knowledge → migrations/knowledge-db/<schema>/ against the `tale_knowledge` DB
+#   platform  → migrations/db/ against the platform DB (empty; Convex owns it)
+# Gating /tmp/.db_ready on this (not just pg_isready) is what lets dependents wait
+# for the tables, not just the socket.
 
 INIT_SCRIPTS_DIR="/etc/postgresql/init-scripts"
+MIGRATIONS_DIR="/etc/postgresql/migrations"
+KNOWLEDGE_MIGRATIONS_DIR="${MIGRATIONS_DIR}/knowledge-db"
+KNOWLEDGE_DB_NAME="${KNOWLEDGE_DB_NAME:-tale_knowledge}"
+# Which migration set this container applies. Default `knowledge` so a
+# misconfigured or standalone run never leaves the corpus DB tableless; the
+# platform `db` service sets TALE_DB_ROLE=platform in compose.yml to skip.
+TALE_DB_ROLE="${TALE_DB_ROLE:-knowledge}"
 
 run_init_scripts() {
     echo "Running init scripts..."
@@ -94,6 +106,78 @@ run_init_scripts() {
         psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$script" 2>&1 | grep -E "^(ERROR|FATAL|NOTICE)" || true
     done
     echo "Init scripts complete."
+}
+
+# Apply one schema's dbmate migrations against the local tale_knowledge DB, with
+# a retry loop: the corpus DB is created by the init scripts that ran just above,
+# and on first-time init PostgreSQL briefly bounces from its temporary bootstrap
+# server to the real one, so the first connection attempts can fail transiently.
+# Each schema keeps its own schema-scoped tracking table (private_knowledge.
+# schema_migrations / public_web.schema_migrations) — hence one dbmate run per
+# per-schema subdirectory.
+dbmate_up_schema() {
+    local schema="$1"
+    local dir="${KNOWLEDGE_MIGRATIONS_DIR}/${schema}"
+    if [ ! -d "$dir" ]; then
+        echo "  WARN: no migrations directory for ${schema} (${dir}); skipping." >&2
+        return 0
+    fi
+    # Local connection; sslmode=disable (no TLS on the in-container loopback).
+    # nosemgrep: tools.opengrep.rules.trailofbits.generic.postgres-insecure-sslmode.postgres-insecure-sslmode -- intentional: 127.0.0.1 in-container loopback to the same pod's Postgres; TLS is not configured on the local socket and adds no security across the loopback
+    local url="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${KNOWLEDGE_DB_NAME}?sslmode=disable"
+    local log
+    log="$(mktemp)"
+    local attempt
+    echo "  Applying ${schema} migrations (dbmate)..."
+    for attempt in $(seq 1 30); do
+        if dbmate \
+            --url "$url" \
+            --migrations-dir "$dir" \
+            --migrations-table "${schema}.schema_migrations" \
+            --no-dump-schema \
+            up >"$log" 2>&1; then
+            cat "$log"
+            rm -f "$log"
+            return 0
+        fi
+        if [ "$attempt" -eq 30 ]; then
+            echo "ERROR: dbmate (${schema}) failed after 30 attempts:" >&2
+            # Redact the connection-URL password before streaming the log to stderr.
+            sed -E 's#(postgres(ql)?://[^:]+:)[^@]+@#\1***REDACTED***@#g' "$log" >&2
+            rm -f "$log"
+            return 1
+        fi
+        sleep 2
+    done
+}
+
+# Create the knowledge-corpus tables by applying the baked-in dbmate migrations.
+# Idempotent, so it runs on every start (and harmlessly on the platform `db`
+# container too, whose tale_knowledge DB is otherwise unused). Fails loudly so
+# /tmp/.db_ready is never set on a half-migrated corpus DB.
+apply_knowledge_migrations() {
+    echo "Applying knowledge-corpus migrations..."
+    dbmate_up_schema "private_knowledge" || return 1
+    dbmate_up_schema "public_web" || return 1
+    echo "Knowledge-corpus migrations complete."
+}
+
+# Apply the migration set for this container's role (TALE_DB_ROLE). The db and
+# knowledge-db services share this image, so the role — not the image — selects
+# which set runs.
+apply_migrations_for_role() {
+    case "$TALE_DB_ROLE" in
+        knowledge)
+            apply_knowledge_migrations || return 1
+            ;;
+        platform)
+            echo "TALE_DB_ROLE=platform: platform DB schema is Convex-managed; no dbmate migrations to apply."
+            ;;
+        *)
+            echo "WARN: unknown TALE_DB_ROLE='${TALE_DB_ROLE}'; defaulting to knowledge migrations." >&2
+            apply_knowledge_migrations || return 1
+            ;;
+    esac
 }
 
 # Run init scripts in the background after PostgreSQL starts.
@@ -106,6 +190,7 @@ run_init_scripts() {
         sleep 1
     done
     run_init_scripts
+    apply_migrations_for_role
     touch /tmp/.db_ready
     echo "Database ready."
 ) &

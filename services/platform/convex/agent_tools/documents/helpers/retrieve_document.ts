@@ -91,7 +91,7 @@ export async function retrieveDocument(
   }
 
   const orgSlug = await orgSlugFromId(ctx, organizationId);
-  const result = await fetchDocumentContent(orgSlug, args.fileId, {
+  const result = await fetchDocumentContent(ctx, orgSlug, args.fileId, {
     chunkStart: args.chunkStart,
     chunkEnd: args.chunkEnd,
   });

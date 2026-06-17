@@ -1,5 +1,5 @@
 import type { ModerationResponseShape } from '../../../lib/shared/schemas/governance';
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 
 export interface NormalizedModerationResult {
   flagged: boolean;

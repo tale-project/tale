@@ -14,7 +14,7 @@ import { v } from 'convex/values';
 import { internal } from '../../../_generated/api';
 import type { Doc, Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
-import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
+import { fetchDocumentComparisonByStorageIds } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
 import { extractExtension } from '../../../documents/extract_extension';
 import { getDocumentEffectiveDate } from '../../../documents/transform_to_document_item';
@@ -24,8 +24,6 @@ import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { wrapUntrusted } from '../../../lib/untrusted_content';
 import { jsonRecordValidator } from '../../../lib/validators/json';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import { applyDocxStructured } from './helpers/apply_docx_structured';
-import { extractDocxStructured } from './helpers/extract_docx_structured';
 
 const MAX_LIMIT = 50;
 
@@ -36,18 +34,6 @@ const MAX_LIMIT = 50;
  */
 export function normalizeEscapeSequences(text: string) {
   return text.replace(/(?<!\\)\\n/g, '\n').replace(/(?<!\\)\\t/g, '\t');
-}
-
-async function resolveStorageUrl(
-  ctx: ActionCtx,
-  fileId: string,
-): Promise<string> {
-  const storageId = toId<'_storage'>(fileId);
-  const fileUrl = await ctx.storage.getUrl(storageId);
-  if (!fileUrl) {
-    throw new Error(`File URL not available: ${fileId}`);
-  }
-  return fileUrl;
 }
 
 /**
@@ -402,6 +388,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         );
         const retrieveOrgSlug = await orgSlugFromId(ctx, organizationId);
         const result = await fetchDocumentContent(
+          ctx,
           retrieveOrgSlug,
           params.fileId,
           {
@@ -482,11 +469,6 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           );
         }
 
-        const [baseFileUrl, compFileUrl] = await Promise.all([
-          resolveStorageUrl(ctx, params.baseFileId),
-          resolveStorageUrl(ctx, params.comparisonFileId),
-        ]);
-
         const [baseFileName, compFileName] =
           params.baseFileName && params.comparisonFileName
             ? [params.baseFileName, params.comparisonFileName]
@@ -496,10 +478,12 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
               ]);
 
         const compareOrgSlug = await orgSlugFromId(ctx, organizationId);
-        return await fetchDocumentComparisonByUrls(
-          baseFileUrl,
+        // In-process comparison reads bytes from the `_storage` ids directly.
+        return await fetchDocumentComparisonByStorageIds(
+          ctx,
+          params.baseFileId,
           baseFileName,
-          compFileUrl,
+          params.comparisonFileId,
           compFileName,
           compareOrgSlug,
           params.maxChanges,
@@ -751,7 +735,11 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         if (!ownsStorage) {
           throw new Error('fileId does not belong to this organization');
         }
-        return await extractDocxStructured(ctx, params.fileId, organizationId);
+        return await ctx.runAction(
+          internal.workflow_engine.action_defs.document.helpers
+            .extract_docx_structured.extractDocxStructuredAction,
+          { fileId: params.fileId, organizationId },
+        );
       }
 
       case 'apply_docx_structured': {
@@ -777,15 +765,19 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           );
         }
 
-        return await applyDocxStructured(ctx, {
-          templateFileId: params.templateFileId,
-          sourceHash: params.sourceHash,
-          modifications: params.modifications,
-          fileName: params.fileName,
-          trackChanges: params.trackChanges,
-          author: params.author,
-          organizationId,
-        });
+        return await ctx.runAction(
+          internal.workflow_engine.action_defs.document.helpers
+            .apply_docx_structured.applyDocxStructuredAction,
+          {
+            templateFileId: params.templateFileId,
+            sourceHash: params.sourceHash,
+            modifications: params.modifications,
+            fileName: params.fileName,
+            trackChanges: params.trackChanges,
+            author: params.author,
+            organizationId,
+          },
+        );
       }
 
       case 'list': {

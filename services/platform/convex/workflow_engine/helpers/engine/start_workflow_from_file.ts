@@ -95,7 +95,8 @@ export const startWorkflowFromFile = internalAction({
 
     // Step 3: Call mutation to create execution and start the engine
     const executionId: Id<'wfExecutions'> = await ctx.runMutation(
-      internal.wf_executions.internal_mutations.startWorkflowFromFileConfig,
+      internal.workflow_executions.internal_mutations
+        .startWorkflowFromFileConfig,
       {
         organizationId: args.organizationId,
         workflowSlug: args.workflowSlug,

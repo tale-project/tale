@@ -7,7 +7,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['**/*.test.{ts,tsx}'],
-    exclude: ['node_modules', 'dist', '.storybook'],
+    // `tests/e2e/**` is Playwright's (`*.spec.ts`); keep Vitest out of it.
+    exclude: ['node_modules', 'dist', 'dist-ssr', '.storybook', 'tests/e2e'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

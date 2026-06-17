@@ -25,16 +25,16 @@ Die linkeste Datei ist die Basis; jede nachfolgende Datei merged ihre Schlüssel
 
 ## Die Compose-Dateien
 
-| Datei                          | Anwendungsfall                                       | Bemerkenswerte Overrides                                                  |
-| ------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------- |
-| `compose.yml`                  | Produktion auf einem einzelnen Host                  | Die Basis — jeder Service, Healthchecks, Restart-Policy                   |
-| `compose.dev.yml`              | Lokale Entwicklung mit Hot-Reload                    | Mountet Quellen in Container, tauscht auf Dev-Images, gibt Dev-Ports frei |
-| `compose.docs.yml`             | Fügt den Docs-Site-Service hinzu                     | Fährt `tale-docs` hoch und routet `/docs` durch den Proxy                 |
-| `compose.web.yml`              | Fügt den Marketing-Site-Service hinzu                | Fährt `tale-web` hoch und routet `/` (Root) durch den Proxy               |
-| `compose.test.yml`             | Lässt die Platform-Test-Suite gegen den Stack laufen | Ersetzt das Platform-Image durch die test-geformte Variante               |
-| `compose.web.test.yml`         | Lässt Web-Tests laufen                               | Wie `web.yml`, aber die test-geformte Variante                            |
-| `compose.docs.test.yml`        | Lässt Docs-Tests laufen                              | Wie `docs.yml`, aber die test-geformte Variante                           |
-| `docker-compose.test-mock.yml` | Mock-gestützte Integrationstests                     | Tauscht Provider gegen Mock-Implementierungen                             |
+| Datei                   | Anwendungsfall                                       | Bemerkenswerte Overrides                                                  |
+| ----------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| `compose.yml`           | Produktion auf einem einzelnen Host                  | Die Basis — jeder Service, Healthchecks, Restart-Policy                   |
+| `compose.dev.yml`       | Lokale Entwicklung mit Hot-Reload                    | Mountet Quellen in Container, tauscht auf Dev-Images, gibt Dev-Ports frei |
+| `compose.docs.yml`      | Fügt den Docs-Site-Service hinzu                     | Fährt `tale-docs` hoch und routet `/docs` durch den Proxy                 |
+| `compose.web.yml`       | Fügt den Marketing-Site-Service hinzu                | Fährt `tale-web` hoch und routet `/` (Root) durch den Proxy               |
+| `compose.test.yml`      | Lässt die Platform-Test-Suite gegen den Stack laufen | Ersetzt das Platform-Image durch die test-geformte Variante               |
+| `compose.web.test.yml`  | Lässt Web-Tests laufen                               | Wie `web.yml`, aber die test-geformte Variante                            |
+| `compose.docs.test.yml` | Lässt Docs-Tests laufen                              | Wie `docs.yml`, aber die test-geformte Variante                           |
+| `compose.test.mock.yml` | Mock-gestützte Integrationstests                     | Tauscht Provider gegen Mock-Implementierungen                             |
 
 ## Services und ihre Rollen
 
@@ -42,13 +42,13 @@ Der Basis-Graph fährt acht Container hoch:
 
 - `tale-proxy` — Caddy. TLS, Reverse-Proxy, 301s.
 - `tale-platform` — die TanStack-Start-App. Die User-zugewandte UI und API.
-- `tale-convex` — das Convex-Backend. WebSocket, Queries, Mutationen, Actions.
-- `tale-db` — Postgres. Der persistente Speicher.
-- `tale-rag` — Python-FastAPI. Embeddings, Retrieval.
-- `tale-crawler` — der Crawler-Service. Website-Wissensquellen.
-- `tale-sandbox-egress` und `tale-sandbox` — die Sandbox-Ebene. Run-Code-Container hinter einem Egress-Proxy (standardmäßig offen; sperrbar mit `SANDBOX_EGRESS_ALLOWLIST`).
+- `tale-convex` — das Convex-Backend. WebSocket, Queries, Mutationen, Actions — und die In-Process-RAG-Suche, Dokument-Ingestion, das Web-Crawling und die Dokumentgenerierung, die früher separate Services waren.
+- `tale-db` — operatives Postgres (ParadeDB). Der persistente Speicher des Convex-Backends.
+- `tale-knowledge-db` — Postgres des Wissens-Korpus (ParadeDB). Die `tale_knowledge`-Datenbank mit Dokument-Chunks, Embeddings und gecrawlten Seiten, auf Port 5433, damit sie nie mit `tale-db` auf 5432 kollidiert.
+- `tale-bifrost` — das LLM-Gateway für In-Sandbox-Coding-Agents (gepinntes externes Image).
+- `tale-sandbox-egress` und `tale-sandbox` — die Sandbox-Ebene. Run-Code-Container hinter einem Egress-Proxy (standardmäßig offen; sperrbar mit `SANDBOX_EGRESS_ALLOWLIST`), zugleich die Headless-Browser-Laufzeit, die das Convex-Backend für Web-Render und Dokumentgenerierung aufruft.
 
-[Container-Architektur](/de/self-hosted/operate/container-architecture) vertieft, was was besitzt.
+Der Stack ist jetzt vollständig TypeScript — es gibt keinen Python-Service im Graph. [Container-Architektur](/de/self-hosted/operate/container-architecture) vertieft, was was besitzt.
 
 ## Overrides
 
@@ -71,10 +71,10 @@ Dieses Muster hält `git pull` sauber — keine Merge-Konflikte auf den ausgelie
 
 ## Profile
 
-Eine Handvoll Services in der Basis-Datei nutzt Docker-Compose-Profile. Profile lassen einen Service im Graph existieren, aber nicht starten, ausser sein Profil ist aktiviert. Die beiden im Einsatz befindlichen Profile sind `gpu` (für Hosts mit GPU-gestütztem lokalem Inferenz) und `monitoring` (für das optionale Prometheus und Grafana). Aktivier mit:
+Ein Service in der Basis-Datei nutzt ein Docker-Compose-Profil. Profile lassen einen Service im Graph existieren, aber nicht starten, ausser sein Profil ist aktiviert. Das im Einsatz befindliche Profil ist `controller` — der Opt-in-Sidecar `tale-controller`, der den Convex-Container auf eine signierte Anfrage neu startet, damit eine Datenresidenz-Änderung greift, ohne der Plattform Docker-Socket-Zugriff zu geben. Aktivier es mit:
 
 ```bash
-docker compose --profile monitoring up -d
+docker compose --profile controller up -d
 ```
 
 ## Wo das hineinpasst

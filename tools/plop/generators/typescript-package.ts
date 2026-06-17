@@ -37,10 +37,12 @@ export function registerTypescriptPackage(plop: NodePlopAPI): void {
       const files = [
         'package.json.hbs',
         'tsconfig.json.hbs',
+        'vitest.config.ts.hbs',
         '.gitignore',
         '.oxlintrc.json',
         'README.md.hbs',
         'src/index.ts',
+        'tests/setup.ts',
       ];
 
       return files.map<ActionType>((file) => {

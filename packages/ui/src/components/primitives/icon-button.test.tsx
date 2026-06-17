@@ -1,8 +1,8 @@
 import { Edit, Trash2 } from 'lucide-react';
 import { describe, it, expect, vi } from 'vitest';
 
-import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 import { IconButton } from './icon-button';
 

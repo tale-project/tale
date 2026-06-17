@@ -1,6 +1,6 @@
 // The role matcher is provider-agnostic (it matches jobTitle / appRole /
 // group / claim values against rules) — reused here rather than duplicated.
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import { claimValueToStrings, resolveClaimPath } from '../claims';
 import { mapEntraRoleToPlatformRole } from '../entra_id/role_mapping';
 import { discoverOidc, OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';

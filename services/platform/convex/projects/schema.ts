@@ -59,7 +59,7 @@ export const projectsTable = defineTable({
   /**
    * Per-project colour overrides for task labels, keyed by the normalized
    * (lowercase) label. Values are palette names from
-   * `lib/shared/task_label_colors.ts`; labels without an entry fall back to
+   * `lib/shared/task-label-colors.ts`; labels without an entry fall back to
    * the client's deterministic palette hash. Written via `tasks/setLabelColor`.
    */
   taskLabelColors: v.optional(v.record(v.string(), v.string())),

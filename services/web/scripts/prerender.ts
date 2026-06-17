@@ -101,6 +101,7 @@ function escapeAttr(value: string): string {
 }
 
 async function main(): Promise<void> {
+  const started = Date.now();
   const template = await readFile(resolve(DIST, 'index.html'), 'utf-8');
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const mod = (await import(pathToFileURL(SSR_BUNDLE).href)) as {
@@ -115,6 +116,8 @@ async function main(): Promise<void> {
     }),
   );
   const routes: RouteSeo[] = [...STATIC_ROUTES, ...legalRoutes];
+
+  process.stdout.write(`prerendering ${routes.length} routes...\n`);
 
   for (const route of routes) {
     process.stdout.write(`prerender ${route.url} ... `);
@@ -134,6 +137,10 @@ async function main(): Promise<void> {
     await writeFile(outPath, final, 'utf-8');
     process.stdout.write('done\n');
   }
+
+  process.stdout.write(
+    `prerendered ${routes.length} routes in ${((Date.now() - started) / 1000).toFixed(1)}s\n`,
+  );
 }
 
 await main();

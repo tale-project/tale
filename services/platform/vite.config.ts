@@ -22,6 +22,38 @@ const CONVEX_BASE = process.env.CONVEX_URL || 'http://127.0.0.1:3210';
 const CONVEX_SITE_PROXY =
   process.env.CONVEX_SITE_PROXY_URL || CONVEX_BASE.replace(/:\d+$/, ':3211');
 
+// Convex routing, shared by the dev server (`vite dev`) and the preview server
+// (`vite preview`, used by the prod-build E2E mode — see scripts/dev.ts). In a
+// real deployment Caddy fronts these same paths; locally Vite stands in for it.
+const convexProxy = {
+  // Proxy Convex API requests to the (possibly remote) convex service.
+  '/ws_api': {
+    target: CONVEX_BASE,
+    changeOrigin: true,
+    ws: true,
+    rewrite: (p: string) => p.replace(/^\/ws_api/, ''),
+  },
+  '/http_api': {
+    target: CONVEX_SITE_PROXY,
+    changeOrigin: true,
+    rewrite: (p: string) => p.replace(/^\/http_api/, ''),
+  },
+  // Storage and internal action callbacks go to the Convex backend (3210)
+  '/api/storage': {
+    target: CONVEX_BASE,
+    changeOrigin: true,
+  },
+  '/api/actions': {
+    target: CONVEX_BASE,
+    changeOrigin: true,
+  },
+  // All other /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
+  '/api': {
+    target: CONVEX_SITE_PROXY,
+    changeOrigin: true,
+  },
+};
+
 export default defineConfig({
   base: './',
   resolve: {
@@ -36,34 +68,18 @@ export default defineConfig({
     // broken". The dev orchestrator passes --strictPort too; this keeps direct
     // `vite`/preview invocations consistent.
     strictPort: true,
-    proxy: {
-      // Proxy Convex API requests to the (possibly remote) convex service.
-      '/ws_api': {
-        target: CONVEX_BASE,
-        changeOrigin: true,
-        ws: true,
-        rewrite: (p) => p.replace(/^\/ws_api/, ''),
-      },
-      '/http_api': {
-        target: CONVEX_SITE_PROXY,
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/http_api/, ''),
-      },
-      // Storage and internal action callbacks go to the Convex backend (3210)
-      '/api/storage': {
-        target: CONVEX_BASE,
-        changeOrigin: true,
-      },
-      '/api/actions': {
-        target: CONVEX_BASE,
-        changeOrigin: true,
-      },
-      // All other /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
-      '/api': {
-        target: CONVEX_SITE_PROXY,
-        changeOrigin: true,
-      },
-    },
+    proxy: convexProxy,
+  },
+  // Preview server (`vite preview`) — the prod-build E2E serving path. Serves
+  // the built `dist/` assets (no on-the-fly transpilation, the dev-mode CPU
+  // hog that starved the Convex backend on CI) and proxies Convex the same way
+  // the dev server does. Dev-only middleware routes (`__ENV__` injection,
+  // branding images, canvas preview, status) are re-registered on the preview
+  // server via each plugin's `configurePreviewServer` hook.
+  preview: {
+    port: 3000,
+    strictPort: true,
+    proxy: convexProxy,
   },
   optimizeDeps: {
     include: [
@@ -188,7 +204,6 @@ export default defineConfig({
   },
   plugins: [
     tanstackRouter(),
-    injectEnv(),
     injectAcceptLanguage(),
     stubSSRImports(),
     viteReact(),
@@ -198,6 +213,11 @@ export default defineConfig({
     serveStatus(),
     serveWebdav(),
     serveScreencast(),
+    // After the route-serving plugins: its `configurePreviewServer` middleware
+    // is the SPA-navigation fallback (serves index.html with __ENV__ injected),
+    // so the specific route handlers above must register first. Its dev-time
+    // `transformIndexHtml` hook is unaffected by array order (`order: 'pre'`).
+    injectEnv(),
     createPwaPlugin({
       name: 'Tale',
       shortName: 'Tale',

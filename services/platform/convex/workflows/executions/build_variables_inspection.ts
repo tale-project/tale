@@ -9,7 +9,7 @@
  * workflows.
  */
 
-import { getString, isRecord } from '../../../lib/utils/type-guards';
+import { getString, isRecord } from '../../../lib/utils/type-utils';
 
 export const INSPECTION_OUTPUT_MAX_CHARS = 32 * 1024;
 

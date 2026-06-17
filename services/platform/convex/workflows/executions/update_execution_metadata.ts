@@ -2,7 +2,7 @@
  * Update execution metadata (merge)
  */
 
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import type { MutationCtx } from '../../_generated/server';
 import type { UpdateExecutionMetadataArgs } from './types';
 

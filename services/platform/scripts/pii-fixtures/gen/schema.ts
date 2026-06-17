@@ -81,7 +81,7 @@ export const localeMetaSchema = z.object({
 export type LocaleMeta = z.infer<typeof localeMetaSchema>;
 
 // -----------------------------------------------------------------------------
-// Generator output shapes — what tests at services/platform/test/pii/fixtures/* read
+// Generator output shapes — what tests at services/platform/tests/pii/fixtures/* read
 // -----------------------------------------------------------------------------
 
 export interface ExpectedMatch {

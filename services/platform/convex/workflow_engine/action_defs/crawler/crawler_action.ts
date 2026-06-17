@@ -1,16 +1,14 @@
 import { v } from 'convex/values';
 
+import { internal } from '../../../_generated/api';
+import type { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
-import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type {
   CrawlerActionParams,
-  DiscoverUrlsRawData,
   DiscoverUrlsResult,
-  FetchUrlsData,
   FetchUrlsResult,
-  QueryUrlsRawData,
   QueryUrlsResult,
 } from './helpers/types';
 
@@ -54,7 +52,6 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
   ),
 
   async execute(ctx, params, variables) {
-    const serviceUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
     const timeout = params.timeout || 1800000;
 
     const organizationId =
@@ -70,11 +67,11 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
 
     switch (params.operation) {
       case 'discover_urls':
-        return await discoverUrls(params, serviceUrl, orgSlug, timeout);
+        return await discoverUrls(ctx, params, organizationId, timeout);
       case 'fetch_urls':
-        return await fetchUrls(params, serviceUrl, orgSlug, timeout);
+        return await fetchUrls(ctx, params, organizationId, timeout);
       case 'query_urls':
-        return await queryUrls(params, serviceUrl, orgSlug, timeout);
+        return await queryUrls(ctx, params, orgSlug, timeout);
       default:
         throw new Error(
           `Unknown crawler operation: ${(params as { operation: string }).operation}`,
@@ -99,9 +96,9 @@ type QueryUrlsParams = Extract<
 >;
 
 async function discoverUrls(
+  ctx: ActionCtx,
   params: DiscoverUrlsParams,
-  serviceUrl: string,
-  orgSlug: string,
+  organizationId: string,
   timeout: number,
 ): Promise<DiscoverUrlsResult> {
   let domain = params.domain;
@@ -114,189 +111,113 @@ async function discoverUrls(
     throw new Error('Either domain or url parameter is required');
   }
 
-  const payload = {
-    domain,
-    max_urls: params.maxUrls || params.maxPages || 1000,
-    offset: params.offset || 0,
-    ...(params.pattern && { pattern: params.pattern }),
-    ...(params.query && { query: params.query }),
-    timeout: timeout / 1000,
-  };
+  const maxUrls = params.maxUrls || params.maxPages || 1000;
 
   debugLog(`Discovering URLs from: ${domain} with timeout: ${timeout}ms`);
-  debugLog({ payload });
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  const response = await fetch(`${serviceUrl}/api/v1/urls/discover`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-tale-org': orgSlug,
+  // In-process discovery (sitemap + BFS fallback) + persist. Replaces the
+  // external crawler `/api/v1/urls/discover`. `organizationId` enables the
+  // sandbox JS-render seam when `CRAWLER_RENDER_VIA_SANDBOX=1`.
+  const result = await ctx.runAction(
+    internal.crawler.index_pages.discoverUrls,
+    {
+      domain,
+      maxUrls,
+      pattern: params.pattern ?? null,
+      timeout,
+      offset: params.offset ?? 0,
+      query: params.query ?? null,
+      organizationId,
     },
-    body: JSON.stringify(payload),
-    signal: controller.signal,
-  });
-
-  clearTimeout(timeoutId);
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw UpstreamHttpError.fromResponse(
-      'crawler',
-      response,
-      errorText,
-      '/api/v1/urls/discover',
-    );
-  }
-
-  const result: DiscoverUrlsRawData = await response.json();
-
-  if (!result.success) {
-    // Wrap as `UpstreamHttpError` (non-retryable) so the workflow retry
-    // layer can distinguish "crawler said no" from transport failures
-    // (which already throw `UpstreamHttpError`). Treating both as
-    // generic `Error` lost the structured retry signal — a transient
-    // crawler-internal error indistinguishable from a permanent one.
-    const errorMessage =
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      (result as { error?: string }).error || 'Unknown error';
-    throw new UpstreamHttpError({
-      service: 'crawler',
-      endpoint: '/api/v1/urls/discover',
-      status: 200,
-      bodySnippet: `URL discovery failed: ${errorMessage}`,
-      retryable: false,
-      safeMessage: 'Crawler URL discovery failed.',
-    });
-  }
-
-  debugLog(
-    `Discovered ${result.urls_discovered} URLs from ${domain} (total: ${result.total_urls}, offset: ${result.offset}, is_complete: ${result.is_complete})`,
   );
 
+  debugLog(
+    `Discovered ${result.discovered} URLs from ${domain} (inserted: ${result.inserted})`,
+  );
+
+  // The in-process port discovers the full set in one pass (no server-side
+  // pagination cursor), so `is_complete` is always true and `total_urls`
+  // equals the discovered count.
   return {
-    success: result.success,
+    success: true,
     domain: result.domain,
-    urls_discovered: result.urls_discovered,
-    total_urls: result.total_urls,
+    urls_discovered: result.discovered,
+    total_urls: result.discovered,
     urls: result.urls.map((u) => u.url),
-    is_complete: result.is_complete,
-    offset: result.offset,
+    is_complete: true,
+    offset: params.offset ?? 0,
   };
 }
 
 async function fetchUrls(
+  ctx: ActionCtx,
   params: FetchUrlsParams,
-  serviceUrl: string,
-  orgSlug: string,
+  organizationId: string,
   timeout: number,
 ): Promise<FetchUrlsResult> {
-  const payload = {
+  // `domain` is derived from the first URL — the in-process store keys page
+  // content by `(domain, url)`. The external endpoint inferred the domain
+  // server-side from each URL's registered website; all URLs in a single
+  // workflow batch belong to the same crawled domain.
+  let domain = '';
+  if (params.urls.length > 0) {
+    try {
+      domain = new URL(params.urls[0]).hostname;
+    } catch {
+      domain = '';
+    }
+  }
+
+  debugLog(`Fetching ${params.urls.length} URLs (domain=${domain})`);
+
+  const result = await ctx.runAction(internal.crawler.index_pages.fetchUrls, {
+    domain,
     urls: params.urls,
-    word_count_threshold: params.wordCountThreshold || 100,
-  };
-
-  debugLog(`Fetching ${params.urls.length} URLs`);
-  debugLog({ payload });
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  const response = await fetch(`${serviceUrl}/api/v1/urls/fetch`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-tale-org': orgSlug,
-    },
-    body: JSON.stringify(payload),
-    signal: controller.signal,
+    wordCountThreshold: params.wordCountThreshold ?? 100,
+    timeout,
+    organizationId,
   });
-
-  clearTimeout(timeoutId);
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw UpstreamHttpError.fromResponse(
-      'crawler',
-      response,
-      errorText,
-      '/api/v1/urls/fetch',
-    );
-  }
-
-  const result: FetchUrlsData = await response.json();
-
-  if (!result.success) {
-    const errorMessage =
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      (result as { error?: string }).error || 'Unknown error';
-    throw new UpstreamHttpError({
-      service: 'crawler',
-      endpoint: '/api/v1/urls/fetch',
-      status: 200,
-      bodySnippet: `URL fetch failed: ${errorMessage}`,
-      retryable: false,
-      safeMessage: 'Crawler URL fetch failed.',
-    });
-  }
 
   debugLog(
     `Successfully fetched ${result.urls_fetched} of ${result.urls_requested} URLs`,
   );
 
-  return result;
+  return {
+    success: result.success,
+    urls_requested: result.urls_requested,
+    urls_fetched: result.urls_fetched,
+    pages: result.pages,
+    failed: result.failed,
+  };
 }
 
 async function queryUrls(
+  ctx: ActionCtx,
   params: QueryUrlsParams,
-  serviceUrl: string,
   orgSlug: string,
-  timeout: number,
+  _timeout: number,
 ): Promise<QueryUrlsResult> {
-  const searchParams = new URLSearchParams();
-  searchParams.set('offset', String(params.offset ?? 0));
-  searchParams.set('limit', String(params.limit ?? 1000));
-  if (params.status) {
-    searchParams.set('status', params.status);
-  }
-
   debugLog(
     `Querying URLs for ${params.domain} (offset=${params.offset ?? 0}, limit=${params.limit ?? 1000})`,
   );
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  const response = await fetch(
-    `${serviceUrl}/api/v1/websites/${encodeURIComponent(params.domain)}/urls?${searchParams}`,
-    {
-      headers: { 'x-tale-org': orgSlug },
-      signal: controller.signal,
-    },
-  );
-
-  clearTimeout(timeoutId);
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw UpstreamHttpError.fromResponse(
-      'crawler',
-      response,
-      errorText,
-      `/api/v1/websites/${params.domain}/urls`,
-    );
-  }
-
-  const result: QueryUrlsRawData = await response.json();
+  // In-process URL-registry listing. `listUrls` requires `orgSlug` so it can
+  // enforce the org's website membership (replaces the external service's
+  // `x-tale-org` header check).
+  const result = await ctx.runAction(internal.crawler.websites.listUrls, {
+    orgSlug,
+    domain: params.domain,
+    offset: params.offset ?? 0,
+    limit: params.limit ?? 1000,
+    status: params.status ?? null,
+  });
 
   debugLog(
     `Query returned ${result.urls.length} URLs for ${params.domain} (total: ${result.total}, has_more: ${result.has_more})`,
   );
 
   return {
-    domain: result.domain,
+    domain: params.domain,
     urls: result.urls.map((u) => ({
       url: u.url,
       contentHash: u.content_hash,

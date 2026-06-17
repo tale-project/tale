@@ -5,7 +5,7 @@
  * an existing conversation summary from the thread.
  */
 
-import { parseJson } from '../../../lib/utils/type-cast-helpers';
+import { parseJson } from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 

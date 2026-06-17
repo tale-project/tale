@@ -6,8 +6,6 @@ on:
       - main
     paths:
       - 'services/platform/**'
-      - 'services/crawler/**'
-      - 'services/rag/**'
       - 'services/sandbox/**'
       - 'services/sandbox-runtime/**'
       - 'services/controller/**'
@@ -30,8 +28,6 @@ on:
       - main
     paths:
       - 'services/platform/**'
-      - 'services/crawler/**'
-      - 'services/rag/**'
       - 'services/sandbox/**'
       - 'services/sandbox-runtime/**'
       - 'services/controller/**'
@@ -131,7 +127,6 @@ jobs:
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          install-python: 'false'
 
       - name: Run UI tests
         run: bunx turbo run test:ui

@@ -5,7 +5,6 @@ import { readdir } from 'node:fs/promises';
 import type { Infer } from 'convex/values';
 import { v } from 'convex/values';
 
-import { getString, isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
@@ -13,7 +12,6 @@ import { internalAction } from '../_generated/server';
 import { getPollingInterval } from '../documents/internal_actions';
 import { handleDirReadError, readJsonFile } from '../lib/file_io';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
-import { ragFetch } from '../lib/helpers/rag_config';
 import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { uploadDocument } from '../workflow_engine/action_defs/rag/helpers/upload_document';
 import { resolveAgentDisplay } from './config';
@@ -167,57 +165,18 @@ export const checkKnowledgeFileStatus = internalAction({
 
     try {
       const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-      const response = await ragFetch('/api/v1/documents/statuses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_ids: [String(args.fileId)] }),
-        timeoutMs: 10_000,
+      // In-process status lookup (replaces the external RAG
+      // `/api/v1/documents/statuses`). The action throws on a knowledge-db
+      // fault; the catch below reschedules. There is no longer an HTTP status
+      // code to branch on, so transient faults always retry via reschedule.
+      const result = await ctx.runAction(internal.rag.documents.getStatuses, {
         orgSlug,
+        fileIds: [String(args.fileId)],
       });
 
-      if (response.status === 429 || !response.ok) {
-        const isClientError =
-          response.status >= 400 &&
-          response.status < 500 &&
-          response.status !== 429;
-        if (isClientError) {
-          await updateRagInfo(ctx, {
-            organizationId: args.organizationId,
-            agentSlug: args.agentSlug,
-            fileId: args.fileId,
-            ragStatus: 'failed',
-            ragError: `RAG service returned ${response.status}`,
-          });
-          return null;
-        }
-
-        await rescheduleStatusCheck(ctx, args);
-        return null;
-      }
-
-      let body: unknown;
-      try {
-        body = await response.json();
-      } catch {
-        throw new Error('RAG returned non-JSON response');
-      }
-
-      if (!isRecord(body)) {
-        throw new Error('Invalid response shape from RAG statuses endpoint');
-      }
-
-      const statuses = body.statuses;
-      if (!isRecord(statuses)) {
-        throw new Error('Invalid statuses field in RAG response');
-      }
-
-      const docStatus = statuses[String(args.fileId)];
-      const status = isRecord(docStatus)
-        ? getString(docStatus, 'status')
-        : null;
-      const error = isRecord(docStatus)
-        ? getString(docStatus, 'error')
-        : undefined;
+      const docStatus = result.statuses[String(args.fileId)];
+      const status = docStatus ? docStatus.status : null;
+      const error = docStatus ? (docStatus.error ?? undefined) : undefined;
 
       if (status === 'completed') {
         await updateRagInfo(ctx, {
@@ -272,7 +231,7 @@ export const deleteKnowledgeFileFromRag = internalAction({
   handler: async (ctx, args): Promise<null> => {
     try {
       const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-      await deleteDocumentById({
+      await deleteDocumentById(ctx, {
         orgSlug,
         fileId: String(args.fileId),
       });

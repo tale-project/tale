@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { render, screen } from '@/test/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org_test',

@@ -8,32 +8,25 @@
  * Used when webSearchMode is 'context' or 'both'.
  */
 
+import { internal } from '../../../_generated/api';
 import type { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { formatWebResults } from './format_web_results';
-import { getCrawlerServiceUrl } from './get_crawler_service_url';
 
 const debugLog = createDebugLog('DEBUG_WEB_CONTEXT', '[WebContext]');
 
 const DEFAULT_LIMIT = 10;
 const DEFAULT_SIMILARITY_THRESHOLD = 0.51;
-const WEB_CONTEXT_TIMEOUT_MS = 10_000;
 
 interface SearchResult {
   url: string;
-  title?: string;
+  title: string | null;
   chunk_content: string;
   chunk_index: number;
   score: number;
   // Part B Phase 1+: empty for legacy rows, populated after crawler reindex.
-  core_content?: string;
-}
-
-interface SearchApiResponse {
-  query: string;
-  results: SearchResult[];
-  total: number;
+  core_content: string;
 }
 
 interface WebContextCitation {
@@ -74,39 +67,17 @@ export async function queryWebContext(
       limit,
     });
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      WEB_CONTEXT_TIMEOUT_MS,
-    );
-
     try {
-      const crawlerUrl = getCrawlerServiceUrl();
-      const response = await fetch(`${crawlerUrl}/api/v1/search`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-tale-org': orgSlug,
-        },
-        body: JSON.stringify({
-          query,
-          limit,
-          similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
-        }),
-        signal: controller.signal,
+      // The crawler search logic now lives in a Convex internal action; the
+      // network call (and its AbortController timeout) was replaced by an
+      // in-process `ctx.runAction`. The action throws plain Errors on
+      // failure, caught by the surrounding try/catch below → `undefined`.
+      const { results } = await ctx.runAction(internal.crawler.search.search, {
+        orgSlug,
+        query,
+        limit,
+        similarityThreshold: DEFAULT_SIMILARITY_THRESHOLD,
       });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        console.error('[web_context] Search API error', {
-          status: response.status,
-        });
-        return undefined;
-      }
-
-      const data: SearchApiResponse = await response.json();
-      const results = data.results;
 
       if (!results || results.length === 0) {
         debugLog('No web context results', { query: query.slice(0, 100) });
@@ -154,20 +125,10 @@ export async function queryWebContext(
 
       return { text: webContext, citations };
     } catch (fetchError) {
-      clearTimeout(timeoutId);
-
-      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        console.error('[web_context] Web search timeout', {
-          timeoutMs: WEB_CONTEXT_TIMEOUT_MS,
-        });
-      } else {
-        console.error('[web_context] Web search error', {
-          error:
-            fetchError instanceof Error
-              ? fetchError.message
-              : String(fetchError),
-        });
-      }
+      console.error('[web_context] Web search error', {
+        error:
+          fetchError instanceof Error ? fetchError.message : String(fetchError),
+      });
       return undefined;
     }
   } catch (error) {

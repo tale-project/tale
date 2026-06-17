@@ -126,10 +126,12 @@ export function buildDockerSessionRunArgs(
 
   let hardeningFlags: string[];
   if (dind) {
-    hardeningFlags =
-      dindMode === 'privileged'
-        ? ['--privileged']
-        : ['--security-opt', 'apparmor=unconfined'];
+    if (dindMode === 'privileged') {
+      // nosemgrep: tools.opengrep.rules.trailofbits.generic.container-privileged.container-privileged -- intentional: trusted-only `runc` DinD runtime tier (no isolation boundary by design); config.ts gates this behind a loud trusted-only opt-in warning
+      hardeningFlags = ['--privileged'];
+    } else {
+      hardeningFlags = ['--security-opt', 'apparmor=unconfined'];
+    }
   } else if (transparentEgressHardening) {
     // Boot caps, far less than --privileged: NET_ADMIN/NET_RAW for the iptables
     // OUTPUT REDIRECT, plus SETUID/SETGID so the entrypoint can setpriv-drop from
@@ -161,6 +163,7 @@ export function buildDockerSessionRunArgs(
   // DinD and the transparent-egress hardening both boot as root (uid 0); the
   // entrypoint drops to the profile uid via setpriv. Plain hardened sessions run
   // as the profile uid directly.
+  // nosemgrep: tools.opengrep.rules.trailofbits.generic.container-user-root.container-user-root -- intentional: DinD/transparent-egress containers start as root only so the entrypoint can launch the inner dockerd / install the iptables OUTPUT hook; setpriv then drops back to the profile uid for runnerd
   const userValue = dind || transparentEgressHardening ? '0:0' : profile.user;
   // dockerd needs a writable rootfs (/var/run, /etc/docker, etc.); /var/lib/
   // docker is a dedicated volume (below). Non-dind keeps the read-only root —

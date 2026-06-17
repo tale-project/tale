@@ -1,8 +1,18 @@
 export default {
-  ignoreBinaries: ['uv', 'uvx'],
   ignore: [
     'examples/**',
+    // The e2e fixtures' `default/integrations` is a symlink to the shipped
+    // `examples/default/integrations` catalog (sucrase-transpiled runtime
+    // connectors, never imported) — ignore like examples/.
+    'services/platform/tests/e2e/fixtures/config/**',
     'tools/plop/templates/**',
+    // Maintenance script run by hand (`bun tools/opengrep/vendor-rules.ts`) to
+    // refresh the pinned registry snapshot — never imported, not a workspace.
+    'tools/opengrep/vendor-rules.ts',
+    // Hand-run QA helper (`bun services/platform/tests/manual/scripts/save-auth-state.ts`,
+    // see services/platform/tests/manual/SETUP.md) that mints a Playwright
+    // storageState — never imported; reuses the platform e2e auth helpers.
+    'services/platform/tests/manual/scripts/**',
     // runnerd wire-protocol contract. `runnerd-protocol.ts` is the canonical
     // source of truth; `daemon/src/protocol.ts` is a hand-kept byte-mirror (the
     // daemon is bundled into the runtime image and cannot import across the
@@ -30,12 +40,22 @@ export default {
         'app/features/**/*.{ts,tsx}',
         'app/hooks/**/*.{ts,tsx}',
         'app/components/**/*.{ts,tsx}',
-        'lib/utils/client-utils.ts',
         'reset-owner.ts',
-        // Mock OpenAI-compatible LLM for the Playwright E2E suite — launched
-        // via the `webServer` command in playwright.config.ts, which knip's
-        // playwright plugin doesn't trace.
-        'e2e/mock-llm/server.ts',
+        // Mock gateway (folded in from @tale/mocks): the `start` entry is
+        // launched by playwright's webServer (`bun lib/mocks/start.ts`), not
+        // imported, so knip can't auto-detect it. It anchors gateway/registry.
+        'lib/mocks/start.ts',
+        // Playwright specs. The config now builds via the shared
+        // `createPlaywrightConfig` factory (@tale/e2e), so knip's playwright
+        // plugin can't statically read testDir/testMatch — declare them here.
+        // (No auth `setup` project: specs bootstrap auth via the worker-scoped
+        // `org` fixture / `.auth` storage states, not a `*.setup.ts` project.)
+        'tests/e2e/specs/**/*.spec.ts',
+        // Container/integration suites (moved from the old @tale/container-tests
+        // workspace) — invoked as `bun tests/integration/<name>.ts`, not imported.
+        // `integration/lib/**` + `static-site-test.ts` are reached via their graph.
+        'tests/integration/container-*.ts',
+        'tests/integration/master-e2e-test.ts',
       ],
       project: ['**/*.{ts,tsx}'],
       ignoreDependencies: [
@@ -60,6 +80,9 @@ export default {
         // vite's plugin only sees the client-side index.html input.
         'app/entry-server.tsx',
         'vitest.ui.config.ts',
+        // Playwright specs (config builds via the shared @tale/e2e factory, so
+        // knip's playwright plugin can't trace testDir/testMatch).
+        'tests/e2e/specs/**/*.spec.ts',
       ],
       project: ['**/*.{ts,tsx}'],
     },
@@ -85,6 +108,9 @@ export default {
         // SSR build target — passed to `vite build --ssr` in package.json scripts;
         // vite's plugin only sees the client-side index.html input.
         'app/entry-server.tsx',
+        // Playwright specs (config builds via the shared @tale/e2e factory, so
+        // knip's playwright plugin can't trace testDir/testMatch).
+        'tests/e2e/specs/**/*.spec.ts',
       ],
       project: ['**/*.{ts,tsx}'],
     },

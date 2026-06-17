@@ -4,7 +4,7 @@
  */
 
 import { sessionExpiryMs } from '../../../lib/shared/session-idle';
-import { isRecord, getString } from '../../../lib/utils/type-guards';
+import { isRecord, getString } from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
 import type {

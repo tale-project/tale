@@ -19,15 +19,10 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
-COPY packages/agent_adapters/package.json ./packages/agent_adapters/
-COPY packages/tale_daemon/package.json ./packages/tale_daemon/
-COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
-COPY packages/tale_shared/package.json ./packages/tale_shared/
-COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
+COPY packages/e2e/package.json ./packages/e2e/
+COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
 COPY services/platform/package.json ./services/platform/
-COPY services/crawler/package.json ./services/crawler/
-COPY services/rag/package.json ./services/rag/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
 COPY services/sandbox/package.json ./services/sandbox/
@@ -37,6 +32,7 @@ COPY services/web/package.json ./services/web/
 COPY services/docs/package.json ./services/docs/
 COPY tools/cli/package.json ./tools/cli/
 COPY tools/plop/package.json ./tools/plop/
+COPY tools/opengrep/package.json ./tools/opengrep/
 COPY patches/ ./patches/
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -71,16 +67,15 @@ COPY services/platform/vite.config.ts \
      ./services/platform/
 
 COPY packages/ui ./packages/ui
-
-# convex/node_only/sandbox/run_agent.ts bundles `@tale/agent-adapters` at
-# deploy time (it's NOT in convex.json externalPackages — the package exports
-# raw .ts that esbuild must compile). The runtime stage ships /app/packages
-# wholesale (for the `@tale/*` node_modules symlinks), so the source has to be
-# present here in the builder or the convex deploy fails with "Could not
-# resolve @tale/agent-adapters" and the platform never goes healthy.
-COPY packages/agent_adapters ./packages/agent_adapters
+# @tale/shared backs the convex logger + the knowledge config/db/utils re-export
+# shims; convex deploy bundles its source at runtime, so the full source (not
+# just package.json) must be present for the `@tale/shared/*` subpath imports to
+# resolve. Mirrors the packages/ui copy above.
+COPY packages/shared ./packages/shared
 
 COPY services/platform/app ./services/platform/app
+# lib/agent-adapters lives here now (convex run_agent.ts bundles it at deploy
+# time), so the lib copy below carries it into the builder.
 COPY services/platform/lib ./services/platform/lib
 COPY services/platform/convex ./services/platform/convex
 COPY services/platform/public ./services/platform/public
@@ -124,14 +119,9 @@ COPY services/platform/server.ts \
 FROM builder AS pruner
 
 COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
-COPY --from=workspace-deps /app/packages/agent_adapters/package.json /tmp/workspace/packages/agent_adapters/
-COPY --from=workspace-deps /app/packages/tale_knowledge/package.json /tmp/workspace/packages/tale_knowledge/
-COPY --from=workspace-deps /app/packages/tale_shared/package.json /tmp/workspace/packages/tale_shared/
-COPY --from=workspace-deps /app/packages/tale_telemetry/package.json /tmp/workspace/packages/tale_telemetry/
+COPY --from=workspace-deps /app/packages/shared/package.json /tmp/workspace/packages/shared/
 COPY --from=workspace-deps /app/packages/ui/package.json /tmp/workspace/packages/ui/
 COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/
-COPY --from=workspace-deps /app/services/crawler/package.json /tmp/workspace/services/crawler/
-COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/services/rag/
 COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services/db/
 COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
 COPY --from=workspace-deps /app/services/sandbox/package.json /tmp/workspace/services/sandbox/
@@ -154,14 +144,12 @@ RUN HUSKY=0 bun install --production \
               /app/node_modules/@types \
               /app/node_modules/@storybook \
               /app/node_modules/storybook \
-              /app/node_modules/pdfjs-dist/legacy \
               /app/node_modules/@vitest \
               /app/node_modules/vitest \
               /app/node_modules/@rolldown \
               /app/node_modules/playwright-core \
               /app/node_modules/core-js-pure \
                /app/node_modules/tsx \
-               /app/node_modules/jsdom \
     2>/dev/null || true \
     && find /app/node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -exec rm -rf {} + 2>/dev/null || true \
     && find /app/node_modules -type f -name "*.map" -delete 2>/dev/null || true \
@@ -269,6 +257,10 @@ COPY --from=pruner --chown=app:app \
      /app/services/platform/status-probe.ts \
      ./
 COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
+# convex.json carries `node.externalPackages`; the runtime `convex deploy` (run
+# from /app) reads it from /app/convex.json. Without it the heavy node-only libs
+# (jsdom, …) get bundled inline and the push fails at analyze.
+COPY --chown=app:app services/platform/convex.json ./convex.json
 COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 # Workspace packages backing the `@tale/*` symlinks in node_modules. The

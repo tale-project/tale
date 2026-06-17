@@ -26,7 +26,7 @@
 
 import { v } from 'convex/values';
 
-import { getString } from '../../lib/utils/type-guards';
+import { getString } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import {

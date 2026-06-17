@@ -10,7 +10,7 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
@@ -212,7 +212,7 @@ Inform the user the update is ready for review. Only say the approval card has b
       workflowSlug: z
         .string()
         .describe(
-          'Slug of the workflow containing the step(s) to update (e.g., "conversation-sync", "circuly/sync-customers"). Required.',
+          'Slug of the workflow containing the step(s) to update (e.g., "conversation-sync", "shopify/sync-customers"). Required.',
         ),
       stepSlug: z
         .string()

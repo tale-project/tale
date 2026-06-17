@@ -15,8 +15,9 @@ Der symptomorientierte Index ist in [Troubleshooting](/de/self-hosted/operate/ob
 | `tale-platform` HTTP-5xx-Rate > 5 %         | page        | Die UI ist für einen relevanten Anteil der Anfragen kaputt |
 | `tale-convex` WebSocket-Reconnect-Storm     | page        | UI lädt, aber keine Daten fliessen                         |
 | Postgres-Verbindungen > 80 % des Pools      | warn        | Die nächste Spitze fängt an zu blockieren                  |
-| `db-data`-Volume > 80 % voll                | warn        | Postgres geht bei voll auf read-only                       |
-| RAG-Indexier-Queue-Tiefe > 100 für 10 Min   | warn        | Uploads stecken in „indexing"                              |
+| `db-data`-Volume > 80 % voll                | warn        | Das operative Postgres geht bei voll auf read-only         |
+| `knowledge-db-data`-Volume > 80 % voll      | warn        | Ingestion scheitert, wenn die Korpus-Datenbank voll ist    |
+| `tale-knowledge-db` von convex unerreichbar | warn        | Wissens-Suche liefert leer; Ingestion stockt               |
 | Anbieter-Anfrage-Fehlerrate > 20 %          | warn        | Der Upstream-LLM-Anbieter hat einen schlechten Tag         |
 | Tägliches Backup nicht geschrieben          | page        | Restore-Drill scheitert zum schlimmsten Zeitpunkt          |
 | TLS-Cert-Erneuerung gescheitert             | warn        | Erneuert 30 T vor Ablauf — du hast Zeit                    |
@@ -30,7 +31,7 @@ Logs kommen über stdout pro Container, aufgefangen vom `json-file`-Driver von D
 - `panic` oder `unexpected error` in `tale-convex`-Logs — Convex-Action-Crash.
 - `decryption failed` in `tale-platform`-Logs — SOPS-age-Schlüssel-Mismatch mit der Datei auf Platte.
 - `429 Too Many Requests` wiederholt von einem Anbieter — Rate-Limit getroffen, Agents fangen an zu scheitern.
-- `connection refused` von `tale-rag` oder `tale-crawler` — die Plattform erreicht einen Geschwister-Container nicht.
+- `connection refused` oder `ECONNREFUSED` zu `knowledge-db` in `tale-convex`-Logs — das Backend erreicht die Korpus-Datenbank nicht; Ingestion und Wissens-Suche scheitern.
 
 Leite diese als abgeleitete Alerts an deinen Aggregator weiter; die Metric-Endpoints zeigen sie nicht als Gauges.
 
@@ -46,7 +47,7 @@ Wenn eine Page landet, folgen die ersten fünf Minuten jedes Mal derselben Form.
 
 ## Was Oncall nicht braucht
 
-`tale-crawler`- und `tale-rag`-Ausfälle sind keine Pages. Der Plan des Crawlers absorbiert Stunden von Downtime ohne Benutzerwirkung; Uploads zu RAG stauen, statt zu scheitern. Fang die im warn-Band und fix sie zu Geschäftszeiten.
+Ein `tale-knowledge-db`-Ausfall ist ein warn, kein page. Der Web-Crawl-Plan absorbiert Stunden von Downtime ohne Benutzerwirkung, und die Dokument-Ingestion versucht es erneut, statt Arbeit zu verwerfen — Uploads sitzen in „indexing", bis die Korpus-Datenbank zurück ist. Die Wissens-Suche liefert in der Zwischenzeit leer, aber Chats, die kein Wissen abrufen, arbeiten weiter. Fang das im warn-Band und fix es zu Geschäftszeiten.
 
 ## Wo das hingehört
 

@@ -124,7 +124,7 @@ The session backend needs, in the sandbox namespace, on `pods` and `secrets`:
 - Unit: runnerd (exec stream / timeout / cancel / env deny-list / file ops /
   attach replay), `docker-session-args` + `k8s-session-pod-spec` snapshots,
   the session route layer against a fake runnerd, the agent adapters.
-- Image conformance (no LLM, no cluster): `tests/container-sandbox-runtime-test.sh`.
+- Image conformance (no LLM, no cluster): `services/platform/tests/integration/container-sandbox-runtime-test.ts`.
 - E2E on kind (needs a cluster): create → exec → kill-container-restart →
   idle-reap-stop → resume (workspace + PVC preserved) → explicit destroy (PVC
   deleted); cross-replica exec/destroy. (Pending — requires a kind cluster + the

@@ -1,6 +1,6 @@
-import type { AgentEvent } from '@tale/agent-adapters';
 import { describe, it, expect } from 'vitest';
 
+import type { AgentEvent } from '../../../lib/agent-adapters/events';
 import {
   buildAssistantContent,
   estimateContentBytes,

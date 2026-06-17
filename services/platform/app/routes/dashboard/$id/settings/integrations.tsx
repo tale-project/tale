@@ -24,7 +24,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 const searchSchema = z.object({
   section: z.enum(['apps', 'mcp-servers']).optional(),

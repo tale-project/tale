@@ -159,17 +159,37 @@ Remove ALL blue-green containers.
 | `-a, --all` | Also remove infrastructure (db, proxy) |
 | `--dry-run` | Preview reset without making changes   |
 
+### `tale daemon`
+
+Run Tale board tasks on this machine with the coding-agent CLIs you already use
+(**Claude Code**, **Codex**, **OpenCode**, auto-detected on PATH). Agents bound
+to an external runtime get their tasks dispatched here instead of Tale's internal
+LLM loop; each run executes in an isolated git worktree and reports back as a task
+comment, parking the task at **In review**. Nothing is ever pushed. The effective
+permission is `min(server-configured, local ceiling)` — `safe` by default.
+
+```bash
+tale daemon setup    # base URL, API key, workspace, permission ceiling
+tale daemon start    # register + claim loop (Ctrl-C drains the current run)
+tale daemon status   # config, detected CLIs, server connectivity
+```
+
+Config lives at `~/.tale-daemon/config.json` (chmod 600). Set
+`TALE_DAEMON_API_KEY` to keep the key out of the file.
+
 ## Environment Variables
 
-| Variable               | Description                                 | Default                     |
-| ---------------------- | ------------------------------------------- | --------------------------- |
-| `GHCR_REGISTRY`        | Container registry                          | `ghcr.io/tale-project/tale` |
-| `HEALTH_CHECK_TIMEOUT` | Health check timeout (seconds)              | `300`                       |
-| `DRAIN_TIMEOUT`        | Connection drain timeout (seconds)          | `30`                        |
-| `BACKUP_KEEP_COUNT`    | Snapshots kept regardless of age            | `5`                         |
-| `BACKUP_KEEP_DAYS`     | Days a snapshot is kept regardless of count | `14`                        |
-| `PROJECT_NAME`         | Docker project name                         | `tale`                      |
-| `HOST`                 | Host alias for proxy                        | `tale.local`                |
+| Variable               | Description                                             | Default                     |
+| ---------------------- | ------------------------------------------------------- | --------------------------- |
+| `GHCR_REGISTRY`        | Container registry                                      | `ghcr.io/tale-project/tale` |
+| `HEALTH_CHECK_TIMEOUT` | Health check timeout (seconds)                          | `300`                       |
+| `DRAIN_TIMEOUT`        | Connection drain timeout (seconds)                      | `30`                        |
+| `BACKUP_KEEP_COUNT`    | Snapshots kept regardless of age                        | `5`                         |
+| `BACKUP_KEEP_DAYS`     | Days a snapshot is kept regardless of count             | `14`                        |
+| `PROJECT_NAME`         | Docker project name                                     | `tale`                      |
+| `HOST`                 | Host alias for proxy                                    | `tale.local`                |
+| `TALE_DAEMON_API_KEY`  | `tale daemon` API key (keeps it out of the config file) | _(unset)_                   |
+| `TALE_DAEMON_HOME`     | Override the `tale daemon` config directory             | `~/.tale-daemon`            |
 
 ## Architecture
 

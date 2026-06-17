@@ -47,7 +47,7 @@ vi.mock('./image-upload-field', () => ({
   ),
 }));
 
-import { checkAccessibility } from '@/test/utils/a11y';
+import { checkAccessibility } from '@/tests/utils/a11y';
 
 import { BrandingForm } from './branding-form';
 

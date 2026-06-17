@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { render } from '@/test/utils/render';
+import { render } from '@/tests/utils/render';
 
 import { SteerStatusContext, SteerStatusLine } from './steer-status';
 import type { SteerStatus } from './steer-status';

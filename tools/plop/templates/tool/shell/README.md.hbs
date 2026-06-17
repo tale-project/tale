@@ -1,0 +1,14 @@
+# @tale/{{kebabCase name}}
+
+{{description}}
+
+Shell-based tooling for the Tale monorepo. The logic lives in `run.sh`; the
+`package.json` makes it a workspace member so it can be invoked uniformly.
+
+## Usage
+
+```bash
+bun run --filter @tale/{{kebabCase name}} run
+# or directly:
+bash tools/{{kebabCase name}}/run.sh
+```

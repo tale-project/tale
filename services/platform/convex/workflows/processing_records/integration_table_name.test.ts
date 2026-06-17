@@ -9,8 +9,8 @@ import {
 
 describe('createIntegrationTableName', () => {
   it('builds the integration:<name>:<source> form', () => {
-    expect(createIntegrationTableName('protel', 'guests')).toBe(
-      'integration:protel:guests',
+    expect(createIntegrationTableName('stripe', 'invoices')).toBe(
+      'integration:stripe:invoices',
     );
     expect(createIntegrationTableName('shopify', 'orders')).toBe(
       'integration:shopify:orders',
@@ -18,22 +18,22 @@ describe('createIntegrationTableName', () => {
   });
 
   it('rejects empty parts', () => {
-    expect(() => createIntegrationTableName('', 'guests')).toThrow(
+    expect(() => createIntegrationTableName('', 'orders')).toThrow(
       /non-empty integrationName/,
     );
-    expect(() => createIntegrationTableName('protel', '')).toThrow(
+    expect(() => createIntegrationTableName('shopify', '')).toThrow(
       /non-empty sourceIdentifier/,
     );
-    expect(() => createIntegrationTableName('   ', 'guests')).toThrow(
+    expect(() => createIntegrationTableName('   ', 'orders')).toThrow(
       /non-empty integrationName/,
     );
   });
 
   it('rejects parts containing the separator', () => {
-    expect(() => createIntegrationTableName('a:b', 'guests')).toThrow(
+    expect(() => createIntegrationTableName('a:b', 'orders')).toThrow(
       /must not contain ":"/,
     );
-    expect(() => createIntegrationTableName('protel', 'a:b')).toThrow(
+    expect(() => createIntegrationTableName('shopify', 'a:b')).toThrow(
       /must not contain ":"/,
     );
   });
@@ -41,32 +41,32 @@ describe('createIntegrationTableName', () => {
 
 describe('parseIntegrationTableName', () => {
   it('round-trips a created table name', () => {
-    const tableName = createIntegrationTableName('protel', 'guests');
+    const tableName = createIntegrationTableName('shopify', 'orders');
     expect(parseIntegrationTableName(tableName)).toEqual({
-      integrationName: 'protel',
-      sourceIdentifier: 'guests',
+      integrationName: 'shopify',
+      sourceIdentifier: 'orders',
     });
   });
 
   it('returns null for non-integration table names', () => {
     expect(parseIntegrationTableName('customers')).toBeNull();
-    expect(parseIntegrationTableName('integration:protel')).toBeNull();
+    expect(parseIntegrationTableName('integration:shopify')).toBeNull();
     expect(parseIntegrationTableName('integration:a:b:c')).toBeNull();
-    expect(parseIntegrationTableName('integration::guests')).toBeNull();
-    expect(parseIntegrationTableName('integration:protel:')).toBeNull();
-    expect(parseIntegrationTableName('other:protel:guests')).toBeNull();
+    expect(parseIntegrationTableName('integration::orders')).toBeNull();
+    expect(parseIntegrationTableName('integration:shopify:')).toBeNull();
+    expect(parseIntegrationTableName('other:shopify:orders')).toBeNull();
     expect(parseIntegrationTableName('')).toBeNull();
   });
 });
 
 describe('isIntegrationTableName', () => {
   it('accepts valid integration table names', () => {
-    expect(isIntegrationTableName('integration:protel:guests')).toBe(true);
+    expect(isIntegrationTableName('integration:shopify:orders')).toBe(true);
   });
 
   it('rejects Convex table names and malformed strings', () => {
     expect(isIntegrationTableName('customers')).toBe(false);
-    expect(isIntegrationTableName('integration:protel')).toBe(false);
+    expect(isIntegrationTableName('integration:shopify')).toBe(false);
   });
 });
 

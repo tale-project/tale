@@ -20,11 +20,12 @@ jobs:
 
             const selection = match[1].trim();
             const mapping = {
-              'Platform': 'service: platform',
-              'RAG': 'service: rag',
-              'Crawler': 'service: crawler',
+              'Platform (web app)': 'service: platform',
+              'Web (marketing site)': 'service: web',
+              'Docs': 'service: docs',
+              'Sandbox': 'service: sandbox',
+              'CLI': 'service: cli',
               'Database': 'service: db',
-              'Graph DB': 'service: graph-db',
               'Proxy': 'service: proxy',
             };
 

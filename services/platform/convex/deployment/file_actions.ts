@@ -35,7 +35,6 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
-import { ragFetch } from '../lib/helpers/rag_config';
 import { SafeFetchError, safeFetch } from '../lib/http/safe_fetch';
 import {
   EncryptedFileWithoutKeyError,
@@ -60,6 +59,10 @@ import {
   UndecryptableExistingSecretError,
   prepareMergedDeploymentSecrets,
 } from './secret_io';
+import {
+  testDatastoreConnection,
+  type DatastoreTestResult,
+} from './test_datastore_connection';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -455,33 +458,22 @@ export const testDeploymentConnection = action({
         `dataStores.${args.target}.password` as DeploymentSecretKey,
       ));
 
-    let data: {
-      ok: boolean;
-      latency_ms?: number;
-      version?: string;
-      vector_available?: boolean;
-      paradedb_available?: boolean;
-      error?: string;
-    };
+    let data: DatastoreTestResult;
     try {
-      const res = await ragFetch('/api/v1/admin/datastore/test-connection', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          host: pg.host,
-          port: pg.port,
-          database: pg.database,
-          user: pg.user,
-          password,
-          sslmode: testSslmode,
-        }),
-        timeoutMs: 12_000,
+      // In-process datastore probe (replaces the external RAG
+      // `/api/v1/admin/datastore/test-connection`).
+      data = await testDatastoreConnection({
+        host: pg.host,
+        port: pg.port,
+        database: pg.database,
+        user: pg.user,
+        password,
+        sslmode: testSslmode,
       });
-      data = await res.json();
     } catch (err) {
       return {
         ok: false,
-        error: `Could not reach the retrieval service to run the test: ${
+        error: `Could not run the datastore connection test: ${
           err instanceof Error ? err.message : String(err)
         }`,
       };
@@ -500,13 +492,16 @@ export const testDeploymentConnection = action({
         'ParadeDB (`pg_search`) is not available — full-text/BM25 hybrid search will degrade to vector-only. Install ParadeDB for full search quality.';
     }
 
+    // The in-process probe returns `null` for absent fields (matching the
+    // RAG response shape); normalize to `undefined` for the action's optional
+    // return contract (the UI's `ConnTestResult` uses optional, not nullable).
     return {
       ok: data.ok,
-      latencyMs: data.latency_ms,
-      version: data.version,
-      vectorAvailable: data.vector_available,
-      paradedbAvailable: data.paradedb_available,
-      error: data.error,
+      latencyMs: data.latency_ms ?? undefined,
+      version: data.version ?? undefined,
+      vectorAvailable: data.vector_available ?? undefined,
+      paradedbAvailable: data.paradedb_available ?? undefined,
+      error: data.error ?? undefined,
       hint,
     };
   },
@@ -514,7 +509,7 @@ export const testDeploymentConnection = action({
 
 /**
  * One-click "Apply & restart": ask the opt-in `controller` sidecar to bounce
- * rag+convex so a saved config takes effect. HMAC-signs the request with the
+ * convex so a saved config takes effect. HMAC-signs the request with the
  * shared `CONTROLLER_TOKEN`. When the controller isn't configured, returns a
  * `configured:false` result so the UI shows the manual command instead.
  * NEVER touches the Docker socket from here — that's the controller's job.
@@ -532,14 +527,12 @@ export const requestRestart = action({
         configured: false,
         ok: false,
         error:
-          'The restart controller is not enabled. Restart manually: `docker compose restart rag convex` (or `tale deploy --services rag`).',
+          'The restart controller is not enabled. Restart manually: `docker compose restart convex` (or `tale deploy --services convex`).',
       };
     }
 
     const services =
-      args.services && args.services.length > 0
-        ? args.services
-        : ['rag', 'convex'];
+      args.services && args.services.length > 0 ? args.services : ['convex'];
     const { createHmac, randomUUID } = await import('node:crypto');
     const body = JSON.stringify({ services, nonce: randomUUID() });
     const timestamp = String(Date.now());

@@ -1856,8 +1856,7 @@
     "filter": {
       "source": {
         "manual": "Manuell",
-        "upload": "Upload",
-        "circuly": "Circuly"
+        "upload": "Upload"
       },
       "status": {
         "active": "Aktiv",
@@ -1866,11 +1865,8 @@
       }
     },
     "importForm": {
-      "circuly": "Circuly",
       "manualEntry": "Manuelle Eingabe",
       "upload": "Upload",
-      "fromShopify": "Von Shopify",
-      "syncBusinessData": "Geschäftsdaten synchronisieren",
       "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Kunde pro Zeile.",
       "localeHint": "Sprache kann ein beliebiger BCP 47-Tag sein (z. B. en, en-US, de-DE, zh-Hans).",
       "statusNote": "Importierte Kunden werden als (Aktiv) markiert",
@@ -1896,8 +1892,6 @@
     "status": "Status",
     "import": {
       "selectDataSource": "Bitte wähle eine Datenquelle",
-      "syncFeature": "Synchronisierungsfunktion",
-      "syncNotImplemented": "Automatische Synchronisierung ist noch nicht implementiert",
       "provideData": "Bitte gib Daten ein",
       "noValidData": "Keine gültigen Kundendaten gefunden",
       "success": "Import",
@@ -6606,8 +6600,7 @@
     "filter": {
       "source": {
         "manual": "Manueller Import",
-        "upload": "Datei-Upload",
-        "circuly": "Circuly"
+        "upload": "Datei-Upload"
       }
     },
     "import": {
@@ -7179,6 +7172,7 @@
     "description": "Führe Aufgaben-Arbeit auf deinen eigenen Maschinen aus — mit den Coding-Agent-CLIs, die du bereits nutzt (Claude Code, Codex, OpenCode).",
     "install": {
       "title": "Daemon verbinden",
+      "cliHint": "Installiere zuerst die Tale-CLI, falls noch nicht geschehen:",
       "description": "Einmal pro Maschine installieren: setup fragt nach dieser Workspace-URL, einem API-Schlüssel und dem Git-Workspace, in dem Agenten arbeiten dürfen. Binde dann einen Agenten in seiner Konfiguration an eine Runtime — seine Board-Aufgaben laufen auf deiner Maschine und melden sich zum Review zurück.",
       "privacy": "Lokale Workspace-Pfade verlassen deine Maschine nie — nur die von dir gewählten Workspace-Schlüssel werden hier angezeigt. Die full_auto-Berechtigung erfordert Opt-in auf Server UND Daemon.",
       "createKey": "API-Schlüssel erstellen"
@@ -7186,7 +7180,7 @@
     "list": {
       "title": "Verbundene Daemons",
       "empty": "Noch keine Daemons verbunden",
-      "emptyHint": "Führe bunx tale-daemon setup auf der Maschine aus, die Aufgaben ausführen soll.",
+      "emptyHint": "Führe tale daemon setup auf der Maschine aus, die Aufgaben ausführen soll.",
       "lastSeen": "zuletzt gesehen {age}",
       "workspaces": "Workspaces: {keys}"
     },

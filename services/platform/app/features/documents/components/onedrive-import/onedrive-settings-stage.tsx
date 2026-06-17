@@ -17,7 +17,7 @@ import {
 } from '@/app/components/ui/forms/radio-group';
 import { Select } from '@/app/components/ui/forms/select';
 import { useT } from '@/lib/i18n/client';
-import { narrowStringUnion } from '@/lib/utils/type-guards';
+import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import type { ImportType } from './types';
 

@@ -18,7 +18,7 @@ import {
   uploadPolicyConfigSchema,
   type UploadPolicyConfig,
 } from '@/lib/shared/schemas/governance';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 type PolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
 

@@ -14,7 +14,7 @@ vi.mock('@convex-dev/agent', () => ({
 
 // Mock internal modules — paths are relative to this colocated test file,
 // which sits alongside generate_response.ts inside lib/agent_response.
-vi.mock('../../../lib/utils/type-guards', () => ({
+vi.mock('../../../lib/utils/type-utils', () => ({
   isRecord: (v: unknown): v is Record<string, unknown> =>
     typeof v === 'object' && v !== null,
   getString: (obj: Record<string, unknown>, key: string) => {

@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
-import { checkAccessibility } from '@/test/utils/a11y';
+import { checkAccessibility } from '@/tests/utils/a11y';
 
 import { SSOCard } from './sso-card';
 

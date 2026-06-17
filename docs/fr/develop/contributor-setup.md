@@ -1,11 +1,11 @@
 ---
 title: Configuration contributeur
-description: La source unique de vérité pour mettre en place le code source de Tale en développement local — prérequis, bun install, la vérification pré-vol, ce que fait bun run dev, les conflits de port, les services Python et la checklist pré-PR.
+description: La source unique de vérité pour mettre en place le code source de Tale en développement local — prérequis, bun install, la vérification pré-vol, ce que fait bun run dev, les conflits de port et la checklist pré-PR.
 ---
 
 Cette page est pour les contributeurs qui veulent faire tourner Tale depuis le code source et renvoyer une modification. Elle couvre les prérequis, la mise en place unique, la vérification pré-vol qui détecte une machine cassée avant un long démarrage, et ce que tu peux attendre de `bun run dev`. Ce n'est pas le chemin de l'opérateur — si tu veux faire tourner Tale pour l'utiliser, pas le modifier, le [démarrage rapide auto-hébergé](/fr/self-hosted/install/quickstart) installe la stack empaquetée avec la CLI à la place.
 
-Le code source tourne sur des workspaces Bun. Un seul `bun install` câble chaque service, et `bun run dev` démarre la plateforme avec un backend Convex local, des secrets de dev générés et Vite — pas de compte cloud, pas de `.env` édité à la main. Les services Python (`rag`, `crawler`) sont gérés à part avec `uv` et ne comptent que lorsque tu les touches.
+Le code source est un seul workspace Bun, de bout en bout — toute la stack est TypeScript, sans Python ni second gestionnaire de paquets à installer. Un seul `bun install` câble chaque service, et `bun run dev` démarre la plateforme avec un backend Convex local, des secrets de dev générés et Vite — pas de compte cloud, pas de `.env` édité à la main. Le travail de connaissances qui vivait autrefois dans des services autonomes (recherche RAG, ingestion de documents, crawling web, génération de documents) tourne désormais dans le backend Convex, donc il n'y a rien de plus à démarrer pour lui.
 
 ## Une configuration qui marche, de bout en bout
 
@@ -13,7 +13,7 @@ Le chemin le plus court d'un clone neuf à une app qui tourne fait quatre comman
 
 ```bash
 bun install            # câbler chaque workspace
-bun run setup:check    # valider Bun, Python, uv, les ports et la CLI Convex
+bun run setup:check    # valider Bun, les ports de dev et la CLI Convex
 bun run dev            # démarrer Convex + Vite (guette la bannière READY)
 ```
 
@@ -21,11 +21,9 @@ Si `setup:check` affiche tout en vert et que `bun run dev` atteint sa bannière 
 
 ## Prérequis
 
-Trois outils doivent être sur ton `PATH` avant tout le reste. La plateforme tourne sur Bun ; les services `rag` et `crawler` tournent sur Python, géré par `uv`.
+Un seul outil doit être sur ton `PATH` avant tout le reste, parce que toute la stack est du TypeScript sur une seule runtime :
 
-- **Bun 1.3 ou plus** — la runtime de workspace et le gestionnaire de paquets. Installe-le depuis [bun.sh](https://bun.sh/docs/installation), puis confirme avec `bun --version`.
-- **Python 3.12** — les services `rag` et `crawler` en ont besoin. Installe-le depuis [python.org](https://www.python.org/downloads/) ; un 3.x plus récent marche aussi.
-- **uv** — le gestionnaire de paquets Python qui résout et installe les dépendances des services. Installe-le depuis [la doc uv](https://github.com/astral-sh/uv).
+- **Bun 1.3 ou plus** — la runtime de workspace et le gestionnaire de paquets. Installe-le depuis [bun.sh](https://bun.sh/docs/installation), puis confirme avec `bun --version`. Tout le reste dont le code source a besoin (la CLI Convex, chaque dépendance de service) est résolu par `bun install`.
 
 Tu n'as pas besoin de Docker pour le développement local avec `bun run dev` — il lance Convex directement sur ta machine. Docker n'entre en jeu que pour le mode hybride conteneurisé plus bas et pour l'installation de l'opérateur.
 
@@ -37,13 +35,13 @@ Une seule installation couvre chaque workspace, parce que le dépôt est un grap
 bun install
 ```
 
-Avant le premier `bun run dev`, lance la vérification pré-vol. Elle valide Bun, Python, uv, que les ports 3000 et 3210 sont libres et que la CLI Convex est joignable — et imprime la correction exacte pour tout ce qui manque, pour que tu ne découvres pas une mauvaise version de Bun à mi-chemin d'un démarrage à froid :
+Avant le premier `bun run dev`, lance la vérification pré-vol. Elle valide ta version de Bun, que les ports 3000 et 3210 sont libres et que la CLI Convex est joignable — et imprime la correction exacte pour tout ce qui manque, pour que tu ne découvres pas une mauvaise version de Bun à mi-chemin d'un démarrage à froid :
 
 ```bash
 bun run setup:check
 ```
 
-Chaque ligne en échec porte sa correction : un `bun upgrade` pour un vieux Bun, un lien d'installation pour un Python ou un uv manquant, une paire `lsof`/`kill` pour un port occupé. Un passage propre se termine à zéro et te dit d'avancer avec `bun run dev`.
+Chaque ligne en échec porte sa correction : un `bun upgrade` pour un vieux Bun, une paire `lsof`/`kill` pour un port occupé. Un passage propre se termine à zéro et te dit d'avancer avec `bun run dev`.
 
 ## Ce que fait `bun run dev`
 
@@ -66,17 +64,6 @@ kill <PID>                         # l'arrêter
 
 Pour faire tourner l'app sur un autre port à la place, règle `PORT` : `PORT=3005 bun run dev`. Si le déploiement Convex lui-même tombe dans un mauvais état — un schéma périmé après une migration avortée, un fichier SQLite local corrompu — `bun run setup:clean` supprime le répertoire `services/platform/.convex/local/`, pour que le prochain démarrage amorce un backend neuf.
 
-## Les services Python
-
-Les services `rag` et `crawler` vivent en dehors du graphe Bun et sont gérés avec `uv`. Tu ne les mets en place que lorsque ta modification les touche ; la plateforme démarre sans eux pour l'essentiel du travail front-end et Convex. Chaque service installe ses propres dépendances :
-
-```bash
-cd services/rag && uv sync --extra dev
-cd services/crawler && uv sync --extra dev
-```
-
-`bun run check` et `bun run test` exécutent les suites Python aux côtés des suites TypeScript via Turbo, donc une modification de l'un des services Python fait tourner ses tests dans le cadre du gate standard. Quand tu n'as touché que du TypeScript, les suites Python tournent quand même mais passent intactes ; quand tu touches `services/rag` ou `services/crawler`, lance les tests de ce service directement avec `uv run pytest` depuis le répertoire du service pendant que tu itères.
-
 ## Mode hybride contre un Convex conteneurisé
 
 `bun run dev` lance par défaut un backend Convex éphémère, ce qui est la bonne chose pour l'essentiel du travail. Quand tu veux des reloads Vite rapides contre un Convex stable qui reflète la production, fais tourner le conteneur `convex` dédié et pointe Vite vers lui à la place :
@@ -90,7 +77,7 @@ Règle `CONVEX_URL` si ton conteneur expose Convex sur un hôte ou un port non s
 
 ## Avant d'ouvrir une PR
 
-Chaque PR passe par un gate : `bun run check`, c'est-à-dire format, lint, typecheck et la suite de tests complète (TypeScript et Python) sur chaque workspace touché. Un passage vert est le signal de merge ; un rouge bloque. La checklist pré-PR dans [`AGENTS.md`](https://github.com/tale-project/tale/blob/main/AGENTS.md) liste le reste — la doc et les traductions arrivent dans la même PR que le code qui les a modifiées.
+Chaque PR passe par un gate : `bun run check`, c'est-à-dire format, lint, typecheck et la suite de tests complète sur chaque workspace touché. Un passage vert est le signal de merge ; un rouge bloque. La checklist pré-PR dans [`AGENTS.md`](https://github.com/tale-project/tale/blob/main/AGENTS.md) liste le reste — la doc et les traductions arrivent dans la même PR que le code qui les a modifiées.
 
 Si ta modification touche `services/docs/`, lance aussi le gate de la doc (`bun run --filter @tale/docs test`) pour que la parité structurelle, la terminologie et les vérifications de prose passent avant la revue. Tout ce qu'un utilisateur peut voir, configurer ou appeler a besoin de sa doc mise à jour dans les trois locales de base dans le même commit.
 

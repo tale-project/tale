@@ -7,7 +7,7 @@
  * Step-type specific validation is delegated to validators in steps/.
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { VALID_STEP_TYPES, isValidStepType } from './constants';
 import { validateStepByType } from './steps';
 import {

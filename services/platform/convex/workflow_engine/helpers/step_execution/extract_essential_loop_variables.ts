@@ -3,7 +3,7 @@
  * Keep state, item, index, items, and parent for continuation and nested loops
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 
 export function extractEssentialLoopVariables(
   resultVariables?: Record<string, unknown>,

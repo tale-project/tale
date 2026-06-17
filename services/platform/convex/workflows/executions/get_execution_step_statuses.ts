@@ -5,7 +5,7 @@
  * and the step-debug inspector (#1490).
  */
 
-import { getNumber, getString, isRecord } from '../../../lib/utils/type-guards';
+import { getNumber, getString, isRecord } from '../../../lib/utils/type-utils';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
 import { parseDebugWaitingFor } from '../../workflow_engine/helpers/engine/debug_gate';

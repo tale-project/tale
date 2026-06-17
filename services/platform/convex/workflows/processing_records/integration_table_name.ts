@@ -4,7 +4,7 @@
  * External data sources (SQL/REST integrations) have no Convex table, so the
  * dedupe rows in `workflowProcessingRecords` use a synthetic tableName of the
  * form `integration:<integrationName>:<sourceIdentifier>` (e.g.
- * `integration:protel:guests`). This needs no schema change — `tableName` is
+ * `integration:shopify:orders`). This needs no schema change — `tableName` is
  * a plain string in the schema and the `by_record` index works unchanged.
  */
 

@@ -3,7 +3,7 @@ title: Dokumentenvergleich
 description: Der Seite-an-Seite-Diff-Dialog, der zwei Dokumente — hochgeladen oder aus der Bibliothek — nimmt und die Unterschiede absatzweise mit einer RAG-gestützten Zusammenfassung durchläuft.
 ---
 
-Dokumentenvergleich ist der Dialog, der die Frage beantwortet „was hat sich zwischen diesen beiden Versionen geändert". Du zeigst ihm ein Basis-Dokument und ein Vergleichs-Dokument; Tale jagt beide durch dieselbe Extraktions-Pipeline, die die Wissensdatenbank speist, übergibt sie einem deterministischen Diff-Endpunkt im RAG-Dienst und rendert das Ergebnis als strukturierten Durchgang durch hinzugefügte, gelöschte und geänderte Absätze. Es ist das richtige Werkzeug für Verträge vorher-nachher, Policy-Überarbeitungen, zwei Entwürfe desselben Vorschlags — alles, wo die Worte zählen und die Worte sich bewegt haben.
+Dokumentenvergleich ist der Dialog, der die Frage beantwortet „was hat sich zwischen diesen beiden Versionen geändert". Du zeigst ihm ein Basis-Dokument und ein Vergleichs-Dokument; Tale jagt beide durch dieselbe Extraktions-Pipeline, die die Wissensdatenbank speist, fährt einen deterministischen Diff auf Absatzebene und rendert das Ergebnis als strukturierten Durchgang durch hinzugefügte, gelöschte und geänderte Absätze. Es ist das richtige Werkzeug für Verträge vorher-nachher, Policy-Überarbeitungen, zwei Entwürfe desselben Vorschlags — alles, wo die Worte zählen und die Worte sich bewegt haben.
 
 Der Dialog lebt neben den Dokumenten, die du vergleichst: öffne ihn aus **Wissen > Dokumente** mit der Aktion **Dokumente vergleichen**. Die Basis- und Vergleichsdatei können je ein bereits indexiertes Dokument aus der Bibliothek oder ein einmaliger Upload sein, sodass keine Seite in die Wissensdatenbank geladen werden muss, wenn du nur einen Diff sehen willst.
 
@@ -17,9 +17,9 @@ Misch die Tabs frei. Vergleich zwei Uploads gegeneinander, wenn keine Version in
 
 ## Den Diff laufen lassen
 
-Klick **Vergleichen**. Der Dialog zeigt einen Spinner, während der RAG-Dienst beide Dateien herunterlädt, den Text extrahiert, Absatzgrenzen normalisiert und einen deterministischen Diff auf Absatzebene fährt. Der Endpunkt ist der einzige modellfreie Pfad der Vergleichsfunktion — der Diff selbst ist reines Stringmatching, das Ergebnis ist also bei gleichem Input reproduzierbar.
+Klick **Vergleichen**. Der Dialog zeigt einen Spinner, während Tale beide Dateien herunterlädt, den Text extrahiert, Absatzgrenzen normalisiert und einen deterministischen Diff auf Absatzebene fährt. Der Vergleich ist der einzige modellfreie Pfad der Vergleichsfunktion — der Diff selbst ist reines Stringmatching, das Ergebnis ist also bei gleichem Input reproduzierbar.
 
-Das Warten ist begrenzt — die Anfrage läuft nach zwei Minuten in den Timeout, wenn der RAG-Dienst nicht geantwortet hat. Große Dateien treffen den Timeout häufiger als kleine; wenn er auslöst, wiederhol einmal und überleg, die Datei auf den Teil zu kürzen, der zählt.
+Das Warten ist begrenzt — die Anfrage läuft nach zwei Minuten in den Timeout, wenn der Vergleich nicht geantwortet hat. Große Dateien treffen den Timeout häufiger als kleine; wenn er auslöst, wiederhol einmal und überleg, die Datei auf den Teil zu kürzen, der zählt.
 
 ## Das Ergebnis lesen
 

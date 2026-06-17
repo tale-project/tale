@@ -130,7 +130,7 @@ export const deleteWebsite = action({
 
     const orgSlug = await orgSlugFromId(ctx, website.organizationId);
     // Deregister from crawler first — if this fails, the user can retry
-    await deregisterDomainFromCrawler(orgSlug, website.domain);
+    await deregisterDomainFromCrawler(ctx, orgSlug, website.domain);
 
     await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
       websiteId: args.websiteId,
@@ -174,6 +174,7 @@ export const updateWebsite = action({
       const orgSlug = await orgSlugFromId(ctx, website.organizationId);
       try {
         await updateCrawlerScanInterval(
+          ctx,
           orgSlug,
           website.domain,
           args.scanInterval,

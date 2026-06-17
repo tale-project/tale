@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen, waitFor } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { Select } from './select';
 

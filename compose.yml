@@ -68,6 +68,11 @@ services:
     env_file:
       - .env
 
+    environment:
+      # Platform DB: skip the knowledge-corpus dbmate migrations — the
+      # platform/auth schema in tale_platform is owned by Convex, not dbmate.
+      TALE_DB_ROLE: platform
+
     # Restart policy
     # Automatically restart the container if it crashes
     restart: unless-stopped
@@ -75,8 +80,8 @@ services:
     # Health check
     # Gates dependent services on BOTH PostgreSQL accepting connections AND
     # the post-start init scripts having finished (they create `tale_knowledge`
-    # + extensions in the background, so `pg_isready` alone races with rag's
-    # dbmate startup on slow CI runners).
+    # + extensions in the background, so `pg_isready` alone races with the
+    # knowledge-db dbmate startup on slow CI runners).
     healthcheck:
       test:
         [
@@ -110,158 +115,64 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Crawler (Crawl4AI)
+  # Tale Knowledge DB (ParadeDB: pg_search + pgvector)
+  # ----------------------------------------------------------------------------
+  # Independent datastore for knowledge/RAG content (the `tale_knowledge`
+  # database with the `private_knowledge` + `public_web` schemas). Split out
+  # from `db` so the knowledge corpus — the data-residency-sensitive store —
+  # can be relocated/replaced independently of the platform/Convex operational
+  # DB. The platform's Convex node-actions connect here via
+  # `KNOWLEDGE_DATABASE_URL` (postgres.js); nothing else talks to it.
   # ============================================================================
-  crawler:
-    # Image from GHCR (used when PULL_POLICY=always)
-    image: ghcr.io/tale-project/tale/tale-crawler:${VERSION:-latest}
-
-    # Container name
-    container_name: tale-crawler
-    # Pull policy: 'build' for local dev, 'always' for production
+  knowledge-db:
+    image: ghcr.io/tale-project/tale/tale-db:${VERSION:-latest}
     pull_policy: ${PULL_POLICY:-build}
-    # Build configuration (used when PULL_POLICY=build)
     build:
       context: .
-      dockerfile: services/crawler/Dockerfile
+      dockerfile: services/db/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
 
-    # Port mapping: host:container (for development)
-    # Access Crawler API at localhost:8002
-    ports:
-      - '8002:8002'
+    container_name: tale-knowledge-db
 
-    # Environment file
-    # Create a .env file in the project root with your configuration
+    stop_grace_period: 60s
+    shm_size: 256mb
+
+    # Host port 5433 to avoid clashing with the platform db on 5432.
+    ports:
+      - '5433:5432'
+
+    volumes:
+      - knowledge-db-data:/var/lib/postgresql/data
+      - knowledge-db-backup:/var/lib/postgresql/backup
+
     env_file:
       - .env
 
-    # Restart policy
-    # Automatically restart the container if it crashes
+    environment:
+      # Knowledge DB: apply the tale_knowledge corpus migrations
+      # (services/db/migrations/knowledge-db/) at startup.
+      TALE_DB_ROLE: knowledge
+
     restart: unless-stopped
 
-    # Shared memory for Chromium - default 64MB is insufficient for Chrome's
-    # inter-process rendering data, causing crashes and orphaned processes.
-    shm_size: '1gb'
-
-    # Health check - optimized for faster blue-green deployment
-    # Docker will check if the service is healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8002/health']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-tale} -d ${KNOWLEDGE_DB_NAME:-tale_knowledge} && [ -f /tmp/.db_ready ]',
+        ]
       interval: 5s
-      timeout: 3s
-      retries: 2
-      start_period: 40s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
-    # Resource limits (optional, adjust based on your needs)
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '2'
-    #       memory: 4G
-    #     reservations:
-    #       cpus: '1'
-    #       memory: 2G
-
-    # Dependencies
-    # Wait for convex to finish seeding agents/workflows/integrations/providers
-    # into the shared convex-data volume before mounting it read-only.
-    depends_on:
-      db:
-        condition: service_healthy
-      convex:
-        condition: service_healthy
-
-    # Volume mounts
-    # Persist crawler data (website registry + per-site URL databases)
-    volumes:
-      - crawler-data:/app/data
-      - ${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro
-
-    # Logging configuration
     logging:
       driver: 'json-file'
       options:
         max-size: '10m'
         max-file: '3'
 
-    # Networks
-    networks:
-      - internal
-
-  # ============================================================================
-  # Tale RAG
-  # ============================================================================
-  rag:
-    # Image from GHCR (used when PULL_POLICY=always)
-    image: ghcr.io/tale-project/tale/tale-rag:${VERSION:-latest}
-
-    # Container name
-    container_name: tale-rag
-    # Pull policy: 'build' for local dev, 'always' for production
-    pull_policy: ${PULL_POLICY:-build}
-    # Build configuration (used when PULL_POLICY=build)
-    build:
-      context: .
-      dockerfile: services/rag/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-
-    # Port mapping: host:container (for development)
-    # Access RAG API at localhost:8001
-    ports:
-      - '8001:8001'
-
-    # Volume mounts
-    volumes:
-      - rag-data:/app/data
-      - ${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro
-
-    # Environment file
-    # Create a .env file in the project root with your API keys
-    env_file:
-      - .env
-
-    # Restart policy
-    # Automatically restart the container if it crashes
-    restart: unless-stopped
-
-    # Health check - optimized for faster blue-green deployment
-    # Docker will check if the service is healthy
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8001/health']
-      interval: 5s
-      timeout: 3s
-      retries: 2
-      start_period: 40s
-
-    # Dependencies
-    # Wait for convex to finish seeding the shared config volume.
-    depends_on:
-      db:
-        condition: service_healthy
-      convex:
-        condition: service_healthy
-
-    # Resource limits (optional, adjust based on your needs)
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '2'
-    #       memory: 4G
-    #     reservations:
-    #       cpus: '1'
-    #       memory: 2G
-
-    # Logging configuration
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-
-    # Networks
     networks:
       - internal
 
@@ -415,10 +326,6 @@ services:
       db:
         condition: service_healthy
       convex:
-        condition: service_healthy
-      rag:
-        condition: service_healthy
-      crawler:
         condition: service_healthy
       proxy:
         condition: service_healthy
@@ -719,7 +626,7 @@ services:
   #     minted virtual key (the data-plane gate).
   #   - auth_config (admin basic-auth over /api/*) when BIFROST_ADMIN_PASSWORD is
   #     set → the management plane stops being anonymous on the internal network.
-  # No published port (loopback publish lives in compose.bifrost-dev.yml for the
+  # No published port (loopback publish lives in compose.bifrost.dev.yml for the
   # host bun-dev path). PINNED image — the project has had VK auth regressions.
   # ============================================================================
   bifrost:
@@ -763,18 +670,18 @@ services:
   # ============================================================================
   # Tale Controller — privileged control-plane sidecar (OPT-IN)
   # ----------------------------------------------------------------------------
-  # Restarts allowlisted compose services ({rag, convex}) on an HMAC-signed
+  # Restarts allowlisted compose services ({convex}) on an HMAC-signed
   # request from convex/platform, so a deployment-config change (external
   # knowledge Postgres / Convex S3 storage) takes effect WITHOUT giving the
   # browser-facing platform docker-socket access.
   #
   # OPT-IN: only starts under the `controller` profile
   # (`docker compose --profile controller up -d`). When absent, the UI falls
-  # back to showing the manual `docker compose restart rag convex` command.
+  # back to showing the manual `docker compose restart convex` command.
   #
   # SECURITY: mounts /var/run/docker.sock = host root — the same accepted
   # boundary as the sandbox spawner, but constrained to list+restart of
-  # {rag, convex}, HMAC-verified, internal-network-only, no published port.
+  # {convex}, HMAC-verified, internal-network-only, no published port.
   # Set CONTROLLER_TOKEN (shared with platform/convex) in .env.
   # ============================================================================
   controller:
@@ -834,8 +741,10 @@ volumes:
   db-backup:
     driver: local
 
-  # Persistent storage for RAG service data (temp files, document processing)
-  rag-data:
+  # Knowledge DB (ParadeDB) persistent storage — independently movable from db-data
+  knowledge-db-data:
+    driver: local
+  knowledge-db-backup:
     driver: local
 
   # LEGACY (pre-0.3.0): platform data used to live here before the
@@ -858,10 +767,6 @@ volumes:
 
   # Persistent storage for Caddy proxy configuration
   caddy-config:
-    driver: local
-
-  # Persistent storage for Crawler data (website registry + per-site URL databases)
-  crawler-data:
     driver: local
 
   # Bifrost LLM gateway SQLite store (provisioned providers + minted session

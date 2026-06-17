@@ -59,9 +59,9 @@ RUN mkdir -p /etc/postgresql/conf.d \
              /var/lib/postgresql/backup
 
 # Copy initialization scripts (create databases, extensions, schema namespaces,
-# grants). Service-specific tables live in per-service dbmate migrations at
-# services/<service>/migrations/ and are applied at each service's startup —
-# not here.
+# grants). The knowledge-corpus tables themselves live in dbmate migrations
+# (copied below) and are applied from docker-entrypoint.sh at startup — see the
+# `migrations/` COPY and `apply_knowledge_migrations` in the entrypoint.
 #
 # Scripts live ONLY under /etc/postgresql/init-scripts/ — the entrypoint
 # wrapper runs them idempotently on every container start (see
@@ -75,6 +75,19 @@ COPY services/db/init-scripts/ /etc/postgresql/init-scripts/
 
 # Copy custom PostgreSQL configuration
 COPY services/db/postgresql.conf /etc/postgresql/postgresql.conf
+
+# dbmate: applies the knowledge-corpus schema migrations on startup (see
+# docker-entrypoint.sh). Pinned to the v2 line — the same binary the now-removed
+# rag/crawler services used to apply these same baselines.
+COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmate
+
+# Migration sets, grouped by container role (TALE_DB_ROLE), each schema in its
+# own subdirectory so it gets a schema-scoped dbmate tracking table:
+#   migrations/knowledge-db/<schema>/ → applied to `tale_knowledge` (knowledge-db)
+#   migrations/db/                    → platform DB (Convex-owned; ships empty —
+#                                       its only file is a *.md, dockerignored)
+# docker-entrypoint.sh applies the set matching this container's role.
+COPY services/db/migrations/ /etc/postgresql/migrations/
 
 # Preserve the upstream PostgreSQL entrypoint under a non-conflicting name
 # before installing our wrapper at the same path. Without this rename, our

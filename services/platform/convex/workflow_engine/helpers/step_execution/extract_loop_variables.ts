@@ -2,7 +2,7 @@
  * Extract loop variables from steps data and execution variables
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 
 export function extractLoopVariables(
   stepsData: Record<string, unknown>,

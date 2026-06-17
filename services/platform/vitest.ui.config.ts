@@ -35,7 +35,7 @@ export default defineConfig({
       if (log.includes('Not implemented:')) return false;
       return undefined;
     },
-    setupFiles: ['./test/setup-ui.ts'],
+    setupFiles: ['./tests/setup-ui.ts'],
     include: [
       'app/components/**/*.test.{ts,tsx}',
       'app/features/**/*.test.{ts,tsx}',

@@ -9,41 +9,9 @@
 #
 # Note: Hot-reload requires the service to support file-watching.
 #   - Platform: Vite HMR (automatic)
-#   - RAG/Crawler: uvicorn --reload (set via env var below)
 # =============================================================================
 
 services:
-  crawler:
-    volumes:
-      - ./services/crawler/app:/app/app
-      - crawler-data:/app/data
-    environment:
-      - CRAWLER_LOG_LEVEL=debug
-      # Enable uvicorn auto-reload for Python code changes
-      - UVICORN_RELOAD=true
-    command:
-      [
-        'uvicorn',
-        'app.main:app',
-        '--host',
-        '0.0.0.0',
-        '--port',
-        '8002',
-        '--reload',
-      ]
-    healthcheck:
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-
-  rag:
-    volumes:
-      - ./services/rag/app:/app/app
-      - rag-data:/app/data
-    environment:
-      - RAG_LOG_LEVEL=debug
-
   # Phase 2 (split): convex gets live source for hot-reloadable functions
   # and the Dashboard, and owns the data volume. Platform mounts convex-data
   # read-only for config watching + branding image serving only.

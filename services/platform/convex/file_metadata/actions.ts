@@ -2,11 +2,9 @@
 
 import { v } from 'convex/values';
 
-import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { ragFetch } from '../lib/helpers/rag_config';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 /**
@@ -72,14 +70,20 @@ export const checkFileRagStatuses = action({
     // the fileMetadata row, so re-queues reset the clock.
     const STALE_QUEUE_MS = 90_000;
 
-    const mergedStatuses: Record<string, unknown> = {};
-    // Track storageIds whose org bucket queried RAG SUCCESSFULLY. Only
+    type RagStatus = {
+      status: string;
+      error: string | null;
+      progress_phase: string | null;
+      progress_detail: string | null;
+      ocr_applied: boolean | null;
+    };
+    const mergedStatuses: Record<string, RagStatus | null> = {};
+    // Track storageIds whose org bucket queried the corpus SUCCESSFULLY. Only
     // these are eligible for the post-loop `expireStaleRagQueue` sweep —
-    // without this guard, a transient RAG outage in one org's request
-    // (or that org's slug going missing) made the loop `continue`, the
-    // org's storageIds never landed in `mergedStatuses`, and the sweep
-    // permanently marked them `failed` ("RAG service did not receive
-    // the upload") even though the uploads were healthy. Cross-org
+    // without this guard, a transient knowledge-db fault in one org's request
+    // (or that org's slug going missing) made the loop `continue`, the org's
+    // storageIds never landed in `mergedStatuses`, and the sweep permanently
+    // marked them `failed` even though the uploads were healthy. Cross-org
     // failure propagation.
     const eligibleForStaleSweep = new Set<string>();
     for (const [organizationId, storageIds] of orgIdsToFiles) {
@@ -91,22 +95,14 @@ export const checkFileRagStatuses = action({
         continue;
       }
       try {
-        const response = await ragFetch('/api/v1/documents/statuses', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_ids: storageIds }),
-          timeoutMs: 10_000,
+        // In-process status lookup (replaces the external RAG
+        // `/api/v1/documents/statuses`). The action throws on a knowledge-db
+        // fault, handled by the catch below.
+        const result = await ctx.runAction(internal.rag.documents.getStatuses, {
           orgSlug,
+          fileIds: storageIds,
         });
-        if (!response.ok) {
-          console.warn(
-            `[checkFileRagStatuses] RAG returned ${response.status} for org ${orgSlug}`,
-          );
-          continue;
-        }
-        const body: unknown = await response.json();
-        if (!isRecord(body) || !isRecord(body.statuses)) continue;
-        Object.assign(mergedStatuses, body.statuses);
+        Object.assign(mergedStatuses, result.statuses);
         for (const id of storageIds) eligibleForStaleSweep.add(id);
       } catch (error) {
         console.warn(
@@ -121,7 +117,7 @@ export const checkFileRagStatuses = action({
 
     for (const storageId of allAuthorizedStorageIds) {
       const docStatus = statuses[storageId];
-      if (!isRecord(docStatus)) {
+      if (!docStatus) {
         if (eligibleForStaleSweep.has(storageId)) {
           await ctx.runMutation(
             internal.file_metadata.internal_mutations.expireStaleRagQueue,
@@ -131,10 +127,10 @@ export const checkFileRagStatuses = action({
         continue;
       }
 
-      const status = getString(docStatus, 'status');
-      const error = getString(docStatus, 'error');
-      const progressPhase = getString(docStatus, 'progress_phase');
-      const progressDetail = getString(docStatus, 'progress_detail');
+      const status = docStatus.status;
+      const error = docStatus.error;
+      const progressPhase = docStatus.progress_phase;
+      const progressDetail = docStatus.progress_detail;
 
       const ragProgress =
         progressPhase && progressDetail
@@ -142,7 +138,7 @@ export const checkFileRagStatuses = action({
           : progressPhase || undefined;
 
       if (status === 'completed') {
-        const ocrApplied = getBoolean(docStatus, 'ocr_applied');
+        const ocrApplied = docStatus.ocr_applied;
         await ctx.runMutation(
           internal.file_metadata.internal_mutations.updateFileRagStatus,
           {

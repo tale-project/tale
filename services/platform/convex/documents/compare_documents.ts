@@ -2,10 +2,9 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { fetchDocumentComparisonByUrls } from '../agent_tools/documents/helpers/fetch_document_comparison';
+import { fetchDocumentComparisonByStorageIds } from '../agent_tools/documents/helpers/fetch_document_comparison';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
-import { toId } from '../lib/type_cast_helpers';
 
 export const compareDocuments = action({
   args: {
@@ -57,29 +56,16 @@ export const compareDocuments = action({
     // because the team-ACL scaffold is partially in place but not
     // consistently applied to all document read paths yet.
 
-    const [baseFileUrl, compFileUrl] = await Promise.all([
-      resolveStorageUrl(ctx, args.baseStorageId),
-      resolveStorageUrl(ctx, args.comparisonStorageId),
-    ]);
-
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    return await fetchDocumentComparisonByUrls(
-      baseFileUrl,
+    // In-process comparison reads the bytes from the `_storage` ids directly
+    // (no URL download / multipart upload to an external service).
+    return await fetchDocumentComparisonByStorageIds(
+      ctx,
+      args.baseStorageId,
       args.baseFileName,
-      compFileUrl,
+      args.comparisonStorageId,
       args.comparisonFileName,
       orgSlug,
     );
   },
 });
-
-async function resolveStorageUrl(
-  ctx: { storage: { getUrl: (id: string) => Promise<string | null> } },
-  storageId: string,
-): Promise<string> {
-  const fileUrl = await ctx.storage.getUrl(toId<'_storage'>(storageId));
-  if (!fileUrl) {
-    throw new Error(`File URL not available for storage ID: ${storageId}`);
-  }
-  return fileUrl;
-}

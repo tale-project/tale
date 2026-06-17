@@ -31,7 +31,7 @@ for (const [key, loader] of Object.entries(rawModules)) {
 
 const ORG = 'org_int';
 const WF = 'wf_def_1';
-const TABLE = 'integration:protel:guests';
+const TABLE = 'integration:shopify:orders';
 
 const claimMutation =
   internal.workflows.processing_records.internal_mutations

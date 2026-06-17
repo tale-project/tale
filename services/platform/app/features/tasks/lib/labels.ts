@@ -10,7 +10,7 @@
 import {
   isTaskLabelColor,
   type TaskLabelColor,
-} from '@/lib/shared/task_label_colors';
+} from '@/lib/shared/task-label-colors';
 
 export type { TaskLabelColor };
 

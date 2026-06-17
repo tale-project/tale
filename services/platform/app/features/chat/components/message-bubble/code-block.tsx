@@ -96,7 +96,11 @@ export const HighlightedCode = memo(function HighlightedCode({
     );
   }
 
-  return <code dangerouslySetInnerHTML={{ __html: html }} />;
+  return (
+    // oxlint-disable-next-line react/no-danger -- Shiki output is HTML by design
+    // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- `html` is Shiki highlighter output (code text HTML-escaped by Shiki); not untrusted markup
+    <code dangerouslySetInnerHTML={{ __html: html }} />
+  );
 });
 
 /** Pixel tolerance for considering the pre "at the bottom". Accounts for

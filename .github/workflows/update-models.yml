@@ -36,7 +36,6 @@ jobs:
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          install-python: 'false'
           start-turbo-cache: 'false'
 
       - name: Sync model catalog

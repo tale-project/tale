@@ -36,14 +36,14 @@ Le conteneur convex redémarre probablement (cherche `panic` dans les logs) ou e
 
 ## Téléversements bloqués en « indexation »
 
-Le conteneur RAG indexe les téléversements en asynchrone. Un long état « indexation » signifie soit que la file est engorgée, soit que le conteneur a arrêté de la consommer. Vérifie la profondeur de la file via l'endpoint de métriques :
+L'ingestion de documents tourne dans le backend Convex et écrit les fragments extraits et les embeddings dans la base du corpus de connaissances. Un long état « indexation » signifie soit que le backend ne peut pas joindre `tale-knowledge-db`, soit que le fichier lui-même n'a pas pu être extrait. Vérifie les logs convex et la base du corpus en premier :
 
 ```bash
-curl -H "Authorization: Bearer $METRICS_BEARER_TOKEN" \
-  https://$HOST/metrics/rag | grep queue_depth
+docker compose logs --tail=200 tale-convex | grep -iE "knowledge|ingest|embed"
+docker compose ps tale-knowledge-db
 ```
 
-Si la profondeur monte sans drainer, redémarre RAG : `docker compose restart tale-rag`. Le conteneur reprend où il s'est arrêté ; les téléversements n'ont pas besoin d'être re-soumis. Si la file est vide mais un téléversement spécifique est bloqué, le fichier lui-même est le suspect — les PDFs corrompus et les documents protégés par mot de passe atterrissent en état d'échec et exigent suppression + re-téléversement.
+Si les logs montrent des erreurs de connexion à `knowledge-db`, redémarre la base du corpus (`docker compose restart tale-knowledge-db`) ; l'ingestion retente à la passe suivante, donc les téléversements n'ont pas à être re-soumis. Si la base est saine mais qu'un téléversement spécifique est bloqué, le fichier lui-même est le suspect — les PDFs corrompus et les documents protégés par mot de passe atterrissent en état d'échec et exigent suppression + re-téléversement.
 
 ## Les réponses chat s'arrêtent au milieu du stream
 

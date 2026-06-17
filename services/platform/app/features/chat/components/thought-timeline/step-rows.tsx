@@ -13,7 +13,7 @@ import remarkGfm from 'remark-gfm';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { formatToolDetail } from '../../utils/format-tool-detail';
 import { routeReasonLabel, type RouteReason } from '../../utils/route-reason';

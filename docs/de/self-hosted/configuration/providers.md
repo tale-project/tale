@@ -82,7 +82,7 @@ Zwei Leitplanken gelten:
 
 Auflösungs-Reihenfolge, höchste zuerst: modell-level `secretsEnv` → anbieter-level `secretsEnv` → die Secrets-Datei (`modelKeys[id]`, dann `apiKey`). Jede Stufe wird übersprungen, wenn sie nichts liefert, sodass eine konfigurierte-aber-leere Variable auf die Datei zurückfällt. Env-Werte werden getrimmt (ein nachgestellter Zeilenumbruch aus einem gemounteten Secret ist eine häufige Ursache für `401`s).
 
-Anders als die Secrets-**Datei** — die der Watcher bei jeder Anfrage neu liest — wird ein Umgebungsvariablen-**Wert** einmal beim Prozessstart gelesen. Ihn zu ändern verlangt einen **Neustart des `tale-platform`-Containers** (er synct Env beim Boot neu zu Convex) und das Neuerstellen der `tale-rag`- / `tale-crawler`-Container (sie lesen `os.environ` direkt). Die Variable muss überall präsent sein, wo der Schlüssel konsumiert wird: die Plattform synct sie automatisch zu Convex; die Python-Services bekommen sie über ihr compose-`env_file`.
+Anders als die Secrets-**Datei** — die der Watcher bei jeder Anfrage neu liest — wird ein Umgebungsvariablen-**Wert** einmal beim Prozessstart gelesen. Ihn zu ändern verlangt einen **Neustart des `tale-platform`-Containers** (er synct Env beim Boot neu zu Convex). Die Plattform synct die Variable automatisch zum Convex-Backend, also nehmen die In-Process-RAG- und Crawler-Actions sie aus demselben Sync auf — es gibt keinen separaten Service neu zu erstellen.
 
 ## Einen Anbieter hinzufügen
 

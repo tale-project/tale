@@ -20,7 +20,7 @@ import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { createOptionalPasswordSchema } from '@/lib/shared/schemas/password';
-import { narrowStringUnion } from '@/lib/utils/type-guards';
+import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import { useCreateMember } from '../hooks/mutations';
 

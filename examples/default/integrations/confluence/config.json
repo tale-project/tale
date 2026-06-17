@@ -1,6 +1,6 @@
 {
   "title": "Confluence",
-  "description": "Sync Confluence Cloud pages into Tale documents and RAG (read-only).",
+  "description": "Import Confluence Cloud pages into Tale's knowledge base.",
   "version": 1,
   "authMethod": "basic_auth",
   "supportedAuthMethods": ["basic_auth"],

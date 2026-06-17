@@ -19,16 +19,14 @@ Tale does not ship a log shipper. The driver swap is the supported integration p
 
 ## Metrics
 
-The Caddy proxy exposes four metrics paths gated by a single bearer token:
+The Caddy proxy exposes two metrics paths gated by a single bearer token:
 
-| Path                | Source          | What's inside                               |
-| ------------------- | --------------- | ------------------------------------------- |
-| `/metrics/platform` | `tale-platform` | HTTP latency, route counters                |
-| `/metrics/convex`   | `tale-convex`   | 261 built-in Convex metrics                 |
-| `/metrics/rag`      | `tale-rag`      | Indexing queue depth, vector search latency |
-| `/metrics/crawler`  | `tale-crawler`  | Fetch counts, per-site error rates          |
+| Path                | Source          | What's inside                                               |
+| ------------------- | --------------- | ----------------------------------------------------------- |
+| `/metrics/platform` | `tale-platform` | HTTP latency, route counters, Node process metrics          |
+| `/metrics/convex`   | `tale-convex`   | 261 built-in Convex metrics, plus the RAG and crawl timings |
 
-Set `METRICS_BEARER_TOKEN` in `.env` to enable the four endpoints; leave it unset to keep them returning 401 to every request. Anything other than the four listed paths returns 401 too, so a misrouted scraper does not accidentally see the platform's internal health endpoints.
+Knowledge work (RAG search, document ingestion, web crawling) runs inside the Convex backend now, so its timings ride the `/metrics/convex` series rather than a separate endpoint. Set `METRICS_BEARER_TOKEN` in `.env` to enable the two endpoints; leave it unset to keep them returning 401 to every request. Anything other than the two listed paths returns 401 too, so a misrouted scraper does not accidentally see the platform's internal health endpoints.
 
 A working Prometheus scrape stanza:
 

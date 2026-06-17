@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/test/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { DefaultModelEditor } from './default-model-editor';
 

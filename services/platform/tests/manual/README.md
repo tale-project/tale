@@ -1,0 +1,76 @@
+# Manual test plans (AI-directed)
+
+Modular, codebase-grounded test playbooks for the Tale **platform**, written so
+either a human QA tester or an AI agent driving a browser can execute them
+against a running instance. One guide per feature area; each lists concrete test
+cases (functional, boundary/error, accessibility, performance), cross-references
+the automated Playwright spec that already covers each case, and carries an
+**Issues Found** table for collecting defects.
+
+These are manual / exploratory / accessibility passes — **not** the automated
+suites. Unit and component tests live in `services/*/`; the full-app Playwright
+suite lives in [`services/platform/tests/e2e/`](../../services/platform/tests/e2e/README.md).
+The `web` and `docs` services have their own smoke specs and are out of scope
+here.
+
+## How to use
+
+1. Bring the stack up and sign in once via [SETUP.md](SETUP.md), then run its
+   smoke checklist (every page loads).
+2. Run guides in dependency order: **auth first**, then the rest.
+3. For each defect, add a row to that guide's **Issues Found** table (test id,
+   route, severity, description, screenshot).
+4. Finish with [accessibility.md](accessibility.md), [responsive.md](responsive.md),
+   and [performance.md](performance.md) as cross-cutting sweeps.
+
+An AI agent can run a whole guide with the `/qa <area>` command, which loads the
+guide and drives it through the Playwright MCP — see the
+[qa-browser](../../.claude/skills/qa-browser/SKILL.md) skill. New guides copy
+[TEMPLATE.md](TEMPLATE.md) (which documents the authoring conventions).
+
+## Guides
+
+| Guide                                | Area                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------ |
+| [auth.md](auth.md)                   | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC                    |
+| [chat.md](chat.md)                   | messages, attachments, tools + approvals, arena, share, reasoning                    |
+| [agents.md](agents.md)               | agent list + editor tabs, organigram/delegation, metrics                             |
+| [projects.md](projects.md)           | projects, tasks, files, secrets, instructions, threads                               |
+| [knowledge.md](knowledge.md)         | documents, knowledge entries, products, customers, vendors, websites                 |
+| [conversations.md](conversations.md) | inbox: statuses, priority, search                                                    |
+| [automations.md](automations.md)     | list, editor, configuration, triggers, executions                                    |
+| [settings.md](settings.md)           | account, personalization, org, teams, branding, integrations, API, providers, skills |
+| [governance.md](governance.md)       | content models, guardrails, policies, run-code, legal hold, DSAR, logs, trash        |
+| [notifications.md](notifications.md) | notification center, inbox reviews                                                   |
+| [navigation.md](navigation.md)       | side-nav, breadcrumbs, command palette, changelog, page-loads                        |
+| [accessibility.md](accessibility.md) | cross-cutting WCAG 2.1 AA sweep                                                      |
+| [responsive.md](responsive.md)       | mobile viewport, bottom tab bar, mobile save bar                                     |
+| [performance.md](performance.md)     | cold load, chat TTFT, thread switch, pagination                                      |
+
+## Coverage matrix
+
+Where the automated Playwright suite already exercises an area, the manual guide
+focuses on the gaps. Status reflects the **area** as a whole; each guide's own
+_Automated coverage_ table is case-by-case.
+
+| Guide         | Status         | Automated by                                                                                                            |
+| ------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| auth          | ✅ strong      | `auth`, `auth-account`, `onboarding`, `rbac`                                                                            |
+| chat          | ✅ strong      | `chat-threads`, `chat-advanced`, `chat-features`, `chat-depth`, `chat-scenarios`, `search`                              |
+| agents        | ✅ strong      | `agents`, `agent-editor`                                                                                                |
+| projects      | ✅ strong      | `projects`, `projects-depth`                                                                                            |
+| knowledge     | ✅ strong      | `knowledge`                                                                                                             |
+| conversations | ⛔ manual-only | — (no spec)                                                                                                             |
+| automations   | ✅ strong      | `automation`, `automation-editor`                                                                                       |
+| settings      | ✅ strong      | `settings`, `settings-depth`, `preferences`                                                                             |
+| governance    | 🔶 partial     | `governance` (toggles + DSAR/legal-hold dialogs + logs; content-models / security-monitoring / usage / trash uncovered) |
+| notifications | ⛔ manual-only | — (no spec)                                                                                                             |
+| navigation    | ✅ strong      | `navigation`, `page-loads`, `search`, `keyboard`                                                                        |
+| accessibility | 🔶 partial     | per-component vitest-axe; e2e `keyboard`, `responsive`                                                                  |
+| responsive    | ✅ strong      | `responsive`                                                                                                            |
+| performance   | ⛔ manual-only | — (load timing not asserted in e2e)                                                                                     |
+
+Negative paths (invalid slugs, empty names, cascade-delete typed-phrase gating)
+are automated by `validation.spec.ts` and live in each guide's _Boundary &
+error_ section. List behaviours (search-filter, pagination) are automated by
+`list-behaviors.spec.ts`.

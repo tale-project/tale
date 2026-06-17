@@ -46,7 +46,7 @@ export async function resumeExecution(
       ) {
         await ctx.scheduler.runAfter(
           INTERMEDIATE_STORAGE_RETENTION_MS,
-          internal.wf_executions.internal_mutations.deleteStorageBlob,
+          internal.workflow_executions.internal_mutations.deleteStorageBlob,
           { storageId: oldStorageId },
         );
       }

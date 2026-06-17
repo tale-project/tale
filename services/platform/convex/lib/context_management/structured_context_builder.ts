@@ -10,7 +10,7 @@
 
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { DEFAULT_MAX_HISTORY_TOKENS } from './constants';

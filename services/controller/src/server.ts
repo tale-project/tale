@@ -164,9 +164,9 @@ Bun.serve({
       }
 
       // All-or-nothing: only schedule the deferred `convex` bounce when the
-      // immediate phase fully succeeded. A failed `rag` restart must NOT trigger
-      // a lone `convex` bounce — that would leave residency half-applied (convex
-      // on new config, rag on old) while the response already says ok:false.
+      // immediate phase fully succeeded. A failed sibling restart must NOT
+      // trigger a lone `convex` bounce while the response already says
+      // ok:false.
       const willDefer = deferred.length > 0 && errors.length === 0;
       if (willDefer) {
         setTimeout(() => {

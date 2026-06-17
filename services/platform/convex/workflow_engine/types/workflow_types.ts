@@ -36,9 +36,6 @@ export const WORKFLOW_TYPE_PREDEFINED: WorkflowType = 'predefined';
 export const PREDEFINED_WORKFLOWS = [
   'shopify-sync-products',
   'shopify-sync-customers',
-  'circuly-sync-customers',
-  'circuly-sync-products',
-  'circuly-sync-subscriptions',
   'email-sync-imap',
   'email-sync-sent-imap',
   'website-scan',

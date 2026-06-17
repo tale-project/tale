@@ -25,6 +25,24 @@ describe('sanitizeChatError', () => {
     });
   });
 
+  it('strips the stack trace from an uncategorized error (no file path leaks)', () => {
+    const raw = `Uncaught Error: Failed after 3 attempts
+    at <anonymous> (../../node_modules/ai/src/ui/process-ui-message-stream.ts:776:14)`;
+    const result = sanitizeChatError(raw);
+    expect(result.category).toBe('generic');
+    expect(result.i18nKey).toBe('errorGeneratingDescription');
+    expect(result.rawMessage).toBe('Failed after 3 attempts');
+    expect(result.rawMessage).not.toContain('node_modules');
+  });
+
+  it('suppresses rawMessage when a single-line error carries a path/frame', () => {
+    const result = sanitizeChatError(
+      'boom at /node_modules/ai/dist/index.mjs:5758:14',
+    );
+    expect(result.category).toBe('generic');
+    expect(result.rawMessage).toBeUndefined();
+  });
+
   describe('credit exhausted errors', () => {
     it('matches OpenRouter credit error', () => {
       const raw =

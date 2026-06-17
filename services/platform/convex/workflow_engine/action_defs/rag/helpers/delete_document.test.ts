@@ -1,76 +1,87 @@
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeAll,
-  beforeEach,
-  afterEach,
-} from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-import { _resetRagConfigForTests } from '../../../../lib/helpers/rag_config';
+import { internal } from '../../../../_generated/api';
+import type { ActionCtx } from '../../../../_generated/server';
 import { deleteDocumentById } from './delete_document';
 
-beforeAll(() => {
-  process.env.RAG_URL = 'http://rag:8000';
-  process.env.RAG_AUTH_TOKEN = 'test-token';
-  _resetRagConfigForTests();
-});
+/** The serialized shape `internal.rag.documents.deleteDocument` resolves to. */
+interface RagDeleteActionResult {
+  success: boolean;
+  message: string;
+  deleted_count: number;
+  deleted_data_ids: string[];
+  processing_time_ms: number;
+}
+
+/**
+ * `deleteDocumentById` now delegates the actual delete to an in-process
+ * `ctx.runAction(internal.rag.documents.deleteDocument)` instead of
+ * `globalThis.fetch`/`RAG_URL`. This test exercises that contract: the
+ * `runAction` spy resolves to (or rejects with) the action's result, and is
+ * returned for assertion. All other `ActionCtx` members are typed stubs the
+ * helper never invokes.
+ */
+function createCtx(options: {
+  result?: RagDeleteActionResult;
+  reject?: Error;
+}): { ctx: ActionCtx; runAction: ReturnType<typeof vi.fn> } {
+  const runAction = vi.fn();
+  if (options.reject) {
+    runAction.mockRejectedValue(options.reject);
+  } else {
+    runAction.mockResolvedValue(options.result);
+  }
+  const ctx: ActionCtx = {
+    runQuery: vi.fn(),
+    runMutation: vi.fn(),
+    runAction,
+    scheduler: { runAfter: vi.fn(), runAt: vi.fn(), cancel: vi.fn() },
+    auth: { getUserIdentity: vi.fn() },
+    storage: {
+      generateUploadUrl: vi.fn(),
+      getUrl: vi.fn(),
+      getMetadata: vi.fn(),
+      delete: vi.fn(),
+      get: vi.fn(),
+      store: vi.fn(),
+    },
+    vectorSearch: vi.fn(),
+  };
+  return { ctx, runAction };
+}
 
 describe('deleteDocumentById', () => {
-  let fetchSpy: ReturnType<typeof vi.fn>;
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    fetchSpy = vi.fn();
-    vi.stubGlobal('fetch', fetchSpy);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-  });
-
-  function mockFetch(response: object, status = 200) {
-    fetchSpy.mockResolvedValue({
-      ok: status >= 200 && status < 300,
-      status,
-      json: () => Promise.resolve(response),
-      text: () => Promise.resolve(JSON.stringify(response)),
-    });
-  }
-
-  function getCalledUrl(): URL {
-    return new URL(fetchSpy.mock.calls[0][0]);
-  }
-
-  it('calls correct URL path', async () => {
-    mockFetch({
-      success: true,
-      deleted_count: 1,
-      deleted_data_ids: ['abc'],
-      message: 'Deleted',
+  it('calls the in-process delete action with orgSlug + fileId', async () => {
+    const { ctx, runAction } = createCtx({
+      result: {
+        success: true,
+        deleted_count: 1,
+        deleted_data_ids: ['abc'],
+        message: 'Deleted',
+        processing_time_ms: 5,
+      },
     });
 
-    await deleteDocumentById({
-      orgSlug: 'test-org',
-      fileId: 'doc-123',
-    });
+    await deleteDocumentById(ctx, { orgSlug: 'test-org', fileId: 'doc-123' });
 
-    const url = getCalledUrl();
-    expect(url.pathname).toBe('/api/v1/documents/doc-123');
+    expect(runAction).toHaveBeenCalledWith(
+      internal.rag.documents.deleteDocument,
+      { orgSlug: 'test-org', fileId: 'doc-123' },
+    );
   });
 
   it('returns parsed result on success', async () => {
-    mockFetch({
-      success: true,
-      deleted_count: 2,
-      deleted_data_ids: ['id1', 'id2'],
-      message: 'Deleted 2 docs',
-      processing_time_ms: 42,
+    const { ctx } = createCtx({
+      result: {
+        success: true,
+        deleted_count: 2,
+        deleted_data_ids: ['id1', 'id2'],
+        message: 'Deleted 2 docs',
+        processing_time_ms: 42,
+      },
     });
 
-    const result = await deleteDocumentById({
+    const result = await deleteDocumentById(ctx, {
       orgSlug: 'test-org',
       fileId: 'doc-abc',
     });
@@ -81,58 +92,64 @@ describe('deleteDocumentById', () => {
     expect(result.message).toBe('Deleted 2 docs');
   });
 
-  it('returns structured failure on non-retryable HTTP error', async () => {
-    // 400 is non-retryable per `isRetryableStatus`; the helper folds
-    // it into `{ success: false }` rather than re-throwing.
-    mockFetch({ detail: 'bad request' }, 400);
-
-    const result = await deleteDocumentById({
-      orgSlug: 'test-org',
-      fileId: 'doc-fail',
+  it('treats a not-found document as a successful no-op (idempotent)', async () => {
+    // The in-process delete returns success with deleted_count 0 for a missing
+    // document (no 404 to special-case) — retention/cascade purges stay safe to
+    // repeat.
+    const { ctx } = createCtx({
+      result: {
+        success: true,
+        deleted_count: 0,
+        deleted_data_ids: [],
+        message: "No documents found with ID 'doc-already-gone'",
+        processing_time_ms: 3,
+      },
     });
 
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/HTTP 400|400/);
-  });
-
-  it('re-throws retryable upstream failures so callers can retry', async () => {
-    // 5xx is retryable; folding it into `{ success: false }` would
-    // mask transient RAG outages as permanent retention failures.
-    mockFetch({ detail: 'service error' }, 500);
-
-    await expect(
-      deleteDocumentById({ orgSlug: 'test-org', fileId: 'doc-fail-5xx' }),
-    ).rejects.toThrow(/HTTP 500|unavailable/);
-  });
-
-  // Round-2 review HIGH (E.4.2): retention re-runs and cascade RAG
-  // purges must be idempotent. A 404 ("already deleted") needs to be
-  // a successful no-op, not a permanent failure indicator on the
-  // retention receipt. Pre-fix, the test asserted 400 was an error —
-  // but real RAG returns 404 for not-found, and the helper rethrew it
-  // as a generic failure.
-  it('treats 404 as a successful no-op for idempotency', async () => {
-    mockFetch({ detail: 'not found' }, 404);
-
-    const result = await deleteDocumentById({
+    const result = await deleteDocumentById(ctx, {
       orgSlug: 'test-org',
       fileId: 'doc-already-gone',
     });
 
     expect(result.success).toBe(true);
     expect(result.deletedCount).toBe(0);
-    expect(result.message).toBe('already_deleted');
     expect(result.error).toBeUndefined();
   });
 
-  it('URL-encodes file IDs with special characters', async () => {
-    mockFetch({ success: true, deleted_count: 0, deleted_data_ids: [] });
+  it('folds a thrown action error into a structured failure result', async () => {
+    const { ctx } = createCtx({
+      reject: new Error('knowledge-db unavailable'),
+    });
 
-    await deleteDocumentById({
+    const result = await deleteDocumentById(ctx, {
+      orgSlug: 'test-org',
+      fileId: 'doc-fail',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/knowledge-db unavailable/);
+    expect(result.deletedCount).toBe(0);
+  });
+
+  it('forwards the raw fileId untouched (no URL encoding)', async () => {
+    const { ctx, runAction } = createCtx({
+      result: {
+        success: true,
+        deleted_count: 0,
+        deleted_data_ids: [],
+        message: 'ok',
+        processing_time_ms: 1,
+      },
+    });
+
+    await deleteDocumentById(ctx, {
       orgSlug: 'test-org',
       fileId: 'doc/with spaces',
     });
 
-    expect(fetchSpy.mock.calls[0][0]).toContain('doc%2Fwith%20spaces');
+    expect(runAction).toHaveBeenCalledWith(
+      internal.rag.documents.deleteDocument,
+      { orgSlug: 'test-org', fileId: 'doc/with spaces' },
+    );
   });
 });

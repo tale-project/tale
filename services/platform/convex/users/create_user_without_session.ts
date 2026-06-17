@@ -2,7 +2,7 @@
  * Create user without session - Business logic
  */
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { createAuth } from '../auth';

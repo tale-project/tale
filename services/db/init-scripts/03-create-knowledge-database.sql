@@ -1,9 +1,10 @@
 -- Tale DB: Unified knowledge database (crawler + RAG)
 -- Creates the `tale_knowledge` database, installs required extensions, creates
 -- the two schema namespaces (`public_web` for crawler, `private_knowledge` for
--- RAG), and grants the tale role access. Table/index DDL lives in each
--- service's own migrations (services/rag/migrations/, services/crawler/migrations/)
--- and runs at that service's container startup via dbmate.
+-- RAG), and grants the tale role access. Table/index DDL lives in
+-- services/db/migrations/ and runs at the knowledge-db container startup via
+-- dbmate (the crawler + RAG logic now runs in-process in the platform Convex
+-- backend, which connects here via KNOWLEDGE_DATABASE_URL).
 -- Idempotent: safe to run on every startup.
 
 SELECT 'CREATE DATABASE tale_knowledge'
@@ -24,10 +25,12 @@ END; $$;
 
 -- ============================================================================
 -- Schema namespaces
--- Each service owns its tables via its own dbmate migrations:
---   - public_web        → services/crawler/migrations/
---   - private_knowledge → services/rag/migrations/
--- Create the namespaces here so grants below succeed before any service runs.
+-- Table DDL for both schemas lives in services/db/migrations/knowledge-db/<schema>/
+-- (dbmate), applied at container startup by docker-entrypoint.sh when
+-- TALE_DB_ROLE=knowledge:
+--   - public_web        → services/db/migrations/knowledge-db/public_web/
+--   - private_knowledge → services/db/migrations/knowledge-db/private_knowledge/
+-- Create the namespaces here so grants below succeed before migrations run.
 -- ============================================================================
 
 CREATE SCHEMA IF NOT EXISTS public_web;

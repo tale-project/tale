@@ -10,7 +10,7 @@
 
 import { get } from 'lodash';
 
-import { isRecord } from '../../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../../lib/utils/type-utils';
 import { normalizeTimestampToMs } from './build_fetch_params';
 import type { IntegrationDataSourceConfig } from './types';
 

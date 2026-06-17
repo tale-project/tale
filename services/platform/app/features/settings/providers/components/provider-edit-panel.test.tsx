@@ -4,7 +4,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render } from '@/test/utils/render';
+import { render } from '@/tests/utils/render';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({

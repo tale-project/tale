@@ -1,14 +1,10 @@
 import { v } from 'convex/values';
 
-import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 import { internal } from '../../../_generated/api';
 import type { ActionCtx } from '../../../_generated/server';
-import type { SearchResponse } from '../../../agent_tools/rag/format_search_results';
 import { fetchDocumentChunks } from '../../../agent_tools/rag/helpers/fetch_document_chunks';
 import { stripReservedPromptTags } from '../../../lib/agent_response/sanitize_prompt';
-import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
-import { ragFetch } from '../../../lib/helpers/rag_config';
 import { buildRagSearchFilters } from '../../../lib/helpers/rag_metadata_filters';
 import { toId } from '../../../lib/type_cast_helpers';
 import { wrapUntrusted } from '../../../lib/untrusted_content';
@@ -16,35 +12,6 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { deleteDocumentById } from './helpers/delete_document';
 import type { RagActionParams } from './helpers/types';
 import { uploadDocument } from './helpers/upload_document';
-
-const SEARCH_TIMEOUT_MS = 30_000;
-
-/**
- * Recursively run `stripReservedPromptTags` over every string leaf of
- * a search-result `metadata` payload. Non-string values are passed
- * through unchanged. Used to strip prompt-injection vectors from
- * indexed-chunk metadata (titles, headings, captions, etc.) before
- * the workflow step returns the result to downstream templates.
- */
-function sanitizeMetadataStrings(
-  value: Record<string, unknown>,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(value)) {
-    out[key] = sanitizeMetadataLeaf(val);
-  }
-  return out;
-}
-
-function sanitizeMetadataLeaf(value: unknown): unknown {
-  if (typeof value === 'string') return stripReservedPromptTags(value);
-  if (Array.isArray(value)) return value.map(sanitizeMetadataLeaf);
-  if (value && typeof value === 'object') {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime guard above narrows to object; metadata is a free-form JSON record from RAG
-    return sanitizeMetadataStrings(value as Record<string, unknown>);
-  }
-  return value;
-}
 
 export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
@@ -120,7 +87,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           migratedParams.fileId,
         ]);
         const orgSlug = await orgSlugFromId(ctx, orgId);
-        const result = await deleteDocumentById({
+        const result = await deleteDocumentById(ctx, {
           orgSlug,
           fileId: migratedParams.fileId,
         });
@@ -135,6 +102,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         ]);
         const orgSlug = await orgSlugFromId(ctx, orgId);
         const result = await fetchDocumentChunks(
+          ctx,
           orgSlug,
           migratedParams.fileId,
         );
@@ -184,107 +152,96 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           migratedParams.fileIds,
         );
         const orgSlug = await orgSlugFromId(ctx, orgId);
-        // Pre-retrieval narrowing filters (#1517): folder prefix +
-        // flat metadata equality/IN. Narrowing-only — `fileIds` (gated
-        // above) stays the authorization boundary.
+        // Pre-retrieval narrowing filters (#1517): folder prefix + flat
+        // metadata equality/IN. Narrowing-only — `fileIds` (gated above) stays
+        // the authorization boundary.
+        //
+        // NOTE: the in-process `internal.rag.search.search` action currently
+        // only forwards folder-path narrowing; the flat `metadataFilters`
+        // equality/IN pre-filter that the external `/api/v1/search` `filters`
+        // object supported is NOT yet exposed by the action. Folder-path
+        // narrowing is preserved; flat metadata pre-filtering is a known gap
+        // (mirrors `query_rag_context.ts`).
         const searchFilters = buildRagSearchFilters({
           folderPath: migratedParams.folderPath,
           metadata: migratedParams.metadataFilters,
         });
-        try {
-          const response = await ragFetch('/api/v1/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: migratedParams.query,
-              file_ids: migratedParams.fileIds,
-              top_k: migratedParams.topK ?? 10,
-              similarity_threshold: migratedParams.similarityThreshold ?? 0.0,
-              include_metadata: true,
-              ...(searchFilters ? { filters: searchFilters } : {}),
-            }),
-            timeoutMs: SEARCH_TIMEOUT_MS,
-            orgSlug,
-          });
 
-          if (!response.ok) {
-            const errorText = await response.text().catch(() => '');
-            throw UpstreamHttpError.fromResponse(
-              'rag',
-              response,
-              errorText,
-              '/api/v1/search',
-            );
-          }
+        // The RAG search logic now lives in a Convex internal action; the HTTP
+        // call (and its AbortController timeout) was replaced by an in-process
+        // `ctx.runAction`. The action throws plain Errors on failure.
+        const searchResult = await ctx.runAction(internal.rag.search.search, {
+          orgSlug,
+          query: migratedParams.query,
+          fileIds: migratedParams.fileIds,
+          topK: migratedParams.topK ?? 10,
+          similarityThreshold: migratedParams.similarityThreshold ?? 0.0,
+          folderPath: searchFilters?.folder_path ?? null,
+        });
 
-          const result = await fetchJson<SearchResponse>(response);
-          // SEC1: strip reserved wrapper tags from every prompt-bound
-          // field on each search hit. `content` is the obvious one;
-          // `filename` is user-uploaded (any user with write access
-          // can name a file `</system><system>…`) and `metadata`
-          // string values come back from the indexed-chunk payload —
-          // both end up in downstream workflow templates the same way
-          // `content` does, so all three need the same defense.
-          let wrappedResults = result.results.map((r) => ({
-            ...r,
+        // SEC1: strip reserved wrapper tags from every prompt-bound field on
+        // each search hit. `content` is the obvious one; `filename` is
+        // user-uploaded (any user with write access can name a file
+        // `</system><system>…`) — both end up in downstream workflow templates
+        // the same way `content` does, so they need the same defense.
+        let wrappedResults = searchResult.results.map((r) => {
+          const mapped: {
+            content: string;
+            score: number;
+            file_id?: string;
+            filename?: string;
+            source_created_at: string | null;
+            source_modified_at: string | null;
+          } = {
             content: stripReservedPromptTags(r.content),
-            ...(r.filename
-              ? { filename: stripReservedPromptTags(r.filename) }
-              : {}),
-            ...(r.metadata
-              ? { metadata: sanitizeMetadataStrings(r.metadata) }
-              : {}),
-          }));
-          if (wrappedResults.length > 0) {
-            const fileIds = wrappedResults
-              .map((r) => r.file_id)
-              .filter((id): id is string => Boolean(id));
-            if (fileIds.length > 0) {
-              const videoSources = await ctx.runQuery(
-                internal.file_metadata.internal_queries.lookupVideoLinkSources,
-                {
-                  storageIds: fileIds.map((id) => toId<'_storage'>(id)),
-                },
+            score: r.score,
+            source_created_at: r.source_created_at,
+            source_modified_at: r.source_modified_at,
+          };
+          if (r.file_id != null) mapped.file_id = r.file_id;
+          if (r.filename != null) {
+            mapped.filename = stripReservedPromptTags(r.filename);
+          }
+          return mapped;
+        });
+        if (wrappedResults.length > 0) {
+          const fileIds = wrappedResults
+            .map((r) => r.file_id)
+            .filter((id): id is string => Boolean(id));
+          if (fileIds.length > 0) {
+            const videoSources = await ctx.runQuery(
+              internal.file_metadata.internal_queries.lookupVideoLinkSources,
+              {
+                storageIds: fileIds.map((id) => toId<'_storage'>(id)),
+              },
+            );
+            if (videoSources.length > 0) {
+              const byId = new Map(
+                videoSources.map((src) => [
+                  String(src.storageId),
+                  src.sourceUrl,
+                ]),
               );
-              if (videoSources.length > 0) {
-                const byId = new Map(
-                  videoSources.map((src) => [
-                    String(src.storageId),
-                    src.sourceUrl,
-                  ]),
-                );
-                wrappedResults = wrappedResults.map((r) => {
-                  if (!r.file_id || !byId.has(r.file_id)) return r;
-                  const meta: {
-                    tool: string;
-                    operation: string;
-                    url?: string;
-                  } = { tool: 'rag_action', operation: 'search' };
-                  const url = byId.get(r.file_id);
-                  if (url) meta.url = url;
-                  return { ...r, content: wrapUntrusted(r.content, meta) };
-                });
-              }
+              wrappedResults = wrappedResults.map((r) => {
+                if (!r.file_id || !byId.has(r.file_id)) return r;
+                const meta: {
+                  tool: string;
+                  operation: string;
+                  url?: string;
+                } = { tool: 'rag_action', operation: 'search' };
+                const url = byId.get(r.file_id);
+                if (url) meta.url = url;
+                return { ...r, content: wrapUntrusted(r.content, meta) };
+              });
             }
           }
-          return {
-            results: wrappedResults,
-            totalResults: result.total_results,
-            processingTimeMs: result.processing_time_ms,
-            executionTimeMs: Date.now() - startTime,
-          };
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            (error.name === 'AbortError' || error.name === 'TimeoutError')
-          ) {
-            throw new Error(
-              `RAG search timed out after ${SEARCH_TIMEOUT_MS / 1000}s`,
-              { cause: error },
-            );
-          }
-          throw error;
         }
+        return {
+          results: wrappedResults,
+          totalResults: wrappedResults.length,
+          processingTimeMs: Date.now() - startTime,
+          executionTimeMs: Date.now() - startTime,
+        };
       }
     }
     return undefined;

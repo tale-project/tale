@@ -1,6 +1,6 @@
 {
   "title": "Discord",
-  "description": "Discord Bot API integration for guilds, channels, and messages",
+  "description": "Post messages and manage channels in your Discord server.",
   "version": 1,
   "authMethod": "bearer_token",
   "supportedAuthMethods": ["bearer_token"],

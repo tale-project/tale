@@ -95,9 +95,35 @@ const CATEGORY_I18N_KEY: Record<ErrorCategory, string> = {
 };
 
 /**
+ * Reduce a raw provider/SDK error to a single, path-free line safe to show the
+ * user. Stack frames and file paths (e.g.
+ * `node_modules/ai/src/ui/process-ui-message-stream.ts:776:14`) must NEVER reach
+ * the UI — take only the first line, strip the `Uncaught`/`Error:` noise, and
+ * drop the message entirely if a stack-frame or path token survives.
+ */
+function cleanRawMessage(raw: string): string | undefined {
+  const firstLine = raw
+    .split('\n')[0]
+    .replace(/^\s*uncaught\s+/i, '')
+    .replace(/^\s*error:\s*/i, '')
+    .trim();
+  if (
+    firstLine.length === 0 ||
+    firstLine.length > 200 ||
+    /\bat\s|node_modules|\.[cm]?[jt]sx?:\d+|https?:\/\/|(^|\s)\/\S/.test(
+      firstLine,
+    )
+  ) {
+    return undefined;
+  }
+  return firstLine;
+}
+
+/**
  * Classify a raw error string from the AI provider into a user-friendly
- * i18n key. For known error types, only the i18n message is shown.
- * For unknown errors, the raw message is preserved so users have context.
+ * i18n key. For known error types, only the i18n message is shown. For unknown
+ * errors a short, sanitized first line is preserved for context — but never a
+ * stack trace or file path (see `cleanRawMessage`).
  */
 export function sanitizeChatError(
   rawError: string | undefined,
@@ -118,6 +144,6 @@ export function sanitizeChatError(
   return {
     category: 'generic',
     i18nKey: CATEGORY_I18N_KEY.generic,
-    rawMessage: rawError,
+    rawMessage: cleanRawMessage(rawError),
   };
 }

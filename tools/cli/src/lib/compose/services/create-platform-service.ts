@@ -28,11 +28,9 @@ export function createPlatformService(
     },
     // Cross-compose dependencies (db, convex, proxy) are handled by the
     // CLI's deploy ordering: stateful services are deployed and health-checked
-    // before color services start. Only declare intra-compose dependencies.
-    depends_on: {
-      [`rag-${color}`]: { condition: 'service_healthy' },
-      [`crawler-${color}`]: { condition: 'service_healthy' },
-    },
+    // before color services start. Platform now has no intra-compose
+    // dependencies (rag/crawler ran in-process inside the Convex backend),
+    // so no `depends_on` is emitted.
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {

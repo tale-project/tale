@@ -2,41 +2,16 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
-import { internalAction } from '../_generated/server';
-import { getCrawlerUrl } from '../documents/generate_document_helpers';
+import { internalAction, type ActionCtx } from '../_generated/server';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import type {
-  CrawlerChunksResponse,
-  CrawlerPagesResponse,
-  CrawlerSearchResponse,
   CrawlerWebsiteInfo,
+  FetchChunksResult,
+  FetchPagesResult,
+  SearchContentResult,
 } from './types';
 
-const CRAWLER_TIMEOUT_MS = 15_000;
 const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-
-/**
- * Wrap `fetch` with a timeout and inject the required `x-tale-org`
- * header so every call to the crawler service routes to the correct
- * org's provider catalog. Crawler enforces this header at the router
- * level (`require_org_slug`); missing it returns HTTP 400.
- */
-function fetchWithTimeout(
-  url: string,
-  orgSlug: string,
-  init?: RequestInit,
-  timeoutMs = CRAWLER_TIMEOUT_MS,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const mergedHeaders = new Headers(init?.headers);
-  mergedHeaders.set('x-tale-org', orgSlug);
-  return fetch(url, {
-    ...init,
-    headers: mergedHeaders,
-    signal: controller.signal,
-  }).finally(() => clearTimeout(timer));
-}
 
 export function scanIntervalToSeconds(interval: string): number {
   switch (interval) {
@@ -60,92 +35,88 @@ export function scanIntervalToSeconds(interval: string): number {
 }
 
 export async function registerDomainWithCrawler(
-  orgSlug: string,
-  domain: string,
-  scanInterval: string,
-): Promise<CrawlerWebsiteInfo> {
-  const crawlerUrl = getCrawlerUrl();
-  const res = await fetchWithTimeout(
-    `${crawlerUrl}/api/v1/websites`,
-    orgSlug,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        domain,
-        scan_interval: scanIntervalToSeconds(scanInterval),
-      }),
-    },
-    60_000,
-  );
-  if (!res.ok) {
-    throw new Error(
-      `Failed to register website with crawler: ${res.status} ${res.statusText}`,
-    );
-  }
-  return await res.json();
-}
-
-export async function updateCrawlerScanInterval(
+  ctx: ActionCtx,
   orgSlug: string,
   domain: string,
   scanInterval: string,
 ): Promise<void> {
-  const crawlerUrl = getCrawlerUrl();
-  const res = await fetchWithTimeout(
-    `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
-    orgSlug,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        scan_interval: scanIntervalToSeconds(scanInterval),
-      }),
-    },
+  // In-process registration (replaces external crawler POST /api/v1/websites).
+  const result = await ctx.runAction(
+    internal.crawler.websites.registerWebsite,
+    { orgSlug, domain, scanInterval: scanIntervalToSeconds(scanInterval) },
   );
-  if (!res.ok) {
-    if (res.status === 404) {
-      throw new Error('CRAWLER_WEBSITE_NOT_FOUND');
-    }
+  if (!result.success) {
     throw new Error(
-      `Failed to update website scan interval: ${res.status} ${res.statusText}`,
+      `Failed to register website with crawler: ${result.error ?? 'unknown error'}`,
     );
+  }
+}
+
+export async function updateCrawlerScanInterval(
+  ctx: ActionCtx,
+  orgSlug: string,
+  domain: string,
+  scanInterval: string,
+): Promise<void> {
+  const result = await ctx.runAction(
+    internal.crawler.websites.updateScanInterval,
+    { orgSlug, domain, scanInterval: scanIntervalToSeconds(scanInterval) },
+  );
+  if (!result.success) {
+    // The in-process action returns `{ success:false, error }` for an unknown
+    // domain or one being deleted; map the not-found case to the sentinel the
+    // REST caller branches on.
+    throw new Error('CRAWLER_WEBSITE_NOT_FOUND');
   }
 }
 
 export async function deregisterDomainFromCrawler(
+  ctx: ActionCtx,
   orgSlug: string,
   domain: string,
 ): Promise<void> {
-  const crawlerUrl = getCrawlerUrl();
-  const res = await fetchWithTimeout(
-    `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
+  // In-process deregistration. A not-found domain returns `success:false`,
+  // which is a no-op for our purposes (idempotent delete), so it is not an
+  // error here (mirrors the old `404 is ok` behaviour).
+  await ctx.runAction(internal.crawler.websites.deregister, {
     orgSlug,
-    { method: 'DELETE' },
-  );
-  if (!res.ok && res.status !== 404) {
-    throw new Error(
-      `Failed to deregister website from crawler: ${res.status} ${res.statusText}`,
-    );
-  }
+    domain,
+  });
+}
+
+/** Map the in-process `getWebsite` shape onto `CrawlerWebsiteInfo`. */
+function toWebsiteInfo(website: {
+  domain: string;
+  title: string | null;
+  description: string | null;
+  page_count: number;
+  crawled_count: number;
+  status: string;
+  last_scanned_at: string | null;
+}): CrawlerWebsiteInfo {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the in-process store returns the same status string set as the WebsiteStatus union
+  const status = website.status as CrawlerWebsiteInfo['status'];
+  return {
+    domain: website.domain,
+    title: website.title,
+    description: website.description,
+    page_count: website.page_count,
+    crawled_count: website.crawled_count,
+    status,
+    last_scanned_at: website.last_scanned_at,
+  };
 }
 
 export async function fetchWebsiteInfo(
+  ctx: ActionCtx,
   orgSlug: string,
   domain: string,
 ): Promise<CrawlerWebsiteInfo | null> {
-  const crawlerUrl = getCrawlerUrl();
-  const res = await fetchWithTimeout(
-    `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
+  const result = await ctx.runAction(internal.crawler.websites.getWebsite, {
     orgSlug,
-  );
-  if (res.ok) {
-    return await res.json();
-  }
-  if (res.status === 404) {
-    return null;
-  }
-  throw new Error(`Crawler API returned ${res.status} ${res.statusText}`);
+    domain,
+  });
+  return result.website ? toWebsiteInfo(result.website) : null;
 }
 
 interface WebsiteForSync {
@@ -156,42 +127,46 @@ interface WebsiteForSync {
 }
 
 async function fetchHomepageMetadata(
-  orgSlug: string,
+  ctx: ActionCtx,
+  organizationId: string,
   domain: string,
 ): Promise<{ title?: string; description?: string } | null> {
-  const crawlerUrl = getCrawlerUrl();
-  const res = await fetchWithTimeout(
-    `${crawlerUrl}/api/v1/urls/fetch`,
-    orgSlug,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        urls: [`https://${domain}/`],
-        word_count_threshold: 0,
-      }),
-    },
-    30_000,
-  );
-
-  if (!res.ok) {
+  // In-process homepage fetch (replaces external crawler POST /api/v1/urls/fetch).
+  let data;
+  try {
+    data = await ctx.runAction(internal.crawler.index_pages.fetchUrls, {
+      domain,
+      urls: [`https://${domain}/`],
+      wordCountThreshold: 0,
+      organizationId,
+    });
+  } catch (err) {
     // Surface the failure so an operator notices that title/description
     // stayed blank because the homepage fetch failed, not because the
     // site genuinely has no metadata (round-3 P2 R9-P2-c).
     console.warn(
-      `[fetchHomepageMetadata] crawler ${res.status} for ${domain} (orgSlug=${orgSlug})`,
+      `[fetchHomepageMetadata] fetch failed for ${domain}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     );
     return null;
   }
 
-  const data = await res.json();
-  const page = data.pages?.[0];
+  const page = data.pages[0];
   if (!page) return null;
 
   const title = page.title || undefined;
   const sd = page.structured_data;
+  const meta = sd && typeof sd === 'object' ? Reflect.get(sd, 'meta') : null;
+  const og = sd && typeof sd === 'object' ? Reflect.get(sd, 'opengraph') : null;
+  const metaDescription =
+    meta && typeof meta === 'object' ? Reflect.get(meta, 'description') : null;
+  const ogDescription =
+    og && typeof og === 'object' ? Reflect.get(og, 'og:description') : null;
   const description =
-    sd?.meta?.description || sd?.opengraph?.['og:description'] || undefined;
+    (typeof metaDescription === 'string' ? metaDescription : undefined) ||
+    (typeof ogDescription === 'string' ? ogDescription : undefined) ||
+    undefined;
 
   return { title, description };
 }
@@ -203,8 +178,11 @@ export const fetchAndPatchHomepage = internalAction({
     organizationId: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const info = await fetchHomepageMetadata(orgSlug, args.domain);
+    const info = await fetchHomepageMetadata(
+      ctx,
+      args.organizationId,
+      args.domain,
+    );
     if (!info) return;
 
     await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
@@ -235,7 +213,11 @@ export const syncWebsiteStatuses = internalAction({
       }
 
       try {
-        const websiteInfo = await fetchWebsiteInfo(orgSlug, website.domain);
+        const websiteInfo = await fetchWebsiteInfo(
+          ctx,
+          orgSlug,
+          website.domain,
+        );
 
         if (websiteInfo) {
           await ctx.runMutation(
@@ -302,7 +284,12 @@ export const registerAndSync = internalAction({
   handler: async (ctx, args): Promise<void> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
     try {
-      await registerDomainWithCrawler(orgSlug, args.domain, args.scanInterval);
+      await registerDomainWithCrawler(
+        ctx,
+        orgSlug,
+        args.domain,
+        args.scanInterval,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(
@@ -369,7 +356,7 @@ export const deregisterAndDelete = internalAction({
     // Deregister first so a crawler-side failure surfaces to the
     // caller (matches `actions.deleteWebsite` semantics) and the row
     // is left in place for retry rather than orphaning the registration.
-    await deregisterDomainFromCrawler(orgSlug, website.domain);
+    await deregisterDomainFromCrawler(ctx, orgSlug, website.domain);
     await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
       websiteId: args.websiteId,
     });
@@ -400,7 +387,7 @@ export const syncSingleWebsite = internalAction({
     const syncTimestamp = Date.now();
 
     try {
-      const info = await fetchWebsiteInfo(orgSlug, args.domain);
+      const info = await fetchWebsiteInfo(ctx, orgSlug, args.domain);
 
       if (info) {
         await ctx.runMutation(
@@ -462,22 +449,22 @@ export const fetchWebsitePages = internalAction({
     offset: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  // Explicit return type: these actions call `internal.crawler.*` via
+  // `ctx.runAction`, and an INFERRED return type that transitively references
+  // the `internal` graph collapses the whole API type to `any`/`never` (a
+  // self-referential cycle). Annotating breaks the cycle.
+  handler: async (ctx, args): Promise<FetchPagesResult> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const crawlerUrl = getCrawlerUrl();
     const offset = args.offset ?? 0;
     const limit = args.limit ?? 100;
 
-    const res = await fetchWithTimeout(
-      `${crawlerUrl}/api/v1/pages/${encodeURIComponent(args.domain)}?offset=${offset}&limit=${limit}`,
+    // In-process page listing (replaces external crawler GET /api/v1/pages/{domain}).
+    const data = await ctx.runAction(internal.crawler.websites.listPages, {
       orgSlug,
-    );
-
-    if (!res.ok) {
-      throw new Error(`Crawler pages API returned ${res.status}`);
-    }
-
-    const data: CrawlerPagesResponse = await res.json();
+      domain: args.domain,
+      offset,
+      limit,
+    });
     return {
       pages: data.pages,
       total: data.total,
@@ -493,20 +480,16 @@ export const fetchPageChunks = internalAction({
     url: v.string(),
     organizationId: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<FetchChunksResult> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const crawlerUrl = getCrawlerUrl();
 
-    const res = await fetchWithTimeout(
-      `${crawlerUrl}/api/v1/pages/${encodeURIComponent(args.domain)}/chunks?url=${encodeURIComponent(args.url)}`,
+    // In-process chunk listing (replaces external crawler
+    // GET /api/v1/pages/{domain}/chunks).
+    const data = await ctx.runAction(internal.crawler.websites.getPageChunks, {
       orgSlug,
-    );
-
-    if (!res.ok) {
-      throw new Error(`Crawler chunks API returned ${res.status}`);
-    }
-
-    const data: CrawlerChunksResponse = await res.json();
+      domain: args.domain,
+      url: args.url,
+    });
     return {
       url: data.url,
       chunks: data.chunks,
@@ -522,30 +505,22 @@ export const searchWebsiteContent = internalAction({
     organizationId: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<SearchContentResult> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const crawlerUrl = getCrawlerUrl();
     const limit = args.limit ?? 10;
 
-    const res = await fetchWithTimeout(
-      `${crawlerUrl}/api/v1/search/${encodeURIComponent(args.domain)}`,
+    // In-process domain-scoped hybrid search (replaces external crawler
+    // POST /api/v1/search/{domain}).
+    const data = await ctx.runAction(internal.crawler.search.search, {
       orgSlug,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: args.query, limit }),
-      },
-    );
-
-    if (!res.ok) {
-      throw new Error(`Crawler search API returned ${res.status}`);
-    }
-
-    const data: CrawlerSearchResponse = await res.json();
+      query: args.query,
+      domain: args.domain,
+      limit,
+    });
     return {
-      query: data.query,
+      query: args.query,
       results: data.results,
-      total: data.total,
+      total: data.results.length,
     };
   },
 });

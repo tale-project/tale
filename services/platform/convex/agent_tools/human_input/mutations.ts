@@ -5,7 +5,7 @@ import { v } from 'convex/values';
 
 import type { HumanInputRequestMetadata } from '../../../lib/shared/schemas/approvals';
 import { FEEDBACK_KEY } from '../../../lib/shared/schemas/approvals';
-import { getString, isRecord } from '../../../lib/utils/type-guards';
+import { getString, isRecord } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';

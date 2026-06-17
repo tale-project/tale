@@ -1,6 +1,6 @@
 /**
  * Adapts an external-agent op's `recentEvents` (JSON-stringified AgentEvents
- * from @tale/agent-adapters, streamed into sandboxSessionOps) into the SAME
+ * from @/lib/agent-adapters, streamed into sandboxSessionOps) into the SAME
  * loosely-typed `parts` array that `buildMessageSegments` already consumes — so
  * the live Claude Code / OpenCode timeline reuses the existing thought-process
  * renderer with zero new row components.
@@ -22,7 +22,7 @@
  * flattening it. Mirrors `buildAssistantContent`'s server-side fold.
  */
 
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 interface SubAgentStep {
   toolName: string;

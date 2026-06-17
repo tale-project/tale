@@ -11,11 +11,9 @@ import {
   ORGS_SUBDIR,
 } from '../../project/org-dirs';
 import { createConvexService } from '../services/create-convex-service';
-import { createCrawlerService } from '../services/create-crawler-service';
 import { createDbService } from '../services/create-db-service';
 import { createPlatformService } from '../services/create-platform-service';
 import { createProxyService } from '../services/create-proxy-service';
-import { createRagService } from '../services/create-rag-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
 import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
@@ -136,28 +134,6 @@ export function generateDevCompose(
     convex: { condition: 'service_healthy' },
   };
 
-  // RAG/crawler need convex-data:/app/platform-config:ro for per-org
-  // provider config (and integrations, branding, …). The org-first
-  // layout has paths like `default/providers/foo.json`, all under one
-  // root, so the previous standalone `./providers:/app/platform-config/providers:ro`
-  // shadow is no longer needed — the per-org bind mounts below cover
-  // host-edit hot reload for every org's provider catalog.
-  const rag = createRagService(config, DEV_COLOR);
-  rag.container_name = `${getProjectId()}-rag`;
-  rag.volumes = [
-    'rag-data:/app/data',
-    'convex-data:/app/platform-config:ro',
-    ...existingHostMounts(projectDir, '/app/platform-config', ':ro'),
-  ];
-
-  const crawler = createCrawlerService(config, DEV_COLOR);
-  crawler.container_name = `${getProjectId()}-crawler`;
-  crawler.volumes = [
-    'crawler-data:/app/data',
-    'convex-data:/app/platform-config:ro',
-    ...existingHostMounts(projectDir, '/app/platform-config', ':ro'),
-  ];
-
   const proxy = createProxyService(config, hostAlias);
   proxy.ports = [`${port}:443`];
 
@@ -185,8 +161,6 @@ export function generateDevCompose(
       proxy,
       convex,
       platform,
-      rag,
-      crawler,
       'sandbox-egress': createSandboxEgressService(config),
       sandbox,
     },

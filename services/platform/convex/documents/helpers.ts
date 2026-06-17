@@ -29,8 +29,11 @@ export * from './create_onedrive_sync_config';
 export * from './get_onedrive_sync_configs';
 export * from './upload_base64_to_storage';
 export * from './read_file_base64_from_storage';
-export * from './generate_document';
-export * from './generate_docx';
+// NOTE: `generate_document` / `generate_docx` are intentionally NOT re-exported
+// here. They are `'use node'` modules (Playwright/jszip/markdown deps), and this
+// barrel is namespace-imported by the V8 `documents/internal_queries.ts`.
+// Re-exporting them would pull `node:*` into the V8 bundle and break
+// `bun run dev`. Node callers import them directly from their modules.
 export * from './extract_extension';
 export * from './find_document_by_title';
 export * from './find_document_by_external_id';

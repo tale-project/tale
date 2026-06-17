@@ -136,8 +136,6 @@ services/platform/tsconfig*.json
 services/platform/convex/
 
 # Other services
-services/crawler/
-services/rag/
 services/db/
 services/proxy/
 services/web/

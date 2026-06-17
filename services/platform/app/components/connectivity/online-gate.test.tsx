@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { act, render, screen } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { act, render, screen } from '@/tests/utils/render';
 
 const connectionState = {
   hasInflightRequests: false,

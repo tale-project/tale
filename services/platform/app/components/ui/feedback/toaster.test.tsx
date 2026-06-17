@@ -2,7 +2,7 @@ import { act } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { toast } from '@/app/hooks/use-toast';
-import { render } from '@/test/utils/render';
+import { render } from '@/tests/utils/render';
 
 import { Toaster } from './toaster';
 

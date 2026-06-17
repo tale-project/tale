@@ -8,7 +8,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { fetchJson } from '@/lib/utils/type-cast-helpers';
+import { fetchJson } from '@/lib/utils/type-utils';
 
 import type { ParsedPackage } from '../components/integration-upload/utils/parse-integration-package';
 import { parseIntegrationFiles } from '../components/integration-upload/utils/parse-integration-package';

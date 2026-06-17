@@ -18,6 +18,7 @@
     "dist",
     "dist-ssr",
     "storybook-static",
-    "vitest.*.ts"
+    "vitest.*.ts",
+    "tests/e2e/fixtures/config"
   ]
 }

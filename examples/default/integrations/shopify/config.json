@@ -1,6 +1,6 @@
 {
   "title": "Shopify",
-  "description": "Shopify Admin API integration for products, customers, and orders",
+  "description": "Sync products, customers, and orders from your Shopify store.",
   "version": 1,
   "authMethod": "api_key",
   "secretBindings": ["domain", "accessToken"],

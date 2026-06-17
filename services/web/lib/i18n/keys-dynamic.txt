@@ -7,8 +7,8 @@
 # across files, enum-driven dispatch, etc.). Static keys, even with template
 # literals whose prefix is constant, are already covered by the wildcard scan.
 
-# --- shared switcher consumes its keys from @tale/webui ---
-# `languageSwitcher.*` is referenced inside packages/webui — the scanner only
+# --- shared switcher consumes its keys from @tale/ui ---
+# `languageSwitcher.*` is referenced inside packages/ui — the scanner only
 # walks services/web/, so the keys look orphaned here even though the bundle
 # is the single source of truth for the rendered labels.
 languageSwitcher

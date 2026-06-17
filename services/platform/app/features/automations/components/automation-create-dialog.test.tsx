@@ -2,8 +2,8 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, waitFor } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, waitFor } from '@/tests/utils/render';
 
 import { CreateAutomationDialog } from './automation-create-dialog';
 

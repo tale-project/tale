@@ -140,8 +140,11 @@ async function indexTranscriptToRag(
     // routes clicks to the transcript preview, so the cosmetic `.txt` suffix
     // doesn't confuse users.
     const ragFilename = `${args.fileName}.txt`;
-    await uploadFile({
-      file: transcriptBlob,
+    await uploadFile(ctx, {
+      // The transcript text is indexed under the audio file's storageId, but
+      // the bytes are the in-memory transcript (NOT the audio bytes stored
+      // under that id), so pass them inline via `content`.
+      content: transcriptBlob,
       filename: ragFilename,
       contentType: 'text/plain',
       fileId: args.storageId,

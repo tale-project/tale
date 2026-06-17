@@ -17,7 +17,7 @@ import { assertValidOrgSlug } from '../lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '../lib/shared/constants/reserved-org-slugs';
 import { sessionIdleWindowSeconds } from '../lib/shared/session-idle';
 import { getOrganizationDefaultLocale } from '../lib/shared/utils/get-organization-default-locale';
-import { isRecord, getString } from '../lib/utils/type-guards';
+import { isRecord, getString } from '../lib/utils/type-utils';
 import { components, internal } from './_generated/api';
 import { DataModel } from './_generated/dataModel';
 import authConfig from './auth.config';

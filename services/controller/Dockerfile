@@ -22,6 +22,13 @@ WORKDIR /app
 COPY services/controller/package.json ./
 COPY services/controller/src/ ./src/
 
+# Two-file entrypoint pair. `docker-entrypoint.sh` owns container-level
+# bootstrap and `exec`s `entrypoint.sh` (the app launch) so SIGTERM reaches Bun
+# directly. See the script headers for the split rationale.
+COPY services/controller/docker-entrypoint.sh /docker-entrypoint.sh
+COPY services/controller/entrypoint.sh /entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
+
 ENV CONTROLLER_PORT=8004
 EXPOSE 8004
 
@@ -36,4 +43,5 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
 # this Dockerfile, in .trivyignore.yaml.
 USER root
 
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["bun", "src/server.ts"]

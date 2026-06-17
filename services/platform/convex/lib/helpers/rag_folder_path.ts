@@ -3,11 +3,10 @@
  *
  * The platform's canonical folder path format is `parent/child` —
  * segments joined by `/` with no leading or trailing slash (see
- * `folders/queries.ts buildFolderPath`). The Python twin of this helper
- * lives at `services/rag/app/utils/folder_path.py` — keep both in sync.
+ * `folders/queries.ts buildFolderPath`). This helper is the single source of
+ * truth, consumed by the in-process RAG indexing/search actions.
  */
 
-/** Mirrors MAX_FOLDER_PATH_LENGTH in services/rag/app/utils/folder_path.py. */
 const MAX_FOLDER_PATH_LENGTH = 1024;
 
 /**

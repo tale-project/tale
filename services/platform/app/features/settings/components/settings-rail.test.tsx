@@ -1,8 +1,8 @@
 import React from 'react';
 import { describe, it, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, waitFor } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, waitFor } from '@/tests/utils/render';
 
 import { SettingsRail } from './settings-rail';
 

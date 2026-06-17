@@ -1,8 +1,5 @@
-import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
-import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
-import { ragFetch } from '../../../lib/helpers/rag_config';
-
-const FETCH_TIMEOUT_MS = 120_000;
+import { internal } from '../../../_generated/api';
+import type { ActionCtx } from '../../../_generated/server';
 
 interface RagDiffItem {
   type: 'added' | 'deleted' | 'modified' | 'context';
@@ -113,58 +110,42 @@ function mapChangeBlock(block: RagChangeBlock): ChangeBlock {
  * org_slug — a foreign-org file_id returns 404 (not the foreign content).
  */
 export async function fetchDocumentComparison(
+  ctx: ActionCtx,
   orgSlug: string,
   baseFileId: string,
   comparisonFileId: string,
   maxChanges?: number,
 ): Promise<DocumentComparisonResult> {
-  const body: Record<string, unknown> = {
-    base_file_id: baseFileId,
-    comparison_file_id: comparisonFileId,
-  };
-  if (maxChanges != null) {
-    body.max_changes = maxChanges;
+  // The RAG by-id document comparison now lives in a Convex internal
+  // action; the HTTP call was replaced by an in-process `ctx.runAction`.
+  // The action returns either the full diff (`success: true` + change
+  // blocks/stats) or a `{ error: 'not_found', file_id, role }` shape when
+  // a document is missing. It throws plain Errors on other failures.
+  const result = await ctx.runAction(internal.rag.documents.compareDocuments, {
+    orgSlug,
+    baseFileId,
+    comparisonFileId,
+    maxChanges: maxChanges ?? null,
+  });
+
+  if (result === null) {
+    throw new Error(
+      'Could not compare documents: one or both documents were not found in the knowledge base.',
+    );
   }
 
-  try {
-    const response = await ragFetch('/api/v1/documents/compare', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      timeoutMs: FETCH_TIMEOUT_MS,
-      orgSlug,
-    });
-
-    // All non-2xx paths now route through UpstreamHttpError so the
-    // (potentially body-embedded) upstream error text gets sanitized
-    // and truncated. The status-specific messaging is already encoded
-    // in `safeMessageFor` (404 → "returned not found", 4xx → "returned
-    // HTTP …", 5xx → "is unavailable").
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw UpstreamHttpError.fromResponse(
-        'rag',
-        response,
-        errorText,
-        '/api/v1/documents/compare',
-      );
-    }
-
-    const result = await fetchJson<RagCompareResponse>(response);
-    return mapRagResponse(result);
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.name === 'AbortError' || error.name === 'TimeoutError')
-    ) {
-      throw new Error(
-        `RAG service timed out after ${FETCH_TIMEOUT_MS / 1000}s while comparing documents.`,
-        { cause: error },
-      );
-    }
-
-    throw error;
+  if (result.error) {
+    const which = result.role ? `${result.role} document` : 'document';
+    throw new Error(
+      `Could not compare documents: the ${which} (${result.file_id ?? 'unknown'}) was not found in the knowledge base.`,
+    );
   }
+
+  // Success shape: change_blocks/stats + base/comparison_document. The
+  // action types `change_blocks` loosely (`Record<string, unknown>[]`) but
+  // the runtime shape matches `RagCompareResponse` field-for-field.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- CompareResult success shape is structurally a RagCompareResponse
+  return mapRagResponse(result as unknown as RagCompareResponse);
 }
 
 function mapRagResponse(result: RagCompareResponse): DocumentComparisonResult {
@@ -192,75 +173,34 @@ function mapRagResponse(result: RagCompareResponse): DocumentComparisonResult {
 }
 
 /**
- * Compare two files by URL via the RAG service — no pre-indexing required.
+ * Compare two files by Convex `_storage` id — no pre-indexing required.
  *
- * Downloads both files and uploads them to the RAG service in a single
- * function to avoid passing large Blobs through function parameters.
+ * Rewired from the external RAG `/api/v1/documents/compare-files` multipart
+ * upload to the in-process `internal.rag.documents.compareFiles` action. The
+ * `_storage` ids are passed straight through; the action reads the bytes via
+ * `ctx.storage.get`, runs the ported text-extraction + diff pipeline, and
+ * returns the same `RagCompareResponse`-shaped success object.
  */
-export async function fetchDocumentComparisonByUrls(
-  baseFileUrl: string,
+export async function fetchDocumentComparisonByStorageIds(
+  ctx: ActionCtx,
+  baseStorageId: string,
   baseFileName: string,
-  comparisonFileUrl: string,
+  comparisonStorageId: string,
   comparisonFileName: string,
   orgSlug: string,
   maxChanges?: number,
 ): Promise<DocumentComparisonResult> {
-  const [baseResponse, compResponse] = await Promise.all([
-    fetch(baseFileUrl),
-    fetch(comparisonFileUrl),
-  ]);
-  if (!baseResponse.ok) {
-    throw new Error(`Failed to download base file: ${baseResponse.status}`);
-  }
-  if (!compResponse.ok) {
-    throw new Error(
-      `Failed to download comparison file: ${compResponse.status}`,
-    );
-  }
-
-  const [baseBlob, compBlob] = await Promise.all([
-    baseResponse.blob(),
-    compResponse.blob(),
-  ]);
-
-  const formData = new FormData();
-  formData.append('base_file', baseBlob, baseFileName);
-  formData.append('comparison_file', compBlob, comparisonFileName);
-  if (maxChanges != null) {
-    formData.append('max_changes', String(maxChanges));
-  }
-
-  try {
-    const response = await ragFetch('/api/v1/documents/compare-files', {
-      method: 'POST',
-      body: formData,
-      timeoutMs: FETCH_TIMEOUT_MS,
-      orgSlug,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw UpstreamHttpError.fromResponse(
-        'rag',
-        response,
-        errorText,
-        '/api/v1/documents/compare-files',
-      );
-    }
-
-    const result = await fetchJson<RagCompareResponse>(response);
-    return mapRagResponse(result);
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.name === 'AbortError' || error.name === 'TimeoutError')
-    ) {
-      throw new Error(
-        `RAG service timed out after ${FETCH_TIMEOUT_MS / 1000}s while comparing files.`,
-        { cause: error },
-      );
-    }
-
-    throw error;
-  }
+  const result = await ctx.runAction(internal.rag.documents.compareFiles, {
+    orgSlug,
+    baseStorageId,
+    baseFilename: baseFileName,
+    comparisonStorageId,
+    comparisonFilename: comparisonFileName,
+    maxChanges: maxChanges ?? null,
+  });
+  // The action's `CompareResult` success shape is structurally a
+  // `RagCompareResponse` (change_blocks/stats + base/comparison_document),
+  // matching the by-id `compareDocuments` rewire above.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- CompareResult success shape is structurally a RagCompareResponse
+  return mapRagResponse(result as unknown as RagCompareResponse);
 }

@@ -44,6 +44,7 @@ set -e
 # ---------------------------------------------------------------------------
 # Docker-in-container (DinD) helpers — used only when the spawner launches the
 # session with TALE_DIND=1 (a sysbox/kata tier with SANDBOX_DOCKER_IN_CONTAINER;
+# nosemgrep: tools.opengrep.rules.trailofbits.generic.container-user-root.container-user-root -- intentional: documents the DinD-only `--user 0:0` start (drops to uid 10001 once dockerd is up); this is descriptive prose, not a container invocation
 # see config.ts + docker-session-args.ts). The container then starts as root
 # (--user 0:0) so it can run an inner dockerd; we drop back to uid 10001 for
 # runnerd. Everything here is dead code on the default (non-DinD) path.

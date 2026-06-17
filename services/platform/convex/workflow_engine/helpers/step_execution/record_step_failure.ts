@@ -12,7 +12,7 @@
  * to invent a new persistence path.
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
@@ -30,7 +30,7 @@ export async function recordStepFailure(
   },
 ): Promise<void> {
   const rawExecution = await ctx.runQuery(
-    internal.wf_executions.internal_queries.getRawExecution,
+    internal.workflow_executions.internal_queries.getRawExecution,
     { executionId: toId<'wfExecutions'>(args.executionId) },
   );
 
@@ -88,7 +88,7 @@ export async function recordStepFailure(
   );
 
   await ctx.runMutation(
-    internal.wf_executions.internal_mutations.updateExecutionVariables,
+    internal.workflow_executions.internal_mutations.updateExecutionVariables,
     {
       executionId: toId<'wfExecutions'>(args.executionId),
       variablesSerialized: serialized,

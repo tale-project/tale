@@ -122,7 +122,6 @@ export function CustomersTable({
         options: [
           { value: 'manual_import', label: tCustomers('filter.source.manual') },
           { value: 'file_upload', label: tCustomers('filter.source.upload') },
-          { value: 'circuly', label: tCustomers('filter.source.circuly') },
         ],
         selectedValues: source ? [source] : [],
         onChange: handleSourceChange,

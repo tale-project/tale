@@ -446,6 +446,7 @@ export function EmailPreview({
       {/* Main content */}
       <div
         data-preview-sandbox
+        // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- sanitizedMain is already sanitized HTML
         dangerouslySetInnerHTML={{ __html: sanitizedMain }}
       />
 
@@ -465,6 +466,7 @@ export function EmailPreview({
             <div
               data-preview-sandbox
               className="border-border mt-2 border-t pt-2 opacity-70"
+              // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- sanitizedQuoted is already sanitized HTML
               dangerouslySetInnerHTML={{ __html: sanitizedQuoted }}
             />
           )}

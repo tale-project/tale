@@ -1,6 +1,6 @@
 {
   "title": "Gmail",
-  "description": "Google Gmail API integration for email, labels, threads, and drafts",
+  "description": "Read, send, and organize email in Gmail.",
   "version": 2,
   "authMethod": "oauth2",
   "supportedAuthMethods": ["oauth2"],

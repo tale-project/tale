@@ -9,8 +9,9 @@
 // build-external-agent-parts.ts (UI-part shape used for the live op view).
 
 import type { vAssistantContent } from '@convex-dev/agent/validators';
-import type { AgentEvent } from '@tale/agent-adapters';
 import type { Infer } from 'convex/values';
+
+import type { AgentEvent } from '../../../lib/agent-adapters/events';
 
 /**
  * The assistant-message `content` shape @convex-dev/agent persists + validates

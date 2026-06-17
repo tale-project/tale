@@ -4,7 +4,7 @@
  * Validates LLM step configurations.
  */
 
-import { isRecord } from '../../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../../lib/utils/type-utils';
 import { TOOL_NAMES } from '../../../../agent_tools/tool_names';
 import type { ValidationResult } from '../types';
 

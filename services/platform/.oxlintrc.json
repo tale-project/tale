@@ -27,8 +27,7 @@
       "files": [
         "**/*.test.ts",
         "**/*.test.tsx",
-        "test/**/*.ts",
-        "stress-tests/**/*.ts",
+        "tests/**/*.ts",
         "scripts/**/*.ts"
       ],
       "rules": {
@@ -60,6 +59,7 @@
     "*.gen.ts",
     "*.gen.tsx",
     "storybook-static",
-    "public/**"
+    "public/**",
+    "tests/e2e/fixtures/config/**"
   ]
 }

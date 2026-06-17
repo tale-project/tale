@@ -28,7 +28,7 @@ import type {
   LocationRequestMetadata,
 } from '@/lib/shared/schemas/approvals';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import type { RouteReason } from '../utils/route-reason';
 

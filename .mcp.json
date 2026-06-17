@@ -2,7 +2,21 @@
   "mcpServers": {
     "playwright": {
       "command": "npx",
-      "args": ["@playwright/mcp@latest", "--browser=chrome", "--headless"]
+      "args": [
+        "@playwright/mcp@latest",
+        "--browser=chrome",
+        "--headless",
+        "--isolated",
+        "--viewport-size=1280x720",
+        "--output-dir=.playwright-mcp",
+        "--save-session",
+        "--caps=vision,pdf",
+        "--config=playwright-mcp.config.json"
+      ]
+    },
+    "convex": {
+      "command": "bunx",
+      "args": ["convex", "mcp", "start", "--project-dir", "services/platform"]
     }
   }
 }

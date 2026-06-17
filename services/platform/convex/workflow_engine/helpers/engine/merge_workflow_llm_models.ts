@@ -8,7 +8,7 @@
  * - wrapped `{ llmNode: LLMNodeConfig }`
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 
 function hasOwnModelOrModels(llm: Record<string, unknown>): boolean {
   return (

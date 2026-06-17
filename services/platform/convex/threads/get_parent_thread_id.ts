@@ -6,7 +6,7 @@
  * instead of the sub-agent's thread.
  */
 
-import { parseJson } from '../../lib/utils/type-cast-helpers';
+import { parseJson } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import type { SubThreadSummary } from '../agent_tools/sub_agents/helpers/types';

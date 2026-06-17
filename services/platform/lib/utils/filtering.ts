@@ -12,7 +12,7 @@
 /**
  * Filter configuration for a single field
  */
-export interface FieldFilter<T> {
+interface FieldFilter<T> {
   /** The field to filter on */
   field: keyof T;
   /** Set of allowed values (empty set = no filter) */

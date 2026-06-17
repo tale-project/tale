@@ -20,8 +20,8 @@ import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import type { ConversationItem } from '@/convex/conversations/types';
 import { useT } from '@/lib/i18n/client';
-import { filterByTextSearch } from '@/lib/utils/client-utils';
 import { cn } from '@/lib/utils/cn';
+import { filterByTextSearch } from '@/lib/utils/filtering';
 
 import { useBulkActions } from '../hooks/use-bulk-actions';
 import { useConversationSelection } from '../hooks/use-conversation-selection';
@@ -192,59 +192,60 @@ export function Conversations({
       >
         <ConversationListToolbar>
           {/* Compound select-all + filter trigger — matches design `5txbz` */}
-          <DropdownMenu
-            trigger={
-              <button
-                type="button"
-                disabled={controlsDisabled}
-                className={cn(
-                  'flex shrink-0 items-center gap-0.5 rounded pr-1 py-0.5',
-                  readFilter !== 'all' && 'bg-blue-100',
-                  'disabled:cursor-not-allowed disabled:opacity-50',
-                )}
-                aria-label={tConversations('filter.label')}
-              >
-                {/* Prevent checkbox clicks from opening the dropdown */}
-                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
+          {/* Compound select-all + read-filter control. The checkbox and the
+              dropdown trigger are SIBLINGS inside a styled wrapper — never
+              nested — because a Radix Checkbox renders a <button>, and a
+              <button> inside the trigger <button> is invalid HTML (hydration
+              error: "<button> cannot be a descendant of <button>"). */}
+          <div
+            className={cn(
+              'flex shrink-0 items-center gap-0.5 rounded py-0.5 pr-1',
+              readFilter !== 'all' && 'bg-blue-100',
+              controlsDisabled && 'opacity-50',
+            )}
+          >
+            <Checkbox
+              id="select-all"
+              checked={selectAllChecked}
+              onCheckedChange={handleSelectAll}
+              aria-label={tCommon('aria.selectAll')}
+              disabled={controlsDisabled}
+            />
+            <DropdownMenu
+              trigger={
+                <button
+                  type="button"
+                  disabled={controlsDisabled}
+                  className="flex items-center rounded disabled:cursor-not-allowed"
+                  aria-label={tConversations('filter.label')}
                 >
-                  <Checkbox
-                    id="select-all"
-                    checked={selectAllChecked}
-                    onCheckedChange={handleSelectAll}
-                    aria-label={tCommon('aria.selectAll')}
-                    disabled={controlsDisabled}
-                  />
-                </div>
-                <ChevronDownIcon className="text-muted-foreground size-3.5" />
-              </button>
-            }
-            items={[
-              [
-                {
-                  type: 'radio-group',
-                  value: readFilter,
-                  onValueChange: (v) => {
-                    if (v === 'all' || v === 'read' || v === 'unread') {
-                      setReadFilter(v);
-                    }
-                  },
-                  options: [
-                    { value: 'all', label: tConversations('filter.all') },
-                    { value: 'read', label: tConversations('filter.read') },
-                    {
-                      value: 'unread',
-                      label: tConversations('filter.unread'),
+                  <ChevronDownIcon className="text-muted-foreground size-3.5" />
+                </button>
+              }
+              items={[
+                [
+                  {
+                    type: 'radio-group',
+                    value: readFilter,
+                    onValueChange: (v) => {
+                      if (v === 'all' || v === 'read' || v === 'unread') {
+                        setReadFilter(v);
+                      }
                     },
-                  ],
-                } satisfies DropdownMenuItem,
-              ],
-            ]}
-            align="start"
-          />
+                    options: [
+                      { value: 'all', label: tConversations('filter.all') },
+                      { value: 'read', label: tConversations('filter.read') },
+                      {
+                        value: 'unread',
+                        label: tConversations('filter.unread'),
+                      },
+                    ],
+                  } satisfies DropdownMenuItem,
+                ],
+              ]}
+              align="start"
+            />
+          </div>
 
           {hasSelectedItems ? (
             <>

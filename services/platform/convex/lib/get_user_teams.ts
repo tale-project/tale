@@ -11,8 +11,7 @@
 import type { GenericQueryCtx } from 'convex/server';
 import { v } from 'convex/values';
 
-import { parseJson } from '../../lib/utils/type-cast-helpers';
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { getString, isRecord, parseJson } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { DataModel } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';

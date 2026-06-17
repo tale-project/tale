@@ -12,7 +12,7 @@ import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { narrowStringUnion } from '@/lib/utils/type-guards';
+import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import { type StepConfig, type StepType } from '../utils/step-icons';
 import { NextStepsEditor } from './next-steps-editor';

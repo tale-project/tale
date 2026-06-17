@@ -1,6 +1,6 @@
 {
   "title": "GitHub",
-  "description": "GitHub REST API integration for repositories, issues, pull requests, and code search",
+  "description": "Manage repositories, issues, and pull requests on GitHub.",
   "version": 1,
   "authMethod": "bearer_token",
   "supportedAuthMethods": ["bearer_token"],

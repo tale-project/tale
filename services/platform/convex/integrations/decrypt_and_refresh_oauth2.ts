@@ -5,8 +5,7 @@
  * Returns decrypted accessToken, refreshing first if the token is expired or expiring soon.
  */
 
-import { fetchJson } from '../../lib/utils/type-cast-helpers';
-import { isRecord } from '../../lib/utils/type-guards';
+import { fetchJson, isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';

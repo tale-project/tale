@@ -94,6 +94,24 @@ const ORCHESTRATOR_MANAGED_KEYS = [
 // they're not already provided by a dotenv file.
 const PROCESS_ENV_PASSTHROUGH_KEYS = [
   'TALE_ALLOW_PRIVATE_PROVIDER_HOSTS',
+  // Offline-test redirect base for the integration sandbox: when set (only by
+  // the Playwright E2E webServer / container tests), `mock_rewrite.ts` rewrites
+  // outbound connector calls to the local `@tale/mocks` gateway. It runs inside
+  // a Convex node action, so the value must reach the DEPLOYMENT env — unset in
+  // prod/dev, where connectors hit the real upstream.
+  'TALE_MOCK_INTEGRATIONS_BASE',
+  // Secret-box key read by `convex/lib/secret_box.ts` (integration credential
+  // encryption, guardrails) from the DEPLOYMENT env. The Playwright E2E
+  // webServer exports a throwaway value (see playwright.config.ts) that must
+  // reach the deployment, else `saveCredentials` throws "ENCRYPTION_SECRET or
+  // ENCRYPTION_SECRET_HEX is required" and every integration connect fails.
+  'ENCRYPTION_SECRET_HEX',
+  'ENCRYPTION_SECRET',
+  // E2E marker read at cron-registration time by `convex/crons.ts` to drop the
+  // sub-hourly sweeps that otherwise starve the shared 4-vCPU runner's local
+  // backend past its 1s function timeout. Set only by the Playwright E2E
+  // webServer; must reach the DEPLOYMENT env so the analyze-time push sees it.
+  'TALE_E2E',
 ] as const;
 
 function isPassthroughKey(key: string): boolean {

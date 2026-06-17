@@ -9,20 +9,20 @@ The container architecture lives at [Container architecture](/self-hosted/operat
 
 ## What the images are
 
-Eight images, one Dockerfile each, all under `services/<name>/`:
+The stack is entirely TypeScript — no Python image. Each image has one Dockerfile under `services/<name>/`:
 
-| Image                 | Source path                | Base                 |
-| --------------------- | -------------------------- | -------------------- |
-| `tale-proxy`          | `services/proxy/`          | Caddy                |
-| `tale-platform`       | `services/platform/`       | Bun + Debian slim    |
-| `tale-convex`         | `services/convex/`         | Convex local-backend |
-| `tale-db`             | `services/db/`             | ParadeDB (Postgres)  |
-| `tale-rag`            | `services/rag/`            | Python + FastAPI     |
-| `tale-crawler`        | `services/crawler/`        | Crawl4AI             |
-| `tale-sandbox`        | `services/sandbox/`        | Bun + Docker CLI     |
-| `tale-sandbox-egress` | `services/sandbox-egress/` | Alpine + tinyproxy   |
+| Image                  | Source path                 | Base                        |
+| ---------------------- | --------------------------- | --------------------------- |
+| `tale-proxy`           | `services/proxy/`           | Caddy                       |
+| `tale-platform`        | `services/platform/`        | Bun + Debian slim           |
+| `tale-convex`          | `services/convex/`          | Convex local-backend        |
+| `tale-db`              | `services/db/`              | ParadeDB (Postgres)         |
+| `tale-sandbox`         | `services/sandbox/`         | Bun + Docker CLI            |
+| `tale-sandbox-egress`  | `services/sandbox-egress/`  | Alpine + tinyproxy          |
+| `tale-sandbox-runtime` | `services/sandbox-runtime/` | Bun + Chromium + Playwright |
+| `tale-controller`      | `services/controller/`      | Bun + Docker CLI            |
 
-The two compose files at the repo root (`compose.yml` for development, the CLI-generated production compose) reference these by `ghcr.io/tale-project/tale/<image>:<tag>`. A local build replaces the registry pull with a `build:` block in compose.
+Both database containers — `db` and `knowledge-db` — build from the same `tale-db` ParadeDB image; the difference is the database each one serves. The LLM gateway, `tale-bifrost`, is a pinned upstream image (`maximhq/bifrost`), so it has no Dockerfile in the repo. The compose files at the repo root (`compose.yml` for development, the CLI-generated production compose) reference these by `ghcr.io/tale-project/tale/<image>:<tag>`. A local build replaces the registry pull with a `build:` block in compose.
 
 ## Building locally
 
@@ -44,10 +44,10 @@ The supported extension points for forks are at the Dockerfile level. The image'
 
 - **Caddyfile** — `services/proxy/Caddyfile` controls routing and TLS termination. Custom headers, custom subdomains, and custom rate limits land here.
 - **Platform plop templates** — `services/platform/Dockerfile` runs a build step that bakes in the messages, the schema, and the static assets. A fork that ships custom UI strings or extra routes builds the platform image.
-- **RAG document extractors** — `services/rag/app/routers/documents.py` is where new file formats register; a fork that needs an extractor for a proprietary file type patches here.
+- **Sandbox runtime image** — `services/sandbox-runtime/Dockerfile` is the execution environment for `Run code`, web rendering, and document generation; it already carries Chromium and Playwright. A fork that needs an extra system package or a different browser build patches here.
 - **Sandbox egress proxy** — `services/sandbox-egress/tinyproxy.conf.template` is the proxy config the entrypoint renders at startup: open egress by default, or a default-deny hostname filter when `SANDBOX_EGRESS_ALLOWLIST` is set. A fork that needs different proxy behaviour patches here.
 
-What is not a supported seam: the platform container's runtime code (`services/platform/app/`) — those files are application code, not configuration. Patches there are a real fork and ride the upgrade tax.
+What is not a supported seam: the convex backend's application code, including document extraction and the RAG and crawler logic that now live in-process (`services/platform/convex/`), and the platform container's runtime code (`services/platform/app/`). Those files are application code, not configuration — adding a document-format extractor or changing retrieval behaviour is a real fork and rides the upgrade tax.
 
 ## Tagging and pushing your own registry
 

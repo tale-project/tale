@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 import type { KbMention } from '../hooks/use-kb-mentions';
 import { KbMentionPopover } from './kb-mention-popover';

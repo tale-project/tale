@@ -2,16 +2,22 @@
 # ============================================================================
 # Generate Admin Key for Convex Self-Hosted Backend
 # ============================================================================
-# This script generates an admin key for accessing the Convex dashboard.
+# Derives the Convex admin key from INSTANCE_NAME + INSTANCE_SECRET using the
+# same `generate_key` binary the official Convex Docker image ships. The key is
+# DETERMINISTIC: it is identical across restarts as long as INSTANCE_SECRET is
+# unchanged (docker-entrypoint.sh re-derives the very same value on every boot).
 #
 # Usage:
-#   docker compose exec platform ./generate_admin_key.sh
+#   docker compose exec platform ./generate-admin-key.sh             # human-readable block
+#   docker compose exec platform ./generate-admin-key.sh --key-only  # just the key (scripts/CLI)
 # ============================================================================
 
 set -e
 
-echo "🔑 Generating Convex Admin Key..."
-echo ""
+KEY_ONLY=false
+case "${1:-}" in
+  --key-only | --raw) KEY_ONLY=true ;;
+esac
 
 # Load centralized env normalization
 source "$(dirname "$0")/env.sh"
@@ -19,14 +25,22 @@ env_normalize_common
 # Require a valid hex secret for admin key generation
 ensure_hex_instance_secret
 
-echo "📋 Instance Name: $INSTANCE_NAME"
-echo ""
-
-# Generate the admin key using the generate_key binary
-# The admin key is cryptographically derived from the instance name and secret
-# This uses the same binary that the official Convex Docker image uses
+# Generate the admin key using the generate_key binary.
+# The admin key is cryptographically derived from the instance name and secret.
+# This uses the same binary that the official Convex Docker image uses.
 ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
 
+# Machine-readable mode: emit only the key on stdout so callers (the `tale` CLI,
+# get-admin-key.sh) can capture it without scraping decoration.
+if [ "$KEY_ONLY" = true ]; then
+  printf '%s\n' "$ADMIN_KEY"
+  exit 0
+fi
+
+echo "🔑 Generating Convex Admin Key..."
+echo ""
+echo "📋 Instance Name: $INSTANCE_NAME"
+echo ""
 echo "✅ Admin key generated successfully!"
 echo ""
 
@@ -55,4 +69,3 @@ echo "   1. Open $DASHBOARD_URL in your browser"
 echo "   2. Enter $DEPLOYMENT_URL as the Deployment URL"
 echo "   3. Paste the admin key when prompted"
 echo ""
-

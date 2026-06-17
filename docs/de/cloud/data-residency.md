@@ -9,7 +9,7 @@ Die Default-Region für neue Cloud-Orgs ist die Schweiz. Die Region nach der Anm
 
 ## Ein durchgespieltes Beispiel — ein Chat-Roundtrip
 
-Der User in Zürich öffnet Chat und sendet „fass den letzten Kundenanruf zusammen". Die Anfrage trifft Tales Edge in der gewählten Region, landet auf `tale-platform`, ruft in `tale-convex` (die Datenbank), liest das gebundene Wissen aus `tale-rag` und emittiert einen ausgehenden Anruf an den Modell-Provider, gegen den der Agent konfiguriert ist. Der Modell-Provider gibt Tokens zurück; Tale streamt sie auf demselben Pfad zurück. Die Antwort, Transkripte und Zitate landen in `tale-db`, innerhalb der Region repliziert.
+Der User in Zürich öffnet Chat und sendet „fass den letzten Kundenanruf zusammen". Die Anfrage trifft Tales Edge in der gewählten Region, landet auf `tale-platform`, ruft in `tale-convex` (das Backend), liest das gebundene Wissen aus der Datenbank des Wissens-Korpus und emittiert einen ausgehenden Anruf an den Modell-Provider, gegen den der Agent konfiguriert ist. Der Wissens-Abruf läuft im Convex-Backend — es fragt die Korpus-Datenbank direkt ab, ohne separaten Retrieval-Dienst im Pfad. Der Modell-Provider gibt Tokens zurück; Tale streamt sie auf demselben Pfad zurück. Die Antwort und die Zitate landen in der operativen Datenbank, der Korpus bleibt in der Wissensdatenbank, und beide werden innerhalb der Region repliziert.
 
 Zwei Pfeile überqueren in diesem Trip die regionale Grenze: der Anruf an den Modell-Provider (immer extern) und jeder Sub-Prozessor, den die Tools des Agents ausgelöst haben (Web-Fetch, OneDrive-Lese, MCP-Server in einer anderen Region). Alles andere bleibt in der Region.
 
@@ -36,7 +36,7 @@ Das DR-Replikat ist für Disaster Recovery, nicht für aktiven Verkehr. Die Date
 
 ## Backups und DR
 
-Tale schnappt `tale-db` täglich und den Object Store stündlich. Schnappschüsse sind ruhend verschlüsselt mit Schlüsseln, die Tale hält; das DR-Replikat erhält eine Kopie innerhalb der Region. Restores aus Schnappschüssen sind eine kundeninitiierte Operation, geroutet über den Support; das SLA deckt die Restore-Zeit ab.
+Tale schnappt beide Postgres-Datenbanken — den operativen Speicher und den Wissens-Korpus — täglich und den Object Store stündlich. Schnappschüsse sind ruhend verschlüsselt mit Schlüsseln, die Tale hält; das DR-Replikat erhält eine Kopie innerhalb der Region. Restores aus Schnappschüssen sind eine kundeninitiierte Operation, geroutet über den Support; das SLA deckt die Restore-Zeit ab.
 
 ## Region wechseln
 

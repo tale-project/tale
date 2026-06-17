@@ -1,6 +1,6 @@
 import { GenericMutationCtx } from 'convex/server';
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { DataModel } from '../_generated/dataModel';
 import type { PlatformRole } from './types';

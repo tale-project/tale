@@ -1,18 +1,19 @@
 'use node';
 
 /**
- * Extract structured paragraph data from a DOCX file via the crawler service.
+ * Extract structured paragraph data from a DOCX file in-process.
  *
- * Gets the file from Convex storage, sends it to the crawler /extract-structured
- * endpoint, and returns the lightweight paragraph list with stable keys.
+ * Replaces the former crawler `POST /api/v1/docx/extract-structured` call: gets
+ * the file from Convex storage and parses it via `crawler/lib/docx_roundtrip`
+ * (`extractStructured`), returning the lightweight paragraph list with stable
+ * keys + a source hash for the apply step.
  */
 
-import { fetchJson } from '../../../../../lib/utils/type-cast-helpers';
-import type { ActionCtx } from '../../../../_generated/server';
-import { getCrawlerUrl } from '../../../../documents/generate_document_helpers';
+import { v } from 'convex/values';
+
+import { internalAction, type ActionCtx } from '../../../../_generated/server';
+import { extractStructured } from '../../../../crawler/lib/docx_roundtrip';
 import { createDebugLog } from '../../../../lib/debug_log';
-import { UpstreamHttpError } from '../../../../lib/errors/upstream_http_error';
-import { orgSlugFromId } from '../../../../lib/helpers/org_slug';
 import { toId } from '../../../../lib/type_cast_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
@@ -42,45 +43,17 @@ export async function extractDocxStructured(
   fileId: string,
   organizationId: string,
 ): Promise<ExtractDocxStructuredResult> {
-  const crawlerUrl = getCrawlerUrl();
-  const apiUrl = `${crawlerUrl}/api/v1/docx/extract-structured`;
-  const orgSlug = await orgSlugFromId(ctx, organizationId);
-
   debugLog('extractDocxStructured start', { fileId });
+  void organizationId;
 
-  // Get file from storage
+  // Get file from storage and read its bytes in-process.
   const fileBlob = await ctx.storage.get(toId<'_storage'>(fileId));
   if (!fileBlob) {
     throw new Error(`File not found in storage: ${fileId}`);
   }
+  const bytes = new Uint8Array(await fileBlob.arrayBuffer());
 
-  // Upload to crawler
-  const formData = new FormData();
-  formData.append('file', fileBlob, 'document.docx');
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300_000);
-
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'x-tale-org': orgSlug },
-    body: formData,
-    signal: controller.signal,
-  });
-
-  clearTimeout(timeoutId);
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw UpstreamHttpError.fromResponse(
-      'crawler',
-      response,
-      errorText,
-      '/api/v1/docx/extract-structured',
-    );
-  }
-
-  const result = await fetchJson<ExtractDocxStructuredResult>(response);
+  const result = await extractStructured(bytes, 'document.docx');
 
   debugLog('extractDocxStructured success', {
     fileId,
@@ -90,3 +63,15 @@ export async function extractDocxStructured(
 
   return result;
 }
+
+/**
+ * Node-runtime entry point. `document_action` runs in the V8 runtime, so it
+ * cannot value-import this `'use node'` module (that would pull `node:crypto`
+ * from `docx_roundtrip` into the V8 bundle). It invokes this action via
+ * `ctx.runAction` instead.
+ */
+export const extractDocxStructuredAction = internalAction({
+  args: { fileId: v.string(), organizationId: v.string() },
+  handler: async (ctx, args): Promise<ExtractDocxStructuredResult> =>
+    extractDocxStructured(ctx, args.fileId, args.organizationId),
+});

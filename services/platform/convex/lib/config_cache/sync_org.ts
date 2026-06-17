@@ -12,7 +12,7 @@
 import { v } from 'convex/values';
 
 import { V8_SYNC_DOMAINS } from '../../../lib/shared/config/registry';
-import { getString, isRecord } from '../../../lib/utils/type-guards';
+import { getString, isRecord } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 

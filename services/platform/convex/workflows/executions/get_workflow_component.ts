@@ -3,7 +3,7 @@
  *
  * Executions are distributed across four `@convex-dev/workflow` component
  * instances (`workflow`, `workflow_1..3`) by `getShardIndex(executionId)` at
- * start time (see `wf_executions/internal_mutations.ts`). Any read of a
+ * start time (see `workflow_executions/internal_mutations.ts`). Any read of a
  * component-side resource (journal, runStatus, …) must target the SAME shard
  * the execution was started on, otherwise the lookup silently misses.
  */

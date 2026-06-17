@@ -51,6 +51,47 @@ interface SpawnerLockPayload {
 }
 
 /**
+ * Decide whether the process recorded in a lock payload is still running.
+ *
+ * Only meaningful when the lock was written by a peer on the SAME host — a
+ * PID from another machine tells us nothing, so we conservatively treat a
+ * cross-host (or unparseable) lock as alive and let the freshness window be
+ * the arbiter. On this host, `process.kill(pid, 0)` sends no signal but
+ * throws `ESRCH` when no such process exists, which is our "holder is dead"
+ * signal. `EPERM` means the process exists but is owned by another user →
+ * alive.
+ */
+function isLockHolderAlive(rawPayload: string): boolean {
+  let parsed: Partial<SpawnerLockPayload>;
+  try {
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    parsed = JSON.parse(rawPayload) as Partial<SpawnerLockPayload>;
+  } catch {
+    return true;
+  }
+  if (
+    typeof parsed.pid !== 'number' ||
+    parsed.hostname !== hostname() ||
+    parsed.pid <= 0
+  ) {
+    return true;
+  }
+  try {
+    process.kill(parsed.pid, 0);
+    return true;
+  } catch (err) {
+    const code =
+      err instanceof Error && 'code' in err
+        ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+          (err as { code?: string }).code
+        : undefined;
+    // ESRCH → no such process (dead). Any other error (e.g. EPERM) means the
+    // process exists, so treat the holder as alive.
+    return code !== 'ESRCH';
+  }
+}
+
+/**
  * Best-effort cross-process lock for the host session root. Prevents two
  * spawners pointed at the same `/var/lib/tale-sandbox/sessions/` from
  * stomping on each other — specifically, prevents bootSweep's host-dir
@@ -79,15 +120,28 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
       } catch (err) {
         console.warn(`[sandbox.lock] reading existing lock failed:`, err);
       }
-      throw new Error(
-        `Another spawner appears to be running at ${cfg.hostSessionRoot} ` +
-          `(lock fresh, age=${age}ms): ${existing.trim()}`,
+      // A fresh mtime alone doesn't prove the previous spawner is alive: a
+      // hard kill (turbo/vite restart, SIGKILL) leaves the lock behind with
+      // a recent mtime but a dead PID. Probe the recorded PID on this host —
+      // if it's gone, the lock is orphaned and we reclaim it immediately
+      // instead of stranding the dev server for the full freshness window.
+      if (!isLockHolderAlive(existing)) {
+        console.warn(
+          `[sandbox.lock] reclaiming orphaned lock at ${lockPath} ` +
+            `(holder dead, age=${age}ms): ${existing.trim()}`,
+        );
+      } else {
+        throw new Error(
+          `Another spawner appears to be running at ${cfg.hostSessionRoot} ` +
+            `(lock fresh, age=${age}ms): ${existing.trim()}`,
+        );
+      }
+    } else {
+      // Stale lock; fall through to overwrite.
+      console.warn(
+        `[sandbox.lock] reclaiming stale lock at ${lockPath} (age=${age}ms)`,
       );
     }
-    // Stale lock; fall through to overwrite.
-    console.warn(
-      `[sandbox.lock] reclaiming stale lock at ${lockPath} (age=${age}ms)`,
-    );
   } catch (err) {
     // `code` is a non-standard property only present on NodeJS fs errors; the
     // `instanceof Error` + `'code' in err` guards above prove it exists at

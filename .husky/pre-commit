@@ -13,3 +13,13 @@ if [ -n "$PY_FILES" ]; then
   echo "$PY_FILES" | xargs uv run ruff format
   echo "$PY_FILES" | xargs git add
 fi
+
+# Strict SAST on staged code (fast, staged-only). Blocks the commit on a real
+# finding; skips silently if the pinned binary isn't cached yet (offline / first
+# run) so it never blocks on a download — CI runs the full, enforcing scan.
+SAST_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py)$' || true)
+if [ -n "$SAST_FILES" ]; then
+  # Local-only: the fast vendored rules, no network pack fetch. The full pack
+  # set is the CI gate (.github/workflows/sast.yml).
+  echo "$SAST_FILES" | OPENGREP_SKIP_IF_UNCACHED=1 OPENGREP_LOCAL_ONLY=1 xargs bash tools/opengrep/run.sh
+fi

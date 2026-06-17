@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render } from '@/test/utils/render';
+import { render } from '@/tests/utils/render';
 
 // ── Router ───────────────────────────────────────────────────────────────────
 const { mockNavigate, mockSearch } = vi.hoisted(() => ({

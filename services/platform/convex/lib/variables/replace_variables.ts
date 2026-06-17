@@ -1,7 +1,7 @@
 import { isArray, isString, map, toString, trim } from 'lodash';
 import Mustache from 'mustache';
 
-import { isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-utils';
 import { buildContext } from './build_context';
 import { jexlInstance } from './jexl_instance';
 import { replaceVariablesInString } from './replace_variables_in_string';

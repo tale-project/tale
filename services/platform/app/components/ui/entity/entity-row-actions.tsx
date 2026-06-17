@@ -12,7 +12,7 @@ import * as React from 'react';
 import { useState, useCallback, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { buildRecord } from '@/lib/utils/type-guards';
+import { buildRecord } from '@/lib/utils/type-utils';
 
 interface EntityRowAction {
   /** Unique key for the action */

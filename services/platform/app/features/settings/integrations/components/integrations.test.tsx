@@ -4,7 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
+import { checkAccessibility } from '@/tests/utils/a11y';
 
 import type { IntegrationListItem } from './integrations';
 import { Integrations } from './integrations';

@@ -2,7 +2,7 @@
  * Load and validate execution data
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
@@ -19,7 +19,7 @@ export async function loadAndValidateExecution(
 ): Promise<LoadExecutionResult> {
   // Load execution to get wfDefinitionId and workflowConfig
   const execution = await ctx.runQuery(
-    internal.wf_executions.internal_queries.getExecution,
+    internal.workflow_executions.internal_queries.getExecution,
     {
       executionId: toId<'wfExecutions'>(executionId),
     },
@@ -39,7 +39,7 @@ export async function loadAndValidateExecution(
     debugLog('loadAndValidateExecution Variables in storage, fetching...');
     // Get the raw execution to access the serialized variables string
     const rawExecution = await ctx.runQuery(
-      internal.wf_executions.internal_queries.getRawExecution,
+      internal.workflow_executions.internal_queries.getRawExecution,
       { executionId: toId<'wfExecutions'>(executionId) },
     );
     if (rawExecution?.variables) {

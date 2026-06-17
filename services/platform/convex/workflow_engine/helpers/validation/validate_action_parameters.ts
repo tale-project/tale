@@ -10,7 +10,7 @@
  * 3. Required args for the specific operation are provided
  */
 
-import { getString, isRecord } from '../../../../lib/utils/type-guards';
+import { getString, isRecord } from '../../../../lib/utils/type-utils';
 import { getAction, listActionTypes } from '../../action_defs/action_registry';
 
 export interface ActionParametersValidationResult {

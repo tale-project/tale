@@ -50,7 +50,7 @@ export function registerReactPackage(plop: NodePlopAPI): void {
         'README.md.hbs',
         'src/index.ts',
         'src/globals.css',
-        'src/test/setup.ts',
+        'tests/setup.ts',
         'src/i18n/messages.ts.hbs',
         'src/messages/en.json',
         'src/messages/de.json',

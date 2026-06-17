@@ -46,7 +46,7 @@ import {
   type ModelAccessConfig,
   type ModelAccessRule,
 } from '@/lib/shared/schemas/governance';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';

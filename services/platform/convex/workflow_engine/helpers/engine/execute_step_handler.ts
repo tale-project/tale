@@ -4,7 +4,7 @@
  * Contains the business logic for executing a single workflow step.
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
@@ -78,7 +78,7 @@ export async function handleExecuteStep(
   const loopProgress = getActiveLoopProgress(fullVariables.loop);
 
   await ctx.runMutation(
-    internal.wf_executions.internal_mutations.updateExecutionStatus,
+    internal.workflow_executions.internal_mutations.updateExecutionStatus,
     {
       executionId: toId<'wfExecutions'>(args.executionId),
       status: 'running',

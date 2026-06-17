@@ -19,16 +19,14 @@ Tale bringt keinen Log-Shipper mit. Der Driver-Tausch ist der unterstützte Inte
 
 ## Metriken
 
-Der Caddy-Proxy exponiert vier Metric-Pfade, gegated von einem einzigen Bearer-Token:
+Der Caddy-Proxy exponiert zwei Metric-Pfade, gegated von einem einzigen Bearer-Token:
 
-| Pfad                | Quelle          | Was drinsteckt                           |
-| ------------------- | --------------- | ---------------------------------------- |
-| `/metrics/platform` | `tale-platform` | HTTP-Latenz, Route-Counter               |
-| `/metrics/convex`   | `tale-convex`   | 261 eingebaute Convex-Metriken           |
-| `/metrics/rag`      | `tale-rag`      | Indexier-Queue-Tiefe, Vektorsuche-Latenz |
-| `/metrics/crawler`  | `tale-crawler`  | Fetch-Zählungen, per-Site Fehlerraten    |
+| Pfad                | Quelle          | Was drinsteckt                                                  |
+| ------------------- | --------------- | --------------------------------------------------------------- |
+| `/metrics/platform` | `tale-platform` | HTTP-Latenz, Route-Counter, Node-Prozessmetriken                |
+| `/metrics/convex`   | `tale-convex`   | 261 eingebaute Convex-Metriken, plus die RAG- und Crawl-Timings |
 
-Setze `METRICS_BEARER_TOKEN` in `.env`, um die vier Endpoints zu aktivieren; lass es unset, damit sie jeder Anfrage 401 zurückgeben. Alles ausser den vier gelisteten Pfaden gibt ebenfalls 401 zurück, damit ein fehlgerouteter Scraper die internen Health-Endpoints der Plattform nicht versehentlich sieht.
+Wissens-Arbeit (RAG-Suche, Dokument-Ingestion, Web-Crawling) läuft jetzt im Convex-Backend, also reiten ihre Timings auf der `/metrics/convex`-Reihe statt auf einem separaten Endpoint. Setze `METRICS_BEARER_TOKEN` in `.env`, um die zwei Endpoints zu aktivieren; lass es unset, damit sie jeder Anfrage 401 zurückgeben. Alles ausser den zwei gelisteten Pfaden gibt ebenfalls 401 zurück, damit ein fehlgerouteter Scraper die internen Health-Endpoints der Plattform nicht versehentlich sieht.
 
 Eine funktionierende Prometheus-Scrape-Stanza:
 

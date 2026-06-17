@@ -15,7 +15,7 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { isKeyOf } from '@/lib/utils/type-guards';
+import { isKeyOf } from '@/lib/utils/type-utils';
 
 import type { Conversation } from '../types';
 
@@ -167,15 +167,6 @@ const ConversationRow = memo(function ConversationRow({
 }: ConversationRowProps) {
   const { t: tCommon } = useT('common');
 
-  const handleClick = (event: React.MouseEvent) => {
-    if (
-      event.target instanceof HTMLElement &&
-      event.target.closest('[data-state]')
-    )
-      return;
-    if (conversation) onSelect?.(conversation);
-  };
-
   const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
     if (typeof checked === 'boolean' && conversation) {
       onCheck?.(conversation.id, checked);
@@ -183,21 +174,39 @@ const ConversationRow = memo(function ConversationRow({
   };
 
   return (
-    <button
-      type="button"
-      disabled={placeholder}
+    <div
       className={cn(
-        'w-full text-left px-4 py-2.5 hover:bg-muted cursor-pointer transition-colors relative',
+        'hover:bg-muted relative cursor-pointer px-4 py-2.5 transition-colors',
         isSelected && 'bg-muted',
+        placeholder && 'cursor-default pointer-events-none',
       )}
-      onClick={handleClick}
-      aria-pressed={isSelected}
     >
       {isSelected && (
-        <div className="bg-primary absolute top-0 bottom-0 left-0 w-1" />
+        <div className="bg-primary absolute top-0 bottom-0 left-0 z-10 w-1" />
       )}
-      <div className="flex items-start gap-2.5">
-        <div className="mt-0.5 flex items-center">
+      {/* Full-row select target: a real <button> with no interactive
+          descendants (valid HTML). The content layer is pointer-events-none so a
+          click anywhere falls through to this button, while the checkbox island
+          re-enables pointer events for itself — so a native <button> stays
+          keyboard-operable without a role="button" on a <div>. */}
+      <button
+        type="button"
+        disabled={placeholder}
+        onClick={() => {
+          if (conversation) onSelect?.(conversation);
+        }}
+        aria-pressed={isSelected}
+        aria-label={
+          conversation
+            ? conversation.customer?.name ||
+              conversation.title ||
+              'Conversation'
+            : undefined
+        }
+        className="absolute inset-0 z-0"
+      />
+      <div className="pointer-events-none relative z-10 flex items-start gap-2.5">
+        <div className="pointer-events-auto mt-0.5 flex items-center">
           <SkeletonBox>
             <Checkbox
               checked={isChecked}
@@ -318,7 +327,7 @@ const ConversationRow = memo(function ConversationRow({
           </HStack>
         </div>
       </div>
-    </button>
+    </div>
   );
 });
 

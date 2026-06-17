@@ -51,11 +51,9 @@ Microsoft 365 deckt auch Identität ab. Sie unter **Einstellungen > Integratione
 
 ## Vertikal: Commerce und Hospitality
 
-| Integration | Was sie tut                                          | Einrichtung              |
-| ----------- | ---------------------------------------------------- | ------------------------ |
-| **Shopify** | Bestellungen, Kunden und Produkte lesen.             | Shopify-Admin-API-Token. |
-| **Protel**  | Hotel-PMS — Reservierungen und Gästedaten lesen.     | API-Key + Property-ID.   |
-| **Circuly** | Subscription-Commerce-Plattform — Abonnements lesen. | API-Key.                 |
+| Integration | Was sie tut                              | Einrichtung              |
+| ----------- | ---------------------------------------- | ------------------------ |
+| **Shopify** | Bestellungen, Kunden und Produkte lesen. | Shopify-Admin-API-Token. |
 
 ## KI-Dienste
 

@@ -38,7 +38,7 @@ describe('pullImage', () => {
     });
 
     const result = await pullImage(
-      'ghcr.io/tale-project/tale/tale-crawler:0.2.16',
+      'ghcr.io/tale-project/tale/tale-convex:0.2.16',
       deps,
     );
 
@@ -52,11 +52,11 @@ describe('pullImage', () => {
       success: false,
       stdout: '',
       stderr:
-        'Error response from daemon: manifest for ghcr.io/tale-project/tale/tale-crawler:0.2.16 not found',
+        'Error response from daemon: manifest for ghcr.io/tale-project/tale/tale-convex:0.2.16 not found',
     });
 
     const result = await pullImage(
-      'ghcr.io/tale-project/tale/tale-crawler:0.2.16',
+      'ghcr.io/tale-project/tale/tale-convex:0.2.16',
       deps,
     );
 
@@ -94,7 +94,7 @@ describe('pullImage', () => {
     });
 
     const result = await pullImage(
-      'ghcr.io/tale-project/tale/tale-rag:0.2.16',
+      'ghcr.io/tale-project/tale/tale-platform:0.2.16',
       deps,
     );
 

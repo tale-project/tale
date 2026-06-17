@@ -118,8 +118,6 @@ compose.*.yml
 services/platform/
 services/web/
 services/convex/
-services/crawler/
-services/rag/
 services/db/
 packages/
 tools/

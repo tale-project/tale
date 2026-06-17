@@ -4,7 +4,6 @@
 export const DEV_VOLUME_NAMES = [
   'db-data',
   'db-backup',
-  'rag-data',
   // Legacy: pre-0.3.0 deployments split platform and convex data; today
   // everything lives in `convex-data`. The volume is retained as an
   // unused stub so the detect() probe in start.ts can identify pre-0.3.0
@@ -15,7 +14,6 @@ export const DEV_VOLUME_NAMES = [
   'convex-data',
   'caddy-data',
   'caddy-config',
-  'crawler-data',
 ] as const;
 
 // All volumes that must exist before any `docker compose up` in production.
@@ -29,8 +27,6 @@ export const REQUIRED_VOLUMES = [
   'caddy-config',
   'db-data',
   'db-backup',
-  'rag-data',
-  'crawler-data',
 ] as const;
 
 // Enables containers to reach host services (e.g. Ollama on localhost:11434)

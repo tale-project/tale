@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import { useFormEditor } from '@/app/components/ui/editor';
-import { fireEvent, render, waitFor } from '@/test/utils/render';
+import { fireEvent, render, waitFor } from '@/tests/utils/render';
 
 import { OrganizationSettingsView } from './organization-settings';
 

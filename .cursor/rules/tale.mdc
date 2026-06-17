@@ -1,0 +1,24 @@
+---
+description: Tale monorepo coding contract — canonical rules, Definition of Done, verification
+alwaysApply: true
+---
+
+# Tale
+
+The canonical contract for working in this repository lives in [`AGENTS.md`](../../AGENTS.md) at the
+repo root. **Read it in full and follow it.** It defines how to work, the Definition of Done, the
+Ripple Map ("change X → also touch Y"), the mandatory verification doctrine, the coding standards for
+every language and framework here, and an index of deep guides.
+
+Key reflexes, summarized (the full rules and rationale are in `AGENTS.md`):
+
+- **Look before you build.** Reuse/extend existing code — search `packages/ui`, then shared
+  `app/`/`lib/`, then the feature — before writing anything new. Don't reinvent or fork primitives.
+- **A change is rarely one file.** Translations ship in all base locales (`en`/`de`/`fr`), docs ship
+  with code, data-model changes ship a migration, UI changes meet WCAG 2.1 AA, and everything carries
+  its test. Walk the Ripple Map.
+- **Verify, don't assume.** A change is done when you've observed the expected outcome, not when the
+  code looks right.
+- **Think first.** Classify the task (fix / refactor / feature / review), weigh impact, prefer the
+  smallest correct, most reversible change. Never make a radical change without understanding its
+  blast radius.

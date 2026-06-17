@@ -36,7 +36,7 @@ import {
 } from '@/lib/shared/schemas/governance';
 import { formatNumber } from '@/lib/utils/format/number';
 import { structuralEqual } from '@/lib/utils/structural-equal';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';

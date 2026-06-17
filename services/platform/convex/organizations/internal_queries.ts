@@ -6,7 +6,7 @@ import { v } from 'convex/values';
 
 import { defaultLocale as appDefaultLocale } from '../../lib/i18n/config';
 import { clampToSupportedLocale } from '../../lib/shared/utils/get-organization-default-locale';
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
 

@@ -117,12 +117,10 @@ compose.*.yml
 # Other services this image doesn't need
 # =============================================================================
 services/convex/
-services/crawler/
 services/db/
 services/docs/
 services/platform/
 services/proxy/
-services/rag/
 services/sandbox/
 services/sandbox-egress/
 services/web/

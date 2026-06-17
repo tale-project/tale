@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';

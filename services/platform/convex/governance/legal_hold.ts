@@ -18,7 +18,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import { getString, isRecord } from '../../lib/utils/type-guards';
+import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation, mutation } from '../_generated/server';

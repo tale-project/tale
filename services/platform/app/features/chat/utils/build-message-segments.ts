@@ -14,7 +14,7 @@
  * the discriminant) to match the defensive style of the timeline builder.
  */
 
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import {
   SKILL_TOOL_NAMES,

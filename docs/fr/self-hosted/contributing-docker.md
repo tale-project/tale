@@ -9,20 +9,20 @@ L'architecture des conteneurs vit dans [Architecture des conteneurs](/fr/self-ho
 
 ## Quelles sont les images
 
-Huit images, un Dockerfile chacune, toutes sous `services/<name>/` :
+La stack est entièrement TypeScript — pas d'image Python. Chaque image a un Dockerfile sous `services/<name>/` :
 
-| Image                 | Chemin source              | Base                 |
-| --------------------- | -------------------------- | -------------------- |
-| `tale-proxy`          | `services/proxy/`          | Caddy                |
-| `tale-platform`       | `services/platform/`       | Bun + Debian slim    |
-| `tale-convex`         | `services/convex/`         | Convex local-backend |
-| `tale-db`             | `services/db/`             | ParadeDB (Postgres)  |
-| `tale-rag`            | `services/rag/`            | Python + FastAPI     |
-| `tale-crawler`        | `services/crawler/`        | Crawl4AI             |
-| `tale-sandbox`        | `services/sandbox/`        | Bun + CLI Docker     |
-| `tale-sandbox-egress` | `services/sandbox-egress/` | Alpine + tinyproxy   |
+| Image                  | Chemin source               | Base                        |
+| ---------------------- | --------------------------- | --------------------------- |
+| `tale-proxy`           | `services/proxy/`           | Caddy                       |
+| `tale-platform`        | `services/platform/`        | Bun + Debian slim           |
+| `tale-convex`          | `services/convex/`          | Convex local-backend        |
+| `tale-db`              | `services/db/`              | ParadeDB (Postgres)         |
+| `tale-sandbox`         | `services/sandbox/`         | Bun + CLI Docker            |
+| `tale-sandbox-egress`  | `services/sandbox-egress/`  | Alpine + tinyproxy          |
+| `tale-sandbox-runtime` | `services/sandbox-runtime/` | Bun + Chromium + Playwright |
+| `tale-controller`      | `services/controller/`      | Bun + CLI Docker            |
 
-Les deux fichiers compose à la racine du repo (`compose.yml` pour développement, le compose de production généré par la CLI) les référencent via `ghcr.io/tale-project/tale/<image>:<tag>`. Un build local remplace le pull de registre par un bloc `build:` dans compose.
+Les deux conteneurs de base de données — `db` et `knowledge-db` — se construisent depuis la même image ParadeDB `tale-db` ; la différence est la base que chacun sert. La gateway LLM, `tale-bifrost`, est une image amont pinnée (`maximhq/bifrost`), elle n'a donc pas de Dockerfile dans le repo. Les fichiers compose à la racine du repo (`compose.yml` pour développement, le compose de production généré par la CLI) les référencent via `ghcr.io/tale-project/tale/<image>:<tag>`. Un build local remplace le pull de registre par un bloc `build:` dans compose.
 
 ## Construire localement
 
@@ -44,10 +44,10 @@ Les points d'extension supportés pour les forks sont au niveau du Dockerfile. L
 
 - **Caddyfile** — `services/proxy/Caddyfile` contrôle le routage et la terminaison TLS. Les en-têtes personnalisés, sous-domaines personnalisés et rate limits personnalisés atterrissent ici.
 - **Templates plop plateforme** — `services/platform/Dockerfile` lance une étape de build qui cuit les messages, le schéma et les assets statiques. Un fork qui ship des chaînes UI personnalisées ou des routes supplémentaires construit l'image plateforme.
-- **Extracteurs de documents RAG** — `services/rag/app/routers/documents.py` est où s'enregistrent les nouveaux formats de fichier ; un fork qui a besoin d'un extracteur pour un format de fichier propriétaire patche ici.
+- **Image runtime sandbox** — `services/sandbox-runtime/Dockerfile` est l'environnement d'exécution pour **Exécuter du code**, le rendu web et la génération de documents ; il embarque déjà Chromium et Playwright. Un fork qui a besoin d'un paquet système supplémentaire ou d'un build de navigateur différent patche ici.
 - **Proxy d'egress sandbox** — `services/sandbox-egress/tinyproxy.conf.template` est la configuration proxy que l'entrypoint rend au démarrage : egress ouvert par défaut, ou un filtre d'hôtes en refus par défaut quand `SANDBOX_EGRESS_ALLOWLIST` est défini. Un fork qui a besoin d'un autre comportement proxy patche ici.
 
-Ce qui n'est pas une couture supportée : le code runtime du conteneur plateforme (`services/platform/app/`) — ces fichiers sont du code applicatif, pas de la configuration. Les patches là sont un vrai fork et portent la taxe de montée de version.
+Ce qui n'est pas une couture supportée : le code applicatif du backend convex, y compris l'extraction de documents et la logique RAG et crawler qui vit désormais en in-process (`services/platform/convex/`), et le code runtime du conteneur plateforme (`services/platform/app/`). Ces fichiers sont du code applicatif, pas de la configuration — ajouter un extracteur de format de document ou changer le comportement de récupération est un vrai fork et porte la taxe de montée de version.
 
 ## Tagger et pousser vers ta propre registre
 

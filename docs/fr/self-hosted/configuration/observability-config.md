@@ -19,16 +19,14 @@ Tale ne ship pas de log shipper. L'échange de driver est le point d'intégratio
 
 ## Métriques
 
-Le proxy Caddy expose quatre chemins de métriques derrière un seul bearer token :
+Le proxy Caddy expose deux chemins de métriques derrière un seul bearer token :
 
-| Chemin              | Source          | Ce qui est dedans                                       |
-| ------------------- | --------------- | ------------------------------------------------------- |
-| `/metrics/platform` | `tale-platform` | Latence HTTP, compteurs de routes                       |
-| `/metrics/convex`   | `tale-convex`   | 261 métriques Convex intégrées                          |
-| `/metrics/rag`      | `tale-rag`      | Profondeur de la file d'indexation, latence vectorielle |
-| `/metrics/crawler`  | `tale-crawler`  | Compteurs de fetch, taux d'erreur par site              |
+| Chemin              | Source          | Ce qui est dedans                                                |
+| ------------------- | --------------- | ---------------------------------------------------------------- |
+| `/metrics/platform` | `tale-platform` | Latence HTTP, compteurs de routes, métriques de processus Node   |
+| `/metrics/convex`   | `tale-convex`   | 261 métriques Convex intégrées, plus les timings RAG et de crawl |
 
-Mets `METRICS_BEARER_TOKEN` dans `.env` pour activer les quatre endpoints ; laisse-le non défini pour qu'ils retournent 401 à chaque requête. Tout sauf les quatre chemins listés retourne aussi 401, donc un scraper mal routé ne voit pas accidentellement les endpoints de santé internes de la plateforme.
+Le travail de connaissances (recherche RAG, ingestion de documents, crawling web) tourne désormais dans le backend Convex, donc ses timings empruntent la série `/metrics/convex` plutôt qu'un endpoint séparé. Mets `METRICS_BEARER_TOKEN` dans `.env` pour activer les deux endpoints ; laisse-le non défini pour qu'ils retournent 401 à chaque requête. Tout sauf les deux chemins listés retourne aussi 401, donc un scraper mal routé ne voit pas accidentellement les endpoints de santé internes de la plateforme.
 
 Une stanza de scrape Prometheus qui marche :
 

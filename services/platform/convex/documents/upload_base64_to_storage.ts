@@ -5,7 +5,7 @@
  * wrapper in `convex/documents.ts`.
  */
 
-import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { fetchJson } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';

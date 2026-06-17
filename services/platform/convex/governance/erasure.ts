@@ -63,7 +63,6 @@ import * as ApprovalsHelpers from '../approvals/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { hashEmailForAudit } from '../lib/helpers/pii_hash';
-import { ragFetch } from '../lib/helpers/rag_config';
 import { rateLimiter } from '../lib/rate_limiter';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
@@ -72,6 +71,7 @@ import { getOrganizationMember } from '../lib/rls/organization/get_organization_
 import { resolveActorAndSubject } from '../notifications/actor_name';
 import { writeNotificationForOrgs } from '../notifications/helpers';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
+import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { getDsarPolicy } from './dsar_policy';
 import { eraseDocumentBlobs } from './erase_document_blobs';
 import {
@@ -2010,15 +2010,16 @@ export const processErasureRequest = internalAction({
       if (ragOrgSlug !== null) {
         for (const fileId of docResult.fileIds) {
           try {
-            const res = await ragFetch(
-              `/api/v1/documents/${encodeURIComponent(fileId)}`,
-              { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
-            );
-            if (res.ok || res.status === 404) {
+            // In-process delete (replaces external RAG DELETE); idempotent.
+            const result = await deleteDocumentById(ctx, {
+              orgSlug: ragOrgSlug,
+              fileId,
+            });
+            if (result.success) {
               ragDocumentsRemoved += 1;
             } else {
               console.warn(
-                `[gdprErasure] RAG DELETE returned ${res.status} for fileId=${fileId}`,
+                `[gdprErasure] RAG delete failed for fileId=${fileId}: ${result.error ?? result.message}`,
               );
             }
           } catch (error) {
@@ -2101,15 +2102,15 @@ export const processErasureRequest = internalAction({
         for (const storageId of perCategory.fileMetadata.ragPurgeStorageIds ??
           []) {
           try {
-            const res = await ragFetch(
-              `/api/v1/documents/${encodeURIComponent(storageId)}`,
-              { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
-            );
-            if (res.ok || res.status === 404) {
+            const result = await deleteDocumentById(ctx, {
+              orgSlug: ragOrgSlug,
+              fileId: storageId,
+            });
+            if (result.success) {
               ragDocumentsRemoved += 1;
             } else {
               console.warn(
-                `[gdprErasure] RAG DELETE returned ${res.status} for chat-upload storageId=${storageId}`,
+                `[gdprErasure] RAG delete failed for chat-upload storageId=${storageId}: ${result.error ?? result.message}`,
               );
             }
           } catch (error) {
@@ -2138,15 +2139,15 @@ export const processErasureRequest = internalAction({
         for (const storageId of perCategory.videoLinks.ragPurgeStorageIds ??
           []) {
           try {
-            const res = await ragFetch(
-              `/api/v1/documents/${encodeURIComponent(storageId)}`,
-              { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
-            );
-            if (res.ok || res.status === 404) {
+            const result = await deleteDocumentById(ctx, {
+              orgSlug: ragOrgSlug,
+              fileId: storageId,
+            });
+            if (result.success) {
               ragDocumentsRemoved += 1;
             } else {
               console.warn(
-                `[gdprErasure] RAG DELETE returned ${res.status} for video-link storageId=${storageId}`,
+                `[gdprErasure] RAG delete failed for video-link storageId=${storageId}: ${result.error ?? result.message}`,
               );
             }
           } catch (error) {

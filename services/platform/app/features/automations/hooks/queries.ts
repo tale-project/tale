@@ -7,7 +7,7 @@ export function useExecutionJournal(
   executionId: Id<'wfExecutions'> | undefined,
 ) {
   return useConvexQuery(
-    api.wf_executions.queries.getExecutionStepJournal,
+    api.workflow_executions.queries.getExecutionStepJournal,
     executionId ? { executionId } : 'skip',
   );
 }
@@ -21,7 +21,7 @@ export function useExecutionStatus(
   executionId: Id<'wfExecutions'> | undefined,
 ) {
   return useConvexQuery(
-    api.wf_executions.queries.getExecutionStatus,
+    api.workflow_executions.queries.getExecutionStatus,
     executionId ? { executionId } : 'skip',
   );
 }
@@ -35,7 +35,7 @@ export function useExecutionStatus(
  */
 export function useExecutionStepStatuses(executionId: string | undefined) {
   return useConvexQuery(
-    api.wf_executions.queries.getExecutionStepStatuses,
+    api.workflow_executions.queries.getExecutionStepStatuses,
     executionId ? { executionId } : 'skip',
   );
 }
@@ -60,7 +60,7 @@ export function useListExecutions(args: ListExecutionsArgs | 'skip') {
   const initialNumItems = args === 'skip' ? 10 : args.initialNumItems;
 
   return useCachedPaginatedQuery(
-    api.wf_executions.queries.listExecutions,
+    api.workflow_executions.queries.listExecutions,
     queryArgs,
     { initialNumItems },
   );
@@ -74,14 +74,14 @@ interface SearchExecutionArgs {
 
 export function useSearchExecution(args: SearchExecutionArgs | undefined) {
   return useConvexQuery(
-    api.wf_executions.queries.listExecutionsCursor,
+    api.workflow_executions.queries.listExecutionsCursor,
     args ? { ...args, cursor: undefined } : 'skip',
   );
 }
 
 export function useApproxExecutionCount(wfDefinitionId: string | undefined) {
   return useConvexQuery(
-    api.wf_executions.queries.approxCountExecutions,
+    api.workflow_executions.queries.approxCountExecutions,
     wfDefinitionId ? { wfDefinitionId } : 'skip',
   );
 }

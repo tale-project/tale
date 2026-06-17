@@ -5,5 +5,7 @@ storybook-static
 .turbo
 .vite
 *.tsbuildinfo
+test-results
+playwright-report
 .env
 .env.local

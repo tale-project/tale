@@ -2,7 +2,7 @@
  * Persist execution result to database
  */
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import { ActionCtx } from '../../../_generated/server';
 import { toId } from '../../../lib/type_cast_helpers';
@@ -34,7 +34,7 @@ export async function persistExecutionResult(
 
   // Get current execution to retrieve old storage ID for cleanup
   const currentExecution = await ctx.runQuery(
-    internal.wf_executions.internal_queries.getRawExecution,
+    internal.workflow_executions.internal_queries.getRawExecution,
     {
       executionId: toId<'wfExecutions'>(executionId),
     },
@@ -50,7 +50,7 @@ export async function persistExecutionResult(
   );
 
   await ctx.runMutation(
-    internal.wf_executions.internal_mutations.updateExecutionVariables,
+    internal.workflow_executions.internal_mutations.updateExecutionVariables,
     {
       executionId: toId<'wfExecutions'>(executionId),
       variablesSerialized: serialized,

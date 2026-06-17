@@ -15,7 +15,7 @@
 #   docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test down -v
 #
 # Or via the convenience script:
-#   bash tests/container-smoke-test.sh
+#   bun services/platform/tests/integration/container-smoke-test.ts
 #   bun run docker:test
 
 services:
@@ -24,41 +24,6 @@ services:
       - .env.test
     ports:
       - '15432:5432'
-
-  crawler:
-    env_file:
-      - .env.test
-    ports:
-      - '18002:8002'
-    volumes:
-      - ./tests/fixtures/platform-config:/app/platform-config:ro
-    # Dbmate (public_web schema) runs at container start before uvicorn, so
-    # the fresh-DB path — pg_search BM25 index creation + 2 migrations — can
-    # exceed the 40s compose.yml start_period on a cold CI runner. Match the
-    # convex/platform tolerance pattern.
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8002/health']
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 120s
-
-  rag:
-    env_file:
-      - .env.test
-    ports:
-      - '18001:8001'
-    volumes:
-      - ./tests/fixtures/platform-config:/app/platform-config:ro
-    # Same rationale as crawler: dbmate (private_knowledge schema, 10
-    # migrations including BM25 index) precedes uvicorn, so give the
-    # fresh-DB boot room under slow runners.
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8001/health']
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 120s
 
   # Phase 2 (split): convex service gets its own test port mapping + health.
   convex:
@@ -109,7 +74,7 @@ services:
   # The sandbox `/v1/execute` contract takes `files[].url` (the spawner GETs
   # the bytes; inline `content` was removed in b9fd30c8a for binary safety).
   # This container hosts a 1-line `print(1)` Python source over HTTP on the
-  # internal network so the e2e probe in tests/container-smoke-test.sh can
+  # internal network so the e2e probe in services/platform/tests/integration/container-smoke-test.ts can
   # supply a real URL without needing an external fixture host.
   smoke-fileserver:
     image: python:3.12-alpine

@@ -1,6 +1,6 @@
 import { ConvexError } from 'convex/values';
 
-import { parseJson } from '../../lib/utils/type-cast-helpers';
+import { parseJson } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
 import type { ThreadSummaryWithSubThreads } from '../agent_tools/sub_agents/helpers/types';

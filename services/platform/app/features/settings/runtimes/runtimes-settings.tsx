@@ -32,7 +32,9 @@ const STATUS_BADGE: Record<RuntimeRow['status'], string> = {
   offline: 'text-red-600 dark:text-red-400 border-red-500/40',
 };
 
-const SETUP_COMMANDS = 'bunx tale-daemon setup\nbunx tale-daemon start';
+const CLI_INSTALL_COMMAND =
+  'curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash';
+const SETUP_COMMANDS = 'tale daemon setup\ntale daemon start';
 
 /**
  * Settings → API → Runtimes — built on the shared settings UI
@@ -79,6 +81,12 @@ export function RuntimesSettings({
           </LinkButton>
         }
       >
+        <Text as="p" variant="muted" className="text-sm">
+          {t('install.cliHint')}
+        </Text>
+        <CodeBlock copyValue={CLI_INSTALL_COMMAND}>
+          {CLI_INSTALL_COMMAND}
+        </CodeBlock>
         <Text as="p" variant="muted" className="text-sm">
           {t('install.description')}
         </Text>

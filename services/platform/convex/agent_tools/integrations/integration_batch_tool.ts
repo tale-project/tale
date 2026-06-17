@@ -34,7 +34,7 @@ const batchOperationSchema = z.object({
 });
 
 const integrationBatchArgs = z.object({
-  integrationName: z.string().describe('Integration name (e.g., "protel")'),
+  integrationName: z.string().describe('Integration name (e.g., "shopify")'),
   operations: z
     .array(batchOperationSchema)
     .min(1)
@@ -51,10 +51,10 @@ export const integrationBatchTool: ToolDefinition = {
 
 Example call:
 {
-  integrationName: "protel",
+  integrationName: "shopify",
   operations: [
-    { id: "q1", operation: "get_guest", params: { "guestId": 123 } },
-    { id: "q2", operation: "get_reservations", params: { "roomNumber": "101" } }
+    { id: "q1", operation: "get_order", params: { "orderId": 123 } },
+    { id: "q2", operation: "get_customer", params: { "customerId": 456 } }
   ]
 }
 

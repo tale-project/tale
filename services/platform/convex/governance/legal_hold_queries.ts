@@ -17,7 +17,7 @@
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
-import { getNumber, getString, isRecord } from '../../lib/utils/type-guards';
+import { getNumber, getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';

@@ -76,7 +76,7 @@ export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
     void import('@/app/features/automations/components/automation-steps');
     void primeCachedPaginatedQuery(
       context.convexQueryClient.convexClient,
-      api.wf_executions.queries.listExecutions,
+      api.workflow_executions.queries.listExecutions,
       { wfDefinitionId },
       { initialNumItems: DEFAULT_TABLE_PAGE_SIZE },
     );

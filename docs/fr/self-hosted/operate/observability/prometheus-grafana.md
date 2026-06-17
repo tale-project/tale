@@ -1,15 +1,15 @@
 ---
 title: Prometheus et Grafana
-description: Un stack Prometheus et Grafana en copier-coller qui scrape les quatre endpoints de métriques de Tale, plus un tableau de bord de départ et une première règle d'alerte.
+description: Un stack Prometheus et Grafana en copier-coller qui scrape les deux endpoints de métriques de Tale, plus un tableau de bord de départ et une première règle d'alerte.
 ---
 
-C'est l'exemple mis en pratique derrière [Configuration de l'observabilité](/fr/self-hosted/configuration/observability-config) : une paire Prometheus et Grafana que tu poses à côté de Tale, pointée sur les quatre endpoints de métriques à bearer token, avec un tableau de bord de départ et une règle d'alerte à étoffer. C'est pour les opérateurs auto-hébergés qui ont déjà défini `METRICS_BEARER_TOKEN` et veulent maintenant des graphes en direct plutôt qu'un `curl` contre `/metrics`.
+C'est l'exemple mis en pratique derrière [Configuration de l'observabilité](/fr/self-hosted/configuration/observability-config) : une paire Prometheus et Grafana que tu poses à côté de Tale, pointée sur les deux endpoints de métriques à bearer token, avec un tableau de bord de départ et une règle d'alerte à étoffer. C'est pour les opérateurs auto-hébergés qui ont déjà défini `METRICS_BEARER_TOKEN` et veulent maintenant des graphes en direct plutôt qu'un `curl` contre `/metrics`.
 
 La page de référence de configuration liste les endpoints et la stanza de scrape unique ; cette page monte tout le stack de bout en bout. Tout ici tourne sur le même hôte que Tale, donc aucune métrique ne quitte la machine.
 
 ## Avant de commencer
 
-Définis `METRICS_BEARER_TOKEN` dans ton `.env` et redémarre le proxy — sans lui, les quatre endpoints renvoient 401 à chaque requête, et Prometheus affichera chaque cible comme down. Les endpoints, et ce que chacun porte, sont le tableau dans [Configuration de l'observabilité](/fr/self-hosted/configuration/observability-config#metrics) : `/metrics/platform`, `/metrics/convex`, `/metrics/rag`, `/metrics/crawler`, tous servis par `tale-proxy` sur le même nom d'hôte que l'app.
+Définis `METRICS_BEARER_TOKEN` dans ton `.env` et redémarre le proxy — sans lui, les deux endpoints renvoient 401 à chaque requête, et Prometheus affichera chaque cible comme down. Les endpoints, et ce que chacun porte, sont le tableau dans [Configuration de l'observabilité](/fr/self-hosted/configuration/observability-config#metrics) : `/metrics/platform` et `/metrics/convex` (ce dernier porte désormais les timings RAG et de crawl en in-process), tous deux servis par `tale-proxy` sur le même nom d'hôte que l'app.
 
 ## Ajouter Prometheus et Grafana à ta stack
 
@@ -45,7 +45,7 @@ volumes:
 
 ## Configuration du scraping
 
-Les quatre endpoints de Tale partagent un bearer token, donc la config de scrape est la stanza publiée, répétée une fois par chemin. Enregistre ceci comme `prometheus.yml` à côté de l'override ci-dessus et substitue ton hôte et ton token — Prometheus lit le token depuis le fichier, garde-le donc en `chmod 600` et hors du contrôle de version.
+Les deux endpoints de Tale partagent un bearer token, donc la config de scrape est la stanza publiée, répétée une fois par chemin. Enregistre ceci comme `prometheus.yml` à côté de l'override ci-dessus et substitue ton hôte et ton token — Prometheus lit le token depuis le fichier, garde-le donc en `chmod 600` et hors du contrôle de version.
 
 ```yaml
 global:
@@ -64,25 +64,13 @@ scrape_configs:
     authorization: { credentials: '${METRICS_BEARER_TOKEN}' }
     static_configs:
       - targets: ['tale.example.com']
-  - job_name: tale-rag
-    scheme: https
-    metrics_path: /metrics/rag
-    authorization: { credentials: '${METRICS_BEARER_TOKEN}' }
-    static_configs:
-      - targets: ['tale.example.com']
-  - job_name: tale-crawler
-    scheme: https
-    metrics_path: /metrics/crawler
-    authorization: { credentials: '${METRICS_BEARER_TOKEN}' }
-    static_configs:
-      - targets: ['tale.example.com']
 ```
 
-Ouvre `http://127.0.0.1:9090/targets` après le démarrage — les quatre jobs devraient afficher **UP**. Une cible bloquée en **DOWN** avec un 401 signifie que le token dans `prometheus.yml` ne correspond pas à `METRICS_BEARER_TOKEN` ; une erreur de connexion signifie que le nom d'hôte ou le schéma est faux.
+Ouvre `http://127.0.0.1:9090/targets` après le démarrage — les deux jobs devraient afficher **UP**. Une cible bloquée en **DOWN** avec un 401 signifie que le token dans `prometheus.yml` ne correspond pas à `METRICS_BEARER_TOKEN` ; une erreur de connexion signifie que le nom d'hôte ou le schéma est faux.
 
 ## Un tableau de bord de départ
 
-Pointe d'abord Grafana sur Prometheus — ajoute une source de données Prometheus à `http://prometheus:9090` (Grafana l'atteint par le nom de service compose). Construis ensuite un tableau de bord à partir de ces panneaux ; les trois premiers utilisent des métriques toujours présentes, et le reste correspond aux signaux dans [Operations](/fr/self-hosted/operate/observability/operations).
+Pointe d'abord Grafana sur Prometheus — ajoute une source de données Prometheus à `http://prometheus:9090` (Grafana l'atteint par le nom de service compose). Construis ensuite un tableau de bord à partir de ces panneaux ; les trois premiers utilisent des métriques toujours présentes, et le reste correspond aux signaux dans [Opérations](/fr/self-hosted/operate/observability/operations).
 
 | Panneau             | Requête                                              | Se lit comme                                        |
 | ------------------- | ---------------------------------------------------- | --------------------------------------------------- |
@@ -91,7 +79,7 @@ Pointe d'abord Grafana sur Prometheus — ajoute une source de données Promethe
 | Lag de l'event-loop | `nodejs_eventloop_lag_seconds{job="tale-platform"}`  | Bondit quand la plateforme est saturée              |
 | Convex up           | `up{job="tale-convex"}`                              | Joignabilité du backend — `0` est un page           |
 
-L'endpoint platform porte les métriques de processus par défaut de Node (CPU, mémoire, lag de l'event-loop, GC), c'est pourquoi les requêtes concrètes ci-dessus le ciblent. Les endpoints Convex, RAG et crawler exposent leurs propres séries plus riches — ouvre chaque endpoint une fois (`curl -H "Authorization: Bearer $TOKEN" https://tale.example.com/metrics/convex`) pour lire les noms de métriques exacts qu'expose ta version, puis ajoute des panneaux pour la profondeur de la file d'indexation RAG et le taux d'erreur fournisseur évoqués dans Operations.
+L'endpoint platform porte les métriques de processus par défaut de Node (CPU, mémoire, lag de l'event-loop, GC), c'est pourquoi les requêtes concrètes ci-dessus le ciblent. L'endpoint Convex expose sa propre série plus riche, dont les timings RAG et de crawl en in-process — ouvre-le une fois (`curl -H "Authorization: Bearer $TOKEN" https://tale.example.com/metrics/convex`) pour lire les noms de métriques exacts qu'expose ta version, puis ajoute des panneaux pour le débit d'ingestion de connaissances et le taux d'erreur fournisseur évoqués dans Opérations.
 
 ## Une première règle d'alerte
 
@@ -109,10 +97,10 @@ groups:
           summary: 'Tale metrics target {{ $labels.job }} is down'
 ```
 
-La liste complète de ce qui vaut un page contre ce qui peut attendre — taux de 5xx de la plateforme, saturation du pool Postgres, profondeur de la file RAG, sauvegarde-quotidienne-non-écrite — est le tableau de signaux dans [Operations](/fr/self-hosted/operate/observability/operations) ; traduis chaque ligne en règle dès que la série correspondante est sur ton tableau de bord.
+La liste complète de ce qui vaut un page contre ce qui peut attendre — taux de 5xx de la plateforme, saturation du pool Postgres, joignabilité de la base de connaissances, sauvegarde-quotidienne-non-écrite — est le tableau de signaux dans [Opérations](/fr/self-hosted/operate/observability/operations) ; traduis chaque ligne en règle dès que la série correspondante est sur ton tableau de bord.
 
 ## Où cela s'inscrit
 
-Cette page transforme les quatre endpoints de métriques documentés en un stack Prometheus et Grafana qui tourne : un override compose, une config de scrape à quatre jobs, un tableau de bord de départ et une alerte cible-down que tu étoffes avec les seuils d'Operations. Garde les deux services liés à localhost et le bearer token hors du disque en clair, et toute la surface de monitoring reste sur l'hôte avec Tale.
+Cette page transforme les deux endpoints de métriques documentés en un stack Prometheus et Grafana qui tourne : un override compose, une config de scrape à deux jobs, un tableau de bord de départ et une alerte cible-down que tu étoffes avec les seuils d'Opérations. Garde les deux services liés à localhost et le bearer token hors du disque en clair, et toute la surface de monitoring reste sur l'hôte avec Tale.
 
-Les endpoints et le token qui les protège appartiennent à [Configuration de l'observabilité](/fr/self-hosted/configuration/observability-config) ; les seuils et la checklist d'astreinte sont [Operations](/fr/self-hosted/operate/observability/operations). Quand un panneau passe au rouge, la recherche symptôme-vers-correction est [Troubleshooting](/fr/self-hosted/operate/observability/troubleshooting).
+Les endpoints et le token qui les protège appartiennent à [Configuration de l'observabilité](/fr/self-hosted/configuration/observability-config) ; les seuils et la checklist d'astreinte sont [Opérations](/fr/self-hosted/operate/observability/operations). Quand un panneau passe au rouge, la recherche symptôme-vers-correction est [Dépannage](/fr/self-hosted/operate/observability/troubleshooting).

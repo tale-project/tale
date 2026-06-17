@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { render, screen } from '@/test/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { SiteContainer } from './site-container';
 

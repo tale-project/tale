@@ -230,18 +230,10 @@ function descriptionListToMarkdown(el: Element): string[] {
 // ---------------------------------------------------------------------------
 
 export async function htmlToMarkdown(html: string): Promise<string> {
-  // `jsdom` ships its own types but `@types/jsdom` isn't in the workspace.
-  // The DOM surface we touch is tiny and standardised, so we declare a
-  // minimal `any`-typed import and rely on the standard `Element` / `Node`
-  // globals coming from `lib.dom` for the rest.
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-expect-error — no @types/jsdom in deps
+  // `@types/jsdom` is now resolvable at the workspace root (added for the
+  // platform's ported crawler), so the import is fully typed here.
   const { JSDOM } = await import('jsdom');
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
   const dom = new JSDOM(`<!DOCTYPE html><html><body>${html}</body></html>`);
-  // `dom.window.document.body` is typed as `any` because jsdom lacks
-  // type declarations in this workspace; narrow it through the type-guard.
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const body: Element = dom.window.document.body;
 
   const blocks: string[] = [];

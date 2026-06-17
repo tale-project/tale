@@ -17,7 +17,7 @@
 import type { LanguageModelV3 } from '@ai-sdk/provider';
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
-import { narrowStringUnion } from '../../../lib/utils/type-guards';
+import { narrowStringUnion } from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import type { ResolvedModelData } from '../../providers/resolve_model';

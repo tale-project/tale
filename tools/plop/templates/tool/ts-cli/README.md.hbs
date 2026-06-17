@@ -1,0 +1,21 @@
+# @tale/{{kebabCase name}}
+
+{{description}}
+
+Runnable TypeScript tooling for the Tale monorepo.
+
+## Usage
+
+```bash
+bun run tools/{{kebabCase name}}/src/index.ts
+# or, once published / linked:
+bunx tale-{{kebabCase name}}
+```
+
+## Scripts
+
+```bash
+bun run --filter @tale/{{kebabCase name}} typecheck
+bun run --filter @tale/{{kebabCase name}} test
+bun run --filter @tale/{{kebabCase name}} lint
+```

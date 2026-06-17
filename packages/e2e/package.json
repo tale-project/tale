@@ -1,0 +1,21 @@
+{
+  "name": "@tale/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared Playwright e2e config factory and helpers for Tale frontend services.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./i18n": "./src/i18n.ts",
+    "./smoke": "./src/smoke.ts"
+  },
+  "scripts": {
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "@playwright/test": "1.58.2"
+  }
+}

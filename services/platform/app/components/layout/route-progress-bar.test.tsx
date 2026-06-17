@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 // Drive the bar purely off the router status. The mock runs the component's
 // real `select` against a fake router state so we exercise the select logic too.

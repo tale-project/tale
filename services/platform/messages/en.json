@@ -1856,8 +1856,7 @@
     "filter": {
       "source": {
         "manual": "Manual",
-        "upload": "Upload",
-        "circuly": "Circuly"
+        "upload": "Upload"
       },
       "status": {
         "active": "Active",
@@ -1866,11 +1865,8 @@
       }
     },
     "importForm": {
-      "circuly": "Circuly",
       "manualEntry": "Manual entry",
       "upload": "Upload",
-      "fromShopify": "From Shopify",
-      "syncBusinessData": "Sync business data",
       "formatHint": "Format: email, name (optional), locale (optional). One customer per line.",
       "localeHint": "Locale can be any valid BCP 47 tag (e.g. en, en-US, de-DE, zh-Hans).",
       "statusNote": "Imported customers are tagged as (Active)",
@@ -1896,8 +1892,6 @@
     "status": "Status",
     "import": {
       "selectDataSource": "Please select a data source",
-      "syncFeature": "Sync feature",
-      "syncNotImplemented": "Auto-sync is not yet implemented",
       "provideData": "Please provide data",
       "noValidData": "No valid customer data found",
       "success": "Import successful",
@@ -6867,8 +6861,7 @@
     "filter": {
       "source": {
         "manual": "Manual import",
-        "upload": "File upload",
-        "circuly": "Circuly"
+        "upload": "File upload"
       }
     },
     "import": {
@@ -7179,6 +7172,7 @@
     "description": "Run task work on your own machines with the coding-agent CLIs you already use (Claude Code, Codex, OpenCode).",
     "install": {
       "title": "Connect a daemon",
+      "cliHint": "First, install the Tale CLI if you haven't already:",
       "description": "Install once per machine: setup asks for this workspace URL, an API key, and the git workspace agents may work in. Then bind an agent to a runtime in its config — its board tasks will run on your machine and report back for review.",
       "privacy": "Local workspace paths never leave your machine — only the workspace keys you choose are advertised here. full_auto permission requires opting in on both the server and the daemon.",
       "createKey": "Create an API key"
@@ -7186,7 +7180,7 @@
     "list": {
       "title": "Connected daemons",
       "empty": "No daemons connected yet",
-      "emptyHint": "Run bunx tale-daemon setup on the machine that should execute task work.",
+      "emptyHint": "Run tale daemon setup on the machine that should execute task work.",
       "lastSeen": "last seen {age}",
       "workspaces": "Workspaces: {keys}"
     },

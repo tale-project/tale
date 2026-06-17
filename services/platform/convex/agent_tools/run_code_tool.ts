@@ -174,6 +174,7 @@ The sandbox sees three directories pre-populated from the thread workspace:
 - \`/workspace/uploads/\` — files the user uploaded into the thread (kept separate from code-output artifacts).
 
 Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user-uploaded asset → \`/workspace/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.`,
+    // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag -- the match is prose in this LLM tool-description string, not rendered HTML
     inputSchema: runCodeArgs,
     execute: async (ctx: ToolCtx, args: RunCodeArgs) => {
       const { organizationId, threadId, messageId, userId } = ctx;

@@ -86,7 +86,7 @@ vi.mock('@/app/components/ui/forms/select', () => ({
   },
 }));
 
-import { checkAccessibility } from '@/test/utils/a11y';
+import { checkAccessibility } from '@/tests/utils/a11y';
 
 import { CreateFolderDialog } from './create-folder-dialog';
 

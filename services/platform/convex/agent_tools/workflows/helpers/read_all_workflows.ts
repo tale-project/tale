@@ -1,6 +1,6 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import { resolveOrgSlug } from '../../../organizations/resolve_org_slug';
 import type { WorkflowReadListAllResult, WorkflowSummary } from './types';

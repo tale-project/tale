@@ -13,7 +13,7 @@ import {
   useIntegrationCredentials,
   useIntegrations,
 } from '@/app/features/settings/integrations/hooks/queries';
-import { isRecord } from '@/lib/utils/type-guards';
+import { isRecord } from '@/lib/utils/type-utils';
 
 const ICON_MAP: Record<string, LucideIcon> = {
   telescope: Telescope,

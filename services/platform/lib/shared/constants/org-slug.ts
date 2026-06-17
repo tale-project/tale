@@ -11,11 +11,10 @@
  * Rules:
  *   - Must start with a lowercase letter or digit
  *   - Body may include lowercase letters, digits, `_`, `-`
- *   - Length capped at {@link MAX_ORG_SLUG_LENGTH} (64) — the Python
- *     validator at `packages/tale_shared/.../org_slug.py` enforces
- *     `{0,63}` (≤64 total). Allowing longer slugs here would mint
- *     organizations that RAG/crawler refuse, locking those services
- *     out for the org permanently.
+ *   - Length capped at {@link MAX_ORG_SLUG_LENGTH} (64): the regex
+ *     allows a leading char plus `{0,63}` (≤64 total). The cap keeps
+ *     slugs usable as stable identifiers (e.g. derived resource names)
+ *     across the stack.
  */
 export const MAX_ORG_SLUG_LENGTH = 64;
 export const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;

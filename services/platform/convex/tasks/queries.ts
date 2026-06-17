@@ -10,7 +10,7 @@
 
 import { v } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-guards';
+import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
 import {

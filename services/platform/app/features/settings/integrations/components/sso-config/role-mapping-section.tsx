@@ -12,7 +12,7 @@ import type {
   PlatformRole,
   RoleMappingRule,
 } from '@/lib/shared/schemas/sso_providers';
-import { narrowStringUnion } from '@/lib/utils/type-guards';
+import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import type { SsoProviderType } from '../../hooks/use-sso-config-form';
 
