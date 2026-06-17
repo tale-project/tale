@@ -1,4 +1,3 @@
-import { CANNED_REPLY } from '../../../lib/mocks/overrides/canned';
 import {
   assistantMessages,
   composer,
@@ -10,13 +9,13 @@ import {
   stopButton,
   waitForReplyComplete,
 } from '../helpers/chat';
-import { isMockLlmMode, TIMEOUT } from '../helpers/env';
+import { TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
 /**
  * Advanced per-message + composer-control flows (stop, regenerate, edit-branch,
- * copy, multi-turn) against the seeded agent. The Stop affordance is the
+ * multi-turn) against the seeded agent. The Stop affordance is the
  * Send⇄Stop toggle while `isGenerating` is true (whole turn), so it's reliably
  * observable; a guaranteed mid-stream abort is racy against the fast canned
  * turn, so the load-bearing assertions are toggle-exists + Send-returns.
@@ -135,57 +134,10 @@ test('editing a prior user message branches into a new turn', async ({
   await deleteThreadById(page, threadId);
 });
 
-test('the assistant message copy action writes the reply to the clipboard', async ({
-  page,
-  context,
-  org,
-}) => {
-  // Reading what Copy wrote is the unambiguous "it works" signal; both
-  // permissions let navigator.clipboard succeed headless and be read back.
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-
-  await page.goto(`/dashboard/${org.organizationId}/chat`);
-  await expect(composer(page)).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-  const message = `E2E copy probe ${Date.now().toString(36)}`;
-  const threadId = await sendNewThreadMessage(page, message);
-  await expectCannedReply(page);
-  // The copy button renders only once the answer fully reveals.
-  await waitForReplyComplete(page);
-
-  // Locate the copy button by testid inside the last assistant message.
-  const copyButton = assistantMessages(page)
-    .last()
-    .locator('[data-testid="message-copy-button"]');
-  await expect(copyButton).toBeVisible({ timeout: TIMEOUT.REPLY });
-  await copyButton.click();
-
-  // The clipboard holding the reply is the timing-window-free proof Copy
-  // worked (canned in mock mode; any non-empty content in live mode).
-  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
-  if (isMockLlmMode()) {
-    expect(clipboard).toContain(CANNED_REPLY);
-  } else {
-    expect(clipboard.trim().length).toBeGreaterThan(0);
-  }
-
-  // Best-effort: the button flips to its "Copied!" state for ~2s. The
-  // clipboard assertion is the real proof, so a missed window must not fail.
-  await copyButton.hover();
-  await page
-    .getByText(t('common.actions.copied'), { exact: true })
-    .first()
-    .waitFor({ state: 'visible', timeout: TIMEOUT.VISIBLE })
-    .catch((err: unknown) => {
-      console.warn(
-        '[chat-advanced] copied-state tooltip not observed (2s window):',
-        err,
-      );
-    });
-
-  await deleteThreadById(page, threadId);
-});
-
+// The assistant-message copy action moved to a component test:
+// app/features/chat/components/message-bubble.test.tsx (renders the real
+// MessageBubble and asserts the copy button calls navigator.clipboard.writeText
+// with the reply — the clipboard write is the seam, faithfully mockable in jsdom).
 test('a second message in the same thread renders both turns', async ({
   page,
   org,

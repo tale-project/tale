@@ -318,30 +318,10 @@ test.describe('agent editor depth', () => {
     ).toBeChecked({ timeout: TIMEOUT.PERSIST });
   });
 
-  test('webhook tab: renders the section and create affordance (render-only)', async ({
-    page,
-    org,
-  }) => {
-    // Real webhook delivery isn't hermetic, so assert the tab renders its
-    // primary section + the create affordance + the empty state, not a mutate.
-    await openAgentTab(page, org.organizationId, 'webhook');
-
-    await expect(
-      page.getByRole('heading', {
-        name: t('settings.agents.webhook.title'),
-        level: 2,
-      }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(
-      page.getByRole('button', {
-        name: t('settings.agents.webhook.createButton'),
-      }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(
-      page.getByText(t('settings.agents.webhook.emptyTitle')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  });
-
+  // The webhook-tab and metrics-tab render-only smokes moved to component tests
+  // (agent-webhook-section.test.tsx, agent-metrics-scorecard.test.tsx). The
+  // delegation tab stays e2e: it mounts the React Flow organigram editor, whose
+  // canvas chrome needs real layout that jsdom cannot provide.
   test('delegation tab: renders the organigram editor (render-only)', async ({
     page,
     org,
@@ -361,24 +341,5 @@ test.describe('agent editor depth', () => {
     await expect(
       page.getByRole('button', { name: t('common.flow.resetView') }),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  });
-
-  test('metrics tab: renders the scorecard (render-only, no run data)', async ({
-    page,
-    org,
-  }) => {
-    // A freshly-created agent has no runs, so the scorecard shows zeroed KPIs +
-    // the "no runs" state. Assert the section renders rather than a mutate.
-    await openAgentTab(page, org.organizationId, 'metrics');
-
-    await expect(
-      page.getByRole('heading', {
-        name: t('workforce.scorecard.title'),
-        level: 2,
-      }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(
-      page.getByText(t('workforce.scorecard.noRuns')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   });
 });
