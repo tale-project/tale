@@ -25,9 +25,12 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
 }));
 
 describe('ExportChatDialog', () => {
+  let createObjectURL: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     // jsdom implements neither; the export path calls both.
-    URL.createObjectURL = vi.fn(() => 'blob:mock');
+    createObjectURL = vi.fn(() => 'blob:mock');
+    URL.createObjectURL = createObjectURL;
     URL.revokeObjectURL = vi.fn();
   });
 
@@ -92,6 +95,6 @@ describe('ExportChatDialog', () => {
 
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(downloadedName).toBe('chat-export.md');
-    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
   });
 });
