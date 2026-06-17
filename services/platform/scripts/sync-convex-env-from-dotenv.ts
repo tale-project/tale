@@ -83,6 +83,13 @@ const ORCHESTRATOR_MANAGED_KEYS = [
   // not present in any .env file. Required by setProjectSecret + the guardrails
   // secret box (get_secret_key / secret_box) for at-rest secret encryption.
   'ENCRYPTION_SECRET_HEX',
+  // Derived by the dev orchestrator (ensureKnowledgeDatabaseUrl) to point the
+  // host `bun dev` Convex backend at the knowledge-db port compose publishes to
+  // localhost. Read from the DEPLOYMENT env by convex/lib/knowledge/db/
+  // knowledge_db.ts (postgres.js) for RAG upload/search; without it the node
+  // action falls back to the compose hostname `knowledge-db`, which does not
+  // resolve from the host (getaddrinfo ENOTFOUND). An explicit .env value wins.
+  'KNOWLEDGE_DATABASE_URL',
 ] as const;
 
 // Vars read by Convex functions from the DEPLOYMENT env that are documented
