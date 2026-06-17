@@ -1,6 +1,6 @@
 'use client';
 
-import RFB from '@novnc/novnc';
+import RFB, { type RFBEventDetail } from '@novnc/novnc';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
@@ -40,6 +40,84 @@ function buildScreencastUrl(threadId: string, control: boolean): string {
   return `${scheme}${window.location.host}/screencast/${encodeURIComponent(
     threadId,
   )}${control ? '?control=1' : ''}`;
+}
+
+// X11 keysyms for the synthetic paste chord (noVNC's `KeyTable` isn't importable
+// — the package exports only `RFB`). `Control_L` + lowercase `v`.
+const XK_CONTROL_L = 0xffe3;
+const XK_V = 0x76;
+
+/** A Ctrl+V (Win/Linux) or Cmd+V (macOS) press. Match on the physical key
+ *  (`code`) so layout doesn't matter, and exclude AltGr combos. */
+function isPasteChord(e: KeyboardEvent): boolean {
+  if (e.code !== 'KeyV' || e.altKey) return false;
+  return e.ctrlKey || e.metaKey;
+}
+
+/**
+ * Push the host clipboard into the remote browser, then paste it. `readText()`
+ * runs synchronously inside the user-gesture keydown (before any await), so the
+ * browser permits the read. `clipboardPasteFrom` writes its `ClientCutText`
+ * bytes first on the same socket — x11vnc doesn't advertise extended-clipboard
+ * caps, so it's the inline path — and the synthesized Ctrl+V follows, so the
+ * remote `CLIPBOARD` is set before the paste keystroke lands (race-free). The
+ * chord is self-contained (we suppressed the physical one) so it works even when
+ * the host modifier is Cmd, which never maps to a Linux paste on its own.
+ */
+async function bridgeHostPaste(rfb: RFB): Promise<void> {
+  let text: string;
+  try {
+    text = await navigator.clipboard.readText();
+  } catch (err) {
+    // Permission denied / non-secure context / unsupported browser — the human
+    // can still type the value in. Surface it, don't swallow.
+    console.warn('[live-browser] clipboard read failed; paste skipped', err);
+    return;
+  }
+  if (!text) return;
+  rfb.clipboardPasteFrom(text);
+  rfb.sendKey(XK_CONTROL_L, 'ControlLeft', true);
+  rfb.sendKey(XK_V, 'KeyV', true);
+  rfb.sendKey(XK_V, 'KeyV', false);
+  rfb.sendKey(XK_CONTROL_L, 'ControlLeft', false);
+}
+
+/**
+ * Bridge the host clipboard to/from the remote browser while the human is in
+ * control. Read-only viewers never get this (defense-in-depth on top of
+ * `rfb.viewOnly`, which already makes `clipboardPasteFrom`/`sendKey` no-ops).
+ *
+ *  - host → remote: intercept the paste chord in the capture phase on
+ *    `container` (the parent of noVNC's `<canvas>`, whose own keydown listener
+ *    is in the bubble phase) so the physical Ctrl/Cmd+V never reaches noVNC —
+ *    a raw forward would paste stale/empty content. `bridgeHostPaste` drives it.
+ *  - remote → host: mirror the remote's `ServerCutText` (noVNC's `clipboard`
+ *    event) onto the host clipboard, best-effort.
+ *
+ * Returns a teardown that removes both listeners.
+ */
+function attachClipboardBridge(rfb: RFB, container: HTMLElement): () => void {
+  const handlePasteKeydown = (e: KeyboardEvent) => {
+    if (!isPasteChord(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    void bridgeHostPaste(rfb);
+  };
+  const handleRemoteClipboard = (event: CustomEvent<RFBEventDetail>) => {
+    const text = event.detail?.text;
+    if (!text) return;
+    navigator.clipboard.writeText(text).catch((err) => {
+      console.warn('[live-browser] clipboard write to host failed', err);
+    });
+  };
+
+  container.addEventListener('keydown', handlePasteKeydown, true);
+  rfb.addEventListener('clipboard', handleRemoteClipboard);
+
+  return () => {
+    container.removeEventListener('keydown', handlePasteKeydown, true);
+    rfb.removeEventListener('clipboard', handleRemoteClipboard);
+  };
 }
 
 interface ScreencastViewportProps {
@@ -123,10 +201,18 @@ function ScreencastViewport({
     rfb.addEventListener('disconnect', handleDisconnect);
     rfb.addEventListener('securityfailure', handleSecurityFailure);
 
+    // Clipboard bridge only while the human is driving — read-only viewers get
+    // no input path at all (the `clipboardPasteFrom`/`sendKey` calls are also
+    // no-ops under `viewOnly`, so this is belt-and-suspenders).
+    const detachClipboard = control
+      ? attachClipboardBridge(rfb, container)
+      : undefined;
+
     return () => {
       rfb?.removeEventListener('connect', handleConnect);
       rfb?.removeEventListener('disconnect', handleDisconnect);
       rfb?.removeEventListener('securityfailure', handleSecurityFailure);
+      detachClipboard?.();
       try {
         rfb?.disconnect();
       } catch (err) {
