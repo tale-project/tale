@@ -65,6 +65,10 @@ export interface TurnContext {
    * start for the whole turn; continuations carry it so the terminal plan
    * detection below knows how the turn ran. */
   permissionMode?: 'plan' | 'execute';
+  /** Turn interaction posture (autonomous = no human in the loop). Fixed at
+   * exec start and carried across continuations; the terminal card suppression
+   * below reads it. Orthogonal to permissionMode. */
+  interactionMode?: 'interactive' | 'autonomous';
 }
 
 /** Patch the streaming assistant message's content in place (reactive read path
@@ -445,6 +449,9 @@ export async function handleTurnOutcome(
         ...(turn.permissionMode !== undefined && {
           permissionMode: turn.permissionMode,
         }),
+        ...(turn.interactionMode !== undefined && {
+          interactionMode: turn.interactionMode,
+        }),
       },
     );
     return;
@@ -513,8 +520,10 @@ export async function handleTurnOutcome(
   // Plan proposal → approval card (any terminal status except cancelled — a
   // plan captured before a max-turns/error end is still worth reviewing).
   // Best-effort: a card failure must never skip finalize (VK revoke, ledger).
+  // Autonomous turns have no human to approve: the plan still lands in the
+  // finalized message above (patchStreamingMessage), but no blocking card.
   const plan = resolvePlanText(result, turn.permissionMode);
-  if (plan !== null) {
+  if (plan !== null && turn.interactionMode !== 'autonomous') {
     try {
       await ctx.runMutation(
         internal.approvals.internal_mutations.createPlanApproval,
@@ -545,6 +554,7 @@ export async function handleTurnOutcome(
   // in the same Claude session (returnHumanControl → startQueuedTurn).
   if (
     plan === null &&
+    turn.interactionMode !== 'autonomous' &&
     result.humanControlReason !== undefined &&
     result.humanControlReason.trim() !== ''
   ) {

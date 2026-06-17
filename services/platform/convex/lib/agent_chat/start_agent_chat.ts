@@ -661,6 +661,9 @@ export async function startAgentChat(
         // plan/act posture fresh.
         permissionMode:
           threadMeta?.externalAgentMode === 'plan' ? 'plan' : 'execute',
+        // Chat is always interactive — no autonomous entry point here. The turn
+        // arg defaults to interactive when omitted; a future automation caller
+        // (workflow/trigger) is what passes interactionMode: 'autonomous'.
         // The agent's integration allowlist becomes the session's dispatch grant
         // set (scope.integrationGrants), enforced by /api/integrations/execute.
         integrationBindings: enforcedConfig.integrationBindings ?? [],

@@ -176,6 +176,13 @@ export const runExternalAgentTurn = internalAction({
     permissionMode: v.optional(
       v.union(v.literal('plan'), v.literal('execute')),
     ),
+    /** Interaction posture from the thread's interactive/autonomous toggle
+     * ('interactive' when absent). Autonomous = no human in the loop: the
+     * human-in-loop seams (steering, plan/human-control cards, prose questions)
+     * are suppressed. Carried for the whole turn. */
+    interactionMode: v.optional(
+      v.union(v.literal('interactive'), v.literal('autonomous')),
+    ),
     streamId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
     /** The agent's integration allowlist — the session's dispatch grant set
@@ -596,6 +603,9 @@ export const runExternalAgentTurn = internalAction({
         ...(args.permissionMode !== undefined && {
           permissionMode: args.permissionMode,
         }),
+        ...(args.interactionMode !== undefined && {
+          interactionMode: args.interactionMode,
+        }),
         ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
         ...(args.userId !== undefined && { userId: args.userId }),
         ...(args.streamId !== undefined && { streamId: args.streamId }),
@@ -635,6 +645,7 @@ export const runExternalAgentTurn = internalAction({
       const systemPromptAppend = buildSystemPromptAppend({
         systemInstructions: args.systemInstructions,
         permissionMode: args.permissionMode,
+        interactionMode: args.interactionMode,
         browserCdp: BROWSER_VIEW_ENABLED,
       });
 
@@ -673,26 +684,35 @@ export const runExternalAgentTurn = internalAction({
           // Raise the browser-handoff card the moment the agent calls
           // request_human_control — mid-stream, not at turn end (a lingering
           // session may not terminate for a while). Idempotent on the mutation
-          // side, so a later turn-end pass is a safe no-op.
-          onHumanControlRequest: async (reason: string) => {
-            if (assistantMessageId === null) return;
-            await ctx.runMutation(
-              internal.approvals.internal_mutations.createHumanControlRequest,
-              {
-                organizationId: args.organizationId,
-                threadId: args.threadId,
-                messageId: assistantMessageId,
-                agentSlug: args.agentSlug ?? args.agentKind,
-                modelRef: args.modelRef,
-                reason,
-                ...(args.userId !== undefined && { requestedBy: args.userId }),
-              },
-            );
-          },
+          // side, so a later turn-end pass is a safe no-op. Autonomous runs have
+          // no human to take over, so the callback is never wired (the tool is
+          // also gated off in the adapter — this is defense-in-depth).
+          ...(args.interactionMode !== 'autonomous' && {
+            onHumanControlRequest: async (reason: string) => {
+              if (assistantMessageId === null) return;
+              await ctx.runMutation(
+                internal.approvals.internal_mutations.createHumanControlRequest,
+                {
+                  organizationId: args.organizationId,
+                  threadId: args.threadId,
+                  messageId: assistantMessageId,
+                  agentSlug: args.agentSlug ?? args.agentKind,
+                  modelRef: args.modelRef,
+                  reason,
+                  ...(args.userId !== undefined && {
+                    requestedBy: args.userId,
+                  }),
+                },
+              );
+            },
+          }),
           ...(agentSessionId !== null && { agentSessionId }),
           ...(systemPromptAppend !== '' && { systemPromptAppend }),
           ...(args.permissionMode !== undefined && {
             permissionMode: args.permissionMode,
+          }),
+          ...(args.interactionMode !== undefined && {
+            interactionMode: args.interactionMode,
           }),
           // MANAGED only: route through the gateway with the minted VK and
           // expose the integration-dispatch bridge (authed by that key). BYO

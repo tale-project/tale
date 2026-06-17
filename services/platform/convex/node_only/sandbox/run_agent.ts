@@ -111,6 +111,11 @@ export interface RunAgentInSessionArgs {
    * capture below: in execute mode a captured plan is discarded if any other
    * tool call follows it (the agent kept working — see recordEvents). */
   permissionMode?: 'plan' | 'execute';
+  /** Turn interaction posture (interactive = human in the loop, default;
+   * autonomous = unsupervised). Threaded to the adapter spec AND used here to
+   * skip mid-turn steering / the human-control card for autonomous runs.
+   * Independent of permissionMode. */
+  interactionMode?: 'interactive' | 'autonomous';
   /** Extra system-prompt text appended to the agent CLI's own prompt. */
   systemPromptAppend?: string;
   /** Credential mode (default 'managed'). 'byo' skips the gateway entirely. */
@@ -257,6 +262,9 @@ export async function runAgentInSessionImpl(
         ...(args.browserCdp !== undefined && { browserCdp: args.browserCdp }),
         ...(args.permissionMode !== undefined && {
           permissionMode: args.permissionMode,
+        }),
+        ...(args.interactionMode !== undefined && {
+          interactionMode: args.interactionMode,
         }),
         ...(args.systemPromptAppend !== undefined && {
           systemPromptAppend: args.systemPromptAppend,
@@ -617,8 +625,14 @@ export async function runAgentInSessionImpl(
         setAgentIdle(true);
         await flushProgress(true);
       }
-      if (args.threadId === undefined) {
-        // No thread ⇒ no steering; just close once background work drains.
+      if (
+        args.threadId === undefined ||
+        args.interactionMode === 'autonomous'
+      ) {
+        // No thread, or autonomous (no human in the loop) ⇒ no mid-turn
+        // steering; just close once background work drains. An autonomous run
+        // still carries a threadId (for the transcript), so the mode check is
+        // what gates steering, not just the missing-thread case.
         if (agentResultSeen && pendingTasks.size === 0) await sendEof();
         return;
       }
