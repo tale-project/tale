@@ -5,9 +5,12 @@ name: E2E
 # LLM; the web/docs jobs are smoke suites against each static site's own dev
 # server (no Convex, no mock LLM). All share the shared config in `@tale/e2e`.
 #
-# Burn-in policy (issue #179): PR runs are advisory (`continue-on-error`) and
-# the checks are NOT required for merge; the nightly run is strict. Promote a
-# job to a required check once its suite has proven stable for ~2 weeks.
+# Policy (issue #179): the suite is strict on every trigger — PRs, nightly, and
+# manual runs all fail loudly. The burn-in is over; the auth-cost reductions in
+# the backend (lazy team-id resolution in the RLS wrappers) brought the local
+# Convex backend's per-query load under its hard 1s function timeout on the
+# 4-vCPU runner, so a red E2E run now signals a real regression. Keep it that
+# way: investigate failures, don't reach for `continue-on-error`.
 
 on:
   pull_request:
@@ -40,9 +43,6 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # Advisory during burn-in: a red E2E run annotates the PR but never blocks
-    # it. Nightly and manual runs fail loudly.
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
     # The suite outgrew a single serial 30-min run (workers:1 against one
     # backend). Shard the specs across parallel runners so each shard finishes
     # well inside the timeout instead of being cancelled mid-run. Each shard is
@@ -141,7 +141,6 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
     permissions:
       contents: read
     strategy:

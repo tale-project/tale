@@ -31,13 +31,13 @@ const rlsConfig: RLSConfig = {
 export const mutationWithRLS = customMutation(
   mutation,
   customCtx(async (ctx: MutationCtx) => {
-    // Resolve identity/orgs/teams once per request (memoized; see
-    // getRequestAuthContext). JWT identity is 0 DB and org/team lookups run in
-    // parallel, so the wrapper adds no redundant cross-component round-trips.
-    const { user, userOrganizations, userTeamIds } =
-      await getRequestAuthContext(ctx);
+    // Resolve identity/orgs once per request (memoized; see
+    // getRequestAuthContext). JWT identity is 0 DB. Team IDs are resolved
+    // lazily inside rlsRules — only the few team-scoped tables need them — so
+    // the wrapper adds no redundant cross-component round-trips.
+    const { user, userOrganizations } = await getRequestAuthContext(ctx);
 
-    const rules = await rlsRules(ctx, { user, userOrganizations, userTeamIds });
+    const rules = await rlsRules(ctx, { user, userOrganizations });
 
     return {
       db: wrapDatabaseWriter<
