@@ -45,6 +45,8 @@
     "storybook": "bunx turbo run storybook",
     "storybook:ui": "bun run --filter @tale/ui storybook",
     "storybook:platform": "bun run --filter @tale/platform storybook",
+    "storybook:web": "bun run --filter @tale/web storybook",
+    "storybook:docs": "bun run --filter @tale/docs storybook",
     "gen": "bunx --bun plop --plopfile plopfile.ts",
     "gen:react-service": "bun run gen react-service",
     "gen:react-package": "bun run gen react-package",
