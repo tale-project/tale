@@ -59,10 +59,23 @@ function chatUrl(organizationId: string): string {
   return `/dashboard/${organizationId}/chat`;
 }
 
-/** The sidebar account-menu trigger (its tooltip is its accessible name). */
+/**
+ * The sidebar account-menu trigger (its tooltip is its accessible name).
+ *
+ * The accessible name is localized, and the language test switches the UI to
+ * German mid-flow — so match EITHER locale's `manageAccount` label rather than
+ * pinning English (which would stop matching once the app is in German). The
+ * button also renders twice (desktop rail + `md:hidden` mobile header), so
+ * filter to the visible (desktop) instance before `.first()`.
+ */
 function accountTrigger(page: Page) {
+  const labels = [
+    t('auth.userButton.manageAccount'),
+    de('auth.userButton.manageAccount'),
+  ].map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   return page
-    .getByRole('button', { name: t('auth.userButton.manageAccount') })
+    .getByRole('button', { name: new RegExp(labels.join('|')) })
+    .filter({ visible: true })
     .first();
 }
 

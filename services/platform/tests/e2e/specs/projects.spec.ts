@@ -47,7 +47,14 @@ test('creates a project with a task shown in both views, then deletes it', async
     new RegExp(`/dashboard/${organizationId}/projects/[A-Za-z0-9]{16,}`),
     { timeout: TIMEOUT.NAV },
   );
-  await expect(page.getByText(projectName).first()).toBeVisible({
+  // The adaptive header renders the project name twice — once in the desktop
+  // header strip (`hidden md:flex`) and once in the mobile nav slot
+  // (`md:hidden`), which sits first in the DOM. On the desktop viewport the
+  // mobile copy is hidden, so `.first()` alone would pin the hidden one;
+  // filter to the visible (desktop) instance.
+  await expect(
+    page.getByText(projectName).filter({ visible: true }).first(),
+  ).toBeVisible({
     timeout: TIMEOUT.VISIBLE,
   });
   const projectId = /\/projects\/([A-Za-z0-9]{16,})/.exec(page.url())?.[1];

@@ -55,6 +55,11 @@ interface NavCase {
 }
 
 function navCases(organizationId: string): readonly NavCase[] {
+  // Page titles registered through the adaptive header render twice — once in
+  // the desktop header strip (`hidden md:flex`) and once in the mobile nav slot
+  // (`md:hidden`, first in the DOM). On this desktop viewport the mobile copy is
+  // hidden, so a bare `.first()` would pin the hidden one; filter to the visible
+  // (desktop) instance for those title anchors.
   return [
     {
       key: 'projects',
@@ -71,7 +76,10 @@ function navCases(organizationId: string): readonly NavCase[] {
       hrefSuffix: `/dashboard/${organizationId}/conversations/open`,
       urlPattern: /\/conversations\/open(?:[/?#]|$)/,
       anchor: (page) =>
-        page.getByText(t('conversations.title'), { exact: true }).first(),
+        page
+          .getByText(t('conversations.title'), { exact: true })
+          .filter({ visible: true })
+          .first(),
     },
     {
       key: 'knowledge',
@@ -87,6 +95,7 @@ function navCases(organizationId: string): readonly NavCase[] {
       anchor: (page) =>
         page
           .getByRole('heading', { name: t('settings.agents.title'), level: 1 })
+          .filter({ visible: true })
           .first(),
     },
     {
@@ -96,6 +105,7 @@ function navCases(organizationId: string): readonly NavCase[] {
       anchor: (page) =>
         page
           .getByRole('heading', { name: t('automations.title'), level: 1 })
+          .filter({ visible: true })
           .first(),
     },
     {
@@ -109,6 +119,7 @@ function navCases(organizationId: string): readonly NavCase[] {
             name: t('navigation.userSettings'),
             level: 1,
           })
+          .filter({ visible: true })
           .first(),
     },
   ];
@@ -218,9 +229,15 @@ test.describe('navigation: breadcrumbs', () => {
       name: t('settings.agents.title'),
     });
     await expect(agentsCrumb).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await expect(page.getByText(SEEDED_AGENT_DISPLAY_NAME).first()).toBeVisible(
-      { timeout: TIMEOUT.VISIBLE },
-    );
+    // The breadcrumb trail (like all adaptive-header content) renders twice —
+    // desktop strip + mobile slot — so the leaf appears once visibly and once
+    // hidden; target the visible (desktop) copy.
+    await expect(
+      page
+        .getByText(SEEDED_AGENT_DISPLAY_NAME)
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     // Clicking the parent crumb navigates up to the agents list.
     await agentsCrumb.click();
@@ -228,6 +245,7 @@ test.describe('navigation: breadcrumbs', () => {
     await expect(
       page
         .getByRole('heading', { name: t('settings.agents.title'), level: 1 })
+        .filter({ visible: true })
         .first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     // Confirm we left the detail route (back on the bare agents list URL).
