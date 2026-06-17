@@ -369,30 +369,7 @@ test.describe('settings depth — teams', () => {
   });
 });
 
-test.describe('settings depth — skills', () => {
-  // Render + manage-affordance only. Installing/enabling a skill is NOT
-  // hermetic: a skill is created by uploading a SKILL.md bundle from disk
-  // through the upload dialog, and the worker's fresh org seeds no skills — so
-  // the page paints its empty-state. We assert the section heading and the
-  // upload ("manage") affordance the page exposes for adding skills.
-  test('renders the skills page and exposes the upload affordance', async ({
-    page,
-    org,
-  }) => {
-    const { organizationId } = org;
-    await page.goto(settingsUrl(organizationId, 'skills'));
-
-    await expect(
-      page.getByRole('heading', { name: t('navigation.skills'), level: 2 }),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-    // The table header action menu ("Upload skill") is always rendered for an
-    // admin/developer regardless of row count — its presence proves the page
-    // mounted and offers the manage affordance.
-    await expect(
-      page
-        .getByRole('button', { name: t('settings.skills.uploadSkill') })
-        .first(),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  });
-});
+// The skills page render + upload-affordance smoke moved to a component test:
+// app/features/skills/components/skills-table.test.tsx (pure render, no real
+// backend/upload seam — installing a skill needs an on-disk SKILL.md bundle and
+// is non-hermetic, so the e2e only ever asserted the empty-state chrome).

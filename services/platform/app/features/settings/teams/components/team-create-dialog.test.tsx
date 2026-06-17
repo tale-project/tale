@@ -1,7 +1,7 @@
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { TeamCreateDialog } from './team-create-dialog';
 
@@ -52,6 +52,56 @@ describe('TeamCreateDialog', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  // Migrated from the `validation` E2E "create team dialog: disables submit until
+  // a non-empty name is entered; cancels without creating". The gating is pure
+  // client UI: the name schema is `z.string().trim().min(1)` with RHF
+  // `mode: 'onChange'`, and the FormDialog submit button is disabled while
+  // `!isValid`. No backend call, router redirect, or persistence round-trip is
+  // involved in the assertion, so it belongs at the component tier.
+  describe('name validation gating', () => {
+    it('disables submit until a non-empty name is entered; cancels without creating', async () => {
+      const onOpenChange = vi.fn();
+      const { user } = render(
+        <TeamCreateDialog
+          organizationId="org-1"
+          open={true}
+          onOpenChange={onOpenChange}
+        />,
+      );
+
+      const dialog = screen.getByRole('dialog', { name: 'Create team' });
+      const nameField = screen.getByRole('textbox', { name: /Team name/ });
+      // The submit button shares its label with the dialog title; it is the only
+      // button inside the dialog so the role query is unambiguous.
+      const submit = screen.getByRole('button', { name: 'Create team' });
+
+      // Empty name (the default) → invalid → submit DISABLED.
+      expect(nameField).toHaveValue('');
+      expect(submit).toBeDisabled();
+
+      // Whitespace-only trims to empty: still invalid → required error, disabled.
+      await user.type(nameField, '   ');
+      expect(
+        await screen.findByText('Team name is required'),
+      ).toBeInTheDocument();
+      expect(submit).toBeDisabled();
+
+      // A real name clears the error and ENABLES submit (we never click it).
+      await user.clear(nameField);
+      await user.type(nameField, 'E2E Team validation');
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Team name is required'),
+        ).not.toBeInTheDocument();
+        expect(submit).toBeEnabled();
+      });
+
+      // Cancel without creating → the dialog requests close, nothing persists.
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
 });

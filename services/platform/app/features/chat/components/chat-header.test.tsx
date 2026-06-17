@@ -2,7 +2,11 @@ import type { SearchSourceState } from '@tale/ui/search';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import {
+  render,
+  screen,
+  waitForElementToBeRemoved,
+} from '@/tests/utils/render';
 
 import enMessages from '../../../../messages/en.json';
 import { ChatHeader } from './chat-header';
@@ -125,6 +129,45 @@ describe('ChatHeader', () => {
     const input = await openSearch(user);
     await user.type(input, 'x');
     expect(await screen.findByRole('alert')).toBeInTheDocument();
+  });
+
+  // Migrated from the keyboard.spec.ts E2E "opens the command palette with the
+  // keyboard shortcut and closes it with Escape". The header installs a
+  // capturing `window` keydown listener (`(meta on mac | ctrl elsewhere) + K`)
+  // that toggles the shared SearchCommand; Escape dismisses the Radix dialog it
+  // is built on. Both are pure client-side UI (no router/backend), so they move
+  // to the component tier. jsdom's userAgent has no "mac", so `isMod` resolves
+  // to `e.ctrlKey` here — Ctrl+K is the correct combo (the E2E's cross-OS
+  // `ControlOrMeta+k` maps to Control off-mac, exactly this branch).
+  describe('command palette keyboard shortcut', () => {
+    it('opens the palette with Ctrl+K and closes it with Escape', async () => {
+      const { user } = render(<ChatHeader organizationId="org-1" />);
+
+      // Palette is closed initially: its combobox input (aria-label = the
+      // search placeholder) is not mounted.
+      expect(
+        screen.queryByRole('combobox', {
+          name: enMessages.dialogs.searchChat.placeholder,
+        }),
+      ).not.toBeInTheDocument();
+
+      // Fire the real shortcut; the listener is on `window` (capture phase), so
+      // a document-level keypress reaches it.
+      await user.keyboard('{Control>}k{/Control}');
+
+      const paletteInput = await screen.findByRole('combobox', {
+        name: enMessages.dialogs.searchChat.placeholder,
+      });
+      expect(paletteInput).toBeVisible();
+
+      // Escape dismisses the Radix dialog the palette is built on.
+      await user.keyboard('{Escape}');
+      await waitForElementToBeRemoved(() =>
+        screen.queryByRole('combobox', {
+          name: enMessages.dialogs.searchChat.placeholder,
+        }),
+      );
+    });
   });
 
   describe('accessibility', () => {

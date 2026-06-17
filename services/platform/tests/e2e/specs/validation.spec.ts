@@ -96,106 +96,13 @@ test.describe('validation — create agent dialog', () => {
   });
 });
 
-test.describe('validation — create project dialog', () => {
-  test('rejects a whitespace-only name on submit; cancels without creating', async ({
-    page,
-    org,
-  }) => {
-    const { organizationId } = org;
-    await page.goto(`/dashboard/${organizationId}/projects`);
-
-    await expect(createProjectButton(page)).toBeVisible({
-      timeout: TIMEOUT.FIRST_PAINT,
-    });
-    await createProjectButton(page).click();
-
-    const dialog = page.getByRole('dialog', {
-      name: t('projects.create.title'),
-    });
-    await expect(dialog).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-    const nameField = dialog.getByRole('textbox', {
-      name: t('projects.create.nameLabel'),
-    });
-    const submit = dialogButton(dialog, t('projects.create.submit'));
-
-    // The name schema is `.trim().min(1)`, but the submit button is NOT
-    // validity-gated and RHF validates on submit — so a whitespace-only name
-    // leaves the button enabled; clicking it surfaces the error and blocks.
-    await nameField.fill('   ');
-    await expect(submit).toBeEnabled();
-    await submit.click();
-
-    await expect(
-      dialog.getByRole('alert').filter({
-        hasText: t('common.validation.required').replace(
-          '{field}',
-          t('projects.create.nameLabel'),
-        ),
-      }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-    // No navigation to a new project detail route — the create is blocked.
-    await expect(dialog).toBeVisible();
-    expect(page.url()).toContain(`/dashboard/${organizationId}/projects`);
-    expect(page.url()).not.toMatch(/\/projects\/[A-Za-z0-9]{16,}/);
-
-    await dialogButton(dialog, t('common.actions.cancel')).click();
-    await expect(dialog).toBeHidden({ timeout: TIMEOUT.VISIBLE });
-  });
-});
-
-test.describe('validation — create team dialog', () => {
-  test('disables submit until a non-empty name is entered; cancels without creating', async ({
-    page,
-    org,
-  }) => {
-    const { organizationId } = org;
-    await page.goto(`/dashboard/${organizationId}/settings/teams`);
-
-    // Settings pages have no page title; the section heading is the first
-    // content and proves the page mounted.
-    await expect(
-      page.getByRole('heading', { name: t('navigation.teams'), level: 2 }),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-    await page
-      .getByRole('button', { name: t('settings.teams.createTeam') })
-      .first()
-      .click();
-
-    const dialog = page.getByRole('dialog', {
-      name: t('settings.teams.createTeam'),
-    });
-    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-    const nameField = dialog.getByLabel(t('settings.teams.teamName'));
-    const submit = dialogButton(dialog, t('settings.teams.createTeam'));
-
-    // Empty name (the default) → invalid → submit DISABLED (`isValid` is passed
-    // to FormDialog, mode: 'onChange').
-    await expect(nameField).toHaveValue('');
-    await expect(submit).toBeDisabled();
-
-    // Whitespace-only trims to empty: still invalid → required error, disabled.
-    await nameField.fill('   ');
-    await expect(
-      dialog.getByText(t('settings.teams.teamNameRequired')),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(submit).toBeDisabled();
-
-    // A real name clears the error and ENABLES submit (we never click it).
-    await nameField.fill(`E2E Team validation ${Date.now().toString(36)}`);
-    await expect(
-      dialog.getByText(t('settings.teams.teamNameRequired')),
-    ).toHaveCount(0, { timeout: TIMEOUT.VISIBLE });
-    await expect(submit).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
-
-    await dialogButton(dialog, t('common.actions.cancel')).click();
-    await expect(dialog).toBeHidden({ timeout: TIMEOUT.VISIBLE });
-  });
-});
-
+// The create-project and create-team dialog validation gating moved to component
+// tests: app/features/projects/components/project-create-dialog.test.tsx and
+// app/features/settings/teams/components/team-create-dialog.test.tsx (pure
+// client-side RHF + zod validation, no backend seam). The create-agent dialog
+// validation stays e2e (its Continue gate depends on the seeded mock provider
+// supplying a model), and the cascade-delete gating below stays (it creates a
+// real throwaway project to reach the typed-phrase confirmation).
 test.describe('validation — project delete confirmation gating', () => {
   test('gates the cascade delete behind the typed project name, then cancels; throwaway is cleaned up', async ({
     page,

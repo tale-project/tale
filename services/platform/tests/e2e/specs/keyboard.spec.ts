@@ -1,7 +1,6 @@
 import { test as baseTest, expect as baseExpect } from '@playwright/test';
 
 import { signUpViaApi, uniqueCredentials } from '../helpers/auth';
-import { composer } from '../helpers/chat';
 import { TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
@@ -39,32 +38,11 @@ import { t } from '../helpers/i18n';
  */
 
 test.describe('keyboard & focus (owner)', () => {
-  test('opens the command palette with the keyboard shortcut and closes it with Escape', async ({
-    page,
-    org,
-  }) => {
-    const { organizationId } = org;
-    await page.goto(`/dashboard/${organizationId}/chat`);
-
-    // The composer is the stable signal that the chat header (which owns the
-    // palette shortcut listener) mounted.
-    await expect(composer(page)).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-    // Fire the real shortcut; the listener is on `window` (capture), so a
-    // page-level press reaches it.
-    await page.keyboard.press('ControlOrMeta+k');
-
-    // The palette's combobox input (aria-label = the search placeholder).
-    const paletteInput = page.getByRole('combobox', {
-      name: t('dialogs.searchChat.placeholder'),
-    });
-    await expect(paletteInput).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-    // Escape dismisses the Radix dialog the palette is built on.
-    await page.keyboard.press('Escape');
-    await expect(paletteInput).toBeHidden({ timeout: TIMEOUT.VISIBLE });
-  });
-
+  // The command-palette shortcut (Ctrl/Cmd+K opens the SearchCommand, Escape
+  // closes it) moved to a component test: app/features/chat/components/
+  // chat-header.test.tsx (the shortcut is a window keydown listener toggling
+  // local React state — pure UI, no real stack). The focus-trap test below stays
+  // e2e: jsdom cannot faithfully reproduce Radix's focus trap.
   test('traps focus inside an open dialog', async ({ page, org }) => {
     const { organizationId } = org;
 
