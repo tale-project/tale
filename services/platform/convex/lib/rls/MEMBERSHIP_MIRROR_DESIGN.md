@@ -1,15 +1,31 @@
-# Membership Mirror — Design & Decision (researched, deferred pending live-deployment E2E)
+# Membership Mirror — Design & Decision (scoped implementation shipped)
 
-> Status: NOT IMPLEMENTED. This is the researched design for moving org/team
-> membership reads off the cross-component Better Auth `member`/`teamMember`
-> tables onto a fast app-native mirror. It is the path to "100% security +
-> ~100% read performance" for the RLS hot path, but it rewrites the
-> authorization source and MUST be validated against a live Better Auth +
-> Convex deployment (this repo checkout has no CONVEX_DEPLOYMENT, so the
-> runtime behaviors below — component transactionality, org-hook timing,
-> after-middleware path matching, backfill — cannot be E2E-verified here).
-> The safe per-request memoization (lib/rls/context/request_auth_cache.ts)
-> already shipped and bounds the authoritative read to once per request.
+> Status: SCOPED VERSION IMPLEMENTED. The `member`-table mirror is now live as
+> a PERFORMANCE CACHE for the two RLS hot-path readers — `getUserOrganizations`
+> and `isOrgMember` — which read `memberMirror` (a local indexed table) and
+> fall back to Better Auth on a miss. The authoritative gate
+> (`getOrganizationMember`, with its email-fallback and `trustedRole`
+> override) is UNCHANGED and still reads Better Auth, per the adversarial
+> audit's verdict (Section IX) that the mirror must not be the sole source of
+> truth. Team membership (`teamMember`/`getUserTeamIds`) is NOT mirrored.
+>
+> Files: `members/schema.ts` (table + reconcile cursor), `members/mirror_sync.ts`
+> (inline `upsertMemberMirror`/`deleteMemberMirrorByMemberId` + internal
+> `resyncOrgMemberMirror`/`cascadeDeleteOrgMembersMirror`),
+> `members/mirror_reconciliation.ts` (hourly cron — backfills + repairs drift),
+> with inline sync wired into every member write path (members/mutations.ts,
+> users/_, sso_providers/_, betterAuth/trusted_headers/\*), the org-create /
+> accept-invitation auth hooks, and the auth after-middleware catch-all
+> (leave / remove-member / update-member-role / delete). Unit-tested in
+> `members/member_mirror.test.ts`; the schema + functions push cleanly to a
+> live Convex backend. The accepted residual risk is a bounded
+> privilege-retention window (a stale mirror row after a partial write-path
+> failure) until the inline delete / after-middleware / hourly reconcile
+> converge — see Section IX. Full multi-write-path E2E on a live Better Auth
+> deployment (SSO, trusted-headers, invitation, org-delete cascades) remains
+> the recommended pre-production validation.
+>
+> Original researched design follows verbatim.
 
 ## Enumeration of write paths (the coverage surface)
 

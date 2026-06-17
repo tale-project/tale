@@ -807,6 +807,8 @@ import type * as mcp_servers_queries from "../mcp_servers/queries.js";
 import type * as mcp_servers_timeout from "../mcp_servers/timeout.js";
 import type * as members_helpers from "../members/helpers.js";
 import type * as members_internal_queries from "../members/internal_queries.js";
+import type * as members_mirror_reconciliation from "../members/mirror_reconciliation.js";
+import type * as members_mirror_sync from "../members/mirror_sync.js";
 import type * as members_mutations from "../members/mutations.js";
 import type * as members_queries from "../members/queries.js";
 import type * as members_types from "../members/types.js";
@@ -2299,6 +2301,8 @@ declare const fullApi: ApiFromModules<{
   "mcp_servers/timeout": typeof mcp_servers_timeout;
   "members/helpers": typeof members_helpers;
   "members/internal_queries": typeof members_internal_queries;
+  "members/mirror_reconciliation": typeof members_mirror_reconciliation;
+  "members/mirror_sync": typeof members_mirror_sync;
   "members/mutations": typeof members_mutations;
   "members/queries": typeof members_queries;
   "members/types": typeof members_types;

@@ -10,6 +10,7 @@ import { MutationCtx } from '../_generated/server';
 import { createAuth } from '../auth';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { upsertMemberMirror } from '../members/mirror_sync';
 import { recordPasswordChange } from './password_metadata';
 import type { Role } from './types';
 
@@ -123,6 +124,8 @@ export async function createMember(
     }
 
     // Re-add the existing user to the organization
+    const existingUserRole = (args.role ?? 'member').toLowerCase();
+    const existingUserCreatedAt = Date.now();
     const created = await ctx.runMutation(
       components.betterAuth.adapter.create,
       {
@@ -131,8 +134,8 @@ export async function createMember(
           data: {
             organizationId: args.organizationId,
             userId: existingUserId,
-            role: (args.role ?? 'member').toLowerCase(),
-            createdAt: Date.now(),
+            role: existingUserRole,
+            createdAt: existingUserCreatedAt,
           },
         },
       },
@@ -142,6 +145,14 @@ export async function createMember(
       (createdRec ? getString(createdRec, '_id') : undefined) ??
       (createdRec ? getString(createdRec, 'id') : undefined) ??
       String(created);
+
+    await upsertMemberMirror(ctx, {
+      memberId,
+      userId: existingUserId,
+      organizationId: args.organizationId,
+      role: existingUserRole,
+      createdAt: existingUserCreatedAt,
+    });
 
     return {
       userId: existingUserId,
@@ -203,14 +214,16 @@ export async function createMember(
 
   const betterAuthUserId = userResult.page[0]._id;
 
+  const newUserRole = (args.role ?? 'member').toLowerCase();
+  const newUserCreatedAt = Date.now();
   const created = await ctx.runMutation(components.betterAuth.adapter.create, {
     input: {
       model: 'member',
       data: {
         organizationId: args.organizationId,
         userId: betterAuthUserId,
-        role: (args.role ?? 'member').toLowerCase(),
-        createdAt: Date.now(),
+        role: newUserRole,
+        createdAt: newUserCreatedAt,
       },
     },
   });
@@ -219,6 +232,14 @@ export async function createMember(
     (createdRecord ? getString(createdRecord, '_id') : undefined) ??
     (createdRecord ? getString(createdRecord, 'id') : undefined) ??
     String(created);
+
+  await upsertMemberMirror(ctx, {
+    memberId,
+    userId: betterAuthUserId,
+    organizationId: args.organizationId,
+    role: newUserRole,
+    createdAt: newUserCreatedAt,
+  });
 
   await recordPasswordChange(ctx, betterAuthUserId, {
     forceChangeOnNextLogin: true,

@@ -20,10 +20,25 @@ vi.mock('../auth/get_trusted_auth_data', () => ({
 
 const { getUserOrganizations } = await import('./get_user_organizations');
 
+// An empty `memberMirror` cache so the reader falls through to the Better
+// Auth `runQuery` path these tests exercise.
+function emptyMirrorDb() {
+  return {
+    query: () => ({
+      withIndex: () => ({
+        first: async () => null,
+        async *[Symbol.asyncIterator]() {
+          // intentionally empty — no mirrored rows
+        },
+      }),
+    }),
+  };
+}
+
 function createMockCtx() {
   return {
     runQuery: vi.fn(),
-    db: {},
+    db: emptyMirrorDb(),
     auth: {},
   };
 }

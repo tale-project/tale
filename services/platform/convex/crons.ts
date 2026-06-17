@@ -256,4 +256,17 @@ cron(
   {},
 );
 
+// Member-mirror reconcile — re-derive `memberMirror` (the RLS read cache of
+// Better Auth `member` rows) from the source of truth, bounded to a slice of
+// orgs per run. Backfills members that predate the mirror and repairs any
+// drift from a missed write-path beat. Same safety-net role as the config
+// reconcile above; the mirror is never authoritative. 45 past the hour keeps
+// it off the :00/:15 sweeps.
+cron(
+  'reconcile member mirror (hourly)',
+  '45 * * * *',
+  internal.members.mirror_reconciliation.reconcileMemberMirrors,
+  {},
+);
+
 export default crons;

@@ -37,11 +37,16 @@ function createMockCtx(opts: {
 }) {
   return {
     db: {
-      query: vi.fn().mockReturnValue({
+      // `threadMetadata` returns the seeded row; the `memberMirror` cache reads
+      // empty so `isOrgMember` falls through to the Better Auth `runQuery` path
+      // these tests drive.
+      query: vi.fn().mockImplementation((table: string) => ({
         withIndex: vi.fn().mockReturnValue({
-          first: vi.fn().mockResolvedValue(opts.metadata),
+          first: vi
+            .fn()
+            .mockResolvedValue(table === 'memberMirror' ? null : opts.metadata),
         }),
-      }),
+      })),
     },
     runQuery: vi
       .fn()

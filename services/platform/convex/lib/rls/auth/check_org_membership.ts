@@ -29,6 +29,21 @@ export async function isOrgMember(
   userId: string,
   organizationId: string,
 ): Promise<boolean> {
+  // Fast path: the local `memberMirror` cache (kept in sync on every member
+  // write path + an hourly reconcile). A hit avoids the cross-component Better
+  // Auth round-trip that, amplified ~5–10× on the self-hosted backend, blows
+  // the 1s function budget under CI starvation. A miss is NOT authoritative
+  // (the mirror may be cold for this org), so fall through to Better Auth.
+  const mirrored = await ctx.db
+    .query('memberMirror')
+    .withIndex('by_org_user', (q) =>
+      q.eq('organizationId', organizationId).eq('userId', userId),
+    )
+    .first();
+  if (mirrored) {
+    return mirrored.role !== 'disabled';
+  }
+
   let cursor: string | null = null;
   for (;;) {
     const result: {

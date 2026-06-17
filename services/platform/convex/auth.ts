@@ -547,6 +547,63 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
             }
           }
         }
+
+        // Member-mirror catch-all. When the client calls
+        // `authClient.organization.*` directly, Better Auth's org plugin
+        // writes the `member` row inside the component — out of reach of our
+        // custom Convex mutations' inline mirror sync. Re-derive the affected
+        // mirror row(s) from source here so the RLS read cache can't go stale.
+        // Idempotent and non-fatal (read-time Better Auth fallback + the
+        // hourly reconcile cron self-heal). Skipped on the failure path, where
+        // `mw.context.returned` is an APIError and no member row changed.
+        if (
+          (mw.path === '/organization/leave' ||
+            mw.path === '/organization/remove-member' ||
+            mw.path === '/organization/update-member-role' ||
+            mw.path === '/organization/delete') &&
+          !(mw.context.returned instanceof APIError)
+        ) {
+          try {
+            const body = isRecord(mw.body) ? mw.body : {};
+            const bodyOrgId = getString(body, 'organizationId');
+            if (mw.path === '/organization/delete') {
+              if (bodyOrgId) {
+                await runCtx.runMutation(
+                  internal.members.mirror_sync.cascadeDeleteOrgMembersMirror,
+                  { organizationId: bodyOrgId },
+                );
+              }
+            } else {
+              const returned = isRecord(mw.context.returned)
+                ? mw.context.returned
+                : undefined;
+              const returnedMember =
+                returned && isRecord(returned.member)
+                  ? returned.member
+                  : undefined;
+              const userId =
+                (returnedMember
+                  ? getString(returnedMember, 'userId')
+                  : undefined) ?? getString(body, 'userId');
+              const organizationId =
+                bodyOrgId ??
+                (returnedMember
+                  ? getString(returnedMember, 'organizationId')
+                  : undefined);
+              if (organizationId && userId) {
+                await runCtx.runMutation(
+                  internal.members.mirror_sync.resyncOrgMemberMirror,
+                  { organizationId, userId },
+                );
+              }
+            }
+          } catch (err) {
+            console.warn(
+              '[member-mirror] after-middleware sync failed',
+              err instanceof Error ? err.message : err,
+            );
+          }
+        }
       }),
     },
     plugins: [
@@ -778,6 +835,27 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                 err instanceof Error ? err.message : err,
               );
             }
+
+            // Seed the RLS read cache (`memberMirror`) with the creator's
+            // owner membership. Awaited inline (not scheduled) so the very
+            // first dashboard query reads a warm mirror instead of paying the
+            // cross-component fallback. Non-fatal: a failure self-heals via the
+            // read-time fallback and the hourly reconcile cron.
+            try {
+              const runCtx = requireRunMutationCtx(ctx);
+              await runCtx.runMutation(
+                internal.members.mirror_sync.resyncOrgMemberMirror,
+                {
+                  organizationId: data.organization.id,
+                  userId: data.user.id,
+                },
+              );
+            } catch (err) {
+              console.error(
+                '[afterCreateOrganization] failed to sync member mirror',
+                err instanceof Error ? err.message : err,
+              );
+            }
           },
           afterAcceptInvitation: async (data) => {
             // Member-POV audit row: the invitee just joined the org with
@@ -799,6 +877,25 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
             } catch (err) {
               console.error(
                 '[afterAcceptInvitation] failed to write joined_organization audit',
+                err instanceof Error ? err.message : err,
+              );
+            }
+
+            // Seed the RLS read cache with the just-accepted membership so the
+            // invitee's first authenticated query reads a warm mirror. Non-fatal
+            // (read-time fallback + reconcile cron self-heal).
+            try {
+              const runCtx = requireRunMutationCtx(ctx);
+              await runCtx.runMutation(
+                internal.members.mirror_sync.resyncOrgMemberMirror,
+                {
+                  organizationId: data.organization.id,
+                  userId: data.user.id,
+                },
+              );
+            } catch (err) {
+              console.error(
+                '[afterAcceptInvitation] failed to sync member mirror',
                 err instanceof Error ? err.message : err,
               );
             }

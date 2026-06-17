@@ -6,6 +6,7 @@ import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { createAuth } from '../auth';
+import { upsertMemberMirror } from '../members/mirror_sync';
 import type { Role } from './types';
 
 export interface CreateUserWithoutSessionArgs {
@@ -112,14 +113,16 @@ export async function createUserWithoutSession(
   const betterAuthUserId = userResult.page[0]._id;
 
   // Create member record in Better Auth
+  const role = (args.role ?? 'member').toLowerCase();
+  const createdAt = Date.now();
   const created = await ctx.runMutation(components.betterAuth.adapter.create, {
     input: {
       model: 'member',
       data: {
         organizationId: args.organizationId,
         userId: betterAuthUserId,
-        role: (args.role ?? 'member').toLowerCase(),
-        createdAt: Date.now(),
+        role,
+        createdAt,
       },
     },
   });
@@ -128,6 +131,14 @@ export async function createUserWithoutSession(
     (createdRecord ? getString(createdRecord, '_id') : undefined) ??
     (createdRecord ? getString(createdRecord, 'id') : undefined) ??
     String(created);
+
+  await upsertMemberMirror(ctx, {
+    memberId,
+    userId: betterAuthUserId,
+    organizationId: args.organizationId,
+    role,
+    createdAt,
+  });
 
   return {
     userId: betterAuthUserId,

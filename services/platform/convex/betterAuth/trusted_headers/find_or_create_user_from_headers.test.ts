@@ -26,6 +26,11 @@ type RunQueryFn = ReturnType<typeof vi.fn>;
 interface QueueDriver {
   runQuery: RunQueryFn;
   runMutation: RunMutationFn;
+  db: {
+    query: ReturnType<typeof vi.fn>;
+    insert: ReturnType<typeof vi.fn>;
+    patch: ReturnType<typeof vi.fn>;
+  };
 }
 
 function makeCtx({
@@ -68,7 +73,20 @@ function makeCtx({
     return undefined;
   });
 
-  return { runQuery, runMutation };
+  // The member-create branches now seed the `memberMirror` cache inline. The
+  // cache starts empty here, so the lookup misses and the helper inserts
+  // (a no-op for these audit-focused assertions).
+  const db = {
+    query: vi.fn().mockReturnValue({
+      withIndex: vi.fn().mockReturnValue({
+        first: vi.fn().mockResolvedValue(null),
+      }),
+    }),
+    insert: vi.fn(),
+    patch: vi.fn(),
+  };
+
+  return { runQuery, runMutation, db };
 }
 
 const ARGS = {

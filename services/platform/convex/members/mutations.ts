@@ -8,6 +8,10 @@ import { assertNotHeld } from '../governance/legal_hold_guard';
 import { cascadeOnMemberRemoved } from '../lib/cascades/personalization_cascade';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import {
+  upsertMemberMirror,
+  deleteMemberMirrorByMemberId,
+} from './mirror_sync';
 import type {
   BetterAuthMember,
   BetterAuthUser,
@@ -74,6 +78,7 @@ export const addMember = mutation({
     );
 
     const role = (args.role ?? 'member').toLowerCase();
+    const createdAt = Date.now();
     const created = await ctx.runMutation(
       components.betterAuth.adapter.create,
       {
@@ -83,7 +88,7 @@ export const addMember = mutation({
             organizationId: args.organizationId,
             userId: args.userId,
             role,
-            createdAt: Date.now(),
+            createdAt,
           },
         },
       },
@@ -92,6 +97,15 @@ export const addMember = mutation({
     const memberId = String(
       isBetterAuthCreateResult(created) ? created._id : created,
     );
+
+    // Keep the RLS read cache in step with the new membership.
+    await upsertMemberMirror(ctx, {
+      memberId,
+      userId: args.userId,
+      organizationId: args.organizationId,
+      role,
+      createdAt,
+    });
 
     await AuditLogHelpers.logSuccess(ctx, {
       auditCtx: {
@@ -192,6 +206,9 @@ export const removeMember = mutation({
         where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
       },
     });
+
+    // Drop the mirror row so RLS stops granting access immediately.
+    await deleteMemberMirrorByMemberId(ctx, args.memberId);
 
     if (member.userId) {
       await cascadeOnMemberRemoved(ctx, member.userId, member.organizationId);
@@ -344,6 +361,15 @@ export const updateMemberRole = mutation({
       paginationOpts: { cursor: null, numItems: 1 },
     });
 
+    // Reflect the new role in the RLS read cache.
+    await upsertMemberMirror(ctx, {
+      memberId: args.memberId,
+      userId: member.userId,
+      organizationId: member.organizationId,
+      role: newRole,
+      createdAt: member.createdAt,
+    });
+
     await AuditLogHelpers.logSuccess(ctx, {
       auditCtx: {
         organizationId: member.organizationId,
@@ -429,6 +455,22 @@ export const transferOwnership = mutation({
         update: { role: 'admin' },
       },
       paginationOpts: { cursor: null, numItems: 1 },
+    });
+
+    // Mirror the atomic owner swap.
+    await upsertMemberMirror(ctx, {
+      memberId: args.targetMemberId,
+      userId: targetMember.userId,
+      organizationId: targetMember.organizationId,
+      role: 'owner',
+      createdAt: targetMember.createdAt,
+    });
+    await upsertMemberMirror(ctx, {
+      memberId: callerMember._id,
+      userId: callerMember.userId,
+      organizationId: callerMember.organizationId,
+      role: 'admin',
+      createdAt: callerMember.createdAt,
     });
 
     const targetUser = targetMember.userId
