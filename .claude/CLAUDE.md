@@ -1,17 +1,17 @@
 # Claude Code — Tale
 
-**Read [`AGENTS.md`](AGENTS.md) in full first.** It is the canonical contract for working in this
+**Read [`AGENTS.md`](../AGENTS.md) in full first.** It is the canonical contract for working in this
 repository: how to work, the Definition of Done, the Ripple Map, the verification doctrine, the
 coding standards, and the index of skills (deep guides loaded on demand). Everything below is a
 Claude-Code-specific delta on top of it — not a replacement.
 
 ## Harness notes
 
-- **Skills live in [`.claude/skills/`](.claude/skills/).** Load the relevant guide before working in
+- **Skills live in [`.claude/skills/`](skills/).** Load the relevant guide before working in
   an area (e.g. `convex`, `react`, `testing`); the index is in `AGENTS.md`. Don't reinvent what a
   skill already documents.
 - **Commands:** `/qa <area>`, `/verify`, `/ship`. **MCP servers:** Playwright (frontend
-  verification), Convex (backend verification), Pencil (design). See [`.mcp.json`](.mcp.json).
+  verification), Convex (backend verification), Pencil (design). See [`.mcp.json`](../.mcp.json).
 - A PostToolUse hook formats every file you edit; don't hand-format or re-run a formatter.
 
 ## Git
