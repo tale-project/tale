@@ -62,6 +62,7 @@ import { mcpServersTable } from './mcp_servers/schema';
 import {
   memberMirrorTable,
   memberMirrorReconcileCursorTable,
+  teamMemberMirrorTable,
 } from './members/schema';
 import {
   migrationLedgerTable,
@@ -181,6 +182,10 @@ export default defineSchema({
   // never the authoritative gate. See `members/schema.ts`.
   memberMirror: memberMirrorTable,
   memberMirrorReconcileCursor: memberMirrorReconcileCursorTable,
+  // Local mirror of Better Auth's `teamMember` table — the team-level
+  // counterpart of memberMirror, so getUserTeamIds (the other half of the RLS
+  // prime) also reads locally instead of cross-component. See members/schema.ts.
+  teamMemberMirror: teamMemberMirrorTable,
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
   agentBindings: agentBindingsTable,

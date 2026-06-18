@@ -1,5 +1,11 @@
+import { isRecord, getString } from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
+import {
+  upsertTeamMemberMirror,
+  deleteTeamMemberMirrorByTeamMemberId,
+  deleteTeamMemberMirrorByTeamId,
+} from '../../members/mirror_sync';
 import type { SsoProviderAdapter, SsoProviderConfig } from '../types';
 
 interface Team {
@@ -134,16 +140,28 @@ async function addTeamMember(
   teamId: string,
   userId: string,
 ): Promise<void> {
-  await ctx.runMutation(components.betterAuth.adapter.create, {
+  const createdAt = Date.now();
+  const created = await ctx.runMutation(components.betterAuth.adapter.create, {
     input: {
       model: 'teamMember',
       data: {
         teamId,
         userId,
-        createdAt: Date.now(),
+        createdAt,
       },
     },
   });
+  const teamMemberId = isRecord(created)
+    ? (getString(created, '_id') ?? getString(created, 'id'))
+    : undefined;
+  if (teamMemberId) {
+    await upsertTeamMemberMirror(ctx, {
+      teamMemberId,
+      userId,
+      teamId,
+      createdAt,
+    });
+  }
 }
 
 async function removeStaleTeamMemberships(
@@ -216,6 +234,7 @@ async function removeStaleTeamMemberships(
           where: [{ field: '_id', value: membership._id, operator: 'eq' }],
         },
       });
+      await deleteTeamMemberMirrorByTeamMemberId(ctx, membership._id);
       removedCount++;
 
       const remainingMembers = await ctx.runQuery(
@@ -236,6 +255,8 @@ async function removeStaleTeamMemberships(
             where: [{ field: '_id', value: membership.teamId, operator: 'eq' }],
           },
         });
+        // Team gone → drop any remaining mirror rows for it (defensive).
+        await deleteTeamMemberMirrorByTeamId(ctx, membership.teamId);
       }
     }
   }

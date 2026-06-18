@@ -19,7 +19,7 @@ import { v } from 'convex/values';
 import { isRecord, getString, getNumber } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
 import { internalAction, internalMutation } from '../_generated/server';
-import { upsertMemberMirror } from './mirror_sync';
+import { upsertMemberMirror, upsertTeamMemberMirror } from './mirror_sync';
 
 const JOB = 'memberMirrorReconcile';
 const ORGS_PER_RUN = 25;
@@ -84,6 +84,76 @@ export const reconcileOneOrg = internalMutation({
         await ctx.db.delete(row._id);
         deleted += 1;
       }
+    }
+
+    // Reconcile the teamMember mirror for every team in this org (upsert/delete
+    // counts fold into the same totals). teamMember is keyed by team, so we walk
+    // the org's teams, then each team's members.
+    let teamCursor: string | null = null;
+    for (;;) {
+      const teamsRes: {
+        page: unknown[];
+        isDone?: boolean;
+        continueCursor?: string;
+      } = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'team',
+        paginationOpts: { cursor: teamCursor, numItems: MEMBERS_PAGE },
+        where: [
+          {
+            field: 'organizationId',
+            value: args.organizationId,
+            operator: 'eq',
+          },
+        ],
+      });
+      if (!teamsRes || teamsRes.page.length === 0) break;
+      for (const rawTeam of teamsRes.page) {
+        if (!isRecord(rawTeam)) continue;
+        const teamId = getString(rawTeam, '_id');
+        if (!teamId) continue;
+
+        const liveTeamMemberIds = new Set<string>();
+        let tmCursor: string | null = null;
+        for (;;) {
+          const tmRes: {
+            page: unknown[];
+            isDone?: boolean;
+            continueCursor?: string;
+          } = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'teamMember',
+            paginationOpts: { cursor: tmCursor, numItems: MEMBERS_PAGE },
+            where: [{ field: 'teamId', value: teamId, operator: 'eq' }],
+          });
+          if (!tmRes || tmRes.page.length === 0) break;
+          for (const raw of tmRes.page) {
+            if (!isRecord(raw)) continue;
+            const teamMemberId = getString(raw, '_id');
+            const tmUserId = getString(raw, 'userId');
+            if (!teamMemberId || !tmUserId) continue;
+            liveTeamMemberIds.add(teamMemberId);
+            await upsertTeamMemberMirror(ctx, {
+              teamMemberId,
+              userId: tmUserId,
+              teamId,
+              createdAt: getNumber(raw, 'createdAt') ?? Date.now(),
+            });
+            upserted += 1;
+          }
+          if (tmRes.isDone || tmRes.continueCursor === tmCursor) break;
+          tmCursor = tmRes.continueCursor ?? null;
+        }
+
+        for await (const row of ctx.db
+          .query('teamMemberMirror')
+          .withIndex('by_teamId', (q) => q.eq('teamId', teamId))) {
+          if (!liveTeamMemberIds.has(row.teamMemberId)) {
+            await ctx.db.delete(row._id);
+            deleted += 1;
+          }
+        }
+      }
+      if (teamsRes.isDone || teamsRes.continueCursor === teamCursor) break;
+      teamCursor = teamsRes.continueCursor ?? null;
     }
 
     return { upserted, deleted };
