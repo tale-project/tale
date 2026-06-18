@@ -628,7 +628,9 @@
       "namePlaceholder": "e.g., Social media workflow",
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
-      "continue": "Continue"
+      "continue": "Continue",
+      "installAll": "Install all",
+      "installingAll": "Installing all..."
     },
     "uploadDialog": {
       "menuItem": "Upload file",
@@ -742,7 +744,10 @@
     },
     "toast": {
       "created": "Automation created successfully",
-      "createFailed": "Failed to create automation"
+      "createFailed": "Failed to create automation",
+      "installedAll": "{count} automations installed",
+      "installedAllNone": "All templates are already installed",
+      "installAllPartial": "{count} templates could not be installed"
     },
     "validation": {
       "duplicateName": "An automation with this name already exists",

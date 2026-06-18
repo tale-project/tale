@@ -410,6 +410,115 @@ export const installWorkflow = action({
   },
 });
 
+/**
+ * Bulk-install every available (uninstalled) workflow template in one call —
+ * the "install all" entry. Optionally scoped to a `folder` (a top-level subdir
+ * of the org's workflows tree, e.g. `issue-desk`), so a pack's workflows can be
+ * installed as a group. Idempotent: already-installed slugs are skipped, and a
+ * single malformed file is reported (not fatal) so one bad template can't block
+ * the rest. Reuses the same recursive scan + slug derivation as listWorkflows.
+ */
+export const installAllWorkflows = action({
+  args: {
+    organizationId: v.string(),
+    // Restrict to slugs equal to / under this top-level folder (no slash).
+    folder: v.optional(v.string()),
+  },
+  returns: v.object({
+    installed: v.array(v.string()),
+    alreadyInstalled: v.array(v.string()),
+    failed: v.array(v.object({ slug: v.string(), message: v.string() })),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    installed: string[];
+    alreadyInstalled: string[];
+    failed: { slug: string; message: string }[];
+  }> => {
+    const { orgSlug, userId, email } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
+    const installedBy = email !== '' ? email : userId;
+
+    if (args.folder !== undefined && !validateWorkflowSlug(args.folder)) {
+      throw new Error(`Invalid folder: ${args.folder}`);
+    }
+    const inFolder = (slug: string): boolean =>
+      args.folder === undefined ||
+      slug === args.folder ||
+      slug.startsWith(`${args.folder}/`);
+
+    const dir = resolveWorkflowsDir(orgSlug);
+    let entries: { name: string; parentPath: string; isDirectory: boolean }[];
+    try {
+      const raw = await readdir(dir, { recursive: true, withFileTypes: true });
+      entries = raw.map((e) => ({
+        name: e.name,
+        parentPath: e.parentPath ?? '',
+        isDirectory: e.isDirectory(),
+      }));
+    } catch (err) {
+      if (errnoCode(err) === 'ENOENT') {
+        return { installed: [], alreadyInstalled: [], failed: [] };
+      }
+      throw new Error(
+        `Workflows directory inaccessible: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
+      );
+    }
+
+    const jsonFiles = entries.filter(
+      (e) =>
+        !e.isDirectory &&
+        e.name.endsWith('.json') &&
+        !e.name.startsWith('.') &&
+        !e.parentPath.includes('.history'),
+    );
+
+    const installedRaw: string[] = await ctx.runQuery(
+      internal.workflows.installations.listInstalledSlugs,
+      { organizationId: args.organizationId },
+    );
+    const installedSlugs = new Set<string>(installedRaw);
+
+    const installed: string[] = [];
+    const alreadyInstalled: string[] = [];
+    const failed: { slug: string; message: string }[] = [];
+
+    for (const entry of jsonFiles) {
+      const relativePath = path
+        .relative(dir, path.join(entry.parentPath, entry.name))
+        .replace(/\\/g, '/');
+      const slug = workflowSlugFromRelativePath(relativePath);
+      if (!validateWorkflowSlug(slug) || !inFolder(slug)) continue;
+      if (installedSlugs.has(slug)) {
+        alreadyInstalled.push(slug);
+        continue;
+      }
+      const result = await readWorkflowFile(orgSlug, slug);
+      if (!result.ok) {
+        failed.push({ slug, message: result.message });
+        continue;
+      }
+      await ctx.runMutation(
+        internal.workflows.installations.upsertInstallation,
+        {
+          organizationId: args.organizationId,
+          workflowSlug: slug,
+          installedBy,
+          contentHash: result.hash,
+        },
+      );
+      installed.push(slug);
+    }
+
+    return { installed, alreadyInstalled, failed };
+  },
+});
+
 export const uninstallWorkflow = action({
   args: {
     organizationId: v.string(),

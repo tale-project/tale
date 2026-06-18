@@ -205,7 +205,13 @@ export const runSandboxScript = internalAction({
     });
 
     const storeAsUrl = async (content: string): Promise<string> => {
-      const storageId = await ctx.storage.store(new Blob([content]));
+      // An explicit content-type is REQUIRED: a typeless Blob makes
+      // ctx.storage.store send an empty Content-Type header, which the storage
+      // backend rejects ("BadHeader: invalid HTTP header"). text/plain is the
+      // safe default — the sandbox stages these as plain workspace files.
+      const storageId = await ctx.storage.store(
+        new Blob([content], { type: 'text/plain' }),
+      );
       const raw = await ctx.storage.getUrl(storageId);
       if (!raw) throw new Error('failed to mint storage url');
       return toSandboxStorageUrl(raw);

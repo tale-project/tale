@@ -628,7 +628,9 @@
       "namePlaceholder": "z. B. Social-Media-Workflow",
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
       "creating": "Erstelle...",
-      "continue": "Weiter"
+      "continue": "Weiter",
+      "installAll": "Alle installieren",
+      "installingAll": "Alle werden installiert..."
     },
     "uploadDialog": {
       "menuItem": "Datei hochladen",
@@ -742,7 +744,10 @@
     },
     "toast": {
       "created": "Automatisierung erstellt",
-      "createFailed": "Automatisierung konnte nicht erstellt werden"
+      "createFailed": "Automatisierung konnte nicht erstellt werden",
+      "installedAll": "{count} Automatisierungen installiert",
+      "installedAllNone": "Alle Vorlagen sind bereits installiert",
+      "installAllPartial": "{count} Vorlagen konnten nicht installiert werden"
     },
     "validation": {
       "duplicateName": "Eine Automatisierung mit diesem Namen existiert bereits",

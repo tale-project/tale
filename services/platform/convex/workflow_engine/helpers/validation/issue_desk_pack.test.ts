@@ -28,8 +28,11 @@ const read = (rel: string) => readFileSync(resolve(PACK_DIR, rel), 'utf8');
 const readJson = (rel: string): unknown => JSON.parse(read(rel));
 
 describe('issue-desk demo pack (data) validates against the skeleton', () => {
+  // The pack's workflow lives in the standard top-level workflows/ tree (so the
+  // platform can discover, install, and execute it); the skill bundles only the
+  // messages + scripts. Read it from there, not from inside the skill dir.
   const parsed = workflowJsonSchema.safeParse(
-    readJson('workflows/desk-process.json'),
+    readJson('../../workflows/issue-desk/desk-process.json'),
   );
 
   it('workflow parses against workflowJsonSchema', () => {

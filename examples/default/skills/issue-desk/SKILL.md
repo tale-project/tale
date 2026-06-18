@@ -4,7 +4,6 @@ description: A config-driven multi-agent "issue resolution desk" pack. GitHub is
 pack:
   messageNamespace: issueDesk
   messagesDir: messages
-  workflowsDir: workflows
   roles:
     - coordinator
     - implementer
@@ -19,7 +18,7 @@ multi-agent, human-gated process:
 
 1. **Intake** — the `github` issue sync upserts each issue onto the board as a
    task keyed by `owner/repo#n` (`externalSystem: "github"`); assigning it to an
-   agent triggers `workflows/desk-process.json`.
+   agent triggers `workflows/issue-desk/desk-process.json`.
 2. **Coordinator** (`role: coordinator`) triages and assigns by role.
 3. **Implementer** (`role: implementer`, an external-runtime Claude-Code agent
    bound to the `github` integration) clones the repo and fixes the issue on a

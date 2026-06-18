@@ -629,7 +629,9 @@
       "namePlaceholder": "ex., Workflow réseaux sociaux",
       "descriptionPlaceholder": "Décris ce que fait cette automatisation...",
       "creating": "Création...",
-      "continue": "Continuer"
+      "continue": "Continuer",
+      "installAll": "Tout installer",
+      "installingAll": "Installation en cours..."
     },
     "uploadDialog": {
       "menuItem": "Téléverser un fichier",
@@ -743,7 +745,10 @@
     },
     "toast": {
       "created": "Automatisation créée avec succès",
-      "createFailed": "Échec de la création de l'automatisation"
+      "createFailed": "Échec de la création de l'automatisation",
+      "installedAll": "{count} automatisations installées",
+      "installedAllNone": "Tous les modèles sont déjà installés",
+      "installAllPartial": "{count} modèles n'ont pas pu être installés"
     },
     "validation": {
       "duplicateName": "Une automatisation avec ce nom existe déjà",

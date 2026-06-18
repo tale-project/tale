@@ -25,6 +25,13 @@ export function useInstallWorkflow() {
   });
 }
 
+export function useInstallAllWorkflows() {
+  const invalidate = useInvalidateWorkflows();
+  return useConvexAction(api.workflows.file_actions.installAllWorkflows, {
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
+  });
+}
+
 export function useUninstallWorkflow() {
   const invalidate = useInvalidateWorkflows();
   return useConvexAction(api.workflows.file_actions.uninstallWorkflow, {
