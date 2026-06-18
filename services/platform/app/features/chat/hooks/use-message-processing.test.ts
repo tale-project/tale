@@ -97,6 +97,66 @@ describe('useMessageProcessing', () => {
     mockSessionProgress = null;
   });
 
+  describe('identity hold', () => {
+    it('reuses prior ChatMessage references for unchanged messages across a streamed token', () => {
+      // Same user UIMessage object across both renders (the SDK preserves
+      // history references); only the streaming assistant grows.
+      const user = createUIMessage({
+        id: 'u1',
+        order: 0,
+        role: 'user',
+        text: 'hello',
+        status: 'success',
+      });
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          user,
+          createUIMessage({
+            id: 'a1',
+            order: 1,
+            role: 'assistant',
+            text: 'Hi',
+            status: 'streaming',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result, rerender } = renderHook(() =>
+        useMessageProcessing('thread-1'),
+      );
+      const firstUser = result.current.messages.find((m) => m.id === 'u1');
+      const firstAssistant = result.current.messages.find((m) => m.id === 'a1');
+
+      // Streamed token: SAME user ref, assistant text advances (new object).
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          user,
+          createUIMessage({
+            id: 'a1',
+            order: 1,
+            role: 'assistant',
+            text: 'Hi there',
+            status: 'streaming',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+      rerender();
+
+      const secondUser = result.current.messages.find((m) => m.id === 'u1');
+      const secondAssistant = result.current.messages.find(
+        (m) => m.id === 'a1',
+      );
+      // Unchanged message keeps its object identity (bubble memo bails)...
+      expect(secondUser).toBe(firstUser);
+      // ...the streaming tail is genuinely rebuilt.
+      expect(secondAssistant).not.toBe(firstAssistant);
+    });
+  });
+
   describe('streamingMessage', () => {
     it('returns undefined when no messages are streaming', () => {
       mockUseUIMessages.mockReturnValue({

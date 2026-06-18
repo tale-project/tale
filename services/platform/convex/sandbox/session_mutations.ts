@@ -437,7 +437,6 @@ export const upsertSessionOp = internalMutation({
       v.literal('cancelled'),
     ),
     progressText: v.optional(v.string()),
-    recentEvents: v.optional(v.array(v.string())),
     agentSessionId: v.optional(v.string()),
     exitCode: v.optional(v.number()),
     eventLogStorageId: v.optional(v.string()),
@@ -477,7 +476,6 @@ export const upsertSessionOp = internalMutation({
     // them never clobbers a value set at turn start.
     const optional = [
       'progressText',
-      'recentEvents',
       'agentSessionId',
       'exitCode',
       'eventLogStorageId',

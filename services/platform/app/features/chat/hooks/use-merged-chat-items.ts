@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 
 import { SYSTEM_MSG_TAG } from '@/lib/shared/constants/system-message-tags';
 
@@ -172,6 +172,40 @@ export function mergePlanApprovalItems(
  * Plan approvals never populate `activeApproval` — the composer stays usable
  * while a plan awaits review.
  */
+
+/** True when two items are the same kind and carry the same underlying record.
+ *  `data` is reference-stable per message via the use-message-processing identity
+ *  hold, and per Convex doc for approvals, so a reference check is enough. */
+function sameItem(a: ChatItem, b: ChatItem): boolean {
+  return a.type === b.type && a.data === b.data;
+}
+
+/** Reuse prior wrapper objects (and, when nothing changed, the prior ARRAY
+ *  identity) so a streamed token only churns the single tail item. The fresh
+ *  `{type,data}` wrappers built each render would otherwise defeat both the
+ *  ChatMessages memo AND every per-item bubble memo even when only the
+ *  streaming tail advanced. */
+function reconcileItems(
+  next: ChatItem[],
+  prev: ChatItem[] | undefined,
+): ChatItem[] {
+  if (!prev || prev.length !== next.length) return next;
+  let allSame = true;
+  const out = next.map((item, i) => {
+    const p = prev[i];
+    if (p && sameItem(p, item)) return p;
+    allSame = false;
+    return item;
+  });
+  return allSame ? prev : out;
+}
+
+function sameApproval(a: ChatItem | null, b: ChatItem | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return sameItem(a, b);
+}
+
 export function useMergedChatItems({
   messages,
   integrationApprovals,
@@ -185,6 +219,9 @@ export function useMergedChatItems({
   knowledgeWriteApprovals,
   planApprovals,
 }: UseMergedChatItemsParams): MergedChatItemsResult {
+  // Holds the previous output so an unchanged (or tail-only-changed) tick can
+  // return a referentially-stable result — see reconcileItems above.
+  const heldRef = useRef<MergedChatItemsResult | null>(null);
   return useMemo((): MergedChatItemsResult => {
     // Build message items
     const loadedMessageIds = new Set();
@@ -326,11 +363,31 @@ export function useMergedChatItems({
       activeApproval.data.messageId !== undefined &&
       loadedMessageIds.has(activeApproval.data.messageId);
 
-    return {
-      messages: itemsWithPlans,
-      activeApproval,
+    // Identity hold: reuse prior wrappers/array when nothing renderable changed
+    // and the prior whole result when all three fields are equivalent, so an
+    // idle/typing tick keeps ChatMessages' memo intact and a streamed token
+    // churns only the tail item.
+    const prev = heldRef.current;
+    const heldMessages = reconcileItems(itemsWithPlans, prev?.messages);
+    const heldApproval =
+      prev && sameApproval(prev.activeApproval, activeApproval)
+        ? prev.activeApproval
+        : activeApproval;
+    if (
+      prev &&
+      prev.messages === heldMessages &&
+      prev.activeApproval === heldApproval &&
+      prev.activeApprovalInline === activeApprovalInline
+    ) {
+      return prev;
+    }
+    const out: MergedChatItemsResult = {
+      messages: heldMessages,
+      activeApproval: heldApproval,
       activeApprovalInline,
     };
+    heldRef.current = out;
+    return out;
   }, [
     messages,
     integrationApprovals,

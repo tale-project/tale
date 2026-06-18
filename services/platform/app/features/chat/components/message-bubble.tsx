@@ -53,6 +53,11 @@ import {
   buildMessageSegments,
   type MessageSegment,
 } from '../utils/build-message-segments';
+import {
+  sameAttachments,
+  sameFileParts,
+  sameParts,
+} from '../utils/message-equality';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { hasThoughtSteps } from '../utils/thought-predicates';
 import { BlockedNotice } from './blocked-notice';
@@ -1112,76 +1117,6 @@ function MessageBubbleComponent({
  * render-driving fields (`previewUrl`/`fileName`/`fileType`), not just `fileId`,
  * so a thumbnail resolving in place (same id, new previewUrl) still re-renders.
  */
-function sameAttachments(
-  a: Message['attachments'],
-  b: Message['attachments'],
-): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (
-      a[i].fileId !== b[i].fileId ||
-      a[i].fileType !== b[i].fileType ||
-      a[i].previewUrl !== b[i].previewUrl ||
-      a[i].fileName !== b[i].fileName
-    )
-      return false;
-  }
-  return true;
-}
-
-function sameFileParts(
-  a: Message['fileParts'],
-  b: Message['fileParts'],
-): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (
-      a[i].url !== b[i].url ||
-      a[i].mediaType !== b[i].mediaType ||
-      a[i].filename !== b[i].filename
-    )
-      return false;
-  }
-  return true;
-}
-
-/**
- * Structural compare of UIMessage parts for the thought-process timeline. The
- * message list rebuilds `parts` with fresh references on every streamed token,
- * so a reference check would never re-render — but a deep check would re-render
- * every bubble per tick. Compare length + per-part identity (type, state,
- * text length, toolCallId): enough to catch reasoning growth and tool
- * state transitions without churning unrelated bubbles.
- */
-function isPartRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null;
-}
-
-function sameParts(a: Message['parts'], b: Message['parts']): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    const pa = a[i];
-    const pb = b[i];
-    if (!isPartRecord(pa) || !isPartRecord(pb)) {
-      if (pa !== pb) return false;
-      continue;
-    }
-    if (pa.type !== pb.type) return false;
-    if (pa.state !== pb.state) return false;
-    if (pa.toolCallId !== pb.toolCallId) return false;
-    const ta = typeof pa.text === 'string' ? pa.text.length : 0;
-    const tb = typeof pb.text === 'string' ? pb.text.length : 0;
-    if (ta !== tb) return false;
-  }
-  return true;
-}
-
 export const MessageBubble = memo(
   MessageBubbleComponent,
   (prevProps, nextProps) => {

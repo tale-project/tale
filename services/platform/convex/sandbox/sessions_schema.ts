@@ -111,8 +111,12 @@ export const sandboxSessionOpsTable = defineTable({
     v.literal('failed'),
     v.literal('cancelled'),
   ),
-  /** Throttled live state for the UI (last text delta + recent tool events). */
+  /** Throttled live state for the UI (last text delta). */
   progressText: v.optional(v.string()),
+  /** @deprecated No longer written. The live tool/reasoning timeline now renders
+   *  from the persisted assistant message (run_agent `onTimeline`), not from a
+   *  parallel op buffer. Kept optional so legacy rows still pass the read
+   *  validator. */
   recentEvents: v.optional(v.array(v.string())),
   /** Captured agent session id so the next turn can --resume / -s. */
   agentSessionId: v.optional(v.string()),
@@ -198,7 +202,11 @@ export const sandboxSessionOpsTable = defineTable({
   // the 500ms progress-flush hot path.
   .index('by_sessionId_and_execId', ['sessionId', 'execId'])
   // Watchdog: scan `running` ops by heartbeat to find abandoned turns.
-  .index('by_status_and_heartbeat', ['status', 'heartbeatAt']);
+  .index('by_status_and_heartbeat', ['status', 'heartbeatAt'])
+  // Latest agent-run op for a thread (live-progress read): eq(threadId, kind) +
+  // order('desc') on startedAt → O(1) most-recent, replacing an
+  // O(ops-in-thread) scan that re-ran on every reactive tick.
+  .index('by_threadId_kind_and_startedAt', ['threadId', 'kind', 'startedAt']);
 
 /**
  * Audit row for every Tier-2 credential fetch (the integration-credential

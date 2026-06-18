@@ -45,7 +45,6 @@ import {
 } from './steer_files';
 
 const PROGRESS_FLUSH_MS = 500;
-const RECENT_EVENTS_CAP = 20;
 // Upper bound on the cross-seam toolUseId→name / child→parent maps, so an
 // unbounded run can't grow them (or the checkpoint blob that carries them)
 // without limit. Generous — only ancient straddling results lose their name.
@@ -301,7 +300,6 @@ export async function runAgentInSessionImpl(
   // event lands (it is then in `timeline`). Main-level only — sub-agent text
   // stays folded. Per-segment, like the rest of this progress state.
   let liveText = '';
-  const recentEvents: string[] = [];
   const timeline: AgentEvent[] = [];
   // Reconnect cursor: starts at the handoff seq on resume so the re-attach skips
   // already-consumed events. Updated by the drain as new deltas arrive.
@@ -862,11 +860,6 @@ export async function runAgentInSessionImpl(
       ) {
         timeline.push(e);
       }
-      // Keep a rolling tail of non-delta events for the live UI.
-      if (e.type !== 'text-delta') {
-        recentEvents.push(JSON.stringify(e));
-        if (recentEvents.length > RECENT_EVENTS_CAP) recentEvents.shift();
-      }
     }
     // Steer seam at the ACTUAL injection point (Stop-hook path). Deferred to
     // batch end: cursor.lastSeq already covers this whole chunk (seq advances
@@ -912,7 +905,6 @@ export async function runAgentInSessionImpl(
       kind: 'agent-run',
       status: 'running',
       progressText: progressText.slice(-8_000),
-      recentEvents: [...recentEvents],
       // Heartbeat + resume cursor so the recovery watchdog can tell a live
       // draining action from a dead one, and a continuation knows where to
       // re-attach.
@@ -1014,11 +1006,12 @@ export async function runAgentInSessionImpl(
       recordEvents(parser.feed(text));
       void flushProgress(false);
     },
-    // Agent CLIs put diagnostics on stderr; fold into recent events.
+    // Agent CLIs put diagnostics on stderr; surface them to the action logs.
+    // (The live UI renders tool/reasoning rows from the persisted message, not
+    // from a separate op buffer, so stderr no longer feeds the timeline.)
     onStderr: (text: string) => {
       if (text.trim()) {
-        recentEvents.push(JSON.stringify({ type: 'stderr', text }));
-        if (recentEvents.length > RECENT_EVENTS_CAP) recentEvents.shift();
+        console.warn(`[run_agent] agent stderr: ${text}`);
       }
     },
   };
@@ -1216,7 +1209,6 @@ export async function runAgentInSessionImpl(
     kind: 'agent-run',
     status: opStatus,
     progressText: progressText.slice(-8_000),
-    recentEvents: [...recentEvents],
     heartbeatAt: Date.now(),
     lastSeq: cursor.lastSeq,
     ...(capturedSessionId !== undefined && {

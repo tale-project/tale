@@ -29,12 +29,23 @@ import { hasThoughtSteps } from '../utils/thought-predicates';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
-import { ExternalAgentLiveTimeline } from './external-agent-live-timeline';
 import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
+import { ThinkingIndicator } from './thought-timeline';
 import { VirtualizedChatMessageList } from './virtualized-chat-message-list';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
+
+/** Result of the single signature-gated pass over `items` (see `itemScans`). */
+interface ItemScans {
+  lastUserIdx: number;
+  lastUserMessageKey: string | null;
+  streamingAssistantAboveLastUser: boolean;
+  lastAssistantMessageKey: string | null;
+  precedingUserTextByKey: Map<string, string>;
+  latestFailedAssistantKey: string | null;
+  hasRenderableAssistantResponse: boolean;
+}
 
 /**
  * Opt-in flag for the experimental windowed (virtualized) message list. Off by
@@ -317,74 +328,95 @@ export const ChatMessages = memo(function ChatMessages({
   }, [editingMessageId]);
   const responseAreaRef = useRef<HTMLDivElement>(null);
 
-  // Split items: find the last user message index for layout purposes.
-  const lastUserIdx = useMemo(() => {
+  // ONE linear pass over `items` for every list-level derivation, gated by a
+  // structural signature held across renders. A streamed token rebuilds the
+  // `items` array (and the tail bubble's object) but leaves every structural
+  // field below unchanged once the answer has started — so the signature is
+  // identical and we return the previous result, skipping all the O(n) scans.
+  // The signature captures EXACTLY the fields read below; miss one and a
+  // derivation goes stale (e.g. a footer gate). User `content` is intentionally
+  // NOT in the signature: a user message's text is immutable for a given key
+  // (an edit creates a NEW key), so `key` + presence already pins
+  // `precedingUserTextByKey`. `isSendPending` participates because
+  // `hasRenderableAssistantResponse` reads it.
+  const itemScansRef = useRef<{ sig: string; value: ItemScans } | null>(null);
+  const itemScans = useMemo<ItemScans>(() => {
+    let sig = isSendPending ? 'p' : 'n';
+    for (const it of items) {
+      if (it.type !== 'message') {
+        sig += '|x';
+        continue;
+      }
+      const d = it.data;
+      sig += `|${d.key}:${d.role[0]}:${d.isStreaming ? 1 : 0}:${
+        d.isFailed ? 1 : 0
+      }:${d.isAborted ? 1 : 0}:${d.content ? 1 : 0}:${
+        hasThoughtSteps(d.parts) ? 1 : 0
+      }`;
+    }
+    const cached = itemScansRef.current;
+    if (cached && cached.sig === sig) return cached.value;
+
+    // Last user message index (the layout split point) + its key.
+    let lastUserIdx = -1;
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i];
-      if (item.type === 'message' && item.data.role === 'user') return i;
+      if (item.type === 'message' && item.data.role === 'user') {
+        lastUserIdx = i;
+        break;
+      }
     }
-    return -1;
-  }, [items]);
+    const lastUserSplit = lastUserIdx >= 0 ? items[lastUserIdx] : undefined;
+    const lastUserMessageKey =
+      lastUserSplit && lastUserSplit.type === 'message'
+        ? lastUserSplit.data.key
+        : null;
 
-  const lastUserMessageKey = useMemo(() => {
-    if (lastUserIdx < 0) return null;
-    const item = items[lastUserIdx];
-    return item.type === 'message' ? item.data.key : null;
-  }, [items, lastUserIdx]);
-
-  // A still-streaming assistant bubble ABOVE the last user message means that
-  // message is a queued mid-turn steer: the running turn keeps patching the
-  // bubble above until the steer seam opens a fresh one below. The post-send
-  // footer must then NOT render the live exec timeline — it would duplicate
-  // the running turn's activity below the steer, then visibly "jump" up when
-  // the seam opens the real reply bubble. Scoped to the MOST RECENT assistant
-  // before the last user message so a stale streaming flag deep in history
-  // can't suppress a normal turn; non-assistant items in between (user rows,
-  // approval cards) are skipped so multiple queued steers still gate. Reads
-  // raw items (not painted bubbles) so an empty streaming shell — hidden by
-  // `shouldShow` — also suppresses.
-  const streamingAssistantAboveLastUser = useMemo(() => {
+    // A still-streaming assistant bubble ABOVE the last user message means that
+    // message is a queued mid-turn steer: the running turn keeps patching the
+    // bubble above until the steer seam opens a fresh one below. The post-send
+    // footer must then NOT render — the bubble above owns the indicator. Scoped
+    // to the MOST RECENT assistant before the last user so a stale streaming
+    // flag deep in history can't suppress a normal turn; non-assistant items in
+    // between (user rows, approval cards) are skipped so multiple queued steers
+    // still gate. Reads raw items so an empty streaming shell also suppresses.
+    let streamingAssistantAboveLastUser = false;
     for (let i = lastUserIdx - 1; i >= 0; i--) {
       const item = items[i];
       if (item.type !== 'message' || item.data.role !== 'assistant') continue;
-      return item.data.isStreaming === true;
+      streamingAssistantAboveLastUser = item.data.isStreaming === true;
+      break;
     }
-    return false;
-  }, [items, lastUserIdx]);
 
-  // The thread's last ASSISTANT message keeps an always-visible toolbar;
-  // every other bubble reveals its toolbar on hover/focus only.
-  const lastAssistantMessageKey = useMemo(() => {
+    // The thread's last ASSISTANT message keeps an always-visible toolbar;
+    // every other bubble reveals its toolbar on hover/focus only.
+    let lastAssistantMessageKey: string | null = null;
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i];
       if (item.type === 'message' && item.data.role === 'assistant') {
-        return item.data.key;
+        lastAssistantMessageKey = item.data.key;
+        break;
       }
     }
-    return null;
-  }, [items]);
 
-  // Map each assistant message key → the text of the user message that produced
-  // it (the nearest preceding user turn). Powers the dev-only Direct TTFT probe,
-  // which pre-fills with this so it can replay the real prompt instead of a
-  // generic greeting — making its "model floor vs pipeline" gap apples-to-apples.
-  const precedingUserTextByKey = useMemo(() => {
-    const map = new Map<string, string>();
+    // Map each assistant message key → the text of the user message that
+    // produced it (the nearest preceding user turn). Powers the dev-only Direct
+    // TTFT probe pre-fill. User text is immutable per key, so the signature
+    // (which includes key + presence) safely pins this map.
+    const precedingUserTextByKey = new Map<string, string>();
     let lastUserContent: string | undefined;
     for (const item of items) {
       if (item.type !== 'message') continue;
       if (item.data.role === 'user') {
         lastUserContent = item.data.content;
       } else if (item.data.role === 'assistant' && lastUserContent != null) {
-        map.set(item.data.key, lastUserContent);
+        precedingUserTextByKey.set(item.data.key, lastUserContent);
       }
     }
-    return map;
-  }, [items]);
 
-  // Only show the retry button on the latest failed assistant message
-  // to avoid retrying the wrong turn when multiple messages have failed.
-  const latestFailedAssistantKey = useMemo(() => {
+    // Only the latest failed assistant message shows the retry button, so a
+    // retry never targets the wrong turn when multiple messages have failed.
+    let latestFailedAssistantKey: string | null = null;
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i];
       if (
@@ -392,11 +424,57 @@ export const ChatMessages = memo(function ChatMessages({
         item.data.role === 'assistant' &&
         item.data.isFailed
       ) {
-        return item.data.key;
+        latestFailedAssistantKey = item.data.key;
+        break;
       }
     }
-    return null;
-  }, [items]);
+
+    // True once the CURRENT turn's assistant bubble has something to paint —
+    // which gates the post-send "Thinking…" footer OFF, handing the indicator
+    // to the bubble in the SAME commit it first paints (no blank gap). A bare
+    // empty streaming shell (isStreaming, no content, no parts) does NOT count.
+    // The `isSendPending` guard keeps a just-answered request_human_input bubble
+    // (the resolved request, optimistically marked) from reading as "the
+    // response arrived" while a brand-new turn is still pending — without it the
+    // gap stays blank through the whole submit→resume round-trip.
+    let hasRenderableAssistantResponse = false;
+    for (let i = lastUserIdx + 1; i < items.length; i++) {
+      const it = items[i];
+      if (
+        it.type === 'message' &&
+        it.data.role === 'assistant' &&
+        ((it.data.isStreaming === true &&
+          (!!it.data.content || hasThoughtSteps(it.data.parts))) ||
+          it.data.isAborted ||
+          it.data.isFailed ||
+          (!!it.data.content && !isSendPending))
+      ) {
+        hasRenderableAssistantResponse = true;
+        break;
+      }
+    }
+
+    const value: ItemScans = {
+      lastUserIdx,
+      lastUserMessageKey,
+      streamingAssistantAboveLastUser,
+      lastAssistantMessageKey,
+      precedingUserTextByKey,
+      latestFailedAssistantKey,
+      hasRenderableAssistantResponse,
+    };
+    itemScansRef.current = { sig, value };
+    return value;
+  }, [items, isSendPending]);
+  const {
+    lastUserIdx,
+    lastUserMessageKey,
+    streamingAssistantAboveLastUser,
+    lastAssistantMessageKey,
+    precedingUserTextByKey,
+    latestFailedAssistantKey,
+    hasRenderableAssistantResponse,
+  } = itemScans;
 
   const prevMinHeightRef = useRef('');
   // Tracks the pending key so the last user message keeps a stable React key
@@ -833,39 +911,6 @@ export const ChatMessages = memo(function ChatMessages({
   const lastUserItem = lastUserIdx >= 0 ? items[lastUserIdx] : null;
   const afterItems = lastUserIdx >= 0 ? items.slice(lastUserIdx + 1) : [];
 
-  // True once the CURRENT turn's assistant bubble is rendering — which gates the
-  // post-send "Thinking…" affordance off. A bubble counts when it's actively
-  // streaming (its in-bubble timeline + typewriter own the indicator), has hit a
-  // terminal abort/fail notice, or shows a completed answer.
-  //
-  // The completed-answer case has one exception: right after the user answers a
-  // `request_human_input` card (`isSendPending`, set optimistically on submit),
-  // the completed bubble is the resolved *request* — its text and/or tool call —
-  // and a brand-new turn is now pending. Don't treat it as "the response
-  // arrived": keep the optimistic Thinking line up until the new turn streams.
-  // Without this the gap stays blank through the whole submit→resume round-trip
-  // (the lag the user saw). The `isSendPending` guard is what keeps a *normal*
-  // finished answer from flashing a stray Thinking line ~1–2s later when a
-  // fire-and-forget follow-up (e.g. the title write) briefly flips the thread's
-  // generation status.
-  const hasRenderableAssistantResponse = afterItems.some(
-    (it) =>
-      it.type === 'message' &&
-      it.data.role === 'assistant' &&
-      // A streaming assistant bubble counts as "the response arrived" only once
-      // it has SOMETHING to paint — answer text or a reasoning/tool step. A bare
-      // empty streaming shell (isStreaming true, no content, no parts yet)
-      // renders nothing (`shouldShow` is false), so treating it as renderable
-      // would hide the "Thinking…" line into a blank gap until the first token.
-      // Gating on content/steps hands the indicator off to the bubble in the
-      // SAME commit the bubble first paints — no gap.
-      ((it.data.isStreaming === true &&
-        (!!it.data.content || hasThoughtSteps(it.data.parts))) ||
-        it.data.isAborted ||
-        it.data.isFailed ||
-        (!!it.data.content && !isSendPending)),
-  );
-
   // Shared between the virtualized and non-virtualized paths.
   const loadMoreHeader =
     canLoadMore || isLoadingMore ? (
@@ -913,11 +958,14 @@ export const ChatMessages = memo(function ChatMessages({
     // seam's reply bubble paints — so suppress it; the bubble above owns the
     // indicator.
     !streamingAssistantAboveLastUser ? (
-      // For external-agent (Claude Code / OpenCode) turns this swaps the bare
-      // placeholder for a live tool-use timeline driven by the thread's sandbox
-      // session op; it falls back to the same ThinkingIndicator for normal chat.
-      <ExternalAgentLiveTimeline
-        threadId={threadId}
+      // Pre-first-token / gap placeholder for BOTH normal chat and external-agent
+      // (Claude Code / OpenCode) turns. The streaming assistant bubble is the
+      // single source of truth for tool/reasoning rows once it has any part
+      // (`hasRenderableAssistantResponse` above unmounts this footer the same
+      // commit the bubble first paints), so this only ever shows the bare
+      // thinking affordance during the gap — no second live-timeline render path.
+      <ThinkingIndicator
+        className="px-4 py-3"
         phase={isAutoRoute && !liveRoute ? 'routing' : 'thinking'}
         routedAgentName={liveRoute?.agentName}
         routeReason={liveRoute?.reason}

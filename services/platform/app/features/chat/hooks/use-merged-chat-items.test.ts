@@ -73,6 +73,56 @@ describe('useMergedChatItems', () => {
     expect(result.current.activeApproval).toBeNull();
   });
 
+  describe('identity hold', () => {
+    it('reuses the result array reference when nothing changed across a re-render', () => {
+      const m1 = makeMessage('m1', 1000, 'user');
+      const m2 = makeMessage('m2', 2000, 'assistant');
+      const { result, rerender } = renderHook(
+        (props: Parameters<typeof useMergedChatItems>[0]) =>
+          useMergedChatItems(props),
+        { initialProps: { ...emptyParams, messages: [m1, m2] } },
+      );
+      const first = result.current.messages;
+      // A new array carrying the SAME element identities — what the upstream
+      // per-message identity hold yields for unchanged messages each token.
+      rerender({ ...emptyParams, messages: [m1, m2] });
+      expect(result.current.messages).toBe(first);
+    });
+
+    it('yields a new array but reuses unchanged item wrappers when the tail changes', () => {
+      const m1 = makeMessage('m1', 1000, 'user');
+      const m2 = makeMessage('m2', 2000, 'assistant');
+      const { result, rerender } = renderHook(
+        (props: Parameters<typeof useMergedChatItems>[0]) =>
+          useMergedChatItems(props),
+        { initialProps: { ...emptyParams, messages: [m1, m2] } },
+      );
+      const firstItems = result.current.messages;
+      const firstHead = firstItems[0];
+      // Tail advanced (streaming): a new object identity for the tail only.
+      const m2b: ChatMessage = { ...m2, content: 'Message m2 more' };
+      rerender({ ...emptyParams, messages: [m1, m2b] });
+      // New array identity (so ChatMessages re-renders the changed tail)...
+      expect(result.current.messages).not.toBe(firstItems);
+      // ...but the unchanged head wrapper is reused so its bubble memo bails.
+      expect(result.current.messages[0]).toBe(firstHead);
+    });
+
+    it('yields a new array identity when the message count changes (edit-swap release)', () => {
+      const m1 = makeMessage('m1', 1000, 'user');
+      const m2 = makeMessage('m2', 2000, 'assistant');
+      const { result, rerender } = renderHook(
+        (props: Parameters<typeof useMergedChatItems>[0]) =>
+          useMergedChatItems(props),
+        { initialProps: { ...emptyParams, messages: [m1, m2] } },
+      );
+      const first = result.current.messages;
+      rerender({ ...emptyParams, messages: [m1] });
+      expect(result.current.messages).not.toBe(first);
+      expect(result.current.messages).toHaveLength(1);
+    });
+  });
+
   it('extracts a single pending approval as activeApproval', () => {
     const msgs = [makeMessage('m1', 1000)];
     const approvals = [makeApproval('a1', 'pending', 'm1', 1500)];
