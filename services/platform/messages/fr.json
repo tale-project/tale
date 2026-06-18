@@ -1,4 +1,19 @@
 {
+  "apps": {
+    "title": "Applications",
+    "empty": {
+      "title": "Aucune application",
+      "description": "Les packs installés apparaissent ici comme des applications."
+    },
+    "notFound": {
+      "title": "Application introuvable",
+      "description": "Ce pack n'est pas installé."
+    },
+    "noViews": {
+      "title": "Rien à afficher",
+      "description": "Aucune page n'est configurée pour ce pack."
+    }
+  },
   "operator": {
     "title": "Opérateur",
     "tab": { "operator": "Opérateur", "raw": "Journal brut" },
@@ -12,7 +27,6 @@
       "empty": "Aucune sortie"
     },
     "field": {
-      "stepType": "Type",
       "attempts": "Tentatives",
       "duration": "Durée",
       "count": "Nombre",
@@ -37,7 +51,6 @@
       "waitingExternal": "En attente d'un événement externe pour continuer.",
       "empty": "Cette étape n'a produit aucune sortie.",
       "noDetails": "Aucun détail à afficher.",
-      "outputUnavailable": "La sortie est trop volumineuse pour un aperçu ici.",
       "noJournal": "Aucun journal disponible pour cette exécution."
     },
     "error": {
@@ -4049,6 +4062,7 @@
   },
   "navigation": {
     "chatWithAI": "Chat",
+    "apps": "Applications",
     "conversations": "Conversations",
     "knowledge": "Connaissances",
     "automations": "Automatisations",

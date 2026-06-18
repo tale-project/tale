@@ -8,15 +8,12 @@ import { Text } from '@tale/ui/text';
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { useT } from '@/lib/i18n/client';
 
-import type { StepProjection } from '../types';
+import type { RenderPart } from '../types';
 
-export function OutputFallback({ step }: { step: StepProjection }) {
+export function OutputFallback({ part }: { part: RenderPart }) {
   const { t } = useT('operator');
-  if (step.output === undefined) {
-    if (step.node?.outputUnavailable) {
-      return <Text variant="muted">{t('body.outputUnavailable')}</Text>;
-    }
+  if (part.data === undefined || part.data === null) {
     return <Text variant="muted">{t('body.noDetails')}</Text>;
   }
-  return <JsonViewer data={step.output} collapsed={1} />;
+  return <JsonViewer data={part.data} collapsed={1} />;
 }

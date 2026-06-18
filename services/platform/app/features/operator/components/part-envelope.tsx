@@ -16,7 +16,7 @@ import type { ReactNode } from 'react';
 import { useT } from '@/lib/i18n/client';
 import type { PartState } from '@/lib/shared/platform/part_state';
 
-import type { StepProjection } from '../types';
+import type { RenderPart } from '../types';
 
 type BadgeVariant =
   | 'slate'
@@ -44,17 +44,17 @@ const BODY_SUPPRESSED = new Set<PartState>([
 ]);
 
 export function PartEnvelope({
-  step,
+  part,
   children,
 }: {
-  step: StepProjection;
+  part: RenderPart;
   children: ReactNode;
 }) {
   const { t } = useT('operator');
-  const title = step.labelKey
-    ? t(step.labelKey, { defaultValue: step.name })
-    : step.name;
-  const showBody = !BODY_SUPPRESSED.has(step.partState);
+  const title = part.labelKey
+    ? t(part.labelKey, { defaultValue: part.title })
+    : part.title;
+  const showBody = !BODY_SUPPRESSED.has(part.partState);
 
   return (
     <Card>
@@ -64,31 +64,31 @@ export function PartEnvelope({
             <Text as="span" className="font-medium" truncate>
               {title}
             </Text>
-            {step.stage && (
+            {part.stage && (
               <Badge variant="slate">
-                {t(`stage.${step.stage}`, { defaultValue: step.stage })}
+                {t(`stage.${part.stage}`, { defaultValue: part.stage })}
               </Badge>
             )}
-            {step.role && <Badge variant="outline">{step.role}</Badge>}
+            {part.role && <Badge variant="outline">{part.role}</Badge>}
           </HStack>
-          <Badge variant={STATE_BADGE[step.partState]} dot>
-            {t(`state.${step.partState}`)}
+          <Badge variant={STATE_BADGE[part.partState]} dot>
+            {t(`state.${part.partState}`)}
           </Badge>
         </HStack>
 
-        {step.partState === 'loading' && <SkeletonText lines={2} />}
+        {part.partState === 'loading' && <SkeletonText lines={2} />}
 
-        {step.partState === 'waiting_external' && (
+        {part.partState === 'waiting_external' && (
           <Text variant="muted">{t('body.waitingExternal')}</Text>
         )}
 
-        {step.partState === 'empty' && (
+        {part.partState === 'empty' && (
           <Text variant="muted">{t('body.empty')}</Text>
         )}
 
-        {step.partState === 'output_error' && step.node?.error && (
+        {part.partState === 'output_error' && part.error && (
           <Text variant="muted" className="text-destructive">
-            {step.node.error}
+            {part.error}
           </Text>
         )}
 

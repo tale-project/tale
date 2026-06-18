@@ -6,25 +6,25 @@ import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
 
-import type { StepProjection } from '../../types';
+import type { RenderPart } from '../../types';
 import { KvGrid, type KvRow } from '../kv-grid';
 
-export function StatusPanel({ step }: { step: StepProjection }) {
+export function StatusPanel({ part }: { part: RenderPart }) {
   const { t } = useT('operator');
-  const rows: KvRow[] = [{ label: t('field.stepType'), value: step.stepType }];
-  if (step.node?.attempts) {
+  const rows: KvRow[] = [];
+  if (part.meta?.attempts) {
     rows.push({
       label: t('field.attempts'),
-      value: String(step.node.attempts),
+      value: String(part.meta.attempts),
     });
   }
-  if (step.node?.startedAt && step.node?.completedAt) {
+  if (part.meta?.startedAt && part.meta?.completedAt) {
     rows.push({
       label: t('field.duration'),
-      value: `${step.node.completedAt - step.node.startedAt} ms`,
+      value: `${part.meta.completedAt - part.meta.startedAt} ms`,
     });
   }
-  return rows.length > 1 || step.node ? (
+  return rows.length > 0 ? (
     <KvGrid rows={rows} />
   ) : (
     <Text variant="muted">{t('body.noDetails')}</Text>

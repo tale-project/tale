@@ -15,7 +15,7 @@ import {
   pickString,
   scalar,
 } from '../../lib/output-helpers';
-import type { StepProjection } from '../../types';
+import type { RenderPart } from '../../types';
 import { OutputFallback } from '../output-fallback';
 
 type CheckStatus = 'pass' | 'warn' | 'fail';
@@ -32,12 +32,12 @@ function normalizeStatus(value: string | undefined): CheckStatus {
   return 'pass';
 }
 
-export function ValidationPanel({ step }: { step: StepProjection }) {
+export function ValidationPanel({ part }: { part: RenderPart }) {
   const { t } = useT('operator');
-  const out = asRecord(step.output);
+  const out = asRecord(part.data);
   const checks = pickArray(out, 'checks', 'validations', 'results');
 
-  if (checks.length === 0) return <OutputFallback step={step} />;
+  if (checks.length === 0) return <OutputFallback part={part} />;
 
   return (
     <VStack gap={2}>

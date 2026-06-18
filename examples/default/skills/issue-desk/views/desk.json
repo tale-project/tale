@@ -1,0 +1,24 @@
+{
+  "id": "desk",
+  "title": "Issue resolution desk",
+  "layout": "stack",
+  "parts": [
+    {
+      "id": "reviews",
+      "title": "Pending reviews",
+      "render": "review",
+      "source": { "kind": "approval_queue" },
+      "params": { "cardinality": "many" }
+    },
+    {
+      "id": "runs",
+      "title": "Recent runs",
+      "render": "collection",
+      "source": {
+        "kind": "workflow_runs",
+        "params": { "workflow": "issue-desk/desk-process" }
+      },
+      "params": { "layout": "table" }
+    }
+  ]
+}

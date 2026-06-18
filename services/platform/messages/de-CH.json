@@ -12,7 +12,6 @@
       "empty": "Keine Ausgabe"
     },
     "field": {
-      "stepType": "Typ",
       "attempts": "Versuche",
       "duration": "Dauer",
       "count": "Anzahl",
@@ -37,7 +36,6 @@
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
       "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
       "noDetails": "Keine Details vorhanden.",
-      "outputUnavailable": "Die Ausgabe ist zu gross für eine Vorschau.",
       "noJournal": "Für diesen Lauf ist kein Protokoll verfügbar."
     },
     "error": {

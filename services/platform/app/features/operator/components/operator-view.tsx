@@ -5,7 +5,7 @@
  * renderer; no per-vertical code. */
 import { VStack } from '@tale/ui/layout';
 
-import type { OperatorProjection } from '../types';
+import { type OperatorProjection, stepToPart } from '../types';
 import { PartEnvelope } from './part-envelope';
 import { RenderKindRouter } from './render-kind-router';
 import { StageTimeline } from './stage-timeline';
@@ -19,11 +19,14 @@ export function OperatorView({
     <VStack gap={4}>
       <StageTimeline projection={projection} />
       <VStack gap={3}>
-        {projection.steps.map((step) => (
-          <PartEnvelope key={step.stepSlug} step={step}>
-            <RenderKindRouter step={step} />
-          </PartEnvelope>
-        ))}
+        {projection.steps.map((step) => {
+          const part = stepToPart(step);
+          return (
+            <PartEnvelope key={step.stepSlug} part={part}>
+              <RenderKindRouter part={part} />
+            </PartEnvelope>
+          );
+        })}
       </VStack>
     </VStack>
   );

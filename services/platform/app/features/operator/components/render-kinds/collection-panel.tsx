@@ -18,7 +18,7 @@ import { useT } from '@/lib/i18n/client';
 import type { CollectionLayout } from '@/lib/shared/platform/render_kinds';
 
 import { asRecord, pickArray, scalar } from '../../lib/output-helpers';
-import type { StepProjection } from '../../types';
+import type { RenderPart } from '../../types';
 import { OutputFallback } from '../output-fallback';
 
 function resolveLayout(value: string | undefined): CollectionLayout {
@@ -31,13 +31,13 @@ function columnsOf(items: unknown[]): string[] {
   return first ? Object.keys(first).slice(0, 6) : [];
 }
 
-export function CollectionPanel({ step }: { step: StepProjection }) {
+export function CollectionPanel({ part }: { part: RenderPart }) {
   const { t } = useT('operator');
-  const out = asRecord(step.output);
+  const out = asRecord(part.data);
   const items = pickArray(out, 'items', 'rows', 'records', 'results');
-  const layout = resolveLayout(step.params?.layout);
+  const layout = resolveLayout(part.params?.layout);
 
-  if (items.length === 0) return <OutputFallback step={step} />;
+  if (items.length === 0) return <OutputFallback part={part} />;
   const shown = items.slice(0, 50);
 
   if (layout === 'table') {

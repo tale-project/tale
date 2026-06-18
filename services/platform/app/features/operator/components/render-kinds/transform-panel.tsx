@@ -4,13 +4,13 @@
 import { useT } from '@/lib/i18n/client';
 
 import { asRecord, pickArray, pickNumber } from '../../lib/output-helpers';
-import type { StepProjection } from '../../types';
+import type { RenderPart } from '../../types';
 import { KvGrid, type KvRow } from '../kv-grid';
 import { OutputFallback } from '../output-fallback';
 
-export function TransformPanel({ step }: { step: StepProjection }) {
+export function TransformPanel({ part }: { part: RenderPart }) {
   const { t } = useT('operator');
-  const out = asRecord(step.output);
+  const out = asRecord(part.data);
   const rowsIn = pickNumber(out, 'rowsIn', 'inputRows', 'in');
   const rowsOut = pickNumber(out, 'rowsOut', 'outputRows', 'out');
   const fields = pickArray(out, 'fields', 'columns');
@@ -23,16 +23,16 @@ export function TransformPanel({ step }: { step: StepProjection }) {
   if (fields.length > 0) {
     rows.push({ label: t('field.fields'), value: String(fields.length) });
   }
-  if (step.node?.startedAt && step.node?.completedAt) {
+  if (part.meta?.startedAt && part.meta?.completedAt) {
     rows.push({
       label: t('field.duration'),
-      value: `${step.node.completedAt - step.node.startedAt} ms`,
+      value: `${part.meta.completedAt - part.meta.startedAt} ms`,
     });
   }
 
   return rows.length > 0 ? (
     <KvGrid rows={rows} />
   ) : (
-    <OutputFallback step={step} />
+    <OutputFallback part={part} />
   );
 }

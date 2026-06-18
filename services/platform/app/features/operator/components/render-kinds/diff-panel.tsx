@@ -9,17 +9,17 @@ import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { useT } from '@/lib/i18n/client';
 
 import { asRecord } from '../../lib/output-helpers';
-import type { StepProjection } from '../../types';
+import type { RenderPart } from '../../types';
 import { OutputFallback } from '../output-fallback';
 
-export function DiffPanel({ step }: { step: StepProjection }) {
+export function DiffPanel({ part }: { part: RenderPart }) {
   const { t } = useT('operator');
-  const out = asRecord(step.output);
+  const out = asRecord(part.data);
   const before = out?.before ?? out?.from ?? out?.previous;
   const after = out?.after ?? out?.to ?? out?.current;
 
   if (before === undefined && after === undefined) {
-    return <OutputFallback step={step} />;
+    return <OutputFallback part={part} />;
   }
 
   return (

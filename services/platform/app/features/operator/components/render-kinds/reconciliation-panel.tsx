@@ -15,13 +15,13 @@ import {
   pickNumber,
   scalar,
 } from '../../lib/output-helpers';
-import type { StepProjection } from '../../types';
+import type { RenderPart } from '../../types';
 import { KvGrid, type KvRow } from '../kv-grid';
 import { OutputFallback } from '../output-fallback';
 
-export function ReconciliationPanel({ step }: { step: StepProjection }) {
+export function ReconciliationPanel({ part }: { part: RenderPart }) {
   const { t } = useT('operator');
-  const out = asRecord(step.output);
+  const out = asRecord(part.data);
   const matched = pickNumber(out, 'matched', 'reconciled');
   const unmatched = pickNumber(out, 'unmatched', 'discrepancies', 'unresolved');
   const items = pickArray(out, 'unmatchedItems', 'discrepancyItems', 'items');
@@ -34,7 +34,7 @@ export function ReconciliationPanel({ step }: { step: StepProjection }) {
   }
 
   if (rows.length === 0 && items.length === 0)
-    return <OutputFallback step={step} />;
+    return <OutputFallback part={part} />;
 
   return (
     <VStack gap={2}>

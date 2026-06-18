@@ -11,7 +11,7 @@ import { useT } from '@/lib/i18n/client';
 import type { ArtifactDisplay } from '@/lib/shared/platform/render_kinds';
 
 import { asRecord, pickString } from '../../lib/output-helpers';
-import type { StepProjection } from '../../types';
+import type { RenderPart } from '../../types';
 import { OutputFallback } from '../output-fallback';
 
 function resolveDisplay(value: string | undefined): ArtifactDisplay {
@@ -26,10 +26,10 @@ function resolveDisplay(value: string | undefined): ArtifactDisplay {
   return 'object';
 }
 
-export function ArtifactPanel({ step }: { step: StepProjection }) {
+export function ArtifactPanel({ part }: { part: RenderPart }) {
   const { t } = useT('operator');
-  const out = asRecord(step.output);
-  const display = resolveDisplay(step.params?.display);
+  const out = asRecord(part.data);
+  const display = resolveDisplay(part.params?.display);
   const url = pickString(out, 'url', 'href', 'link', 'downloadUrl');
 
   if (display === 'blob' || display === 'embed') {
@@ -48,7 +48,7 @@ export function ArtifactPanel({ step }: { step: StepProjection }) {
         </VStack>
       );
     }
-    return <OutputFallback step={step} />;
+    return <OutputFallback part={part} />;
   }
 
   if (display === 'code') {
@@ -63,9 +63,9 @@ export function ArtifactPanel({ step }: { step: StepProjection }) {
   }
 
   // `object` (and code/blob fallbacks): structured payload.
-  return step.output !== undefined ? (
-    <JsonViewer data={step.output} collapsed={1} />
+  return part.data !== undefined ? (
+    <JsonViewer data={part.data} collapsed={1} />
   ) : (
-    <OutputFallback step={step} />
+    <OutputFallback part={part} />
   );
 }

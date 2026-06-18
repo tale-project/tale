@@ -1062,6 +1062,7 @@ import type * as skills_audit_mutations from "../skills/audit_mutations.js";
 import type * as skills_file_actions from "../skills/file_actions.js";
 import type * as skills_file_utils from "../skills/file_utils.js";
 import type * as skills_get_skill_audit_history from "../skills/get_skill_audit_history.js";
+import type * as skills_pack_actions from "../skills/pack_actions.js";
 import type * as skills_upload_mutations from "../skills/upload_mutations.js";
 import type * as sso_providers_actions from "../sso_providers/actions.js";
 import type * as sso_providers_claims from "../sso_providers/claims.js";
@@ -2588,6 +2589,7 @@ declare const fullApi: ApiFromModules<{
   "skills/file_actions": typeof skills_file_actions;
   "skills/file_utils": typeof skills_file_utils;
   "skills/get_skill_audit_history": typeof skills_get_skill_audit_history;
+  "skills/pack_actions": typeof skills_pack_actions;
   "skills/upload_mutations": typeof skills_upload_mutations;
   "sso_providers/actions": typeof sso_providers_actions;
   "sso_providers/claims": typeof sso_providers_claims;

@@ -4,13 +4,13 @@
 import { useT } from '@/lib/i18n/client';
 
 import { asRecord, pickNumber, pickString } from '../../lib/output-helpers';
-import type { StepProjection } from '../../types';
+import type { RenderPart } from '../../types';
 import { KvGrid, type KvRow } from '../kv-grid';
 import { OutputFallback } from '../output-fallback';
 
-export function IngestPanel({ step }: { step: StepProjection }) {
+export function IngestPanel({ part }: { part: RenderPart }) {
   const { t } = useT('operator');
-  const out = asRecord(step.output);
+  const out = asRecord(part.data);
   const count = pickNumber(out, 'count', 'total', 'items', 'rows');
   const source = pickString(out, 'source', 'sourceRef', 'origin', 'url');
 
@@ -24,6 +24,6 @@ export function IngestPanel({ step }: { step: StepProjection }) {
   return rows.length > 0 ? (
     <KvGrid rows={rows} />
   ) : (
-    <OutputFallback step={step} />
+    <OutputFallback part={part} />
   );
 }

@@ -1,4 +1,19 @@
 {
+  "apps": {
+    "title": "Apps",
+    "empty": {
+      "title": "Noch keine Apps",
+      "description": "Installierte Packs erscheinen hier als Apps."
+    },
+    "notFound": {
+      "title": "App nicht gefunden",
+      "description": "Dieses Pack ist nicht installiert."
+    },
+    "noViews": {
+      "title": "Noch nichts anzuzeigen",
+      "description": "Für dieses Pack sind keine Seiten konfiguriert."
+    }
+  },
   "operator": {
     "title": "Operator",
     "tab": { "operator": "Operator", "raw": "Rohprotokoll" },
@@ -12,7 +27,6 @@
       "empty": "Keine Ausgabe"
     },
     "field": {
-      "stepType": "Typ",
       "attempts": "Versuche",
       "duration": "Dauer",
       "count": "Anzahl",
@@ -37,7 +51,6 @@
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
       "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
       "noDetails": "Keine Details vorhanden.",
-      "outputUnavailable": "Die Ausgabe ist zu groß für eine Vorschau.",
       "noJournal": "Für diesen Lauf ist kein Protokoll verfügbar."
     },
     "error": {
@@ -4048,6 +4061,7 @@
   },
   "navigation": {
     "chatWithAI": "Chat",
+    "apps": "Apps",
     "conversations": "Konversationen",
     "knowledge": "Wissen",
     "automations": "Automatisierungen",

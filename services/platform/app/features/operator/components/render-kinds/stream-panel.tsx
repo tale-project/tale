@@ -13,18 +13,18 @@ import {
   pickString,
   scalar,
 } from '../../lib/output-helpers';
-import type { StepProjection } from '../../types';
+import type { RenderPart } from '../../types';
 import { OutputFallback } from '../output-fallback';
 
-export function StreamPanel({ step }: { step: StepProjection }) {
-  const out = asRecord(step.output);
+export function StreamPanel({ part }: { part: RenderPart }) {
+  const out = asRecord(part.data);
   const entries = pickArray(out, 'entries', 'transcript', 'events', 'messages');
 
   // The agent-run handoff summary, when present, is the headline of the feed.
   const summary = pickString(out, 'summary');
 
   if (entries.length === 0 && summary === undefined) {
-    return <OutputFallback step={step} />;
+    return <OutputFallback part={part} />;
   }
 
   return (
@@ -38,7 +38,7 @@ export function StreamPanel({ step }: { step: StepProjection }) {
         const entry = asRecord(raw);
         const kind =
           pickString(entry, 'type', 'kind', 'role') ??
-          step.params?.entryKind ??
+          part.params?.entryKind ??
           'log';
         const text =
           pickString(entry, 'text', 'content', 'message', 'name') ??

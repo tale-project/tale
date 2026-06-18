@@ -1,4 +1,19 @@
 {
+  "apps": {
+    "title": "Apps",
+    "empty": {
+      "title": "No apps yet",
+      "description": "Installed packs appear here as apps."
+    },
+    "notFound": {
+      "title": "App not found",
+      "description": "This pack is not installed."
+    },
+    "noViews": {
+      "title": "Nothing to show yet",
+      "description": "This pack has no pages configured."
+    }
+  },
   "operator": {
     "title": "Operator",
     "tab": { "operator": "Operator", "raw": "Raw journal" },
@@ -12,7 +27,6 @@
       "empty": "No output"
     },
     "field": {
-      "stepType": "Type",
       "attempts": "Attempts",
       "duration": "Duration",
       "count": "Count",
@@ -37,7 +51,6 @@
       "waitingExternal": "Waiting for an external event to continue.",
       "empty": "This step produced no output.",
       "noDetails": "No details to show.",
-      "outputUnavailable": "Output is too large to preview here.",
       "noJournal": "No journal is available for this run."
     },
     "error": {
@@ -4048,6 +4061,7 @@
   },
   "navigation": {
     "chatWithAI": "Chat",
+    "apps": "Apps",
     "conversations": "Conversations",
     "knowledge": "Knowledge",
     "automations": "Automations",
