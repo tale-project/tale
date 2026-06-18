@@ -48,3 +48,26 @@ export function sessionIdForUser(
 export function userOwnerId(organizationId: string, userId: string): string {
   return `${organizationId}:${userId}`;
 }
+
+/** Deterministic spawner session id for an EPHEMERAL workflow `sandbox` step
+ * run — one throwaway sandbox per (execution, step), torn down at step end. The
+ * hash suffix folds the composite key into the ≤64-char ID_ALPHABET_RE budget
+ * and keeps the id stable across a step retry (so a colliding orphan is reaped,
+ * not duplicated). */
+export function sessionIdForWorkflowRun(
+  executionId: string,
+  stepSlug: string,
+): string {
+  const suffix = fnv1a64Hex(`${executionId}:${stepSlug}`);
+  return `wf-${executionId.slice(0, 24)}-${suffix}`.slice(0, 64);
+}
+
+/** Composite owner key for an ephemeral workflow-run sandbox (sandboxSessions
+ * `ownerId`), scoped to the (execution, step) so retries reuse/reap the same
+ * row and distinct steps never collide. */
+export function workflowRunOwnerId(
+  executionId: string,
+  stepSlug: string,
+): string {
+  return `${executionId}:${stepSlug}`;
+}
