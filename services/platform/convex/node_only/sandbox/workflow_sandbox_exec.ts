@@ -15,17 +15,24 @@
  *    mirroring the `run_external_agent` orchestration with
  *    `ownerType: 'workflow_run'`.
  *
- * NOTE: the behavioral bodies (pack:// script resolution + input staging for the
- * deterministic mode, and the full ephemeral session orchestration for the agent
- * mode) are the next implementation increment; they require the pack-reader
- * (Phase 5) and faithful mirroring of run_external_agent respectively, and are
- * gated on live e2e verification. Until then both return a structured
- * `status: 'pending'` result so the step type is end-to-end dispatchable and
+ * NOTE: `runSandboxScript` is implemented (pack:// resolution + input staging +
+ * `executeCode` reuse). `runSandboxAgent` — the full ephemeral session
+ * orchestration mirroring `run_external_agent` (create → inject → run → harvest
+ * `output/summary.md` → teardown) — is the next implementation increment and is
+ * gated on live e2e verification; until then it returns a structured
+ * `status: 'pending'` result so the step type stays end-to-end dispatchable and
  * type-safe.
  */
-import { v } from 'convex/values';
+import { readFile } from 'node:fs/promises';
 
+import { type Infer, v } from 'convex/values';
+
+import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
+import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import { toId } from '../../lib/type_cast_helpers';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
+import { resolveSkillAssetPathChecked } from '../../skills/file_utils';
 
 const inputArgValidator = v.array(
   v.object({
@@ -63,6 +70,11 @@ export const sandboxRunResultValidator = v.object({
   error: v.optional(v.string()),
 });
 
+// Explicit handler return type — breaks the circular `internal` type inference
+// that would otherwise degrade the generated api types to `any` (this module is
+// part of `internal` AND calls `internal.*.executeCode`).
+type SandboxRunResult = Infer<typeof sandboxRunResultValidator>;
+
 export const runSandboxScript = internalAction({
   args: {
     organizationId: v.string(),
@@ -80,17 +92,119 @@ export const runSandboxScript = internalAction({
     timeoutMs: v.optional(v.number()),
   },
   returns: sandboxRunResultValidator,
-  handler: async (_ctx, _args) => {
-    // TODO(phase-3b): resolve pack:// script + stage inputs, reuse executeCode,
-    // map storageIds -> outputFileIds, read output/result.json into `result`.
-    return {
-      mode: 'script' as const,
+  handler: async (ctx, args): Promise<SandboxRunResult> => {
+    const fail = (error: string): SandboxRunResult => ({
+      mode: 'script',
       ok: false,
-      status: 'pending',
+      status: 'failed',
       outputFileIds: [],
-      error:
-        'deterministic sandbox run not yet wired (pending pack resolution)',
+      error,
+    });
+
+    const storeAsUrl = async (content: string): Promise<string> => {
+      const storageId = await ctx.storage.store(new Blob([content]));
+      const raw = await ctx.storage.getUrl(storageId);
+      if (!raw) throw new Error('failed to mint storage url');
+      return toSandboxStorageUrl(raw);
     };
+
+    try {
+      // Resolve the frozen pack:// script to its bundled content.
+      const PREFIX = 'pack://';
+      if (!args.script.startsWith(PREFIX)) {
+        return fail(`script must be a pack:// reference, got "${args.script}"`);
+      }
+      const rest = args.script.slice(PREFIX.length);
+      const slash = rest.indexOf('/');
+      if (slash <= 0) return fail(`invalid pack:// reference "${args.script}"`);
+      const packSlug = rest.slice(0, slash);
+      const relPath = rest.slice(slash + 1);
+      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+      const scriptPath = await resolveSkillAssetPathChecked(
+        orgSlug,
+        packSlug,
+        relPath,
+      );
+      const scriptContent = await readFile(scriptPath, 'utf8');
+      const scriptName = relPath.split('/').pop() ?? 'script';
+
+      // Stage the script + inline-content inputs as code files; fileId inputs as
+      // workspace uploads. (folderId staging is a later increment.)
+      const files: Array<{ path: string; url: string }> = [
+        { path: scriptName, url: await storeAsUrl(scriptContent) },
+      ];
+      const userUploadDownloads: Array<{ name: string; url: string }> = [];
+      for (const input of args.inputs) {
+        if ('content' in input.from) {
+          files.push({
+            path: input.as,
+            url: await storeAsUrl(input.from.content),
+          });
+        } else if ('fileId' in input.from) {
+          const raw = await ctx.storage.getUrl(
+            toId<'_storage'>(input.from.fileId),
+          );
+          if (!raw) return fail(`input file not found: ${input.from.fileId}`);
+          userUploadDownloads.push({
+            name: input.as,
+            url: toSandboxStorageUrl(raw),
+          });
+        } else {
+          return fail('folderId input staging is not yet supported');
+        }
+      }
+      if (args.params) {
+        files.push({
+          path: 'params.json',
+          url: await storeAsUrl(JSON.stringify(args.params)),
+        });
+      }
+
+      const res = await ctx.runAction(
+        internal.node_only.sandbox.internal_actions.executeCode,
+        {
+          organizationId: args.organizationId,
+          uploadedBy: 'workflow',
+          threadId: args.executionId,
+          language: args.language,
+          files,
+          ...(userUploadDownloads.length > 0 && { userUploadDownloads }),
+          entryPath: scriptName,
+          ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+          purpose: `sandbox step ${args.stepSlug}`,
+        },
+      );
+
+      // Read the small structured verdict (result.json) back into `result`.
+      let result: unknown;
+      const resultFileName = args.output?.resultFile ?? 'result.json';
+      const resultFile = res.files.find((f) => f.path.endsWith(resultFileName));
+      if (resultFile) {
+        const blob = await ctx.storage.get(resultFile.storageId);
+        if (blob) {
+          try {
+            result = JSON.parse(await blob.text());
+          } catch (e) {
+            console.warn('[sandbox] result.json parse failed', e);
+          }
+        }
+      }
+
+      return {
+        mode: 'script' as const,
+        ok: res.success,
+        status: res.status,
+        ...(result !== undefined && { result }),
+        outputFileIds: res.files.map((f) => f.storageId as string),
+        ...(res.exitCode !== null && { exitCode: res.exitCode }),
+        stdoutPreview: res.stdoutPreview,
+        stderrPreview: res.stderrPreview,
+        durationMs: res.durationMs,
+        ...(res.errorMessage !== undefined && { error: res.errorMessage }),
+      };
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : String(e));
+    }
   },
 });
 
@@ -111,7 +225,7 @@ export const runSandboxAgent = internalAction({
     output: outputArgValidator,
   },
   returns: sandboxRunResultValidator,
-  handler: async (_ctx, _args) => {
+  handler: async (_ctx, _args): Promise<SandboxRunResult> => {
     // TODO(phase-3c): ephemeral session create -> inject creds/VK -> run agent
     // (interactionMode 'autonomous') -> harvest outputs + output/summary.md
     // (synthesize fallback) -> teardown (sessionDestroy + revokeVirtualKey).
