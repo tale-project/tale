@@ -48,7 +48,9 @@ test.describe('settings depth — organization', () => {
       }),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
-    const nameField = page.getByLabel(t('settings.organization.title'));
+    const nameField = page.getByRole('textbox', {
+      name: t('settings.organization.title'),
+    });
     await expect(nameField).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await expect(nameField).toBeEnabled();
 

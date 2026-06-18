@@ -80,6 +80,7 @@
     "@storybook/addon-vitest": "10.3.5",
     "@storybook/react": "10.3.5",
     "@storybook/react-vite": "10.3.5",
+    "@tale/shared": "workspace:*",
     "@tanstack/router-plugin": "1.167.12",
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "6.9.1",
@@ -132,6 +133,7 @@
     "qs": "6.15.2",
     "react-is": "19.2.5",
     "tmp": "0.2.7",
+    "undici": "7.28.0",
     "uuid": "14.0.0",
     "vite": "8.0.16",
     "ws": "8.21.0"

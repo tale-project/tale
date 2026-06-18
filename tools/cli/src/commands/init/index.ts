@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
 import { init } from '../../lib/actions/init';
-import * as logger from '../../utils/logger';
+import { action } from '../../utils/run-command';
 
 export function createInitCommand(): Command {
   return new Command('init')
@@ -10,20 +10,17 @@ export function createInitCommand(): Command {
     .option('-f, --force', 'overwrite existing tale.json')
     .option('--no-env', 'skip .env setup')
     .action(
-      async (
-        directory: string | undefined,
-        opts: { force?: boolean; env: boolean },
-      ) => {
-        try {
+      action(
+        async (
+          directory: string | undefined,
+          opts: { force?: boolean; env: boolean },
+        ) => {
           await init({
             directory,
             force: opts.force,
             noEnv: !opts.env,
           });
-        } catch (err) {
-          logger.error(err instanceof Error ? err.message : String(err));
-          process.exit(1);
-        }
-      },
+        },
+      ),
     );
 }

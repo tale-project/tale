@@ -15,6 +15,9 @@
  * call sites stay quiet in production without code changes.
  */
 
+import { makePalette, type Palette } from '../terminal/ansi';
+import { detectCapabilities } from '../terminal/capabilities';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const LEVEL_RANK: Record<LogLevel, number> = {
@@ -24,22 +27,18 @@ const LEVEL_RANK: Record<LogLevel, number> = {
   error: 40,
 };
 
-const COLOR_ENABLED =
-  typeof process !== 'undefined' &&
-  (process.stdout?.isTTY ?? false) &&
-  !process.env.NO_COLOR;
-
+// Color is derived from the ONE shared capability probe (NO_COLOR / FORCE_COLOR
+// / CI / TERM=dumb / Windows-legacy precedence) — never a private `isTTY &&
+// !NO_COLOR` rule, which used to disagree with the reporter and produce
+// "logger and reporter render different colors" bugs. Both `term/capabilities`
+// and `term/ansi` are node-free, so the logger stays Convex-V8-reachable (the
+// boundary test enforces it).
+//
+// `ansi` is evaluated once at import for back-compat; `createLogger` re-derives
+// per call so a mid-process `NO_COLOR`/`FORCE_COLOR` change is honored and tests
+// can drive it.
 /** ANSI palette — empty strings when color is disabled, so callers can build their own labels. */
-export const ansi = {
-  reset: COLOR_ENABLED ? '\x1b[0m' : '',
-  bold: COLOR_ENABLED ? '\x1b[1m' : '',
-  dim: COLOR_ENABLED ? '\x1b[2m' : '',
-  red: COLOR_ENABLED ? '\x1b[31m' : '',
-  green: COLOR_ENABLED ? '\x1b[32m' : '',
-  yellow: COLOR_ENABLED ? '\x1b[33m' : '',
-  blue: COLOR_ENABLED ? '\x1b[34m' : '',
-  cyan: COLOR_ENABLED ? '\x1b[36m' : '',
-} as const;
+export const ansi: Palette = makePalette(detectCapabilities().color);
 
 export interface CreateLoggerOptions {
   /** Tag prefixed to every line, e.g. `knowledge` → `[knowledge] …`. */
@@ -68,12 +67,14 @@ const LEVEL_LABEL: Record<LogLevel, string> = {
   error: 'ERROR',
 };
 
-const LEVEL_COLOR: Record<LogLevel, string> = {
-  debug: ansi.dim,
-  info: ansi.blue,
-  warn: ansi.yellow,
-  error: ansi.red,
-};
+function levelColors(palette: Palette): Record<LogLevel, string> {
+  return {
+    debug: palette.dim,
+    info: palette.blue,
+    warn: palette.yellow,
+    error: palette.red,
+  };
+}
 
 function debugEnabled(options: CreateLoggerOptions): boolean {
   if ((options.level ?? 'info') === 'debug') return true;
@@ -88,15 +89,21 @@ export function timestamp(): string {
 }
 
 export function createLogger(options: CreateLoggerOptions = {}): Logger {
-  const pretty = options.pretty ?? COLOR_ENABLED;
+  // Re-derive capabilities per call so a mid-process NO_COLOR/FORCE_COLOR change
+  // is honored (and tests can drive it) — the one source of truth, not a frozen
+  // module-load palette.
+  const color = detectCapabilities().color;
+  const palette = makePalette(color);
+  const levelColor = levelColors(palette);
+  const pretty = options.pretty ?? color;
   const threshold = LEVEL_RANK[options.level ?? 'info'];
   const allowDebug = debugEnabled(options);
   const prefix = options.namespace ? `[${options.namespace}] ` : '';
 
   function format(level: LogLevel, message: string): string {
     if (!pretty) return `${prefix}${message}`;
-    const label = `${LEVEL_COLOR[level]}${LEVEL_LABEL[level]}${ansi.reset}`;
-    return `${ansi.dim}[${timestamp()}]${ansi.reset} ${label} ${prefix}${message}`;
+    const label = `${levelColor[level]}${LEVEL_LABEL[level]}${palette.reset}`;
+    return `${palette.dim}[${timestamp()}]${palette.reset} ${label} ${prefix}${message}`;
   }
 
   function emit(level: LogLevel, message: string, rest: unknown[]): void {

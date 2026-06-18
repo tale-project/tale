@@ -2248,18 +2248,12 @@
       "heading": "Crée ton compte propriétaire",
       "why": "C'est le premier compte de cette installation Tale ; il dispose donc de tous les droits d'administration. Tu ajouteras des coéquipiers plus tard."
     },
-    "workspace": {
-      "heading": "Nomme ton espace de travail",
-      "why": "C'est ainsi que ton équipe reconnaîtra cet espace de travail.",
-      "languageDescription": "La langue par défaut du contenu de cet espace, comme la bibliothèque de prompts."
-    },
     "provider": {
       "heading": "Connecter OpenRouter",
       "connect": "Connecter",
       "why": "Une seule clé débloque des centaines de modèles pour le chat, les images, la voix et plus encore — nous préconfigurons une sélection recommandée pour que tu sois prêt tout de suite.",
       "keyLabel": "Clé API OpenRouter",
       "keyPlaceholder": "sk-or-...",
-      "keyHelp": "Stockée chiffrée. Laisse vide pour la configurer plus tard dans les paramètres.",
       "hasKeyQuestion": "Tu n'as pas encore de clé ?",
       "getKeyLink": "En créer une sur OpenRouter",
       "saveError": "Impossible de se connecter à OpenRouter avec cette clé. Vérifie-la et réessaie.",
@@ -4614,8 +4608,6 @@
       "detailsDescription": "Informations de base sur ton organisation.",
       "nameDescription": "Le nom d'affichage de ton organisation.",
       "localeDescription": "La langue principale de ton organisation.",
-      "identifiersTitle": "Identifiants",
-      "identifiersDescription": "Références en lecture seule pour les appels API ou le support.",
       "organizationId": "ID de l'organisation",
       "organizationIdDescription": "Utilise cet ID dans les requêtes API et les intégrations.",
       "copyOrganizationId": "Copier l'ID de l'organisation",
@@ -4629,7 +4621,6 @@
       "organizationName": "Nom de l'organisation",
       "companyNameCharacterError": "Utilise uniquement des lettres, chiffres, espaces, tirets et tirets bas, en commençant par une lettre ou un chiffre.",
       "nameReserved": "Ce nom est réservé par la plateforme.",
-      "identifierPreview": "Identifiant : {slug}",
       "enterCompanyName": "Entre le nom de ton entreprise",
       "organizationCreated": "Organisation créée avec succès !",
       "switching": "Changement en cours…",

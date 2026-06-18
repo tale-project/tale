@@ -16,13 +16,15 @@
        auto-loads `.env` as its env_file, so the dockerized sandbox spawner
        picks up the SAME SANDBOX_TOKEN as the host process and Convex — keeping
        the HMAC handshake consistent whichever spawner serves :8003.
-    2) Load the merged secrets into this process's env and spawn turbo as a
-       child so the sandbox dev task inherits SANDBOX_TOKEN. SANDBOX_TOKEN is
-       also declared in turbo.json `globalPassThroughEnv` so turbo's strict env
-       mode actually forwards it. The platform dev orchestrator
-       (services/platform/scripts/dev.ts) re-reads the .env files directly and
-       syncs SANDBOX_TOKEN into the local Convex deployment, so Convex and the
-       spawner share one HMAC key with zero manual setup.
+    2) Load the merged secrets into this process's env and run the platform dev
+       orchestrator (services/platform/scripts/dev.ts) directly as a child —
+       NOT through turbo. The orchestrator owns the docker backing services
+       (incl. the sandbox container), Convex and Vite, and emits clean output
+       itself; turbo only added prefix noise, a redundant host sandbox spawner
+       and a per-boot CLI embed regen. The orchestrator re-reads the .env files
+       directly and syncs SANDBOX_TOKEN into the local Convex deployment, and
+       the repo-root .env (written above) is docker compose's auto-loaded
+       env_file, so Convex and the spawner share one HMAC key with zero setup.
 
   Why here and not inside each service: the secrets must MATCH across processes
   (the Convex → sandbox spawner HMAC handshake), and the services start
@@ -39,6 +41,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
+
+import { errorLine, infoLine, warnLine } from '@tale/shared/tux';
 
 const repoRoot = join(import.meta.dir, '..');
 const platformRoot = join(repoRoot, 'services', 'platform');
@@ -114,12 +118,9 @@ function ensureDevSecrets(): void {
     process.env[key] = value;
   }
 
-  if (Object.keys(generated).length === 0) {
-    console.log(
-      '[dev] 🔐 Dev secrets present (INSTANCE_SECRET, BETTER_AUTH_SECRET, SANDBOX_TOKEN)',
-    );
-    return;
-  }
+  // Nothing to mint — stay silent (routine success isn't worth a line; only the
+  // first-run/missing case below, which actually writes new secrets, is noted).
+  if (Object.keys(generated).length === 0) return;
 
   const envPath = join(repoRoot, '.env');
   const block = [
@@ -139,43 +140,75 @@ function ensureDevSecrets(): void {
     writeFileSync(envPath, `${block.replace(/^\n/, '')}\n`, 'utf8');
   }
 
-  console.log(
-    `[dev] 🔐 Generated ${Object.keys(generated).length} dev secret(s) → .env: ${Object.keys(generated).join(', ')}`,
+  infoLine(
+    `Generated ${Object.keys(generated).length} dev secret(s) in .env: ${Object.keys(generated).join(', ')}`,
   );
+}
+
+/**
+ * Start the opt-in controller sidecar as a sibling child when CONTROLLER_TOKEN
+ * is set, replicating the gate the old turbo `@tale/controller#dev` task had
+ * (it exited immediately when the token was unset). Returns null when disabled.
+ */
+function startControllerIfEnabled(): ChildProcess | null {
+  if (!process.env.CONTROLLER_TOKEN) return null;
+  const controller = spawn('bun', ['--hot', 'src/server.ts'], {
+    stdio: 'inherit',
+    cwd: join(repoRoot, 'services', 'controller'),
+    env: process.env,
+  });
+  controller.on('error', (err: Error) => {
+    warnLine(`controller sidecar failed to start: ${err.message}`);
+  });
+  return controller;
 }
 
 function main(): void {
   ensureDevSecrets();
 
-  // Mirror the existing root `dev` filter: skip the marketing site + docs, which
-  // are heavy and dev-irrelevant for platform work.
-  const turbo: ChildProcess = spawn(
-    'bunx',
-    [
-      'turbo',
-      'run',
-      'dev',
-      '--filter=!@tale/docs',
-      '--filter=!@tale/web',
-      ...process.argv.slice(2),
-    ],
+  // Turbo bypass. The platform orchestrator already owns the docker backing
+  // services (including the sandbox container — the single :8003 owner), Convex
+  // and Vite, and now emits clean, classified output itself. Running it directly
+  // drops everything turbo added that polluted `bun run dev`: the
+  // `<pkg>:<task>:` line prefixes, the per-boot @tale/cli embed regeneration
+  // (2000+ files), the redundant HOST @tale/sandbox spawner that double-bound
+  // :8003, and the no-op controller task. The opt-in controller is started here
+  // as a sibling only when CONTROLLER_TOKEN is set. CI never calls `turbo run
+  // dev` (test:e2e is a separate task), and `turbo run dev` still works as an
+  // escape hatch via the platform script's own `import.meta.main` entry.
+  const platform: ChildProcess = spawn(
+    'bun',
+    ['services/platform/scripts/dev.ts', ...process.argv.slice(2)],
     { stdio: 'inherit', cwd: repoRoot, env: process.env },
   );
+  const controller = startControllerIfEnabled();
+  const children = [platform, controller].filter(
+    (child): child is ChildProcess => child !== null,
+  );
 
+  let shuttingDown = false;
   const forward = (signal: 'SIGINT' | 'SIGTERM') => () => {
-    if (turbo.pid) turbo.kill(signal);
+    if (shuttingDown) {
+      // Second Ctrl-C — quit immediately rather than wait for the children.
+      process.exit(1);
+    }
+    shuttingDown = true;
+    for (const child of children) if (child.pid) child.kill(signal);
+    // Safety net: if a child refuses to exit, quit anyway so one Ctrl-C suffices.
+    setTimeout(() => process.exit(1), 4000).unref();
   };
   process.on('SIGINT', forward('SIGINT'));
   process.on('SIGTERM', forward('SIGTERM'));
 
-  turbo.on('exit', (code: number | null, signal: string | null) => {
-    if (signal) {
-      process.exit(1);
-    }
+  // Platform is the primary process: when it exits, tear down the sibling and
+  // mirror its status.
+  platform.on('exit', (code: number | null, signal: string | null) => {
+    if (controller?.pid) controller.kill('SIGTERM');
+    if (signal) process.exit(1);
     process.exit(code ?? 0);
   });
-  turbo.on('error', (err: Error) => {
-    console.error('[dev] ❌ Failed to start turbo:', err);
+  platform.on('error', (err: Error) => {
+    errorLine(`Failed to start platform dev server: ${err.message}`);
     process.exit(1);
   });
 }

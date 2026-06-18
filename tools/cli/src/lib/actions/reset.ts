@@ -1,8 +1,8 @@
 import { unlink } from 'node:fs/promises';
 
-import { confirm } from '../../utils/confirm';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { confirm } from '../../utils/prompt';
 import type { DeploymentColor } from '../compose/types';
 import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from '../compose/types';
 import { docker } from '../docker/docker';
@@ -27,7 +27,10 @@ export async function reset(options: ResetOptions): Promise<void> {
   }
 
   if (!force) {
-    const confirmed = await confirm('Are you sure you want to reset?');
+    const confirmed = await confirm({
+      message: 'Are you sure you want to reset?',
+      default: false,
+    });
     if (!confirmed) {
       logger.info('Reset cancelled');
       return;

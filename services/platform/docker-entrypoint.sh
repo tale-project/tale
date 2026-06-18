@@ -32,10 +32,12 @@ set -eo pipefail
 # ----------------------------------------------------------------------------
 # Logging helpers
 # ----------------------------------------------------------------------------
-log_info()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️  $*"; }
-log_ok()      { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ $*"; }
-log_warn()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️  $*" >&2; }
-log_error()   { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ❌ $*" >&2; }
+# Severity is a plain text word (no emoji — they render inconsistently across
+# terminals and the CLI/dev classifier keys on these words to colour the line).
+log_info()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO  $*"; }
+log_ok()      { echo "[$(date '+%Y-%m-%d %H:%M:%S')] OK    $*"; }
+log_warn()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARN  $*" >&2; }
+log_error()   { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR $*" >&2; }
 log_section() { echo; echo "════════════════════════════════════"; echo "  $*"; echo "════════════════════════════════════"; }
 
 # ----------------------------------------------------------------------------
@@ -102,7 +104,7 @@ source "$(dirname "$0")/env.sh"
 env_normalize_common
 ensure_instance_secret
 
-echo "🔍 Environment after normalization:"
+echo "Environment after normalization:"
 echo "   HOST=${HOST}"
 echo "   SITE_URL=${SITE_URL}"
 echo "   PORT=${PORT}"
@@ -160,7 +162,7 @@ wait_for_http() {
 dump_diagnostics() {
   local ctx="$1"
   echo
-  echo "──────── 🔍 Diagnostics: $ctx ────────"
+  echo "──────── Diagnostics: $ctx ────────"
   echo "  Timestamp:   $(date -Iseconds)"
   echo "  Hostname:    $(hostname)"
   echo "  CONVEX_URL:  ${CONVEX_URL}"
@@ -264,7 +266,7 @@ deploy_convex_functions() {
       # so a real CLI error doesn't leave the legacy var lingering in
       # Convex without an operator-visible signal.
       if bunx convex env remove "$legacy" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null; then
-        echo "   ✓ $legacy removed (no longer honored under org-first layout)"
+        echo "   -$legacy removed (no longer honored under org-first layout)"
         unset 'CONVEX_ENV_MAP[$legacy]'
       else
         log_warn "Failed to remove legacy env var $legacy from Convex; will retry on next boot"
@@ -312,7 +314,7 @@ deploy_convex_functions() {
     [ -z "${CONVEX_ENV_MAP[$var_name]+_}" ] && change_type="new"
     if bunx convex env set "$var_name" "$var_value" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
       sync_count=$((sync_count + 1))
-      echo "   ✓ $var_name ($change_type)"
+      echo "   -$var_name ($change_type)"
     else
       failed_vars+=("$var_name")
       log_warn "Failed to set $var_name (value length: ${#var_value})"
@@ -332,7 +334,7 @@ deploy_convex_functions() {
       if is_denylisted "$convex_var"; then continue; fi
       if bunx convex env remove "$convex_var" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
         remove_count=$((remove_count + 1))
-        echo "   ✓ $convex_var (removed; unset on platform)"
+        echo "   -$convex_var (removed; unset on platform)"
       else
         failed_vars+=("$convex_var")
         log_warn "Failed to remove $convex_var"
@@ -352,9 +354,9 @@ deploy_convex_functions() {
   fi
 
   if [ $sync_count -eq 0 ] && [ $remove_count -eq 0 ] && [ $unchanged_count -gt 0 ]; then
-    echo "   ⏭️  All $unchanged_count env vars unchanged"
+    echo "   All $unchanged_count env vars unchanged"
   else
-    echo "   ✅ Synced $sync_count, removed $remove_count, unchanged $unchanged_count, skipped $skip_count"
+    echo "   Synced $sync_count, removed $remove_count, unchanged $unchanged_count, skipped $skip_count"
   fi
 
   # 6. Deploy functions (three-stage error classification below).
@@ -418,11 +420,11 @@ deploy_convex_functions() {
     log_error "Reason: timeout (${CONVEX_DEPLOY_TIMEOUT}s)"
     echo "  → Most likely stuck in wait_for_schema (search-index backfill)."
     if grep -q "Backfilling indexes" "$deploy_log"; then
-      echo "  ✔ Confirmed: deploy blocked on index backfill."
+      echo "  Confirmed: deploy blocked on index backfill."
       grep "Backfilling indexes" "$deploy_log" | tail -1 | sed 's/^/  last progress: /'
     fi
     if grep -q "TextLiveFlusher died" "$deploy_log"; then
-      echo "  ⚠️  TextLiveFlusher errors detected in convex logs."
+      echo "  WARN TextLiveFlusher errors detected in convex logs."
       echo "     docker compose logs convex | grep TextLiveFlusher"
     fi
     echo "  fix: inspect convex-data /app/data/convex/search; see plan section."
@@ -535,12 +537,12 @@ log_ok "Platform ready (marker: $READY_MARKER)"
 DISPLAY_BASE_URL="${SITE_URL:-http://localhost:${PORT}}${BASE_PATH:-}"
 
 echo
-echo "🎉 Tale Platform is running!"
+echo "Tale Platform is running!"
 echo
-echo "   📱 Application:       ${DISPLAY_BASE_URL}"
-echo "   🔌 Convex API (WS):   ${DISPLAY_BASE_URL}/ws_api"
-echo "   ⚡ Convex Actions:     ${DISPLAY_BASE_URL}/http_api"
-echo "   📊 Convex Dashboard:  ${DISPLAY_BASE_URL}/convex-dashboard"
+echo "   Application:       ${DISPLAY_BASE_URL}"
+echo "   Convex API (WS):   ${DISPLAY_BASE_URL}/ws_api"
+echo "   Convex Actions:    ${DISPLAY_BASE_URL}/http_api"
+echo "   Convex Dashboard:  ${DISPLAY_BASE_URL}/convex-dashboard"
 echo
 
 wait "$VITE_PID"

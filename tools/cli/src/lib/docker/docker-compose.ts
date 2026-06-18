@@ -8,7 +8,6 @@ import { type ExecResult, exec } from './exec';
 interface DockerComposeOptions {
   projectName?: string;
   cwd?: string;
-  inherit?: boolean;
   onLine?: (line: string) => void;
   overrideFile?: string;
 }
@@ -42,7 +41,6 @@ export async function dockerCompose(
   const {
     projectName = getProjectId(),
     cwd = process.cwd(),
-    inherit = false,
     onLine,
     overrideFile,
   } = options;
@@ -68,16 +66,6 @@ export async function dockerCompose(
         pipeLines(proc.stderr, onLine),
         proc.exited,
       ]);
-      const exitCode = await proc.exited;
-      return { success: exitCode === 0, stdout: '', stderr: '', exitCode };
-    }
-
-    if (inherit) {
-      const proc = Bun.spawn(['docker', 'compose', ...composeFlags, ...args], {
-        cwd,
-        stdout: 'inherit',
-        stderr: 'inherit',
-      });
       const exitCode = await proc.exited;
       return { success: exitCode === 0, stdout: '', stderr: '', exitCode };
     }

@@ -1,3 +1,14 @@
+import {
+  type ClassifiedLine,
+  chain,
+  classifyConvex,
+  classifyDockerCompose,
+  classifyPlatformContainer,
+  classifyVite,
+  createStreamClassifier,
+} from '@tale/shared/classify';
+import { detectCapabilities, makePalette } from '@tale/shared/terminal';
+
 import { isUserInterrupt } from '../../utils/exit-codes';
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
@@ -8,6 +19,7 @@ import {
   isValidService,
 } from '../compose/types';
 import { containerExists } from '../docker/container-exists';
+import { pipeLines } from '../docker/docker-compose';
 import { getCurrentColor } from '../state/get-current-color';
 
 interface LogsOptions {
@@ -16,11 +28,16 @@ interface LogsOptions {
   follow: boolean;
   since?: string;
   tail?: number;
+  /** Stream literal output with no classification/coloring/filtering. */
+  raw?: boolean;
   deployDir: string;
 }
 
+/** Access-log health probes are pure noise — dropped from the classified view. */
+const HEALTH_LINE = /"GET \/health[^"]*"\s+200|GET \/health .* 200/;
+
 export async function logs(options: LogsOptions): Promise<void> {
-  const { service, color, follow, since, tail, deployDir } = options;
+  const { service, color, follow, since, tail, raw, deployDir } = options;
 
   // Validate service name
   if (!isValidService(service)) {
@@ -86,14 +103,54 @@ export async function logs(options: LogsOptions): Promise<void> {
   args.push(containerName);
 
   logger.info(`Showing logs for ${containerName}...`);
-  logger.blank();
 
-  // Use Bun.spawn with inherit to stream output directly to terminal
+  // `--raw`: literal passthrough, exactly what `docker logs` prints. The escape
+  // hatch for when the classified view hides something or for piping verbatim.
+  if (raw) {
+    const proc = Bun.spawn(['docker', ...args], {
+      stdout: 'inherit',
+      stderr: 'inherit',
+    });
+    const exitCode = await proc.exited;
+    if (exitCode !== 0 && !isUserInterrupt(exitCode)) {
+      throw new Error(`docker logs exited with code ${exitCode}`);
+    }
+    return;
+  }
+
+  // Classified view: every line is shown verbatim (it IS a log viewer) but
+  // colored by level and with health-probe access spam dropped. Errors/warnings
+  // become scannable; a sticky classifier keeps multi-line stack traces red.
+  const palette = makePalette(detectCapabilities().color);
+  const classify = createStreamClassifier(
+    chain(
+      classifyDockerCompose,
+      classifyConvex,
+      classifyVite,
+      classifyPlatformContainer,
+    ),
+  );
+  const render = (line: string): void => {
+    if (HEALTH_LINE.test(line)) return;
+    const c: ClassifiedLine = classify(line);
+    if (c.kind === 'error') {
+      process.stdout.write(`${palette.red}${line}${palette.reset}\n`);
+    } else if (c.kind === 'warn') {
+      process.stdout.write(`${palette.yellow}${line}${palette.reset}\n`);
+    } else {
+      process.stdout.write(`${line}\n`);
+    }
+  };
+
   const proc = Bun.spawn(['docker', ...args], {
-    stdout: 'inherit',
-    stderr: 'inherit',
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
-
+  await Promise.all([
+    pipeLines(proc.stdout, render),
+    pipeLines(proc.stderr, render),
+    proc.exited,
+  ]);
   const exitCode = await proc.exited;
   if (exitCode !== 0 && !isUserInterrupt(exitCode)) {
     throw new Error(`docker logs exited with code ${exitCode}`);

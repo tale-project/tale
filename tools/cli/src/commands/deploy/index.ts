@@ -13,8 +13,10 @@ import { ensureEnv, ensureProductionDomain } from '../../lib/config/ensure-env';
 import { ensureDocker } from '../../lib/docker/ensure-docker';
 import { requireProject } from '../../lib/project/find-project';
 import { resolveOrAssignProjectContext } from '../../lib/project/project-context';
+import { preconditionError, usageError } from '../../utils/fail';
 import { loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { action } from '../../utils/run-command';
 
 export function createDeployCommand(): Command {
   return new Command('deploy')
@@ -53,8 +55,8 @@ export function createDeployCommand(): Command {
         'migration then falls back to your own external backups)',
       false,
     )
-    .action(async (options) => {
-      try {
+    .action(
+      action(async (options) => {
         // `--override` and `--override-all` are semantically incompatible:
         // host push runs first, then the catalog factory reseed clobbers
         // everything --override would have written (host push effectively
@@ -62,14 +64,13 @@ export function createDeployCommand(): Command {
         // images). Reject the combination at parse time so operators
         // don't reason about a silently-discarded flag.
         if (options.override && options.overrideAll) {
-          logger.error(
+          throw usageError(
             '--override and --override-all cannot be combined: ' +
               '--override-all factory-reseeds from the builtin catalog and ' +
               'would clobber whatever --override just pushed. ' +
               'Pick one: --override (push host workspace to container) ' +
               'OR --override-all (factory-reseed all orgs server-side).',
           );
-          process.exit(1);
         }
         const projectDir = requireProject();
         await resolveOrAssignProjectContext(projectDir);
@@ -77,8 +78,7 @@ export function createDeployCommand(): Command {
         // Zero-prerequisite: make sure Docker is usable before anything else.
         const docker = await ensureDocker({ assumeYes: options.yes });
         if (docker.status === 'refused' || docker.status === 'failed') {
-          logger.error(docker.detail);
-          process.exit(1);
+          throw preconditionError(docker.detail);
         }
 
         const { success: envSetupSuccess, regeneratedAutoSecrets } =
@@ -86,7 +86,9 @@ export function createDeployCommand(): Command {
             deployDir: projectDir,
           });
         if (!envSetupSuccess) {
-          process.exit(1);
+          throw preconditionError(
+            `Environment setup failed. Cannot deploy without ${projectDir}/.env.`,
+          );
         }
         // If ensureEnv had to mint missing auto-gen secrets headlessly
         // (typical: a new `SANDBOX_TOKEN` for an existing deployment),
@@ -128,11 +130,12 @@ export function createDeployCommand(): Command {
             .map((s: string) => s.trim());
           const invalid = serviceList.filter((s: string) => !isValidService(s));
           if (invalid.length > 0) {
-            logger.error(`Invalid service(s): ${invalid.join(', ')}`);
-            logger.info(`Valid services: ${ALL_SERVICES.join(', ')}`);
-            process.exit(1);
+            throw usageError(`Invalid service(s): ${invalid.join(', ')}`, [
+              `Valid services: ${ALL_SERVICES.join(', ')}`,
+            ]);
           }
-          services = serviceList as ServiceName[];
+          // All validated above; the type guard narrows to ServiceName[].
+          services = serviceList.filter(isValidService);
         }
 
         const hostAlias = options.host ?? process.env.HOST ?? 'tale.local';
@@ -152,9 +155,6 @@ export function createDeployCommand(): Command {
           forceRecreate,
           skipBackup: options.skipBackup,
         });
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
+      }),
+    );
 }

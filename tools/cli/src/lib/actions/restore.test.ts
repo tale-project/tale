@@ -39,7 +39,7 @@ mock.module('../docker/ensure-volumes', () => ({
   volumeExists: mock(),
 }));
 mock.module('../docker/exec', () => ({ exec: execMock }));
-mock.module('../../utils/confirm', () => ({ confirm: confirmMock }));
+mock.module('../../utils/prompt', () => ({ confirm: confirmMock }));
 mock.module('../state/with-lock', () => ({
   withLock: (_dir: string, _cmd: string, fn: () => Promise<unknown>) => fn(),
 }));

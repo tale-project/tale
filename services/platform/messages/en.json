@@ -2247,18 +2247,12 @@
       "heading": "Create your owner account",
       "why": "This is the first account on this Tale install, so it gets full admin rights. You'll add teammates later."
     },
-    "workspace": {
-      "heading": "Name your workspace",
-      "why": "This is how your team will recognize this workspace.",
-      "languageDescription": "The default language for this workspace's content, like the prompt library."
-    },
     "provider": {
       "heading": "Connect OpenRouter",
       "connect": "Connect",
       "why": "One key unlocks hundreds of models for chat, images, voice, and more — we'll preconfigure a recommended set so you're ready right away.",
       "keyLabel": "OpenRouter API key",
       "keyPlaceholder": "sk-or-...",
-      "keyHelp": "Stored encrypted. Leave blank to set this up later in Settings.",
       "hasKeyQuestion": "Don't have a key yet?",
       "getKeyLink": "Create one at OpenRouter",
       "saveError": "We couldn't connect to OpenRouter with that key. Check it and try again.",
@@ -4874,8 +4868,6 @@
       "detailsDescription": "Basic information about your organization.",
       "nameDescription": "The display name for your organization.",
       "localeDescription": "Primary language for your organization.",
-      "identifiersTitle": "Identifiers",
-      "identifiersDescription": "Read-only references you may need when using the API or contacting support.",
       "organizationId": "Organization ID",
       "organizationIdDescription": "Reference this ID in API requests and integrations.",
       "copyOrganizationId": "Copy organization ID",
@@ -4889,7 +4881,6 @@
       "organizationName": "Organization name",
       "companyNameCharacterError": "Use letters, digits, spaces, hyphens, and underscores only, starting with a letter or digit.",
       "nameReserved": "This name is reserved by the platform.",
-      "identifierPreview": "Identifier: {slug}",
       "enterCompanyName": "Enter your company name",
       "organizationCreated": "Organization created successfully!",
       "switching": "Switching…",

@@ -1,6 +1,5 @@
-import { confirm } from '@inquirer/prompts';
-
 import * as logger from '../../utils/logger';
+import { confirm } from '../../utils/prompt';
 import { daemonReachable } from './daemon-reachable';
 import { exec } from './exec';
 

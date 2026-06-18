@@ -2247,18 +2247,12 @@
       "heading": "Erstelle dein Inhaberkonto",
       "why": "Dies ist das erste Konto auf dieser Tale-Installation und erhält daher volle Administratorrechte. Teammitglieder fügst du später hinzu."
     },
-    "workspace": {
-      "heading": "Benenne deinen Arbeitsbereich",
-      "why": "So erkennt dein Team diesen Arbeitsbereich.",
-      "languageDescription": "Die Standardsprache für die Inhalte dieses Arbeitsbereichs, etwa die Prompt-Bibliothek."
-    },
     "provider": {
       "heading": "OpenRouter verbinden",
       "connect": "Verbinden",
       "why": "Ein Schlüssel schaltet Hunderte Modelle für Chat, Bilder, Sprache und mehr frei – wir konfigurieren eine empfohlene Auswahl vor, damit du sofort loslegen kannst.",
       "keyLabel": "OpenRouter-API-Schlüssel",
       "keyPlaceholder": "sk-or-...",
-      "keyHelp": "Verschlüsselt gespeichert. Leer lassen, um dies später in den Einstellungen einzurichten.",
       "hasKeyQuestion": "Noch keinen Schlüssel?",
       "getKeyLink": "Bei OpenRouter erstellen",
       "saveError": "Mit diesem Schlüssel konnten wir keine Verbindung zu OpenRouter herstellen. Prüfe ihn und versuche es erneut.",
@@ -4613,8 +4607,6 @@
       "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",
       "nameDescription": "Der Anzeigename deiner Organisation.",
       "localeDescription": "Die Hauptsprache deiner Organisation.",
-      "identifiersTitle": "Kennungen",
-      "identifiersDescription": "Schreibgeschützte Referenzen für API-Aufrufe oder den Support.",
       "organizationId": "Organisations-ID",
       "organizationIdDescription": "Verwende diese ID in API-Anfragen und Integrationen.",
       "copyOrganizationId": "Organisations-ID kopieren",
@@ -4628,7 +4620,6 @@
       "organizationName": "Organisationsname",
       "companyNameCharacterError": "Verwende nur Buchstaben, Ziffern, Leerzeichen, Bindestriche und Unterstriche und beginne mit einem Buchstaben oder einer Ziffer.",
       "nameReserved": "Dieser Name ist von der Plattform reserviert.",
-      "identifierPreview": "Kennung: {slug}",
       "enterCompanyName": "Gib deinen Firmennamen ein",
       "organizationCreated": "Organisation erstellt!",
       "switching": "Wird gewechselt…",

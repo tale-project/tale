@@ -78,6 +78,17 @@ Le CLI regroupe ses commandes selon ce que tu fais, comme le fait `tale --help`.
 
 Lance `tale <commande> --help` pour la liste de référence de ta version installée.
 
+**Les options globales** fonctionnent sur chaque commande :
+
+- `-v, --verbose` — sortie détaillée : logs de débogage et flux brut du sous-processus.
+- `-q, --quiet` — uniquement les avertissements et les erreurs.
+- `-y, --yes` — répondre « oui » à toutes les questions (non interactif).
+- `--no-color` — désactiver les couleurs ANSI (respecte aussi `NO_COLOR` / `FORCE_COLOR`).
+- `--json` — JSON lisible par machine sur stdout, messages humains sur stderr ; pris en charge par `status`, `config show` et `migrate status`.
+- `--ci` — forcer une sortie non interactive en mode ajout seul (sans contrôle du curseur).
+
+Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'utilisation, `3` pour une condition préalable non remplie (pas de projet, Docker arrêté, port occupé), `4` pour une interruption par l'utilisateur (Ctrl-C, ou une question requise sans terminal) et `5` pour l'échec d'une dépendance externe — ainsi les scripts peuvent se ramifier selon la cause.
+
 ### Installation
 
 `tale init [directory]` — créer un projet : échafaude les configs d'exemple, `AGENTS.md` + `CLAUDE.md` et un `.env` local par défaut (localhost, certificat auto-signé, secrets générés). Aucune question et aucun Docker — le domaine de production et le TLS sont choisis plus tard, lors de `tale deploy`. `directory` est optionnel (par défaut : le répertoire courant).

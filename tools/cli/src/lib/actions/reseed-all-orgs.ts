@@ -21,8 +21,8 @@
  * the per-org detail attached.
  */
 
-import { confirm } from '../../utils/confirm';
 import * as logger from '../../utils/logger';
+import { confirm } from '../../utils/prompt';
 import { exec } from '../docker/exec';
 import { findPlatformContainer } from '../docker/find-platform-container';
 
@@ -200,7 +200,7 @@ export async function reseedAllOrgsFromBuiltin(
     );
   }
   if (!assumeYes && isTty) {
-    const ok = await confirm(CONFIRM_MESSAGE);
+    const ok = await confirm({ message: CONFIRM_MESSAGE, default: false });
     if (!ok) {
       logger.info('Aborted by user.');
       return;

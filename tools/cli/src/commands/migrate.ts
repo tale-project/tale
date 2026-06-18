@@ -12,8 +12,11 @@ import {
 import { runMigrations } from '../lib/actions/run-migrations';
 import { requireProject } from '../lib/project/find-project';
 import { resolveProjectContext } from '../lib/project/project-context';
-import { confirm, confirmChoice } from '../utils/confirm';
+import { emitJson } from '../utils/json-output';
 import * as logger from '../utils/logger';
+import { getOutputMode } from '../utils/output-mode';
+import { confirm, confirmChoice } from '../utils/prompt';
+import { action } from '../utils/run-command';
 
 /**
  * `tale migrate` — versioned data migrations against the running deployment.
@@ -39,14 +42,16 @@ export function createMigrateCommand(): Command {
       'Preview the deploy-time runner invocation without executing it',
       false,
     )
-    .action(async (opts: { dryRun?: boolean }) => {
-      // Bare `tale migrate` keeps its original behaviour: run the deploy-time
-      // provisioning runner (provisioning:provisionAll) then the safe-migration
-      // runner (migrations:runAll), as two separate steps.
-      await withProject(async () => {
-        await runMigrations({ dryRun: opts.dryRun ?? false });
-      });
-    });
+    .action(
+      action(async (opts: { dryRun?: boolean }) => {
+        // Bare `tale migrate` keeps its original behaviour: run the deploy-time
+        // provisioning runner (provisioning:provisionAll) then the safe-migration
+        // runner (migrations:runAll), as two separate steps.
+        await withProject(async () => {
+          await runMigrations({ dryRun: opts.dryRun ?? false });
+        });
+      }),
+    );
 
   migrate.addCommand(statusCommand());
   migrate.addCommand(upCommand());
@@ -59,32 +64,49 @@ export function createMigrateCommand(): Command {
 function statusCommand(): Command {
   return new Command('status')
     .description('Show the migration frontier, pending migrations, and flags.')
-    .action(async () => {
-      await withProject(async () => {
-        const s = await getStatus();
-        logger.header('Migration status');
-        logger.table([
-          ['Frontier', s.frontier ?? '(none applied)'],
-          ['Applied', String(s.applied.length)],
-          ['Pending', String(s.pending.length)],
-          ['Destructive pending', String(s.pendingDestructive.length)],
-        ]);
-        if (s.pending.length > 0) {
-          logger.blank();
-          logger.info('PENDING');
-          for (const m of s.pending) printMeta(m);
-          logger.blank();
-          const cmd = s.pendingDestructive.length
-            ? '`tale migrate up --step` to review each, or `tale migrate up --yes` to apply all'
-            : '`tale migrate up`';
-          logger.info(
-            `${s.pending.length} pending; ${s.pendingDestructive.length} destructive. Run ${cmd}.`,
-          );
-        } else {
-          logger.success('Up to date — no pending migrations.');
-        }
-      });
-    });
+    .action(
+      action(async () => {
+        await withProject(async () => {
+          const s = await getStatus();
+          if (getOutputMode().json) {
+            emitJson('migrate status', {
+              frontier: s.frontier ?? null,
+              applied: s.applied.length,
+              pending: s.pending.map((m) => ({
+                id: m.numericId,
+                semver: m.semver,
+                slug: m.slug,
+                destructive: m.destructive,
+                snapshot: m.snapshot,
+              })),
+              pendingDestructive: s.pendingDestructive.length,
+            });
+            return;
+          }
+          logger.header('Migration status');
+          logger.table([
+            ['Frontier', s.frontier ?? '(none applied)'],
+            ['Applied', String(s.applied.length)],
+            ['Pending', String(s.pending.length)],
+            ['Destructive pending', String(s.pendingDestructive.length)],
+          ]);
+          if (s.pending.length > 0) {
+            logger.blank();
+            logger.info('PENDING');
+            for (const m of s.pending) printMeta(m);
+            logger.blank();
+            const cmd = s.pendingDestructive.length
+              ? '`tale migrate up --step` to review each, or `tale migrate up --yes` to apply all'
+              : '`tale migrate up`';
+            logger.info(
+              `${s.pending.length} pending; ${s.pendingDestructive.length} destructive. Run ${cmd}.`,
+            );
+          } else {
+            logger.success('Up to date — no pending migrations.');
+          }
+        });
+      }),
+    );
 }
 
 function upCommand(): Command {
@@ -99,55 +121,62 @@ function upCommand(): Command {
     .option('--step', 'Review each migration before it runs', false)
     .option('--dry-run', 'Show the plan without applying anything', false)
     .action(
-      async (opts: {
-        to?: string;
-        yes?: boolean;
-        step?: boolean;
-        dryRun?: boolean;
-      }) => {
-        await withProject(async () => {
-          if (opts.dryRun) {
-            const plan = await planUp(opts.to);
-            printPlanPreview(plan, 'up');
-            return;
-          }
-          const isTty = process.stdin.isTTY;
-          if (opts.step && !isTty) {
-            throw new Error('--step requires an interactive terminal.');
-          }
-          if (!opts.yes && !opts.step && !isTty) {
-            throw new Error(
-              'tale migrate up requires --yes (-y) when stdin is not a TTY (e.g. CI).',
-            );
-          }
-          if (opts.step) {
-            await runStepwise('up', opts.to);
-            return;
-          }
-
-          const plan = await planUp(opts.to);
-          if (plan.length === 0) {
-            logger.success('No pending migrations.');
-            return;
-          }
-          printPlanPreview(plan, 'up');
-          if (!opts.yes) {
-            const destructive = plan.filter((m) => m.destructive);
-            const ok = await confirm(
-              `Apply ${plan.length} migration(s)` +
-                (destructive.length
-                  ? `, ${destructive.length} DESTRUCTIVE (snapshotted first)`
-                  : '') +
-                '?',
-            );
-            if (!ok) {
-              logger.info('Aborted by user.');
+      action(
+        async (opts: {
+          to?: string;
+          yes?: boolean;
+          step?: boolean;
+          dryRun?: boolean;
+        }) => {
+          await withProject(async () => {
+            if (opts.dryRun) {
+              const plan = await planUp(opts.to);
+              printPlanPreview(plan, 'up');
               return;
             }
-          }
-          report(await applyUp({ to: opts.to, allowDestructive: true }), 'up');
-        });
-      },
+            const isTty = process.stdin.isTTY;
+            if (opts.step && !isTty) {
+              throw new Error('--step requires an interactive terminal.');
+            }
+            if (!opts.yes && !opts.step && !isTty) {
+              throw new Error(
+                'tale migrate up requires --yes (-y) when stdin is not a TTY (e.g. CI).',
+              );
+            }
+            if (opts.step) {
+              await runStepwise('up', opts.to);
+              return;
+            }
+
+            const plan = await planUp(opts.to);
+            if (plan.length === 0) {
+              logger.success('No pending migrations.');
+              return;
+            }
+            printPlanPreview(plan, 'up');
+            if (!opts.yes) {
+              const destructive = plan.filter((m) => m.destructive);
+              const ok = await confirm({
+                message:
+                  `Apply ${plan.length} migration(s)` +
+                  (destructive.length
+                    ? `, ${destructive.length} DESTRUCTIVE (snapshotted first)`
+                    : '') +
+                  '?',
+                default: false,
+              });
+              if (!ok) {
+                logger.info('Aborted by user.');
+                return;
+              }
+            }
+            report(
+              await applyUp({ to: opts.to, allowDestructive: true }),
+              'up',
+            );
+          });
+        },
+      ),
     );
 }
 
@@ -162,56 +191,61 @@ function downCommand(): Command {
     .option('--step', 'Review each down-migration before it runs', false)
     .option('--dry-run', 'Show the plan without applying anything', false)
     .action(
-      async (opts: {
-        to: string;
-        yes?: boolean;
-        step?: boolean;
-        dryRun?: boolean;
-      }) => {
-        await withProject(async () => {
-          if (opts.dryRun) {
-            const plan = await planDown(opts.to);
-            printPlanPreview(plan, 'down');
-            return;
-          }
-          const isTty = process.stdin.isTTY;
-          if (opts.step && !isTty) {
-            throw new Error('--step requires an interactive terminal.');
-          }
-          if (!opts.yes && !opts.step && !isTty) {
-            throw new Error(
-              'tale migrate down requires --yes (-y) when stdin is not a TTY (e.g. CI).',
-            );
-          }
-
-          const plan = await planDown(opts.to);
-          if (plan.length === 0) {
-            logger.success(
-              `Already at or below ${opts.to} — nothing to roll back.`,
-            );
-            return;
-          }
-          logger.header('Rolling back migrations (DOWN)');
-          logger.notice(
-            `Rolling back ${plan.length} migration(s) to ${opts.to}. ` +
-              'Down-migrations can lose data written since these versions applied.',
-          );
-          for (const m of plan) printMeta(m);
-
-          if (opts.step) {
-            await runStepwise('down', opts.to);
-            return;
-          }
-          if (!opts.yes) {
-            const ok = await confirm('Proceed with the rollback?');
-            if (!ok) {
-              logger.info('Aborted by user.');
+      action(
+        async (opts: {
+          to: string;
+          yes?: boolean;
+          step?: boolean;
+          dryRun?: boolean;
+        }) => {
+          await withProject(async () => {
+            if (opts.dryRun) {
+              const plan = await planDown(opts.to);
+              printPlanPreview(plan, 'down');
               return;
             }
-          }
-          report(await applyDown({ to: opts.to }), 'down');
-        });
-      },
+            const isTty = process.stdin.isTTY;
+            if (opts.step && !isTty) {
+              throw new Error('--step requires an interactive terminal.');
+            }
+            if (!opts.yes && !opts.step && !isTty) {
+              throw new Error(
+                'tale migrate down requires --yes (-y) when stdin is not a TTY (e.g. CI).',
+              );
+            }
+
+            const plan = await planDown(opts.to);
+            if (plan.length === 0) {
+              logger.success(
+                `Already at or below ${opts.to} — nothing to roll back.`,
+              );
+              return;
+            }
+            logger.header('Rolling back migrations (DOWN)');
+            logger.notice(
+              `Rolling back ${plan.length} migration(s) to ${opts.to}. ` +
+                'Down-migrations can lose data written since these versions applied.',
+            );
+            for (const m of plan) printMeta(m);
+
+            if (opts.step) {
+              await runStepwise('down', opts.to);
+              return;
+            }
+            if (!opts.yes) {
+              const ok = await confirm({
+                message: 'Proceed with the rollback?',
+                default: false,
+              });
+              if (!ok) {
+                logger.info('Aborted by user.');
+                return;
+              }
+            }
+            report(await applyDown({ to: opts.to }), 'down');
+          });
+        },
+      ),
     );
 }
 
@@ -244,7 +278,7 @@ async function runStepwise(
         ],
         ['Description', m.description],
       ]);
-      const choice = await confirmChoice('Apply this migration?');
+      const choice = await confirmChoice({ message: 'Apply this migration?' });
       if (choice === 'abort') {
         logger.info('Aborted — already-applied migrations remain applied.');
         return;
@@ -300,14 +334,10 @@ function report(result: ApplyResult, direction: 'up' | 'down'): void {
   }
 }
 
-/** Resolve the project context, then run `fn`, exiting non-zero on error. */
+/** Resolve the project context, then run `fn`. Errors propagate to the central
+ *  `action()` dispatch (every migrate subcommand is wrapped in it). */
 async function withProject(fn: () => Promise<void>): Promise<void> {
-  try {
-    const projectDir = requireProject();
-    await resolveProjectContext(projectDir);
-    await fn();
-  } catch (err) {
-    logger.error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
-  }
+  const projectDir = requireProject();
+  await resolveProjectContext(projectDir);
+  await fn();
 }

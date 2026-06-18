@@ -5,8 +5,9 @@ import { STATEFUL_SERVICES } from '../lib/compose/types';
 import { ensureEnv } from '../lib/config/ensure-env';
 import { requireProject } from '../lib/project/find-project';
 import { resolveProjectContext } from '../lib/project/project-context';
+import { preconditionError } from '../utils/fail';
 import { loadEnv } from '../utils/load-env';
-import * as logger from '../utils/logger';
+import { action } from '../utils/run-command';
 
 export function createResetCommand(): Command {
   return new Command('reset')
@@ -18,15 +19,17 @@ export function createResetCommand(): Command {
       false,
     )
     .option('--dry-run', 'Preview reset without making changes', false)
-    .action(async (options) => {
-      try {
+    .action(
+      action(async (options) => {
         const projectDir = requireProject();
         await resolveProjectContext(projectDir);
         const { success: envSetupSuccess } = await ensureEnv({
           deployDir: projectDir,
         });
         if (!envSetupSuccess) {
-          process.exit(1);
+          throw preconditionError(
+            `Environment setup failed. Cannot reset without ${projectDir}/.env.`,
+          );
         }
         const env = loadEnv(projectDir);
         await reset({
@@ -35,9 +38,6 @@ export function createResetCommand(): Command {
           includeStateful: options.all,
           dryRun: options.dryRun,
         });
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
+      }),
+    );
 }

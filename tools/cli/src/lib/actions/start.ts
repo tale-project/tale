@@ -1,10 +1,29 @@
 import { join, relative } from 'node:path';
 
+import {
+  chain,
+  classifyBuildKit,
+  classifyConvex,
+  classifyDockerCompose,
+  classifyPlatformContainer,
+  classifyVite,
+  createStreamClassifier,
+} from '@tale/shared/classify';
+import {
+  detailLines,
+  doneLine,
+  infoLine,
+  rule,
+  runStep,
+  sourceLine,
+  StepWarning,
+  warnLine,
+} from '@tale/shared/tux';
+
 import pkg from '../../../package.json';
 import { isUserInterrupt } from '../../utils/exit-codes';
 import { getProjectId, loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
-import { StatusHeader, isHealthCheckLog } from '../../utils/terminal';
 import { findComposeOverride } from '../compose/find-compose-override';
 import { DEV_VOLUME_NAMES } from '../compose/generators/constants';
 import { generateDevCompose } from '../compose/generators/generate-dev-compose';
@@ -73,16 +92,16 @@ async function openBrowser(url: string): Promise<void> {
       );
     }
   }
-  logger.warn(`Could not open browser automatically. Visit: ${url}`);
+  warnLine(`Could not open browser automatically. Visit: ${url}`);
 }
 
-async function waitForHealthAndOpenBrowser(
+/** Poll `${url}/health` until it answers 200 or the attempt budget runs out. */
+async function waitForHealth(
   url: string,
   signal?: AbortSignal,
 ): Promise<boolean> {
   const healthUrl = `${url}/health`;
   const maxAttempts = 120;
-
   for (let i = 0; i < maxAttempts; i++) {
     if (signal?.aborted) return false;
     try {
@@ -90,32 +109,21 @@ async function waitForHealthAndOpenBrowser(
         ? AbortSignal.any([AbortSignal.timeout(2000), signal])
         : AbortSignal.timeout(2000);
       const res = await fetch(healthUrl, { signal: fetchSignal });
-      if (res.ok) {
-        await openBrowser(url);
-        return true;
-      }
+      if (res.ok) return true;
     } catch (err) {
       if (signal?.aborted) return false;
-      // Expected during startup (connection refused / timeout); log at debug
-      // level so it's available when diagnosing health-check issues.
       logger.debug(
         `Health check attempt ${i + 1} failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
     await Bun.sleep(1000);
   }
-  logger.warn(
-    `Services did not become healthy within ${maxAttempts}s. Check logs: docker compose -p ${getProjectId()}-dev logs`,
-  );
   return false;
 }
 
 /**
  * Derive the Convex dashboard admin key once the platform container is up,
- * retrying while it boots. Best-effort: the key is a convenience for reaching
- * the dashboard, so a failure here must never fail `tale start` — callers log
- * and move on. Returns null if the key can't be derived before `signal` aborts
- * or the attempt budget runs out.
+ * retrying while it boots. Best-effort: a failure must never fail `tale start`.
  */
 async function fetchAdminKeyWhenReady(
   signal?: AbortSignal,
@@ -126,8 +134,6 @@ async function fetchAdminKeyWhenReady(
     try {
       return await getAdminKey();
     } catch (err) {
-      // Expected while the container starts (no container yet / generate_key
-      // not ready). Log at debug so it's available when diagnosing, then retry.
       logger.debug(
         `Admin key fetch attempt ${i + 1} failed: ${err instanceof Error ? err.message : String(err)}`,
       );
@@ -137,30 +143,32 @@ async function fetchAdminKeyWhenReady(
   return null;
 }
 
-const URL_PATTERN = /https?:\/\/\S+/;
-
-function extractUrl(line: string): string | null {
-  const match = URL_PATTERN.exec(line);
-  return match ? match[0] : null;
+/** The clean READY block: an ASCII rule, the app URL, the fixed Convex sub-paths
+ *  (derived host-side — no log scraping), and the dashboard admin key. */
+function printReadyBlock(url: string, adminKey: string | null): void {
+  rule();
+  doneLine(`Tale is running — open ${url}`);
+  infoLine(`Convex API   ${url}/ws_api`);
+  infoLine(`Actions      ${url}/http_api`);
+  infoLine(`Dashboard    ${url}/convex-dashboard`);
+  if (adminKey) infoLine(`Admin key    ${adminKey}`);
+  rule();
 }
 
 interface StartOptions {
   detach?: boolean;
   port?: number;
   host?: string;
-  /**
-   * Non-interactive: auto-accept prompts (e.g. installing/starting the
-   * Docker engine). Parallels the `--yes` flag on `tale deploy`.
-   */
+  /** Non-interactive: auto-accept prompts (e.g. installing/starting Docker). */
   assumeYes?: boolean;
 }
 
 export async function start(options: StartOptions): Promise<void> {
   let projectDir = findProject();
   if (!projectDir) {
-    // `tale init` scaffolds into a named subdirectory, so a
-    // common mistake is running `tale start` one level up. Point at the child
-    // project rather than silently initializing a second one on top.
+    // `tale init` scaffolds into a named subdirectory, so a common mistake is
+    // running `tale start` one level up. Point at the child project rather than
+    // silently initializing a second one on top.
     const childProject = findChildProject();
     if (childProject) {
       const rel = relative(process.cwd(), childProject);
@@ -169,8 +177,7 @@ export async function start(options: StartOptions): Promise<void> {
           `Run it from there:\n  cd ${rel} && tale start`,
       );
     }
-    logger.warn('No Tale project found. Initializing in current directory...');
-    logger.blank();
+    warnLine('No Tale project found. Initializing in current directory...');
     await init({ directory: process.cwd() });
     projectDir = findProject();
     if (!projectDir) {
@@ -178,10 +185,8 @@ export async function start(options: StartOptions): Promise<void> {
     }
   }
 
-  // Environment setup runs unconditionally so `tale start` after a CLI
-  // upgrade that introduces a new auto-secret (e.g. SANDBOX_TOKEN) picks
-  // it up before compose starts — matches `tale deploy` semantics so
-  // both commands give the same surface behavior.
+  // Environment setup runs unconditionally so `tale start` after a CLI upgrade
+  // that introduces a new auto-secret picks it up before compose starts.
   const envPath = join(projectDir, '.env');
   const { ensureEnv } = await import('../config/ensure-env');
   const { success: envOk } = await ensureEnv({ deployDir: projectDir });
@@ -191,51 +196,39 @@ export async function start(options: StartOptions): Promise<void> {
     );
   }
 
-  // Resolve project ID from tale.json before any Docker-resource naming.
-  // This only reads/writes tale.json (no Docker), so it is safe here.
   await resolveOrAssignProjectContext(projectDir);
-
   const env = loadEnv(projectDir);
 
-  // Zero-prerequisite: install/start Docker if needed. ensureDocker already
-  // tried to start/install the engine and returns actionable guidance when it
-  // can't — surface that and stop, rather than falling through to
-  // assertDockerAvailable whose `docker info` would just time out again on an
-  // engine we already know is down (the cryptic "Command timed out after 10s").
+  // Zero-prerequisite: install/start Docker if needed.
   const docker = await ensureDocker({ assumeYes: options.assumeYes });
   if (docker.status === 'refused' || docker.status === 'failed') {
     throw new Error(docker.detail);
   }
-  // Residual safety net for the "ensureDocker said ready but it isn't" case.
   await assertDockerAvailable();
 
-  // Ensure dev infrastructure under a project-scoped lock so parallel
-  // `tale start` / `tale deploy` shells can't race on docker volumes.
-  // The lock is released before `docker compose up` starts — holding it
-  // for the full foreground lifetime of compose would block every other
-  // tale command.
   const devPrefix = `${getProjectId()}-dev_`;
-  await withLock(projectDir, 'start', async () => {
-    // Pre-create dev volumes and network with explicit project-scoped names.
-    // The dev compose file references them as external, so they must exist
-    // before `docker compose up`.
-    const volumesOk = await ensureVolumes([...DEV_VOLUME_NAMES], devPrefix);
-    if (!volumesOk) {
-      throw new Error('Failed to create dev volumes');
-    }
-    const networkOk = await ensureNetwork('internal', devPrefix);
-    if (!networkOk) {
-      throw new Error('Failed to create dev network');
-    }
-    // Sandbox bridge has a fixed Docker name (tale-sandbox-net) and lives
-    // outside the project-prefixed naming scheme so the spawner can target
-    // it directly from `docker run --network`. Internal-only (no internet)
-    // and IPv6-disabled (R1.3 v4-allowlist-bypass mitigation).
-    const sandboxNetworkOk = await ensureSandboxNetwork();
-    if (!sandboxNetworkOk) {
-      throw new Error('Failed to create sandbox network');
-    }
-  });
+  await runStep(
+    {
+      active: 'Preparing volumes & networks',
+      done: 'Volumes & networks ready',
+    },
+    () =>
+      // Project-scoped lock so parallel `tale start` / `tale deploy` shells can't
+      // race on docker volumes. Released before compose starts.
+      withLock(projectDir, 'start', async () => {
+        if (!(await ensureVolumes([...DEV_VOLUME_NAMES], devPrefix))) {
+          throw new Error('Failed to create dev volumes');
+        }
+        if (!(await ensureNetwork('internal', devPrefix))) {
+          throw new Error('Failed to create dev network');
+        }
+        // Fixed-name (`tale-sandbox-net`), internal-only, IPv6-off bridge so the
+        // spawner can target it directly from `docker run --network`.
+        if (!(await ensureSandboxNetwork())) {
+          throw new Error('Failed to create sandbox network');
+        }
+      }),
+  );
 
   const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;
   const port = options.port ?? 443;
@@ -249,156 +242,103 @@ export async function start(options: StartOptions): Promise<void> {
     port,
     { projectDir },
   );
-
   const overrideFile = findComposeOverride(projectDir);
-  if (overrideFile) {
-    logger.info(`Using compose override: compose.override.yml`);
-  }
+  if (overrideFile) infoLine('Using compose override: compose.override.yml');
 
-  const args = ['up', ...(options.detach ? ['-d'] : [])];
-
-  // AbortController to cancel health polling when docker compose exits
+  const projectName = `${getProjectId()}-dev`;
+  const composeOpts = {
+    projectName,
+    cwd: projectDir,
+    overrideFile: overrideFile ?? undefined,
+  };
   const abortController = new AbortController();
 
-  // Start browser opener in background (runs concurrently with docker compose)
-  const browserTask = waitForHealthAndOpenBrowser(url, abortController.signal);
-
+  // ── Detached: clean step-by-step bring-up, then leave the stack running. ──
+  // Build/pull noise is captured to a ring and dumped only if the step fails.
   if (options.detach) {
-    logger.header('Starting Tale (Dev Mode)');
-    logger.info(`Project: ${projectDir}`);
-    logger.info(`Version: ${version}`);
-    logger.info(`URL:     ${url}`);
-    logger.blank();
-    logger.step('Starting services...');
-
-    const result = await dockerCompose(compose, args, {
-      projectName: `${getProjectId()}-dev`,
-      cwd: projectDir,
-      inherit: true,
-      overrideFile: overrideFile ?? undefined,
-    });
-
-    if (!result.success) {
-      abortController.abort();
-      if (!isUserInterrupt(result.exitCode)) {
-        logger.error('Failed to start services');
-        throw new Error('Start failed');
-      }
-      return;
-    }
-
-    const healthy = await browserTask;
-    logger.blank();
-    if (healthy) {
-      logger.success('Tale is running in the background');
-    } else {
-      logger.warn(
-        'Tale is running but services may not be ready yet. Check logs: docker compose -p ' +
-          `${getProjectId()}-dev logs`,
-      );
-    }
-    // Surface the Convex dashboard admin key so operators don't have to
-    // discover `tale convex admin`. Deterministic from INSTANCE_SECRET, so it's
-    // stable across restarts. Best-effort — never blocks or fails the command.
+    const ring: string[] = [];
+    await runStep(
+      { active: 'Starting Tale', done: 'Tale started' },
+      async () => {
+        const result = await dockerCompose(compose, ['up', '-d'], {
+          ...composeOpts,
+          onLine(line) {
+            ring.push(line);
+            if (ring.length > 200) ring.shift();
+          },
+        });
+        if (!result.success) {
+          if (!isUserInterrupt(result.exitCode)) detailLines(ring.slice(-15));
+          throw new Error('docker compose up failed');
+        }
+      },
+    );
+    const healthy = await runStep(
+      { active: 'Waiting for services', done: 'Services healthy' },
+      async () => {
+        if (!(await waitForHealth(url, abortController.signal))) {
+          throw new StepWarning(
+            'not healthy yet — they may still be warming up; check `tale logs`',
+          );
+        }
+        return true;
+      },
+    );
     const adminKey = await fetchAdminKeyWhenReady(abortController.signal);
-    if (adminKey) {
-      logger.blank();
-      logger.info('Convex dashboard:');
-      logger.info(`  URL:       ${url}/convex-dashboard`);
-      logger.info(`  Admin key: ${adminKey}`);
-    }
-    logger.blank();
-    logger.info(
-      'Per-org config (`<org>/agents/`, `<org>/workflows/`, `<org>/integrations/`, `<org>/branding/`, `<org>/providers/`, `<org>/skills/`)',
-    );
-    logger.info(
-      'is bind-mounted from your project. Edits to those paths auto-refresh the browser.',
-    );
-    logger.blank();
-    logger.info(`Stop with: docker compose -p ${getProjectId()}-dev down`);
+    if (healthy) void openBrowser(url);
+    printReadyBlock(url, adminKey);
+    infoLine(`Stop with: docker compose -p ${projectName} down`);
     return;
   }
 
-  // Interactive mode: status header + filtered log streaming
-  const header = new StatusHeader(version);
-  header.setup();
-
-  // Derive the dashboard admin key concurrently and drop it into the ready
-  // block when it lands. Best-effort: a failure just leaves the key off the
-  // header (logged at debug), it never disrupts the foreground compose stream.
-  const adminKeyTask = fetchAdminKeyWhenReady(abortController.signal).then(
-    (key) => {
-      if (key) header.setAdminKey(key);
-    },
+  // ── Foreground: attach to `docker compose up` so Ctrl-C is delivered to
+  //    compose, which stops the stack gracefully (the original contract) — no
+  //    manual signal handling, no compose-down spew. Build/pull/HMR noise is
+  //    classified away; only meaningful lifecycle/warn/error lines surface. A
+  //    concurrent announcer prints the READY block once /health answers. ──
+  const classify = createStreamClassifier(
+    chain(
+      classifyBuildKit,
+      classifyDockerCompose,
+      classifyConvex,
+      classifyVite,
+      classifyPlatformContainer,
+    ),
   );
 
-  // State for parsing platform status block
-  let capturingStatus = false;
-  let statusLineCount = 0;
-  const capturedUrls: Record<string, string> = {};
+  const announce = (async (): Promise<void> => {
+    const ok = await waitForHealth(url, abortController.signal);
+    if (abortController.signal.aborted) return;
+    if (!ok) {
+      warnLine(
+        'Services did not become healthy in time — check the log above.',
+      );
+      return;
+    }
+    const adminKey = await fetchAdminKeyWhenReady(abortController.signal);
+    if (abortController.signal.aborted) return;
+    void openBrowser(url);
+    printReadyBlock(url, adminKey);
+  })();
 
-  const result = await dockerCompose(compose, args, {
-    projectName: `${getProjectId()}-dev`,
-    cwd: projectDir,
-    overrideFile: overrideFile ?? undefined,
+  infoLine('Starting Tale — press Ctrl-C to stop.');
+  const result = await dockerCompose(compose, ['up'], {
+    ...composeOpts,
     onLine(line) {
-      // Filter health check logs
-      if (isHealthCheckLog(line)) return;
-
-      // Detect platform ready block and capture URLs
-      if (line.includes('Tale Platform is running!')) {
-        capturingStatus = true;
-        statusLineCount = 0;
-        return;
-      }
-
-      if (capturingStatus) {
-        statusLineCount++;
-
-        const extractedUrl = extractUrl(line);
-        if (extractedUrl) {
-          if (line.includes('Vite') || line.includes('Application')) {
-            capturedUrls.app = extractedUrl;
-          } else if (line.includes('Convex API')) {
-            capturedUrls.api = extractedUrl;
-          } else if (line.includes('Actions')) {
-            capturedUrls.actions = extractedUrl;
-          } else if (line.includes('Dashboard')) {
-            capturedUrls.dashboard = extractedUrl;
-          }
-        }
-
-        // End capture after enough lines or when we have all URLs
-        if (
-          statusLineCount > 8 ||
-          (capturedUrls.app &&
-            capturedUrls.api &&
-            capturedUrls.actions &&
-            capturedUrls.dashboard)
-        ) {
-          capturingStatus = false;
-          header.setReady({
-            app: capturedUrls.app ?? url,
-            api: capturedUrls.api ?? `${url}/ws_api`,
-            actions: capturedUrls.actions ?? `${url}/http_api`,
-            dashboard: capturedUrls.dashboard ?? `${url}/convex-dashboard`,
-          });
-        }
-        return;
-      }
-
-      header.writeLine(line);
+      const c = classify(line);
+      if (c.kind === 'error') sourceLine('tale', 'error', c.text ?? c.raw);
+      else if (c.kind === 'warn') sourceLine('tale', 'warn', c.text ?? c.raw);
+      else if (c.kind === 'info' && c.text) sourceLine('tale', 'info', c.text);
+      // progress/noise (layer pulls, HMR, "Watching…") collapse silently.
     },
   });
 
-  // Stop health polling now that docker compose has exited
+  // Compose has exited (Ctrl-C → graceful stop, or a real failure). Stop the
+  // readiness announcer and report only genuine, non-interrupt failures.
   abortController.abort();
-  await browserTask;
-  await adminKeyTask;
-  header.cleanup();
-
+  await announce;
   if (!result.success && !isUserInterrupt(result.exitCode)) {
-    logger.error('Failed to start services');
+    logger.error('Tale stopped unexpectedly.');
     if (result.stderr) logger.error(result.stderr);
     throw new Error('Start failed');
   }
