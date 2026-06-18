@@ -1,4 +1,50 @@
 {
+  "operator": {
+    "title": "Opérateur",
+    "tab": { "operator": "Opérateur", "raw": "Journal brut" },
+    "state": {
+      "loading": "En attente",
+      "running": "En cours",
+      "output_available": "Terminé",
+      "output_error": "Erreur",
+      "waiting_human": "Action requise",
+      "waiting_external": "En attente",
+      "empty": "Aucune sortie"
+    },
+    "field": {
+      "stepType": "Type",
+      "attempts": "Tentatives",
+      "duration": "Durée",
+      "count": "Nombre",
+      "source": "Source",
+      "rowsIn": "Lignes entrée",
+      "rowsOut": "Lignes sortie",
+      "fields": "Champs",
+      "check": "Contrôle",
+      "matched": "Rapprochés",
+      "unmatched": "Non rapprochés",
+      "before": "Avant",
+      "after": "Après"
+    },
+    "check": { "pass": "Réussi", "warn": "Avertissement", "fail": "Échec" },
+    "review": {
+      "gate": "En attente d'approbation",
+      "form": "Saisie requise",
+      "choice": "Choisir une option"
+    },
+    "action": { "open": "Ouvrir" },
+    "body": {
+      "waitingExternal": "En attente d'un événement externe pour continuer.",
+      "empty": "Cette étape n'a produit aucune sortie.",
+      "noDetails": "Aucun détail à afficher.",
+      "outputUnavailable": "La sortie est trop volumineuse pour un aperçu ici.",
+      "noJournal": "Aucun journal disponible pour cette exécution."
+    },
+    "error": {
+      "title": "Impossible de charger cette exécution",
+      "notFound": "Cette exécution est introuvable."
+    }
+  },
   "accessDenied": {
     "title": "Accès refusé",
     "automations": "Tu dois disposer des permissions Admin ou Développeur pour accéder aux automatisations.",

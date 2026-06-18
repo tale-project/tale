@@ -1,4 +1,50 @@
 {
+  "operator": {
+    "title": "Operator",
+    "tab": { "operator": "Operator", "raw": "Raw journal" },
+    "state": {
+      "loading": "Pending",
+      "running": "Running",
+      "output_available": "Done",
+      "output_error": "Error",
+      "waiting_human": "Needs you",
+      "waiting_external": "Waiting",
+      "empty": "No output"
+    },
+    "field": {
+      "stepType": "Type",
+      "attempts": "Attempts",
+      "duration": "Duration",
+      "count": "Count",
+      "source": "Source",
+      "rowsIn": "Rows in",
+      "rowsOut": "Rows out",
+      "fields": "Fields",
+      "check": "Check",
+      "matched": "Matched",
+      "unmatched": "Unmatched",
+      "before": "Before",
+      "after": "After"
+    },
+    "check": { "pass": "Pass", "warn": "Warn", "fail": "Fail" },
+    "review": {
+      "gate": "Awaiting approval",
+      "form": "Input required",
+      "choice": "Choose an option"
+    },
+    "action": { "open": "Open" },
+    "body": {
+      "waitingExternal": "Waiting for an external event to continue.",
+      "empty": "This step produced no output.",
+      "noDetails": "No details to show.",
+      "outputUnavailable": "Output is too large to preview here.",
+      "noJournal": "No journal is available for this run."
+    },
+    "error": {
+      "title": "Could not load this run",
+      "notFound": "This run was not found."
+    }
+  },
   "accessDenied": {
     "title": "Access denied",
     "automations": "You need Admin or Developer permissions to access automations.",

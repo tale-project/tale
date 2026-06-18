@@ -41,6 +41,10 @@ export interface ExecutionNodeState {
 export interface ExecutionStepStatuses {
   execution: {
     status: Doc<'wfExecutions'>['status'];
+    /** Workflow slug + org so a UI can read the matching DEFINITION (steps +
+     * `ui`/`role` annotations) from one reactive payload, no extra fetch. */
+    workflowSlug?: string;
+    organizationId: string;
     currentStepSlug?: string;
     currentStepName?: string;
     waitingFor?: string;
@@ -246,6 +250,10 @@ export function deriveStepStatuses(
   return {
     execution: {
       status: execution.status,
+      ...(execution.workflowSlug !== undefined && {
+        workflowSlug: execution.workflowSlug,
+      }),
+      organizationId: execution.organizationId,
       currentStepSlug: execution.currentStepSlug,
       currentStepName: execution.currentStepName,
       waitingFor: execution.waitingFor,

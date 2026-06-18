@@ -306,6 +306,8 @@ describe('deriveStepStatuses', () => {
 
     expect(result.execution).toEqual({
       status: 'failed',
+      organizationId: 'org_1',
+      workflowSlug: 'nightly-sync',
       currentStepSlug: 'send',
       currentStepName: 'Send',
       waitingFor: undefined,

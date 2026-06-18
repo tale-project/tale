@@ -124,6 +124,7 @@ import { Route as DashboardIdProjectsProjectIdTasksIndexRouteImport } from './ro
 import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/$requestId';
 import { Route as DashboardIdProjectsProjectIdTasksListRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/list';
 import { Route as DashboardIdProjectsProjectIdTasksBoardRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/board';
+import { Route as DashboardIdAutomationsAmIdOperatorExecutionIdRouteImport } from './routes/dashboard/$id/automations/$amId/operator/$executionId';
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -786,6 +787,12 @@ const DashboardIdProjectsProjectIdTasksBoardRoute =
     path: '/tasks/board',
     getParentRoute: () => DashboardIdProjectsProjectIdRoute,
   } as any);
+const DashboardIdAutomationsAmIdOperatorExecutionIdRoute =
+  DashboardIdAutomationsAmIdOperatorExecutionIdRouteImport.update({
+    id: '/operator/$executionId',
+    path: '/operator/$executionId',
+    getParentRoute: () => DashboardIdAutomationsAmIdRoute,
+  } as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
@@ -897,6 +904,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute;
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute;
   '/dashboard/$id/settings/skills/': typeof DashboardIdSettingsSkillsIndexRoute;
+  '/dashboard/$id/automations/$amId/operator/$executionId': typeof DashboardIdAutomationsAmIdOperatorExecutionIdRoute;
   '/dashboard/$id/projects/$projectId/tasks/board': typeof DashboardIdProjectsProjectIdTasksBoardRoute;
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
@@ -1000,6 +1008,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceIndexRoute;
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersIndexRoute;
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsIndexRoute;
+  '/dashboard/$id/automations/$amId/operator/$executionId': typeof DashboardIdAutomationsAmIdOperatorExecutionIdRoute;
   '/dashboard/$id/projects/$projectId/tasks/board': typeof DashboardIdProjectsProjectIdTasksBoardRoute;
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
@@ -1118,6 +1127,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute;
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute;
   '/dashboard/$id/settings/skills/': typeof DashboardIdSettingsSkillsIndexRoute;
+  '/dashboard/$id/automations/$amId/operator/$executionId': typeof DashboardIdAutomationsAmIdOperatorExecutionIdRoute;
   '/dashboard/$id/projects/$projectId/tasks/board': typeof DashboardIdProjectsProjectIdTasksBoardRoute;
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
@@ -1235,6 +1245,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/'
     | '/dashboard/$id/settings/providers/'
     | '/dashboard/$id/settings/skills/'
+    | '/dashboard/$id/automations/$amId/operator/$executionId'
     | '/dashboard/$id/projects/$projectId/tasks/board'
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
@@ -1338,6 +1349,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/skills'
+    | '/dashboard/$id/automations/$amId/operator/$executionId'
     | '/dashboard/$id/projects/$projectId/tasks/board'
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
@@ -1455,6 +1467,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/'
     | '/dashboard/$id/settings/providers/'
     | '/dashboard/$id/settings/skills/'
+    | '/dashboard/$id/automations/$amId/operator/$executionId'
     | '/dashboard/$id/projects/$projectId/tasks/board'
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
@@ -2279,6 +2292,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdProjectsProjectIdTasksBoardRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdRoute;
     };
+    '/dashboard/$id/automations/$amId/operator/$executionId': {
+      id: '/dashboard/$id/automations/$amId/operator/$executionId';
+      path: '/operator/$executionId';
+      fullPath: '/dashboard/$id/automations/$amId/operator/$executionId';
+      preLoaderRoute: typeof DashboardIdAutomationsAmIdOperatorExecutionIdRouteImport;
+      parentRoute: typeof DashboardIdAutomationsAmIdRoute;
+    };
   }
 }
 
@@ -2380,6 +2400,7 @@ interface DashboardIdAutomationsAmIdRouteChildren {
   DashboardIdAutomationsAmIdConfigurationRoute: typeof DashboardIdAutomationsAmIdConfigurationRoute;
   DashboardIdAutomationsAmIdExecutionsRoute: typeof DashboardIdAutomationsAmIdExecutionsRoute;
   DashboardIdAutomationsAmIdTriggersRoute: typeof DashboardIdAutomationsAmIdTriggersRoute;
+  DashboardIdAutomationsAmIdOperatorExecutionIdRoute: typeof DashboardIdAutomationsAmIdOperatorExecutionIdRoute;
 }
 
 const DashboardIdAutomationsAmIdRouteChildren: DashboardIdAutomationsAmIdRouteChildren =
@@ -2390,6 +2411,8 @@ const DashboardIdAutomationsAmIdRouteChildren: DashboardIdAutomationsAmIdRouteCh
       DashboardIdAutomationsAmIdExecutionsRoute,
     DashboardIdAutomationsAmIdTriggersRoute:
       DashboardIdAutomationsAmIdTriggersRoute,
+    DashboardIdAutomationsAmIdOperatorExecutionIdRoute:
+      DashboardIdAutomationsAmIdOperatorExecutionIdRoute,
   };
 
 const DashboardIdAutomationsAmIdRouteWithChildren =
