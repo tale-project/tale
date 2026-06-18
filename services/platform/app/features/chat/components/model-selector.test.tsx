@@ -61,7 +61,7 @@ vi.mock('../hooks/queries', () => ({
   useChatAgents: () => ({
     agents: [
       {
-        name: 'chat-agent',
+        name: 'assistant',
         displayName: 'Chat Agent',
         get supportedModels() {
           return mockAgentSupportedModels;
@@ -73,7 +73,7 @@ vi.mock('../hooks/queries', () => ({
 
 vi.mock('../hooks/use-effective-agent', () => ({
   useEffectiveAgent: () => ({
-    agent: { name: 'chat-agent', displayName: 'Chat Agent' },
+    agent: { name: 'assistant', displayName: 'Chat Agent' },
     isLoading: false,
   }),
 }));

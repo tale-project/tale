@@ -1,6 +1,7 @@
 import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
+import { DEFAULT_CHAT_AGENT_SLUG } from '../../lib/shared/constants/agents';
 import { components, internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
 import { checkBudget } from '../governance/budget_enforcement';
@@ -9,7 +10,7 @@ import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { persistentStreaming } from '../streaming/helpers';
 
 export const DEFAULT_AGENT_CONFIG: SerializableAgentConfig = {
-  name: 'chat-agent',
+  name: DEFAULT_CHAT_AGENT_SLUG,
   instructions: '',
   convexToolNames: [],
   model: 'default',

@@ -21,6 +21,7 @@ import { useLiveBrowserOptional } from '@/app/features/workspace/components/live
 import { useWorkspaceFilesOptional } from '@/app/features/workspace/components/workspace-files-context';
 import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { useT } from '@/lib/i18n/client';
+import { DEFAULT_CHAT_AGENT_SLUG } from '@/lib/shared/constants/agents';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
@@ -91,7 +92,7 @@ export function ComposerModeMenu({
   }, [agents]);
 
   const chatAgent = useMemo(
-    () => agents?.find((a) => a.name === 'chat-agent') ?? null,
+    () => agents?.find((a) => a.name === DEFAULT_CHAT_AGENT_SLUG) ?? null,
     [agents],
   );
 

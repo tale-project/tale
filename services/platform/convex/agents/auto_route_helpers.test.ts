@@ -13,7 +13,7 @@ import {
 } from './auto_route_helpers';
 
 const agents: AgentListEntry[] = [
-  { name: 'chat-agent', description: 'General assistant', visibleInChat: true },
+  { name: 'assistant', description: 'General assistant', visibleInChat: true },
   {
     name: 'crm-assistant',
     description: 'Customer + product data',
@@ -34,7 +34,7 @@ describe('filterRoutingCandidates', () => {
       },
     ];
     const result = filterRoutingCandidates(raw).map((a) => a.name);
-    expect(result).toEqual(['chat-agent', 'crm-assistant', 'researcher']);
+    expect(result).toEqual(['assistant', 'crm-assistant', 'researcher']);
   });
 
   it('honors the project allow-list when provided', () => {
@@ -51,12 +51,12 @@ describe('filterRoutingCandidates', () => {
 });
 
 describe('pickDefault', () => {
-  it('prefers chat-agent when present', () => {
-    expect(pickDefault(agents)?.name).toBe('chat-agent');
+  it('prefers assistant when present', () => {
+    expect(pickDefault(agents)?.name).toBe('assistant');
   });
 
-  it('falls back to the first candidate when chat-agent is absent', () => {
-    const without = agents.filter((a) => a.name !== 'chat-agent');
+  it('falls back to the first candidate when assistant is absent', () => {
+    const without = agents.filter((a) => a.name !== 'assistant');
     expect(pickDefault(without)?.name).toBe('crm-assistant');
   });
 
@@ -101,7 +101,7 @@ describe('matchSlug', () => {
 describe('buildRouterInstructions', () => {
   it('lists every candidate as "slug: description"', () => {
     const prompt = buildRouterInstructions(agents);
-    expect(prompt).toContain('- chat-agent: General assistant');
+    expect(prompt).toContain('- assistant: General assistant');
     expect(prompt).toContain('- crm-assistant: Customer + product data');
     expect(prompt).toContain('- researcher: Web research');
   });
@@ -144,7 +144,7 @@ describe('buildRouterInstructions', () => {
 describe('parseRouterDecision', () => {
   const cands: AgentListEntry[] = [
     { name: 'billing-agent', visibleInChat: true },
-    { name: 'chat-agent', visibleInChat: true },
+    { name: 'assistant', visibleInChat: true },
   ];
 
   it('parses a clean JSON slug object', () => {
@@ -155,8 +155,8 @@ describe('parseRouterDecision', () => {
 
   it('parses JSON embedded in surrounding prose', () => {
     expect(
-      parseRouterDecision('Sure! {"slug": "chat-agent"} is best.', cands),
-    ).toEqual({ slug: 'chat-agent' });
+      parseRouterDecision('Sure! {"slug": "assistant"} is best.', cands),
+    ).toEqual({ slug: 'assistant' });
   });
 
   it('falls back to matchSlug for plain prose', () => {
@@ -183,20 +183,20 @@ describe('parseRouterDecision', () => {
   });
 
   it('recovers the slug when the model answers with bare prose', () => {
-    expect(parseRouterDecision('chat-agent', cands)).toEqual({
-      slug: 'chat-agent',
+    expect(parseRouterDecision('assistant', cands)).toEqual({
+      slug: 'assistant',
     });
   });
 
   it('extracts a valid language hint and drops a sentence-like one', () => {
     expect(
-      parseRouterDecision('{"slug":"chat-agent","language":"fr"}', cands)
+      parseRouterDecision('{"slug":"assistant","language":"fr"}', cands)
         ?.language,
     ).toBe('fr');
     // A whole sentence in the language slot is rejected (length/charset guard).
     expect(
       parseRouterDecision(
-        '{"slug":"chat-agent","language":"please answer in formal German!"}',
+        '{"slug":"assistant","language":"please answer in formal German!"}',
         cands,
       )?.language,
     ).toBeUndefined();
@@ -205,13 +205,13 @@ describe('parseRouterDecision', () => {
   it('extracts only valid style/verbosity enum values into tuning', () => {
     expect(
       parseRouterDecision(
-        '{"slug":"chat-agent","style":"concise","verbosity":"terse"}',
+        '{"slug":"assistant","style":"concise","verbosity":"terse"}',
         cands,
       )?.tuning,
     ).toEqual({ style: 'concise', verbosity: 'terse' });
     // Unknown enum values are dropped; with none valid, tuning is omitted.
     expect(
-      parseRouterDecision('{"slug":"chat-agent","style":"sarcastic"}', cands)
+      parseRouterDecision('{"slug":"assistant","style":"sarcastic"}', cands)
         ?.tuning,
     ).toBeUndefined();
   });
@@ -219,7 +219,7 @@ describe('parseRouterDecision', () => {
   it('reads a capabilities array and caps/sanitizes it', () => {
     expect(
       parseRouterDecision(
-        '{"slug":"chat-agent","capabilities":["web"," "]}',
+        '{"slug":"assistant","capabilities":["web"," "]}',
         cands,
       )?.capabilities,
     ).toEqual(['web']);

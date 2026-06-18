@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { DEFAULT_CHAT_AGENT_SLUG } from '@/lib/shared/constants/agents';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
 import type { SelectedAgent } from '../context/chat-layout-context';
@@ -12,13 +13,13 @@ export interface EffectiveAgent extends SelectedAgent {
   conversationStarters?: string[];
 }
 
-const DEFAULT_CHAT_AGENT_NAME = 'chat-agent';
+const DEFAULT_CHAT_AGENT_NAME = DEFAULT_CHAT_AGENT_SLUG;
 
 /**
  * Resolves the currently effective agent for chat.
  *
  * When the user has explicitly selected an agent, returns that selection.
- * Otherwise, falls back to the hardcoded default 'chat-agent' filename.
+ * Otherwise, falls back to the default assistant slug (`DEFAULT_CHAT_AGENT_SLUG`).
  *
  * Translatable display fields (displayName, conversationStarters) resolve
  * against the user's current UI locale via `resolveAgentLocale`'s i18n-first

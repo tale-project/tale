@@ -42,13 +42,32 @@ import {
   MAX_HISTORY_ENTRIES,
   parseAgentJson,
   resolveAgentFilePath,
+  resolveAgentFilePathFromRelative,
   resolveHistoryDir,
   serializeAgentJson,
   type AgentJsonConfig,
 } from './file_utils';
 import { DEFAULT_AGENT_WORKFORCE } from './guardrails/budget_guard';
-import { invalidateAgentListCache } from './internal_actions';
-import { listAgentsForOrg } from './internal_actions';
+import {
+  invalidateAgentListCache,
+  listAgentsForOrg,
+  resolveAgentRelativePath,
+} from './internal_actions';
+
+/**
+ * Absolute path of the file backing an EXISTING agent slug — located through
+ * the folder-aware index so a delegation write lands on the file wherever it
+ * lives (chat/, workforce/, …). Flat `<slug>.json` fallback for unindexed slugs.
+ */
+async function resolveAgentPath(
+  orgSlug: string,
+  slug: string,
+): Promise<string> {
+  const rel = await resolveAgentRelativePath(orgSlug, slug);
+  return rel
+    ? resolveAgentFilePathFromRelative(orgSlug, rel)
+    : resolveAgentFilePath(orgSlug, slug);
+}
 import {
   buildOrgChart,
   chainOfCommand,
@@ -427,7 +446,7 @@ async function snapshotAgentHistory(
   orgSlug: string,
   agentSlug: string,
 ): Promise<void> {
-  const filePath = resolveAgentFilePath(orgSlug, agentSlug);
+  const filePath = await resolveAgentPath(orgSlug, agentSlug);
   const currentContent = await readFileSafe(filePath);
   if (!currentContent) return;
   const historyDir = resolveHistoryDir(orgSlug, agentSlug);
@@ -493,7 +512,7 @@ export async function writeAgentDelegates(args: {
   }
   const next = sanitizeTargets(args.delegateSlugs, agentSlug, slugs);
 
-  const filePath = resolveAgentFilePath(orgSlug, agentSlug);
+  const filePath = await resolveAgentPath(orgSlug, agentSlug);
   const config = await readAgentConfig(filePath);
   const previous = config.delegates ?? [];
   if (next.length > 0) config.delegates = next;
@@ -533,7 +552,7 @@ export async function writeAgentParents(args: {
     const has = entry.delegates.includes(agentSlug);
     const should = desired.has(entry.slug);
     if (has === should) continue;
-    const filePath = resolveAgentFilePath(orgSlug, entry.slug);
+    const filePath = await resolveAgentPath(orgSlug, entry.slug);
     const config = await readAgentConfig(filePath).catch(() => null);
     if (!config) continue;
     const updated = should

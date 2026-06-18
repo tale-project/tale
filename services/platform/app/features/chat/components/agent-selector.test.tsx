@@ -47,7 +47,7 @@ interface MockAgent {
 
 const defaultAgents: MockAgent[] = [
   {
-    name: 'chat-agent',
+    name: 'assistant',
     displayName: 'Default Chat',
     description: 'Default assistant',
   },
@@ -67,7 +67,7 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 let mockEffectiveAgent: { name: string; displayName: string } | null = {
-  name: 'chat-agent',
+  name: 'assistant',
   displayName: 'Default Chat',
 };
 let mockEffectiveAgentLoading = false;
@@ -156,7 +156,7 @@ beforeEach(() => {
   mockCanWrite = true;
   mockDialogIsOpen = false;
   mockAgents = defaultAgents;
-  mockEffectiveAgent = { name: 'chat-agent', displayName: 'Default Chat' };
+  mockEffectiveAgent = { name: 'assistant', displayName: 'Default Chat' };
   mockEffectiveAgentLoading = false;
   mockSelectedAgent = null;
 });
@@ -170,7 +170,7 @@ describe('AgentSelector', () => {
   it('displays the effective agent name when an agent is pinned', () => {
     // With a pinned selection the trigger reflects that agent (not "Auto",
     // which is only the label when the selection is null/Auto).
-    mockSelectedAgent = { name: 'chat-agent', displayName: 'Default Chat' };
+    mockSelectedAgent = { name: 'assistant', displayName: 'Default Chat' };
     render(<AgentSelector organizationId="org-1" />);
     expect(screen.getByText('Default Chat')).toBeInTheDocument();
   });
@@ -239,7 +239,7 @@ describe('AgentSelector', () => {
 
     await user.click(screen.getByLabelText('Select agent'));
 
-    // One link per real agent (chat-agent + custom-agent), none on the Auto row.
+    // One link per real agent (assistant + custom-agent), none on the Auto row.
     const links = screen.getAllByRole('link', { name: 'View agent details' });
     expect(links).toHaveLength(2);
     // The Auto option (a pseudo-agent) has no details link.
@@ -332,7 +332,7 @@ describe('AgentSelector', () => {
     await user.click(defaultOption);
 
     expect(mockSetSelectedAgent).toHaveBeenCalledWith({
-      name: 'chat-agent',
+      name: 'assistant',
       displayName: 'Default Chat',
     });
   });
@@ -340,20 +340,20 @@ describe('AgentSelector', () => {
   it('only highlights one agent when selected', async () => {
     mockAgents = [
       {
-        name: 'chat-agent',
+        name: 'assistant',
         displayName: 'Assistant',
         description: 'Default assistant',
       },
       {
-        name: 'another-chat-agent',
+        name: 'another-assistant',
         displayName: 'Another Chat',
         description: 'Also a chat agent',
       },
     ];
-    mockEffectiveAgent = { name: 'chat-agent', displayName: 'Assistant' };
+    mockEffectiveAgent = { name: 'assistant', displayName: 'Assistant' };
     // Pin the agent so the highlighted option is that agent rather than "Auto"
     // (the selected option when the selection is null/Auto).
-    mockSelectedAgent = { name: 'chat-agent', displayName: 'Assistant' };
+    mockSelectedAgent = { name: 'assistant', displayName: 'Assistant' };
 
     const { user } = render(<AgentSelector organizationId="org-1" />);
 

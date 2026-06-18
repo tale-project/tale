@@ -130,15 +130,20 @@ const stripJson = (s: string | undefined): string | undefined =>
 export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
   {
     name: 'agents',
-    layout: 'flat',
+    // Tree (was flat): agents are organized in folders (chat/, workforce/,
+    // github/) for grouping. Identity is the explicit `slug` field in each
+    // config (NOT the path), so files can move between folders without
+    // breaking refs; the folder is organizational only.
+    layout: 'tree',
     readContext: 'node-direct',
     dataModel: 'config',
-    scaffoldKind: 'flat',
-    // <org>/agents/<name>.json
+    scaffoldKind: 'tree',
+    // <org>/agents/[folder/]<name>.json — the SSE hint slug is the path; the
+    // frontend refetches the agent list on any agents-domain change anyway.
     watcher: {
       eventType: 'agents',
       emitsFor: JSON_ONLY,
-      slugFromRest: (rest) => stripJson(rest[0]),
+      slugFromRest: (rest) => stripJson(rest.join('/')),
     },
   },
   // Default prompt-library catalog. Flat JSON files; `autoInstall` entries are

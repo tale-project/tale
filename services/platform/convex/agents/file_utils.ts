@@ -7,6 +7,8 @@
  * No Convex dependencies — these can be used in any Node.js context.
  */
 
+import type { Dirent } from 'node:fs';
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -17,13 +19,18 @@ import {
 } from '../../lib/shared/schemas/agents';
 import { canonicalizeAgentConfig } from '../../lib/shared/utils/canonicalize-config';
 import {
+  errnoCode,
   getConfigRoot,
   safeJoinWithinDir,
   serializeJson,
   sha256,
   validateOrgSlug,
 } from '../lib/file_io';
-import { validateAgentName } from './validators';
+import {
+  agentSlugFromFileName,
+  validateAgentName,
+  validateAgentSlug,
+} from './validators';
 
 export { sha256, validateAgentName };
 
@@ -221,6 +228,95 @@ export function resolveHistoryDir(orgSlug: string, agentName: string): string {
     safeJoinWithinDir(resolveAgentsDir(orgSlug), '.history'),
     agentName,
   );
+}
+
+/** Dirs never treated as agent folders (history trails + archived catalog). */
+const SKIP_AGENT_DIRS = new Set(['.history', '_archive', 'old']);
+
+/**
+ * Recursively list agent JSON file paths RELATIVE to the org's agents dir
+ * (posix-style, e.g. `workforce/chief-executive-officer.json` or a flat
+ * `chat-agent.json`). One real level of nesting is expected (chat/, workforce/,
+ * github/) but the walk is depth-general. Skips `.history/`, dotfiles, and any
+ * `_archive`/`old` dir (superseded catalog that must never load). Returns [] if
+ * the dir is missing.
+ */
+export async function walkAgentRelativePaths(
+  orgSlug: string,
+): Promise<string[]> {
+  const root = resolveAgentsDir(orgSlug);
+  const out: string[] = [];
+
+  async function walk(absDir: string, relPrefix: string): Promise<void> {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(absDir, { withFileTypes: true });
+    } catch (err) {
+      // Missing root is normal (org not scaffolded yet); anything else logs.
+      if (errnoCode(err) !== 'ENOENT') {
+        console.warn(
+          '[agents.walkAgentRelativePaths] readdir failed:',
+          absDir,
+          err,
+        );
+      }
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        if (SKIP_AGENT_DIRS.has(entry.name)) continue;
+        await walk(path.join(absDir, entry.name), rel);
+        continue;
+      }
+      if (entry.isFile() && entry.name.endsWith('.json')) out.push(rel);
+    }
+  }
+
+  await walk(root, '');
+  return out;
+}
+
+/**
+ * Safe-join a relative agent path (possibly foldered, e.g.
+ * `workforce/ceo.json`) within the org's agents dir, validating every segment.
+ * Used to read/write a file at the location the slug→path index resolved.
+ */
+export function resolveAgentFilePathFromRelative(
+  orgSlug: string,
+  relativePath: string,
+): string {
+  const segments = relativePath.replace(/\\/g, '/').split('/');
+  const fileSegment = segments.pop();
+  if (!fileSegment || !fileSegment.endsWith('.json')) {
+    throw new Error(`Invalid agent relative path: ${relativePath}`);
+  }
+  if (!validateAgentName(fileSegment.replace(/\.json$/, ''))) {
+    throw new Error(`Invalid agent file segment: ${fileSegment}`);
+  }
+  for (const segment of segments) {
+    if (!validateAgentName(segment)) {
+      throw new Error(`Invalid agent folder segment: ${segment}`);
+    }
+  }
+  let target = resolveAgentsDir(orgSlug);
+  for (const segment of segments) {
+    target = safeJoinWithinDir(target, segment);
+  }
+  return safeJoinWithinDir(target, fileSegment);
+}
+
+/**
+ * The canonical, file-location-independent identity for an agent file: the
+ * explicit `config.slug` when valid, else the file basename (legacy fallback).
+ */
+export function effectiveAgentSlug(
+  config: AgentJsonConfig,
+  relativePath: string,
+): string {
+  if (config.slug && validateAgentSlug(config.slug)) return config.slug;
+  return agentSlugFromFileName(relativePath);
 }
 
 export { MAX_FILE_SIZE_BYTES, MAX_HISTORY_ENTRIES };

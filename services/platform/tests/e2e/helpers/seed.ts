@@ -6,8 +6,8 @@
  * one place.
  */
 
-/** Seeded agent — `fixtures/config/default/agents/chat-agent.json`. */
-export const SEEDED_AGENT_SLUG = 'chat-agent';
+/** Seeded agent — `fixtures/config/default/agents/assistant.json`. */
+export const SEEDED_AGENT_SLUG = 'assistant';
 export const SEEDED_AGENT_DISPLAY_NAME = 'E2E Assistant';
 
 /** Seeded autoInstall prompt — `fixtures/config/default/prompts/summarize-text.json`. */
