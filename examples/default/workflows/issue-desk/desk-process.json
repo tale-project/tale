@@ -42,7 +42,9 @@
       "name": "start",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "assign" }
+      "nextSteps": {
+        "success": "assign"
+      }
     },
     {
       "stepSlug": "assign",
@@ -64,7 +66,9 @@
           "instructions": "Triage this issue-bound task and hand it to the implementer."
         }
       },
-      "nextSteps": { "success": "implement" }
+      "nextSteps": {
+        "success": "implement"
+      }
     },
     {
       "stepSlug": "implement",
@@ -75,7 +79,9 @@
         "stage": "work",
         "render": "stream",
         "labelKey": "issueDesk.implement",
-        "params": { "entryKind": "message" }
+        "params": {
+          "entryKind": "message"
+        }
       },
       "config": {
         "type": "agent",
@@ -87,7 +93,9 @@
           "instructions": "Clone the repo, fix the issue on a tale/<id> branch, and summarize the change."
         }
       },
-      "nextSteps": { "success": "verify" }
+      "nextSteps": {
+        "success": "verify"
+      }
     },
     {
       "stepSlug": "verify",
@@ -100,13 +108,17 @@
       },
       "config": {
         "run": {
-          "script": "pack://issue-desk/scripts/run_tests.sh",
-          "language": "bash"
+          "script": "pack://issue-desk/scripts/run_tests.py",
+          "language": "python"
         },
-        "output": { "resultFile": "result.json" },
+        "output": {
+          "resultFile": "result.json"
+        },
         "timeoutMs": 600000
       },
-      "nextSteps": { "success": "review" }
+      "nextSteps": {
+        "success": "review"
+      }
     },
     {
       "stepSlug": "review",
@@ -117,7 +129,10 @@
         "stage": "review",
         "render": "review",
         "labelKey": "issueDesk.review",
-        "params": { "mode": "gate", "cardinality": "one" }
+        "params": {
+          "mode": "gate",
+          "cardinality": "one"
+        }
       },
       "config": {
         "type": "approval",
@@ -128,7 +143,9 @@
           "question": "The implementer's fix is ready. Approve to open the PR, or request changes."
         }
       },
-      "nextSteps": { "success": "open_pr" }
+      "nextSteps": {
+        "success": "open_pr"
+      }
     },
     {
       "stepSlug": "open_pr",
@@ -138,7 +155,9 @@
         "stage": "deliver",
         "render": "artifact",
         "labelKey": "issueDesk.openPr",
-        "params": { "display": "object" }
+        "params": {
+          "display": "object"
+        }
       },
       "config": {
         "type": "integration",
@@ -154,13 +173,17 @@
           }
         }
       },
-      "nextSteps": { "success": "done" }
+      "nextSteps": {
+        "success": "done"
+      }
     },
     {
       "stepSlug": "done",
       "name": "done",
       "stepType": "output",
-      "config": { "mapping": {} },
+      "config": {
+        "mapping": {}
+      },
       "nextSteps": {}
     }
   ]
