@@ -70,20 +70,10 @@ test.describe('onboarding wizard', () => {
     ).toBeVisible();
     await expect(next).toBeDisabled();
 
-    // A valid name clears the error, previews the derived slug, surfaces the
-    // workspace-language picker, and enables Next.
+    // A valid name clears the error and enables Next. (The slug preview and
+    // the field descriptions were intentionally removed in the wizard UX
+    // refinement — #1903 — so they are no longer asserted here.)
     await nameField.fill('Acme QA');
-    await expect(
-      page.getByText(
-        t('settings.organization.identifierPreview').replace(
-          '{slug}',
-          'acme-qa',
-        ),
-      ),
-    ).toBeVisible();
-    await expect(
-      page.getByText(t('onboarding.workspace.languageDescription')),
-    ).toBeVisible();
     await expect(next).toBeEnabled();
 
     // A unique name so the derived slug never collides on re-runs, then create.
