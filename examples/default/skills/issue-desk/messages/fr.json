@@ -1,0 +1,7 @@
+{
+  "issueDesk.assign": "Tri et affectation",
+  "issueDesk.implement": "Implémenter le correctif",
+  "issueDesk.verify": "Lancer les tests",
+  "issueDesk.review": "Revue humaine",
+  "issueDesk.openPr": "Ouvrir la pull request"
+}

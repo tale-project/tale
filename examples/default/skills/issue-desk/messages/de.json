@@ -1,0 +1,7 @@
+{
+  "issueDesk.assign": "Sichten & zuweisen",
+  "issueDesk.implement": "Fehler beheben",
+  "issueDesk.verify": "Tests ausführen",
+  "issueDesk.review": "Menschliche Prüfung",
+  "issueDesk.openPr": "Pull Request öffnen"
+}

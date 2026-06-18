@@ -1,0 +1,7 @@
+{
+  "issueDesk.assign": "Triage & assign",
+  "issueDesk.implement": "Implement the fix",
+  "issueDesk.verify": "Run tests",
+  "issueDesk.review": "Human review",
+  "issueDesk.openPr": "Open pull request"
+}

@@ -1,0 +1,167 @@
+{
+  "name": "Issue resolution desk",
+  "description": "The config-driven multi-agent desk: a GitHub issue (bound to a task by the github sync) flows through a FIXED process — coordinator triages and assigns by role, an implementer agent resolves it in a sandbox (clones the repo, fixes on a tale/<id> branch), a deterministic sandbox step runs the repo's tests, a human reviews and signs off, then a pull request is opened. The process is the backbone; agent autonomy is bounded to within each step and a human gate is the only path to done. Every step carries ui/role annotations so the generic operator workspace renders it without any per-vertical UI code — this whole app is data.",
+  "version": "1.0.0",
+  "metadata": {
+    "pack": "issue-desk",
+    "autoInstall": false
+  },
+  "triggers": {
+    "events": [
+      {
+        "eventType": "task.assigned",
+        "eventFilter": {
+          "assigneeType": "agent",
+          "task.externalSystem": "github"
+        }
+      }
+    ]
+  },
+  "config": {
+    "timeout": 1800000,
+    "variables": {
+      "workflowId": "issue_desk_process",
+      "roles": {
+        "coordinator": "desk-coordinator",
+        "implementer": "desk-implementer",
+        "reviewer": "desk-reviewer"
+      }
+    }
+  },
+  "requires": {
+    "integrations": [
+      {
+        "name": "github",
+        "operations": ["get_issue", "create_pull_request"]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "assign" }
+    },
+    {
+      "stepSlug": "assign",
+      "name": "Coordinator assigns by role",
+      "stepType": "action",
+      "role": "coordinator",
+      "ui": {
+        "stage": "intake",
+        "render": "status",
+        "labelKey": "issueDesk.assign"
+      },
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "run_on_task",
+          "agentSlug": "{{config.variables.roles.coordinator}}",
+          "taskId": "{{input.task._id}}",
+          "trigger": "assignment",
+          "instructions": "Triage this issue-bound task and hand it to the implementer."
+        }
+      },
+      "nextSteps": { "success": "implement" }
+    },
+    {
+      "stepSlug": "implement",
+      "name": "Implementer resolves the issue in a sandbox",
+      "stepType": "action",
+      "role": "implementer",
+      "ui": {
+        "stage": "work",
+        "render": "stream",
+        "labelKey": "issueDesk.implement",
+        "params": { "entryKind": "message" }
+      },
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "run_on_task",
+          "agentSlug": "{{config.variables.roles.implementer}}",
+          "taskId": "{{input.task._id}}",
+          "trigger": "assignment",
+          "instructions": "Clone the repo, fix the issue on a tale/<id> branch, and summarize the change."
+        }
+      },
+      "nextSteps": { "success": "verify" }
+    },
+    {
+      "stepSlug": "verify",
+      "name": "Run the repo test suite (deterministic)",
+      "stepType": "sandbox",
+      "ui": {
+        "stage": "verify",
+        "render": "validation",
+        "labelKey": "issueDesk.verify"
+      },
+      "config": {
+        "run": {
+          "script": "pack://issue-desk/scripts/run_tests.sh",
+          "language": "bash"
+        },
+        "output": { "resultFile": "result.json" },
+        "timeoutMs": 600000
+      },
+      "nextSteps": { "success": "review" }
+    },
+    {
+      "stepSlug": "review",
+      "name": "Human review gate",
+      "stepType": "action",
+      "role": "reviewer",
+      "ui": {
+        "stage": "review",
+        "render": "review",
+        "labelKey": "issueDesk.review",
+        "params": { "mode": "gate", "cardinality": "one" }
+      },
+      "config": {
+        "type": "approval",
+        "parameters": {
+          "operation": "request_review",
+          "taskId": "{{input.task._id}}",
+          "agentSlug": "{{input.task.assigneeId}}",
+          "question": "The implementer's fix is ready. Approve to open the PR, or request changes."
+        }
+      },
+      "nextSteps": { "success": "open_pr" }
+    },
+    {
+      "stepSlug": "open_pr",
+      "name": "Open the pull request",
+      "stepType": "action",
+      "ui": {
+        "stage": "deliver",
+        "render": "artifact",
+        "labelKey": "issueDesk.openPr",
+        "params": { "display": "object" }
+      },
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "github",
+          "operation": "create_pull_request",
+          "params": {
+            "owner": "tale-project",
+            "repo": "tale",
+            "title": "Fix: {{input.task.title}}",
+            "head": "tale/{{input.task._id}}",
+            "base": "main"
+          }
+        }
+      },
+      "nextSteps": { "success": "done" }
+    },
+    {
+      "stepSlug": "done",
+      "name": "done",
+      "stepType": "output",
+      "config": { "mapping": {} },
+      "nextSteps": {}
+    }
+  ]
+}
