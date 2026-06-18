@@ -145,6 +145,7 @@ export function OrganizationSettingsView({
               <div className="w-full sm:w-80">
                 <Input
                   id="org-name"
+                  aria-label={tSettings('organization.title')}
                   {...register('name')}
                   wrapperClassName="w-full"
                 />
@@ -167,6 +168,7 @@ export function OrganizationSettingsView({
                   render={({ field }) => (
                     <Select
                       id="default-locale"
+                      aria-label={tSettings('organization.defaultLocale')}
                       value={field.value ?? ''}
                       onValueChange={(value) => {
                         // Radix emits a spurious `onValueChange('')` while its

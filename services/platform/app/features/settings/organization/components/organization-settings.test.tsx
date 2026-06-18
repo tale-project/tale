@@ -85,7 +85,9 @@ describe('OrganizationSettingsView page load', () => {
 
     // The org-name field, labeled by `settings.organization.title`, resolves to
     // the current (non-empty) org name once the form applies its baseline.
-    const orgNameField = screen.getByLabelText('Organization name');
+    const orgNameField = screen.getByRole('textbox', {
+      name: 'Organization name',
+    });
     await waitFor(() => expect(orgNameField).toHaveValue('Acme Industries'));
     // Mirror the E2E's "non-empty value" intent.
     expect((orgNameField as HTMLInputElement).value).not.toBe('');
