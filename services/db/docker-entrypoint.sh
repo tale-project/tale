@@ -103,7 +103,16 @@ run_init_scripts() {
     for script in "$INIT_SCRIPTS_DIR"/*.sql; do
         [ -f "$script" ] || continue
         echo "  $(basename "$script")"
-        psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$script" 2>&1 | grep -E "^(ERROR|FATAL|NOTICE)" || true
+        # ON_ERROR_STOP + an explicit exit-code check: a failing init script (e.g.
+        # the connection dropping mid-run, or a bad statement) MUST propagate so
+        # the caller never publishes /tmp/.db_ready against a half-initialized
+        # cluster. The previous `psql ... | grep || true` swallowed both psql's
+        # exit code (it became grep's) and every SQL error, which let a failed
+        # `02-create-convex-database.sql` set readiness with no `tale_platform`.
+        if ! psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$script"; then
+            echo "ERROR: init script failed: $(basename "$script")" >&2
+            return 1
+        fi
     done
     echo "Init scripts complete."
 }
@@ -180,17 +189,37 @@ apply_migrations_for_role() {
     esac
 }
 
-# Run init scripts in the background after PostgreSQL starts.
-# We wait until the target database is actually accessible (not just pg_isready)
-# to avoid racing with docker-entrypoint.sh's first-time init which creates
-# the POSTGRES_USER and POSTGRES_DB after starting a temporary server.
+# Run init scripts in the background, once the REAL server is up.
+#
+# On first-time init the upstream postgres entrypoint runs a TEMPORARY bootstrap
+# server to create POSTGRES_USER/POSTGRES_DB, then stops it before exec'ing the
+# real server. That bootstrap server is started with `listen_addresses=''`, so it
+# is reachable on the local UNIX socket but NEVER on TCP. Gating on a socket probe
+# (`psql -d "$POSTGRES_DB"`) therefore races first-time init: the loop can latch
+# onto the bootstrap server and run the init scripts against it just as the
+# entrypoint tears it down — `02-create-convex-database.sql` dies mid-run and
+# `tale_platform` is never created, yet readiness still gets published. Probing
+# TCP on 127.0.0.1 instead proves the *real* server is up (the bootstrap server
+# can't answer there), eliminating the race.
+#
+# Init + migrations are then retried as a unit, and /tmp/.db_ready is touched ONLY
+# after both genuinely succeed, so dependents (gated on `.db_ready`) never start
+# against a half-initialized cluster.
 (
     trap 'exit 0' SIGTERM SIGINT
-    until psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\q' 2>/dev/null; do
+    until pg_isready -h 127.0.0.1 -p 5432 -U "$POSTGRES_USER" >/dev/null 2>&1; do
         sleep 1
     done
-    run_init_scripts
-    apply_migrations_for_role
+    attempt=0
+    until run_init_scripts && apply_migrations_for_role; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge 30 ]; then
+            echo "ERROR: database init did not complete after ${attempt} attempts; not marking ready." >&2
+            exit 1
+        fi
+        echo "Database init incomplete (attempt ${attempt}); retrying in 2s..." >&2
+        sleep 2
+    done
     touch /tmp/.db_ready
     echo "Database ready."
 ) &

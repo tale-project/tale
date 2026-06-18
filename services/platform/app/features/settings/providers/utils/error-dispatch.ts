@@ -86,6 +86,47 @@ export function dispatchOrgAccessError(
 }
 
 /**
+ * Surface the SPECIFIC field rejection when the server rejects a provider/model
+ * save with `INVALID_PROVIDER_CONFIG` (the `providerJsonSchema` Zod gate), e.g.
+ * a `requestBodyMap` with `max_tokens` at the top level instead of under
+ * `rename`. Without this, the detailed `{ path, message }` issues only reach the
+ * server log and the user sees a generic "save failed". Returns `true` if
+ * handled. The issue messages are server-generated (English, technical) and
+ * shown verbatim — same convention as raw JSON.parse errors elsewhere.
+ */
+export function dispatchInvalidProviderConfig(
+  err: unknown,
+  t: (key: string) => string,
+): boolean {
+  const data = readConvexErrorData(err);
+  if (data?.code !== 'INVALID_PROVIDER_CONFIG') return false;
+  let description: string | undefined;
+  const issues = data.issues;
+  if (Array.isArray(issues)) {
+    const lines: string[] = [];
+    for (const issue of issues) {
+      if (issue == null || typeof issue !== 'object') continue;
+      const rawPath = 'path' in issue ? issue.path : undefined;
+      const rawMessage = 'message' in issue ? issue.message : undefined;
+      const path = Array.isArray(rawPath)
+        ? rawPath.join('.')
+        : typeof rawPath === 'string'
+          ? rawPath
+          : '';
+      const message = typeof rawMessage === 'string' ? rawMessage : '';
+      lines.push(path ? `${path}: ${message}` : message);
+    }
+    description = lines.join('\n') || undefined;
+  }
+  toast({
+    title: t('providers.invalidConfigTitle'),
+    description,
+    variant: 'destructive',
+  });
+  return true;
+}
+
+/**
  * Surface a "reload to see latest" toast when the server rejects with
  * `PROVIDER_VERSION_CONFLICT`. Triggered when another tab/operator changed
  * the provider config between our load and our save (or deleted it).

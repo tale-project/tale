@@ -147,7 +147,7 @@ function denyListRefine(
     } else if (BODY_OVERWRITE_SET.has(key)) {
       ctx.addIssue({
         code: 'custom',
-        message: `'${key}' would overwrite the request body's '${key}' field. Configure it via the agent's model/temperature/maxOutputTokens fields, not providerOptions.`,
+        message: `'${key}' is part of the request body Tale assembles and cannot be set via providerOptions. To cap output length, set the model's "Max output tokens" capability (Settings → Providers → edit model). To rename or drop a wire field for a quirky endpoint (e.g. max_tokens → max_completion_tokens), use the model's 'requestBodyMap'.`,
         path: [...pathPrefix, key],
       });
     } else if (pathPrefix.length === 0 && Array.isArray(sub)) {
@@ -224,6 +224,48 @@ function deepCheckPrototypePollution(
 const providerOptionsSchema = z
   .record(z.string(), z.unknown())
   .superRefine((value, ctx) => denyListRefine(value, ctx))
+  .optional();
+
+/**
+ * Declarative transform applied to the FINAL serialized request body on the way
+ * to the provider (see `convex/providers/request_body_transform.ts`),
+ * provider-default ⊕ per-model. Unlike `providerOptions` — which is spread onto
+ * the wire and is therefore deny-listed against clobbering reserved fields —
+ * this is meta-config that never reaches the provider: it renames/removes body
+ * fields AFTER the SDK assembles them. It is thus the sanctioned way to rewrite
+ * a reserved field for a quirky endpoint, e.g.
+ * `{ rename: { max_tokens: 'max_completion_tokens' } }` for an OpenAI / Azure
+ * reasoning deployment. `remove` deletes fields the endpoint rejects. Only
+ * object-prototype keys are forbidden (same defense-in-depth as providerOptions).
+ *
+ *   - `rename`: `{ <fromKey>: <toKey> }` — applied first.
+ *   - `remove`: `['<key>', …]` — applied after rename.
+ */
+const requestBodyMapSchema = z
+  .object({
+    rename: z.record(z.string(), z.string()).optional(),
+    remove: z.array(z.string()).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    for (const [from, to] of Object.entries(value.rename ?? {})) {
+      if (PROTOTYPE_POLLUTION_SET.has(from)) {
+        addPrototypePollutionIssue(ctx, ['rename'], from);
+      }
+      if (PROTOTYPE_POLLUTION_SET.has(to)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `'${to}' is a reserved object-prototype key and is not allowed as a rename target.`,
+          path: ['rename', from],
+        });
+      }
+    }
+    for (const key of value.remove ?? []) {
+      if (PROTOTYPE_POLLUTION_SET.has(key)) {
+        addPrototypePollutionIssue(ctx, ['remove'], key);
+      }
+    }
+  })
   .optional();
 
 /**
@@ -495,6 +537,11 @@ const modelDefinitionSchema = z.object({
    */
   audioFormat: z.enum(audioFormatLiterals).optional(),
   providerOptions: providerOptionsSchema,
+  /**
+   * Per-model request-body transform; see `requestBodyMapSchema`. Overrides the
+   * provider-level `requestBodyMap` on conflicting sub-keys.
+   */
+  requestBodyMap: requestBodyMapSchema,
 });
 
 export type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
@@ -543,6 +590,12 @@ export const providerJsonSchema = z
      * deny-list and authoring conventions.
      */
     providerOptions: providerOptionsSchema,
+    /**
+     * Provider-level request-body transform applied to every model in this file
+     * as a default; each model's own `requestBodyMap` overrides on conflicting
+     * sub-keys. See `requestBodyMapSchema`.
+     */
+    requestBodyMap: requestBodyMapSchema,
     models: z
       .array(modelDefinitionSchema)
       .min(1)

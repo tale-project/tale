@@ -435,7 +435,7 @@ describe('providerJsonSchema', () => {
           expect(result.success).toBe(false);
           if (!result.success) {
             expect(result.error.issues[0].message).toContain(
-              "would overwrite the request body's",
+              'is part of the request body',
             );
           }
         });
@@ -491,7 +491,9 @@ describe('providerJsonSchema', () => {
         expect(result.success).toBe(false);
         if (!result.success) {
           const messages = result.error.issues.map((i) => i.message);
-          expect(messages.some((m) => m.includes('overwrite'))).toBe(true);
+          expect(
+            messages.some((m) => m.includes('is part of the request body')),
+          ).toBe(true);
           expect(
             messages.some((m) => m.includes('set it at the agent level')),
           ).toBe(true);
@@ -540,6 +542,67 @@ describe('providerJsonSchema', () => {
         });
         expect(result.success).toBe(false);
       });
+    });
+  });
+
+  describe('requestBodyMap', () => {
+    it('accepts a provider-level rename + remove map', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        requestBodyMap: {
+          rename: { max_tokens: 'max_completion_tokens' },
+          remove: ['frequency_penalty'],
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a per-model requestBodyMap', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'test/model-1',
+            displayName: 'Test Model 1',
+            tags: ['chat'],
+            requestBodyMap: { rename: { max_tokens: 'max_completion_tokens' } },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a prototype-pollution key as a rename source', () => {
+      // `constructor` (unlike `__proto__`) becomes a real own key in a literal.
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        requestBodyMap: { rename: { constructor: 'x' } },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a prototype-pollution key as a rename target', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        requestBodyMap: { rename: { max_tokens: '__proto__' } },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a prototype-pollution key in remove', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        requestBodyMap: { remove: ['prototype'] },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects unknown keys (strict)', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        requestBodyMap: { renaem: { a: 'b' } },
+      });
+      expect(result.success).toBe(false);
     });
   });
 

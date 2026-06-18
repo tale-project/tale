@@ -43,6 +43,25 @@ Jedes Modell kann optionale Metadaten deklarieren, die das komplexitätsbasierte
 
 Diese Felder bleiben auch von selbst aktuell: Einmal pro Woche führt Tale frische OpenRouter-Fakten in die Anbieter-Config jeder Organisation zusammen — fügt neuere Flaggschiff-Versionen hinzu, blendet abgelöste aus und aktualisiert Capability-Werte — und verändert dabei nur die Felder, die du nicht angepasst hast. Schalte das pro Organisation mit dem **Wöchentliche Auto-Synchronisierung**-Schalter auf der Modellkatalog-Karte unter **Einstellungen > Anbieter** aus.
 
+Wenn `maxOutputTokens` nicht gesetzt ist, begrenzt Tale die Ausgabe auf **32'768** Tokens. Setze `0`, um gar keine Begrenzung zu senden. Senke den Wert auf das tatsächliche Limit deines Deployments, falls der Anbieter zu grosse Werte ablehnt (z. B. ein Azure-GPT-4o-Deployment mit `max_tokens is too large`).
+
+### Request-Body-Map
+
+Manche Endpunkte erwarten eine etwas andere Anfrageform als die übliche OpenAI-kompatible. Ein Modell — oder der Anbieter als Standard — kann eine `requestBodyMap` deklarieren, die den finalen Request-Body beim Versand umschreibt:
+
+```json
+{
+  "requestBodyMap": {
+    "rename": { "max_tokens": "max_completion_tokens" },
+    "remove": ["frequency_penalty"]
+  }
+}
+```
+
+`rename` benennt einen Feldnamen in einen anderen um (wird zuerst angewendet); `remove` entfernt Felder, die der Endpunkt ablehnt. Eine modell-spezifische `requestBodyMap` überschreibt die auf Anbieter-Ebene bei kollidierenden Schlüsseln. Anders als `providerOptions` erreichen diese Anweisungen den Anbieter nie — sie schreiben den Body direkt um und sind damit der unterstützte Weg, ein reserviertes Feld wie `max_tokens` zu ändern.
+
+Der klassische Fall ist ein OpenAI-/Azure-**Reasoning**-Deployment (o-Serie, GPT-5), das `max_tokens` ablehnt und `max_completion_tokens` verlangt. Wenn du das Modell als Reasoning-Modell kennzeichnest (den `reasoning`-Knopf setzt), wendet Tale genau diese Umbenennung automatisch an — `requestBodyMap` brauchst du dann nur noch für andere Endpunkt-Eigenheiten.
+
 ## Die Secrets-Datei
 
 `providers/<name>.secrets.json` ist ein flaches JSON-Objekt mit dem API-Schlüssel unter dem Feldnamen, den der Anbieter erwartet:

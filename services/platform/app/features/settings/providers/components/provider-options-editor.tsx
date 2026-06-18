@@ -16,6 +16,50 @@ import { isRecord } from '@/lib/utils/type-utils';
 // authoritative gate (it carries the deny-list). This schema only catches
 // "is JSON, is an object" so we don't ship obviously malformed input.
 const providerOptionsClientSchema = z.record(z.string(), z.unknown());
+
+// Client-side shape check for the request-body map. It flags the common mistake
+// (putting `max_tokens` at the top level instead of under `rename`) inline in
+// the JSON editor with a message that states the correct structure, instead of
+// letting it through to a server-side rejection. Built as a record + refine so
+// we control the wording (and stay version-agnostic). The server
+// `providerJsonSchema.parse` stays authoritative (it also rejects
+// prototype-pollution keys).
+const REQUEST_BODY_MAP_SHAPE_HINT =
+  'Only "rename" and "remove" are allowed. To rename a field, nest it under "rename" — e.g. { "rename": { "max_tokens": "max_completion_tokens" } }. To drop a field, list it under "remove" — e.g. { "remove": ["frequency_penalty"] }.';
+
+const requestBodyMapClientSchema = z
+  .record(z.string(), z.unknown())
+  .superRefine((value, ctx) => {
+    for (const key of Object.keys(value)) {
+      if (key !== 'rename' && key !== 'remove') {
+        ctx.addIssue({ code: 'custom', message: REQUEST_BODY_MAP_SHAPE_HINT });
+      }
+    }
+    const rename = value.rename;
+    if (
+      rename !== undefined &&
+      (typeof rename !== 'object' || rename === null || Array.isArray(rename))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: '"rename" must be an object of { "oldName": "newName" }.',
+        path: ['rename'],
+      });
+    }
+    if (value.remove !== undefined && !Array.isArray(value.remove)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: '"remove" must be an array of field names to drop.',
+        path: ['remove'],
+      });
+    }
+  });
+
+const REQUEST_BODY_MAP_PLACEHOLDER = JSON.stringify(
+  { rename: { max_tokens: 'max_completion_tokens' } },
+  null,
+  2,
+);
 import { Card } from '@tale/ui/card';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -471,6 +515,35 @@ export function ModelProviderOptionsField({
         onChange={onChange}
         schema={providerOptionsClientSchema}
         rows={6}
+        fontSize={12}
+      />
+      <CollapsibleGuide label={copy.guideLabel} content={copy.helpText} />
+    </Stack>
+  );
+}
+
+/**
+ * Inline JSON editor for a model's `requestBodyMap` (rename/remove wire fields).
+ * Same framing as {@link ModelProviderOptionsField}; distinct because the value
+ * is meta-config that rewrites the request body rather than passthrough fields.
+ */
+export function ModelRequestBodyMapField({
+  value,
+  onChange,
+  copy,
+}: ModelEditorProps) {
+  return (
+    <Stack gap={2} className="border-border border-t pt-4">
+      <Text className="text-sm font-semibold">{copy.title}</Text>
+      <Text className="text-muted-foreground text-sm whitespace-pre-line">
+        {copy.description}
+      </Text>
+      <JsonInput
+        value={value}
+        onChange={onChange}
+        schema={requestBodyMapClientSchema}
+        placeholder={REQUEST_BODY_MAP_PLACEHOLDER}
+        rows={5}
         fontSize={12}
       />
       <CollapsibleGuide label={copy.guideLabel} content={copy.helpText} />

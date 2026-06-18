@@ -43,6 +43,25 @@ Each model may declare optional metadata that complexity-based routing and the A
 
 These fields also stay current on their own: once a week Tale merges fresh OpenRouter facts into each org's provider config — adding newer flagship versions, hiding superseded ones, and refreshing capability values — touching only the fields you have not customised. Turn it off per-org with the **Weekly auto-sync** toggle on the model-catalog card under **Settings > Providers**.
 
+When `maxOutputTokens` is unset, Tale caps output at **32,768** tokens. Set `0` to send no cap at all. Lower it to your deployment's real ceiling if the provider rejects large values (e.g. an Azure GPT-4o deployment returning `max_tokens is too large`).
+
+### Request body map
+
+Some endpoints expect a slightly different request shape than the standard OpenAI-compatible one. A model — or the provider, as a default — may declare a `requestBodyMap` that rewrites the final request body on the way out:
+
+```json
+{
+  "requestBodyMap": {
+    "rename": { "max_tokens": "max_completion_tokens" },
+    "remove": ["frequency_penalty"]
+  }
+}
+```
+
+`rename` maps a field name to another (applied first); `remove` drops fields the endpoint rejects. A per-model `requestBodyMap` overrides the provider-level one on conflicting keys. Unlike `providerOptions`, these instructions never reach the provider — they rewrite the body in place, so this is the supported way to change a reserved field like `max_tokens`.
+
+The classic case is an OpenAI / Azure **reasoning** deployment (o-series, GPT-5), which rejects `max_tokens` and requires `max_completion_tokens`. If you flag the model as a reasoning model (set its `reasoning` knob), Tale applies that exact rename automatically — so you only need `requestBodyMap` for other endpoint quirks.
+
 ## The secrets file
 
 `providers/<name>.secrets.json` is a flat JSON object with the API key under the field name the provider expects:

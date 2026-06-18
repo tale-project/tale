@@ -49,12 +49,14 @@ import {
 import { useProviderConfig } from '../../hooks/use-provider-config-context';
 import {
   dispatchForbiddenDeveloperSettings,
+  dispatchInvalidProviderConfig,
   dispatchOrgAccessError,
   dispatchVersionConflict,
 } from '../../utils/error-dispatch';
 import { modelTagLabel } from '../../utils/model-tag-label';
 import {
   ModelProviderOptionsField,
+  ModelRequestBodyMapField,
   providerOptionsToJsonString,
 } from '../provider-options-editor';
 
@@ -72,6 +74,8 @@ interface ModelFormState {
   secretsEnv: string;
   apiKey: string;
   providerOptionsJson: string;
+  /** Wire-field rename/remove map (rewrites the request body); JSON string. */
+  requestBodyMapJson: string;
   /** Hidden from model pickers (still resolvable). Set on superseded models. */
   hidden: boolean;
   // Routing & capabilities (chat models). Strings mirror the input controls;
@@ -103,6 +107,7 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   secretsEnv: '',
   apiKey: '',
   providerOptionsJson: '',
+  requestBodyMapJson: '',
   hidden: false,
   tier: '',
   qualityScore: '',
@@ -222,6 +227,7 @@ export function ModelsSection({
         if (dispatchOrgAccessError(err, tAccessDenied)) return;
         if (dispatchForbiddenDeveloperSettings(err, t)) return;
         if (dispatchVersionConflict(err, t)) return;
+        if (dispatchInvalidProviderConfig(err, t)) return;
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
@@ -355,6 +361,7 @@ export function ModelsSection({
       if (dispatchOrgAccessError(err, tAccessDenied)) return;
       if (dispatchForbiddenDeveloperSettings(err, t)) return;
       if (dispatchVersionConflict(err, t)) return;
+      if (dispatchInvalidProviderConfig(err, t)) return;
       toast({ title: t('providers.saveFailed'), variant: 'destructive' });
     } finally {
       setSyncingAll(false);
@@ -399,6 +406,7 @@ export function ModelsSection({
         secretsEnv: model.secretsEnv ?? '',
         apiKey: '',
         providerOptionsJson: providerOptionsToJsonString(model.providerOptions),
+        requestBodyMapJson: providerOptionsToJsonString(model.requestBodyMap),
         hidden: model.hidden ?? false,
         tier: model.tier ?? '',
         qualityScore:
@@ -481,6 +489,30 @@ export function ModelsSection({
           return;
         }
       }
+      let requestBodyMap:
+        | { rename?: Record<string, string>; remove?: string[] }
+        | undefined;
+      const trimmedRequestBodyMap = form.requestBodyMapJson.trim();
+      if (trimmedRequestBodyMap) {
+        try {
+          const parsed: unknown = JSON.parse(trimmedRequestBodyMap);
+          if (isRecord(parsed) && Object.keys(parsed).length > 0) {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape is checked client-side by requestBodyMapClientSchema and authoritatively by providerJsonSchema.parse on save
+            requestBodyMap = parsed as {
+              rename?: Record<string, string>;
+              remove?: string[];
+            };
+          }
+        } catch (parseErr) {
+          toast({
+            title: t('providers.requestBodyMap.invalidJson'),
+            description:
+              parseErr instanceof Error ? parseErr.message : String(parseErr),
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
       const reasoning = form.reasoningKnob
         ? {
             knob: form.reasoningKnob,
@@ -540,6 +572,7 @@ export function ModelsSection({
         hidden: form.hidden || undefined,
         cost,
         providerOptions,
+        requestBodyMap,
         tier: form.tier || undefined,
         qualityScore: form.qualityScore.trim()
           ? Number(form.qualityScore)
@@ -587,6 +620,7 @@ export function ModelsSection({
         if (dispatchOrgAccessError(err, tAccessDenied)) return;
         if (dispatchForbiddenDeveloperSettings(err, t)) return;
         if (dispatchVersionConflict(err, t)) return;
+        if (dispatchInvalidProviderConfig(err, t)) return;
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
@@ -1340,6 +1374,9 @@ export function ModelsSection({
                     />
                     <Input
                       label={t('providers.modelCapabilities.maxOutputTokens')}
+                      description={t(
+                        'providers.modelCapabilities.maxOutputTokensHelp',
+                      )}
                       type="number"
                       value={form.maxOutputTokens}
                       onChange={(e) =>
@@ -1348,8 +1385,8 @@ export function ModelsSection({
                           maxOutputTokens: e.target.value,
                         }))
                       }
-                      placeholder="e.g., 32768"
-                      min={1}
+                      placeholder="e.g., 16384"
+                      min={0}
                     />
                   </HStack>
 
@@ -1523,6 +1560,20 @@ export function ModelsSection({
                   ),
                   guideLabel: t('providers.providerOptions.guideLabel'),
                   helpText: t('providers.providerOptions.modelLevelHelp'),
+                }}
+              />
+              <ModelRequestBodyMapField
+                value={form.requestBodyMapJson}
+                onChange={(next) =>
+                  setForm((f) => ({ ...f, requestBodyMapJson: next }))
+                }
+                copy={{
+                  title: t('providers.requestBodyMap.modelLevelTitle'),
+                  description: t(
+                    'providers.requestBodyMap.modelLevelDescription',
+                  ),
+                  guideLabel: t('providers.requestBodyMap.guideLabel'),
+                  helpText: t('providers.requestBodyMap.modelLevelHelp'),
                 }}
               />
             </Stack>

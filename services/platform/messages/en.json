@@ -1412,6 +1412,7 @@
     "errorHintCreditExhausted": "The AI provider's credit limit was exceeded. Contact your administrator to add credits.",
     "errorHintMissingApiKey": "No API key is configured for this organization yet. Open Settings → AI providers and add one to start chatting.",
     "errorHintModelNotFound": "The selected model was not found or is unavailable. Contact your administrator.",
+    "errorHintOutputCapTooHigh": "This model's configured max output tokens is higher than the model supports. Ask your administrator to lower the model's Max output tokens setting.",
     "errorHintProviderError": "The AI provider is temporarily experiencing issues. Please try again in a moment.",
     "errorHintRateLimited": "Too many requests. Please wait a moment and try again.",
     "errorHintTokenLimit": "The model's output token limit was exceeded. Try a shorter request or ask your administrator to adjust the model settings.",
@@ -5639,6 +5640,7 @@
         "qualityScore": "Quality score",
         "contextWindow": "Context window (tokens)",
         "maxOutputTokens": "Max output tokens",
+        "maxOutputTokensHelp": "Caps response length. Leave blank for the 32768 default; set 0 for no cap. Lower it to your deployment's real ceiling if the provider rejects large values.",
         "reasoning": "Reasoning control",
         "reasoningHelp": "How this model is told to reason. Leave unset to let the catalog decide.",
         "notSet": "Not set",
@@ -5733,6 +5735,7 @@
       "modelDescriptionPlaceholder": "e.g., Multimodal model with vision capabilities",
       "general": "General",
       "saveFailed": "Failed to save provider",
+      "invalidConfigTitle": "Invalid provider configuration",
       "deleteFailed": "Failed to delete provider",
       "secretSaveFailed": "Failed to save API key",
       "forbiddenDeveloperSettings": "You don't have permission to modify provider configuration.",
@@ -5754,6 +5757,13 @@
         "discardConfirmAction": "Discard",
         "discardConfirmKeep": "Keep editing",
         "objectRequiredError": "Provider options must be a JSON object."
+      },
+      "requestBodyMap": {
+        "modelLevelTitle": "Advanced — Request body map",
+        "modelLevelDescription": "Rename or remove fields on the final request Tale sends to this model — for endpoints whose wire format differs. Unlike Provider Options, this never reaches the provider as data; it rewrites the body in place.",
+        "guideLabel": "How the request body map works",
+        "modelLevelHelp": "Two optional keys:\n\n- **rename** — map one field name to another (applied first). The classic case is an OpenAI/Azure reasoning deployment that wants `max_completion_tokens` instead of `max_tokens`:\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — drop fields the endpoint rejects:\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nModels flagged with a reasoning capability already get the `max_tokens` → `max_completion_tokens` rename automatically. Empty input clears the override.",
+        "invalidJson": "Request body map is not valid JSON"
       },
       "versionConflictTitle": "Provider was modified",
       "versionConflictDescription": "Reload the page to see the latest version, then re-apply your changes.",

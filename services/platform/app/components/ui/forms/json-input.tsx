@@ -172,6 +172,7 @@ interface JsonTextEditorProps {
   fontSize: number;
   inputId: string;
   describedBy: string | undefined;
+  placeholder: string;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 }
@@ -183,6 +184,7 @@ function JsonTextEditor({
   fontSize,
   inputId,
   describedBy,
+  placeholder,
   onChange,
   onKeyDown,
 }: JsonTextEditorProps) {
@@ -213,7 +215,7 @@ function JsonTextEditor({
         fontSize: `${fontSize}px`,
         lineHeight: '1.4',
       }}
-      placeholder={JSON.stringify({ key: 'value' }, null, 2)}
+      placeholder={placeholder}
     />
   );
 }
@@ -237,7 +239,9 @@ function computeValidation(
       } catch (err) {
         if (err instanceof z.ZodError) {
           const validationError = err.issues
-            .map((e) => `${e.path.join('.')}: ${e.message}`)
+            .map((e) =>
+              e.path.length ? `${e.path.join('.')}: ${e.message}` : e.message,
+            )
             .join(', ');
           return {
             isValid: false,
@@ -295,6 +299,7 @@ function JsonInputBase({
   rows = 4,
   fontSize = 12,
   id,
+  placeholder = JSON.stringify({ key: 'value' }, null, 2),
 }: JsonInputProps) {
   const { t } = useT('common');
   const generatedId = useId();
@@ -495,6 +500,7 @@ function JsonInputBase({
             fontSize={fontSize}
             inputId={resolvedId}
             describedBy={describedBy}
+            placeholder={placeholder}
             onChange={handleTextareaChange}
             onKeyDown={handleTextareaKeyDown}
           />

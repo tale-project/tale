@@ -4,6 +4,7 @@ type ErrorCategory =
   | 'authError'
   | 'modelNotFound'
   | 'unsupportedParameter'
+  | 'outputCapTooHigh'
   | 'tokenLimit'
   | 'rateLimited'
   | 'contentFilter'
@@ -52,6 +53,17 @@ const ERROR_PATTERNS: { pattern: RegExp; category: ErrorCategory }[] = [
       /unsupported parameter|is not supported with this model|unsupported_parameter|unknown parameter|unrecognized request argument/i,
     category: 'unsupportedParameter',
   },
+  // The CONFIGURED output cap exceeds the model's real ceiling, e.g. Azure/
+  // OpenAI "max_tokens is too large: 32768 ... supports at most 16384 completion
+  // tokens". This is an operator-config problem (lower the model's
+  // `maxOutputTokens`), NOT an end-user "shorten your request" token-limit. Must
+  // precede `tokenLimit`, whose bare `max_tokens` alternative would otherwise
+  // mislabel it as "output token limit exceeded".
+  {
+    pattern:
+      /max_tokens.*too large|too large.*max_tokens|supports at most.*completion tokens|reduce.*max_tokens/i,
+    category: 'outputCapTooHigh',
+  },
   {
     pattern: /fewer max_tokens|token.*limit|max_tokens/i,
     category: 'tokenLimit',
@@ -85,6 +97,7 @@ const CATEGORY_I18N_KEY: Record<ErrorCategory, string> = {
   authError: 'errorHintAuthError',
   modelNotFound: 'errorHintModelNotFound',
   unsupportedParameter: 'errorHintUnsupportedParameter',
+  outputCapTooHigh: 'errorHintOutputCapTooHigh',
   tokenLimit: 'errorHintTokenLimit',
   rateLimited: 'errorHintRateLimited',
   contentFilter: 'errorHintContentFilter',
