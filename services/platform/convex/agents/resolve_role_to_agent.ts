@@ -14,11 +14,12 @@
  * wrapper that reads the live roster first.
  */
 import { isStructuralRole } from '../../lib/shared/platform/roles';
-import {
-  type WorkforceRosterEntry,
-  buildChartFromRoster,
-  readWorkforceRoster,
-} from './workforce_ops';
+// Pure graph builder (no fs/ctx) — keeps this module V8-safe so the engine/UI
+// can import it without dragging the `'use node'` workforce_ops chain into a
+// V8 bundle. The async I/O wrapper (read roster + resolve) belongs in a node
+// module at the call site.
+import { buildOrgChart } from './org_chart_graph';
+import type { WorkforceRosterEntry } from './workforce_ops';
 
 export interface RoleResolution {
   /** The resolved agent slug, when resolution is unambiguous. */
@@ -54,7 +55,9 @@ export function resolveRoleAgainstRoster(
       : { reason: `context agent "${ctxAgentSlug}" is not in the roster` };
   }
 
-  const chart = buildChartFromRoster(roster);
+  const chart = buildOrgChart(
+    roster.map((entry) => ({ slug: entry.slug, delegates: entry.delegates })),
+  );
 
   if (role === 'manager') {
     const managerSlug = chart.parents.get(ctxAgentSlug);
@@ -75,13 +78,4 @@ export function resolveRoleAgainstRoster(
     ambiguous: reports,
     reason: `"${ctxAgentSlug}" has multiple direct reports`,
   };
-}
-
-export async function resolveRoleToAgent(
-  orgSlug: string,
-  role: string,
-  ctxAgentSlug?: string,
-): Promise<RoleResolution> {
-  const roster = await readWorkforceRoster(orgSlug);
-  return resolveRoleAgainstRoster(role, ctxAgentSlug, roster);
 }

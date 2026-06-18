@@ -189,6 +189,7 @@ import type * as agents_provision_defaults from "../agents/provision_defaults.js
 import type * as agents_provision_defaults_mutations from "../agents/provision_defaults_mutations.js";
 import type * as agents_queries from "../agents/queries.js";
 import type * as agents_resolve_agent_config from "../agents/resolve_agent_config.js";
+import type * as agents_resolve_role_to_agent from "../agents/resolve_role_to_agent.js";
 import type * as agents_rest_api from "../agents/rest_api.js";
 import type * as agents_run_agent_on_discussion from "../agents/run_agent_on_discussion.js";
 import type * as agents_run_agent_on_task from "../agents/run_agent_on_task.js";
@@ -905,6 +906,7 @@ import type * as node_only_sandbox_session_credentials from "../node_only/sandbo
 import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
 import type * as node_only_sandbox_steer_delivery from "../node_only/sandbox/steer_delivery.js";
 import type * as node_only_sandbox_steer_files from "../node_only/sandbox/steer_files.js";
+import type * as node_only_sandbox_workflow_sandbox_exec from "../node_only/sandbox/workflow_sandbox_exec.js";
 import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
 import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
@@ -1372,6 +1374,7 @@ import type * as workflow_engine_helpers_nodes_loop_utils_create_loop_state from
 import type * as workflow_engine_helpers_nodes_loop_utils_get_input_data from "../workflow_engine/helpers/nodes/loop/utils/get_input_data.js";
 import type * as workflow_engine_helpers_nodes_loop_utils_get_loop_items from "../workflow_engine/helpers/nodes/loop/utils/get_loop_items.js";
 import type * as workflow_engine_helpers_nodes_loop_utils_is_loop_in_progress from "../workflow_engine/helpers/nodes/loop/utils/is_loop_in_progress.js";
+import type * as workflow_engine_helpers_nodes_sandbox_execute_sandbox_node from "../workflow_engine/helpers/nodes/sandbox/execute_sandbox_node.js";
 import type * as workflow_engine_helpers_recovery_index from "../workflow_engine/helpers/recovery/index.js";
 import type * as workflow_engine_helpers_recovery_recover_stuck_executions from "../workflow_engine/helpers/recovery/recover_stuck_executions.js";
 import type * as workflow_engine_helpers_scheduler_get_last_execution_time from "../workflow_engine/helpers/scheduler/get_last_execution_time.js";
@@ -1408,10 +1411,12 @@ import type * as workflow_engine_helpers_validation_steps_index from "../workflo
 import type * as workflow_engine_helpers_validation_steps_llm from "../workflow_engine/helpers/validation/steps/llm.js";
 import type * as workflow_engine_helpers_validation_steps_loop from "../workflow_engine/helpers/validation/steps/loop.js";
 import type * as workflow_engine_helpers_validation_steps_output from "../workflow_engine/helpers/validation/steps/output.js";
+import type * as workflow_engine_helpers_validation_steps_sandbox from "../workflow_engine/helpers/validation/steps/sandbox.js";
 import type * as workflow_engine_helpers_validation_steps_start from "../workflow_engine/helpers/validation/steps/start.js";
 import type * as workflow_engine_helpers_validation_types from "../workflow_engine/helpers/validation/types.js";
 import type * as workflow_engine_helpers_validation_validate_action_parameters from "../workflow_engine/helpers/validation/validate_action_parameters.js";
 import type * as workflow_engine_helpers_validation_validate_next_steps_ports from "../workflow_engine/helpers/validation/validate_next_steps_ports.js";
+import type * as workflow_engine_helpers_validation_validate_step_annotations from "../workflow_engine/helpers/validation/validate_step_annotations.js";
 import type * as workflow_engine_helpers_validation_validate_step_config from "../workflow_engine/helpers/validation/validate_step_config.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_definition from "../workflow_engine/helpers/validation/validate_workflow_definition.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_dependencies from "../workflow_engine/helpers/validation/validate_workflow_dependencies.js";
@@ -1710,6 +1715,7 @@ declare const fullApi: ApiFromModules<{
   "agents/provision_defaults_mutations": typeof agents_provision_defaults_mutations;
   "agents/queries": typeof agents_queries;
   "agents/resolve_agent_config": typeof agents_resolve_agent_config;
+  "agents/resolve_role_to_agent": typeof agents_resolve_role_to_agent;
   "agents/rest_api": typeof agents_rest_api;
   "agents/run_agent_on_discussion": typeof agents_run_agent_on_discussion;
   "agents/run_agent_on_task": typeof agents_run_agent_on_task;
@@ -2426,6 +2432,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
   "node_only/sandbox/steer_delivery": typeof node_only_sandbox_steer_delivery;
   "node_only/sandbox/steer_files": typeof node_only_sandbox_steer_files;
+  "node_only/sandbox/workflow_sandbox_exec": typeof node_only_sandbox_workflow_sandbox_exec;
   "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
   "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
@@ -2893,6 +2900,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/nodes/loop/utils/get_input_data": typeof workflow_engine_helpers_nodes_loop_utils_get_input_data;
   "workflow_engine/helpers/nodes/loop/utils/get_loop_items": typeof workflow_engine_helpers_nodes_loop_utils_get_loop_items;
   "workflow_engine/helpers/nodes/loop/utils/is_loop_in_progress": typeof workflow_engine_helpers_nodes_loop_utils_is_loop_in_progress;
+  "workflow_engine/helpers/nodes/sandbox/execute_sandbox_node": typeof workflow_engine_helpers_nodes_sandbox_execute_sandbox_node;
   "workflow_engine/helpers/recovery/index": typeof workflow_engine_helpers_recovery_index;
   "workflow_engine/helpers/recovery/recover_stuck_executions": typeof workflow_engine_helpers_recovery_recover_stuck_executions;
   "workflow_engine/helpers/scheduler/get_last_execution_time": typeof workflow_engine_helpers_scheduler_get_last_execution_time;
@@ -2929,10 +2937,12 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/steps/llm": typeof workflow_engine_helpers_validation_steps_llm;
   "workflow_engine/helpers/validation/steps/loop": typeof workflow_engine_helpers_validation_steps_loop;
   "workflow_engine/helpers/validation/steps/output": typeof workflow_engine_helpers_validation_steps_output;
+  "workflow_engine/helpers/validation/steps/sandbox": typeof workflow_engine_helpers_validation_steps_sandbox;
   "workflow_engine/helpers/validation/steps/start": typeof workflow_engine_helpers_validation_steps_start;
   "workflow_engine/helpers/validation/types": typeof workflow_engine_helpers_validation_types;
   "workflow_engine/helpers/validation/validate_action_parameters": typeof workflow_engine_helpers_validation_validate_action_parameters;
   "workflow_engine/helpers/validation/validate_next_steps_ports": typeof workflow_engine_helpers_validation_validate_next_steps_ports;
+  "workflow_engine/helpers/validation/validate_step_annotations": typeof workflow_engine_helpers_validation_validate_step_annotations;
   "workflow_engine/helpers/validation/validate_step_config": typeof workflow_engine_helpers_validation_validate_step_config;
   "workflow_engine/helpers/validation/validate_workflow_definition": typeof workflow_engine_helpers_validation_validate_workflow_definition;
   "workflow_engine/helpers/validation/validate_workflow_dependencies": typeof workflow_engine_helpers_validation_validate_workflow_dependencies;
