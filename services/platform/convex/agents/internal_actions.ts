@@ -367,6 +367,39 @@ export async function listAgentsForOrg(orgSlug: string): Promise<unknown[]> {
 }
 
 /**
+ * The roster GATE: the agents that are actually LIVE for an org — installed &&
+ * enabled. This is what the router (`resolveAutoRoute`) and other roster
+ * consumers see, so a disabled/uninstalled agent is never a routing candidate.
+ *
+ * Fallback: an org with ZERO install rows is treated as un-provisioned and is
+ * NOT gated (returns the full catalog) — so a legacy/just-upgraded org never
+ * loses its roster before the autoInstall provisioner runs. Once any install
+ * row exists the gate is authoritative. The system router (`isRouter`) is never
+ * gated out.
+ */
+export async function listInstalledAgentsForOrg(
+  ctx: ActionCtx,
+  organizationId: string,
+  orgSlug: string,
+): Promise<unknown[]> {
+  const entries = await listAgentsForOrg(orgSlug);
+  const states = await ctx.runQuery(
+    internal.agents.installations.listInstallStatesInternal,
+    { organizationId },
+  );
+  if (states.length === 0) return entries;
+  const bySlug = new Map(states.map((s) => [s.agentSlug, s] as const));
+  return entries.filter((e) => {
+    const entry = e as { slug?: string; name?: string; isRouter?: boolean };
+    if (entry.isRouter === true) return true;
+    const slug = entry.slug ?? entry.name;
+    if (!slug) return false;
+    const st = bySlug.get(slug);
+    return st !== undefined && st.enabled;
+  });
+}
+
+/**
  * Resolve a slug → relative file path (`workforce/ceo.json`) via the index, so
  * reads/writes/history locate the backing file wherever it lives in the folder
  * tree. Returns undefined for an unknown slug (caller falls back to the flat
@@ -396,9 +429,15 @@ export async function readAgentBySlug(
 export const listAgentsInternal = internalAction({
   args: {
     orgSlug: v.string(),
+    // Optional for back-compat: when provided, the roster is gated to
+    // installed && enabled agents; when omitted, the full catalog is returned.
+    organizationId: v.optional(v.string()),
   },
   returns: v.any(),
-  handler: async (_ctx, args) => listAgentsForOrg(args.orgSlug),
+  handler: async (ctx, args) =>
+    args.organizationId
+      ? listInstalledAgentsForOrg(ctx, args.organizationId, args.orgSlug)
+      : listAgentsForOrg(args.orgSlug),
 });
 
 export const readAgentInternal = internalAction({

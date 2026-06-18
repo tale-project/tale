@@ -88,7 +88,7 @@ export const runRouterOrchestration = internalAction({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listAgentsInternal returns v.any()
     const raw = (await ctx.runAction(
       internal.agents.internal_actions.listAgentsInternal,
-      { orgSlug },
+      { orgSlug, organizationId: args.organizationId },
     )) as AgentListEntry[];
     let candidates = filterRoutingCandidates(raw, args.allowedAgentSlugs);
     if (candidates.length < 2) return { orchestrated: false };

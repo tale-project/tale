@@ -36,5 +36,14 @@ export const provisionAll = internalAction({
         .provisionDefaultPromptsAllOrgs,
       {},
     );
+    // The AI-workforce agent roster (metadata.autoInstall) comes PREINSTALLED:
+    // create enabled `agentInstallations` rows for every existing org so the
+    // roster gate treats them as live. Idempotent — per-agent provision rows
+    // make re-runs no-ops; org disables/uninstalls are never overridden.
+    await ctx.runAction(
+      internal.provisioning.provision_default_agents
+        .provisionDefaultAgentsAllOrgs,
+      {},
+    );
   },
 });

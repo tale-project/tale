@@ -60,7 +60,7 @@ import {
   type RouterTuningAdvice,
 } from './auto_route_helpers';
 import type { AgentReadResult } from './file_utils';
-import { listAgentsForOrg } from './internal_actions';
+import { listInstalledAgentsForOrg } from './internal_actions';
 import { routeTuningValidator } from './schema';
 
 /** Hard ceiling on the classifier call — beyond this we use the default. Kept
@@ -213,8 +213,15 @@ export const resolveAutoRoute = internalAction({
     // This runs on EVERY Auto turn (incl. cached/short-circuited reuse), so on a
     // self-hosted backend that hop dominated reuse latency. Shares the same
     // module-level 60s cache as the `listAgentsInternal` action wrapper.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listAgentsForOrg returns unknown[]; shape is the file-read projection
-    const raw = (await listAgentsForOrg(orgSlug)) as AgentListEntry[];
+    // Gated roster: only installed && enabled agents are routing candidates, so
+    // a disabled/uninstalled agent is never routed to. In-process (no runAction
+    // hop) on the hot path; shares the module-level 60s cache.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- returns unknown[]; shape is the file-read projection
+    const raw = (await listInstalledAgentsForOrg(
+      ctx,
+      args.organizationId,
+      orgSlug,
+    )) as AgentListEntry[];
 
     // Only agents that can actually answer in chat are routing candidates
     // (visible, not image-generation, on the project allow-list if any). The

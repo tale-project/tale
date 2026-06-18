@@ -23,7 +23,7 @@ const PREFIX = '/api/v1/agents/';
 export const listAgents = withRestAuth('rest:api', async (rc) => {
   const agents = await rc.ctx.runAction(
     internal.agents.internal_actions.listAgentsInternal,
-    { orgSlug: rc.org.orgSlug },
+    { orgSlug: rc.org.orgSlug, organizationId: rc.org.organizationId },
   );
 
   return jsonOk(agents);
