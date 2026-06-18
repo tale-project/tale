@@ -1,0 +1,147 @@
+{
+  "name": "Sweep stale in-progress work",
+  "description": "Hourly health check for agent work: agent-assigned tasks sitting In progress with no movement for 24h are rolled back to To do with an explanatory comment, so the board itself shows 'this needs another look' instead of work silently rotting. One-shot per stall by construction — the rollback restarts the staleness clock. Also re-emits the slot-freed wake for queued runs older than 15 minutes (the lost-event backstop for the queued-run-retry workflow). Tune the threshold by editing the sweep step's staleAfterHours, or deactivate the schedule in Automations.",
+  "i18n": {
+    "en": {
+      "name": "Sweep stale in-progress work",
+      "description": "Hourly check that rolls agent tasks stuck In progress for 24h back to To do and re-wakes long-queued runs."
+    },
+    "de": {
+      "name": "Festgefahrene laufende Arbeit aufräumen",
+      "description": "Stündliche Prüfung, die seit 24 Stunden in Bearbeitung feststeckende Agentenaufgaben auf Zu erledigen zurücksetzt und lange wartende Läufe erneut weckt."
+    },
+    "fr": {
+      "name": "Balayer le travail en cours bloqué",
+      "description": "Vérification horaire qui replace en À faire les tâches d'agent bloquées en cours depuis 24 h et réveille les exécutions en attente prolongée."
+    }
+  },
+  "version": "1.0.0",
+  "metadata": {
+    "pack": "task-ops",
+    "autoInstall": true
+  },
+  "triggers": {
+    "schedules": [
+      {
+        "cron": "0 * * * *",
+        "timezone": "UTC"
+      }
+    ]
+  },
+  "config": {
+    "timeout": 600000,
+    "variables": {
+      "workflowId": "tasks_stale_work_sweep"
+    }
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "sweep"
+      }
+    },
+    {
+      "stepSlug": "sweep",
+      "name": "Find stale agent tasks",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "sweep",
+          "kind": "stale",
+          "staleAfterHours": 24,
+          "limit": 50
+        }
+      },
+      "nextSteps": {
+        "success": "has_items"
+      }
+    },
+    {
+      "stepSlug": "has_items",
+      "name": "Anything stale?",
+      "stepType": "condition",
+      "config": {
+        "expression": "(steps.sweep.output.data.tasks | length) > 0",
+        "description": "The loop step throws on an empty items array — route the empty case straight to done."
+      },
+      "nextSteps": {
+        "true": "loop_stale",
+        "false": "requeue"
+      }
+    },
+    {
+      "stepSlug": "loop_stale",
+      "name": "Loop over stale tasks",
+      "stepType": "loop",
+      "config": {
+        "continueOnError": true,
+        "itemVariable": "staleTask",
+        "items": "{{steps.sweep.output.data.tasks}}"
+      },
+      "nextSteps": {
+        "loop": "nudge_comment",
+        "done": "requeue"
+      }
+    },
+    {
+      "stepSlug": "nudge_comment",
+      "name": "Explain the rollback",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{loop.item.taskId}}",
+          "body": "[automated] ⏰ No progress for 24h — returned to To do. Reassign or re-trigger when ready."
+        }
+      },
+      "nextSteps": {
+        "success": "rollback"
+      }
+    },
+    {
+      "stepSlug": "rollback",
+      "name": "Roll back to To do",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{loop.item.taskId}}",
+          "status": "todo"
+        }
+      },
+      "nextSteps": {
+        "success": "loop_stale"
+      }
+    },
+    {
+      "stepSlug": "requeue",
+      "name": "Re-wake stuck queued runs (lost-event backstop)",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "requeue_queued_runs",
+          "olderThanMinutes": 15,
+          "limit": 20
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}
