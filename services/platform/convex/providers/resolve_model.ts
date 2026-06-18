@@ -28,6 +28,7 @@ import {
   interleavedThinkingHeaders,
   providerAttributionHeaders,
 } from './provider_attribution';
+import { createWireTransformFetch } from './request_body_transform';
 
 export interface ResolvedModelData {
   providerName: string;
@@ -82,6 +83,15 @@ export interface ResolvedModelData {
    * the deny-list strip before handing it to streamText/generateText.
    */
   providerOptions?: Record<string, unknown>;
+  /**
+   * Resolver-merged request-body transform (provider-level ⊕ model-level via
+   * `mergeModelLevel`). Applied to the final serialized wire body by
+   * `createWireTransformFetch` — renames/removes fields for endpoints whose wire
+   * shape differs (e.g. `max_tokens` → `max_completion_tokens` for reasoning
+   * deployments). Top-level (not inside `providerOptions`) because, unlike
+   * providerOptions, it must NOT reach the provider. See `requestBodyMapSchema`.
+   */
+  requestBodyMap?: { rename?: Record<string, string>; remove?: string[] };
   /**
    * Resolved reasoning capability for the Adaptive Reasoning Governor (operator
    * provider JSON, with the OpenRouter catalog cache layered under it). Absent
@@ -357,7 +367,15 @@ function createCompatibleProvider(
   //   if (modelData.apiFormat === 'anthropic') return createAnthropicProvider(modelData);
   // (add `@ai-sdk/anthropic` + gate the OpenAI-REST-only resolvers — image /
   // embeddings / transcription / TTS — for anthropic providers).
-  const debugFetch = createDebugFetch(modelData.providerName);
+  // Always install the wire-transform fetch (it applies requestBodyMap +
+  // the reasoning max_tokens→max_completion_tokens default) and compose the
+  // optional wire-debug logger inside it so logs reflect the transformed body.
+  // When the model has no transform work the helper returns the inner/global
+  // fetch unchanged, so there's zero overhead on the common path.
+  const wireFetch = createWireTransformFetch(
+    modelData,
+    createDebugFetch(modelData.providerName),
+  );
   return createOpenAICompatible({
     name: modelData.providerName,
     baseURL: modelData.baseUrl,
@@ -370,7 +388,7 @@ function createCompatibleProvider(
       ? { supportsStructuredOutputs: opts.supportsStructuredOutputs }
       : {}),
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- @ai-sdk/openai-compatible types `fetch` as `typeof fetch` which carries an irrelevant `preconnect` static; the wrapped function is structurally compatible for runtime fetch calls
-    ...(debugFetch ? { fetch: debugFetch as typeof fetch } : {}),
+    fetch: wireFetch as typeof fetch,
   });
 }
 

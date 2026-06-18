@@ -43,6 +43,25 @@ Chaque modèle peut déclarer des métadonnées optionnelles utilisées par le r
 
 Ces champs restent aussi à jour tout seuls : une fois par semaine, Tale fusionne les nouvelles données OpenRouter dans la config fournisseur de chaque organisation — ajoutant les nouvelles versions phares, masquant celles remplacées et actualisant les valeurs de capacités — en ne touchant que les champs que tu n'as pas personnalisés. Désactive-le par organisation avec l'interrupteur **Synchronisation auto hebdomadaire** sur la carte du catalogue de modèles dans **Paramètres > Fournisseurs**.
 
+Quand `maxOutputTokens` n'est pas défini, Tale plafonne la sortie à **32 768** tokens. Mets `0` pour n'envoyer aucune limite. Réduis la valeur au plafond réel de ton déploiement si le fournisseur rejette les valeurs trop élevées (par ex. un déploiement Azure GPT-4o renvoyant `max_tokens is too large`).
+
+### Mappage du corps de requête
+
+Certains points de terminaison attendent une forme de requête légèrement différente de la forme OpenAI-compatible standard. Un modèle — ou le fournisseur, comme valeur par défaut — peut déclarer un `requestBodyMap` qui réécrit le corps de requête final à l'envoi :
+
+```json
+{
+  "requestBodyMap": {
+    "rename": { "max_tokens": "max_completion_tokens" },
+    "remove": ["frequency_penalty"]
+  }
+}
+```
+
+`rename` renomme un champ en un autre (appliqué en premier) ; `remove` supprime les champs que le point de terminaison rejette. Un `requestBodyMap` par modèle l'emporte sur celui au niveau du fournisseur en cas de clés en conflit. Contrairement à `providerOptions`, ces instructions n'atteignent jamais le fournisseur — elles réécrivent le corps sur place, ce qui en fait la manière prise en charge de modifier un champ réservé comme `max_tokens`.
+
+Le cas classique est un déploiement de **raisonnement** OpenAI / Azure (série o, GPT-5), qui rejette `max_tokens` et exige `max_completion_tokens`. Si tu marques le modèle comme modèle de raisonnement (en réglant son bouton `reasoning`), Tale applique ce renommage automatiquement — tu n'as alors besoin de `requestBodyMap` que pour d'autres particularités de point de terminaison.
+
 ## Le fichier de secrets
 
 `providers/<name>.secrets.json` est un objet JSON plat avec la clé API sous le nom de champ que le fournisseur attend :

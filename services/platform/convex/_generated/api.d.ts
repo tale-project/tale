@@ -1001,6 +1001,7 @@ import type * as providers_failover from "../providers/failover.js";
 import type * as providers_file_actions from "../providers/file_actions.js";
 import type * as providers_file_utils from "../providers/file_utils.js";
 import type * as providers_provider_attribution from "../providers/provider_attribution.js";
+import type * as providers_request_body_transform from "../providers/request_body_transform.js";
 import type * as providers_resolve_model from "../providers/resolve_model.js";
 import type * as providers_resolve_model_node from "../providers/resolve_model_node.js";
 import type * as providers_secret_io from "../providers/secret_io.js";
@@ -2496,6 +2497,7 @@ declare const fullApi: ApiFromModules<{
   "providers/file_actions": typeof providers_file_actions;
   "providers/file_utils": typeof providers_file_utils;
   "providers/provider_attribution": typeof providers_provider_attribution;
+  "providers/request_body_transform": typeof providers_request_body_transform;
   "providers/resolve_model": typeof providers_resolve_model;
   "providers/resolve_model_node": typeof providers_resolve_model_node;
   "providers/secret_io": typeof providers_secret_io;

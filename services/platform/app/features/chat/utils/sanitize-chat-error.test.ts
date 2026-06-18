@@ -238,16 +238,29 @@ describe('sanitizeChatError', () => {
         i18nKey: 'errorHintTokenLimit',
       });
     });
+  });
 
-    it('still classifies a genuine output-limit error as tokenLimit', () => {
+  describe('output cap too high errors', () => {
+    it('classifies "max_tokens is too large ... supports at most N completion tokens" as outputCapTooHigh', () => {
+      // The CONFIGURED cap exceeds the model's real ceiling — the operator
+      // should lower maxOutputTokens, not the end-user shorten their request.
+      // Must NOT be mislabeled tokenLimit ("output token limit exceeded").
       expect(
         sanitizeChatError(
           'max_tokens is too large: 200000. This model supports at most 128000 completion tokens.',
         ),
       ).toEqual({
-        category: 'tokenLimit',
-        i18nKey: 'errorHintTokenLimit',
+        category: 'outputCapTooHigh',
+        i18nKey: 'errorHintOutputCapTooHigh',
       });
+    });
+
+    it('does not shadow the unsupported-parameter classifier', () => {
+      expect(
+        sanitizeChatError(
+          "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+        ).category,
+      ).toBe('unsupportedParameter');
     });
   });
 

@@ -2,7 +2,7 @@ import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { MissingApiKeyError, shouldFailoverToNextModel } from './errors';
-import { selectModelByTag } from './file_actions';
+import { resolvedModelDataValidator, selectModelByTag } from './file_actions';
 
 // Issue #1711 regression: a provider can be kept loaded by ONE model's env key
 // (`providerHasEnvKey` is provider-OR-any-model). `selectModelByTag` must skip a
@@ -156,5 +156,15 @@ describe('selectModelByTag — keyless-skip resolution (#1711)', () => {
     expect(() => selectModelByTag(candidates, 'chat', undefined)).toThrow(
       ConvexError,
     );
+  });
+});
+
+describe('resolvedModelDataValidator', () => {
+  // Regression guard: `requestBodyMap` is a TOP-LEVEL field, so it is stripped
+  // at the ctx.runAction boundary (tag/id resolution) unless it's in this closed
+  // validator. Dropping it here would silently disable the wire transform on the
+  // V8/tag paths while the in-process chat path keeps working — hard to spot.
+  it('carries requestBodyMap so it survives action-boundary serialization', () => {
+    expect(resolvedModelDataValidator.fields).toHaveProperty('requestBodyMap');
   });
 });

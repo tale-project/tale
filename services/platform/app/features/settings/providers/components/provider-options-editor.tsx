@@ -16,6 +16,15 @@ import { isRecord } from '@/lib/utils/type-utils';
 // authoritative gate (it carries the deny-list). This schema only catches
 // "is JSON, is an object" so we don't ship obviously malformed input.
 const providerOptionsClientSchema = z.record(z.string(), z.unknown());
+
+// Light client-side shape check for the request-body map (rename/remove); the
+// server `providerJsonSchema.parse` is authoritative (rejects prototype keys).
+const requestBodyMapClientSchema = z
+  .object({
+    rename: z.record(z.string(), z.string()).optional(),
+    remove: z.array(z.string()).optional(),
+  })
+  .partial();
 import { Card } from '@tale/ui/card';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -471,6 +480,34 @@ export function ModelProviderOptionsField({
         onChange={onChange}
         schema={providerOptionsClientSchema}
         rows={6}
+        fontSize={12}
+      />
+      <CollapsibleGuide label={copy.guideLabel} content={copy.helpText} />
+    </Stack>
+  );
+}
+
+/**
+ * Inline JSON editor for a model's `requestBodyMap` (rename/remove wire fields).
+ * Same framing as {@link ModelProviderOptionsField}; distinct because the value
+ * is meta-config that rewrites the request body rather than passthrough fields.
+ */
+export function ModelRequestBodyMapField({
+  value,
+  onChange,
+  copy,
+}: ModelEditorProps) {
+  return (
+    <Stack gap={2} className="border-border border-t pt-4">
+      <Text className="text-sm font-semibold">{copy.title}</Text>
+      <Text className="text-muted-foreground text-sm whitespace-pre-line">
+        {copy.description}
+      </Text>
+      <JsonInput
+        value={value}
+        onChange={onChange}
+        schema={requestBodyMapClientSchema}
+        rows={5}
         fontSize={12}
       />
       <CollapsibleGuide label={copy.guideLabel} content={copy.helpText} />

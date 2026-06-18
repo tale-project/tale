@@ -1392,6 +1392,7 @@
     "errorHintCreditExhausted": "Das Guthaben des KI-Anbieters wurde überschritten. Kontaktiere deinen Administrator, um Guthaben aufzuladen.",
     "errorHintMissingApiKey": "Für diese Organisation ist noch kein API-Schlüssel konfiguriert. Öffne Einstellungen → KI-Anbieter und füge einen hinzu, um den Chat zu starten.",
     "errorHintModelNotFound": "Das ausgewählte Modell wurde nicht gefunden oder ist nicht verfügbar. Kontaktiere deinen Administrator.",
+    "errorHintOutputCapTooHigh": "Die konfigurierten maximalen Ausgabe-Tokens sind höher als dieses Modell unterstützt. Bitte deinen Administrator, die maximalen Ausgabe-Tokens des Modells zu senken.",
     "errorHintProviderError": "Der KI-Anbieter hat vorübergehend technische Probleme. Bitte versuche es in einem Moment erneut.",
     "errorHintRateLimited": "Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.",
     "errorHintTokenLimit": "Das Token-Limit des Modells wurde überschritten. Versuche eine kürzere Anfrage oder bitte deinen Administrator, die Modelleinstellungen anzupassen.",
@@ -5378,6 +5379,7 @@
         "qualityScore": "Qualitäts-Score",
         "contextWindow": "Kontextfenster (Tokens)",
         "maxOutputTokens": "Max. Ausgabe-Tokens",
+        "maxOutputTokensHelp": "Begrenzt die Antwortlänge. Leer lassen für den Standardwert 32768; 0 für keine Begrenzung. Senke den Wert auf das tatsächliche Limit deines Deployments, falls der Anbieter zu grosse Werte ablehnt.",
         "reasoning": "Reasoning-Steuerung",
         "reasoningHelp": "Wie dieses Modell zum Reasoning angewiesen wird. Lass es leer, damit der Katalog entscheidet.",
         "notSet": "Nicht gesetzt",
@@ -5493,6 +5495,13 @@
         "discardConfirmAction": "Verwerfen",
         "discardConfirmKeep": "Weiter bearbeiten",
         "objectRequiredError": "Provider-Optionen müssen ein JSON-Objekt sein."
+      },
+      "requestBodyMap": {
+        "modelLevelTitle": "Erweitert — Request-Body-Map",
+        "modelLevelDescription": "Benenne Felder der finalen Anfrage an dieses Modell um oder entferne sie — für Endpunkte mit abweichendem Wire-Format. Anders als Provider-Optionen erreicht dies den Anbieter nie als Daten; es schreibt den Body direkt um.",
+        "guideLabel": "So funktioniert die Request-Body-Map",
+        "modelLevelHelp": "Zwei optionale Schlüssel:\n\n- **rename** — benennt einen Feldnamen in einen anderen um (wird zuerst angewendet). Der klassische Fall ist ein OpenAI-/Azure-Reasoning-Deployment, das `max_completion_tokens` statt `max_tokens` erwartet:\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — entfernt Felder, die der Endpunkt ablehnt:\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nModelle mit einer Reasoning-Capability erhalten die Umbenennung `max_tokens` → `max_completion_tokens` bereits automatisch. Leere Eingabe entfernt die Einstellung.",
+        "invalidJson": "Request-Body-Map ist kein gültiges JSON"
       },
       "versionConflictTitle": "Provider wurde geändert",
       "versionConflictDescription": "Lade die Seite neu, um die aktuelle Version zu sehen, und wende deine Änderungen erneut an.",

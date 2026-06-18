@@ -1393,6 +1393,7 @@
     "errorHintCreditExhausted": "Le plafond de crédits du fournisseur d'IA a été dépassé. Contacte ton administrateur pour ajouter des crédits.",
     "errorHintMissingApiKey": "Aucune clé API n'est encore configurée pour cette organisation. Ouvre Paramètres → Fournisseurs IA et ajoute-en une pour commencer à discuter.",
     "errorHintModelNotFound": "Le modèle sélectionné est introuvable ou indisponible. Contacte ton administrateur.",
+    "errorHintOutputCapTooHigh": "Le nombre maximal de tokens en sortie configuré est supérieur à ce que ce modèle prend en charge. Demande à ton administrateur de réduire le nombre maximal de tokens en sortie du modèle.",
     "errorHintProviderError": "Le fournisseur d'IA rencontre temporairement des problèmes. Merci de réessayer dans un instant.",
     "errorHintRateLimited": "Trop de requêtes. Merci de patienter un moment et réessayer.",
     "errorHintTokenLimit": "La limite de tokens en sortie du modèle a été dépassée. Essaie une requête plus courte ou demande à ton administrateur d'ajuster les paramètres du modèle.",
@@ -5379,6 +5380,7 @@
         "qualityScore": "Score de qualité",
         "contextWindow": "Fenêtre de contexte (tokens)",
         "maxOutputTokens": "Tokens de sortie max.",
+        "maxOutputTokensHelp": "Limite la longueur de la réponse. Laisse vide pour la valeur par défaut de 32768 ; mets 0 pour aucune limite. Réduis-la au plafond réel de ton déploiement si le fournisseur rejette les valeurs trop élevées.",
         "reasoning": "Contrôle du raisonnement",
         "reasoningHelp": "Comment ce modèle est invité à raisonner. Laisse vide pour laisser le catalogue décider.",
         "notSet": "Non défini",
@@ -5494,6 +5496,13 @@
         "discardConfirmAction": "Abandonner",
         "discardConfirmKeep": "Continuer l'édition",
         "objectRequiredError": "Les options du fournisseur doivent être un objet JSON."
+      },
+      "requestBodyMap": {
+        "modelLevelTitle": "Avancé — Mappage du corps de requête",
+        "modelLevelDescription": "Renomme ou supprime des champs de la requête finale envoyée à ce modèle — pour les points de terminaison dont le format diffère. Contrairement aux options du fournisseur, ceci n'atteint jamais le fournisseur en tant que données ; cela réécrit le corps sur place.",
+        "guideLabel": "Comment fonctionne le mappage du corps de requête",
+        "modelLevelHelp": "Deux clés optionnelles :\n\n- **rename** — renomme un champ en un autre (appliqué en premier). Le cas classique est un déploiement de raisonnement OpenAI/Azure qui attend `max_completion_tokens` au lieu de `max_tokens` :\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — supprime les champs que le point de terminaison rejette :\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nLes modèles dotés d'une capacité de raisonnement reçoivent déjà automatiquement le renommage `max_tokens` → `max_completion_tokens`. Une entrée vide efface le réglage.",
+        "invalidJson": "Le mappage du corps de requête n'est pas un JSON valide"
       },
       "versionConflictTitle": "Le fournisseur a été modifié",
       "versionConflictDescription": "Recharge la page pour voir la dernière version, puis réapplique tes modifications.",

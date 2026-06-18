@@ -71,6 +71,7 @@ import {
   serializeProviderJson,
   validateProviderName,
 } from './file_utils';
+import { mergeRequestBodyMap } from './request_body_transform';
 // Type-only import (erased at runtime — no circular dependency) so the
 // in-process resolver shares the canonical ResolvedModelData shape.
 import type { ResolvedModelData } from './resolve_model';
@@ -106,7 +107,7 @@ const modelRoutingMetadataValidator = {
  * `resolveModelByTag` so the two action return validators can't drift. Mirrors
  * `ResolvedModelData` in `resolve_model.ts`.
  */
-const resolvedModelDataValidator = v.object({
+export const resolvedModelDataValidator = v.object({
   providerName: v.string(),
   baseUrl: v.string(),
   apiKey: v.string(),
@@ -142,6 +143,12 @@ const resolvedModelDataValidator = v.object({
     ),
   ),
   providerOptions: v.optional(v.record(v.string(), v.any())),
+  requestBodyMap: v.optional(
+    v.object({
+      rename: v.optional(v.record(v.string(), v.string())),
+      remove: v.optional(v.array(v.string())),
+    }),
+  ),
   reasoning: v.optional(
     v.object({
       knob: v.union(
@@ -587,6 +594,10 @@ function buildResolvedTagModel(
     providerOptions: mergeModelLevel(
       provider.config.providerOptions,
       definition.providerOptions,
+    ),
+    requestBodyMap: mergeRequestBodyMap(
+      provider.config.requestBodyMap,
+      definition.requestBodyMap,
     ),
     reasoning: definition.reasoning,
     promptCaching: definition.promptCaching,
@@ -1155,6 +1166,10 @@ export async function resolveModelDataInline(
       instructionsByLocale: definition.instructionsByLocale,
       audioFormat: definition.audioFormat,
       providerOptions,
+      requestBodyMap: mergeRequestBodyMap(
+        provider.config.requestBodyMap,
+        definition.requestBodyMap,
+      ),
       reasoning: definition.reasoning,
       promptCaching: definition.promptCaching,
       tier: definition.tier,
