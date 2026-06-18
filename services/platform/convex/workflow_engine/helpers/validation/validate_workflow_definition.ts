@@ -15,6 +15,7 @@ import { validateCircularDependencies } from './circular_dependency_validator';
 import { isValidStepType } from './constants';
 import type { WorkflowValidationResult } from './types';
 import { validateNextStepsPorts } from './validate_next_steps_ports';
+import { validateStepAnnotations } from './validate_step_annotations';
 import { validateStepConfig } from './validate_step_config';
 import { validateWorkflowSteps } from './validate_workflow_steps';
 import { validateWorkflowVariableReferences } from './variables';
@@ -74,6 +75,15 @@ export function validateWorkflowDefinition(
       for (const message of stepValidation.warnings) {
         warnings.push(`${stepPrefix} ${message}`);
       }
+    }
+
+    // Validate optional ui / role annotations against the platform vocabulary.
+    const annotationValidation = validateStepAnnotations(step);
+    for (const message of annotationValidation.errors) {
+      errors.push(`${stepPrefix} ${message}`);
+    }
+    for (const message of annotationValidation.warnings) {
+      warnings.push(`${stepPrefix} ${message}`);
     }
 
     // Validate nextSteps port names match the step type
