@@ -414,11 +414,6 @@ export async function handleTurnOutcome(
       lastSeq: result.lastSeq ?? 0,
       checkpointStorageId: storageId,
       continuationCount: turn.continuationCount + 1,
-      // Pre-seam events belong to the just-sealed segment's bubble; left in
-      // place they'd flash as stale rows in the post-send live timeline while
-      // the fresh segment message is still empty. The continuation's flush
-      // buffer starts empty, so it only ever re-fills with post-seam events.
-      recentEvents: [],
       // The continuation streams into the fresh segment message — mirror it on
       // the op so the recovery watchdog finalizes the right (current) bubble.
       assistantMessageId: nextMessageId,

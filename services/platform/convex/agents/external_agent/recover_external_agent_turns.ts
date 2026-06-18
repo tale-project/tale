@@ -22,6 +22,7 @@ import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
+  type ExecLiveness,
   sessionCancelExec,
   sessionExecStatus,
 } from '../../node_only/sandbox/helpers/session_client';
@@ -167,9 +168,11 @@ export const recoverStuckExternalAgentTurns = internalAction({
         //    Finalize ONCE with its real outcome. Nothing to cancel.
         const won = await finalizeTurnSideEffects(ctx, turn);
         if (!won) continue;
-        const succeeded =
-          op.agentResultStatus === 'completed' ||
-          (liveness.state === 'exited' && liveness.exitCode === 0);
+        const succeeded = reapedTurnSucceeded({
+          agentResultStatus: op.agentResultStatus,
+          liveness,
+          progressText: op.progressText,
+        });
         if (op.assistantMessageId) {
           if (succeeded) {
             await markMessageStatus(
@@ -219,6 +222,33 @@ export const recoverStuckExternalAgentTurns = internalAction({
     return { resumed, finalized };
   },
 });
+
+/**
+ * Whether an EXITED/GONE turn the recovery watchdog reaped should finalize as
+ * success (keep its streamed bubble) rather than failed ("Something went
+ * wrong"). Order of authority:
+ *   1. The agent self-reported `completed` → success.
+ *   2. The process exited cleanly (code 0) → success.
+ *   3. No self-reported result, but the agent already streamed a visible answer
+ *      → success. This is the done-then-lingered case: a turn that held stdin
+ *      open on a background task / poll and was cleaned up at the deadline. It
+ *      mirrors the user-Stop ('cancelled') semantics (keep what streamed as a
+ *      success bubble) instead of erroring a turn the user already answered.
+ * A self-reported NON-completed result (a real agent error) is deliberately NOT
+ * overridden by streamed output — the agent's own verdict wins.
+ */
+export function reapedTurnSucceeded(args: {
+  agentResultStatus: string | undefined;
+  liveness: ExecLiveness;
+  progressText: string | undefined;
+}): boolean {
+  const hadRenderableOutput = (args.progressText?.trim().length ?? 0) > 0;
+  return (
+    args.agentResultStatus === 'completed' ||
+    (args.liveness.state === 'exited' && args.liveness.exitCode === 0) ||
+    (hadRenderableOutput && args.agentResultStatus === undefined)
+  );
+}
 
 /** A turn is superseded when its thread's CURRENT generation streamId no longer
  * matches the op's streamId — a newer user turn took over. Best-effort: if we

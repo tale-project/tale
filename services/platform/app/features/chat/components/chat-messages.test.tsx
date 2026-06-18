@@ -38,15 +38,11 @@ vi.mock('./thought-timeline', () => ({
   ThinkingIndicator: () => <div data-testid="thinking" />,
 }));
 
-// Probe: the footer fix is about WHETHER the live timeline renders at all, so
-// stub it to a marker div (its session-op subscription the test environment
-// can't satisfy). A still-streaming assistant ABOVE the last user message means
-// that message is a mid-turn steer the running turn already owns, so the footer
-// is suppressed entirely (the bubble above carries the indicator).
-vi.mock('./external-agent-live-timeline', () => ({
-  ExternalAgentLiveTimeline: () => <div data-testid="live-footer" />,
-}));
-
+// The post-send footer is a pure ThinkingIndicator placeholder (mocked above as
+// `thinking`); these tests probe WHETHER it renders at all under the gating
+// rules. A still-streaming assistant ABOVE the last user message means that
+// message is a mid-turn steer the running turn already owns, so the footer is
+// suppressed entirely (the bubble above carries the indicator).
 vi.mock('./approval-card-renderer', () => ({
   ApprovalCardRenderer: () => <div data-testid="approval-card" />,
 }));
@@ -208,7 +204,7 @@ describe('ChatMessages', () => {
         <ChatMessages {...defaultProps} isLoading items={[toItem(user1())]} />,
       );
 
-      expect(screen.getByTestId('live-footer')).toBeInTheDocument();
+      expect(screen.getByTestId('thinking')).toBeInTheDocument();
     });
 
     it('suppresses the live timeline when a streaming assistant sits above the last user message', () => {
@@ -227,7 +223,7 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
     });
 
     it('suppresses for an EMPTY streaming shell above (not yet painted)', () => {
@@ -246,7 +242,7 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
     });
 
     it('does NOT suppress when the assistant above already completed', () => {
@@ -264,7 +260,7 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.getByTestId('live-footer')).toBeInTheDocument();
+      expect(screen.getByTestId('thinking')).toBeInTheDocument();
     });
 
     it('suppresses across multiple queued steers (users in between are skipped)', () => {
@@ -293,7 +289,7 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
     });
 
     it('unmounts the footer once the fresh post-seam bubble paints below the steer', () => {
@@ -322,7 +318,7 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.queryByTestId('live-footer')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
     });
   });
 

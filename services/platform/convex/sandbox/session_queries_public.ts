@@ -23,8 +23,9 @@ import { isLiveSessionStatus } from './sessions_schema';
  * Latest in-session `agent-run` op for a thread, for live tool-use/text
  * rendering while an external-agent turn is in flight. Returns null when the
  * caller can't access the thread or no op exists yet — the UI then falls back
- * to its plain "Thinking…" placeholder. `recentEvents` are JSON-stringified
- * AgentEvents (the frontend maps them to thought-timeline steps).
+ * to its plain "Thinking…" placeholder. Projects ONLY the liveness fields the
+ * UI reads (status + agentIdleAt); the live tool/reasoning timeline renders from
+ * the persisted assistant message, not from this op.
  */
 export const getActiveSessionOp = query({
   args: { threadId: v.string() },
@@ -36,12 +37,6 @@ export const getActiveSessionOp = query({
         v.literal('failed'),
         v.literal('cancelled'),
       ),
-      progressText: v.optional(v.string()),
-      recentEvents: v.optional(v.array(v.string())),
-      agentSessionId: v.optional(v.string()),
-      startedAt: v.number(),
-      finishedAt: v.optional(v.number()),
-      lastEventAt: v.optional(v.number()),
       // Set when the agent has emitted its turn result but the process lingers
       // on held-open stdin (so we can still inject queued/steer messages). Lets
       // the UI distinguish "lingering/ready" from "actively working".
@@ -57,46 +52,28 @@ export const getActiveSessionOp = query({
     const metadata = await canAccessThread(ctx, args.threadId, authUser);
     if (!metadata) return null;
 
-    // Scope by thread, not session id — a per-user sandbox serves many threads
-    // from one session, so the live op for THIS chat is found by threadId.
-    let latest: {
-      status: 'running' | 'completed' | 'failed' | 'cancelled';
-      progressText?: string;
-      recentEvents?: string[];
-      agentSessionId?: string;
-      startedAt: number;
-      finishedAt?: number;
-      lastEventAt?: number;
-      agentIdleAt?: number;
-    } | null = null;
-    for await (const row of ctx.db
+    // Most-recent agent-run op for THIS thread via the compound index — O(1),
+    // not an O(ops-in-thread) scan (a per-user sandbox accumulates one op per
+    // turn over a thread's life and this read re-runs on every reactive tick).
+    const latest = await ctx.db
       .query('sandboxSessionOps')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
-      if (row.kind !== 'agent-run') continue;
-      if (latest === null || row.startedAt > latest.startedAt) {
-        latest = {
-          status: row.status,
-          ...(row.progressText !== undefined && {
-            progressText: row.progressText,
-          }),
-          ...(row.recentEvents !== undefined && {
-            recentEvents: row.recentEvents,
-          }),
-          ...(row.agentSessionId !== undefined && {
-            agentSessionId: row.agentSessionId,
-          }),
-          startedAt: row.startedAt,
-          ...(row.finishedAt !== undefined && { finishedAt: row.finishedAt }),
-          ...(row.lastEventAt !== undefined && {
-            lastEventAt: row.lastEventAt,
-          }),
-          ...(row.agentIdleAt !== undefined && {
-            agentIdleAt: row.agentIdleAt,
-          }),
-        };
-      }
-    }
-    return latest;
+      .withIndex('by_threadId_kind_and_startedAt', (q) =>
+        q.eq('threadId', args.threadId).eq('kind', 'agent-run'),
+      )
+      .order('desc')
+      .first();
+    if (!latest) return null;
+
+    // Project ONLY the liveness fields the UI reads. The op's high-frequency
+    // fields (progressText / heartbeatAt / lastEventAt) change every 500ms
+    // flush; excluding them keeps this query's RESULT stable across flushes, so
+    // Convex stops pushing a re-render every tick.
+    return {
+      status: latest.status,
+      ...(latest.agentIdleAt !== undefined && {
+        agentIdleAt: latest.agentIdleAt,
+      }),
+    };
   },
 });
 

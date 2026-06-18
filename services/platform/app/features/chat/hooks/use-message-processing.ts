@@ -12,6 +12,11 @@ import {
 
 import { useChatLayout } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
+import {
+  sameAttachments,
+  sameFileParts,
+  sameParts,
+} from '../utils/message-equality';
 import { hasInFlightTool } from '../utils/thought-predicates';
 import { useSessionProgress } from './queries';
 
@@ -95,6 +100,36 @@ interface UseMessageProcessingResult {
   streamingMessage: UIMessage | undefined;
   pendingToolResponse: UIMessage | undefined;
   hasActiveTools: boolean;
+}
+
+/**
+ * Render-field equality for two ChatMessages sharing a `key`. Covers every
+ * field MessageBubble's memo comparator reads PLUS the fields the list scans
+ * read (role/order/_creationTime/system*), so the identity hold below can
+ * safely reuse the prior object reference when nothing renderable changed.
+ * MUST include `isStreaming`/`isFinalReveal` so the stream→done transition
+ * always yields a FRESH reference (the one-cycle isFinalReveal carry-over and
+ * the footer gates depend on observing it). `timestamp` is derived purely from
+ * `_creationTime`, so comparing the latter covers it.
+ */
+function chatMessageRenderEqual(a: ChatMessage, b: ChatMessage): boolean {
+  return (
+    a.id === b.id &&
+    a.role === b.role &&
+    a.content === b.content &&
+    a._creationTime === b._creationTime &&
+    a.order === b.order &&
+    a.isStreaming === b.isStreaming &&
+    a.isFinalReveal === b.isFinalReveal &&
+    a.isAborted === b.isAborted &&
+    a.isFailed === b.isFailed &&
+    a.error === b.error &&
+    a.systemMessageDisplay === b.systemMessageDisplay &&
+    a.systemMessageBody === b.systemMessageBody &&
+    sameParts(a.parts, b.parts) &&
+    sameAttachments(a.attachments, b.attachments) &&
+    sameFileParts(a.fileParts, b.fileParts)
+  );
 }
 
 /**
@@ -235,10 +270,38 @@ export function useMessageProcessing(
   // instead of showing the full response instantly.
   const emptyStreamingKeysRef = useRef(new Set<string>());
 
+  // Per-message identity hold: across a streamed token only the tail bubble's
+  // ChatMessage actually changes, but the `.map()` below rebuilds every object.
+  // Reuse the prior reference for any message whose render fields are unchanged
+  // so MessageBubble's memo bails on the first `===` for all history and the
+  // downstream array hold (use-merged-chat-items) can keep the list identity.
+  // Keyed by message key; mutated inside the messages useMemo, exactly like the
+  // streaming refs above.
+  const messageIdentityRef = useRef(new Map<string, ChatMessage>());
+
   // Convert UIMessage to ChatMessage format
   // Handles orphan filtering (Issue #184) and file part extraction
   const messages: ChatMessage[] = useMemo(() => {
-    if (!uiMessages?.length) return [];
+    // Reuse prior ChatMessage object references for messages whose render
+    // fields are unchanged, so only the genuinely-changed (streaming) bubble
+    // gets a new identity per token. Applied to every return path below.
+    const reconcile = (arr: ChatMessage[]): ChatMessage[] => {
+      const prev = messageIdentityRef.current;
+      const next = new Map<string, ChatMessage>();
+      const held = arr.map((m) => {
+        const prior = prev.get(m.key);
+        const kept = prior && chatMessageRenderEqual(prior, m) ? prior : m;
+        next.set(m.key, kept);
+        return kept;
+      });
+      messageIdentityRef.current = next;
+      return held;
+    };
+
+    if (!uiMessages?.length) {
+      messageIdentityRef.current = new Map();
+      return [];
+    }
 
     const userMessages = uiMessages.filter((m) => m.role === 'user');
     const minUserOrder =
@@ -511,7 +574,7 @@ export function useMessageProcessing(
     // file-only tool messages to hide or merge this turn, so the filter+map
     // rebuild below would just clone the array unchanged. Skip it.
     if (fileOnlyKeys.size === 0 && activeTurnOrder == null) {
-      return result;
+      return reconcile(result);
     }
 
     // Pass 2: rebuild without file-only messages, merging extra parts immutably.
@@ -519,7 +582,7 @@ export function useMessageProcessing(
     // shares its order with an in-flight streaming/pending assistant message
     // — the forward merge will pick it up as soon as that message streams
     // text, so deferring is preferable to a transient standalone bubble.
-    return (
+    return reconcile(
       result
         .filter((msg) => {
           if (fileOnlyKeys.has(msg.key)) return false;
@@ -540,7 +603,7 @@ export function useMessageProcessing(
           const extra = extraFileParts.get(msg.key);
           if (!extra) return msg;
           return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
-        })
+        }),
     );
   }, [uiMessages, messageErrors, effectiveGenerating, hasPendingSendForThread]);
 

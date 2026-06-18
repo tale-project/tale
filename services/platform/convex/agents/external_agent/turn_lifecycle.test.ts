@@ -22,7 +22,11 @@ vi.mock('../../_generated/api', () => ({
       internal_mutations: { createPlanApproval: 'mock-createPlanApproval' },
     },
     sandbox: {
-      session_mutations: { claimSessionOpFinalize: 'mock-claimFinalize' },
+      session_mutations: {
+        claimSessionOpFinalize: 'mock-claimFinalize',
+        upsertSessionOp: 'mock-upsertSessionOp',
+        resumeStoppedSession: 'mock-resumeStopped',
+      },
     },
     governance: {
       internal_mutations: { incrementUsageLedger: 'mock-incrementUsage' },
@@ -513,6 +517,15 @@ describe('handleTurnOutcome — steer seam segmentation', () => {
     expect(mockSaveMessage).not.toHaveBeenCalled();
     const [, , contArgs] = ctx.scheduler.runAfter.mock.calls[0] ?? [];
     expect(contArgs).toMatchObject({ assistantMessageId: 'msg_1' });
+
+    // The seam upsert keeps the op `running` but must NOT clobber the live op's
+    // recentEvents: the timeline now renders from the persisted message, and
+    // writing `[]` here is exactly what produced the mid-run tool-text flicker.
+    const opUpsert = ctx.runMutation.mock.calls.find(
+      ([ref]) => ref === 'mock-upsertSessionOp',
+    )?.[1];
+    expect(opUpsert).toMatchObject({ status: 'running' });
+    expect(opUpsert).not.toHaveProperty('recentEvents');
   });
 
   it('steer seam with an empty segment replaces the bubble (fresh below, empty deleted)', async () => {
