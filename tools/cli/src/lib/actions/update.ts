@@ -177,7 +177,7 @@ export async function update(options: UpdateOptions): Promise<void> {
       } else {
         // Modified — skip
         logger.warn(
-          `${prefix}⚠ Skipped ${relPath} (locally modified). New version at .tale/reference/examples/${relPath}`,
+          `${prefix}Skipped ${relPath} (locally modified). New version at .tale/reference/examples/${relPath}`,
         );
         newChecksumFiles[relPath] = oldHash;
         summary.skipped.push(relPath);

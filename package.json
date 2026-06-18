@@ -80,6 +80,7 @@
     "@storybook/addon-vitest": "10.3.5",
     "@storybook/react": "10.3.5",
     "@storybook/react-vite": "10.3.5",
+    "@tale/shared": "workspace:*",
     "@tanstack/router-plugin": "1.167.12",
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "6.9.1",

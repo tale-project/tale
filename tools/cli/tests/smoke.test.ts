@@ -296,13 +296,28 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
   );
 
   test(
-    'status fails with guidance outside a project',
+    'status fails with a precondition exit code + guidance outside a project',
     async () => {
       const result = await run(['status'], dir);
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain(
-        'No Tale project found. Run "tale init" first',
-      );
+      // Exit 3 = precondition (no project); the summary is on stderr and the
+      // copy-pasteable next step (`tale init`) is in the rendered detail.
+      expect(result.exitCode).toBe(3);
+      expect(result.stderr).toContain('No Tale project found.');
+      expect(result.stdout + result.stderr).toContain('tale init');
+    },
+    SMOKE_TIMEOUT,
+  );
+
+  test(
+    'status --json outside a project emits one JSON error envelope (exit 3)',
+    async () => {
+      const result = await run(['--json', 'status'], dir);
+      expect(result.exitCode).toBe(3);
+      const parsed = JSON.parse(result.stdout.trim());
+      expect(parsed.ok).toBe(false);
+      expect(parsed.error.code).toBe(3);
+      // No ANSI escapes on the machine-readable stream.
+      expect(result.stdout).not.toContain('\x1b');
     },
     SMOKE_TIMEOUT,
   );

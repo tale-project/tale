@@ -911,8 +911,8 @@ async function stageOrgIntoDir(srcDir: string, destDir: string): Promise<void> {
             ? err.code
             : undefined;
         if (code !== 'ENOENT') {
-          console.warn(
-            `[deploy.stageOrgIntoDir] lstat ${src} failed (${code ?? 'unknown'}); skipping`,
+          logger.debug(
+            `stageOrgIntoDir: lstat ${src} failed (${code ?? 'unknown'}); skipping`,
           );
         }
         return false;

@@ -1,7 +1,7 @@
 import { Command, Option } from 'commander';
 
 import { start } from '../../lib/actions/start';
-import * as logger from '../../utils/logger';
+import { action } from '../../utils/run-command';
 
 export function createStartCommand(): Command {
   return new Command('start')
@@ -16,23 +16,20 @@ export function createStartCommand(): Command {
       ),
     )
     .action(
-      async (opts: {
-        detach?: boolean;
-        port: string;
-        host: string;
-        yes?: boolean;
-      }) => {
-        try {
+      action(
+        async (opts: {
+          detach?: boolean;
+          port: string;
+          host: string;
+          yes?: boolean;
+        }) => {
           await start({
             detach: opts.detach,
             port: Number(opts.port),
             host: opts.host,
             assumeYes: opts.yes,
           });
-        } catch (err) {
-          logger.error(err instanceof Error ? err.message : String(err));
-          process.exit(1);
-        }
-      },
+        },
+      ),
     );
 }

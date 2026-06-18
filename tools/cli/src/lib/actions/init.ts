@@ -57,7 +57,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
   if (!directory && existsSync(cwdTaleJson)) {
     if (!force) {
       if (process.stdin.isTTY && process.stdout.isTTY) {
-        const { confirm } = await import('@inquirer/prompts');
+        const { confirm } = await import('../../utils/prompt');
         const shouldReinit = await confirm({
           message: 'This directory is already a Tale project. Reinitialize?',
           default: false,
@@ -77,7 +77,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
   }
 
   if (!directory && process.stdin.isTTY && process.stdout.isTTY) {
-    const { input } = await import('@inquirer/prompts');
+    const { input } = await import('../../utils/prompt');
     const projectName = await input({
       message: 'Project name:',
       default: 'my-tale-project',
@@ -107,7 +107,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
     const hasTaleFiles = await detectTaleProjectFiles(target);
     if (hasTaleFiles.length > 0) {
       if (process.stdin.isTTY && process.stdout.isTTY) {
-        const { confirm } = await import('@inquirer/prompts');
+        const { confirm } = await import('../../utils/prompt');
         logger.warn(
           `Directory "${target}" already contains Tale project files:`,
         );
@@ -310,7 +310,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
     // operator. Sysbox/kata get it automatically (the spawner's tier-aware
     // default), so this prompt is really the runc opt-in.
     if (process.stdin.isTTY && process.stdout.isTTY) {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirm } = await import('../../utils/prompt');
       const enableDocker = await confirm({
         message:
           'Let agents run docker / docker compose inside sandboxes? ' +
@@ -391,7 +391,9 @@ async function detectTaleProjectFiles(dir: string): Promise<string[]> {
         ? err.code
         : undefined;
     if (code !== 'ENOENT') {
-      console.warn(`[init.detectTaleProjectFiles] readdir ${dir} failed:`, err);
+      logger.debug(
+        `detectTaleProjectFiles: readdir ${dir} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
     return [];
   }

@@ -78,6 +78,17 @@ Die CLI gruppiert ihre Befehle danach, was du gerade tust — genau wie `tale --
 
 Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten Version aus.
 
+**Globale Flags** funktionieren bei jedem Befehl:
+
+- `-v, --verbose` — ausführliche Ausgabe: Debug-Logs und der rohe Subprozess-Stream.
+- `-q, --quiet` — nur Warnungen und Fehler.
+- `-y, --yes` — bei allen Rückfragen «ja» annehmen (nicht-interaktiv).
+- `--no-color` — ANSI-Farben deaktivieren (berücksichtigt auch `NO_COLOR` / `FORCE_COLOR`).
+- `--json` — maschinenlesbares JSON auf stdout, menschliche Meldungen auf stderr; unterstützt von `status`, `config show` und `migrate status`.
+- `--ci` — erzwingt nicht-interaktive, rein anhängende Ausgabe (keine Cursor-Steuerung).
+
+Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer nicht erfüllten Voraussetzung (kein Projekt, Docker läuft nicht, Port belegt), `4` bei einem Abbruch durch dich (Ctrl-C oder eine erforderliche Rückfrage ohne Terminal) und `5` beim Fehler einer externen Abhängigkeit — so können Skripte anhand der Ursache verzweigen.
+
 ### Einrichtung
 
 `tale init [directory]` — ein Projekt anlegen: erzeugt die Beispiel-Configs, `AGENTS.md` + `CLAUDE.md` sowie eine lokale Standard-`.env` (localhost, selbstsigniertes Zertifikat, generierte Secrets). Keine Rückfragen und kein Docker — Produktiv-Domain und TLS werden später bei `tale deploy` gewählt. `directory` ist optional (Standard: das aktuelle Verzeichnis).

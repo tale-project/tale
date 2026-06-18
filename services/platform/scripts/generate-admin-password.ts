@@ -51,9 +51,9 @@ async function main() {
     console.log(`ADMIN_NAME="System Administrator"`);
 
     console.log('\n=== Security Notice ===');
-    console.log('⚠️  IMPORTANT: Change this password after first login!');
+    console.log('IMPORTANT: Change this password after first login!');
     console.log(
-      '⚠️  Store the password securely and do not commit it to version control.',
+      'Store the password securely and do not commit it to version control.',
     );
   } catch (error) {
     console.error('Error generating password hash:', error);

@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { createInterface } from 'node:readline/promises';
 
 import { Command } from 'commander';
 
@@ -14,86 +13,104 @@ import {
 } from '../../daemon/config';
 import { runDaemon } from '../../daemon/daemon';
 import * as logger from '../../utils/logger';
+import { input, select } from '../../utils/prompt';
+import { action } from '../../utils/run-command';
 
 async function setup(): Promise<void> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    console.log('tale daemon setup\n');
-    const baseUrl =
-      (await rl.question('Tale base URL (e.g. https://your-org.tale.dev): '))
-        .trim()
-        .replace(/\/$/, '') || 'http://localhost:3000';
-    const apiKey = (
-      await rl.question(
-        'API key (Settings → API → create key; leave empty to use TALE_DAEMON_API_KEY): ',
-      )
-    ).trim();
-    const name =
-      (
-        await rl.question(
-          'Daemon name (shown in Tale, e.g. "macbook-yannick"): ',
-        )
-      ).trim() || undefined;
-    const workspacePath = (
-      await rl.question('Workspace path (a git repo agents may work in): ')
-    ).trim();
-    const workspaceKey = workspacePath
-      ? (
-          await rl.question(
-            `Workspace key to advertise for it [${path.basename(workspacePath)}]: `,
-          )
-        ).trim() || path.basename(workspacePath)
-      : '';
-    const ceiling = (
-      await rl.question(
-        'Permission ceiling — safe | auto_edits | full_auto [safe]: ',
-      )
-    ).trim();
+  logger.info('Configuring the Tale daemon for this machine.');
 
-    const config: DaemonConfig = {
-      baseUrl,
-      apiKey: apiKey || undefined,
-      daemonId: newDaemonId(),
-      name,
-      workspaces: workspacePath ? { [workspaceKey]: workspacePath } : {},
-      defaultWorkspace: workspaceKey || undefined,
-      permissionCeiling:
-        ceiling === 'auto_edits' || ceiling === 'full_auto' ? ceiling : 'safe',
-    };
-    saveConfig(config);
-    console.log(`\nSaved ${configPath()} (key stored chmod 600).`);
+  const baseUrl =
+    (
+      await input({
+        message: 'Tale base URL (e.g. https://your-org.tale.dev):',
+        default: 'http://localhost:3000',
+      })
+    )
+      .trim()
+      .replace(/\/$/, '') || 'http://localhost:3000';
+  const apiKey = (
+    await input({
+      message:
+        'API key (Settings → API → create key; leave empty to use TALE_DAEMON_API_KEY):',
+    })
+  ).trim();
+  const name =
+    (
+      await input({
+        message: 'Daemon name (shown in Tale, e.g. "macbook-yannick"):',
+      })
+    ).trim() || undefined;
+  const workspacePath = (
+    await input({
+      message: 'Workspace path (a git repo agents may work in):',
+    })
+  ).trim();
+  const workspaceKey = workspacePath
+    ? (
+        await input({
+          message: 'Workspace key to advertise for it:',
+          default: path.basename(workspacePath),
+        })
+      ).trim() || path.basename(workspacePath)
+    : '';
+  const permissionCeiling = await select<DaemonConfig['permissionCeiling']>({
+    message: 'Permission ceiling',
+    default: 'safe',
+    choices: [
+      { name: 'safe', value: 'safe', description: 'Read-only; no edits' },
+      {
+        name: 'auto_edits',
+        value: 'auto_edits',
+        description: 'Edits allowed without per-step approval',
+      },
+      {
+        name: 'full_auto',
+        value: 'full_auto',
+        description: 'Fully autonomous (highest trust)',
+      },
+    ],
+  });
 
-    const detections = await detectAdapters();
-    console.log(
-      detections.length > 0
-        ? `Detected CLIs: ${detections.map((d) => `${d.adapterType}${d.version ? ` (${d.version})` : ''}`).join(', ')}`
-        : 'No supported CLIs found yet — install claude, codex, or opencode.',
-    );
-    console.log('\nNext: tale daemon start');
-  } finally {
-    rl.close();
-  }
+  const config: DaemonConfig = {
+    baseUrl,
+    apiKey: apiKey || undefined,
+    daemonId: newDaemonId(),
+    name,
+    workspaces: workspacePath ? { [workspaceKey]: workspacePath } : {},
+    defaultWorkspace: workspaceKey || undefined,
+    permissionCeiling,
+  };
+  saveConfig(config);
+  logger.success(`Saved ${configPath()} (key stored chmod 600).`);
+
+  const detections = await detectAdapters();
+  logger.info(
+    detections.length > 0
+      ? `Detected CLIs: ${detections.map((d) => `${d.adapterType}${d.version ? ` (${d.version})` : ''}`).join(', ')}`
+      : 'No supported CLIs found yet — install claude, codex, or opencode.',
+  );
+  logger.info('Next: tale daemon start');
 }
 
 async function status(): Promise<void> {
   const config = loadConfig();
-  console.log(`config:      ${configPath()}`);
-  console.log(`daemonId:    ${config.daemonId}`);
-  console.log(`baseUrl:     ${config.baseUrl}`);
-  console.log(
+  logger.info(`config:      ${configPath()}`);
+  logger.info(`daemonId:    ${config.daemonId}`);
+  logger.info(`baseUrl:     ${config.baseUrl}`);
+  logger.info(
     `workspaces:  ${Object.keys(config.workspaces).join(', ') || '(none)'}`,
   );
-  console.log(`ceiling:     ${config.permissionCeiling}`);
+  logger.info(`ceiling:     ${config.permissionCeiling}`);
   const detections = await detectAdapters();
-  console.log(
+  logger.info(
     `adapters:    ${detections.map((d) => `${d.adapterType}${d.version ? ` (${d.version})` : ''}`).join(', ') || '(none found)'}`,
   );
   try {
     const api = new TaleApi(config);
     await api.heartbeat();
-    console.log('server:      reachable (heartbeat ok)');
+    logger.success('server:      reachable (heartbeat ok)');
   } catch (error) {
-    console.log(
+    logger.warn(
       `server:      UNREACHABLE — ${error instanceof Error ? error.message : String(error)}`,
     );
   }
@@ -132,38 +149,29 @@ to keep the key out of the file; TALE_DAEMON_HOME overrides the config dir.
     .description(
       'Interactive: base URL, API key, workspace, permission ceiling',
     )
-    .action(async () => {
-      try {
+    .action(
+      action(async () => {
         await setup();
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
+      }),
+    );
 
   daemon
     .command('start')
     .description('Register and run the claim loop (Ctrl-C drains the run)')
-    .action(async () => {
-      try {
+    .action(
+      action(async () => {
         await runDaemon(loadConfig());
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
+      }),
+    );
 
   daemon
     .command('status')
     .description('Show config, detected CLIs, and server connectivity')
-    .action(async () => {
-      try {
+    .action(
+      action(async () => {
         await status();
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
+      }),
+    );
 
   return daemon;
 }

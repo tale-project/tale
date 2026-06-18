@@ -132,7 +132,7 @@ interface EnvSetupResult {
  * A local-looking host downgrades to self-signed automatically.
  */
 async function promptProductionDomain(): Promise<DomainTlsConfig> {
-  const { input } = await import('@inquirer/prompts');
+  const { input } = await import('../../utils/prompt');
   const host = await input({
     message: 'Domain to deploy to (without protocol):',
     validate: (value) => {
@@ -392,7 +392,7 @@ async function runPartialEnvSetup(
   existing: Record<string, string>,
   missing: string[],
 ): Promise<EnvSetupResult> {
-  const { input, select } = await import('@inquirer/prompts');
+  const { input, select } = await import('../../utils/prompt');
 
   logger.blank();
   logger.header('Environment Setup (partial)');

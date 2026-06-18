@@ -19,24 +19,46 @@ import { createStartCommand } from './commands/start';
 import { createStatusCommand } from './commands/status';
 import { createUpgradeCommand } from './commands/upgrade';
 import * as logger from './utils/logger';
+import {
+  configureOutput,
+  type GlobalFlags,
+  resolveOutputMode,
+  setActiveOutputMode,
+} from './utils/output-mode';
+import { handleError } from './utils/run-command';
 
-process.on('uncaughtException', (err) => {
-  logger.error(`Fatal: ${err.message}`);
-  logger.debug(err.stack ?? '');
-  process.exit(1);
-});
-process.on('unhandledRejection', (reason) => {
-  const msg = reason instanceof Error ? reason.message : String(reason);
-  logger.error(`Fatal: ${msg}`);
-  if (reason instanceof Error) logger.debug(reason.stack ?? '');
-  process.exit(1);
-});
+// A stray crash/rejection is routed through the same dispatch as a command
+// error, so it gets a coded, rendered failure instead of a raw stack trace.
+process.on('uncaughtException', (err) => handleError(err));
+process.on('unhandledRejection', (reason) => handleError(reason));
 
 program
   .name('tale')
   .description('Tale CLI - deployment and management tools')
+  // Default version flag stays `-V, --version`; `-v` is free for --verbose.
   .version(pkg.version)
+  .option('-v, --verbose', 'verbose output (debug logs, raw passthrough)')
+  .option('-q, --quiet', 'only warnings and errors')
+  .option('-y, --yes', 'assume "yes" for all prompts (non-interactive)')
+  .option(
+    '--no-color',
+    'disable ANSI color (also honors NO_COLOR / FORCE_COLOR)',
+  )
+  .option('--json', 'machine-readable JSON on stdout, human chrome on stderr')
+  .option(
+    '--ci',
+    'force non-interactive, append-only output (no cursor escapes)',
+  )
   .showHelpAfterError('(add --help for a list of commands)');
+
+// Resolve the global flags into ONE output mode and apply it before any command
+// runs, so every command inherits the same color/verbosity/json configuration.
+// Global flags go before the subcommand: `tale --json status`.
+program.hook('preAction', () => {
+  const mode = resolveOutputMode(program.opts<GlobalFlags>());
+  configureOutput(mode);
+  setActiveOutputMode(mode);
+});
 
 // Group headings keep the command list scannable. Commander renders each
 // command under its `helpGroup` heading instead of one flat list.
@@ -74,7 +96,22 @@ const DOCS_URL =
 
 // Branded wordmark above the help, and a few real examples below it.
 program.addHelpText('beforeAll', () => `\n${logger.bannerText(pkg.version)}\n`);
-program.addHelpText('after', `\nDocs: ${DOCS_URL}\n`);
+program.addHelpText(
+  'after',
+  [
+    '',
+    'Examples:',
+    '  tale init my-workspace        scaffold a new project',
+    '  tale start                    run it locally (Ctrl-C to stop)',
+    '  tale status --json            machine-readable status',
+    '  tale deploy --verbose         deploy with full subprocess output',
+    '',
+    'Global flags: --verbose  --quiet  --yes  --no-color  --json  --ci',
+    '',
+    `Docs: ${DOCS_URL}`,
+    '',
+  ].join('\n'),
+);
 
 // Bare `tale` shows the branded, grouped overview instead of an error.
 if (process.argv.length <= 2) {
@@ -82,4 +119,8 @@ if (process.argv.length <= 2) {
   process.exit(0);
 }
 
-await program.parseAsync();
+try {
+  await program.parseAsync();
+} catch (err) {
+  handleError(err);
+}

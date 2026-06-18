@@ -34,10 +34,12 @@ FORCE_SEED="${FORCE_SEED:-false}"
 # ----------------------------------------------------------------------------
 # Logging helpers
 # ----------------------------------------------------------------------------
-log_info()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️  $*"; }
-log_ok()      { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ $*"; }
-log_warn()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️  $*" >&2; }
-log_error()   { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ❌ $*" >&2; }
+# Severity is a plain text word (no emoji — they render inconsistently across
+# terminals and the CLI/dev classifier keys on these words to colour the line).
+log_info()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO  $*"; }
+log_ok()      { echo "[$(date '+%Y-%m-%d %H:%M:%S')] OK    $*"; }
+log_warn()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARN  $*" >&2; }
+log_error()   { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR $*" >&2; }
 log_section() { echo; echo "════════════════════════════════════"; echo "  $*"; echo "════════════════════════════════════"; }
 
 # ----------------------------------------------------------------------------
@@ -370,7 +372,7 @@ atomic_cp_bundle() {
     if mkdir -p "$snapshot_dir" 2>/dev/null && cp -r "$dest_dir/." "$snapshot_dir/" 2>/dev/null; then
       echo "   ↻ Snapshotted previous bundle to ${snapshot_dir}"
     else
-      echo "   ⚠ Could not snapshot previous bundle at ${dest_dir} (proceeding with force-seed anyway)"
+      echo "   WARN Could not snapshot previous bundle at ${dest_dir} (proceeding with force-seed anyway)"
       rm -rf "$snapshot_dir" 2>/dev/null || true
     fi
   fi
@@ -393,13 +395,13 @@ run_seed() {
       local dest="$agents_dir/$name"
       local history_dir="$agents_dir/.history/$slug"
       if [ "$FORCE_SEED" = "true" ]; then
-        atomic_cp "$src" "$dest"; echo "   ✓ Seeded $name (forced)"
+        atomic_cp "$src" "$dest"; echo "   - Seeded $name (forced)"
       elif [ -f "$dest" ]; then
         echo "   ⏭ Skipping $name (already exists)"
       elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping $name (user has modifications in .history)"
       else
-        atomic_cp "$src" "$dest"; echo "   ✓ Seeded agent $name"
+        atomic_cp "$src" "$dest"; echo "   - Seeded agent $name"
       fi
     done
   fi
@@ -416,13 +418,13 @@ run_seed() {
       local dest="$prompts_dir/$name"
       local history_dir="$prompts_dir/.history/$slug"
       if [ "$FORCE_SEED" = "true" ]; then
-        atomic_cp "$src" "$dest"; echo "   ✓ Seeded prompt $name (forced)"
+        atomic_cp "$src" "$dest"; echo "   - Seeded prompt $name (forced)"
       elif [ -f "$dest" ]; then
         echo "   ⏭ Skipping prompt $name (already exists)"
       elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping prompt $name (user has modifications in .history)"
       else
-        atomic_cp "$src" "$dest"; echo "   ✓ Seeded prompt $name"
+        atomic_cp "$src" "$dest"; echo "   - Seeded prompt $name"
       fi
     done
   fi
@@ -448,16 +450,16 @@ run_seed() {
       local flat_slug="$(echo "$slug" | sed 's|/|__|g')"
       local history_dir="$workflows_dir/.history/$flat_slug"
 
-      # Round-3 P2 R32-P2-b: `if mkdir && atomic_cp; then echo ✓; else log_error` —
+      # Round-3 P2 R32-P2-b: `if mkdir && atomic_cp; then echo a marker; else log_error` —
       # the previous `mkdir && atomic_cp && echo; continue` chain silently
       # swallowed failures under `set -e` because the `; continue` reset
       # the implicit last-status to 0, so a disk-full / permission denied
-      # in mkdir or atomic_cp produced neither a ✓ line nor an error.
+      # in mkdir or atomic_cp produced neither a success line nor an error.
       if [ "$FORCE_SEED" = "true" ]; then
         if mkdir -p "$dest_dir" && atomic_cp "$src" "$dest"; then
-          echo "   ✓ Seeded workflow $rel_path (forced)"
+          echo "   - Seeded workflow $rel_path (forced)"
         else
-          log_error "   ✗ Failed to seed workflow $rel_path (forced)"
+          log_error "Failed to seed workflow $rel_path (forced)"
           workflows_failed=$((workflows_failed + 1))
         fi
         continue
@@ -467,9 +469,9 @@ run_seed() {
         echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"; continue
       fi
       if mkdir -p "$dest_dir" && atomic_cp "$src" "$dest"; then
-        echo "   ✓ Seeded workflow $rel_path"
+        echo "   - Seeded workflow $rel_path"
       else
-        log_error "   ✗ Failed to seed workflow $rel_path"
+        log_error "Failed to seed workflow $rel_path"
         workflows_failed=$((workflows_failed + 1))
       fi
     done < <(find "$workflows_builtin" -name '*.json' -type f)
@@ -491,10 +493,10 @@ run_seed() {
         # atomic_cp_bundle stages + renames so an interruption can't leave
         # a half-populated bundle that the next-run dest-existence probe
         # would skip permanently.
-        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name (forced)"; continue
+        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded integration $name (forced)"; continue
       fi
       if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping integration $name (already exists)"; continue; fi
-      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name"
+      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded integration $name"
     done
   fi
 
@@ -508,10 +510,10 @@ run_seed() {
       local name="$(basename "$src_dir")"
       local dest_dir="$skills_dir/$name"
       if [ "$FORCE_SEED" = "true" ]; then
-        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name (forced)"; continue
+        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded skill $name (forced)"; continue
       fi
       if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping skill $name (already exists)"; continue; fi
-      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name"
+      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded skill $name"
     done
   fi
 
@@ -528,13 +530,13 @@ run_seed() {
       local dest="$providers_dir/$name"
       local history_dir="$providers_dir/.history/$slug"
       if [ "$FORCE_SEED" = "true" ]; then
-        atomic_cp "$src" "$dest"; echo "   ✓ Seeded provider $name (forced)"
+        atomic_cp "$src" "$dest"; echo "   - Seeded provider $name (forced)"
       elif [ -f "$dest" ]; then
         echo "   ⏭ Skipping provider $name (already exists)"
       elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping provider $name (user has modifications in .history)"
       else
-        atomic_cp "$src" "$dest"; echo "   ✓ Seeded provider $name"
+        atomic_cp "$src" "$dest"; echo "   - Seeded provider $name"
       fi
     done
   fi
@@ -551,13 +553,13 @@ run_seed() {
     local dest="$branding_dir/branding.json"
     local history_dir="$branding_dir/.history/branding"
     if [ "$FORCE_SEED" = "true" ]; then
-      atomic_cp "$branding_src" "$dest"; echo "   ✓ Seeded branding (forced)"
+      atomic_cp "$branding_src" "$dest"; echo "   - Seeded branding (forced)"
     elif [ -f "$dest" ]; then
       echo "   ⏭ Skipping branding (already exists)"
     elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
       echo "   ⏭ Skipping branding (user has modifications in .history)"
     else
-      atomic_cp "$branding_src" "$dest"; echo "   ✓ Seeded branding"
+      atomic_cp "$branding_src" "$dest"; echo "   - Seeded branding"
     fi
   fi
 
@@ -571,13 +573,13 @@ run_seed() {
     local dest="${data_dir}/default/retention.json"
     local history_dir="${data_dir}/default/.history/retention"
     if [ "$FORCE_SEED" = "true" ]; then
-      atomic_cp "$retention_src" "$dest"; echo "   ✓ Seeded retention (forced)"
+      atomic_cp "$retention_src" "$dest"; echo "   - Seeded retention (forced)"
     elif [ -f "$dest" ]; then
       echo "   ⏭ Skipping retention (already exists)"
     elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
       echo "   ⏭ Skipping retention (user has modifications in .history)"
     else
-      atomic_cp "$retention_src" "$dest"; echo "   ✓ Seeded retention"
+      atomic_cp "$retention_src" "$dest"; echo "   - Seeded retention"
     fi
   fi
 
@@ -597,7 +599,7 @@ fi
 dump_diagnostics() {
   local ctx="$1"
   echo
-  echo "──────── 🔍 Diagnostics: $ctx ────────"
+  echo "──────── Diagnostics: $ctx ────────"
   echo "  Timestamp:     $(date -Iseconds)"
   echo "  Hostname:      $(hostname)"
   echo "  Convex PID:    $(cat "$CONVEX_PID_FILE" 2>/dev/null || echo 'N/A')"
@@ -610,7 +612,7 @@ dump_diagnostics() {
   if [ -d /app/data/convex/search ]; then
     echo "  Search segments: $(find /app/data/convex/search -type f 2>/dev/null | wc -l) files"
   else
-    echo "  Search dir:    ❗ MISSING (search index will rebuild on next deploy)"
+    echo "  Search dir:    MISSING (search index will rebuild on next deploy)"
   fi
   echo "──────────────────────────────────────"
   echo

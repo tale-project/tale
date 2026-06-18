@@ -1,7 +1,7 @@
 import { Command, Option } from 'commander';
 
 import { upgrade } from '../../lib/actions/upgrade';
-import * as logger from '../../utils/logger';
+import { action } from '../../utils/run-command';
 
 export function createUpgradeCommand(): Command {
   return new Command('upgrade')
@@ -22,23 +22,20 @@ export function createUpgradeCommand(): Command {
       new Option('--internal-sync-only', 'sync project files only').hideHelp(),
     )
     .action(
-      async (opts: {
-        version?: string;
-        force?: boolean;
-        dryRun?: boolean;
-        internalSyncOnly?: boolean;
-      }) => {
-        try {
+      action(
+        async (opts: {
+          version?: string;
+          force?: boolean;
+          dryRun?: boolean;
+          internalSyncOnly?: boolean;
+        }) => {
           await upgrade({
             version: opts.version,
             force: opts.force,
             dryRun: opts.dryRun,
             internalSyncOnly: opts.internalSyncOnly,
           });
-        } catch (err) {
-          logger.error(err instanceof Error ? err.message : String(err));
-          process.exit(1);
-        }
-      },
+        },
+      ),
     );
 }

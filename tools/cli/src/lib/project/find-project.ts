@@ -1,5 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
+
+import { preconditionError } from '../../utils/fail';
 
 export function findProject(startDir?: string): string | null {
   let dir = resolve(startDir ?? process.cwd());
@@ -51,10 +53,19 @@ export function findChildProject(startDir?: string): string | null {
 
 export function requireProject(startDir?: string): string {
   const dir = findProject(startDir);
-  if (!dir) {
-    throw new Error(
-      'No Tale project found. Run "tale init" first, then run commands from the project directory.',
-    );
+  if (dir) return dir;
+
+  // A common mistake is running from the parent of a `tale init` subdirectory —
+  // point at the child rather than reporting a bare "not found".
+  const child = findChildProject(startDir);
+  if (child) {
+    const rel = relative(resolve(startDir ?? process.cwd()), child);
+    throw preconditionError(`No Tale project here — found one at ./${rel}.`, [
+      `cd ${rel}`,
+    ]);
   }
-  return dir;
+  throw preconditionError('No Tale project found.', [
+    'tale init',
+    'then run the command from the project directory',
+  ]);
 }

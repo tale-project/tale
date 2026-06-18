@@ -346,7 +346,7 @@ async function main() {
     }
 
     const action = getResult.exists ? 'updating' : 'adding';
-    console.log(`  ✏️  ${key} = ******** (${action})`);
+    console.log(`  ${key} = ******** (${action})`);
     const res = runConvexEnvSet(key, newValue);
     if (!res.ok) {
       hadError = true;
@@ -376,7 +376,7 @@ async function main() {
       `[sync-convex-env] Removing ${keysToRemove.length} stale environment variables...`,
     );
     for (const key of keysToRemove) {
-      console.log(`  🗑️  ${key} (removing, not in .env)`);
+      console.log(`  ${key} (removing, not in .env)`);
       const res = runConvexEnvRemove(key);
       if (!res.ok) {
         hadError = true;

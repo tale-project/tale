@@ -78,6 +78,17 @@ The CLI groups its commands by what you are doing, the same way `tale --help` do
 
 Run `tale <command> --help` for the authoritative list at your installed version.
 
+**Global flags** work on every command:
+
+- `-v, --verbose` — verbose output: debug logs and the raw subprocess stream.
+- `-q, --quiet` — only warnings and errors.
+- `-y, --yes` — assume "yes" for all prompts (non-interactive).
+- `--no-color` — disable ANSI colour (also honours `NO_COLOR` / `FORCE_COLOR`).
+- `--json` — machine-readable JSON on stdout, human messages on stderr; supported by `status`, `config show`, and `migrate status`.
+- `--ci` — force non-interactive, append-only output (no cursor control).
+
+Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition (no project, Docker not running, port in use), `4` on a user abort (Ctrl-C, or a required prompt with no terminal), and `5` on an external-dependency failure — so scripts can branch on the cause.
+
 ### Setup
 
 `tale init [directory]` — create a project: it scaffolds the example configs, `AGENTS.md` + `CLAUDE.md`, and a local-default `.env` (localhost, self-signed certificate, generated secrets). No prompts and no Docker — the production domain and TLS are chosen later, at `tale deploy`. `directory` is optional (default: the current directory).

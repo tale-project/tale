@@ -1,7 +1,7 @@
-import { confirm } from '../../utils/confirm';
 import { formatBytes } from '../../utils/format-bytes';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { confirm } from '../../utils/prompt';
 import {
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
@@ -153,7 +153,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
       logger.warn(
         `and replaces them with snapshot ${snapshotId} (created ${manifest.createdAt}, platform ${manifest.platformVersion ?? 'unknown'}).`,
       );
-      const ok = await confirm('Restore now?');
+      const ok = await confirm({ message: 'Restore now?', default: false });
       if (!ok) {
         throw new Error('Restore aborted');
       }

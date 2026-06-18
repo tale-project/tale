@@ -1,3 +1,6 @@
+import { getMarkers, getPalette } from '@tale/shared/tux';
+
+import { emitJson } from '../../utils/json-output';
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import {
@@ -21,40 +24,34 @@ type ServiceStatus =
   | 'stopped'
   | 'not deployed';
 
-const STATUS_COLORS: Record<ServiceStatus, string> = {
-  healthy: '\x1b[32m',
-  running: '\x1b[32m',
-  starting: '\x1b[33m',
-  unhealthy: '\x1b[31m',
-  stopped: '\x1b[31m',
-  'not deployed': '\x1b[90m',
-};
+interface ServiceRow {
+  service: string;
+  status: ServiceStatus;
+  version: string | null;
+}
+
+/** The full deployment status, computed once — then rendered OR emitted as JSON. */
+interface StatusReport {
+  lock: { pid: number; startedAt: string } | null;
+  activeColor: DeploymentColor | null;
+  previousVersion: string | null;
+  stateful: ServiceRow[];
+  blue: ServiceRow[];
+  green: ServiceRow[];
+  containers: { name: string; status: string }[];
+}
 
 function getServiceStatus(
   exists: boolean,
   running: boolean,
   health: 'healthy' | 'unhealthy' | 'starting' | 'none',
 ): ServiceStatus {
-  if (!exists) {
-    return 'not deployed';
-  }
-  if (!running) {
-    return 'stopped';
-  }
-  if (health === 'healthy') {
-    return 'healthy';
-  }
-  if (health === 'starting') {
-    return 'starting';
-  }
-  if (health === 'unhealthy') {
-    return 'unhealthy';
-  }
+  if (!exists) return 'not deployed';
+  if (!running) return 'stopped';
+  if (health === 'healthy') return 'healthy';
+  if (health === 'starting') return 'starting';
+  if (health === 'unhealthy') return 'unhealthy';
   return 'running';
-}
-
-interface StatusOptions {
-  deployDir: string;
 }
 
 async function getContainerStatus(containerName: string) {
@@ -67,97 +64,127 @@ async function getContainerStatus(containerName: string) {
   return { exists, running, health, version };
 }
 
-export async function status(options: StatusOptions): Promise<void> {
-  const { deployDir } = options;
-
-  logger.header('Tale Deployment Status');
-
-  // Check lock status
-  const lockInfo = await getLockInfo(deployDir);
-  if (lockInfo) {
-    logger.warn(
-      `Deployment in progress (PID: ${lockInfo.pid}, started: ${lockInfo.startedAt})`,
-    );
-    logger.blank();
-  }
-
-  // Get deployment state
-  const state = await getDeploymentState(deployDir);
-  logger.info(`Active color: ${state.currentColor ?? 'none'}`);
-  if (state.previousVersion) {
-    logger.info(`Previous version: ${state.previousVersion}`);
-  }
-  logger.blank();
-
-  // Check stateful services in parallel
-  logger.step('Stateful Services:');
-  const statefulResults = await Promise.all(
-    STATEFUL_SERVICES.map(async (service) => {
-      const containerName = `${getProjectId()}-${service}`;
-      const info = await getContainerStatus(containerName);
-      return Object.assign({ service }, info);
+async function rowsFor(
+  services: readonly string[],
+  suffix: (service: string) => string,
+): Promise<ServiceRow[]> {
+  return Promise.all(
+    services.map(async (service) => {
+      const info = await getContainerStatus(suffix(service));
+      return {
+        service,
+        status: getServiceStatus(info.exists, info.running, info.health),
+        version: info.version ?? null,
+      };
     }),
   );
-  for (const { service, exists, running, health, version } of statefulResults) {
-    const serviceStatus = getServiceStatus(exists, running, health);
-    const versionStr = version ? ` (${version})` : '';
-    console.log(
-      `  ${service.padEnd(12)} ${STATUS_COLORS[serviceStatus]}${serviceStatus}\x1b[0m${versionStr}`,
+}
+
+/** Gather the full status struct (no I/O ordering assumptions in the renderer). */
+async function gatherStatus(deployDir: string): Promise<StatusReport> {
+  const project = getProjectId();
+  const [lock, state, stateful, blue, green, containers] = await Promise.all([
+    getLockInfo(deployDir),
+    getDeploymentState(deployDir),
+    rowsFor(STATEFUL_SERVICES, (s) => `${project}-${s}`),
+    rowsFor(ROTATABLE_SERVICES, (s) => `${project}-${s}-blue`),
+    rowsFor(ROTATABLE_SERVICES, (s) => `${project}-${s}-green`),
+    listContainers(`name=${project}`),
+  ]);
+  return {
+    lock: lock ? { pid: lock.pid, startedAt: lock.startedAt } : null,
+    activeColor: state.currentColor ?? null,
+    previousVersion: state.previousVersion ?? null,
+    stateful,
+    blue: blue.filter((r) => r.status !== 'not deployed'),
+    green: green.filter((r) => r.status !== 'not deployed'),
+    containers: containers.map((c) => ({ name: c.name, status: c.status })),
+  };
+}
+
+const STATUS_MARKER: Record<ServiceStatus, 'done' | 'warn' | 'error' | 'info'> =
+  {
+    healthy: 'done',
+    running: 'done',
+    starting: 'warn',
+    unhealthy: 'error',
+    stopped: 'error',
+    'not deployed': 'info',
+  };
+
+/** Render one status row drawn from the single configured palette/markers. */
+function renderRow(row: ServiceRow): void {
+  const palette = getPalette();
+  const markers = getMarkers();
+  const kind = STATUS_MARKER[row.status];
+  const color =
+    kind === 'done'
+      ? palette.green
+      : kind === 'warn'
+        ? palette.yellow
+        : kind === 'error'
+          ? palette.red
+          : palette.dim;
+  const glyph = markers[kind];
+  const suffix = row.version ? ` (${row.version})` : '';
+  console.log(
+    `  ${color}${glyph}${palette.reset} ${row.service.padEnd(14)} ${color}${row.status}${palette.reset}${suffix}`,
+  );
+}
+
+function renderReport(report: StatusReport): void {
+  const palette = getPalette();
+  logger.header('Tale Deployment Status');
+  if (report.lock) {
+    logger.warn(
+      `Deployment in progress (PID: ${report.lock.pid}, started: ${report.lock.startedAt})`,
     );
   }
-  logger.blank();
-
-  // Check rotatable services for each color
-  for (const color of ['blue', 'green'] as DeploymentColor[]) {
-    const isActive = state.currentColor === color;
-    const colorLabel = isActive ? `${color} (active)` : color;
-    logger.step(
-      `${colorLabel.charAt(0).toUpperCase() + colorLabel.slice(1)} Services:`,
-    );
-
-    const rotatableResults = await Promise.all(
-      ROTATABLE_SERVICES.map(async (service) => {
-        const containerName = `${getProjectId()}-${service}-${color}`;
-        const info = await getContainerStatus(containerName);
-        return Object.assign({ service }, info);
-      }),
-    );
-
-    let hasServices = false;
-    for (const {
-      service,
-      exists,
-      running,
-      health,
-      version,
-    } of rotatableResults) {
-      if (exists) {
-        hasServices = true;
-        const serviceStatus = getServiceStatus(exists, running, health);
-        const versionStr = version ? ` (${version})` : '';
-        console.log(
-          `  ${service.padEnd(12)} ${STATUS_COLORS[serviceStatus]}${serviceStatus}\x1b[0m${versionStr}`,
-        );
-      }
-    }
-
-    if (!hasServices) {
-      console.log('  (no services running)');
-    }
-    logger.blank();
+  logger.info(`Active color: ${report.activeColor ?? 'none'}`);
+  if (report.previousVersion) {
+    logger.info(`Previous version: ${report.previousVersion}`);
   }
 
-  // Show all tale containers for reference
-  const containers = await listContainers(`name=${getProjectId()}`);
-  if (containers.length > 0) {
+  logger.step('Stateful Services:');
+  for (const row of report.stateful) renderRow(row);
+
+  for (const color of ['blue', 'green'] as const) {
+    const rows = report[color];
+    const isActive = report.activeColor === color;
+    const label = isActive ? `${color} (active)` : color;
+    logger.step(`${label.charAt(0).toUpperCase() + label.slice(1)} Services:`);
+    if (rows.length === 0) {
+      console.log(`  ${palette.dim}(no services running)${palette.reset}`);
+    } else {
+      for (const row of rows) renderRow(row);
+    }
+  }
+
+  if (report.containers.length > 0) {
+    const markers = getMarkers();
     logger.step('All Containers:');
-    for (const container of containers) {
-      const statusColor = container.status.startsWith('Up')
-        ? '\x1b[32m'
-        : '\x1b[31m';
+    for (const container of report.containers) {
+      const up = container.status.startsWith('Up');
+      const color = up ? palette.green : palette.red;
+      const glyph = up ? markers.done : markers.error;
       console.log(
-        `  ${container.name.padEnd(24)} ${statusColor}${container.status}\x1b[0m`,
+        `  ${color}${glyph}${palette.reset} ${container.name.padEnd(24)} ${palette.dim}${container.status}${palette.reset}`,
       );
     }
   }
+}
+
+interface StatusOptions {
+  deployDir: string;
+  /** Emit the report as a single JSON object instead of the human table. */
+  json?: boolean;
+}
+
+export async function status(options: StatusOptions): Promise<void> {
+  const report = await gatherStatus(options.deployDir);
+  if (options.json) {
+    emitJson('status', report);
+    return;
+  }
+  renderReport(report);
 }
