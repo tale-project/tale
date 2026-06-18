@@ -1,8 +1,11 @@
 'use client';
 
-import { Card } from '@tale/ui/card';
 /** `collection` — N homogeneous items. `params.layout` (table | list | cards)
- * picks the presentation; folds table/grid/list/schema-profile into one kind. */
+ * picks the presentation; folds table/grid/list/schema-profile into one kind.
+ * A `status` column renders as a colored badge; internal id columns are hidden
+ * from display (kept in the data for future row links). */
+import { Badge } from '@tale/ui/badge';
+import { Card } from '@tale/ui/card';
 import { Grid, VStack } from '@tale/ui/layout';
 import {
   Table,
@@ -26,9 +29,40 @@ function resolveLayout(value: string | undefined): CollectionLayout {
   return 'list';
 }
 
+const HIDDEN_COLS = new Set(['executionId', 'id', 'taskId']);
+
 function columnsOf(items: unknown[]): string[] {
   const first = asRecord(items[0]);
-  return first ? Object.keys(first).slice(0, 6) : [];
+  return first
+    ? Object.keys(first)
+        .filter((k) => !HIDDEN_COLS.has(k))
+        .slice(0, 6)
+    : [];
+}
+
+const STATUS_VARIANT: Record<
+  string,
+  'green' | 'destructive' | 'blue' | 'yellow' | 'slate'
+> = {
+  completed: 'green',
+  done: 'green',
+  failed: 'destructive',
+  running: 'blue',
+  in_progress: 'blue',
+  paused: 'yellow',
+  waiting: 'yellow',
+  in_review: 'yellow',
+  cancelled: 'slate',
+  canceled: 'slate',
+  pending: 'slate',
+  unknown: 'slate',
+};
+
+function CellValue({ col, value }: { col: string; value: unknown }) {
+  if (col === 'status' && typeof value === 'string') {
+    return <Badge variant={STATUS_VARIANT[value] ?? 'slate'}>{value}</Badge>;
+  }
+  return <Text as="span">{scalar(value)}</Text>;
 }
 
 export function CollectionPanel({ part }: { part: RenderPart }) {
@@ -48,7 +82,9 @@ export function CollectionPanel({ part }: { part: RenderPart }) {
           <TableHeader>
             <TableRow>
               {cols.map((c) => (
-                <TableHead key={c}>{c}</TableHead>
+                <TableHead key={c} className="capitalize">
+                  {c}
+                </TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -58,7 +94,9 @@ export function CollectionPanel({ part }: { part: RenderPart }) {
               return (
                 <TableRow key={i}>
                   {cols.map((c) => (
-                    <TableCell key={c}>{scalar(row?.[c])}</TableCell>
+                    <TableCell key={c}>
+                      <CellValue col={c} value={row?.[c]} />
+                    </TableCell>
                   ))}
                 </TableRow>
               );

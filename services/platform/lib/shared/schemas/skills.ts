@@ -104,20 +104,6 @@ const rawFrontmatterSchema = z
      */
     'disable-model-invocation': z.boolean().optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
-    /**
-     * Pack manifest — present when this skill bundle is a "pack" (a config-
-     * driven vertical: workflow JSONs with ui/role annotations + a per-locale
-     * Tier-2 message catalog). `messageNamespace` is the i18next namespace the
-     * pack's catalog mounts under at runtime (platform Tier-1 keys always win).
-     */
-    pack: z
-      .object({
-        messageNamespace: z.string().min(1),
-        messagesDir: z.string().optional(),
-        workflowsDir: z.string().optional(),
-        roles: z.array(z.string()).optional(),
-      })
-      .optional(),
   })
   .passthrough();
 
@@ -147,13 +133,6 @@ export interface SkillFrontmatter {
    */
   disableModelInvocation?: boolean;
   metadata?: Record<string, unknown>;
-  /** Pack manifest (see rawFrontmatterSchema.pack). */
-  pack?: {
-    messageNamespace: string;
-    messagesDir?: string;
-    workflowsDir?: string;
-    roles?: string[];
-  };
   /**
    * Verbatim copy of frontmatter keys not covered by the known fields above.
    * Preserves community extensions (`allowed-tools`, `when-to-use`, etc.)
@@ -169,7 +148,6 @@ const KNOWN_KEBAB_KEYS = new Set<string>([
   'license',
   'disable-model-invocation',
   'metadata',
-  'pack',
 ]);
 
 function normalize(raw: RawSkillFrontmatter): SkillFrontmatter {
@@ -192,7 +170,6 @@ function normalize(raw: RawSkillFrontmatter): SkillFrontmatter {
     out.disableModelInvocation = raw['disable-model-invocation'];
   }
   if (raw.metadata !== undefined) out.metadata = raw.metadata;
-  if (raw.pack !== undefined) out.pack = raw.pack;
   return out;
 }
 

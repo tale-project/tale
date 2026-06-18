@@ -90,14 +90,15 @@ export function useDataSource(
         const page = Array.isArray(pageVal) ? pageVal : [];
         const items = page.map((raw) => {
           const r = rec(raw);
+          const id = str(r, '_id') ?? '';
+          const startedAt = typeof r.startedAt === 'number' ? r.startedAt : 0;
           return {
-            run: str(r, 'workflowVersion') ?? str(r, '_id') ?? '',
+            run: id ? `${id.slice(0, 8)}…` : '—',
             status: str(r, 'status') ?? 'unknown',
-            started:
-              typeof r.startedAt === 'number'
-                ? new Date(r.startedAt).toISOString()
-                : '',
-            executionId: str(r, '_id') ?? '',
+            started: startedAt
+              ? new Date(startedAt).toISOString().slice(0, 16).replace('T', ' ')
+              : '—',
+            executionId: id,
           };
         });
         return { data: { items }, partState: toState(runs, items.length) };
@@ -107,15 +108,19 @@ export function useDataSource(
         const items = list.map((raw) => {
           const a = rec(raw);
           const meta = rec(a.metadata);
-          const item: Record<string, unknown> = { id: str(a, '_id') ?? '' };
+          const item: Record<string, unknown> = {
+            id: str(a, '_id') ?? '',
+            kind: str(a, 'resourceType') ?? 'review',
+            priority: str(a, 'priority') ?? '',
+          };
           if (
             a.resourceType === 'task_review' &&
             typeof a.resourceId === 'string'
           ) {
             item.taskId = a.resourceId;
           }
-          const question = str(meta, 'question') ?? str(meta, 'summary');
-          if (question !== undefined) item.question = question;
+          const label = str(meta, 'question') ?? str(meta, 'summary');
+          if (label !== undefined) item.label = label;
           return item;
         });
         return { data: { items }, partState: toState(approvals, items.length) };

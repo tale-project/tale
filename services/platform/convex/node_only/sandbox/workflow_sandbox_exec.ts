@@ -30,6 +30,7 @@ import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { type ActionCtx, internalAction } from '../../_generated/server';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
+import { resolveAppAssetPathChecked } from '../../apps/file_utils';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
@@ -38,7 +39,6 @@ import {
   sessionIdForWorkflowRun,
   workflowRunOwnerId,
 } from '../../sandbox/session_naming';
-import { resolveSkillAssetPathChecked } from '../../skills/file_utils';
 import {
   applyGatewayConfig,
   hashVirtualKey,
@@ -226,12 +226,13 @@ export const runSandboxScript = internalAction({
       const rest = args.script.slice(PREFIX.length);
       const slash = rest.indexOf('/');
       if (slash <= 0) return fail(`invalid pack:// reference "${args.script}"`);
-      const packSlug = rest.slice(0, slash);
+      // `pack://<app>/<path>` resolves against the APP bundle (apps/<app>/...).
+      const appSlug = rest.slice(0, slash);
       const relPath = rest.slice(slash + 1);
       const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-      const scriptPath = await resolveSkillAssetPathChecked(
+      const scriptPath = await resolveAppAssetPathChecked(
         orgSlug,
-        packSlug,
+        appSlug,
         relPath,
       );
       const scriptContent = await readFile(scriptPath, 'utf8');

@@ -1,0 +1,13 @@
+{
+  "name": "Issue resolution desk",
+  "description": "A config-driven multi-agent issue-resolution desk. GitHub issues (bound to tasks by the github sync) flow through a fixed process — a coordinator triages and assigns by role, an implementer resolves the issue in a sandbox, a deterministic step runs the repo's tests, a human signs off, and a pull request is opened. The whole app is data — a workflow + agents + views + a localized catalog — composed on the platform skeleton with no per-vertical system code.",
+  "icon": "ticket",
+  "messageNamespace": "issueDesk",
+  "workflows": ["issue-desk/desk-process"],
+  "agents": ["desk-coordinator", "desk-implementer", "desk-reviewer"],
+  "roles": {
+    "coordinator": "desk-coordinator",
+    "implementer": "desk-implementer",
+    "reviewer": "desk-reviewer"
+  }
+}

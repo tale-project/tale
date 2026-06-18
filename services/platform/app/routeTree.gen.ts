@@ -64,7 +64,7 @@ import { Route as DashboardIdConversationsStatusRouteImport } from './routes/das
 import { Route as DashboardIdChatThreadIdRouteImport } from './routes/dashboard/$id/chat/$threadId';
 import { Route as DashboardIdAutomationsMetricsRouteImport } from './routes/dashboard/$id/automations/metrics';
 import { Route as DashboardIdAutomationsAmIdRouteImport } from './routes/dashboard/$id/automations/$amId';
-import { Route as DashboardIdAppsPackSlugRouteImport } from './routes/dashboard/$id/apps/$packSlug';
+import { Route as DashboardIdAppsAppSlugRouteImport } from './routes/dashboard/$id/apps/$appSlug';
 import { Route as DashboardIdAgentsOrganigramRouteImport } from './routes/dashboard/$id/agents/organigram';
 import { Route as DashboardIdAgentsMetricsRouteImport } from './routes/dashboard/$id/agents/metrics';
 import { Route as DashboardIdAgentsAgentIdRouteImport } from './routes/dashboard/$id/agents/$agentId';
@@ -424,9 +424,9 @@ const DashboardIdAutomationsAmIdRoute =
     path: '/$amId',
     getParentRoute: () => DashboardIdAutomationsRoute,
   } as any);
-const DashboardIdAppsPackSlugRoute = DashboardIdAppsPackSlugRouteImport.update({
-  id: '/$packSlug',
-  path: '/$packSlug',
+const DashboardIdAppsAppSlugRoute = DashboardIdAppsAppSlugRouteImport.update({
+  id: '/$appSlug',
+  path: '/$appSlug',
   getParentRoute: () => DashboardIdAppsRoute,
 } as any);
 const DashboardIdAgentsOrganigramRoute =
@@ -820,7 +820,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdRouteWithChildren;
   '/dashboard/$id/agents/metrics': typeof DashboardIdAgentsMetricsRoute;
   '/dashboard/$id/agents/organigram': typeof DashboardIdAgentsOrganigramRoute;
-  '/dashboard/$id/apps/$packSlug': typeof DashboardIdAppsPackSlugRoute;
+  '/dashboard/$id/apps/$appSlug': typeof DashboardIdAppsAppSlugRoute;
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
   '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
@@ -925,7 +925,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute;
   '/dashboard/$id/agents/metrics': typeof DashboardIdAgentsMetricsRoute;
   '/dashboard/$id/agents/organigram': typeof DashboardIdAgentsOrganigramRoute;
-  '/dashboard/$id/apps/$packSlug': typeof DashboardIdAppsPackSlugRoute;
+  '/dashboard/$id/apps/$appSlug': typeof DashboardIdAppsAppSlugRoute;
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
   '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
@@ -1040,7 +1040,7 @@ export interface FileRoutesById {
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdRouteWithChildren;
   '/dashboard/$id/agents/metrics': typeof DashboardIdAgentsMetricsRoute;
   '/dashboard/$id/agents/organigram': typeof DashboardIdAgentsOrganigramRoute;
-  '/dashboard/$id/apps/$packSlug': typeof DashboardIdAppsPackSlugRoute;
+  '/dashboard/$id/apps/$appSlug': typeof DashboardIdAppsAppSlugRoute;
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
   '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
@@ -1157,7 +1157,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/agents/metrics'
     | '/dashboard/$id/agents/organigram'
-    | '/dashboard/$id/apps/$packSlug'
+    | '/dashboard/$id/apps/$appSlug'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/automations/metrics'
     | '/dashboard/$id/chat/$threadId'
@@ -1262,7 +1262,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/websites'
     | '/dashboard/$id/agents/metrics'
     | '/dashboard/$id/agents/organigram'
-    | '/dashboard/$id/apps/$packSlug'
+    | '/dashboard/$id/apps/$appSlug'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/automations/metrics'
     | '/dashboard/$id/chat/$threadId'
@@ -1376,7 +1376,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/agents/metrics'
     | '/dashboard/$id/agents/organigram'
-    | '/dashboard/$id/apps/$packSlug'
+    | '/dashboard/$id/apps/$appSlug'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/automations/metrics'
     | '/dashboard/$id/chat/$threadId'
@@ -1855,11 +1855,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAutomationsAmIdRouteImport;
       parentRoute: typeof DashboardIdAutomationsRoute;
     };
-    '/dashboard/$id/apps/$packSlug': {
-      id: '/dashboard/$id/apps/$packSlug';
-      path: '/$packSlug';
-      fullPath: '/dashboard/$id/apps/$packSlug';
-      preLoaderRoute: typeof DashboardIdAppsPackSlugRouteImport;
+    '/dashboard/$id/apps/$appSlug': {
+      id: '/dashboard/$id/apps/$appSlug';
+      path: '/$appSlug';
+      fullPath: '/dashboard/$id/apps/$appSlug';
+      preLoaderRoute: typeof DashboardIdAppsAppSlugRouteImport;
       parentRoute: typeof DashboardIdAppsRoute;
     };
     '/dashboard/$id/agents/organigram': {
@@ -2369,12 +2369,12 @@ const DashboardIdAgentsRouteWithChildren =
   DashboardIdAgentsRoute._addFileChildren(DashboardIdAgentsRouteChildren);
 
 interface DashboardIdAppsRouteChildren {
-  DashboardIdAppsPackSlugRoute: typeof DashboardIdAppsPackSlugRoute;
+  DashboardIdAppsAppSlugRoute: typeof DashboardIdAppsAppSlugRoute;
   DashboardIdAppsIndexRoute: typeof DashboardIdAppsIndexRoute;
 }
 
 const DashboardIdAppsRouteChildren: DashboardIdAppsRouteChildren = {
-  DashboardIdAppsPackSlugRoute: DashboardIdAppsPackSlugRoute,
+  DashboardIdAppsAppSlugRoute: DashboardIdAppsAppSlugRoute,
   DashboardIdAppsIndexRoute: DashboardIdAppsIndexRoute,
 };
 
