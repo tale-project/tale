@@ -169,6 +169,10 @@ function ProfileSection() {
             <div className="w-full sm:w-80">
               <Input
                 id="display-name"
+                // The visible label lives on the enclosing SettingsRow, which
+                // names a wrapper div — give the input its own accessible name
+                // so assistive tech (and getByRole) can reach the control.
+                aria-label={tSettings('account.profile.name')}
                 placeholder={tSettings('account.profile.namePlaceholder')}
                 disabled={editor.isSaving}
                 errorMessage={errors.name?.message}

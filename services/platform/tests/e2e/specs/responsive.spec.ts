@@ -100,7 +100,11 @@ test.describe('responsive / mobile layout', () => {
       }),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
-    const nameField = page.getByLabel(t('settings.account.profile.name'));
+    // Target the input by role: SettingsRow names a wrapper div with the same
+    // text, so getByLabel would resolve to the div, not the control.
+    const nameField = page.getByRole('textbox', {
+      name: t('settings.account.profile.name'),
+    });
     await expect(nameField).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     await expect(nameField).toBeEnabled();
 
