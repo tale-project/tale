@@ -241,7 +241,7 @@ const providerOptionsSchema = z
  *   - `rename`: `{ <fromKey>: <toKey> }` — applied first.
  *   - `remove`: `['<key>', …]` — applied after rename.
  */
-export const requestBodyMapSchema = z
+const requestBodyMapSchema = z
   .object({
     rename: z.record(z.string(), z.string()).optional(),
     remove: z.array(z.string()).optional(),
