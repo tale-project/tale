@@ -35,10 +35,19 @@ vi.mock('../errors', () => {
 const { UnauthorizedError } = await import('../errors');
 const { getOrganizationMember } = await import('./get_organization_member');
 
-function createMockCtx() {
+// `mirrorRow` seeds the local memberMirror lookup (the hot path). Default null
+// → mirror miss → fall back to the authoritative Better Auth `runQuery` path the
+// existing tests drive.
+function createMockCtx(mirrorRow: unknown = null) {
   return {
     runQuery: vi.fn(),
-    db: {},
+    db: {
+      query: () => ({
+        withIndex: () => ({
+          first: async () => mirrorRow,
+        }),
+      }),
+    },
     auth: {},
   };
 }
@@ -64,6 +73,44 @@ describe('getOrganizationMember', () => {
     const result = await getOrganizationMember(ctx as never, 'org_1', authUser);
 
     expect(result).toEqual(member);
+  });
+
+  it('reads the local mirror without any cross-component query', async () => {
+    const ctx = createMockCtx({
+      memberId: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'admin',
+      createdAt: 1000,
+    });
+
+    const result = await getOrganizationMember(ctx as never, 'org_1', authUser);
+
+    // Reconstructed OrganizationMember._id is the Better Auth member id.
+    expect(result).toEqual({
+      _id: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'admin',
+      createdAt: 1000,
+    });
+    // The whole point: no Better Auth round-trip on the hot path.
+    expect(ctx.runQuery).not.toHaveBeenCalled();
+  });
+
+  it('throws UnauthorizedError for a disabled member found in the mirror', async () => {
+    const ctx = createMockCtx({
+      memberId: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'disabled',
+      createdAt: 1000,
+    });
+
+    await expect(
+      getOrganizationMember(ctx as never, 'org_1', authUser),
+    ).rejects.toThrow(UnauthorizedError);
+    expect(ctx.runQuery).not.toHaveBeenCalled();
   });
 
   it('throws UnauthorizedError when member role is disabled', async () => {

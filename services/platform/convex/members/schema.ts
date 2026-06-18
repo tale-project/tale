@@ -12,14 +12,17 @@ import { v } from 'convex/values';
  * function-execution timeout (the dominant E2E flake). This mirror lets those
  * two hot-path readers serve from a local indexed table instead.
  *
- * AUTHORITY: the mirror is a PERFORMANCE CACHE, never the security boundary.
- * `getOrganizationMember` (the authoritative RLS gate, with its email-fallback
- * and trusted-role override) keeps reading Better Auth directly. The two
- * mirror-backed readers fall back to Better Auth on a miss, and the trusted
- * headers `trustedRole` override is still applied at read time. Every member
- * write path syncs the mirror inline (or via the auth after-middleware), and an
- * hourly reconciliation cron repairs any drift from a partial failure. See
- * `lib/rls/MEMBERSHIP_MIRROR_DESIGN.md`.
+ * AUTHORITY: the mirror backs the org-level RLS reads — `getUserOrganizations`,
+ * `isOrgMember`, AND `getOrganizationMember` (the gate behind
+ * `assertSelfAndOrgMember` / raw-query callers like `getMyPreferences`, whose
+ * cold cross-component read here was the dominant white-screen timeout). All
+ * three read the mirror and fall back to Better Auth on a miss; the trusted
+ * headers `trustedRole` override is still applied at read time and the
+ * email-fallback / account-linking branch still resolves against Better Auth.
+ * This makes the mirror authoritative for org membership under BOUNDED EVENTUAL
+ * CONSISTENCY: every member write path syncs inline (same transaction) or via
+ * the auth hooks / after-middleware, and an hourly reconciliation cron converges
+ * any drift from a partial failure. See `lib/rls/MEMBERSHIP_MIRROR_DESIGN.md`.
  */
 export const memberMirrorTable = defineTable({
   // Better Auth's member._id — the stable foreign key used for point
@@ -42,6 +45,36 @@ export const memberMirrorTable = defineTable({
   .index('by_org_user', ['organizationId', 'userId'])
   .index('by_organizationId', ['organizationId'])
   .index('by_memberId', ['memberId']);
+
+/**
+ * App-native mirror of Better Auth's `teamMember` table — the team-level
+ * counterpart of `memberMirror`. `getUserTeamIds` is the OTHER half of the RLS
+ * request-context prime (run in parallel with `getUserOrganizations`); it used
+ * to paginate Better Auth's `teamMember` by `userId` cross-component on every
+ * `queryWithRLS` request, so on the self-hosted backend it kept queries
+ * (listConversations, listDocuments, …) over the 1s budget even after the member
+ * mirror landed. Reading this local indexed table removes that round-trip too.
+ *
+ * Same bounded-eventual-consistency model + sync machinery as `memberMirror`.
+ * The JWT `trustedTeams` short-circuit in `get_user_teams.ts` still wins when
+ * present. Unlike memberships, a user commonly has ZERO teams, so the reader
+ * treats an empty mirror as authoritative (no teams) rather than falling back.
+ */
+export const teamMemberMirrorTable = defineTable({
+  // Better Auth's teamMember._id.
+  teamMemberId: v.string(),
+  // Better Auth's teamMember.userId — primary lookup key (getUserTeamIds).
+  userId: v.string(),
+  // Better Auth's teamMember.teamId.
+  teamId: v.string(),
+  // Better Auth's teamMember.createdAt.
+  createdAt: v.optional(v.number()),
+  updatedAt: v.optional(v.number()),
+})
+  .index('by_userId', ['userId'])
+  .index('by_team_user', ['teamId', 'userId'])
+  .index('by_teamId', ['teamId'])
+  .index('by_teamMemberId', ['teamMemberId']);
 
 /**
  * Resume cursor for the hourly member-mirror reconciliation cron. Singleton

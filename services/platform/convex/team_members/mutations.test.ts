@@ -59,7 +59,19 @@ function createMockCtx() {
   return {
     runQuery: vi.fn(),
     runMutation: vi.fn(),
-    db: {},
+    // teamMemberMirror sync touches ctx.db (upsert probes first(); delete looks
+    // up first()). Stub the minimum surface; no existing rows.
+    db: {
+      query: vi.fn().mockReturnValue({
+        withIndex: vi.fn().mockReturnValue({
+          first: async () => null,
+          collect: async () => [],
+        }),
+      }),
+      insert: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+    },
     auth: {},
   };
 }

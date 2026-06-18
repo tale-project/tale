@@ -1,10 +1,15 @@
 import { v } from 'convex/values';
 
+import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import {
+  upsertTeamMemberMirror,
+  deleteTeamMemberMirrorByTeamMemberId,
+} from '../members/mirror_sync';
 
 export const addMember = mutation({
   args: {
@@ -70,16 +75,35 @@ export const addMember = mutation({
       throw new Error('User is already a member of this team');
     }
 
-    return await ctx.runMutation(components.betterAuth.adapter.create, {
-      input: {
-        model: 'teamMember' as const,
-        data: {
-          teamId: args.teamId,
-          userId: args.userId,
-          createdAt: Date.now(),
+    const createdAt = Date.now();
+    const created = await ctx.runMutation(
+      components.betterAuth.adapter.create,
+      {
+        input: {
+          model: 'teamMember' as const,
+          data: {
+            teamId: args.teamId,
+            userId: args.userId,
+            createdAt,
+          },
         },
       },
-    });
+    );
+
+    // Keep the RLS read mirror in step (same transaction as the write above).
+    const teamMemberId = isRecord(created)
+      ? (getString(created, '_id') ?? getString(created, 'id'))
+      : undefined;
+    if (teamMemberId) {
+      await upsertTeamMemberMirror(ctx, {
+        teamMemberId,
+        userId: args.userId,
+        teamId: args.teamId,
+        createdAt,
+      });
+    }
+
+    return created;
   },
 });
 
@@ -149,6 +173,9 @@ export const removeMember = mutation({
         where: [{ field: '_id', value: args.teamMemberId, operator: 'eq' }],
       },
     });
+
+    // Drop the RLS read mirror row in the same transaction.
+    await deleteTeamMemberMirrorByTeamMemberId(ctx, args.teamMemberId);
 
     return null;
   },

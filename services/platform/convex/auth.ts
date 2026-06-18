@@ -900,6 +900,60 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
               );
             }
           },
+          // teamMember mirror sync for client-direct Better Auth team endpoints
+          // (Tale's custom mutations + the Entra SSO sync update the mirror
+          // inline). Re-derive from source so it's idempotent; non-fatal — the
+          // reconcile cron self-heals any miss.
+          afterAddTeamMember: async (data) => {
+            const teamId = getString(data.teamMember, 'teamId');
+            const userId = getString(data.teamMember, 'userId');
+            if (!teamId || !userId) return;
+            try {
+              const runCtx = requireRunMutationCtx(ctx);
+              await runCtx.runMutation(
+                internal.members.mirror_sync.resyncTeamMemberMirror,
+                { teamId, userId },
+              );
+            } catch (err) {
+              console.error(
+                '[afterAddTeamMember] failed to sync team mirror',
+                err instanceof Error ? err.message : err,
+              );
+            }
+          },
+          afterRemoveTeamMember: async (data) => {
+            const teamId = getString(data.teamMember, 'teamId');
+            const userId = getString(data.teamMember, 'userId');
+            if (!teamId || !userId) return;
+            try {
+              const runCtx = requireRunMutationCtx(ctx);
+              await runCtx.runMutation(
+                internal.members.mirror_sync.resyncTeamMemberMirror,
+                { teamId, userId },
+              );
+            } catch (err) {
+              console.error(
+                '[afterRemoveTeamMember] failed to sync team mirror',
+                err instanceof Error ? err.message : err,
+              );
+            }
+          },
+          afterDeleteTeam: async (data) => {
+            const teamId = getString(data.team, 'id');
+            if (!teamId) return;
+            try {
+              const runCtx = requireRunMutationCtx(ctx);
+              await runCtx.runMutation(
+                internal.members.mirror_sync.cascadeDeleteTeamMembersMirror,
+                { teamId },
+              );
+            } catch (err) {
+              console.error(
+                '[afterDeleteTeam] failed to cascade-delete team mirror',
+                err instanceof Error ? err.message : err,
+              );
+            }
+          },
         },
       }),
       apiKey({

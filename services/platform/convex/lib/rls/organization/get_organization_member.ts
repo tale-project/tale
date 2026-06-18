@@ -11,6 +11,50 @@ import type { AuthenticatedUser, OrganizationMember } from '../types';
 /**
  * Get organization member for authenticated user from Better Auth's member table
  */
+/**
+ * Resolve a member from the local `memberMirror` by `(organizationId, userId)` —
+ * a single indexed db read, no cross-component round-trip.
+ *
+ * This is what keeps raw-query callers like `getMyPreferences` (via
+ * `assertSelfAndOrgMember`) off the 1s-budget cliff: they don't prime the RLS
+ * request cache, so without the mirror they pay a cold cross-component
+ * `member.findMany` here — the read that, amplified on a self-hosted backend,
+ * tripped the chat composer's error boundary (white screen). Disabled members
+ * ARE in the mirror (stored unchanged), so the disabled check below still fires.
+ * A miss (not-yet-backfilled / disabled-only edge / email-linking principal)
+ * falls through to the authoritative Better Auth lookup, preserving the original
+ * semantics. Returns undefined on miss or any read error so the caller falls
+ * back.
+ */
+async function findMemberInMirror(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: string,
+  userId: string,
+): Promise<OrganizationMember | undefined> {
+  try {
+    const row = await ctx.db
+      .query('memberMirror')
+      .withIndex('by_org_user', (q) =>
+        q.eq('organizationId', organizationId).eq('userId', userId),
+      )
+      .first();
+    if (!row) return undefined;
+    return {
+      _id: row.memberId,
+      createdAt: row.createdAt,
+      organizationId: row.organizationId,
+      userId: row.userId,
+      role: row.role,
+    };
+  } catch (err) {
+    console.warn(
+      '[getOrganizationMember] member mirror read failed; falling back to Better Auth',
+      err instanceof Error ? err.message : err,
+    );
+    return undefined;
+  }
+}
+
 export async function getOrganizationMember(
   ctx: QueryCtx | MutationCtx,
   organizationId: string,
@@ -18,28 +62,38 @@ export async function getOrganizationMember(
 ): Promise<OrganizationMember> {
   const authUser = user || (await requireAuthenticatedUser(ctx));
 
-  // Query Better Auth's member table by userId
-  let result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'member',
-    paginationOpts: {
-      cursor: null,
-      numItems: 1,
-    },
-    where: [
-      {
-        field: 'organizationId',
-        value: organizationId,
-        operator: 'eq',
-      },
-      {
-        field: 'userId',
-        value: authUser.userId,
-        operator: 'eq',
-      },
-    ],
-  });
+  // Hot path: read the membership from the local mirror (synced inline on every
+  // write path + an hourly reconcile). Falls back to Better Auth on a miss.
+  let member: OrganizationMember | undefined = await findMemberInMirror(
+    ctx,
+    organizationId,
+    authUser.userId,
+  );
 
-  let member = result?.page?.[0];
+  // Authoritative lookup: Better Auth's member table by (organizationId, userId).
+  let result = member
+    ? undefined
+    : await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: {
+          cursor: null,
+          numItems: 1,
+        },
+        where: [
+          {
+            field: 'organizationId',
+            value: organizationId,
+            operator: 'eq',
+          },
+          {
+            field: 'userId',
+            value: authUser.userId,
+            operator: 'eq',
+          },
+        ],
+      });
+
+  member = member ?? result?.page?.[0];
 
   // Fallback to email lookup if no direct match.
   // This handles cases where the JWT userId doesn't match the stored userId, which can occur during:

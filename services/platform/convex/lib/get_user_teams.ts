@@ -82,7 +82,35 @@ export async function getUserTeamIds(
     }
   }
 
-  // Fallback: query teamMember table with pagination
+  // Local mirror: a single indexed db read instead of a cross-component
+  // teamMember round-trip. This is the other half of the RLS request-context
+  // prime (parallel with getUserOrganizations); on the self-hosted backend the
+  // old cross-component read here pushed queryWithRLS queries (listConversations,
+  // listDocuments, …) over the 1s budget. Synced inline on every teamMember
+  // write path + an hourly reconcile (see members/mirror_sync.ts).
+  //
+  // Unlike memberships, a user commonly has ZERO teams, so an empty mirror is
+  // the normal team-less case — we treat the mirror as authoritative (empty ⇒
+  // no teams) rather than falling back, which would re-introduce the round-trip
+  // for the common case. A not-yet-backfilled team member therefore fails CLOSED
+  // (no team access) until the hourly reconcile lands — a safe, bounded
+  // direction. Better Auth is the error fallback only (mirror read threw).
+  try {
+    const teamIds: string[] = [];
+    for await (const row of ctx.db
+      .query('teamMemberMirror')
+      .withIndex('by_userId', (q) => q.eq('userId', userId))) {
+      teamIds.push(row.teamId);
+    }
+    return teamIds;
+  } catch (err) {
+    console.warn(
+      '[getUserTeamIds] team mirror read failed; falling back to Better Auth',
+      err instanceof Error ? err.message : err,
+    );
+  }
+
+  // Error fallback: query teamMember table with pagination
   const allTeamIds: string[] = [];
   let cursor: string | null = null;
   let isDone = false;
