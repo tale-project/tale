@@ -46,7 +46,11 @@ test.describe('core settings', () => {
       }),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
-    const nameField = page.getByLabel(t('settings.account.profile.name'));
+    // Target the input by role: SettingsRow names a wrapper div with the same
+    // text, so getByLabel would resolve to both the div and the control.
+    const nameField = page.getByRole('textbox', {
+      name: t('settings.account.profile.name'),
+    });
     await expect(nameField).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await expect(nameField).toBeEnabled();
 

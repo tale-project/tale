@@ -130,7 +130,9 @@ test.describe('responsive / mobile layout', () => {
     ).toHaveCount(1);
 
     // Discard via reload — the form re-seeds, so the probe edit never persists.
-    const reloadedField = page.getByLabel(t('settings.account.profile.name'));
+    const reloadedField = page.getByRole('textbox', {
+      name: t('settings.account.profile.name'),
+    });
     await reloadAndSettle(page, reloadedField);
     await expect(reloadedField).toHaveValue(originalName, {
       timeout: TIMEOUT.PERSIST,
