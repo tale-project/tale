@@ -16,6 +16,9 @@ const VALID_PORTS: Record<string, readonly string[]> = {
   condition: ['true', 'false'],
   loop: ['loop', 'done'],
   output: [],
+  // sandbox never throws — it encodes ok/status in output.data, so callers
+  // branch via a following condition step (same convention as `action`).
+  sandbox: ['success'],
 };
 
 /**

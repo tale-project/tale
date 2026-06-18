@@ -24,6 +24,7 @@ export const VALID_STEP_TYPES = [
   'action',
   'loop',
   'output',
+  'sandbox',
 ] as const;
 
 export type StepType = (typeof VALID_STEP_TYPES)[number];

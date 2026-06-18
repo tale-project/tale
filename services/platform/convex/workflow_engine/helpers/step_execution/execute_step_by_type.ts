@@ -11,6 +11,7 @@ import { replaceVariables } from '../../../lib/variables/replace_variables';
 import type {
   ActionNodeConfig,
   llmStepConfigValidator,
+  sandboxNodeConfigValidator,
 } from '../../types/nodes';
 import { StepDefinition, StepExecutionResult } from './types';
 
@@ -97,6 +98,22 @@ export async function executeStepByType(
               maxIterations?: number;
               parallelism?: number;
             },
+          },
+          variables,
+          executionId,
+          threadId,
+        },
+      );
+
+    case 'sandbox':
+      return await ctx.runAction(
+        internal.workflow_engine.internal_actions.executeSandboxNode,
+        {
+          stepDef: {
+            stepSlug: stepDef.stepSlug,
+            stepType: 'sandbox' as const,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- step config shape validated at runtime by Convex validators
+            config: stepDef.config as Infer<typeof sandboxNodeConfigValidator>,
           },
           variables,
           executionId,

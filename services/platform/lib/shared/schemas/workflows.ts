@@ -39,6 +39,7 @@ const stepTypeSchema = z.enum([
   'action',
   'loop',
   'output',
+  'sandbox',
 ]);
 
 /**

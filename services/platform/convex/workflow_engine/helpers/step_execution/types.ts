@@ -12,7 +12,8 @@ export type StepType =
   | 'condition'
   | 'action'
   | 'loop'
-  | 'output';
+  | 'output'
+  | 'sandbox';
 
 export interface StepDefinition {
   stepSlug: string;

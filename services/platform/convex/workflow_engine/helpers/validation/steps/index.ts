@@ -11,12 +11,14 @@ export * from './condition';
 export * from './action';
 export * from './loop';
 export * from './output';
+export * from './sandbox';
 
 import { validateActionStep } from './action';
 import { validateConditionStep } from './condition';
 import { validateLlmStep } from './llm';
 import { validateLoopStep } from './loop';
 import { validateOutputStep } from './output';
+import { validateSandboxStep } from './sandbox';
 import { validateStartStep } from './start';
 
 /**
@@ -32,6 +34,7 @@ const stepValidators: Record<
   action: validateActionStep,
   loop: validateLoopStep,
   output: validateOutputStep,
+  sandbox: validateSandboxStep,
 };
 
 /**
