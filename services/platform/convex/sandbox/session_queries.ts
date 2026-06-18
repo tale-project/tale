@@ -304,6 +304,36 @@ export const listReconcilableSessionsForOrg = internalQuery({
   },
 });
 
+/** Ephemeral `workflow_run` sessions whose bounded TTL has elapsed (`now >
+ * expiresAt`) and that aren't pinned — the opportunistic backstop the next
+ * `sandbox`-step run reaps before creating its own. The happy path tears these
+ * down in its `finally`; this catches the rare hard-kill that skipped it.
+ * Scans active/degraded/stopped (a stopped row still holds a workspace + a live
+ * VK), ordered by the org+status index, bounded by `limit`. */
+export const listStaleWorkflowRunSessions = internalQuery({
+  args: { organizationId: v.string(), limit: v.optional(v.number()) },
+  returns: v.array(v.object({ sessionId: v.string() })),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const limit = args.limit ?? 10;
+    const out: { sessionId: string }[] = [];
+    for (const status of ['active', 'degraded', 'stopped'] as const) {
+      for await (const row of ctx.db
+        .query('sandboxSessions')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', status),
+        )) {
+        if (row.ownerType !== 'workflow_run') continue;
+        if (row.pinned === true) continue;
+        if (now <= row.expiresAt) continue;
+        out.push({ sessionId: row.sessionId });
+        if (out.length >= limit) return out;
+      }
+    }
+    return out;
+  },
+});
+
 /** The LIVE session row for a spawner session id, or null. The management-page
  * controls fetch it to confirm the session belongs to the caller's org before
  * acting (defense in depth — the public id is org-scoped at the UI). The

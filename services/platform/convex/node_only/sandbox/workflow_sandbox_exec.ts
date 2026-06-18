@@ -28,7 +28,7 @@ import { type Infer, v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
-import { internalAction } from '../../_generated/server';
+import { type ActionCtx, internalAction } from '../../_generated/server';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
@@ -80,6 +80,62 @@ const SUMMARY_MANDATE = [
   'summary MUST say so explicitly and why. This file is the ONLY thing that',
   'survives after this run; it is your handoff to the next agent or to a human.',
 ].join('\n');
+
+// Grace added to the step's wall-clock budget for the session's hard TTL +
+// idle timeout, so the SPAWNER reaps the container shortly after the budget
+// elapses even if the platform-side `finally` teardown is skipped (a hard
+// action kill). The container-side backstop; the opportunistic reap below
+// closes the platform row + VK.
+const EPHEMERAL_TTL_GRACE_MS = 5 * 60 * 1000;
+
+/**
+ * Opportunistic backstop (plan §3d): reap this org's leaked `workflow_run`
+ * sessions whose bounded TTL elapsed — the rare hard-kill that skipped the
+ * happy-path `finally`. Triggered by the next `sandbox`-step run (no cron —
+ * mirrors `reconcileOrgSessions`' page-mount precedent). Best-effort and
+ * bounded; a transient failure just leaves the row for the next run to retry.
+ */
+async function reapStaleWorkflowRunSessions(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<void> {
+  const stale = await ctx.runQuery(
+    internal.sandbox.session_queries.listStaleWorkflowRunSessions,
+    { organizationId, limit: 10 },
+  );
+  for (const { sessionId } of stale) {
+    try {
+      await sessionDestroy(sessionId);
+    } catch (e) {
+      console.warn('[reapStaleWorkflowRunSessions] destroy failed:', e);
+    }
+    try {
+      const { bifrostKeyIds } = await ctx.runMutation(
+        internal.sandbox.session_mutations.revokeTokensForSession,
+        { sessionId },
+      );
+      for (const keyId of bifrostKeyIds) {
+        await revokeVirtualKey(keyId).catch((e) =>
+          console.warn('[reapStaleWorkflowRunSessions] VK revoke failed:', e),
+        );
+      }
+    } catch (e) {
+      console.warn('[reapStaleWorkflowRunSessions] token revoke failed:', e);
+    }
+    try {
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.markSessionRowDestroyed,
+        { organizationId, sessionId },
+      );
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.deleteOpsForSession,
+        { sessionId },
+      );
+    } catch (e) {
+      console.warn('[reapStaleWorkflowRunSessions] row cleanup failed:', e);
+    }
+  }
+}
 
 const inputArgValidator = v.array(
   v.object({
@@ -306,11 +362,22 @@ export const runSandboxAgent = internalAction({
     const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
     const execId = `${args.executionId}-${args.stepSlug}`;
     const startedAt = Date.now();
+    // Bound the container's life to the step budget + grace so the spawner
+    // reaps it even if the platform-side teardown is skipped (hard kill).
+    const ttlMs = args.budget.maxWallClockMs + EPHEMERAL_TTL_GRACE_MS;
 
     let rowId: Id<'sandboxSessions'> | null = null;
     let mintedKeyId: string | null = null;
 
     try {
+      // 0. Opportunistic backstop: reap this org's leaked workflow_run sessions
+      // (TTL elapsed, finally skipped) before adding our own. Best-effort.
+      try {
+        await reapStaleWorkflowRunSessions(ctx, args.organizationId);
+      } catch (reapErr) {
+        console.warn('[runSandboxAgent] stale-session reap failed:', reapErr);
+      }
+
       // 1. Create the ephemeral agent session (deterministic id → a step retry
       // reaps the orphan rather than duplicating).
       rowId = await ctx.runMutation(
@@ -331,6 +398,8 @@ export const runSandboxAgent = internalAction({
             sessionId,
             organizationId: args.organizationId,
             profile: 'agent',
+            ttlMs,
+            idleTimeoutMs: ttlMs,
           });
         } catch (createErr) {
           // A deterministic-id collision can only be an orphan (platform-side
@@ -341,6 +410,8 @@ export const runSandboxAgent = internalAction({
             sessionId,
             organizationId: args.organizationId,
             profile: 'agent',
+            ttlMs,
+            idleTimeoutMs: ttlMs,
           });
         }
       } catch (createErr) {
