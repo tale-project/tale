@@ -198,6 +198,10 @@ export const listAbandonedAgentOps = internalQuery({
       continuationCount: v.optional(v.number()),
       agentSessionId: v.optional(v.string()),
       agentResultStatus: v.optional(v.string()),
+      // Streamed main-agent text so far — lets the recovery watchdog tell a
+      // turn that produced a visible answer (then lingered/was reaped) from one
+      // that died with nothing renderable, so the former isn't marked failed.
+      progressText: v.optional(v.string()),
       exitCode: v.optional(v.number()),
       heartbeatAt: v.optional(v.number()),
     }),
@@ -246,6 +250,9 @@ export const listAbandonedAgentOps = internalQuery({
         }),
         ...(row.agentResultStatus !== undefined && {
           agentResultStatus: row.agentResultStatus,
+        }),
+        ...(row.progressText !== undefined && {
+          progressText: row.progressText,
         }),
         ...(row.exitCode !== undefined && { exitCode: row.exitCode }),
         ...(row.heartbeatAt !== undefined && { heartbeatAt: row.heartbeatAt }),
