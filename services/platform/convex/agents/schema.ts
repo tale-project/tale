@@ -96,3 +96,51 @@ export const autoRouteCacheTable = defineTable({
   // Drives the daily TTL purge: read only the stale (oldest `createdAt`) rows
   // via the index instead of a full-table `.filter` scan.
   .index('by_createdAt', ['createdAt']);
+
+/**
+ * Agent install + enable + provenance — the runtime-state that brings agents to
+ * parity with `wfInstallations`. The agent JSON file stays the source-of-truth
+ * config; this row gates whether the agent is LIVE for an org. The roster read
+ * (`listAgentsForOrg`) joins this table and filters to installed && enabled, so
+ * the router, @mention resolution, and the organigram all gate for free.
+ *
+ *  - INSTALLED      = a row exists (provisioned by autoInstall, an integration
+ *                     bundle, or an explicit user/manager-agent install).
+ *  - ENABLED        = `enabled !== false`; a disabled row keeps the agent's
+ *                     config but removes it as a routing/mention/assignment
+ *                     candidate.
+ *  - `installedBy`  = 'system' | a userId | 'integration:<slug>' (provenance).
+ *  - `bundledBy`    = the integration slug that installed it (cascade key;
+ *                     `by_org_bundledBy` finds everything to cascade-disable).
+ *  - `disabledReason` = why a disabled row is off — `integration_disabled`
+ *                     (cascade; re-enabled only by reconnect) vs `user`
+ *                     (explicit; never resurrected by a cascade).
+ */
+export const agentInstallationsTable = defineTable({
+  organizationId: v.string(),
+  agentSlug: v.string(),
+  installedAt: v.number(),
+  installedBy: v.string(),
+  contentHash: v.string(),
+  enabled: v.boolean(),
+  disabledReason: v.optional(
+    v.union(v.literal('integration_disabled'), v.literal('user')),
+  ),
+  bundledBy: v.optional(v.string()),
+})
+  .index('by_organization', ['organizationId'])
+  .index('by_org_slug', ['organizationId', 'agentSlug'])
+  .index('by_org_bundledBy', ['organizationId', 'bundledBy']);
+
+/**
+ * One row per (org, agent) the autoInstall provisioner has handled. Existence
+ * means "this org got its auto-install once" — an org that later uninstalls or
+ * disables the agent is never re-provisioned behind its back (opt-outs stick
+ * across reseeds and upgrades). Mirrors `wfDefaultProvisionsTable`.
+ */
+export const agentDefaultProvisionsTable = defineTable({
+  organizationId: v.string(),
+  agentSlug: v.string(),
+  contentHash: v.string(),
+  provisionedAt: v.number(),
+}).index('by_org_slug', ['organizationId', 'agentSlug']);

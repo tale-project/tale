@@ -89,9 +89,25 @@ const workflowTriggersSchema = z.object({
     .optional(),
 });
 
+/**
+ * Per-locale overrides for the workflow's user-facing `name`/`description`,
+ * mirroring the agent i18n-first model. Absent locales fall back to the
+ * top-level `name`/`description` (English). Step `name`s stay engine-internal
+ * and untranslated.
+ */
+const workflowI18nSchema = z.record(
+  z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+  z.object({
+    name: z.string().min(1).max(200).optional(),
+    description: z.string().max(2000).optional(),
+  }),
+);
+
 export const workflowJsonSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
+  /** Per-locale name/description overrides; see {@link workflowI18nSchema}. */
+  i18n: workflowI18nSchema.optional(),
   version: z.string().optional(),
   config: workflowConfigSchema.optional(),
   // Documented metadata keys: `autoInstall?: boolean` (provision this

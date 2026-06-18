@@ -11,6 +11,7 @@ import path from 'node:path';
 
 import {
   agentJsonSchema,
+  type AgentMetadata,
   type AgentRoutingConfig,
   type ResponseTuningConfig,
 } from '../../lib/shared/schemas/agents';
@@ -37,6 +38,13 @@ export interface AgentI18nOverrides {
 }
 
 export interface AgentJsonConfig {
+  /**
+   * Canonical, file-location-independent identity. Stored in the config so
+   * moving the file between folders or renaming it never breaks
+   * delegates/mentions/installations/thread refs. When absent, the loader
+   * falls back to the file basename. Mirrors `agentJsonSchema.slug`.
+   */
+  slug?: string;
   /**
    * Legacy top-level translatable fields. Canonical values live under
    * `i18n.<locale>.*`. These remain as a fallback for agents authored before
@@ -148,6 +156,8 @@ export interface AgentJsonConfig {
   /** `false` = system-managed, not creatable/editable/deletable via the UI. */
   uiConfigurable?: boolean;
   i18n?: Record<string, AgentI18nOverrides>;
+  /** Install / catalog / cascade metadata. Mirrors `agentJsonSchema.metadata`. */
+  metadata?: AgentMetadata;
 }
 
 export type AgentReadResult =
