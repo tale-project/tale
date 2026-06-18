@@ -1,14 +1,18 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
-import { ArrowLeft } from 'lucide-react';
+import { ChevronLeft, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
-import { type WizardStepMeta } from '@/app/components/ui/wizard/use-wizard';
+import {
+  useWizard,
+  type WizardStepMeta,
+} from '@/app/components/ui/wizard/use-wizard';
 import { Wizard } from '@/app/components/ui/wizard/wizard';
 import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
@@ -49,6 +53,10 @@ export function OnboardingWizard({
   );
 
   const [createdOrgId, setCreatedOrgId] = useState<string | null>(null);
+  // Controlled step index so the page header can host the Back control (it
+  // lives outside the wizard's provider). All wizard navigation routes through
+  // `onIndexChange`, keeping this the single source of truth.
+  const [stepIndex, setStepIndex] = useState(0);
 
   const isFirstRun = mode === 'first-run';
 
@@ -60,6 +68,9 @@ export function OnboardingWizard({
         ]
       : []),
     { id: 'workspace', label: t('steps.workspace') },
+    // Optional: the step shows an explicit Skip alongside the primary
+    // Next/Connect button. The primary stays the forward action; Skip is the
+    // de-emphasized secondary on the row below it.
     { id: 'provider', label: t('steps.provider'), optional: true },
     { id: 'finish', label: t('steps.finish') },
   ];
@@ -114,40 +125,58 @@ export function OnboardingWizard({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="mx-auto flex w-full items-center justify-between px-4 py-3">
-        <TaleLogo />
-        <div className="flex items-center gap-2">
-          {/* add-org mode: the user already has a workspace, so let them bail
-              out of the flow and return to the app. first-run has no app yet. */}
+      {/* Three zones, two distinct affordances: step Back (left) navigates
+          within the flow; the close (right) leaves it. A back-chevron vs an
+          ✕-close, on opposite sides — so they never read as duplicate "Back"s. */}
+      <header className="grid w-full grid-cols-3 items-center px-4 py-3">
+        <div className="justify-self-start">
+          {stepIndex > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={ChevronLeft}
+              onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+              className="-ml-2"
+            >
+              {tCommon('actions.back')}
+            </Button>
+          )}
+        </div>
+        <div className="justify-self-center">
+          <TaleLogo />
+        </div>
+        <div className="flex items-center gap-2 justify-self-end">
+          {/* No session yet on first-run until the account step completes. */}
+          {user ? <UserButton align="end" /> : null}
+          {/* add-org mode only: a close affordance to leave setup and return to
+              the app (first-run has no app to return to yet). Rendered as an ✕,
+              not a "Back", so it can't be mistaken for the step-back control. */}
           {!isFirstRun ? (
             <Link
               to="/dashboard"
-              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm"
+              aria-label={t('backToApp')}
+              title={t('backToApp')}
+              className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring inline-flex size-8 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
             >
-              <ArrowLeft className="size-4" aria-hidden />
-              {t('backToApp')}
+              <X className="size-4" aria-hidden />
             </Link>
           ) : null}
-          {/* No session yet on first-run until the account step completes. */}
-          {user ? <UserButton align="end" /> : null}
         </div>
       </header>
-      <main className="mx-auto w-full max-w-xl flex-1 px-4 py-12">
-        <Heading level={1} className="mb-2">
-          {t('title')}
-        </Heading>
-        <Text variant="muted" className="mb-8 block">
-          {t('subtitle')}
-        </Text>
-
+      <main className="mx-auto w-full max-w-md flex-1 px-4 pt-20 pb-12">
         <Wizard
           steps={steps}
+          activeIndex={stepIndex}
+          onIndexChange={setStepIndex}
           onFinish={finishOnboarding}
           formatProgress={(current, total, label) =>
             t('progress', { current, total, label })
           }
         >
-          <WizardProgress ariaLabel={t('stepsAriaLabel')} />
+          <div className="flex flex-col gap-8">
+            <WizardProgress segmented ariaLabel={t('stepsAriaLabel')} />
+            <StepHero />
+          </div>
 
           {isFirstRun && <PreferencesStep />}
           {isFirstRun && <AccountStep />}
@@ -160,6 +189,7 @@ export function OnboardingWizard({
           <FinishStep onFinishTo={finishTo} />
 
           <WizardFooter
+            stacked
             backLabel={tCommon('actions.back')}
             nextLabel={tCommon('actions.next')}
             finishLabel={t('finish.goToDashboard')}
@@ -167,6 +197,42 @@ export function OnboardingWizard({
           />
         </Wizard>
       </main>
+    </div>
+  );
+}
+
+/**
+ * The wizard's single title/subtitle, driven by the active step — so each step
+ * shows exactly one heading (the hero) instead of duplicating it inside the
+ * step body. Lives inside `<Wizard>` so it can read the active step.
+ */
+function StepHero() {
+  const { t } = useT('onboarding');
+  const { activeStep } = useWizard();
+
+  const copy: Record<string, { title: string; subtitle: string }> = {
+    preferences: {
+      title: t('preferences.heading'),
+      subtitle: t('preferences.why'),
+    },
+    account: { title: t('account.heading'), subtitle: t('account.why') },
+    workspace: { title: t('title'), subtitle: t('subtitle') },
+    provider: { title: t('provider.heading'), subtitle: t('provider.why') },
+    finish: { title: t('finish.heading'), subtitle: t('finish.subtitle') },
+  };
+  const { title, subtitle } = copy[activeStep?.id ?? ''] ?? {
+    title: '',
+    subtitle: '',
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-1.5 text-center">
+      <Heading level={1} size="2xl" weight="semibold">
+        {title}
+      </Heading>
+      <Text variant="muted" className="text-base">
+        {subtitle}
+      </Text>
     </div>
   );
 }

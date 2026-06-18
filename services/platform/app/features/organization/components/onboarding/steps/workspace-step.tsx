@@ -1,8 +1,6 @@
 'use client';
 
-import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMutation } from 'convex/react';
 import { useState } from 'react';
@@ -148,10 +146,6 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
       valid={nameValid && Boolean(user)}
       onBeforeNext={createWorkspace}
     >
-      <Heading level={2} className="text-base">
-        {t('workspace.heading')}
-      </Heading>
-      <Text variant="muted">{t('workspace.why')}</Text>
       <Input
         id="org-name"
         type="text"
@@ -162,15 +156,9 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
         placeholder={tSettings('organization.enterCompanyName')}
         errorMessage={nameError}
         disabled={Boolean(createdOrgId)}
-        description={
-          slug
-            ? tSettings('organization.identifierPreview', { slug })
-            : undefined
-        }
       />
       <Select
         label={t('preferences.languageLabel')}
-        description={t('workspace.languageDescription')}
         options={ORG_LOCALES}
         value={orgLocale}
         onValueChange={setOrgLocale}

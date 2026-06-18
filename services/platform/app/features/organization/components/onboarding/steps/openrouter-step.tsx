@@ -1,11 +1,11 @@
 'use client';
 
-import { Heading } from '@tale/ui/heading';
 import { Text } from '@tale/ui/text';
-import { ExternalLink, KeyRound } from 'lucide-react';
-import { useState } from 'react';
+import { ExternalLink } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
+import { useWizard } from '@/app/components/ui/wizard/use-wizard';
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import {
   useFetchProviderModels,
@@ -70,8 +70,22 @@ interface OpenRouterStepProps {
  */
 export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
   const { t } = useT('onboarding');
+  const { setStepPrimary } = useWizard();
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // The primary button is always the forward action: the default "Next" while
+  // the field is empty (leaving the key blank just advances — see the helper
+  // note), relabelled to "Connect" once a key is entered so it's clear it will
+  // save + verify before moving on.
+  useEffect(() => {
+    const hasKey = apiKey.trim().length > 0;
+    setStepPrimary(
+      'provider',
+      hasKey ? { label: t('provider.connect'), variant: 'primary' } : undefined,
+    );
+    return () => setStepPrimary('provider', undefined);
+  }, [apiKey, setStepPrimary, t]);
 
   const { mutateAsync: fetchModels } = useFetchProviderModels();
   const { mutateAsync: saveProviderSecret } = useSaveProviderSecret();
@@ -130,39 +144,40 @@ export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
 
   return (
     <WizardStep id="provider" onBeforeNext={connectOpenRouter}>
-      <Heading level={2} className="text-base">
-        <KeyRound className="text-fg-muted mr-2 inline size-4" aria-hidden />
-        {t('provider.heading')}
-      </Heading>
-      <Text variant="muted">{t('provider.why')}</Text>
+      {/* Heading + description live in the wizard hero now; the body is just
+          the key field and its helper link, grouped tightly together. */}
+      <div className="flex flex-col gap-2">
+        <Input
+          id="openrouter-key"
+          type="password"
+          label={t('provider.keyLabel')}
+          // Renders a muted, normal-weight "(optional)" hint after the label.
+          required={false}
+          placeholder={t('provider.keyPlaceholder')}
+          value={apiKey}
+          onChange={(e) => {
+            setApiKey(e.target.value);
+            if (error) setError(null);
+          }}
+          autoComplete="off"
+          errorMessage={error ?? undefined}
+        />
 
-      <Input
-        id="openrouter-key"
-        type="password"
-        label={t('provider.keyLabel')}
-        placeholder={t('provider.keyPlaceholder')}
-        value={apiKey}
-        onChange={(e) => {
-          setApiKey(e.target.value);
-          if (error) setError(null);
-        }}
-        autoComplete="off"
-        errorMessage={error ?? undefined}
-        description={t('provider.keyHelp')}
-      />
-
-      <Text variant="muted" className="text-sm">
-        {t('provider.hasKeyQuestion')}{' '}
-        <a
-          href={OPENROUTER_KEYS_URL}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="text-accent-base inline-flex items-center gap-1 font-medium hover:underline"
-        >
-          {t('provider.getKeyLink')}
-          <ExternalLink className="size-3.5" aria-hidden />
-        </a>
-      </Text>
+        {/* The label marks the field optional, so the only helper needed is
+            where to get a key. */}
+        <Text variant="muted" className="text-sm">
+          {t('provider.hasKeyQuestion')}{' '}
+          <a
+            href={OPENROUTER_KEYS_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-accent-base inline-flex items-center gap-1 font-medium hover:underline"
+          >
+            {t('provider.getKeyLink')}
+            <ExternalLink className="size-3.5" aria-hidden />
+          </a>
+        </Text>
+      </div>
     </WizardStep>
   );
 }

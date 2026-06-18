@@ -14,6 +14,13 @@ export interface WizardFooterProps {
   /** Required only when any step is optional (renders the Skip action). */
   skipLabel?: string;
   className?: string;
+  /**
+   * Full-width, vertically-stacked layout: the primary Next/Finish button spans
+   * the container width (matching form inputs), with Skip and Back as full-width
+   * secondary buttons below. Use for narrow / onboarding flows. Default is the
+   * horizontal Back-left / Next-right bar.
+   */
+  stacked?: boolean;
 }
 
 /**
@@ -27,6 +34,7 @@ export function WizardFooter({
   finishLabel,
   skipLabel,
   className,
+  stacked,
 }: WizardFooterProps) {
   const {
     activeStep,
@@ -37,11 +45,49 @@ export function WizardFooter({
     goNext,
     skip,
     isStepValid,
+    activePrimary,
   } = useWizard();
 
   const submitting = status === 'submitting';
   const nextDisabled = !activeStep || !isStepValid(activeStep.id) || submitting;
   const showSkip = Boolean(activeStep?.optional && skipLabel);
+
+  // The active step may override the primary label/emphasis (e.g. "Skip for
+  // now" vs "Connect"); otherwise fall back to the standard Next/Finish label.
+  const primaryLabel =
+    activePrimary?.label ?? (isLast ? finishLabel : nextLabel);
+  const primaryVariant =
+    activePrimary?.variant === 'secondary' ? 'secondary' : undefined;
+
+  if (stacked) {
+    // Full-width primary action (matching the inputs). Back lives at the
+    // top-left of the flow (rendered in the wizard header), so the footer only
+    // carries the primary plus an optional, centered Skip beneath it.
+    return (
+      <div className={cn('flex flex-col gap-4', className)}>
+        <Button
+          className="w-full"
+          variant={primaryVariant}
+          onClick={goNext}
+          disabled={nextDisabled}
+          isLoading={submitting}
+        >
+          {primaryLabel}
+        </Button>
+        {showSkip && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={skip}
+            disabled={submitting}
+            className="mx-auto"
+          >
+            {skipLabel}
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={cn('flex items-center justify-between gap-2', className)}>
@@ -58,8 +104,13 @@ export function WizardFooter({
             {skipLabel}
           </Button>
         )}
-        <Button onClick={goNext} disabled={nextDisabled} isLoading={submitting}>
-          {isLast ? finishLabel : nextLabel}
+        <Button
+          variant={primaryVariant}
+          onClick={goNext}
+          disabled={nextDisabled}
+          isLoading={submitting}
+        >
+          {primaryLabel}
         </Button>
       </div>
     </div>

@@ -33,7 +33,7 @@ function ApiWebdavPage() {
 
   // Access is gated by the parent `api` route layout.
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <WebdavSettings
         organizationId={organizationId}
         orgSlug={orgSlug}

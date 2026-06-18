@@ -34,7 +34,7 @@ function ApiMcpPage() {
   // page title) — the settings rail already names the page; the former
   // header action moves into the section header.
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <SettingsSection
         title={tNav('mcp')}
         description={tMcp('description')}

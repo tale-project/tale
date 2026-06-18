@@ -112,7 +112,16 @@ export function BrandingSettings() {
   const branding = brandingQuery.data;
 
   return (
-    <Skeletonize loading={abilityLoading || brandingQuery.isPending}>
+    <Skeletonize
+      loading={abilityLoading || brandingQuery.isPending}
+      // The wrapper div Skeletonize always renders sits between the
+      // `min-h-0 flex-1` ContentArea scroll parent and the `fitToContainer`
+      // SettingsPage. Without these flex classes it collapses to content
+      // height, breaking the height chain the preview pane relies on to
+      // stretch to the bottom edge (it then fell back to a fixed
+      // `min-h` approximation that stopped short, leaving a gap).
+      className="flex min-h-0 flex-1 flex-col"
+    >
       <BrandingSettingsView
         organizationId={organizationId}
         branding={branding ?? undefined}

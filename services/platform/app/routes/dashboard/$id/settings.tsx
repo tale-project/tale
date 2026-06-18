@@ -40,7 +40,10 @@ function SettingsLayout() {
   const usesBoundedLayout =
     location.pathname.includes('/settings/governance') ||
     location.pathname.includes('/settings/api') ||
-    location.pathname.includes('/settings/branding');
+    location.pathname.includes('/settings/branding') ||
+    // Data residency docks its Save / Apply & restart bar to the bottom, so it
+    // needs ContentArea bounded for the page's internal scroll body + footer.
+    location.pathname.includes('/settings/deployment');
 
   return (
     <ActiveEditorProvider>

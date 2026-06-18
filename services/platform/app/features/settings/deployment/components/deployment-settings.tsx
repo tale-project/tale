@@ -198,6 +198,7 @@ function PgSection({
   disabled,
   note,
   showSslMode = true,
+  className,
 }: {
   title: string;
   description?: string;
@@ -219,10 +220,13 @@ function PgSection({
    * offering the control would promise a guarantee we can't deliver.
    */
   showSslMode?: boolean;
+  /** Forwarded to the underlying section root (e.g. a divider border). */
+  className?: string;
 }) {
   const { t } = useT('settings');
   return (
     <PageSection
+      className={className}
       title={title}
       description={description}
       action={
@@ -612,282 +616,319 @@ function DeploymentSettingsView({
   }
 
   return (
-    <SettingsPage narrow>
-      {readOnly ||
-      data?.secretsError === 'encrypted_no_key' ||
-      data?.secretsError === 'unreadable' ? (
-        <Stack gap={3}>
-          {readOnly ? (
-            <Alert
-              variant="info"
-              icon={Info}
-              title={t('dataResidency.readOnly.title')}
-              description={
-                <>
-                  {t('dataResidency.readOnly.before')}{' '}
-                  <code>TALE_DEPLOYMENT_CONFIG_ADMINS</code>{' '}
-                  {t('dataResidency.readOnly.after')}
-                  {data?.email ? (
+    <SettingsPage fitToContainer>
+      {/* Page = a scrollable body + a footer docked to the bottom, so the
+          Save / Apply & restart bar stays pinned to the bottom of the viewport
+          regardless of how short the content is (plain `position: sticky` only
+          pins once the content is tall enough to scroll). */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto pb-8">
+          {readOnly ||
+          data?.secretsError === 'encrypted_no_key' ||
+          data?.secretsError === 'unreadable' ? (
+            <Stack gap={3}>
+              {readOnly ? (
+                <Alert
+                  variant="info"
+                  icon={Info}
+                  title={t('dataResidency.readOnly.title')}
+                  description={
                     <>
-                      {' '}
-                      {t('dataResidency.readOnly.yourEmail', {
-                        email: data.email,
-                      })}
+                      {t('dataResidency.readOnly.before')}{' '}
+                      <code>TALE_DEPLOYMENT_CONFIG_ADMINS</code>{' '}
+                      {t('dataResidency.readOnly.after')}
+                      {data?.email ? (
+                        <>
+                          {' '}
+                          {t('dataResidency.readOnly.yourEmail', {
+                            email: data.email,
+                          })}
+                        </>
+                      ) : null}
                     </>
-                  ) : null}
-                </>
-              }
-            />
+                  }
+                />
+              ) : null}
+              {data?.secretsError === 'encrypted_no_key' ? (
+                <Alert
+                  variant="warning"
+                  description={t('dataResidency.secretsEncryptedNoKey')}
+                />
+              ) : null}
+              {data?.secretsError === 'unreadable' ? (
+                <Alert
+                  variant="warning"
+                  description={t('dataResidency.secretsUnreadable')}
+                />
+              ) : null}
+            </Stack>
           ) : null}
-          {data?.secretsError === 'encrypted_no_key' ? (
-            <Alert
-              variant="warning"
-              description={t('dataResidency.secretsEncryptedNoKey')}
-            />
-          ) : null}
-          {data?.secretsError === 'unreadable' ? (
-            <Alert
-              variant="warning"
-              description={t('dataResidency.secretsUnreadable')}
-            />
-          ) : null}
-        </Stack>
-      ) : null}
 
-      <PgSection
-        title={t('dataResidency.knowledge.title')}
-        description={t('dataResidency.knowledge.description')}
-        state={knowledge}
-        setState={setKnowledge}
-        secretMasked={
-          secretState['dataStores.knowledgePostgres.password']?.masked
-        }
-        secretPresent={
-          secretState['dataStores.knowledgePostgres.password']?.present
-        }
-        onTest={() => void runTest('knowledgePostgres')}
-        testing={testing === 'knowledgePostgres'}
-        testResult={testResults.knowledgePostgres}
-        disabled={readOnly}
-        note={<Alert description={t('dataResidency.knowledge.paradeDbNote')} />}
-      />
-
-      <PageSection
-        title={t('dataResidency.storage.title')}
-        description={t('dataResidency.storage.description')}
-        action={
-          <Switch
-            label={t('dataResidency.storage.externalS3')}
-            hideLabelOnMobile
-            checked={storage.s3}
+          <PgSection
+            title={t('dataResidency.knowledge.title')}
+            description={t('dataResidency.knowledge.description')}
+            state={knowledge}
+            setState={setKnowledge}
+            secretMasked={
+              secretState['dataStores.knowledgePostgres.password']?.masked
+            }
+            secretPresent={
+              secretState['dataStores.knowledgePostgres.password']?.present
+            }
+            onTest={() => void runTest('knowledgePostgres')}
+            testing={testing === 'knowledgePostgres'}
+            testResult={testResults.knowledgePostgres}
             disabled={readOnly}
-            onCheckedChange={(checked) =>
-              setStorage({ ...storage, s3: checked })
+            note={
+              <Alert description={t('dataResidency.knowledge.paradeDbNote')} />
             }
           />
-        }
-      >
-        {storage.s3 ? (
-          <Stack gap={5}>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                label={t('dataResidency.storage.region')}
-                value={storage.region}
-                disabled={readOnly}
-                onChange={(e) =>
-                  setStorage({ ...storage, region: e.target.value })
-                }
-              />
-              <Input
-                label={t('dataResidency.storage.endpoint')}
-                value={storage.endpoint}
-                disabled={readOnly}
-                onChange={(e) =>
-                  setStorage({ ...storage, endpoint: e.target.value })
-                }
-              />
-            </div>
-            <Switch
-              label={t('dataResidency.storage.forcePathStyle')}
-              checked={storage.forcePathStyle}
-              disabled={readOnly}
-              onCheckedChange={(checked) =>
-                setStorage({ ...storage, forcePathStyle: checked })
-              }
-            />
-            <FormSection label={t('dataResidency.storage.bucketsLabel')}>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Input
-                  label={t('dataResidency.storage.bucket.files')}
-                  value={storage.files}
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    setStorage({ ...storage, files: e.target.value })
-                  }
-                />
-                <Input
-                  label={t('dataResidency.storage.bucket.exports')}
-                  value={storage.exports}
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    setStorage({ ...storage, exports: e.target.value })
-                  }
-                />
-                <Input
-                  label={t('dataResidency.storage.bucket.snapshotImports')}
-                  value={storage.snapshotImports}
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    setStorage({ ...storage, snapshotImports: e.target.value })
-                  }
-                />
-                <Input
-                  label={t('dataResidency.storage.bucket.modules')}
-                  value={storage.modules}
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    setStorage({ ...storage, modules: e.target.value })
-                  }
-                />
-                <Input
-                  label={t('dataResidency.storage.bucket.search')}
-                  value={storage.search}
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    setStorage({ ...storage, search: e.target.value })
-                  }
-                />
-              </div>
-            </FormSection>
-            <FormSection label={t('dataResidency.storage.credentialsLabel')}>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Input
-                  label={t('dataResidency.storage.accessKeyId')}
-                  value={storage.accessKeyId}
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    setStorage({ ...storage, accessKeyId: e.target.value })
-                  }
-                  description={
-                    secretState['dataStores.convexStorage.accessKeyId']?.masked
-                      ? t('dataResidency.storage.accessKeyIdStoredHint', {
-                          masked:
-                            secretState['dataStores.convexStorage.accessKeyId']
-                              .masked,
-                        })
-                      : t('dataResidency.storage.writeOnly')
-                  }
-                />
-                <Input
-                  label={t('dataResidency.storage.secretAccessKey')}
-                  type="password"
-                  value={storage.secretAccessKey}
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    setStorage({ ...storage, secretAccessKey: e.target.value })
-                  }
-                  description={t('dataResidency.storage.writeOnly')}
-                />
-              </div>
-            </FormSection>
-            <HStack gap={3} align="center" className="flex-wrap">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void runTest('convexStorage')}
-                disabled={readOnly || testing === 'convexStorage'}
-              >
-                {testing === 'convexStorage'
-                  ? t('dataResidency.testing')
-                  : t('dataResidency.storage.testReachability')}
-              </Button>
-              <TestResultLine
-                result={testResults.convexStorage}
-                okLabel={t('dataResidency.storage.reachable')}
-              />
-            </HStack>
-            <Alert
-              variant="warning"
-              description={t('dataResidency.storage.greenfieldWarning')}
-            />
-          </Stack>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            {t('dataResidency.storage.localStorageNote')}
-          </p>
-        )}
-      </PageSection>
 
-      {/* Advanced Convex metadata DB — reuses the Postgres section chrome; its
+          <PageSection
+            className="border-border border-t pt-8"
+            title={t('dataResidency.storage.title')}
+            description={t('dataResidency.storage.description')}
+            action={
+              <Switch
+                label={t('dataResidency.storage.externalS3')}
+                hideLabelOnMobile
+                checked={storage.s3}
+                disabled={readOnly}
+                onCheckedChange={(checked) =>
+                  setStorage({ ...storage, s3: checked })
+                }
+              />
+            }
+          >
+            {storage.s3 ? (
+              <Stack gap={5}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Input
+                    label={t('dataResidency.storage.region')}
+                    value={storage.region}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      setStorage({ ...storage, region: e.target.value })
+                    }
+                  />
+                  <Input
+                    label={t('dataResidency.storage.endpoint')}
+                    value={storage.endpoint}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      setStorage({ ...storage, endpoint: e.target.value })
+                    }
+                  />
+                </div>
+                <Switch
+                  label={t('dataResidency.storage.forcePathStyle')}
+                  checked={storage.forcePathStyle}
+                  disabled={readOnly}
+                  onCheckedChange={(checked) =>
+                    setStorage({ ...storage, forcePathStyle: checked })
+                  }
+                />
+                <FormSection label={t('dataResidency.storage.bucketsLabel')}>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Input
+                      label={t('dataResidency.storage.bucket.files')}
+                      value={storage.files}
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        setStorage({ ...storage, files: e.target.value })
+                      }
+                    />
+                    <Input
+                      label={t('dataResidency.storage.bucket.exports')}
+                      value={storage.exports}
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        setStorage({ ...storage, exports: e.target.value })
+                      }
+                    />
+                    <Input
+                      label={t('dataResidency.storage.bucket.snapshotImports')}
+                      value={storage.snapshotImports}
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        setStorage({
+                          ...storage,
+                          snapshotImports: e.target.value,
+                        })
+                      }
+                    />
+                    <Input
+                      label={t('dataResidency.storage.bucket.modules')}
+                      value={storage.modules}
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        setStorage({ ...storage, modules: e.target.value })
+                      }
+                    />
+                    <Input
+                      label={t('dataResidency.storage.bucket.search')}
+                      value={storage.search}
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        setStorage({ ...storage, search: e.target.value })
+                      }
+                    />
+                  </div>
+                </FormSection>
+                <FormSection
+                  label={t('dataResidency.storage.credentialsLabel')}
+                >
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Input
+                      label={t('dataResidency.storage.accessKeyId')}
+                      value={storage.accessKeyId}
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        setStorage({ ...storage, accessKeyId: e.target.value })
+                      }
+                      description={
+                        secretState['dataStores.convexStorage.accessKeyId']
+                          ?.masked
+                          ? t('dataResidency.storage.accessKeyIdStoredHint', {
+                              masked:
+                                secretState[
+                                  'dataStores.convexStorage.accessKeyId'
+                                ].masked,
+                            })
+                          : t('dataResidency.storage.writeOnly')
+                      }
+                    />
+                    <Input
+                      label={t('dataResidency.storage.secretAccessKey')}
+                      type="password"
+                      value={storage.secretAccessKey}
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        setStorage({
+                          ...storage,
+                          secretAccessKey: e.target.value,
+                        })
+                      }
+                      description={t('dataResidency.storage.writeOnly')}
+                    />
+                  </div>
+                </FormSection>
+                <HStack gap={3} align="center" className="flex-wrap">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void runTest('convexStorage')}
+                    disabled={readOnly || testing === 'convexStorage'}
+                  >
+                    {testing === 'convexStorage'
+                      ? t('dataResidency.testing')
+                      : t('dataResidency.storage.testReachability')}
+                  </Button>
+                  <TestResultLine
+                    result={testResults.convexStorage}
+                    okLabel={t('dataResidency.storage.reachable')}
+                  />
+                </HStack>
+                <Alert
+                  variant="warning"
+                  description={t('dataResidency.storage.greenfieldWarning')}
+                />
+              </Stack>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                {t('dataResidency.storage.localStorageNote')}
+              </p>
+            )}
+          </PageSection>
+
+          {/* Advanced Convex metadata DB — reuses the Postgres section chrome; its
           own header switch toggles `enabled`. Titled "(advanced)" rather than
           hidden behind a disclosure so it shares the rhythm of the sections
           above. */}
-      <PgSection
-        title={t('dataResidency.appDb.summary')}
-        description={t('dataResidency.appDb.description')}
-        state={appPg}
-        setState={setAppPg}
-        secretMasked={secretState['dataStores.appPostgres.password']?.masked}
-        secretPresent={secretState['dataStores.appPostgres.password']?.present}
-        onTest={() => void runTest('appPostgres')}
-        testing={testing === 'appPostgres'}
-        testResult={testResults.appPostgres}
-        disabled={readOnly}
-        showSslMode={false}
-        note={
-          <p className="text-muted-foreground text-xs">
-            {t('dataResidency.appDb.databaseNameNote')}{' '}
-            {t('dataResidency.appDb.sslModeNote')}
-          </p>
-        }
-      />
-
-      <Stack gap={4}>
-        {error ? <Alert variant="destructive" description={error} /> : null}
-        {savedOk && !isDirty ? (
-          <Alert
-            description={
-              <>
-                <strong>{t('dataResidency.saved.title')}</strong>{' '}
-                {t('dataResidency.saved.runPrefix')}{' '}
-                <code>docker compose restart convex</code>{' '}
-                {t('dataResidency.saved.orPrefix')}{' '}
-                <code>tale deploy --services convex</code>{' '}
-                {t('dataResidency.saved.tail')}
-              </>
+          <PgSection
+            className="border-border border-t pt-8"
+            title={t('dataResidency.appDb.summary')}
+            description={t('dataResidency.appDb.description')}
+            state={appPg}
+            setState={setAppPg}
+            secretMasked={
+              secretState['dataStores.appPostgres.password']?.masked
+            }
+            secretPresent={
+              secretState['dataStores.appPostgres.password']?.present
+            }
+            onTest={() => void runTest('appPostgres')}
+            testing={testing === 'appPostgres'}
+            testResult={testResults.appPostgres}
+            disabled={readOnly}
+            showSslMode={false}
+            note={
+              <p className="text-muted-foreground text-xs">
+                {t('dataResidency.appDb.databaseNameNote')}{' '}
+                {t('dataResidency.appDb.sslModeNote')}
+              </p>
             }
           />
-        ) : null}
+        </div>
 
-        <HStack gap={3} align="center" className="flex-wrap">
-          <Button
-            onClick={() => void onSave()}
-            disabled={readOnly || saving || !isDirty}
-          >
-            {saving ? t('dataResidency.saving') : t('dataResidency.save')}
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => setRestartConfirmOpen(true)}
-            // Gate on a clean form: a restart applies the LAST-SAVED on-disk
-            // config, so allowing it while dirty would silently bounce into a
-            // config that differs from what's on screen.
-            disabled={readOnly || restarting || isDirty}
-            title={t('dataResidency.applyRestartTitle')}
-          >
-            {restarting
-              ? t('dataResidency.restarting')
-              : t('dataResidency.applyRestart')}
-          </Button>
-          {isDirty ? (
-            <span className="text-muted-foreground text-sm">
-              {t('dataResidency.applyRestartDirtyHint')}
-            </span>
-          ) : restartMsg ? (
-            <span className="text-muted-foreground text-sm">{restartMsg}</span>
-          ) : null}
-        </HStack>
-      </Stack>
+        {/* Footer docked to the bottom of the page (outside the scroll body)
+            so Save / Apply & restart stay reachable regardless of content
+            height; the top border separates actions from the sections, and
+            `-mx-4 px-4` bleeds the background to the content-area gutters. */}
+        <div className="bg-background border-border -mx-4 border-t px-4 pt-4">
+          <Stack gap={3}>
+            {error ? <Alert variant="destructive" description={error} /> : null}
+            {savedOk && !isDirty ? (
+              <Alert
+                description={
+                  <>
+                    <strong>{t('dataResidency.saved.title')}</strong>{' '}
+                    {t('dataResidency.saved.runPrefix')}{' '}
+                    <code>docker compose restart convex</code>{' '}
+                    {t('dataResidency.saved.orPrefix')}{' '}
+                    <code>tale deploy --services convex</code>{' '}
+                    {t('dataResidency.saved.tail')}
+                  </>
+                }
+              />
+            ) : null}
+
+            {/* Status text on the left (`mr-auto`), actions right-aligned —
+                the standard footer/action-bar layout. Save comes before
+                Apply & restart to match the workflow order (save, then apply). */}
+            <HStack gap={3} align="center" justify="end" className="flex-wrap">
+              {isDirty ? (
+                <span className="text-muted-foreground mr-auto text-sm">
+                  {t('dataResidency.applyRestartDirtyHint')}
+                </span>
+              ) : restartMsg ? (
+                <span className="text-muted-foreground mr-auto text-sm">
+                  {restartMsg}
+                </span>
+              ) : null}
+              <Button
+                onClick={() => void onSave()}
+                disabled={readOnly || saving || !isDirty}
+              >
+                {saving ? t('dataResidency.saving') : t('dataResidency.save')}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setRestartConfirmOpen(true)}
+                // Gate on a clean form: a restart applies the LAST-SAVED on-disk
+                // config, so allowing it while dirty would silently bounce into a
+                // config that differs from what's on screen.
+                disabled={readOnly || restarting || isDirty}
+                title={t('dataResidency.applyRestartTitle')}
+              >
+                {restarting
+                  ? t('dataResidency.restarting')
+                  : t('dataResidency.applyRestart')}
+              </Button>
+            </HStack>
+          </Stack>
+        </div>
+      </div>
 
       <ConfirmDialog
         open={restartConfirmOpen}
@@ -929,7 +970,7 @@ export function DeploymentSettings() {
   // form — that would imply "no overrides configured" when the truth is unknown.
   if (query.isError) {
     return (
-      <SettingsPage narrow>
+      <SettingsPage>
         <Alert
           variant="warning"
           description={t('dataResidency.errors.readFailed', {
@@ -941,7 +982,14 @@ export function DeploymentSettings() {
   }
 
   return (
-    <Skeletonize loading={abilityLoading || query.isPending}>
+    // Flex classes so this wrapper carries ContentArea's bounded height down to
+    // the `fitToContainer` SettingsPage — without them the chain breaks and the
+    // docked footer can't be pushed to the bottom (it collapses to content
+    // height). Same fix as the Branding settings wrapper.
+    <Skeletonize
+      loading={abilityLoading || query.isPending}
+      className="flex min-h-0 flex-1 flex-col"
+    >
       <DeploymentSettingsView data={query.data} />
     </Skeletonize>
   );

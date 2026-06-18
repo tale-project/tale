@@ -199,7 +199,7 @@ function RunCodePolicyRoute() {
   }, [testInput, testBucket, liveDraft]);
 
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <PageSection
         title={t('runCodePolicy.title')}
         description={t('runCodePolicy.description')}

@@ -2,11 +2,11 @@
 
 import { Button } from '@tale/ui/button';
 import { HStack, Stack, VStack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -83,50 +83,43 @@ export function PasskeySection() {
   }
 
   return (
-    <PageSection
+    <SettingsSection
+      className="border-border border-t pt-8"
       title={t('passkeys.title')}
       description={t('passkeys.description')}
-      titleSize="base"
-      className="pt-4"
+      action={
+        <Button variant="secondary" onClick={() => setRegisterDialogOpen(true)}>
+          {t('passkeys.addButton')}
+        </Button>
+      }
     >
-      <Stack gap={3}>
-        {!isLoading && passkeys && passkeys.length > 0 && (
-          <Stack gap={2}>
-            {passkeys.map((pk) => (
-              <HStack
-                key={pk.id}
-                justify="between"
-                align="center"
-                className="rounded-md border px-3 py-2"
-              >
-                <VStack gap={0} className="min-w-0">
-                  <Text className="truncate text-sm font-medium">
-                    {pk.name?.trim() || t('passkeys.unnamed')}
-                  </Text>
-                </VStack>
-                <Button variant="ghost" size="sm" onClick={() => revoke(pk.id)}>
-                  {t('passkeys.revokeButton')}
-                </Button>
-              </HStack>
-            ))}
-          </Stack>
-        )}
+      {!isLoading && passkeys && passkeys.length > 0 && (
+        <Stack gap={2}>
+          {passkeys.map((pk) => (
+            <HStack
+              key={pk.id}
+              justify="between"
+              align="center"
+              className="rounded-md border px-3 py-2"
+            >
+              <VStack gap={0} className="min-w-0">
+                <Text className="truncate text-sm font-medium">
+                  {pk.name?.trim() || t('passkeys.unnamed')}
+                </Text>
+              </VStack>
+              <Button variant="ghost" size="sm" onClick={() => revoke(pk.id)}>
+                {t('passkeys.revokeButton')}
+              </Button>
+            </HStack>
+          ))}
+        </Stack>
+      )}
 
-        {!isLoading && (!passkeys || passkeys.length === 0) && (
-          <Text variant="muted" className="text-sm">
-            {t('passkeys.empty')}
-          </Text>
-        )}
-
-        <div>
-          <Button
-            variant="secondary"
-            onClick={() => setRegisterDialogOpen(true)}
-          >
-            {t('passkeys.addButton')}
-          </Button>
-        </div>
-      </Stack>
+      {!isLoading && (!passkeys || passkeys.length === 0) && (
+        <Text variant="muted" className="text-sm">
+          {t('passkeys.empty')}
+        </Text>
+      )}
 
       <PasskeyRegisterDialog
         open={registerDialogOpen}
@@ -136,6 +129,6 @@ export function PasskeySection() {
           invalidate();
         }}
       />
-    </PageSection>
+    </SettingsSection>
   );
 }

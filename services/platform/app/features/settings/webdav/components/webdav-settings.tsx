@@ -16,6 +16,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -42,6 +43,7 @@ type RevealedPassword = { password: string; prefix: string } | null;
  */
 export function WebdavSettings(props: WebdavSettingsProps) {
   const { t } = useT('webdav');
+  const { user } = useAuth();
   const rows = useWebdavAppPasswords(props.organizationId);
   const [createOpen, setCreateOpen] = useState(false);
   const [revealed, setRevealed] = useState<RevealedPassword>(null);
@@ -56,14 +58,12 @@ export function WebdavSettings(props: WebdavSettingsProps) {
       >
         <Stack gap={4}>
           <CopyableField label="URL" value={url} mono />
-          <div className="flex flex-col gap-1">
-            <Text as="span" variant="label">
-              {t('connectionDetails.usernameLabel')}
-            </Text>
-            <Text as="span" variant="muted" className="text-sm">
-              {t('connectionDetails.usernameHelp')}
-            </Text>
-          </div>
+          <CopyableField
+            label={t('connectionDetails.usernameLabel')}
+            value={user?.email ?? ''}
+            description={t('connectionDetails.usernameHelp')}
+            copyAriaLabel={t('connectionDetails.copyUsername')}
+          />
           <div className="flex flex-col gap-1">
             <Text as="span" variant="label">
               {t('connectionDetails.passwordLabel')}
@@ -76,6 +76,7 @@ export function WebdavSettings(props: WebdavSettingsProps) {
       </SettingsSection>
 
       <SettingsSection
+        className="border-border border-t pt-8"
         title={t('list.title')}
         description={t('create.description')}
         action={

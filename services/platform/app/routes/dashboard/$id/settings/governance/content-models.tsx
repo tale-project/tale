@@ -31,7 +31,7 @@ function ContentModelsRoute() {
   // under the page's skeletonization — a lazy chunk's inner Suspense fallback
   // would otherwise let one editor pop in alone.
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <SystemPromptEditor organizationId={organizationId} />
       <DefaultModelEditor organizationId={organizationId} />
       <ModelAccessEditor organizationId={organizationId} />

@@ -15,6 +15,7 @@ import {
   WizardContext,
   type WizardBeforeNext,
   type WizardContextValue,
+  type WizardPrimaryOverride,
   type WizardStatus,
   type WizardStepMeta,
   useWizard,
@@ -64,6 +65,9 @@ export function Wizard({
   const [maxVisitedIndex, setMaxVisitedIndex] = useState(activeIndex);
   const [status, setStatus] = useState<WizardStatus>('idle');
   const [validity, setValidity] = useState<Record<string, boolean>>({});
+  const [primaries, setPrimaries] = useState<
+    Record<string, WizardPrimaryOverride>
+  >({});
   const beforeNextHandlers = useRef<Record<string, WizardBeforeNext>>({});
 
   // Keep maxVisitedIndex in sync when a controlled `activeIndex` advances
@@ -107,6 +111,22 @@ export function Wizard({
     (id: string) => validity[id] ?? true,
     [validity],
   );
+
+  const setStepPrimary = useCallback(
+    (id: string, override: WizardPrimaryOverride | undefined) => {
+      setPrimaries((prev) => {
+        if (!override) {
+          if (!(id in prev)) return prev;
+          const { [id]: _removed, ...rest } = prev;
+          return rest;
+        }
+        return { ...prev, [id]: override };
+      });
+    },
+    [],
+  );
+
+  const activePrimary = activeStep ? primaries[activeStep.id] : undefined;
 
   // Single guarded path for finishing: the `submitting` guard prevents a
   // double-fire (duplicate side effects from repeated Finish clicks) and the
@@ -187,6 +207,8 @@ export function Wizard({
       setStepValid,
       setStepBeforeNext,
       isStepValid,
+      setStepPrimary,
+      activePrimary,
     }),
     [
       steps,
@@ -203,6 +225,8 @@ export function Wizard({
       setStepValid,
       setStepBeforeNext,
       isStepValid,
+      setStepPrimary,
+      activePrimary,
     ],
   );
 

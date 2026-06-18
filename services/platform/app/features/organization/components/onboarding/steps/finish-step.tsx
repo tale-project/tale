@@ -1,8 +1,6 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Heading } from '@tale/ui/heading';
-import { Text } from '@tale/ui/text';
 import { Bot, KeyRound, Users } from 'lucide-react';
 
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
@@ -57,18 +55,22 @@ export function FinishStep({ onFinishTo }: FinishStepProps) {
 
   return (
     <WizardStep id="finish">
-      <Heading level={2} className="text-base">
-        {t('finish.heading')}
-      </Heading>
-      <Text variant="muted">{t('finish.subtitle')}</Text>
-      <ul role="list" className="mt-2 flex flex-col gap-3">
+      {/* Heading + subtitle live in the wizard hero now. One bordered panel
+          with divided rows (not three separate cards) reads as a single
+          "what's next" list; each row leads with an icon chip. */}
+      <ul
+        role="list"
+        className="divide-border border-border divide-y overflow-hidden rounded-lg border"
+      >
         {items.map(({ target, icon: Icon, text, cta }) => (
           <li
             key={target}
-            className="border-border flex items-center justify-between gap-3 rounded-md border p-3"
+            className="flex items-center justify-between gap-3 p-3"
           >
-            <span className="flex items-start gap-2">
-              <Icon className="text-fg-muted mt-0.5 size-4" aria-hidden />
+            <span className="flex items-center gap-3">
+              <span className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+                <Icon className="size-4" aria-hidden />
+              </span>
               <span className="text-sm">{text}</span>
             </span>
             <Button

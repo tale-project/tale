@@ -840,7 +840,7 @@ export function DataTable<TData, TValue = unknown>({
             // it stays centered even when the table overflows horizontally
             // (common on narrow viewports where many columns push the table
             // wider than the scroll viewport).
-            <TableRow className="hover:bg-transparent">
+            <TableRow data-no-hover>
               <TableCell colSpan={colSpan} className="p-0">
                 <div className="sticky left-0 w-screen max-w-full p-4">
                   <DataTableEmptyState
@@ -854,7 +854,7 @@ export function DataTable<TData, TValue = unknown>({
             </TableRow>
           ) : tableBodyState === 'filtered-empty' ? (
             // Filtered empty state — filters applied but no matching rows
-            <TableRow className="hover:bg-transparent">
+            <TableRow data-no-hover>
               <TableCell colSpan={colSpan} className="p-0">
                 <div className="sticky left-0 w-screen max-w-full p-4">
                   <DataTableEmptyState
@@ -934,7 +934,7 @@ export function DataTable<TData, TValue = unknown>({
                     })}
                   </TableRow>
                   {enableExpanding && isExpanded && renderExpandedRow && (
-                    <TableRow className="border-0 hover:bg-transparent">
+                    <TableRow className="border-0" data-no-hover>
                       <TableCell colSpan={columns.length + 1} className="p-0">
                         <div className="animate-in fade-in-0 slide-in-from-top-1 grid duration-150">
                           <div className="bg-muted/20 px-4 pb-2">

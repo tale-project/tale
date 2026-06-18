@@ -2227,7 +2227,7 @@
   },
   "onboarding": {
     "title": "Configure ton espace de travail",
-    "subtitle": "Quelques étapes rapides et c'est prêt.",
+    "subtitle": "Quelques étapes rapides pour préparer ton espace de travail.",
     "backToApp": "Retour à l'application",
     "stepsAriaLabel": "Étapes d'intégration",
     "progress": "Étape {current} sur {total} : {label}",
@@ -2255,7 +2255,8 @@
     },
     "provider": {
       "heading": "Connecter OpenRouter",
-      "why": "Une seule clé OpenRouter débloque le chat, la génération et l'édition d'images, le mode vocal et plus encore, parmi des centaines de modèles de tous les grands laboratoires. Nous préconfigurons une sélection recommandée pour que tu sois prêt immédiatement.",
+      "connect": "Connecter",
+      "why": "Une seule clé débloque des centaines de modèles pour le chat, les images, la voix et plus encore — nous préconfigurons une sélection recommandée pour que tu sois prêt tout de suite.",
       "keyLabel": "Clé API OpenRouter",
       "keyPlaceholder": "sk-or-...",
       "keyHelp": "Stockée chiffrée. Laisse vide pour la configurer plus tard dans les paramètres.",
@@ -4581,6 +4582,8 @@
       "profile": {
         "title": "Profil",
         "description": "Ton nom d'affichage et ton courriel — visibles par tes coéquipiers.",
+        "nameDescription": "Le nom affiché à tes coéquipiers.",
+        "emailDescription": "Utilisé pour te connecter et recevoir des notifications.",
         "name": "Nom d'affichage",
         "namePlaceholder": "Entre ton nom",
         "email": "Courriel",
@@ -4609,6 +4612,8 @@
       "title": "Organisation (facultatif)",
       "detailsTitle": "Détails de l'organisation",
       "detailsDescription": "Informations de base sur ton organisation.",
+      "nameDescription": "Le nom d'affichage de ton organisation.",
+      "localeDescription": "La langue principale de ton organisation.",
       "identifiersTitle": "Identifiants",
       "identifiersDescription": "Références en lecture seule pour les appels API ou le support.",
       "organizationId": "ID de l'organisation",
@@ -7044,6 +7049,7 @@
       "title": "Détails de connexion",
       "usernameLabel": "Nom d'utilisateur",
       "usernameHelp": "L'e-mail de ton compte Tale (ou ton nom d'utilisateur)",
+      "copyUsername": "Copier le nom d'utilisateur",
       "passwordLabel": "Mot de passe",
       "passwordHelp": "Un mot de passe applicatif que tu génères ci-dessous — pas le mot de passe de ton compte."
     },
