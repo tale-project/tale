@@ -5474,6 +5474,7 @@
       "modelDescriptionPlaceholder": "z. B. Multimodales Modell mit Bildverarbeitung",
       "general": "Allgemein",
       "saveFailed": "Anbieter konnte nicht gespeichert werden",
+      "invalidConfigTitle": "Ungültige Anbieter-Konfiguration",
       "deleteFailed": "Anbieter konnte nicht gelöscht werden",
       "secretSaveFailed": "API-Schlüssel konnte nicht gespeichert werden",
       "forbiddenDeveloperSettings": "Du hast keine Berechtigung, die Anbieter-Konfiguration zu ändern.",

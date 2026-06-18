@@ -49,6 +49,7 @@ import {
 import { useProviderConfig } from '../../hooks/use-provider-config-context';
 import {
   dispatchForbiddenDeveloperSettings,
+  dispatchInvalidProviderConfig,
   dispatchOrgAccessError,
   dispatchVersionConflict,
 } from '../../utils/error-dispatch';
@@ -226,6 +227,7 @@ export function ModelsSection({
         if (dispatchOrgAccessError(err, tAccessDenied)) return;
         if (dispatchForbiddenDeveloperSettings(err, t)) return;
         if (dispatchVersionConflict(err, t)) return;
+        if (dispatchInvalidProviderConfig(err, t)) return;
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
@@ -359,6 +361,7 @@ export function ModelsSection({
       if (dispatchOrgAccessError(err, tAccessDenied)) return;
       if (dispatchForbiddenDeveloperSettings(err, t)) return;
       if (dispatchVersionConflict(err, t)) return;
+      if (dispatchInvalidProviderConfig(err, t)) return;
       toast({ title: t('providers.saveFailed'), variant: 'destructive' });
     } finally {
       setSyncingAll(false);
@@ -617,6 +620,7 @@ export function ModelsSection({
         if (dispatchOrgAccessError(err, tAccessDenied)) return;
         if (dispatchForbiddenDeveloperSettings(err, t)) return;
         if (dispatchVersionConflict(err, t)) return;
+        if (dispatchInvalidProviderConfig(err, t)) return;
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },

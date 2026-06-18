@@ -5475,6 +5475,7 @@
       "modelDescriptionPlaceholder": "ex., Modèle multimodal avec capacités de vision",
       "general": "Général",
       "saveFailed": "Échec de l'enregistrement du fournisseur",
+      "invalidConfigTitle": "Configuration du fournisseur invalide",
       "deleteFailed": "Échec de la suppression du fournisseur",
       "secretSaveFailed": "Échec de l'enregistrement de la clé API",
       "forbiddenDeveloperSettings": "Tu n'as pas l'autorisation de modifier la configuration du fournisseur.",

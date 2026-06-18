@@ -5735,6 +5735,7 @@
       "modelDescriptionPlaceholder": "e.g., Multimodal model with vision capabilities",
       "general": "General",
       "saveFailed": "Failed to save provider",
+      "invalidConfigTitle": "Invalid provider configuration",
       "deleteFailed": "Failed to delete provider",
       "secretSaveFailed": "Failed to save API key",
       "forbiddenDeveloperSettings": "You don't have permission to modify provider configuration.",
