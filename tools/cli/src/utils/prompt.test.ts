@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import { resolveOutputMode, setActiveOutputMode } from './output-mode';
 import {
@@ -10,10 +10,19 @@ import {
   select,
 } from './prompt';
 
-// `bun test` does not run on a TTY, so `isInteractive()` is naturally false —
-// which is exactly the non-interactive shell case we want to verify.
+// `isInteractive()` reads the REAL stdin/stdout TTY flags, so force them off —
+// otherwise running `bun test` from a terminal would block these verbs on
+// stdin instead of taking the non-interactive (throwing) path we assert.
+const realStdinTty = process.stdin.isTTY;
+const realStdoutTty = process.stdout.isTTY;
 beforeEach(() => {
+  process.stdin.isTTY = false;
+  process.stdout.isTTY = false;
   setActiveOutputMode(resolveOutputMode({}, {}, { isTTY: false }));
+});
+afterEach(() => {
+  process.stdin.isTTY = realStdinTty;
+  process.stdout.isTTY = realStdoutTty;
 });
 
 /** Resolve to the error a rejecting promise threw (or undefined if it resolved). */

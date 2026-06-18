@@ -152,10 +152,13 @@ export function spawnCaptured(opts: SpawnCapturedOptions): CapturedProcess {
       stdin: stdin === 'inherit' ? 'inherit' : 'ignore',
     });
     pid = proc.pid;
-    const pipes = [
-      pipeLines(proc.stdout as ReadableStream<Uint8Array>, handleLine),
-      pipeLines(proc.stderr as ReadableStream<Uint8Array>, handleLine),
-    ];
+    // With `stdout`/`stderr: 'pipe'` these are ReadableStreams; narrow instead
+    // of casting so a future option change can't silently feed a non-stream in.
+    const pipes: Promise<void>[] = [];
+    if (proc.stdout instanceof ReadableStream)
+      pipes.push(pipeLines(proc.stdout, handleLine));
+    if (proc.stderr instanceof ReadableStream)
+      pipes.push(pipeLines(proc.stderr, handleLine));
     const exitPromise = proc.exited.then((code) => {
       exitCode = code;
       return code;

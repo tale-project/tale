@@ -46,12 +46,12 @@ export function createAuthCommand(): Command {
             if (pw !== pwConfirm) throw usageError('Passwords do not match');
             password = pw;
           }
+        }
 
-          if (!email && !password) {
-            throw usageError(
-              'At least one of --email or --password is required',
-            );
-          }
+        // Validate AFTER the interactive block so the non-interactive path
+        // (no TTY, no flags) is rejected too, not silently passed through.
+        if (!email && !password) {
+          throw usageError('At least one of --email or --password is required');
         }
 
         await resolveProjectContext(requireProject());

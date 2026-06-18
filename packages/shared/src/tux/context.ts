@@ -77,14 +77,13 @@ function disposeActiveRegion(): void {
 export function ensureTeardownRegistered(): void {
   if (teardownRegistered || typeof process === 'undefined') return;
   teardownRegistered = true;
-  for (const signal of [
-    'exit',
-    'SIGINT',
-    'SIGTERM',
-    'uncaughtException',
-  ] as const) {
+  for (const signal of ['exit', 'SIGINT', 'SIGTERM'] as const) {
     process.once(signal, disposeActiveRegion);
   }
+  // Use the *monitor* variant for crashes: restore the cursor without
+  // suppressing Node's default termination (a plain `uncaughtException`
+  // listener would swallow the crash and leave the process running degraded).
+  process.on('uncaughtExceptionMonitor', disposeActiveRegion);
 }
 
 /**

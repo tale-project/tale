@@ -1,6 +1,7 @@
 import { Command, Option } from 'commander';
 
 import { start } from '../../lib/actions/start';
+import { usageError } from '../../utils/fail';
 import { action } from '../../utils/run-command';
 
 export function createStartCommand(): Command {
@@ -23,9 +24,13 @@ export function createStartCommand(): Command {
           host: string;
           yes?: boolean;
         }) => {
+          const port = Number(opts.port);
+          if (!Number.isInteger(port) || port < 1 || port > 65535) {
+            throw usageError(`Invalid --port "${opts.port}": expected 1-65535`);
+          }
           await start({
             detach: opts.detach,
-            port: Number(opts.port),
+            port,
             host: opts.host,
             assumeYes: opts.yes,
           });

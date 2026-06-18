@@ -8,7 +8,7 @@
  * level that shows `debugLine`. `--json` (silent) suppresses all stdout chrome.
  */
 
-import { padCell, type Palette } from '../terminal/index';
+import { padCell, type Palette, visibleWidth } from '../terminal/index';
 import {
   getCapabilities,
   getMarkers,
@@ -100,7 +100,7 @@ export function rule(): void {
 export function table(rows: readonly [string, string][]): void {
   if (rows.length === 0) return;
   const p = getPalette();
-  const keyWidth = Math.max(...rows.map(([key]) => key.length));
+  const keyWidth = Math.max(...rows.map(([key]) => visibleWidth(key)));
   for (const [key, value] of rows) {
     writeLine(`  ${padCell(key, keyWidth)}  ${p.dim}${value}${p.reset}`);
   }

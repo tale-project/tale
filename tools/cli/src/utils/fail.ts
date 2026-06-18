@@ -30,7 +30,7 @@ export interface FailInfo {
   cause?: string | Error;
   /** Copy-pasteable next steps, rendered under `Try:`. */
   next?: string | string[];
-  code?: ExitCode;
+  code?: Exclude<ExitCode, typeof ExitCode.Ok>;
 }
 
 /** A CLI error carrying an exit code + actionable next-steps. */

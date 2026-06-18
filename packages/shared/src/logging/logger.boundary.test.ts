@@ -9,7 +9,7 @@
  * mechanically rather than by convention.
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,12 +24,7 @@ function resolveSpecifier(fromFile: string, spec: string): string | null {
     ? [base]
     : [`${base}.ts`, `${base}/index.ts`];
   for (const candidate of candidates) {
-    try {
-      readFileSync(candidate, 'utf8');
-      return candidate;
-    } catch {
-      // Not this candidate — try the next resolution shape.
-    }
+    if (existsSync(candidate)) return candidate;
   }
   return null;
 }
@@ -61,13 +56,20 @@ function collectGraph(entry: string): Map<string, string> {
 const NODE_RUNTIME_MODULE =
   /node:(child_process|tty|net|dgram|cluster|readline|worker_threads|fs|os|path|process|stream)/;
 
-/** Does this source VALUE-import a banned node runtime module? */
+/**
+ * Does this source VALUE-import a banned node runtime module? Catches all three
+ * value-import shapes — `from 'node:x'` (named/default), bare `import 'node:x'`
+ * (side-effect), and `import('node:x')` (dynamic) — since each one pulls the
+ * module into the bundle. Only `import type` is exempt (erased at compile time).
+ */
 function valueImportsNodeRuntime(source: string): string | null {
   for (const line of source.split('\n')) {
     if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue; // skip comments
     if (/\bimport\s+type\b/.test(line)) continue; // type-only import — erased
     const m = line.match(
-      new RegExp(`from\\s+['"]${NODE_RUNTIME_MODULE.source}['"]`),
+      new RegExp(
+        `(?:from|import)\\s*\\(?\\s*['"]${NODE_RUNTIME_MODULE.source}['"]`,
+      ),
     );
     if (m) return line.trim();
   }

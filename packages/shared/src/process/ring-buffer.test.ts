@@ -49,6 +49,16 @@ describe('RingBuffer', () => {
     expect(r.tail(0)).toEqual([]);
   });
 
+  it('preserves a legitimately-stored undefined (no value dropped)', () => {
+    const r = new RingBuffer<number | undefined>(3);
+    r.push(1);
+    r.push(undefined);
+    r.push(3);
+    expect(r.toArray()).toEqual([1, undefined, 3]);
+    expect(r.size).toBe(3);
+    expect(r.tail(2)).toEqual([undefined, 3]);
+  });
+
   it('keeps order correct after the head wraps past capacity', () => {
     const r = new RingBuffer<number>(3);
     for (const n of [1, 2, 3, 4]) r.push(n); // head wrapped once

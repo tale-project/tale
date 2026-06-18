@@ -2,16 +2,14 @@
  * A fixed-capacity ring buffer — O(1) push, bounded memory. Used to retain the
  * tail of a captured subprocess stream for `--verbose` replay and failure dumps
  * without growing unbounded over a multi-hour dev session.
- *
- * Ported from the old `terminal.ts` RingBuffer, generalized.
  */
 export class RingBuffer<T> {
-  private readonly buf: (T | undefined)[];
+  private readonly buf: T[];
   private head = 0;
   private count = 0;
 
   constructor(private readonly capacity: number) {
-    this.buf = new Array<T | undefined>(Math.max(1, capacity));
+    this.buf = new Array<T>(Math.max(1, capacity));
   }
 
   push(item: T): void {
@@ -27,9 +25,10 @@ export class RingBuffer<T> {
     const take = Math.min(n, this.count);
     const out: T[] = [];
     const start = (this.head + this.count - take) % cap;
+    // Read only indices we've written (bounded by `take` ≤ `count`), so every
+    // slot is a real stored value — including a legitimately-stored `undefined`.
     for (let i = 0; i < take; i++) {
-      const item = this.buf[(start + i) % cap];
-      if (item !== undefined) out.push(item);
+      out.push(this.buf[(start + i) % cap]);
     }
     return out;
   }

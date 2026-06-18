@@ -7,7 +7,7 @@ import {
   resolveConvexProbeTarget,
 } from './dev-modes';
 
-const env = (o: Record<string, string>) => o as NodeJS.ProcessEnv;
+const env = (o: Record<string, string | undefined>): NodeJS.ProcessEnv => o;
 
 describe('isTruthy', () => {
   it('accepts 1/true/yes/on in any case', () => {

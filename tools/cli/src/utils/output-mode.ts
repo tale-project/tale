@@ -50,14 +50,18 @@ export function resolveOutputMode(
     : {},
   probe: CapabilityEnv = {},
 ): OutputMode {
+  const quiet = Boolean(flags.quiet);
+  // `--quiet` wins over `--verbose`: a quiet run must never also dump the raw
+  // passthrough. Normalising here keeps every downstream consumer consistent.
+  const verbose = !quiet && Boolean(flags.verbose);
   const env: Record<string, string | undefined> = { ...baseEnv };
   if (flags.color === false && env.NO_COLOR === undefined) env.NO_COLOR = '';
   if (flags.ci || flags.json) env.CI = 'true';
-  if (flags.verbose) env.TALE_VERBOSE = '1';
+  if (verbose) env.TALE_VERBOSE = '1';
   return {
     json: Boolean(flags.json),
-    quiet: Boolean(flags.quiet),
-    verbose: Boolean(flags.verbose),
+    quiet,
+    verbose,
     assumeYes: Boolean(flags.yes),
     ci: Boolean(flags.ci || flags.json),
     capabilities: detectCapabilities({ ...probe, env }),

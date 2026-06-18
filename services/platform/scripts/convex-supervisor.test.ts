@@ -14,7 +14,7 @@ const LOCAL = { alive: false, childAlive: true, external: false };
 
 describe('onHealthTick', () => {
   it('warns on the first failures, then asks to restart on the threshold (resetting the counter)', () => {
-    let state = initialSupervisorState();
+    const state = initialSupervisorState();
     const r1 = onHealthTick(state, LOCAL);
     expect(r1.action).toBe('warn');
     expect(r1.state.consecutiveFailures).toBe(1);
@@ -24,7 +24,6 @@ describe('onHealthTick', () => {
     const r3 = onHealthTick(r2.state, LOCAL);
     expect(r3.action).toBe('restart');
     expect(r3.state.consecutiveFailures).toBe(0);
-    state = r3.state;
     expect(SUPERVISOR_LIMITS.MAX_CONSECUTIVE_FAILURES).toBe(3);
   });
 

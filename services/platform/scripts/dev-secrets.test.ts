@@ -11,7 +11,7 @@ import {
 } from './dev-secrets';
 
 function envWith(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
-  return { ...overrides } as NodeJS.ProcessEnv;
+  return { ...overrides };
 }
 
 describe('deriveDevSecrets', () => {
@@ -29,7 +29,7 @@ describe('deriveDevSecrets', () => {
     deriveDevSecrets(env);
     const direct = ensureWebdavHmacKey({
       INSTANCE_SECRET: 'fixed-secret',
-    } as NodeJS.ProcessEnv);
+    });
     expect(env.WEBDAV_APP_PASSWORD_HMAC_KEY).toBe(direct);
   });
 
@@ -78,12 +78,12 @@ describe('deriveDevSecrets', () => {
     deriveDevSecrets(env);
     const fromFallback = ensureWebdavHmacKey({
       INSTANCE_SECRET: env.INSTANCE_SECRET,
-    } as NodeJS.ProcessEnv);
+    });
     expect(env.WEBDAV_APP_PASSWORD_HMAC_KEY).toBe(fromFallback);
     // a different instance secret yields a different key — proves the dependency
     const other = ensureWebdavHmacKey({
       INSTANCE_SECRET: 'something-else',
-    } as NodeJS.ProcessEnv);
+    });
     expect(env.WEBDAV_APP_PASSWORD_HMAC_KEY).not.toBe(other);
   });
 });

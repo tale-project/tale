@@ -318,6 +318,8 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
       expect(parsed.error.code).toBe(3);
       // No ANSI escapes on the machine-readable stream.
       expect(result.stdout).not.toContain('\x1b');
+      // Nothing leaks to stderr — the error envelope is the whole output.
+      expect(result.stderr).toBe('');
     },
     SMOKE_TIMEOUT,
   );

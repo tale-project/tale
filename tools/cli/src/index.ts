@@ -35,9 +35,12 @@ process.on('unhandledRejection', (reason) => handleError(reason));
 program
   .name('tale')
   .description('Tale CLI - deployment and management tools')
-  // Default version flag stays `-V, --version`; `-v` is free for --verbose.
+  // `--version` keeps Commander's default `-V`. `--verbose` is intentionally
+  // long-only: a root `-v` would shadow `upgrade`'s local `-v, --version`,
+  // which Commander resolves globally (parsing `tale upgrade -v X` as the root
+  // flag and erroring on the leftover arg).
   .version(pkg.version)
-  .option('-v, --verbose', 'verbose output (debug logs, raw passthrough)')
+  .option('--verbose', 'verbose output (debug logs, raw passthrough)')
   .option('-q, --quiet', 'only warnings and errors')
   .option('-y, --yes', 'assume "yes" for all prompts (non-interactive)')
   .option(

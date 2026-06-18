@@ -32,6 +32,7 @@ export function findChildProject(startDir?: string): string | null {
   try {
     entries = readdirSync(dir).sort();
   } catch {
+    // Unreadable directory (missing/permission) → no child project here.
     return null;
   }
   for (const name of entries) {
@@ -45,6 +46,7 @@ export function findChildProject(startDir?: string): string | null {
         return candidate;
       }
     } catch {
+      // Entry vanished or is unreadable mid-scan → skip it, keep looking.
       continue;
     }
   }

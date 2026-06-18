@@ -3,10 +3,10 @@
  * the status markers, and ANSI stripping/matching helpers.
  *
  * Only the cross-terminal-safe escape set lives here: cursor-up, clear-line,
- * carriage-return, hide/show cursor, and SGR color. The alt-screen-class ops the
- * old `StatusHeader` used — full-screen clear (`\x1b[2J`) and absolute cursor
- * positioning (`\x1b[r;cH`) — are deliberately ABSENT so they cannot be
- * reintroduced; a regression test asserts they never reach the stream.
+ * carriage-return, hide/show cursor, and SGR color. Alt-screen-class ops —
+ * full-screen clear (`\x1b[2J`) and absolute cursor positioning (`\x1b[r;cH`) —
+ * are deliberately ABSENT because they are not portable across terminals; a
+ * regression test asserts they never reach the stream.
  *
  * The wide-char width algorithm (`visibleWidth`/`truncate`) lives in its sibling
  * `./width`, which reuses {@link stripAnsi} and {@link matchAnsiAt} from here.

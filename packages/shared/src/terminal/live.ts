@@ -49,8 +49,10 @@ function defaultRegisterExit(dispose: () => void): void {
   process.once('exit', dispose);
   process.once('SIGINT', dispose);
   process.once('SIGTERM', dispose);
-  process.once('uncaughtException', dispose);
-  process.once('unhandledRejection', dispose);
+  // `uncaughtExceptionMonitor` (not `uncaughtException`) restores the cursor
+  // without suppressing Node's default crash — a plain listener would swallow
+  // the error and leave the process limping on with a corrupted terminal.
+  process.on('uncaughtExceptionMonitor', dispose);
 }
 
 function defaultColumns(): number {

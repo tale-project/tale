@@ -59,6 +59,7 @@ interface NodeReadableLike {
   setEncoding(encoding: string): void;
   on(event: 'data', cb: (chunk: string) => void): void;
   on(event: 'end' | 'close', cb: () => void): void;
+  on(event: 'error', cb: (err: Error) => void): void;
 }
 
 /** Pipe a Node Readable (child_process stdout/stderr) line-by-line. */
@@ -67,7 +68,7 @@ export function pipeNodeStream(
   onLine: (line: string) => void,
   maxLineChars: number = DEFAULT_MAX_LINE_CHARS,
 ): Promise<void> {
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     let buffer = '';
     let settled = false;
     stream.setEncoding('utf8');
@@ -90,5 +91,12 @@ export function pipeNodeStream(
     };
     stream.on('end', finish);
     stream.on('close', finish);
+    // A stream error must reject (once) — otherwise the promise hangs forever,
+    // stalling the spawn that awaits it.
+    stream.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
   });
 }
