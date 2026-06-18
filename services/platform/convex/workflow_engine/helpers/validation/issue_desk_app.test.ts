@@ -30,7 +30,7 @@ const readJson = (rel: string): unknown => JSON.parse(read(rel));
 
 describe('issue-desk demo app (data) validates against the skeleton', () => {
   const workflow = workflowJsonSchema.safeParse(
-    readJson('../../workflows/issue-desk/desk-process.json'),
+    readJson('workflows/issue-desk/desk-process.json'),
   );
   const view = viewConfigSchema.safeParse(readJson('views/desk.json'));
 
@@ -81,13 +81,11 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
       'desk-implementer',
       'desk-reviewer',
     ]) {
-      const res = agentJsonSchema.safeParse(
-        readJson(`../../agents/${slug}.json`),
-      );
+      const res = agentJsonSchema.safeParse(readJson(`agents/${slug}.json`));
       expect(res.success, `${slug} should parse`).toBe(true);
     }
     const coordinator = agentJsonSchema.parse(
-      readJson('../../agents/desk-coordinator.json'),
+      readJson('agents/desk-coordinator.json'),
     );
     expect(coordinator.delegates).toEqual([
       'desk-implementer',

@@ -16,6 +16,7 @@ import {
   agentWebhookUserThreadsTable,
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
+import { appInstallationsTable } from './apps/schema';
 import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
@@ -148,6 +149,7 @@ import {
 } from './workflows/triggers/schema';
 
 export default defineSchema({
+  appInstallations: appInstallationsTable,
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,

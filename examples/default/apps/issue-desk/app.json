@@ -13,5 +13,8 @@
   "capabilities": {
     "workflows": ["issue-desk/desk-process"],
     "roles": ["desk-implementer", "desk-reviewer"]
+  },
+  "requires": {
+    "integrations": ["github"]
   }
 }

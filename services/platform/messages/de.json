@@ -12,6 +12,21 @@
     "noViews": {
       "title": "Noch nichts anzuzeigen",
       "description": "Für dieses Pack sind keine Seiten konfiguriert."
+    },
+    "install": {
+      "install": "Installieren",
+      "installed": "Installiert",
+      "reinstall": "Neu installieren",
+      "setup": "Einrichtung abschließen",
+      "uninstall": "Deinstallieren",
+      "notInstalledTitle": "Noch nicht installiert",
+      "notInstalledDescription": "Installiere diese App, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen."
+    },
+    "readiness": {
+      "title": "Einrichtung abschließen",
+      "broken": "Einige installierte Dateien fehlen. Installiere neu, um sie wiederherzustellen.",
+      "connect": "Verbinde {integration}, um diese App zu nutzen.",
+      "connectButton": "Verbinden"
     }
   },
   "operator": {

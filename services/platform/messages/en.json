@@ -12,6 +12,21 @@
     "noViews": {
       "title": "Nothing to show yet",
       "description": "This pack has no pages configured."
+    },
+    "install": {
+      "install": "Install",
+      "installed": "Installed",
+      "reinstall": "Reinstall",
+      "setup": "Finish setup",
+      "uninstall": "Uninstall",
+      "notInstalledTitle": "Not installed yet",
+      "notInstalledDescription": "Install this app to add its agents and workflows to your organization."
+    },
+    "readiness": {
+      "title": "Finish setup",
+      "broken": "Some installed files are missing. Reinstall to restore them.",
+      "connect": "Connect {integration} to use this app.",
+      "connectButton": "Connect"
     }
   },
   "operator": {

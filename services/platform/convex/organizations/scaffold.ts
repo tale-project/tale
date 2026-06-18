@@ -123,7 +123,7 @@ async function dirHasFiles(dir: string): Promise<boolean> {
  * sides; treat ENOENT on either side as "not yet a symlink concern"
  * and fall back to `path.resolve`.
  */
-async function pathsOverlap(a: string, b: string): Promise<boolean> {
+export async function pathsOverlap(a: string, b: string): Promise<boolean> {
   const resolveReal = async (p: string): Promise<string> => {
     try {
       return await realpath(p);
@@ -142,7 +142,10 @@ async function pathsOverlap(a: string, b: string): Promise<boolean> {
   return false;
 }
 
-async function writeFileFromCatalog(src: string, dst: string): Promise<void> {
+export async function writeFileFromCatalog(
+  src: string,
+  dst: string,
+): Promise<void> {
   const buf = await readFile(src);
   const name = path.basename(src);
   if (
@@ -167,7 +170,7 @@ async function writeFileFromCatalog(src: string, dst: string): Promise<void> {
  * subdirs, so a subdir indicates a fallback workspace with leaked
  * cross-tenant content — skip with a warning rather than recurse.
  */
-async function copyTree(
+export async function copyTree(
   sourceDir: string,
   targetDir: string,
   allowSubdirs = true,

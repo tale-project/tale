@@ -24,8 +24,35 @@ export const appManifestSchema = z
     workflows: z.array(z.string()).optional(),
     /** Agent slugs this app composes (referenced, they live in agents/). */
     agents: z.array(z.string()).optional(),
+    /**
+     * Integration slugs this app provides — their DEFINITIONS (connector +
+     * config, never secrets) are copied into the org on install. The per-org
+     * credential (e.g. a GitHub token) is collected by the readiness wizard, not
+     * copied. Listed in `requires.integrations` if the app can't run without it.
+     */
+    integrations: z.array(z.string()).optional(),
     /** role token -> agent slug (the app's cast). */
     roles: z.record(z.string(), z.string()).optional(),
+    /**
+     * Readiness contract — what must be provided per-org before the app works.
+     * Drives the non-blocking setup checklist on app entry. `integrations` =
+     * slugs whose credential must be connected (checked via `computeAvailability`);
+     * `config` = app-level non-secret inputs the wizard collects (e.g. a repo).
+     */
+    requires: z
+      .object({
+        integrations: z.array(z.string()).optional(),
+        config: z
+          .array(
+            z.object({
+              key: z.string(),
+              type: z.enum(['string', 'number', 'boolean']),
+              labelKey: z.string(),
+            }),
+          )
+          .optional(),
+      })
+      .optional(),
     /**
      * Capability allowlist — the app's declared surface of platform powers its
      * views may DO (the Forge/Slack manifest model). An action can never act

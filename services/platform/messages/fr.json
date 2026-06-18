@@ -12,6 +12,21 @@
     "noViews": {
       "title": "Rien à afficher",
       "description": "Aucune page n'est configurée pour ce pack."
+    },
+    "install": {
+      "install": "Installer",
+      "installed": "Installé",
+      "reinstall": "Réinstaller",
+      "setup": "Terminer la configuration",
+      "uninstall": "Désinstaller",
+      "notInstalledTitle": "Pas encore installé",
+      "notInstalledDescription": "Installez cette application pour ajouter ses agents et workflows à votre organisation."
+    },
+    "readiness": {
+      "title": "Terminer la configuration",
+      "broken": "Certains fichiers installés sont manquants. Réinstallez pour les restaurer.",
+      "connect": "Connectez {integration} pour utiliser cette application.",
+      "connectButton": "Connecter"
     }
   },
   "operator": {
