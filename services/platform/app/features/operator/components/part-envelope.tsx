@@ -15,8 +15,10 @@ import type { ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import type { PartState } from '@/lib/shared/platform/part_state';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import type { RenderPart } from '../types';
+import { ActionBar } from './action-bar';
 
 type BadgeVariant =
   | 'slate'
@@ -93,6 +95,21 @@ export function PartEnvelope({
         )}
 
         {showBody && children}
+
+        {/* Part-level actions (single-item parts). `collection` renders its own
+            ROW actions; `review` carries its own approve/reject. */}
+        {part.actions &&
+          part.actions.length > 0 &&
+          part.onAction &&
+          part.render !== 'collection' &&
+          part.render !== 'review' && (
+            <ActionBar
+              actions={part.actions}
+              item={isRecord(part.data) ? part.data : {}}
+              onAction={part.onAction}
+              isPending={part.actionsPending}
+            />
+          )}
       </VStack>
     </Card>
   );

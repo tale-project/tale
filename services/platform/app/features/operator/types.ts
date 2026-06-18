@@ -7,6 +7,7 @@
 import type { ExecutionNodeState } from '@/convex/workflows/executions/get_execution_step_statuses';
 import type { PartState } from '@/lib/shared/platform/part_state';
 import type { RenderKind } from '@/lib/shared/platform/render_kinds';
+import type { ViewAction } from '@/lib/shared/schemas/views';
 
 /** The `ui` annotation a step carries in its workflow-definition row. */
 export interface StepUiAnnotation {
@@ -72,6 +73,24 @@ export interface RenderPart {
   error?: string;
   /** Run-detail-only node timing (the status/transform panels show it). */
   meta?: { attempts?: number; startedAt?: number; completedAt?: number };
+  /**
+   * The "do" half (config-driven apps only; absent in the run-detail view). For
+   * a `collection` these render as per-row actions (item = the row); otherwise
+   * the part envelope renders them once (item = the part's data). The apps layer
+   * supplies `onAction` (the audited dispatch); render-kinds stay capability-
+   * agnostic and never name a mutation.
+   */
+  actions?: ViewAction[];
+  onAction?: (action: ViewAction, item: Record<string, unknown>) => void;
+  actionsPending?: boolean;
+  /**
+   * Master-detail selection (the LIST part of a `split` view): clicking a row
+   * calls `onSelect(row)`; the row whose `selectionKey` value equals
+   * `selectedId` is highlighted.
+   */
+  onSelect?: (item: Record<string, unknown>) => void;
+  selectionKey?: string;
+  selectedId?: string;
 }
 
 /** Adapt a projected workflow step into the generic RenderPart. */

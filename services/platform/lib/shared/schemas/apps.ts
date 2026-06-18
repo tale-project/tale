@@ -26,6 +26,19 @@ export const appManifestSchema = z
     agents: z.array(z.string()).optional(),
     /** role token -> agent slug (the app's cast). */
     roles: z.record(z.string(), z.string()).optional(),
+    /**
+     * Capability allowlist — the app's declared surface of platform powers its
+     * views may DO (the Forge/Slack manifest model). An action can never act
+     * beyond this: `trigger_workflow` targets must be in `workflows`, `assign`
+     * targets in `roles`. Enforced at dispatch + checked at publish.
+     */
+    capabilities: z
+      .object({
+        workflows: z.array(z.string()).optional(),
+        roles: z.array(z.string()).optional(),
+        queues: z.array(z.string()).optional(),
+      })
+      .optional(),
   })
   .passthrough();
 

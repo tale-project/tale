@@ -9,5 +9,9 @@
     "coordinator": "desk-coordinator",
     "implementer": "desk-implementer",
     "reviewer": "desk-reviewer"
+  },
+  "capabilities": {
+    "workflows": ["issue-desk/desk-process"],
+    "roles": ["desk-implementer", "desk-reviewer"]
   }
 }

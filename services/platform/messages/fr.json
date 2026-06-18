@@ -46,12 +46,23 @@
       "form": "Saisie requise",
       "choice": "Choisir une option"
     },
-    "action": { "open": "Ouvrir" },
+    "action": {
+      "open": "Ouvrir",
+      "approve": "Approuver",
+      "reject": "Demander des modifications",
+      "respond": "Répondre",
+      "trigger_workflow": "Lancer",
+      "steer": "Orienter",
+      "assign": "Assigner",
+      "comment": "Commenter",
+      "confirm": "Êtes-vous sûr ?"
+    },
     "body": {
       "waitingExternal": "En attente d'un événement externe pour continuer.",
       "empty": "Cette étape n'a produit aucune sortie.",
       "noDetails": "Aucun détail à afficher.",
-      "noJournal": "Aucun journal disponible pour cette exécution."
+      "noJournal": "Aucun journal disponible pour cette exécution.",
+      "selectItem": "Sélectionnez un élément pour voir les détails."
     },
     "error": {
       "title": "Impossible de charger cette exécution",

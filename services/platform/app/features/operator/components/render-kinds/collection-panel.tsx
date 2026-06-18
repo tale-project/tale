@@ -22,6 +22,7 @@ import type { CollectionLayout } from '@/lib/shared/platform/render_kinds';
 
 import { asRecord, pickArray, scalar } from '../../lib/output-helpers';
 import type { RenderPart } from '../../types';
+import { ActionBar } from '../action-bar';
 import { OutputFallback } from '../output-fallback';
 
 function resolveLayout(value: string | undefined): CollectionLayout {
@@ -29,7 +30,7 @@ function resolveLayout(value: string | undefined): CollectionLayout {
   return 'list';
 }
 
-const HIDDEN_COLS = new Set(['executionId', 'id', 'taskId']);
+const HIDDEN_COLS = new Set(['executionId', 'id', '_id', 'taskId']);
 
 function columnsOf(items: unknown[]): string[] {
   const first = asRecord(items[0]);
@@ -74,6 +75,12 @@ export function CollectionPanel({ part }: { part: RenderPart }) {
   if (items.length === 0) return <OutputFallback part={part} />;
   const shown = items.slice(0, 50);
 
+  const rowActions = part.actions ?? [];
+  const onAction = part.onAction;
+  const hasRowActions = rowActions.length > 0 && onAction !== undefined;
+  const selectable = part.onSelect !== undefined;
+  const selKey = part.selectionKey;
+
   if (layout === 'table') {
     const cols = columnsOf(shown);
     if (cols.length > 0) {
@@ -86,18 +93,38 @@ export function CollectionPanel({ part }: { part: RenderPart }) {
                   {c}
                 </TableHead>
               ))}
+              {hasRowActions && <TableHead />}
             </TableRow>
           </TableHeader>
           <TableBody>
             {shown.map((raw, i) => {
-              const row = asRecord(raw);
+              const row = asRecord(raw) ?? {};
+              const isSelected =
+                selKey !== undefined &&
+                part.selectedId !== undefined &&
+                String(row[selKey]) === part.selectedId;
               return (
-                <TableRow key={i}>
+                <TableRow
+                  key={i}
+                  data-state={isSelected ? 'selected' : undefined}
+                  className={selectable ? 'cursor-pointer' : undefined}
+                  onClick={selectable ? () => part.onSelect?.(row) : undefined}
+                >
                   {cols.map((c) => (
                     <TableCell key={c}>
-                      <CellValue col={c} value={row?.[c]} />
+                      <CellValue col={c} value={row[c]} />
                     </TableCell>
                   ))}
+                  {hasRowActions && onAction && (
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <ActionBar
+                        actions={rowActions}
+                        item={row}
+                        onAction={onAction}
+                        isPending={part.actionsPending}
+                      />
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}

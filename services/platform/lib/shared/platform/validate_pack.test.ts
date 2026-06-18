@@ -123,6 +123,78 @@ describe('validatePack', () => {
     expect(res.errors.some((e) => e.includes('crystal_ball'))).toBe(true);
   });
 
+  it('validates actions: known kind + kind×source + when-grammar + capability', () => {
+    const catalog = { 'd.t': 'Desk', 'd.go': 'Go' };
+    const res = validatePack({
+      workflows: [],
+      capabilities: { workflows: ['issue-desk/desk-process'] },
+      views: [
+        {
+          id: 'desk',
+          titleKey: 'd.t',
+          parts: [
+            {
+              id: 'inbox',
+              render: 'collection',
+              source: { kind: 'task_collection' },
+              actions: [
+                {
+                  id: 'go',
+                  kind: 'trigger_workflow',
+                  when: 'status == open',
+                  params: { workflow: 'issue-desk/desk-process' },
+                  labelKey: 'd.go',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      catalogs: { en: catalog, de: catalog, fr: catalog },
+      baseLocales,
+    });
+    expect(res.errors).toEqual([]);
+    expect(res.valid).toBe(true);
+  });
+
+  it('rejects unknown action kind, kind×source mismatch, bad when, off-allowlist target', () => {
+    const res = validatePack({
+      workflows: [],
+      capabilities: { workflows: ['allowed/wf'] },
+      views: [
+        {
+          id: 'bad',
+          parts: [
+            {
+              id: 'p1',
+              render: 'collection',
+              source: { kind: 'task_collection' },
+              actions: [
+                { id: 'a', kind: 'teleport' },
+                { id: 'b', kind: 'approve' }, // approve not valid on task_collection
+                { id: 'c', kind: 'comment', when: 'status ==' }, // bad when
+                {
+                  id: 'd',
+                  kind: 'trigger_workflow',
+                  params: { workflow: 'sneaky/wf' }, // off allowlist
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      catalogs: { en: {}, de: {}, fr: {} },
+      baseLocales,
+    });
+    expect(res.valid).toBe(false);
+    expect(res.errors.some((e) => e.includes('teleport'))).toBe(true);
+    expect(
+      res.errors.some((e) => e.includes('approve') && e.includes('not valid')),
+    ).toBe(true);
+    expect(res.errors.some((e) => e.includes('when'))).toBe(true);
+    expect(res.errors.some((e) => e.includes('sneaky/wf'))).toBe(true);
+  });
+
   it('rejects a view part with an unknown render-kind and a missing view label', () => {
     const res = validatePack({
       workflows: [],

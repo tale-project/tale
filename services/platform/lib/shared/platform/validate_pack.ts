@@ -13,8 +13,14 @@
  * Per-step config validity (run target, ports, etc.) is covered by
  * validateWorkflowDefinition; this is the pack-level overlay.
  */
-import { isDataSourceKind } from './data_sources';
+import {
+  type ActionKind,
+  isActionKind,
+  isActionValidOnSource,
+} from './action_kinds';
+import { type DataSourceKind, isDataSourceKind } from './data_sources';
 import { isRenderKind } from './render_kinds';
+import { validateWhen } from './when_predicate';
 
 export interface PackValidationResult {
   valid: boolean;
@@ -27,6 +33,8 @@ interface PackValidationInput {
   workflows: Array<{ name?: string; steps?: unknown }>;
   /** The pack's view configs (free-form records — validated here). */
   views?: unknown[];
+  /** The app's capability allowlist (trigger_workflow targets, roles). */
+  capabilities?: { workflows?: string[]; roles?: string[]; queues?: string[] };
   /** locale -> flat { labelKey: string } catalog for the pack's namespace. */
   catalogs: Record<string, Record<string, string>>;
   /** Locales every label must be present in (e.g. ['en', 'de', 'fr']). */
@@ -93,6 +101,57 @@ export function validatePack(input: PackValidationInput): PackValidationResult {
         errors.push(`[${viewLabel}] part "${String(part.id)}" has no source`);
       }
       for (const key of collectLabelKeys(part)) referencedLabelKeys.add(key);
+
+      // Validate the part's actions (the "do" half).
+      const actions = Array.isArray(part.actions) ? part.actions : [];
+      const seenActionIds = new Set<string>();
+      for (const action of actions) {
+        if (!isRecord(action)) continue;
+        const where = `[${viewLabel}] part "${String(part.id)}"`;
+        const actionId = typeof action.id === 'string' ? action.id : undefined;
+        if (actionId === undefined) {
+          errors.push(`${where}: an action has no id`);
+        } else if (seenActionIds.has(actionId)) {
+          errors.push(`${where}: duplicate action id "${actionId}"`);
+        } else {
+          seenActionIds.add(actionId);
+        }
+        const kind = action.kind;
+        if (typeof kind !== 'string' || !isActionKind(kind)) {
+          errors.push(`${where}: unknown action "${String(kind)}"`);
+        } else if (
+          typeof sourceKind === 'string' &&
+          isDataSourceKind(sourceKind) &&
+          !isActionValidOnSource(
+            kind as ActionKind,
+            sourceKind as DataSourceKind,
+          )
+        ) {
+          errors.push(
+            `${where}: action "${kind}" is not valid on source "${sourceKind}"`,
+          );
+        }
+        if (typeof action.when === 'string') {
+          const whenErr = validateWhen(action.when);
+          if (whenErr) errors.push(`${where}: ${whenErr}`);
+        }
+        if (typeof action.labelKey === 'string') {
+          referencedLabelKeys.add(action.labelKey);
+        }
+        // Capability allowlist: a trigger_workflow target must be declared.
+        if (kind === 'trigger_workflow' && input.capabilities) {
+          const params = isRecord(action.params) ? action.params : {};
+          const target = params.workflow;
+          if (
+            typeof target === 'string' &&
+            !(input.capabilities.workflows ?? []).includes(target)
+          ) {
+            errors.push(
+              `${where}: trigger_workflow target "${target}" not in capabilities.workflows`,
+            );
+          }
+        }
+      }
     }
   }
 

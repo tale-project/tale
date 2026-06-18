@@ -4,6 +4,27 @@
   "layout": "stack",
   "parts": [
     {
+      "id": "issues",
+      "title": "Issues",
+      "render": "collection",
+      "source": { "kind": "task_collection" },
+      "params": { "layout": "table" },
+      "actions": [
+        {
+          "id": "triage",
+          "kind": "trigger_workflow",
+          "title": "Triage & run",
+          "params": { "workflow": "issue-desk/desk-process" }
+        },
+        {
+          "id": "assign-impl",
+          "kind": "assign",
+          "title": "Assign implementer",
+          "params": { "assigneeId": "desk-implementer" }
+        }
+      ]
+    },
+    {
       "id": "reviews",
       "title": "Pending reviews",
       "render": "review",

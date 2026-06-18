@@ -46,12 +46,23 @@
       "form": "Eingabe erforderlich",
       "choice": "Option wählen"
     },
-    "action": { "open": "Öffnen" },
+    "action": {
+      "open": "Öffnen",
+      "approve": "Genehmigen",
+      "reject": "Änderungen anfordern",
+      "respond": "Antworten",
+      "trigger_workflow": "Starten",
+      "steer": "Steuern",
+      "assign": "Zuweisen",
+      "comment": "Kommentieren",
+      "confirm": "Bist du sicher?"
+    },
     "body": {
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
       "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
       "noDetails": "Keine Details vorhanden.",
-      "noJournal": "Für diesen Lauf ist kein Protokoll verfügbar."
+      "noJournal": "Für diesen Lauf ist kein Protokoll verfügbar.",
+      "selectItem": "Wähle einen Eintrag, um Details zu sehen."
     },
     "error": {
       "title": "Lauf konnte nicht geladen werden",

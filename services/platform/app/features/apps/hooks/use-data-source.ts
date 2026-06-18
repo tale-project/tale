@@ -12,7 +12,6 @@ import { useMemo } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import type { PartState } from '@/lib/shared/platform/part_state';
 import type { ViewSource } from '@/lib/shared/schemas/views';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -54,8 +53,8 @@ export function useDataSource(
   const kind = source.kind;
   const params = source.params ?? {};
   const workflow = typeof params.workflow === 'string' ? params.workflow : '';
-  const projectId =
-    typeof params.projectId === 'string' ? params.projectId : '';
+  const externalSystem =
+    typeof params.externalSystem === 'string' ? params.externalSystem : '';
   const executionId =
     typeof params.executionId === 'string' ? params.executionId : '';
 
@@ -73,9 +72,9 @@ export function useDataSource(
     kind === 'approval_queue' ? { organizationId } : 'skip',
   );
   const tasks = useConvexQuery(
-    api.tasks.queries.listTasksByProject,
-    kind === 'task_collection' && projectId
-      ? { projectId: toId<'projects'>(projectId) }
+    api.tasks.queries.listTasksByOrg,
+    kind === 'task_collection'
+      ? { organizationId, ...(externalSystem !== '' && { externalSystem }) }
       : 'skip',
   );
   const run = useConvexQuery(
@@ -130,11 +129,15 @@ export function useDataSource(
         const list = Array.isArray(raw?.tasks) ? raw.tasks : [];
         const items = list.map((t) => {
           const task = rec(t);
+          const id = str(task, '_id') ?? '';
           return {
+            // Display columns:
             title: str(task, 'title') ?? '',
             status: str(task, 'status') ?? '',
             ref: str(task, 'externalId') ?? '',
-            taskId: str(task, '_id') ?? '',
+            // Context for actions (hidden columns):
+            _id: id, // trigger_workflow input.task._id
+            taskId: id, // assign / comment
           };
         });
         return { data: { items }, partState: toState(tasks, items.length) };

@@ -43,6 +43,30 @@ export const viewSourceSchema = z
   })
   .strict();
 
+/**
+ * An ACTION on a part — the "do" half (DATA, never code). `kind` is validated
+ * against ACTION_KINDS in validatePack; `when` is the tiny closed predicate
+ * gating availability; `params` is the per-kind payload (e.g. trigger_workflow's
+ * target slug). Every action routes to ONE existing audited mutation at dispatch.
+ */
+export const viewActionSchema = z
+  .object({
+    /** Stable id within the part (dispatch routing; must be unique per part). */
+    id: z.string(),
+    /** An ACTION_KINDS value (validated in validatePack). */
+    kind: z.string(),
+    /** Show an are-you-sure confirm before dispatching. */
+    confirm: z.boolean().optional(),
+    /** Availability predicate over the bound item (closed grammar). */
+    when: z.string().optional(),
+    /** Per-kind payload (e.g. { workflow }, { assigneeId }, { decision }). */
+    params: z.record(z.string(), z.unknown()).optional(),
+    /** Tier-2 pack key + literal fallback for the button label. */
+    labelKey: z.string().optional(),
+    title: z.string().optional(),
+  })
+  .strict();
+
 export const viewPartSchema = z
   .object({
     /** Stable id within the view (React key + label scoping). */
@@ -55,6 +79,15 @@ export const viewPartSchema = z
     /** Literal title fallback when no `labelKey` bundle is loaded. */
     title: z.string().optional(),
     params: viewPartParamsSchema.optional(),
+    /** Actions a person can take on this part / its rows (the "do" half). */
+    actions: z.array(viewActionSchema).optional(),
+    /**
+     * Master-detail: when this part is the LIST in a `split` view, the field on
+     * a selected row whose value rebinds the detail parts' source params (e.g.
+     * 'executionId' → detail's workflow_run source). Selecting a row threads
+     * `{ [selectionKey]: row[selectionKey] }` into every detail part.
+     */
+    selectionKey: z.string().optional(),
   })
   .strict();
 
@@ -67,12 +100,18 @@ export const viewConfigSchema = z
     title: z.string().optional(),
     /** Tier-2 key for an optional page subtitle/description. */
     descriptionKey: z.string().optional(),
-    layout: z.enum(['stack', 'grid']).optional(),
+    /**
+     * `stack`/`grid` lay every part out equally. `split` is master-detail: the
+     * FIRST part is the list (left), the rest are the detail (right) and rebind
+     * to the list's selected row via its `selectionKey`. The closed-loop shape.
+     */
+    layout: z.enum(['stack', 'grid', 'split']).optional(),
     parts: z.array(viewPartSchema),
   })
   .strict();
 
 export type ViewPartParams = z.infer<typeof viewPartParamsSchema>;
 export type ViewSource = z.infer<typeof viewSourceSchema>;
+export type ViewAction = z.infer<typeof viewActionSchema>;
 export type ViewPart = z.infer<typeof viewPartSchema>;
 export type ViewConfig = z.infer<typeof viewConfigSchema>;

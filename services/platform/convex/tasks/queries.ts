@@ -19,6 +19,7 @@ import {
 } from '../governance/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { UnauthorizedError } from '../lib/rls/errors';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { canClaimTask, checkProjectAccess } from './access';
 import { readTaskDiscussionMessages } from './internal_queries';
@@ -170,6 +171,59 @@ export const listTasksByProject = query({
         : a.status.localeCompare(b.status),
     );
 
+    return { tasks: rows, truncated };
+  },
+});
+
+/**
+ * Org-wide task list (reactive) — the `task_collection` data source for the Apps
+ * hub. Unlike `listTasksByProject`, a config-driven app can't know a projectId,
+ * so this lists the org's recent tasks filtered by externalSystem/status (e.g.
+ * GitHub issues). Org-membership gated; returns empty on no auth.
+ */
+export const listTasksByOrg = query({
+  args: {
+    organizationId: v.string(),
+    externalSystem: v.optional(v.string()),
+    status: v.optional(taskStatusValidator),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    tasks: v.array(taskRowValidator),
+    truncated: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return { tasks: [], truncated: false };
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        return { tasks: [], truncated: false };
+      }
+      throw error;
+    }
+
+    const limit = Math.min(args.limit ?? 100, 500);
+    const rows: Doc<'tasks'>[] = [];
+    let truncated = false;
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_org_updatedAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc')) {
+      if (task.archivedAt) continue;
+      if (args.externalSystem && task.externalSystem !== args.externalSystem) {
+        continue;
+      }
+      if (args.status && task.status !== args.status) continue;
+      rows.push(task);
+      if (rows.length >= limit) {
+        truncated = true;
+        break;
+      }
+    }
     return { tasks: rows, truncated };
   },
 });

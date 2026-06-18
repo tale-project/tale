@@ -46,12 +46,23 @@
       "form": "Input required",
       "choice": "Choose an option"
     },
-    "action": { "open": "Open" },
+    "action": {
+      "open": "Open",
+      "approve": "Approve",
+      "reject": "Request changes",
+      "respond": "Respond",
+      "trigger_workflow": "Run",
+      "steer": "Steer",
+      "assign": "Assign",
+      "comment": "Comment",
+      "confirm": "Are you sure?"
+    },
     "body": {
       "waitingExternal": "Waiting for an external event to continue.",
       "empty": "This step produced no output.",
       "noDetails": "No details to show.",
-      "noJournal": "No journal is available for this run."
+      "noJournal": "No journal is available for this run.",
+      "selectItem": "Select an item to see details."
     },
     "error": {
       "title": "Could not load this run",
