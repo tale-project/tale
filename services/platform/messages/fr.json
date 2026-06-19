@@ -57,7 +57,8 @@
     },
     "workflow": {
       "none": "Ce workflow n'a aucune étape.",
-      "error": "Impossible de charger le workflow : {error}"
+      "error": "Impossible de charger le workflow : {error}",
+      "openEditor": "Ouvrir dans l'éditeur"
     },
     "runs": {
       "none": "Aucune exécution pour le moment.",

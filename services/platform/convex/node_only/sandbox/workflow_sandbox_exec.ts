@@ -333,6 +333,10 @@ export const runSandboxAgent = internalAction({
     model: v.optional(v.string()),
     inputs: inputArgValidator,
     output: outputArgValidator,
+    // Step-scoped env (already resolved/templated by the engine). Injected into
+    // the session below, BEFORE broker credentials so a security-critical
+    // broker var (e.g. GITHUB_TOKEN) always wins on a name collision.
+    env: v.optional(v.record(v.string(), v.string())),
   },
   returns: sandboxRunResultValidator,
   handler: async (ctx, args): Promise<SandboxRunResult> => {
@@ -456,7 +460,25 @@ export const runSandboxAgent = internalAction({
         await applyGatewayConfig();
       }
 
-      // 3. Inject Tier-2 broker credentials (e.g. GITHUB_TOKEN) for bound
+      // 3a. Inject the step's declared env (author intent) FIRST, so the
+      // security-critical broker credentials injected in 3b always win on a
+      // name collision. Isolated try/catch: a denied/failed step-env patch must
+      // not block the credential injection below.
+      if (args.env && Object.keys(args.env).length > 0) {
+        try {
+          const denied = await sessionEnvPatch(sessionId, { set: args.env });
+          if (denied.length > 0) {
+            console.warn('[runSandboxAgent] step env names denied:', denied);
+          }
+        } catch (envErr) {
+          console.warn(
+            '[runSandboxAgent] step env injection failed (continuing):',
+            envErr,
+          );
+        }
+      }
+
+      // 3b. Inject Tier-2 broker credentials (e.g. GITHUB_TOKEN) for bound
       // integrations so the agent can self-fetch code — never persisted.
       try {
         const creds = await ctx.runAction(

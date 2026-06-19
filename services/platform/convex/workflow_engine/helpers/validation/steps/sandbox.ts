@@ -57,6 +57,18 @@ export function validateSandboxStep(
     }
   }
 
+  if (config.env !== undefined) {
+    if (!isRecord(config.env)) {
+      errors.push('sandbox "env" must be an object of string values');
+    } else {
+      for (const [name, value] of Object.entries(config.env)) {
+        if (typeof value !== 'string') {
+          errors.push(`sandbox env "${name}" must be a string value`);
+        }
+      }
+    }
+  }
+
   if (config.inputs !== undefined) {
     if (!Array.isArray(config.inputs)) {
       errors.push('sandbox "inputs" must be an array');

@@ -424,6 +424,12 @@ const sandboxRunValidator = v.union(
 export const sandboxNodeConfigValidator = v.object({
   inputs: v.optional(v.array(sandboxInputValidator)),
   run: sandboxRunValidator,
+  // Step-scoped env auto-injected into this step's sandbox. Values support
+  // `{{...}}` templating against the execution variables, so a value can pull a
+  // decrypted workflow secret (`{{secrets.MY_KEY}}`) or a runtime value
+  // (`{{input.task._id}}`) — one field covering both plain env and secret
+  // injection, reusing the workflow's existing secret-resolution + templating.
+  env: v.optional(v.record(v.string(), v.string())),
   output: v.optional(
     v.object({
       collectDir: v.optional(v.string()),

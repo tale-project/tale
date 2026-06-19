@@ -5,7 +5,10 @@
  * with entry points to configure them. Binds the allowlisted `listAgents` action
  * (one-shot), filtered to the app's manifest agents. Configuration deep-edits
  * live on canonical routes, so the cards LINK there (instructions/model editor +
- * the env/secrets settings) rather than rebuild them inline.
+ * env/secrets) rather than rebuild them inline. For an app whose agents run
+ * inside a workflow's sandbox, env/secrets are scoped to that workflow — so when
+ * a `workflowSlug` is given the env link opens the workflow's Configuration tab
+ * (where step env/secrets are authored), not personal settings.
  */
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
@@ -30,6 +33,12 @@ export interface AgentListProps {
   agents?: string[];
   /** role token -> agent slug (manifest.roles), for the role badge. */
   roles?: Record<string, string>;
+  /**
+   * The workflow these agents run inside. When set, the env/secrets link opens
+   * that workflow's Configuration tab (the correct, app-scoped place to set
+   * step env/secrets); when absent, it falls back to personal env settings.
+   */
+  workflowSlug?: string;
 }
 
 function str(rec: Record<string, unknown>, key: string): string {
@@ -44,10 +53,29 @@ function strArr(rec: Record<string, unknown>, key: string): string[] {
     : [];
 }
 
-export function AgentList({ title, agents, roles }: AgentListProps) {
+export function AgentList({
+  title,
+  agents,
+  roles,
+  workflowSlug,
+}: AgentListProps) {
   const { t } = useT('apps');
   const { organizationId } = useAppRuntime();
   const navigate = useNavigate();
+
+  const openEnvSettings = (): void => {
+    if (workflowSlug) {
+      void navigate({
+        to: '/dashboard/$id/automations/$amId/configuration',
+        params: { id: organizationId, amId: workflowSlug },
+      });
+    } else {
+      void navigate({
+        to: '/dashboard/$id/settings/environment',
+        params: { id: organizationId },
+      });
+    }
+  };
   const list = useBoundAction('agents/file_actions:listAgents', 'action');
   const listRef = useRef(list);
   listRef.current = list;
@@ -130,12 +158,7 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() =>
-                          void navigate({
-                            to: '/dashboard/$id/settings/environment',
-                            params: { id: organizationId },
-                          })
-                        }
+                        onClick={openEnvSettings}
                       >
                         {t('agents.envSecrets')}
                       </Button>

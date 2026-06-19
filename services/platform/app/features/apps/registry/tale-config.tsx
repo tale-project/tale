@@ -24,9 +24,9 @@ import { IssueList, type IssueListProps } from './connected/issue-list';
 import { ReviewQueue, type ReviewQueueProps } from './connected/review';
 import { RunList, type RunListProps } from './connected/run-list';
 import {
-  WorkflowSteps,
-  type WorkflowStepsProps,
-} from './connected/workflow-steps';
+  WorkflowGraph,
+  type WorkflowGraphProps,
+} from './connected/workflow-graph';
 
 type TextVariant =
   | 'body'
@@ -59,7 +59,7 @@ interface TaleComponents {
   ReviewQueue: Partial<ReviewQueueProps>;
   IssueList: Partial<IssueListProps>;
   AgentList: Partial<AgentListProps>;
-  WorkflowSteps: Partial<WorkflowStepsProps>;
+  WorkflowGraph: Partial<WorkflowGraphProps>;
   RunList: Partial<RunListProps>;
 }
 
@@ -163,15 +163,20 @@ export const taleConfig: Config<TaleComponents> = {
     },
     AgentList: {
       fields: { title: { type: 'text' } },
-      render: ({ title, agents, roles }) => (
-        <AgentList title={title} agents={agents} roles={roles} />
+      render: ({ title, agents, roles, workflowSlug }) => (
+        <AgentList
+          title={title}
+          agents={agents}
+          roles={roles}
+          workflowSlug={workflowSlug}
+        />
       ),
     },
-    WorkflowSteps: {
+    WorkflowGraph: {
       fields: { title: { type: 'text' } },
       render: ({ title, workflowSlug }) =>
         workflowSlug ? (
-          <WorkflowSteps title={title} workflowSlug={workflowSlug} />
+          <WorkflowGraph title={title} workflowSlug={workflowSlug} />
         ) : (
           <></>
         ),

@@ -57,7 +57,8 @@
     },
     "workflow": {
       "none": "This workflow has no steps.",
-      "error": "Couldn't load the workflow: {error}"
+      "error": "Couldn't load the workflow: {error}",
+      "openEditor": "Open in editor"
     },
     "runs": {
       "none": "No runs yet.",

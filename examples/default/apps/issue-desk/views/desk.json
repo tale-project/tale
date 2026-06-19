@@ -6,45 +6,38 @@
     {
       "id": "overview",
       "label": "Overview",
-      "columns": [
-        {
-          "root": { "props": {} },
-          "zones": {},
-          "content": [
-            {
-              "type": "WorkflowSteps",
-              "props": {
-                "id": "workflow",
-                "title": "Workflow",
-                "workflowSlug": "issue-desk/desk-process"
-              }
+      "data": {
+        "root": { "props": {} },
+        "zones": {},
+        "content": [
+          {
+            "type": "WorkflowGraph",
+            "props": {
+              "id": "workflow",
+              "title": "Workflow",
+              "workflowSlug": "issue-desk/desk-process"
             }
-          ]
-        },
-        {
-          "root": { "props": {} },
-          "zones": {},
-          "content": [
-            {
-              "type": "AgentList",
-              "props": {
-                "id": "agents",
-                "title": "Agents",
-                "agents": [
-                  "desk-coordinator",
-                  "desk-implementer",
-                  "desk-reviewer"
-                ],
-                "roles": {
-                  "coordinator": "desk-coordinator",
-                  "implementer": "desk-implementer",
-                  "reviewer": "desk-reviewer"
-                }
-              }
+          },
+          {
+            "type": "AgentList",
+            "props": {
+              "id": "agents",
+              "title": "Agents",
+              "agents": [
+                "desk-coordinator",
+                "desk-implementer",
+                "desk-reviewer"
+              ],
+              "roles": {
+                "coordinator": "desk-coordinator",
+                "implementer": "desk-implementer",
+                "reviewer": "desk-reviewer"
+              },
+              "workflowSlug": "issue-desk/desk-process"
             }
-          ]
-        }
-      ]
+          }
+        ]
+      }
     },
     {
       "id": "issues",

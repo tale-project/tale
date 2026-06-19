@@ -8,6 +8,7 @@ import { internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { StepExecutionResult } from '../../../types';
 import type { SandboxNodeConfig } from '../../../types/nodes';
+import { resolveStepEnv } from './resolve_step_env';
 
 export async function executeSandboxNode(
   ctx: ActionCtx,
@@ -22,6 +23,13 @@ export async function executeSandboxNode(
       : '';
   const run = config.run;
   const inputs = config.inputs ?? [];
+
+  // Step-scoped env (literal + `{{...}}`-templated workflow secrets/runtime
+  // values) is resolved here, once, against the live variables. The agent run
+  // mode merges it into its session `sessionEnvPatch`. The deterministic
+  // script run mode (`executeCode` → spawner) does not yet carry an env wire,
+  // so step env there is a follow-up that needs the spawner/runner protocol.
+  const stepEnv = resolveStepEnv(config.env, variables);
 
   const data =
     'agent' in run
@@ -39,6 +47,7 @@ export async function executeSandboxNode(
             ...(run.model !== undefined && { model: run.model }),
             inputs,
             ...(config.output !== undefined && { output: config.output }),
+            ...(Object.keys(stepEnv).length > 0 && { env: stepEnv }),
           },
         )
       : await ctx.runAction(
