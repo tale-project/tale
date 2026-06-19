@@ -17,18 +17,22 @@
   },
   "version": "1.0.0",
   "metadata": {
-    "pack": "task-ops",
+    "labels": ["Tasks", "Automation"],
     "autoInstall": true
   },
   "triggers": {
     "events": [
       {
         "eventType": "task.status_changed",
-        "eventFilter": { "toStatus": "done" }
+        "eventFilter": {
+          "toStatus": "done"
+        }
       },
       {
         "eventType": "task.status_changed",
-        "eventFilter": { "toStatus": "cancelled" }
+        "eventFilter": {
+          "toStatus": "cancelled"
+        }
       }
     ]
   },
@@ -172,7 +176,9 @@
           "type": "task_status_changed",
           "titleKey": "taskUnblocked",
           "bodyKey": "taskUnblockedBody",
-          "params": { "title": "{{loop.item.title}}" },
+          "params": {
+            "title": "{{loop.item.title}}"
+          },
           "taskId": "{{loop.item.taskId}}"
         }
       },

@@ -1,7 +1,7 @@
 {
   "slug": "issue-triager",
   "metadata": {
-    "group": "Engineering",
+    "labels": ["Triage"],
     "autoInstall": false,
     "templateCatalog": false,
     "bundledByIntegration": "github",

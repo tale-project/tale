@@ -1,6 +1,9 @@
 {
   "title": "Confluence",
   "description": "Import Confluence Cloud pages into Tale's knowledge base.",
+  "metadata": {
+    "labels": ["Knowledge"]
+  },
   "version": 1,
   "bundles": {
     "workflows": ["confluence/sync-pages-from-confluence"]

@@ -1,5 +1,5 @@
 ---
-description: The practical git workflow for the Tale monorepo — conventional commits and the allowed scopes, branching off main, when to stash vs spin up a worktree, rebasing/syncing on main, force-pushing safely, and recovering lost work.
+description: The git workflow for the Tale monorepo — conventional commits and the allowed scopes, the repo-specific ban on Claude attribution (no `Co-Authored-By`, no "Generated with Claude Code") in commits and PRs, branching off main, stash vs worktree, rebasing/syncing, force-pushing safely, and recovering lost work.
 alwaysApply: false
 ---
 

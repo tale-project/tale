@@ -1,0 +1,111 @@
+{
+  "name": "React to mention in discussion",
+  "description": "@-mentioning an agent in a project discussion puts it to work: the agent reads the discussion and posts its reply in-thread. Both humans AND agents may trigger via mentions (agent-to-agent collaboration, including routing hand-offs) — runaway chains are bounded by the discussion reply-depth guard (an agent→agent chain stops after 3 hops; any human reply resets it), and writes by the automation engine itself ('workflow' actor) are inert and never trigger anyone. An agent never triggers itself. Mirrors the task-board 'react-to-task-mention' workflow.",
+  "i18n": {
+    "en": {
+      "name": "React to mention in discussion",
+      "description": "When an agent is @-mentioned in a project discussion, it reads the thread and replies in-thread."
+    },
+    "de": {
+      "name": "Auf Erwähnung in Diskussion reagieren",
+      "description": "Wird ein Agent in einer Projektdiskussion @-erwähnt, liest er den Thread und antwortet darin."
+    },
+    "fr": {
+      "name": "Réagir à une mention dans une discussion",
+      "description": "Quand un agent est @-mentionné dans une discussion de projet, il lit le fil et y répond."
+    }
+  },
+  "version": "1.0.0",
+  "metadata": {
+    "labels": ["Discussions", "Automation"],
+    "autoInstall": true
+  },
+  "triggers": {
+    "events": [
+      {
+        "eventType": "discussion.mentioned"
+      }
+    ]
+  },
+  "config": {
+    "timeout": 600000,
+    "variables": {
+      "workflowId": "discussions_mention_response"
+    }
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "not_workflow"
+      }
+    },
+    {
+      "stepSlug": "not_workflow",
+      "name": "Ignore automation-authored mentions",
+      "stepType": "condition",
+      "config": {
+        "expression": "input.actorType != 'workflow' && (input.mentions | length) > 0",
+        "description": "Writes by the automation engine itself (routing nudges, summaries) are inert by design — only human- and agent-authored mentions trigger runs. This is the discussion-pack analog of the task-pack workflow-actor guard."
+      },
+      "nextSteps": {
+        "true": "loop_mentions",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "loop_mentions",
+      "name": "Loop over mentions",
+      "stepType": "loop",
+      "config": {
+        "continueOnError": true,
+        "itemVariable": "mention",
+        "items": "{{input.mentions}}"
+      },
+      "nextSteps": {
+        "loop": "is_agent",
+        "done": "done"
+      }
+    },
+    {
+      "stepSlug": "is_agent",
+      "name": "Agent mention (and not self)?",
+      "stepType": "condition",
+      "config": {
+        "expression": "loop.item.type == 'agent' && loop.item.id != input.actorId",
+        "description": "Human mentions are plain notifications (handled by the collab layer). An agent can never trigger itself."
+      },
+      "nextSteps": {
+        "true": "respond",
+        "false": "loop_mentions"
+      }
+    },
+    {
+      "stepSlug": "respond",
+      "name": "Run the mentioned agent in the discussion",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "run_on_discussion",
+          "agentSlug": "{{loop.item.id}}",
+          "threadId": "{{input.threadId}}",
+          "instructions": "You were @-mentioned in this project discussion. Read it and post a helpful reply in your area of responsibility. If it is outside your remit, say so briefly and @-mention the teammate who should weigh in. If you cannot help, say so precisely."
+        }
+      },
+      "nextSteps": {
+        "success": "loop_mentions"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}

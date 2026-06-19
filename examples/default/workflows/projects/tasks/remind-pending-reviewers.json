@@ -17,7 +17,7 @@
   },
   "version": "1.0.0",
   "metadata": {
-    "pack": "task-ops",
+    "labels": ["Tasks", "Automation"],
     "autoInstall": true
   },
   "triggers": {
@@ -233,7 +233,9 @@
           "type": "agent_escalation",
           "titleKey": "humanInputEscalated",
           "bodyKey": "humanInputEscalatedBody",
-          "params": { "ageHours": "{{loop.item.ageHours}}" }
+          "params": {
+            "ageHours": "{{loop.item.ageHours}}"
+          }
         }
       },
       "nextSteps": {

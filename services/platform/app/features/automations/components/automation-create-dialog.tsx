@@ -103,6 +103,10 @@ function BlankTabContent({
         await saveWorkflow({
           organizationId,
           workflowSlug,
+          // Creating, not editing — reject a name collision (DUPLICATE_NAME,
+          // surfaced as a field error below) instead of silently overwriting
+          // an existing workflow. Mirrors the agent create dialog.
+          isNew: true,
           config: {
             name: data.name,
             description: data.description ?? '',

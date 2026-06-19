@@ -1,21 +1,24 @@
 {
-  "name": "Sync conversations to the knowledge base",
+  "name": "Sync messages into conversations",
   "description": "Sync messages from an integration into conversations with automatic thread grouping",
   "i18n": {
     "en": {
-      "name": "Sync conversations to the knowledge base",
+      "name": "Sync messages into conversations",
       "description": "Imports messages from any configured integration into Tale conversations with automatic thread grouping."
     },
     "de": {
-      "name": "Konversationen mit der Wissensdatenbank synchronisieren",
+      "name": "Nachrichten in Konversationen synchronisieren",
       "description": "Importiert Nachrichten aus einer beliebigen konfigurierten Integration als Tale-Konversationen mit automatischer Thread-Gruppierung."
     },
     "fr": {
-      "name": "Synchroniser les conversations vers la base de connaissances",
+      "name": "Synchroniser les messages dans les conversations",
       "description": "Importe les messages de toute intégration configurée dans les conversations Tale avec regroupement automatique des fils."
     }
   },
   "version": "1.0.0",
+  "metadata": {
+    "labels": ["Conversations"]
+  },
   "enabled": true,
   "config": {
     "timeout": 300000,

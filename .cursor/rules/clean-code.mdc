@@ -1,5 +1,5 @@
 ---
-description: Universal clean-code discipline for Tale — intention-revealing names, small single-purpose functions, comments that explain why, fail-fast error handling, immutability, and (crucially) the reuse-and-centralization procedure: search packages/ui → shared app/lib → feature before writing anything new.
+description: The language-agnostic baseline for every line in Tale — intention-revealing names, small single-purpose functions, guard clauses, comments that explain why, fail-fast errors, immutability, and the reuse-and-centralization procedure (search packages/ui → shared app/lib → feature before creating anything).
 alwaysApply: false
 ---
 

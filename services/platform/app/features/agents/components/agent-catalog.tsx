@@ -21,6 +21,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { SearchInput } from '@/app/components/ui/forms/search-input';
+import { LabelBadges } from '@/app/components/ui/label-badges';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
@@ -40,7 +41,10 @@ interface CatalogEntry {
   slug: string;
   displayName: string;
   description?: string;
-  group: string;
+  /** Top-level folder (chat/workforce/github) — the catalog's visual section. */
+  folder: string;
+  /** Flat, equal catalog tags; rendered first + overflow, matched by search. */
+  labels: string[];
   requiresIntegrations: string[];
   installed: boolean;
   enabled: boolean;
@@ -49,7 +53,18 @@ interface CatalogEntry {
   disabledReason?: 'integration_disabled' | 'user';
 }
 
-const UNGROUPED = 'Other';
+const FOLDER_LABELS: Record<string, string> = {
+  workforce: 'Workforce',
+  chat: 'Chat',
+  github: 'GitHub',
+};
+
+/** Title for a folder section; falls back to capitalizing the raw folder. */
+function folderLabel(folder: string): string {
+  if (FOLDER_LABELS[folder]) return FOLDER_LABELS[folder];
+  if (!folder) return 'Other';
+  return folder.charAt(0).toUpperCase() + folder.slice(1);
+}
 
 export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   const { t } = useT('agentCatalog');
@@ -101,11 +116,19 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
       const resolved = resolveAgentLocale(a, locale);
       if (!resolved.displayName) continue;
       const state = installBySlug.get(a.name);
+      const labels = Array.isArray(meta.labels)
+        ? meta.labels.filter((l: unknown): l is string => typeof l === 'string')
+        : [];
+      const folder =
+        typeof (a as { folder?: unknown }).folder === 'string'
+          ? (a as { folder: string }).folder
+          : '';
       out.push({
         slug: a.name,
         displayName: resolved.displayName,
         description: resolved.description,
-        group: typeof meta.group === 'string' ? meta.group : UNGROUPED,
+        folder,
+        labels,
         requiresIntegrations: Array.isArray(meta.requires?.integrations)
           ? meta.requires.integrations
           : [],
@@ -126,16 +149,16 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
       (e) =>
         e.displayName.toLowerCase().includes(q) ||
         (e.description ?? '').toLowerCase().includes(q) ||
-        e.group.toLowerCase().includes(q),
+        e.labels.some((l) => l.toLowerCase().includes(q)),
     );
   }, [entries, search]);
 
-  const byGroup = useMemo(() => {
+  const byFolder = useMemo(() => {
     const groups = new Map<string, CatalogEntry[]>();
     for (const e of filtered) {
-      const list = groups.get(e.group) ?? [];
+      const list = groups.get(e.folder) ?? [];
       list.push(e);
-      groups.set(e.group, list);
+      groups.set(e.folder, list);
     }
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [filtered]);
@@ -174,10 +197,10 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
         placeholder={t('searchPlaceholder')}
         className="w-64"
       />
-      {byGroup.map(([group, items]) => (
-        <Stack key={group} gap={3}>
+      {byFolder.map(([folder, items]) => (
+        <Stack key={folder} gap={3}>
           <Text variant="caption" className="text-muted-foreground font-medium">
-            {group}
+            {folderLabel(folder)}
           </Text>
           <Grid cols={1} md={2} lg={3} gap={3}>
             {items.map((e) => (
@@ -198,6 +221,8 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
                     </Text>
                   ) : null}
                 </Stack>
+
+                <LabelBadges labels={e.labels} />
 
                 {e.installedBy?.startsWith('integration:') || e.bundledBy ? (
                   <Badge variant="outline" className="w-fit">

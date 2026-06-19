@@ -16,6 +16,9 @@
     }
   },
   "version": "1.0.0",
+  "metadata": {
+    "labels": ["Products"]
+  },
   "enabled": true,
   "config": {
     "timeout": 1800000,

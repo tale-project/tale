@@ -315,7 +315,7 @@ file or the generated adapters are out of sync.
 | [`performance`](.claude/skills/performance/SKILL.md) | cold-load, per-query cost, prompt-cache, prefetch |
 | [`security`](.claude/skills/security/SKILL.md) | a boundary, secrets, SSRF, the SAST gate |
 | [`git`](.claude/skills/git/SKILL.md) | commits, branching, stash vs worktree, rebase |
-| [`python`](.claude/skills/python/SKILL.md) | Python in `services/sandbox-runtime` |
+| [`python`](.claude/skills/python/SKILL.md) | editing a `.py` file (the pptx skill scripts under `examples/*/skills/pptx/`) |
 | [`bash`](.claude/skills/bash/SKILL.md) | shell scripts and Docker entrypoints |
 
 **Domain** — read before that specific work:

@@ -10,6 +10,10 @@
  *    the result rides `output.data` (`{ok, text?, error?, refusedReason?}`)
  *    so the workflow's condition steps own the failure branches (the engine
  *    has no try/catch port).
+ *  - `run_on_discussion`: reply as the agent inside a project discussion via
+ *    `agents/run_agent_on_discussion` (node) — the discussion analog of
+ *    `run_on_task`, backing the `react-to-discussion-mention` /
+ *    `triage-new-discussion` packs. Same never-throw contract.
  *  - `decompose_task`: manager mode — split an epic into subtasks assigned
  *    to the agent's direct reports (restricted toolset, depth = 1 enforced
  *    server-side). Returns `{ok, subtasksCreated, ...}`.
@@ -47,6 +51,15 @@ type AgentActionParams =
         | 'unblock'
         | 'decomposition'
         | 'manual';
+      instructions: string;
+      promptContext?: string;
+      maxSteps?: number;
+      timeoutMs?: number;
+    }
+  | {
+      operation: 'run_on_discussion';
+      agentSlug: string;
+      threadId: string;
       instructions: string;
       promptContext?: string;
       maxSteps?: number;
@@ -102,13 +115,22 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
   type: 'agent',
   title: 'Agent Operation',
   description:
-    'Workforce operations on org agents: run_on_task / decompose_task (never throw — {ok, error, refusedReason} rides output.data for condition branches), check_run_budget, get_org_role, list_task_candidates, reassign_or_unassign, requeue_queued_runs. organizationId is read from workflow context variables. (Roster admin — install/enable/disable/set_delegates — is intentionally NOT here: it is privilege-gated and lives in the agent_write tool, the catalog mutations, and the integration cascade.)',
+    'Workforce operations on org agents: run_on_task / run_on_discussion / decompose_task (never throw — {ok, error, refusedReason} rides output.data for condition branches), check_run_budget, get_org_role, list_task_candidates, reassign_or_unassign, requeue_queued_runs. organizationId is read from workflow context variables. (Roster admin — install/enable/disable/set_delegates — is intentionally NOT here: it is privilege-gated and lives in the agent_write tool, the catalog mutations, and the integration cascade.)',
   parametersValidator: v.union(
     v.object({
       operation: v.literal('run_on_task'),
       agentSlug: v.string(),
       taskId: v.id('tasks'),
       trigger: triggerValidator,
+      instructions: v.string(),
+      promptContext: v.optional(v.string()),
+      maxSteps: v.optional(v.number()),
+      timeoutMs: v.optional(v.number()),
+    }),
+    v.object({
+      operation: v.literal('run_on_discussion'),
+      agentSlug: v.string(),
+      threadId: v.string(),
       instructions: v.string(),
       promptContext: v.optional(v.string()),
       maxSteps: v.optional(v.number()),
@@ -179,6 +201,24 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
           },
         );
         return { operation: 'run_on_task', ...result };
+      }
+
+      case 'run_on_discussion': {
+        const result = await ctx.runAction(
+          internal.agents.run_agent_on_discussion.runAgentOnDiscussion,
+          {
+            organizationId,
+            agentSlug: params.agentSlug,
+            threadId: params.threadId,
+            instructions: params.instructions,
+            promptContext: params.promptContext,
+            maxSteps: params.maxSteps,
+            timeoutMs: params.timeoutMs,
+            wfExecutionId: extras?.executionId,
+            workflowSlug,
+          },
+        );
+        return { operation: 'run_on_discussion', ...result };
       }
 
       case 'decompose_task': {

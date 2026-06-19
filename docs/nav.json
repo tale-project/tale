@@ -123,6 +123,7 @@
             "platform/projects/concepts",
             "platform/projects/manage-files",
             "platform/projects/project-agents",
+            "platform/projects/discussions",
             "platform/projects/task-automation",
             "platform/projects/workforce-metrics"
           ]
@@ -131,6 +132,7 @@
           "label": "agents",
           "pages": [
             "platform/agents/concepts",
+            "platform/agents/catalog",
             "platform/agents/create",
             "platform/agents/tools",
             "platform/agents/skills",

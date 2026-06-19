@@ -17,7 +17,7 @@
   },
   "version": "1.0.0",
   "metadata": {
-    "pack": "task-ops",
+    "labels": ["Tasks", "Automation"],
     "autoInstall": true
   },
   "triggers": {
@@ -112,7 +112,9 @@
           "type": "task_status_changed",
           "titleKey": "taskDueSoon",
           "bodyKey": "taskDueSoonBody",
-          "params": { "title": "{{loop.item.title}}" },
+          "params": {
+            "title": "{{loop.item.title}}"
+          },
           "taskId": "{{loop.item.taskId}}"
         }
       },
@@ -144,7 +146,9 @@
           "type": "task_status_changed",
           "titleKey": "taskDueSoon",
           "bodyKey": "taskDueSoonBody",
-          "params": { "title": "{{loop.item.title}}" },
+          "params": {
+            "title": "{{loop.item.title}}"
+          },
           "taskId": "{{loop.item.taskId}}",
           "userIds": ["{{loop.item.projectCreatorId}}"]
         }
@@ -281,7 +285,9 @@
           "type": "agent_escalation",
           "titleKey": "taskSlaEscalated",
           "bodyKey": "taskSlaEscalatedBody",
-          "params": { "title": "{{loop.item.title}}" },
+          "params": {
+            "title": "{{loop.item.title}}"
+          },
           "taskId": "{{loop.item.taskId}}",
           "userIds": ["{{loop.item.projectCreatorId}}"]
         }
@@ -302,7 +308,9 @@
           "type": "agent_escalation",
           "titleKey": "taskSlaEscalated",
           "bodyKey": "taskSlaEscalatedBody",
-          "params": { "title": "{{loop.item.title}}" },
+          "params": {
+            "title": "{{loop.item.title}}"
+          },
           "taskId": "{{loop.item.taskId}}"
         }
       },

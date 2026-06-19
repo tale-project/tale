@@ -17,7 +17,7 @@
   },
   "version": "1.0.0",
   "metadata": {
-    "pack": "task-ops",
+    "labels": ["Tasks", "Automation"],
     "autoInstall": true
   },
   "triggers": {

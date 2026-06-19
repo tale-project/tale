@@ -306,3 +306,22 @@ export const agentSpawnTaskFromDiscussion = internalMutation({
     return { taskId };
   },
 });
+
+/**
+ * Create a throwaway agent thread for an isolated agent generation. Used by
+ * `run_agent_on_discussion`: the agent drafts its reply in this private thread
+ * (so the internal prompt never lands in the user-visible discussion), and only
+ * the final text is posted to the real discussion via `agentReplyToDiscussion`.
+ * The thread carries no `threadMetadata` row — it is not a discussion or chat.
+ */
+export const createDiscussionRunThread = internalMutation({
+  args: { actorId: v.string() },
+  returns: v.object({ threadId: v.string() }),
+  handler: async (ctx, args): Promise<{ threadId: string }> => {
+    const threadId = await createThread(ctx, components.agent, {
+      userId: args.actorId,
+      title: 'discussion-run (ephemeral)',
+    });
+    return { threadId };
+  },
+});

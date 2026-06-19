@@ -1,7 +1,7 @@
 {
   "slug": "workflow-assistant",
   "metadata": {
-    "group": "workflows",
+    "labels": ["Automation"],
     "autoInstall": true
   },
   "toolNames": [
@@ -30,7 +30,7 @@
   "i18n": {
     "de": {
       "displayName": "Automatisierungs-Assistent",
-      "description": "Erstellt und verwaltet Automatisierungs-Workflows",
+      "description": "Erstellt und bearbeitet Automatisierungs-Workflows — Auslöser, Schritte und Integrationen, in klarer Sprache beschrieben.",
       "conversationStarters": [
         "Mir helfen, eine wiederkehrende Aufgabe zu automatisieren",
         "Einen Workflow erstellen, der nach Zeitplan läuft",
@@ -40,7 +40,7 @@
     },
     "en": {
       "displayName": "Automation Assistant",
-      "description": "Creates and manages automation workflows",
+      "description": "Builds and edits automation workflows — triggers, steps, and integrations, described in plain language.",
       "conversationStarters": [
         "Help me automate a repetitive task",
         "Build a workflow that runs on a schedule",
@@ -51,7 +51,7 @@
     },
     "fr": {
       "displayName": "Assistant d'automatisation",
-      "description": "Crée et gère des workflows d'automatisation",
+      "description": "Crée et modifie des workflows d'automatisation — déclencheurs, étapes et intégrations, décrits en langage clair.",
       "conversationStarters": [
         "M’aider à automatiser une tâche répétitive",
         "Créer un workflow qui s’exécute selon un planning",

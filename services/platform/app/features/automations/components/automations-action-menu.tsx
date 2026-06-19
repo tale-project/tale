@@ -96,7 +96,7 @@ export function AutomationsActionMenu({
         getKey={(entry) =>
           entry.relPath.replace(/\.json$/i, '').replace(/\\/g, '/')
         }
-        onSaveOne={async (entry) => {
+        onSaveOne={async (entry, { overwrite }) => {
           const workflowSlug = entry.relPath
             .replace(/\.json$/i, '')
             .replace(/\\/g, '/');
@@ -104,6 +104,11 @@ export function AutomationsActionMenu({
           await saveWorkflow({
             organizationId,
             workflowSlug,
+            // Only overwrite a colliding workflow when the user explicitly
+            // opted in (the dialog's overwrite toggle); otherwise create-only
+            // so a non-conflicting import can't clobber an existing slug.
+            // Mirrors the agents upload path.
+            isNew: !overwrite,
             config,
           });
           await installWorkflow({ organizationId, workflowSlug });

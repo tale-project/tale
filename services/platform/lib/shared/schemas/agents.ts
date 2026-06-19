@@ -162,10 +162,10 @@ const AGENT_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
  *                        creation (the workforce default-on set).
  *  - `templateCatalog` — visible in the agent catalog UI (default true);
  *                        `false` hides integration-bundled agents.
- *  - `group`           — UI grouping label (department / "chat" / "workflows" /
- *                        "route"); decoupled from the on-disk folder so system
- *                        agents keep stable flat slugs.
- *  - `pack`            — free-form grouping label (e.g. 'workforce').
+ *  - `labels`          — catalog tags (e.g. ["Engineering", "Security"]). The
+ *                        FIRST label is the catalog section (department); the
+ *                        rest are filter tags. Decoupled from the on-disk
+ *                        folder so system agents keep stable flat slugs.
  *  - `requires.integrations` — HARD dependency: the agent is cascade-disabled
  *                        when any listed integration is not connected.
  *  - `bundledByIntegration`  — the integration whose connection installs this
@@ -174,8 +174,7 @@ const AGENT_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
 const agentMetadataSchema = z.object({
   autoInstall: z.boolean().optional(),
   templateCatalog: z.boolean().optional(),
-  group: z.string().min(1).max(80).optional(),
-  pack: z.string().min(1).max(80).optional(),
+  labels: z.array(z.string().min(1).max(80)).max(12).optional(),
   requires: z
     .object({ integrations: z.array(z.string().min(1)).optional() })
     .optional(),

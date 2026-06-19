@@ -1,7 +1,7 @@
 {
   "slug": "qa-engineer",
   "metadata": {
-    "group": "Quality Assurance",
+    "labels": ["Engineering", "Quality"],
     "autoInstall": true
   },
   "toolNames": [

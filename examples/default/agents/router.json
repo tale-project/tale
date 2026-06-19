@@ -1,7 +1,7 @@
 {
   "slug": "router",
   "metadata": {
-    "group": "route",
+    "labels": ["System"],
     "autoInstall": true
   },
   "displayName": "Auto Router",

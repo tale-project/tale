@@ -1,5 +1,5 @@
 ---
-description: How testing works in the Tale monorepo — Vitest unit/component tests, Testing Library, vitest-axe a11y blocks, Playwright e2e, the test file layout, and the commands.
+description: How testing works in the Tale monorepo — Vitest unit/component (co-located), Testing Library, vitest-axe a11y blocks, Playwright e2e, the test-file layout and naming dispatcher, and the commands.
 globs: **/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/tests/**,**/e2e/**
 alwaysApply: false
 ---

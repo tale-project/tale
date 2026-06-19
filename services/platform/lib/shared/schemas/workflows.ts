@@ -111,8 +111,8 @@ export const workflowJsonSchema = z.object({
   version: z.string().optional(),
   config: workflowConfigSchema.optional(),
   // Documented metadata keys: `autoInstall?: boolean` (provision this
-  // workflow + its declared triggers to every org), `pack?: string`
-  // (grouping label, e.g. 'task-ops'). Free-form record otherwise.
+  // workflow + its declared triggers to every org), `labels?: string[]`
+  // (catalog tags, e.g. ['Tasks','Automation']). Free-form record otherwise.
   metadata: z.record(z.string(), z.unknown()).optional(),
   triggers: workflowTriggersSchema.optional(),
   requires: requiresSchema.optional(),

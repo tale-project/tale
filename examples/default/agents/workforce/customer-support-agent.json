@@ -1,7 +1,7 @@
 {
   "slug": "customer-support-agent",
   "metadata": {
-    "group": "Customer",
+    "labels": ["Support"],
     "autoInstall": true
   },
   "toolNames": [

@@ -1,6 +1,9 @@
 {
   "title": "GitHub",
   "description": "Manage repositories, issues, and pull requests on GitHub.",
+  "metadata": {
+    "labels": ["Developer"]
+  },
   "version": 1,
   "bundles": {
     "agents": ["pull-request-reviewer", "issue-triager"],

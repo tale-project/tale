@@ -227,7 +227,12 @@ export const listAgents = action({
           return {
             name: slug,
             slug,
-            group: config.metadata?.group,
+            // Top-level folder (chat/workforce/github) — the catalog's visual
+            // grouping key. Independent of `labels`, which are flat equal tags.
+            folder: relativePath.includes('/')
+              ? relativePath.split('/')[0]
+              : '',
+            labels: config.metadata?.labels,
             displayName: config.displayName,
             description: config.description,
             visibleInChat: config.visibleInChat,

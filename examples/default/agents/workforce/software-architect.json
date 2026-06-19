@@ -1,7 +1,7 @@
 {
   "slug": "software-architect",
   "metadata": {
-    "group": "Engineering",
+    "labels": ["Engineering"],
     "autoInstall": true
   },
   "toolNames": [

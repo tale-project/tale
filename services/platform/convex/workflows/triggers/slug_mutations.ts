@@ -8,8 +8,11 @@ import { jsonRecordValidator } from '../../lib/validators/json';
 import { isValidEventType } from './event_types';
 import { generateToken } from './helpers/crypto';
 
+// Nestable folders (`folder/subfolder/name`); `__` is the reserved URL
+// separator and never allowed inside a segment. Mirror of the regex in
+// `workflows/file_utils.ts` (kept in sync across the node/V8 boundary).
 const WORKFLOW_SLUG_REGEX =
-  /^(?!.*__)[a-z0-9][a-z0-9_-]*(\/(?!.*__)[a-z0-9][a-z0-9_-]*)?$/;
+  /^(?!.*__)[a-z0-9][a-z0-9_-]*(\/(?!.*__)[a-z0-9][a-z0-9_-]*)*$/;
 
 function validateWorkflowSlug(slug: string): boolean {
   return WORKFLOW_SLUG_REGEX.test(slug) && slug.length <= 128;

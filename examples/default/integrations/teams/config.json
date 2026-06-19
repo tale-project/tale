@@ -1,6 +1,9 @@
 {
   "title": "Microsoft Teams",
   "description": "Send messages and manage channels in Microsoft Teams.",
+  "metadata": {
+    "labels": ["Messaging"]
+  },
   "version": 1,
   "authMethod": "oauth2",
   "supportedAuthMethods": ["oauth2"],

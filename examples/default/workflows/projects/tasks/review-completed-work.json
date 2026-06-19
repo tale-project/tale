@@ -1,23 +1,23 @@
 {
-  "name": "Gate review before completion",
+  "name": "Review completed work",
   "description": "The human-in-the-loop gate of the task board — and the ONLY automated path to Done. When agent work lands at In review, this workflow requests a human review (task creator, falling back to the project owner) and pauses. Approve completes the task; Request changes posts the feedback, re-engages the same agent on the shared task thread, and parks the revision at In review again for a fresh gate. Agents themselves can never set Done — that rule is enforced server-side regardless of this workflow.",
   "i18n": {
     "en": {
-      "name": "Gate review before completion",
+      "name": "Review completed work",
       "description": "Agent work at In review pauses for a human to approve (complete) or request changes (re-engage the agent)."
     },
     "de": {
-      "name": "Prüfung vor Abschluss erzwingen",
+      "name": "Abgeschlossene Arbeit prüfen",
       "description": "Agentenarbeit in Überprüfung pausiert, bis ein Mensch sie freigibt (abschließt) oder Änderungen anfordert (Agent erneut beauftragt)."
     },
     "fr": {
-      "name": "Exiger une revue avant la clôture",
+      "name": "Examiner le travail terminé",
       "description": "Le travail d'agent en revue est mis en pause jusqu'à ce qu'un humain l'approuve (clôture) ou demande des modifications (réengage l'agent)."
     }
   },
   "version": "1.0.0",
   "metadata": {
-    "pack": "task-ops",
+    "labels": ["Tasks", "Automation"],
     "autoInstall": true
   },
   "triggers": {

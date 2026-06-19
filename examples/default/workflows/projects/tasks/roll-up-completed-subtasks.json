@@ -17,18 +17,22 @@
   },
   "version": "1.0.0",
   "metadata": {
-    "pack": "task-ops",
+    "labels": ["Tasks", "Automation"],
     "autoInstall": true
   },
   "triggers": {
     "events": [
       {
         "eventType": "task.status_changed",
-        "eventFilter": { "toStatus": "done" }
+        "eventFilter": {
+          "toStatus": "done"
+        }
       },
       {
         "eventType": "task.status_changed",
-        "eventFilter": { "toStatus": "cancelled" }
+        "eventFilter": {
+          "toStatus": "cancelled"
+        }
       }
     ]
   },

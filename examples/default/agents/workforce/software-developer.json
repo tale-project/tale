@@ -1,7 +1,7 @@
 {
   "slug": "software-developer",
   "metadata": {
-    "group": "Engineering",
+    "labels": ["Engineering"],
     "autoInstall": true
   },
   "primaryBehavior": "external-agent",

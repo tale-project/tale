@@ -6,12 +6,12 @@ description: How to run and read the structural docs test suite. Read any time d
 # docs-check
 
 The structural test suite is the pre-merge gate for everything under [`docs/`](../../../docs/), run
-from [`services/docs/tests/`](../../../services/docs/tests/). It walks the whole `docs/` tree and
-asserts three things: the locales mirror each other (**parity**), each page is mechanically sound
+from [`services/docs/tests/`](../../../services/docs/tests/). It walks the whole tree and asserts
+three things: the locales mirror each other (**parity**), each page is mechanically sound
 (**structure**), and each page reads like a real page, not a stub (**content**). A single failing
-assertion rarely tells you which rule broke or where the contract lives — this skill names every
-check, what it catches, and the fix. Writing/voice rules live in [`docs`](../docs/SKILL.md);
-cross-locale terminology lives in [`translation`](../translation/SKILL.md).
+assertion rarely says which rule broke or where the contract lives — this skill names every check,
+what it catches, and the fix. Writing/voice rules live in [`docs`](../docs/SKILL.md); cross-locale
+terminology lives in [`translation`](../translation/SKILL.md).
 
 ## When this applies
 

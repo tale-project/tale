@@ -16,6 +16,9 @@
     }
   },
   "version": "1.0.0",
+  "metadata": {
+    "labels": ["Email", "Outlook"]
+  },
   "enabled": true,
   "config": {
     "timeout": 300000,

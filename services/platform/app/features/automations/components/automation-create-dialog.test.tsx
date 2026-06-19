@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi } from 'vitest';
+import { ConvexError } from 'convex/values';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, waitFor } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { CreateAutomationDialog } from './automation-create-dialog';
 
@@ -16,15 +17,24 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
 }));
 
+// Controllable so a test can make the save reject (e.g. a name collision).
+const saveWorkflowMock = vi.fn();
+const installWorkflowMock = vi.fn();
 vi.mock('../hooks/file-mutations', () => ({
-  useSaveWorkflow: () => ({ mutateAsync: vi.fn() }),
+  useSaveWorkflow: () => ({ mutateAsync: saveWorkflowMock }),
   useInvalidateWorkflows: () => vi.fn(),
-  useInstallWorkflow: () => ({ mutateAsync: vi.fn() }),
+  useInstallWorkflow: () => ({ mutateAsync: installWorkflowMock }),
 }));
 
 vi.mock('../hooks/file-queries', () => ({
   useListWorkflows: () => ({ workflows: [], isLoading: false }),
 }));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  saveWorkflowMock.mockResolvedValue({ hash: 'h' });
+  installWorkflowMock.mockResolvedValue({ hash: 'h' });
+});
 
 describe('CreateAutomationDialog', () => {
   describe('accessibility', () => {
@@ -118,6 +128,56 @@ describe('CreateAutomationDialog', () => {
           }),
         ),
       );
+
+      // Creating must flag the save as a create so the backend rejects a name
+      // collision instead of silently overwriting.
+      expect(saveWorkflowMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowSlug: 'my-new-automation',
+          isNew: true,
+        }),
+      );
+    });
+  });
+
+  // A name that collides with an existing workflow must be rejected inline,
+  // not silently overwrite it. The backend throws DUPLICATE_NAME (isNew guard);
+  // the dialog surfaces it as a field error and does NOT navigate away.
+  describe('duplicate name', () => {
+    it('shows a field error and does not navigate when the name already exists', async () => {
+      navigateSpy.mockClear();
+      saveWorkflowMock.mockRejectedValueOnce(
+        new ConvexError({ code: 'DUPLICATE_NAME', message: 'exists' }),
+      );
+
+      const { user } = render(
+        <CreateAutomationDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          organizationId="org-1"
+        />,
+      );
+
+      const nameInput = document.querySelector(
+        'input[name="name"]',
+      ) as HTMLInputElement;
+      await user.type(nameInput, 'Existing Automation');
+
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+
+      // The duplicate-name field error appears…
+      await waitFor(() =>
+        expect(
+          screen.getByText('An automation with this name already exists'),
+        ).toBeInTheDocument(),
+      );
+      // …install never runs and the dialog stays put (no navigation).
+      expect(installWorkflowMock).not.toHaveBeenCalled();
+      expect(navigateSpy).not.toHaveBeenCalled();
     });
   });
 });

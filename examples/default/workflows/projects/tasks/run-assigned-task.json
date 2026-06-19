@@ -1,23 +1,23 @@
 {
-  "name": "Assign work to an agent",
+  "name": "Run an assigned task",
   "description": "The execution loop of the task board: when a task is assigned to an AI agent, acknowledge by moving it to In progress, then either RUN the agent against the task and park the result at In review for a human — or, when the assignee is a manager on the org chart and the task is a root task labeled 'epic', DECOMPOSE it instead: the manager splits it into subtasks assigned to its direct reports (depth 1, enforced server-side), and the parent waits in In progress until the subtask-rollup workflow moves it to In review. On failure the task auto-rolls back to To do with an explanatory comment. Guardrail refusals (concurrency queue, budget pause, circuit breaker) skip the error comment — the guardrails already posted a more specific one. Tune or disable per org: this file is yours to edit, and the trigger can be deactivated in Automations. Agents bound to an external runtime (tale-daemon) dispatch instead of running inline: the task stays In progress until the daemon reports back (its completion moves the task to In review; failures roll back automatically).",
   "i18n": {
     "en": {
-      "name": "Assign work to an agent",
+      "name": "Run an assigned task",
       "description": "When a task is assigned to an agent, it runs the work (or decomposes an epic) and parks the result at In review."
     },
     "de": {
-      "name": "Arbeit einem Agenten zuweisen",
+      "name": "Eine zugewiesene Aufgabe ausführen",
       "description": "Wird eine Aufgabe einem Agenten zugewiesen, erledigt er die Arbeit (oder zerlegt ein Epic) und legt das Ergebnis zur Überprüfung ab."
     },
     "fr": {
-      "name": "Attribuer du travail à un agent",
+      "name": "Exécuter une tâche attribuée",
       "description": "Quand une tâche est attribuée à un agent, il effectue le travail (ou décompose un epic) et place le résultat en revue."
     }
   },
   "version": "1.0.0",
   "metadata": {
-    "pack": "task-ops",
+    "labels": ["Tasks", "Automation"],
     "autoInstall": true
   },
   "triggers": {

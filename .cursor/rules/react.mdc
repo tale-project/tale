@@ -1,5 +1,5 @@
 ---
-description: How to write React 19 + TanStack Router/Query UI in services/platform/app and packages/ui — route-scoped vs shared code, navigation, Convex data-fetching hooks, loader prefetch, Skeletonize loading, optimistic mutations, i18n, and hooks discipline.
+description: How to write React 19 + TanStack Router/Query UI in services/platform/app and packages/ui — route-scoped vs shared code, router navigation, the gated Convex data-fetching hooks, loader prefetch, Skeletonize loading, optimistic mutations, i18n, and the no-useEffect-reflex.
 globs: services/platform/app/**,packages/ui/src/**/*.tsx
 alwaysApply: false
 ---

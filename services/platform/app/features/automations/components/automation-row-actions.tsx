@@ -75,11 +75,11 @@ export function AutomationRowActions({
           variant: 'success',
         });
       } catch (error: unknown) {
+        // Rethrow so the rename dialog owns error display — it shows a
+        // field-level message for a name collision (DUPLICATE_NAME) and a
+        // destructive toast otherwise. Toasting here too would double up (and
+        // pair a toast with the inline field error on collisions).
         console.error('Failed to rename automation:', error);
-        toast({
-          title: tToast('error.automationRenameFailed'),
-          variant: 'destructive',
-        });
         throw error;
       }
     },

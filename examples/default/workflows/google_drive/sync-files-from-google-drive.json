@@ -16,6 +16,9 @@
     }
   },
   "version": "1.0.0",
+  "metadata": {
+    "labels": ["Knowledge", "Google Drive"]
+  },
   "config": {
     "timeout": 600000,
     "retryPolicy": {

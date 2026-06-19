@@ -1,7 +1,7 @@
 {
   "slug": "coder",
   "metadata": {
-    "group": "chat",
+    "labels": ["Engineering"],
     "autoInstall": true
   },
   "skillBindings": [],
@@ -37,7 +37,7 @@
   "i18n": {
     "de": {
       "displayName": "Coder",
-      "description": "Experte für Softwareentwicklung & Pair-Programming",
+      "description": "Schreibt, führt aus und prüft Code — und verifiziert, dass er funktioniert, bevor er es behauptet.",
       "conversationStarters": [
         "Schritt für Schritt erklären, was dieser Code macht",
         "Mir helfen, diese Fehlermeldung zu beheben",
@@ -47,7 +47,7 @@
     },
     "en": {
       "displayName": "Coder",
-      "description": "Expert software-engineering pair programmer",
+      "description": "Writes, runs, and reviews code — and verifies it works before saying it does.",
       "conversationStarters": [
         "Explain what this code does, step by step",
         "Help me fix this error message",
@@ -58,7 +58,7 @@
     },
     "fr": {
       "displayName": "Codeur",
-      "description": "Pair-programmeur expert en génie logiciel",
+      "description": "Écrit, exécute et relit du code — et vérifie qu'il fonctionne avant de l'affirmer.",
       "conversationStarters": [
         "Expliquer ce que fait ce code, étape par étape",
         "M’aider à corriger ce message d’erreur",

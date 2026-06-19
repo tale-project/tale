@@ -21,6 +21,9 @@ interface DiscussionSummary {
   updatedAt?: number;
   lastReplyAt?: number;
   linkedTaskId?: string;
+  /** Agent→agent reply-chain depth (loop guard). Lets callers pre-check the
+   *  cap before spending a generation on a reply that would be refused. */
+  agentReplyDepth?: number;
 }
 
 function toSummary(meta: Doc<'threadMetadata'>): DiscussionSummary {
@@ -33,6 +36,7 @@ function toSummary(meta: Doc<'threadMetadata'>): DiscussionSummary {
     updatedAt: meta.updatedAt,
     lastReplyAt: meta.lastReplyAt,
     linkedTaskId: meta.linkedTaskId ? String(meta.linkedTaskId) : undefined,
+    agentReplyDepth: meta.agentReplyDepth,
   };
 }
 

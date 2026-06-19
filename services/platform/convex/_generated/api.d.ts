@@ -190,6 +190,7 @@ import type * as agents_provision_defaults_mutations from "../agents/provision_d
 import type * as agents_queries from "../agents/queries.js";
 import type * as agents_resolve_agent_config from "../agents/resolve_agent_config.js";
 import type * as agents_rest_api from "../agents/rest_api.js";
+import type * as agents_run_agent_on_discussion from "../agents/run_agent_on_discussion.js";
 import type * as agents_run_agent_on_task from "../agents/run_agent_on_task.js";
 import type * as agents_seed_system_defaults from "../agents/seed_system_defaults.js";
 import type * as agents_start_chat from "../agents/start_chat.js";
@@ -1710,6 +1711,7 @@ declare const fullApi: ApiFromModules<{
   "agents/queries": typeof agents_queries;
   "agents/resolve_agent_config": typeof agents_resolve_agent_config;
   "agents/rest_api": typeof agents_rest_api;
+  "agents/run_agent_on_discussion": typeof agents_run_agent_on_discussion;
   "agents/run_agent_on_task": typeof agents_run_agent_on_task;
   "agents/seed_system_defaults": typeof agents_seed_system_defaults;
   "agents/start_chat": typeof agents_start_chat;

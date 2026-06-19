@@ -1,5 +1,5 @@
 ---
-description: How to build UI primitives in packages/ui — Radix composition + CVA + Tailwind v4 + Storybook + accessibility — and the styling reference (CVA vs cn(), tokens, motion-reduce, dark/light).
+description: How to build UI primitives in packages/ui — Radix composition + CVA + Tailwind v4 + Storybook + accessibility — and the repo-wide styling reference (CVA vs cn(), semantic tokens, motion-reduce, dark/light).
 globs: packages/ui/**
 alwaysApply: false
 ---

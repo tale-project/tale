@@ -1,5 +1,5 @@
 ---
-description: How to translate Tale's UI, marketing copy, and docs across locales.
+description: Translate Tale's UI, marketing copy, and docs across locales as one narrator written natively per language.
 globs: services/*/messages/**,packages/ui/src/i18n/messages/**
 alwaysApply: false
 ---
