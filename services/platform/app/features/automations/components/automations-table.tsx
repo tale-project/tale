@@ -17,6 +17,7 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { buildFolderView, isInFolder } from '@/lib/utils/folder-tree';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { useDeleteWorkflowFile } from '../hooks/file-mutations';
@@ -31,13 +32,17 @@ export interface WorkflowItem {
   description?: string;
   stepCount: number;
   hash: string;
-  category: string;
+  /** '/'-joined folder path (every slug segment except the last). */
+  folderPath: string;
   createdAtMs?: number;
 }
 
 export interface FolderItem {
   type: 'folder';
+  /** Last path segment — the folder's display name. */
   name: string;
+  /** Full '/'-joined path used to drill in. */
+  path: string;
   workflowCount: number;
 }
 
@@ -62,8 +67,10 @@ function toWorkflowItem(
     | null,
 ): WorkflowItem | null {
   if (!w || !('name' in w)) return null;
-  const category = w.slug.includes('/') ? w.slug.split('/')[0] : '';
-  return { ...w, type: 'workflow', category };
+  // The folder is every slug segment except the last (the workflow id), so
+  // `github/issues/sync` lives in `github/issues` — arbitrarily deep.
+  const folderPath = w.slug.split('/').slice(0, -1).join('/');
+  return { ...w, type: 'workflow', folderPath };
 }
 
 export function AutomationsTable({
@@ -132,70 +139,70 @@ export function AutomationsTable({
   // there's no query. This is also the universe the header select-all and
   // folder checkboxes act on — folder rows are aggregates whose member
   // workflows aren't their own rows, so selection reaches them by slug here.
-  const filteredWorkflows = useMemo((): WorkflowItem[] => {
+  // The workflows reachable from the current view. Search is *global* (matches
+  // across every folder regardless of which folder you're in); otherwise we
+  // scope to the current folder plus everything nested beneath it — the
+  // universe the header select-all and folder checkboxes act on.
+  const scopedWorkflows = useMemo((): WorkflowItem[] => {
     if (!validWorkflows) return [];
     const q = searchQuery.toLowerCase().trim();
     if (q) {
       return validWorkflows.filter(
         (w) =>
           w.name.toLowerCase().includes(q) ||
-          w.category.toLowerCase().includes(q) ||
+          w.folderPath.toLowerCase().includes(q) ||
           (w.description && w.description.toLowerCase().includes(q)),
       );
     }
-    return currentFolder
-      ? validWorkflows.filter((w) => w.category === currentFolder)
-      : validWorkflows;
+    return validWorkflows.filter((w) =>
+      isInFolder(w.folderPath, currentFolder ?? ''),
+    );
   }, [validWorkflows, searchQuery, currentFolder]);
 
   const tableItems = useMemo((): AutomationTableItem[] => {
-    // Inside a folder, or while searching, the list is flat: every matching
-    // workflow shows as its own row (folders aren't navigable targets there).
-    // Search in particular must surface workflows nested in folders — the name
-    // column then prefixes them with their folder path for clarity.
-    if (currentFolder || isSearching) {
-      return [...filteredWorkflows].sort((a, b) =>
-        a.name.localeCompare(b.name),
-      );
+    // While searching, the list is flat: every match shows as its own row
+    // (folders aren't navigable there), prefixed with its folder path.
+    if (isSearching) {
+      return [...scopedWorkflows].sort((a, b) => a.name.localeCompare(b.name));
     }
+    // Otherwise show this folder's immediate child folders, then its direct
+    // workflows — a file-explorer view that drills arbitrarily deep.
+    const { subfolders, items } = buildFolderView(
+      scopedWorkflows,
+      (w) => w.folderPath,
+      currentFolder ?? '',
+    );
+    const folderItems: FolderItem[] = subfolders.map((f) => ({
+      type: 'folder',
+      name: f.name,
+      path: f.path,
+      workflowCount: f.count,
+    }));
+    const workflowItems = [...items].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+    return [...folderItems, ...workflowItems];
+  }, [scopedWorkflows, currentFolder, isSearching]);
 
-    const folderMap = new Map<string, number>();
-    const rootWorkflows: WorkflowItem[] = [];
-
-    for (const w of filteredWorkflows) {
-      if (w.category) {
-        folderMap.set(w.category, (folderMap.get(w.category) ?? 0) + 1);
-      } else {
-        rootWorkflows.push(w);
-      }
-    }
-
-    const folderItems: FolderItem[] = [...folderMap.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, count]) => ({ type: 'folder', name, workflowCount: count }));
-
-    rootWorkflows.sort((a, b) => a.name.localeCompare(b.name));
-
-    return [...folderItems, ...rootWorkflows];
-  }, [filteredWorkflows, currentFolder, isSearching]);
-
-  // folderName → member workflow slugs, and the flat list of every selectable
-  // slug in view. Drive the folder/header checkbox state and toggles off these.
+  // folderPath → member workflow slugs (everything nested), and the flat list
+  // of every selectable slug in view. Drive the folder/header checkbox state.
   const folderMembers = useMemo(() => {
     const map = new Map<string, string[]>();
-    for (const w of filteredWorkflows) {
-      if (w.category) {
-        const slugs = map.get(w.category) ?? [];
-        slugs.push(w.slug);
-        map.set(w.category, slugs);
-      }
+    for (const item of tableItems) {
+      if (item.type !== 'folder') continue;
+      map.set(
+        item.path,
+        scopedWorkflows
+          .filter((w) => isInFolder(w.folderPath, item.path))
+          .map((w) => w.slug),
+      );
     }
     return map;
-  }, [filteredWorkflows]);
+  }, [tableItems, scopedWorkflows]);
 
   const allVisibleSlugs = useMemo(
-    () => filteredWorkflows.map((w) => w.slug),
-    [filteredWorkflows],
+    () => scopedWorkflows.map((w) => w.slug),
+    [scopedWorkflows],
   );
 
   const toggleSlugs = useCallback((slugs: string[], selected: boolean) => {
@@ -238,7 +245,7 @@ export function AutomationsTable({
         const item = row.original;
         const slugs =
           item.type === 'folder'
-            ? (folderMembers.get(item.name) ?? [])
+            ? (folderMembers.get(item.path) ?? [])
             : [item.slug];
         return (
           <Checkbox
@@ -266,7 +273,7 @@ export function AutomationsTable({
         void navigate({
           to: '/dashboard/$id/automations',
           params: { id: organizationId },
-          search: { folder: item.name },
+          search: { folder: item.path },
         });
       } else {
         const amId = slugToUrlParam(item.slug);
@@ -331,7 +338,7 @@ export function AutomationsTable({
         // fall back to their name. RowSelectionState keys then match what
         // `handleDeleteItem` passes to the mutation.
         getRowId={(row) =>
-          row.type === 'workflow' ? row.slug : `folder:${row.name}`
+          row.type === 'workflow' ? row.slug : `folder:${row.path}`
         }
         onRowClick={handleRowClick}
         rowClassName={getRowClassName}

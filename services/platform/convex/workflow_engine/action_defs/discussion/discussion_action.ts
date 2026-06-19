@@ -62,13 +62,17 @@ type DiscussionActionParams =
   | {
       operation: 'get';
       threadId: string;
+    }
+  | {
+      operation: 'get_messages';
+      threadId: string;
     };
 
 export const discussionAction: ActionDefinition<DiscussionActionParams> = {
   type: 'discussion',
   title: 'Discussion Operation',
   description:
-    'Participate in and read project discussions (open, reply, set_status, spawn_task, list, get). Writes attribute to the workflow actor; @mentions in a reply route to the mentioned agent. organizationId is read from workflow context variables.',
+    'Participate in and read project discussions (open, reply, set_status, spawn_task, list, get, get_messages). Mirrors the agent discussion_read/discussion_write tools, so automations have the same discussion control as agents. Writes attribute to the workflow actor; @mentions in a reply route to the mentioned agent. organizationId is read from workflow context variables.',
   parametersValidator: v.union(
     v.object({
       operation: v.literal('open'),
@@ -103,6 +107,10 @@ export const discussionAction: ActionDefinition<DiscussionActionParams> = {
     }),
     v.object({
       operation: v.literal('get'),
+      threadId: v.string(),
+    }),
+    v.object({
+      operation: v.literal('get_messages'),
       threadId: v.string(),
     }),
   ),
@@ -191,6 +199,14 @@ export const discussionAction: ActionDefinition<DiscussionActionParams> = {
           { organizationId, threadId: params.threadId },
         );
         return { operation: 'get', discussion };
+      }
+
+      case 'get_messages': {
+        const { messages } = await ctx.runQuery(
+          internal.threads.internal_queries.getThreadMessagesInternal,
+          { threadId: params.threadId, callerOrgId: organizationId },
+        );
+        return { operation: 'get_messages', messages };
       }
 
       default: {

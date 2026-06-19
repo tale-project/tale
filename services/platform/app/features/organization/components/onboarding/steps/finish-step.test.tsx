@@ -10,6 +10,7 @@ const fmt = (current: number, total: number, label: string) =>
 
 function renderFinish(
   onFinishTo?: (t: 'providers' | 'agents' | 'members') => void,
+  providerConnected?: boolean,
 ) {
   return render(
     <Wizard
@@ -17,7 +18,10 @@ function renderFinish(
       onFinish={() => {}}
       formatProgress={fmt}
     >
-      <FinishStep onFinishTo={onFinishTo} />
+      <FinishStep
+        onFinishTo={onFinishTo}
+        providerConnected={providerConnected}
+      />
     </Wizard>,
   );
 }
@@ -44,5 +48,18 @@ describe('FinishStep CTAs', () => {
     expect(
       screen.getByRole('button', { name: 'Connect a provider' }),
     ).toBeDisabled();
+  });
+
+  it('renders the provider row as done (no CTA) when one is connected', () => {
+    renderFinish(vi.fn(), true);
+    // The pending "Connect a provider" CTA is replaced by a done marker...
+    expect(
+      screen.queryByRole('button', { name: 'Connect a provider' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('AI provider connected.')).toBeInTheDocument();
+    // ...while the other next-step CTAs still render.
+    expect(
+      screen.getByRole('button', { name: 'Create an agent' }),
+    ).toBeInTheDocument();
   });
 });

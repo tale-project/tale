@@ -36,17 +36,17 @@ function AutomationsLayout() {
     from: '/dashboard/$id/automations/',
     shouldThrow: false,
   });
-  const currentFolder = indexMatch?.search?.folder;
+  // Folder drill-down (List view) shows a file-system breadcrumb of clickable
+  // path segments. Catalog/Metrics are tabs, so they need no breadcrumb leaf.
+  const currentFolder = indexMatch?.search?.folder ?? '';
+  const segments = currentFolder ? currentFolder.split('/') : [];
 
-  const isMetrics = useMatch({
-    from: '/dashboard/$id/automations/metrics',
-    shouldThrow: false,
-  });
-  const breadcrumbLeaf = currentFolder
-    ? currentFolder
-    : isMetrics
-      ? t('metrics.title')
-      : null;
+  const goToFolder = (folder: string) =>
+    void navigate({
+      to: '/dashboard/$id/automations',
+      params: { id: organizationId },
+      search: folder ? { folder } : {},
+    });
 
   return (
     <PageLayout
@@ -56,22 +56,35 @@ function AutomationsLayout() {
           <>
             <AdaptiveHeaderRoot standalone={false}>
               <AdaptiveHeaderTitle>
-                {breadcrumbLeaf ? (
+                {segments.length > 0 ? (
                   <span className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() =>
-                        void navigate({
-                          to: '/dashboard/$id/automations',
-                          params: { id: organizationId },
-                        })
-                      }
+                      onClick={() => goToFolder('')}
                       className="text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {t('title')}
                     </button>
-                    <ChevronRight className="text-muted-foreground size-4 shrink-0" />
-                    <span>{breadcrumbLeaf}</span>
+                    {segments.map((segment, i) => {
+                      const path = segments.slice(0, i + 1).join('/');
+                      const isLast = i === segments.length - 1;
+                      return (
+                        <span key={path} className="flex items-center gap-1">
+                          <ChevronRight className="text-muted-foreground size-4 shrink-0" />
+                          {isLast ? (
+                            <span>{segment}</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => goToFolder(path)}
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              {segment}
+                            </button>
+                          )}
+                        </span>
+                      );
+                    })}
                   </span>
                 ) : (
                   t('title')

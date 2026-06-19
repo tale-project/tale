@@ -44,6 +44,7 @@ function AgentsMetricsPage() {
   const { period } = Route.useSearch();
   const navigate = useNavigate();
   const { t } = useT('workforce');
+  const { t: tSettings } = useT('settings');
   const ability = useAbility();
   const canToggle = ability.can('read', 'orgSettings');
 
@@ -75,7 +76,7 @@ function AgentsMetricsPage() {
   return (
     <Stack gap={6} className="p-6">
       <SectionHeader
-        title={t('title')}
+        title={tSettings('agents.tabs.metrics')}
         description={t('subtitle')}
         className="items-start"
         action={

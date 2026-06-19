@@ -61,7 +61,9 @@ import { Route as DashboardIdProjectsProjectIdRouteImport } from './routes/dashb
 import { Route as DashboardIdConversationsStatusRouteImport } from './routes/dashboard/$id/conversations/$status';
 import { Route as DashboardIdChatThreadIdRouteImport } from './routes/dashboard/$id/chat/$threadId';
 import { Route as DashboardIdAutomationsMetricsRouteImport } from './routes/dashboard/$id/automations/metrics';
+import { Route as DashboardIdAutomationsCatalogRouteImport } from './routes/dashboard/$id/automations/catalog';
 import { Route as DashboardIdAutomationsAmIdRouteImport } from './routes/dashboard/$id/automations/$amId';
+import { Route as DashboardIdAgentsOverviewRouteImport } from './routes/dashboard/$id/agents/overview';
 import { Route as DashboardIdAgentsMetricsRouteImport } from './routes/dashboard/$id/agents/metrics';
 import { Route as DashboardIdAgentsCatalogRouteImport } from './routes/dashboard/$id/agents/catalog';
 import { Route as DashboardIdAgentsAllRouteImport } from './routes/dashboard/$id/agents/all';
@@ -406,11 +408,23 @@ const DashboardIdAutomationsMetricsRoute =
     path: '/metrics',
     getParentRoute: () => DashboardIdAutomationsRoute,
   } as any);
+const DashboardIdAutomationsCatalogRoute =
+  DashboardIdAutomationsCatalogRouteImport.update({
+    id: '/catalog',
+    path: '/catalog',
+    getParentRoute: () => DashboardIdAutomationsRoute,
+  } as any);
 const DashboardIdAutomationsAmIdRoute =
   DashboardIdAutomationsAmIdRouteImport.update({
     id: '/$amId',
     path: '/$amId',
     getParentRoute: () => DashboardIdAutomationsRoute,
+  } as any);
+const DashboardIdAgentsOverviewRoute =
+  DashboardIdAgentsOverviewRouteImport.update({
+    id: '/overview',
+    path: '/overview',
+    getParentRoute: () => DashboardIdAgentsRoute,
   } as any);
 const DashboardIdAgentsMetricsRoute =
   DashboardIdAgentsMetricsRouteImport.update({
@@ -808,7 +822,9 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/agents/all': typeof DashboardIdAgentsAllRoute;
   '/dashboard/$id/agents/catalog': typeof DashboardIdAgentsCatalogRoute;
   '/dashboard/$id/agents/metrics': typeof DashboardIdAgentsMetricsRoute;
+  '/dashboard/$id/agents/overview': typeof DashboardIdAgentsOverviewRoute;
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
+  '/dashboard/$id/automations/catalog': typeof DashboardIdAutomationsCatalogRoute;
   '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute;
@@ -912,7 +928,9 @@ export interface FileRoutesByTo {
   '/dashboard/$id/agents/all': typeof DashboardIdAgentsAllRoute;
   '/dashboard/$id/agents/catalog': typeof DashboardIdAgentsCatalogRoute;
   '/dashboard/$id/agents/metrics': typeof DashboardIdAgentsMetricsRoute;
+  '/dashboard/$id/agents/overview': typeof DashboardIdAgentsOverviewRoute;
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
+  '/dashboard/$id/automations/catalog': typeof DashboardIdAutomationsCatalogRoute;
   '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute;
@@ -1025,7 +1043,9 @@ export interface FileRoutesById {
   '/dashboard/$id/agents/all': typeof DashboardIdAgentsAllRoute;
   '/dashboard/$id/agents/catalog': typeof DashboardIdAgentsCatalogRoute;
   '/dashboard/$id/agents/metrics': typeof DashboardIdAgentsMetricsRoute;
+  '/dashboard/$id/agents/overview': typeof DashboardIdAgentsOverviewRoute;
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
+  '/dashboard/$id/automations/catalog': typeof DashboardIdAutomationsCatalogRoute;
   '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute;
@@ -1140,7 +1160,9 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/all'
     | '/dashboard/$id/agents/catalog'
     | '/dashboard/$id/agents/metrics'
+    | '/dashboard/$id/agents/overview'
     | '/dashboard/$id/automations/$amId'
+    | '/dashboard/$id/automations/catalog'
     | '/dashboard/$id/automations/metrics'
     | '/dashboard/$id/chat/$threadId'
     | '/dashboard/$id/conversations/$status'
@@ -1244,7 +1266,9 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/all'
     | '/dashboard/$id/agents/catalog'
     | '/dashboard/$id/agents/metrics'
+    | '/dashboard/$id/agents/overview'
     | '/dashboard/$id/automations/$amId'
+    | '/dashboard/$id/automations/catalog'
     | '/dashboard/$id/automations/metrics'
     | '/dashboard/$id/chat/$threadId'
     | '/dashboard/$id/conversations/$status'
@@ -1356,7 +1380,9 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/all'
     | '/dashboard/$id/agents/catalog'
     | '/dashboard/$id/agents/metrics'
+    | '/dashboard/$id/agents/overview'
     | '/dashboard/$id/automations/$amId'
+    | '/dashboard/$id/automations/catalog'
     | '/dashboard/$id/automations/metrics'
     | '/dashboard/$id/chat/$threadId'
     | '/dashboard/$id/conversations/$status'
@@ -1812,12 +1838,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAutomationsMetricsRouteImport;
       parentRoute: typeof DashboardIdAutomationsRoute;
     };
+    '/dashboard/$id/automations/catalog': {
+      id: '/dashboard/$id/automations/catalog';
+      path: '/catalog';
+      fullPath: '/dashboard/$id/automations/catalog';
+      preLoaderRoute: typeof DashboardIdAutomationsCatalogRouteImport;
+      parentRoute: typeof DashboardIdAutomationsRoute;
+    };
     '/dashboard/$id/automations/$amId': {
       id: '/dashboard/$id/automations/$amId';
       path: '/$amId';
       fullPath: '/dashboard/$id/automations/$amId';
       preLoaderRoute: typeof DashboardIdAutomationsAmIdRouteImport;
       parentRoute: typeof DashboardIdAutomationsRoute;
+    };
+    '/dashboard/$id/agents/overview': {
+      id: '/dashboard/$id/agents/overview';
+      path: '/overview';
+      fullPath: '/dashboard/$id/agents/overview';
+      preLoaderRoute: typeof DashboardIdAgentsOverviewRouteImport;
+      parentRoute: typeof DashboardIdAgentsRoute;
     };
     '/dashboard/$id/agents/metrics': {
       id: '/dashboard/$id/agents/metrics';
@@ -2320,6 +2360,7 @@ interface DashboardIdAgentsRouteChildren {
   DashboardIdAgentsAllRoute: typeof DashboardIdAgentsAllRoute;
   DashboardIdAgentsCatalogRoute: typeof DashboardIdAgentsCatalogRoute;
   DashboardIdAgentsMetricsRoute: typeof DashboardIdAgentsMetricsRoute;
+  DashboardIdAgentsOverviewRoute: typeof DashboardIdAgentsOverviewRoute;
   DashboardIdAgentsIndexRoute: typeof DashboardIdAgentsIndexRoute;
 }
 
@@ -2328,6 +2369,7 @@ const DashboardIdAgentsRouteChildren: DashboardIdAgentsRouteChildren = {
   DashboardIdAgentsAllRoute: DashboardIdAgentsAllRoute,
   DashboardIdAgentsCatalogRoute: DashboardIdAgentsCatalogRoute,
   DashboardIdAgentsMetricsRoute: DashboardIdAgentsMetricsRoute,
+  DashboardIdAgentsOverviewRoute: DashboardIdAgentsOverviewRoute,
   DashboardIdAgentsIndexRoute: DashboardIdAgentsIndexRoute,
 };
 
@@ -2357,6 +2399,7 @@ const DashboardIdAutomationsAmIdRouteWithChildren =
 
 interface DashboardIdAutomationsRouteChildren {
   DashboardIdAutomationsAmIdRoute: typeof DashboardIdAutomationsAmIdRouteWithChildren;
+  DashboardIdAutomationsCatalogRoute: typeof DashboardIdAutomationsCatalogRoute;
   DashboardIdAutomationsMetricsRoute: typeof DashboardIdAutomationsMetricsRoute;
   DashboardIdAutomationsIndexRoute: typeof DashboardIdAutomationsIndexRoute;
 }
@@ -2365,6 +2408,7 @@ const DashboardIdAutomationsRouteChildren: DashboardIdAutomationsRouteChildren =
   {
     DashboardIdAutomationsAmIdRoute:
       DashboardIdAutomationsAmIdRouteWithChildren,
+    DashboardIdAutomationsCatalogRoute: DashboardIdAutomationsCatalogRoute,
     DashboardIdAutomationsMetricsRoute: DashboardIdAutomationsMetricsRoute,
     DashboardIdAutomationsIndexRoute: DashboardIdAutomationsIndexRoute,
   };

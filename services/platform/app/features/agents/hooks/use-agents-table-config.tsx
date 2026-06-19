@@ -4,6 +4,7 @@ import { Badge } from '@tale/ui/badge';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
+import { Bot, Folder } from 'lucide-react';
 import { useMemo } from 'react';
 
 import {
@@ -15,10 +16,10 @@ import { useT } from '@/lib/i18n/client';
 import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
 
 import { AgentRowActions } from '../components/agent-row-actions';
-import type { AgentRow } from '../components/agents-table';
+import type { AgentTableItem } from '../components/agents-table';
 
 interface AgentsTableConfig {
-  columns: ColumnDef<AgentRow>[];
+  columns: ColumnDef<AgentTableItem>[];
   searchPlaceholder: string;
   stickyLayout: boolean;
   pageSize: number;
@@ -29,44 +30,77 @@ interface AgentsTableConfigOptions {
   teamNameMap: Map<string, string>;
   onDuplicated?: (newAgentName: string) => void;
   onDeleted?: () => void;
+  /**
+   * Prefix each agent's name with its folder path (e.g. "workforce / Analyst").
+   * Used when the list is flattened across folders (search), so it stays clear
+   * which folder a result belongs to.
+   */
+  showFolderPath?: boolean;
 }
 
 export function useAgentsTableConfig({
   organizationId,
   onDuplicated,
   onDeleted,
+  showFolderPath = false,
 }: AgentsTableConfigOptions): AgentsTableConfig {
   const { t } = useT('settings');
 
-  const columns = useMemo<ColumnDef<AgentRow>[]>(
+  const columns = useMemo<ColumnDef<AgentTableItem>[]>(
     () => [
       // Multi-row select — canonical 40px column matching every other entity
-      // table. The container gates `enableRowSelection` to non-protected agents
-      // so the built-in agents can't be bulk-deleted.
-      createSelectColumn<AgentRow>(),
+      // table. The container gates `enableRowSelection` to non-protected agent
+      // rows (folders + built-in agents can't be bulk-deleted).
+      createSelectColumn<AgentTableItem>(),
       {
         id: 'displayName',
         header: t('agents.columns.displayName'),
-        meta: { hasAvatar: false },
-        cell: ({ row }) => (
-          <Text as="span" variant="label">
-            {row.original.displayName}
-          </Text>
-        ),
+        meta: { hasAvatar: false, skeleton: { type: 'icon-text' } },
         size: 250,
+        cell: ({ row }) => {
+          if (row.original.type === 'folder') {
+            return (
+              <div className="flex min-h-8 items-center gap-3">
+                <Folder className="text-muted-foreground size-4 shrink-0" />
+                <Text as="span" variant="label" truncate>
+                  {row.original.name}
+                </Text>
+                <Badge variant="outline">{row.original.agentCount}</Badge>
+              </div>
+            );
+          }
+          return (
+            <div className="flex min-h-8 items-center gap-3">
+              <Bot className="text-muted-foreground size-4 shrink-0" />
+              <Text as="span" variant="label" truncate>
+                {showFolderPath && row.original.folderPath ? (
+                  <>
+                    <span className="text-muted-foreground">
+                      {row.original.folderPath} /{' '}
+                    </span>
+                    {row.original.displayName}
+                  </>
+                ) : (
+                  row.original.displayName
+                )}
+              </Text>
+            </div>
+          );
+        },
       },
       {
         id: 'model',
         header: t('agents.columns.model'),
         meta: { skeleton: { type: 'badge' } },
+        size: 200,
         cell: ({ row }) => {
+          if (row.original.type === 'folder') return null;
           const model = row.original.supportedModels?.[0];
           if (!model) return null;
           return (
             <Badge variant="outline">{stripModelRefQualifier(model)}</Badge>
           );
         },
-        size: 200,
       },
       {
         id: 'tools',
@@ -77,11 +111,14 @@ export function useAgentsTableConfig({
         ),
         size: 100,
         meta: { headerLabel: t('agents.columns.tools'), align: 'right' },
-        cell: ({ row }) => (
-          <Text as="span" variant="muted" className="block text-right">
-            {row.original.toolNames?.length ?? 0}
-          </Text>
-        ),
+        cell: ({ row }) => {
+          if (row.original.type === 'folder') return null;
+          return (
+            <Text as="span" variant="muted" className="block text-right">
+              {row.original.toolNames?.length ?? 0}
+            </Text>
+          );
+        },
       },
       {
         id: 'actions',
@@ -90,19 +127,22 @@ export function useAgentsTableConfig({
         // every other table's actions column.
         size: ACTIONS_COLUMN_SIZE,
         meta: { isAction: true },
-        cell: ({ row }) => (
-          <HStack gap={1} justify="end">
-            <AgentRowActions
-              agentName={row.original.name}
-              organizationId={organizationId}
-              onDuplicated={onDuplicated}
-              onDeleted={onDeleted}
-            />
-          </HStack>
-        ),
+        cell: ({ row }) => {
+          if (row.original.type === 'folder') return null;
+          return (
+            <HStack gap={1} justify="end">
+              <AgentRowActions
+                agentName={row.original.name}
+                organizationId={organizationId}
+                onDuplicated={onDuplicated}
+                onDeleted={onDeleted}
+              />
+            </HStack>
+          );
+        },
       },
     ],
-    [t, organizationId, onDuplicated, onDeleted],
+    [t, organizationId, onDuplicated, onDeleted, showFolderPath],
   );
 
   return {

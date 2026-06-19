@@ -78,6 +78,14 @@ const SECRET_GENERATORS: Record<string, () => string> = {
   // Shared HMAC key for Convex → sandbox spawner request signing. Hex, 32 bytes
   // (mirrors services/sandbox/src/auth.ts and the CLI's SANDBOX_TOKEN).
   SANDBOX_TOKEN: () => randomBytes(32).toString('hex'),
+  // Postgres/ParadeDB superuser password (db + knowledge-db). Postgres reads it
+  // only on the container's first init (initdb), and the platform orchestrator
+  // derives KNOWLEDGE_DATABASE_URL from it — so an unset value silently breaks
+  // knowledge-base / RAG search. base64url keeps it URL-safe for the derived
+  // connection string. Once persisted it stays stable across restarts; changing
+  // it after the volume is initialized needs a volume wipe (dev volumes are
+  // disposable). Mirrors the CLI's DB_PASSWORD generator in ensure-env.ts.
+  DB_PASSWORD: () => randomBytes(16).toString('base64url'),
 };
 
 /** Merge the same dotenv files the platform orchestrator reads, lowest →

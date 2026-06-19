@@ -1,4 +1,10 @@
-import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  Outlet,
+  useMatch,
+  useNavigate,
+} from '@tanstack/react-router';
+import { ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -26,9 +32,9 @@ function AgentsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('settings');
   const { t: tCatalog } = useT('agentCatalog');
-  const { t: tWorkforce } = useT('workforce');
   const { t: tAccessDenied } = useT('accessDenied');
 
+  const navigate = useNavigate();
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
 
@@ -38,14 +44,36 @@ function AgentsLayout() {
     shouldThrow: false,
   });
 
-  // Overview (organigram) is the default landing; the rest are sibling tabs.
+  // Folder drill-down on the List tab shows a file-system breadcrumb of
+  // clickable path segments (the other tabs carry no folder, so no breadcrumb).
+  const allMatch = useMatch({
+    from: '/dashboard/$id/agents/all',
+    shouldThrow: false,
+  });
+  const currentFolder = allMatch?.search?.folder ?? '';
+  const segments = currentFolder ? currentFolder.split('/') : [];
+
+  const goToFolder = (folder: string) =>
+    void navigate({
+      to: '/dashboard/$id/agents/all',
+      params: { id: organizationId },
+      search: folder ? { folder } : {},
+    });
+
+  // List is the default landing (see agents/index.tsx redirect → /all); the
+  // rest are sibling tabs in the order List → Overview → Catalog → Metrics.
   // Memoized so TabNavigation's ResizeObserver chain doesn't re-attach each
   // render (see projects/$projectId.tsx).
   const tabs = useMemo<TabNavigationItem[]>(
     () => [
       {
+        label: t('agents.tabs.list'),
+        href: `/dashboard/${organizationId}/agents/all`,
+        matchMode: 'exact',
+      },
+      {
         label: t('agents.tabs.overview'),
-        href: `/dashboard/${organizationId}/agents`,
+        href: `/dashboard/${organizationId}/agents/overview`,
         matchMode: 'exact',
       },
       {
@@ -54,17 +82,12 @@ function AgentsLayout() {
         matchMode: 'exact',
       },
       {
-        label: t('agents.tabs.allAgents'),
-        href: `/dashboard/${organizationId}/agents/all`,
-        matchMode: 'exact',
-      },
-      {
-        label: tWorkforce('title'),
+        label: t('agents.tabs.metrics'),
         href: `/dashboard/${organizationId}/agents/metrics`,
         matchMode: 'exact',
       },
     ],
-    [t, tCatalog, tWorkforce, organizationId],
+    [t, tCatalog, organizationId],
   );
 
   if (!abilityLoading && ability.cannot('write', 'agents')) {
@@ -78,7 +101,41 @@ function AgentsLayout() {
         !isDetailPage ? (
           <>
             <AdaptiveHeaderRoot standalone={false}>
-              <AdaptiveHeaderTitle>{t('agents.title')}</AdaptiveHeaderTitle>
+              <AdaptiveHeaderTitle>
+                {segments.length > 0 ? (
+                  <span className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => goToFolder('')}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {t('agents.title')}
+                    </button>
+                    {segments.map((segment, i) => {
+                      const path = segments.slice(0, i + 1).join('/');
+                      const isLast = i === segments.length - 1;
+                      return (
+                        <span key={path} className="flex items-center gap-1">
+                          <ChevronRight className="text-muted-foreground size-4 shrink-0" />
+                          {isLast ? (
+                            <span>{segment}</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => goToFolder(path)}
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              {segment}
+                            </button>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </span>
+                ) : (
+                  t('agents.title')
+                )}
+              </AdaptiveHeaderTitle>
             </AdaptiveHeaderRoot>
             <TabNavigation
               items={tabs}

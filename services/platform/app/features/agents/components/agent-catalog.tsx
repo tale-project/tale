@@ -14,7 +14,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Grid, HStack, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -23,6 +23,11 @@ import { Bot, TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import {
+  CatalogCard,
+  CatalogCardIcon,
+  CatalogGrid,
+} from '@/app/components/catalog/catalog-grid';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { LabelBadges } from '@/app/components/ui/label-badges';
 import { toast } from '@/app/hooks/use-toast';
@@ -229,11 +234,11 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
               <div className="h-9 rounded-md" />
             </SkeletonBox>
           </div>
-          <Grid cols={1} md={2} lg={3} gap={3}>
+          <CatalogGrid>
             {Array.from({ length: PLACEHOLDER_CARD_COUNT }).map((_, i) => (
               <CatalogCardSkeleton key={i} />
             ))}
-          </Grid>
+          </CatalogGrid>
         </Stack>
       </Skeletonize>
     );
@@ -276,9 +281,9 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
             >
               {folderLabel(t, folder)}
             </Text>
-            <Grid cols={1} md={2} lg={3} gap={3}>
+            <CatalogGrid>
               {items.map((entry) => (
-                <CatalogCard
+                <AgentCatalogCard
                   key={entry.slug}
                   entry={entry}
                   t={t}
@@ -312,7 +317,7 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
                   }
                 />
               ))}
-            </Grid>
+            </CatalogGrid>
           </Stack>
         ))
       )}
@@ -320,8 +325,8 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   );
 }
 
-/** One catalog card: status, labels, provenance badge, and roster actions. */
-function CatalogCard({
+/** One catalog card: icon, status, labels, provenance badge, roster actions. */
+function AgentCatalogCard({
   entry,
   t,
   pending,
@@ -339,44 +344,42 @@ function CatalogCard({
   const fromIntegration =
     entry.installedBy?.startsWith('integration:') || !!entry.bundledBy;
 
+  const provenanceBadge = fromIntegration ? (
+    <Badge variant="outline">
+      {t('installedByIntegration', {
+        integration: entry.bundledBy ?? entry.installedBy?.split(':')[1] ?? '',
+      })}
+    </Badge>
+  ) : entry.requiresIntegrations.length > 0 && !entry.installed ? (
+    <Badge variant="outline">
+      {t('requiresIntegration', {
+        integration: entry.requiresIntegrations.join(', '),
+      })}
+    </Badge>
+  ) : null;
+
+  const hasMeta = entry.labels.length > 0 || provenanceBadge !== null;
+
   return (
-    <Card className="flex flex-col gap-3 p-4">
-      <Stack gap={1}>
-        <HStack gap={2} align="center" justify="between">
-          <span className="truncate text-sm font-semibold">
-            {entry.displayName}
-          </span>
-          <CatalogStatusBadge entry={entry} t={t} />
-        </HStack>
-        {entry.description ? (
-          <Text
-            variant="caption"
-            className="text-muted-foreground line-clamp-2 text-sm"
-          >
-            {entry.description}
-          </Text>
-        ) : null}
-      </Stack>
-
-      <LabelBadges labels={entry.labels} />
-
-      {fromIntegration ? (
-        <Badge variant="outline" className="w-fit">
-          {t('installedByIntegration', {
-            integration:
-              entry.bundledBy ?? entry.installedBy?.split(':')[1] ?? '',
-          })}
-        </Badge>
-      ) : entry.requiresIntegrations.length > 0 && !entry.installed ? (
-        <Badge variant="outline" className="w-fit">
-          {t('requiresIntegration', {
-            integration: entry.requiresIntegrations.join(', '),
-          })}
-        </Badge>
-      ) : null}
-
-      <HStack gap={2} className="mt-auto">
-        {!entry.installed ? (
+    <CatalogCard
+      media={
+        <CatalogCardIcon>
+          <Bot className="text-muted-foreground size-5" />
+        </CatalogCardIcon>
+      }
+      title={entry.displayName}
+      description={entry.description}
+      badge={<CatalogStatusBadge entry={entry} t={t} />}
+      meta={
+        hasMeta ? (
+          <>
+            <LabelBadges labels={entry.labels} />
+            {provenanceBadge}
+          </>
+        ) : undefined
+      }
+      actions={
+        !entry.installed ? (
           <Button size="sm" isLoading={pending} onClick={onInstall}>
             {t('install')}
           </Button>
@@ -399,9 +402,9 @@ function CatalogCard({
               {t('uninstall')}
             </Button>
           </>
-        )}
-      </HStack>
-    </Card>
+        )
+      }
+    />
   );
 }
 
@@ -413,28 +416,30 @@ function CatalogCard({
  */
 function CatalogCardSkeleton() {
   return (
-    <Card className="flex flex-col gap-3 p-4">
-      <Stack gap={1}>
-        <HStack gap={2} align="center" justify="between">
-          <div className="w-28 text-sm leading-none">
-            <SkeletonText />
+    <Card contentClassName="flex h-full flex-col p-4">
+      <div className="flex items-start gap-3">
+        <SkeletonBox>
+          <div className="size-10 rounded-lg" />
+        </SkeletonBox>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="w-28 text-sm leading-none">
+              <SkeletonText />
+            </div>
+            <SkeletonBox>
+              <div className="h-5 w-16 rounded-full" />
+            </SkeletonBox>
           </div>
-          <SkeletonBox>
-            <div className="h-5 w-16 rounded-full" />
-          </SkeletonBox>
-        </HStack>
-        <div className="text-sm leading-[1.43]">
-          <SkeletonText lines={2} />
+          <div className="text-sm leading-snug">
+            <SkeletonText lines={2} />
+          </div>
         </div>
-      </Stack>
-      <SkeletonBox>
-        <div className="h-5 w-20 rounded-full" />
-      </SkeletonBox>
-      <HStack gap={2} className="mt-auto">
+      </div>
+      <div className="mt-auto pt-4">
         <SkeletonBox>
           <div className="h-8 w-20 rounded-md" />
         </SkeletonBox>
-      </HStack>
+      </div>
     </Card>
   );
 }

@@ -157,7 +157,16 @@ function ProjectDetailLayout() {
           </>
         }
       >
-        <Skeletonize loading={isLoading} label={t('title')}>
+        {/* Fill the layout's content height so full-height tabs (the
+            Discussions thread view's sticky-bottom composer, like the main
+            chat) anchor correctly instead of collapsing to content height.
+            Auto-height tabs (ContentArea-based) are unaffected — they size to
+            content and top-align as before. */}
+        <Skeletonize
+          loading={isLoading}
+          label={t('title')}
+          className="flex min-h-0 flex-1 flex-col"
+        >
           <Outlet />
         </Skeletonize>
       </PageLayout>

@@ -352,6 +352,16 @@
   },
   "automations": {
     "title": "Automatisierungen",
+    "tabs": {
+      "list": "Liste",
+      "catalog": "Katalog",
+      "metrics": "Metriken"
+    },
+    "catalog": {
+      "title": "Automatisierungs-Katalog",
+      "subtitle": "Durchsuche vorgefertigte Automatisierungen und installiere sie.",
+      "installed": "Automatisierung installiert"
+    },
     "aria": {
       "openNamed": "{name} öffnen",
       "openLoop": "Schleife öffnen"
@@ -2283,6 +2293,7 @@
       "heading": "Alles bereit",
       "subtitle": "Das kannst du als Nächstes tun:",
       "providerItem": "Verbinde einen KI-Anbieter für Agenten und Chat.",
+      "providerConnected": "KI-Anbieter verbunden.",
       "agentItem": "Erstelle deinen ersten Agenten.",
       "inviteItem": "Lade Teammitglieder zur Zusammenarbeit ein.",
       "providerCta": "Anbieter verbinden",
@@ -4711,7 +4722,8 @@
       "title": "Agenten",
       "tabs": {
         "overview": "Übersicht",
-        "allAgents": "Alle Agenten"
+        "list": "Liste",
+        "metrics": "Metriken"
       },
       "entityLabel": "Agenten",
       "createAgent": "Agent erstellen",
@@ -7123,7 +7135,10 @@
     "spawnTask": {
       "cta": "Aufgabe erstellen",
       "success": "Aufgabe aus Diskussion erstellt",
-      "failed": "Aufgabe konnte nicht erstellt werden"
+      "failed": "Aufgabe konnte nicht erstellt werden",
+      "converted": "In Aufgabe umgewandelt",
+      "viewTask": "Aufgabe ansehen",
+      "alreadyConverted": "Diese Diskussion ist bereits eine Aufgabe"
     },
     "reply": {
       "placeholder": "Antworten… mit @ ein Teammitglied oder einen Agenten erwähnen",
@@ -7218,7 +7233,6 @@
     "unsavedChanges": "Nicht gespeicherte Änderungen"
   },
   "workforce": {
-    "title": "Workforce",
     "subtitle": "Wie deine KI-Workforce arbeitet: Ergebnisse, menschliche Eingriffe und Kosten — immer zusammen.",
     "period": {
       "label": "Zeitraum",

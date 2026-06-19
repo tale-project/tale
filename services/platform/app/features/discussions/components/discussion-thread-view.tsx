@@ -4,9 +4,12 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowLeft,
   CheckCircle2,
+  GitBranchPlus,
+  ListChecks,
   ListPlus,
   Lock,
   RotateCcw,
@@ -54,6 +57,7 @@ export function DiscussionThreadView({
   onBack,
 }: DiscussionThreadViewProps) {
   const { t } = useT('discussions');
+  const navigate = useNavigate();
   const messageHistoryLabelId = useId();
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -84,6 +88,10 @@ export function DiscussionThreadView({
   const status = toDiscussionStatus(discussion?.discussionStatus);
   const isLocked = status === 'locked';
   const category = discussion?.discussionCategory;
+  // A discussion converts to a task exactly once (GitHub "convert to issue").
+  // Once linked, the convert action becomes "View task" and an inline event
+  // records the conversion in the thread.
+  const linkedTaskId = discussion?.linkedTaskId ?? null;
 
   const handleSend = useCallback(
     async (message: string, _attachments?: FileAttachment[]) => {
@@ -115,7 +123,7 @@ export function DiscussionThreadView({
   );
 
   const handleSpawnTask = useCallback(async () => {
-    if (!discussion?.title) return;
+    if (!discussion?.title || linkedTaskId) return;
     try {
       await createTask({
         organizationId,
@@ -126,9 +134,39 @@ export function DiscussionThreadView({
       toast({ title: t('spawnTask.success'), variant: 'success' });
     } catch (error) {
       console.error('Failed to create task from discussion', error);
-      toast({ title: t('spawnTask.failed'), variant: 'destructive' });
+      const alreadyConverted =
+        typeof error === 'object' &&
+        error !== null &&
+        'data' in error &&
+        typeof error.data === 'object' &&
+        error.data !== null &&
+        'code' in error.data &&
+        error.data.code === 'already_converted';
+      toast({
+        title: alreadyConverted
+          ? t('spawnTask.alreadyConverted')
+          : t('spawnTask.failed'),
+        variant: alreadyConverted ? 'default' : 'destructive',
+      });
     }
-  }, [createTask, organizationId, threadId, projectId, discussion?.title, t]);
+  }, [
+    createTask,
+    organizationId,
+    threadId,
+    projectId,
+    discussion?.title,
+    linkedTaskId,
+    t,
+  ]);
+
+  const goToTask = useCallback(() => {
+    if (!linkedTaskId) return;
+    void navigate({
+      to: '/dashboard/$id/projects/$projectId/tasks/board',
+      params: { id: organizationId, projectId: String(projectId) },
+      search: { task: String(linkedTaskId) },
+    });
+  }, [navigate, linkedTaskId, organizationId, projectId]);
 
   return (
     <div className="flex h-full flex-col">
@@ -159,10 +197,17 @@ export function DiscussionThreadView({
           </div>
         </HStack>
         <HStack gap={2}>
-          <Button variant="secondary" size="sm" onClick={handleSpawnTask}>
-            <ListPlus className="mr-1 size-4" />
-            {t('spawnTask.cta')}
-          </Button>
+          {linkedTaskId ? (
+            <Button variant="secondary" size="sm" onClick={goToTask}>
+              <ListChecks className="mr-1 size-4" />
+              {t('spawnTask.viewTask')}
+            </Button>
+          ) : (
+            <Button variant="secondary" size="sm" onClick={handleSpawnTask}>
+              <ListPlus className="mr-1 size-4" />
+              {t('spawnTask.cta')}
+            </Button>
+          )}
           {status !== 'resolved' ? (
             <Button
               variant="secondary"
@@ -212,6 +257,23 @@ export function DiscussionThreadView({
                   hideFeedback
                 />
               ))}
+              {linkedTaskId ? (
+                <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">
+                  <GitBranchPlus className="size-3.5 shrink-0" aria-hidden />
+                  <span>{t('spawnTask.converted')}</span>
+                  <Link
+                    to="/dashboard/$id/projects/$projectId/tasks/board"
+                    params={{
+                      id: organizationId,
+                      projectId: String(projectId),
+                    }}
+                    search={{ task: String(linkedTaskId) }}
+                    className="text-primary font-medium hover:underline"
+                  >
+                    {t('spawnTask.viewTask')}
+                  </Link>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

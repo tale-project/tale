@@ -316,6 +316,13 @@ export const agentSpawnTaskFromDiscussion = internalMutation({
       args.threadId,
       args.organizationId,
     );
+    // A discussion converts to exactly one task (the backlink is 1:1). For the
+    // automation/agent path, be idempotent: a re-run returns the existing task
+    // instead of creating a duplicate. (The human UI path throws instead, since
+    // its convert action is already hidden once converted.)
+    if (meta.linkedTaskId) {
+      return { taskId: meta.linkedTaskId };
+    }
     const { taskId } = await ctx.runMutation(
       internal.tasks.internal_mutations.agentCreateTask,
       {

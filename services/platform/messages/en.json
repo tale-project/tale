@@ -352,6 +352,16 @@
   },
   "automations": {
     "title": "Automations",
+    "tabs": {
+      "list": "List",
+      "catalog": "Catalog",
+      "metrics": "Metrics"
+    },
+    "catalog": {
+      "title": "Automation catalog",
+      "subtitle": "Browse and install ready-made automations for your workspace.",
+      "installed": "Automation installed"
+    },
     "aria": {
       "openNamed": "Open {name}",
       "openLoop": "Open loop"
@@ -2283,6 +2293,7 @@
       "heading": "You're all set",
       "subtitle": "Here's what you can do next:",
       "providerItem": "Connect an AI provider to power agents and chat.",
+      "providerConnected": "AI provider connected.",
       "agentItem": "Create your first agent.",
       "inviteItem": "Invite teammates to collaborate.",
       "providerCta": "Connect a provider",
@@ -4972,7 +4983,8 @@
       "title": "Agents",
       "tabs": {
         "overview": "Overview",
-        "allAgents": "All agents"
+        "list": "List",
+        "metrics": "Metrics"
       },
       "entityLabel": "agents",
       "createAgent": "Create agent",
@@ -7123,7 +7135,10 @@
     "spawnTask": {
       "cta": "Create task",
       "success": "Task created from discussion",
-      "failed": "Could not create the task"
+      "failed": "Could not create the task",
+      "converted": "Converted to task",
+      "viewTask": "View task",
+      "alreadyConverted": "This discussion is already a task"
     },
     "reply": {
       "placeholder": "Reply… use @ to mention a teammate or agent",
@@ -7218,7 +7233,6 @@
     "unsavedChanges": "Unsaved changes"
   },
   "workforce": {
-    "title": "Workforce",
     "subtitle": "How your AI workforce performs: outcomes, human intervention, and cost — always together.",
     "period": {
       "label": "Period",

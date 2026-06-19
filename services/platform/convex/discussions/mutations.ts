@@ -272,6 +272,16 @@ export const createTaskFromDiscussion = mutation({
       authUser,
       args.organizationId,
     );
+    // A discussion converts to a task exactly once (GitHub "convert to issue"):
+    // the bidirectional backlink below is 1:1, and a second conversion would
+    // orphan the first task's link. The UI hides the convert action once
+    // `linkedTaskId` is set; this guards the race / direct-call path.
+    if (meta.linkedTaskId) {
+      throw new ConvexError({
+        code: 'already_converted',
+        message: 'This discussion has already been converted to a task.',
+      });
+    }
     const { taskId } = await ctx.runMutation(
       internal.tasks.internal_mutations.agentCreateTask,
       {

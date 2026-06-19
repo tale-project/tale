@@ -26,13 +26,21 @@ type ProjectActionParams =
       name?: string;
       description?: string;
       instructions?: string;
+    }
+  | {
+      operation: 'list';
+      includeArchived?: boolean;
+    }
+  | {
+      operation: 'get';
+      projectId: string;
     };
 
 export const projectAction: ActionDefinition<ProjectActionParams> = {
   type: 'project',
   title: 'Project Operation',
   description:
-    'Create and update projects (the containers that group tasks and discussions). organizationId is read from workflow context variables.',
+    'Create, update, and read projects (the containers that group tasks and discussions). Mirrors the agent project_read/project_write tools, so automations have the same project control as agents. organizationId is read from workflow context variables.',
   parametersValidator: v.union(
     v.object({
       operation: v.literal('create'),
@@ -46,6 +54,14 @@ export const projectAction: ActionDefinition<ProjectActionParams> = {
       name: v.optional(v.string()),
       description: v.optional(v.string()),
       instructions: v.optional(v.string()),
+    }),
+    v.object({
+      operation: v.literal('list'),
+      includeArchived: v.optional(v.boolean()),
+    }),
+    v.object({
+      operation: v.literal('get'),
+      projectId: v.id('projects'),
     }),
   ),
   async execute(ctx, params, variables) {
@@ -84,6 +100,22 @@ export const projectAction: ActionDefinition<ProjectActionParams> = {
           },
         );
         return { operation: 'update', ...result };
+      }
+
+      case 'list': {
+        const projects = await ctx.runQuery(
+          internal.tasks.internal_queries.listProjectsForAgent,
+          { organizationId, includeArchived: params.includeArchived },
+        );
+        return { operation: 'list', projects };
+      }
+
+      case 'get': {
+        const project = await ctx.runQuery(
+          internal.tasks.internal_queries.getProjectByIdInternal,
+          { projectId: toId<'projects'>(params.projectId), organizationId },
+        );
+        return { operation: 'get', project };
       }
 
       default: {

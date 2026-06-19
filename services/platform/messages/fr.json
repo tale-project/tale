@@ -353,6 +353,16 @@
   },
   "automations": {
     "title": "Automatisations",
+    "tabs": {
+      "list": "Liste",
+      "catalog": "Catalogue",
+      "metrics": "Métriques"
+    },
+    "catalog": {
+      "title": "Catalogue d'automatisations",
+      "subtitle": "Parcours des automatisations prêtes à l'emploi et installe-les.",
+      "installed": "Automatisation installée"
+    },
     "aria": {
       "openNamed": "Ouvrir {name}",
       "openLoop": "Ouvrir la boucle"
@@ -2284,6 +2294,7 @@
       "heading": "Tout est prêt",
       "subtitle": "Voici ce que tu peux faire ensuite :",
       "providerItem": "Connecte un fournisseur d'IA pour alimenter les agents et le chat.",
+      "providerConnected": "Fournisseur d'IA connecté.",
       "agentItem": "Crée ton premier agent.",
       "inviteItem": "Invite des coéquipiers à collaborer.",
       "providerCta": "Connecter un fournisseur",
@@ -4712,7 +4723,8 @@
       "title": "Agents",
       "tabs": {
         "overview": "Vue d'ensemble",
-        "allAgents": "Tous les agents"
+        "list": "Liste",
+        "metrics": "Métriques"
       },
       "entityLabel": "agents",
       "createAgent": "Créer un agent",
@@ -7124,7 +7136,10 @@
     "spawnTask": {
       "cta": "Créer une tâche",
       "success": "Tâche créée depuis la discussion",
-      "failed": "Impossible de créer la tâche"
+      "failed": "Impossible de créer la tâche",
+      "converted": "Convertie en tâche",
+      "viewTask": "Voir la tâche",
+      "alreadyConverted": "Cette discussion est déjà une tâche"
     },
     "reply": {
       "placeholder": "Répondre… utilise @ pour mentionner un coéquipier ou un agent",
@@ -7219,7 +7234,6 @@
     "unsavedChanges": "Modifications non enregistrées"
   },
   "workforce": {
-    "title": "Workforce",
     "subtitle": "Les performances de ta workforce IA : résultats, interventions humaines et coûts — toujours ensemble.",
     "period": {
       "label": "Période",
