@@ -116,6 +116,20 @@ export const resolveSessionCredentials = internalAction({
       );
     }
 
+    // Activate the in-image `tale-git-credential` helper for every git op in the
+    // session. The helper is installed in the runtime image but inert until git
+    // is told to use it — without this, `git push` to https finds no credentials
+    // and aborts ("could not read Username"), even though GITHUB_TOKEN is set.
+    // Injected via GIT_CONFIG_* env (equivalent to `-c credential.helper=…`) so
+    // it needs no in-session `git config` exec and covers clone/fetch/push. The
+    // helper answers only for hosts it has a token for and emits nothing
+    // otherwise, so this is safe to set whenever any git grant is present.
+    if (git.length > 0) {
+      env.GIT_CONFIG_COUNT = '1';
+      env.GIT_CONFIG_KEY_0 = 'credential.helper';
+      env.GIT_CONFIG_VALUE_0 = '/usr/local/bin/tale-git-credential';
+    }
+
     return { env, git };
   },
 });

@@ -74,11 +74,14 @@ const BROKERABLE_GRANTS = ['github'];
 // to finish by writing output/summary.md — the only artifact that survives the
 // teardown, so it is the legible agent→agent / agent→human handoff.
 const SUMMARY_MANDATE = [
-  'MANDATORY HANDOFF: before you finish, write a file at output/summary.md that',
-  'explains (1) what you did, (2) every file you produced — path + purpose,',
-  '(3) the result/state, and (4) what is next. If you produced NO files, the',
-  'summary MUST say so explicitly and why. This file is the ONLY thing that',
-  'survives after this run; it is your handoff to the next agent or to a human.',
+  'MANDATORY HANDOFF: before you finish, write a file at the ABSOLUTE path',
+  '/user/output/summary.md — NOT a relative output/summary.md, because you may',
+  "have cd'd elsewhere (e.g. into a cloned repo) and only /user/output is",
+  'harvested. The summary explains (1) what you did, (2) every file you produced',
+  '— path + purpose, (3) the result/state, and (4) what is next. If you produced',
+  'NO files, the summary MUST say so explicitly and why. This file is the ONLY',
+  'thing that survives after this run; it is your handoff to the next agent or a',
+  'human.',
 ].join('\n');
 
 // Grace added to the step's wall-clock budget for the session's hard TTL +
@@ -483,6 +486,32 @@ export const runSandboxAgent = internalAction({
         }
       }
 
+      // 3a-bis. Inject the AGENT's own env/secrets (the per-agent store, keyed by
+      // the composite slug — e.g. a byo `CLAUDE_CODE_OAUTH_TOKEN`). This is how a
+      // byo agent gets its LLM credential in the workflow sandbox path (the chat
+      // path uses the user's box env; a workflow run has no single user, so the
+      // org-scoped per-agent store is the right source). After step env, before
+      // broker creds, so a security-critical broker var still wins on collision.
+      try {
+        const agentEnv = await ctx.runAction(
+          internal.agents.agent_env_actions.resolveAgentEnv,
+          { organizationId: args.organizationId, agentSlug: args.agentSlug },
+        );
+        if (Object.keys(agentEnv.env).length > 0) {
+          const denied = await sessionEnvPatch(sessionId, {
+            set: agentEnv.env,
+          });
+          if (denied.length > 0) {
+            console.warn('[runSandboxAgent] agent env names denied:', denied);
+          }
+        }
+      } catch (agentEnvErr) {
+        console.warn(
+          '[runSandboxAgent] agent env injection failed (continuing):',
+          agentEnvErr,
+        );
+      }
+
       // 3b. Inject Tier-2 broker credentials (e.g. GITHUB_TOKEN) for bound
       // integrations so the agent can self-fetch code — never persisted.
       try {
@@ -585,11 +614,15 @@ export const runSandboxAgent = internalAction({
       const systemPromptAppend = [agentConfig.instructions, SUMMARY_MANDATE]
         .filter((s): s is string => Boolean(s))
         .join('\n\n');
+      // MANAGED: the gateway-format ref resolves to the gateway's model id.
+      // BYO: Claude Code talks to Anthropic directly (no gateway), so a
+      // gateway-format ref like `openrouter:anthropic/...` is meaningless — it
+      // rejects it ("model may not exist"). Let it use the subscription's
+      // default model. (A bare, Claude-native ref could be threaded through here
+      // later if BYO model pinning is wanted.)
       const useModel =
-        modelRef && modelRef !== 'default'
-          ? byo
-            ? modelRef
-            : resolveGatewayRoutingFromRef(modelRef).gatewayModel
+        !byo && modelRef && modelRef !== 'default'
+          ? resolveGatewayRoutingFromRef(modelRef).gatewayModel
           : undefined;
       const result = await runAgentInSessionImpl(ctx, {
         organizationId: args.organizationId,
