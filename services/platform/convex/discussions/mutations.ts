@@ -8,52 +8,76 @@ import { mutation } from '../_generated/server';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { persistentStreaming } from '../streaming/helpers';
 import { buildMentionDirectory } from '../tasks/directory';
 import { extractMentions } from '../tasks/mentions';
-import { cancelGeneration } from '../threads/cancel_generation';
+import { emitEvent } from '../workflows/triggers/emit_event';
 
 /**
  * Discussions = chat threads with `kind: 'project_discussion' | 'task_discussion'`.
- * They REUSE the @convex-dev/agent message store and the chat generation action
- * (`runChatTurnGeneration`); the differences are (1) project-member access
- * instead of owner-only (see `can_access_thread`), (2) a discussion lifecycle
- * (open/resolved/locked), and (3) they are HUMAN-FIRST: a post is always
- * persisted, and an agent only replies when one is explicitly chosen or
- * @mentioned in the body (mirrors the GitHub-Discussions "bring an agent in"
- * model). Generation, when triggered, reuses the chat turn with
- * `queuedPromptMessageId` so it never re-saves the already-persisted message.
+ * They REUSE the @convex-dev/agent message store; the differences are (1)
+ * project-member access instead of owner-only (see `can_access_thread`), (2) a
+ * discussion lifecycle (open/resolved/locked), and (3) they are HUMAN-FIRST: a
+ * post is always persisted, and an agent only replies when @mentioned in the
+ * body (mirrors the GitHub-Discussions "bring an agent in" model).
+ *
+ * Agent replies are EVENT-DRIVEN, not inline-streamed: posting a message that
+ * @mentions one or more agents emits a `discussion.mentioned` event, which the
+ * `react-to-mention-in-discussion` workflow turns into a `run_on_discussion`
+ * run PER mentioned agent — so several agents can join one discussion off a
+ * single human post (a board, not a 1:1 chat). This is the exact same routing
+ * agents themselves use (`discussions/internal_mutations.ts`), so human- and
+ * agent-authored mentions behave identically; runaway agent→agent chains are
+ * bounded by the `agentReplyDepth` loop guard (reset to 0 by any human reply).
  */
 
 const DEFAULT_CATEGORY = 'general';
 
 /**
- * Which agent (if any) should reply to a discussion post: an explicit
- * `agentSlug` wins, otherwise the first agent @mentioned in the body. Returns
- * `undefined` for a pure human post (no generation). Mention resolution reuses
- * the project mention directory (members + agents).
+ * Bring every @mentioned agent into a discussion post by emitting a single
+ * `discussion.mentioned` event (the `react-to-mention-in-discussion` workflow
+ * fans it out to a `run_on_discussion` run per agent mention). A post with no
+ * agent mention stays a pure human message — no event, no agent summoned —
+ * keeping discussions human-first. Returns the count of agent mentions.
  */
-async function resolveDiscussionAgent(
+async function emitDiscussionMentions(
   ctx: MutationCtx,
-  organizationId: string,
-  projectId: Id<'projects'> | undefined,
-  message: string,
-  explicitAgentSlug: string | undefined,
-): Promise<string | undefined> {
-  if (explicitAgentSlug) return explicitAgentSlug;
-  if (!projectId) return undefined;
-  const project = await ctx.db.get(projectId);
-  if (!project) return undefined;
+  args: {
+    organizationId: string;
+    projectId: Id<'projects'> | undefined;
+    threadId: string;
+    body: string;
+    actorId: string;
+  },
+): Promise<number> {
+  if (!args.projectId) return 0;
+  const project = await ctx.db.get(args.projectId);
+  if (!project) return 0;
   const directory = await buildMentionDirectory(ctx, {
-    organizationId,
+    organizationId: args.organizationId,
     project,
   });
   const mentions = extractMentions(
-    message,
+    args.body,
     directory.entries,
     directory.permissiveAgents,
   );
-  return mentions.find((m) => m.type === 'agent')?.id;
+  const agentMentions = mentions.filter((m) => m.type === 'agent');
+  if (agentMentions.length === 0) return 0;
+  await emitEvent(ctx, {
+    organizationId: args.organizationId,
+    eventType: 'discussion.mentioned',
+    eventData: {
+      threadId: args.threadId,
+      projectId: String(args.projectId),
+      // Pass the full mention set; the workflow filters to agent mentions and
+      // skips self-mentions. `actorType: 'user'` clears the workflow-actor
+      // guard (only automation-authored writes are inert).
+      mentions,
+      actorType: 'user',
+      actorId: args.actorId,
+    },
+  });
+  return agentMentions.length;
 }
 
 /** Open a new project discussion with an initial message (optionally @an agent). */
@@ -64,14 +88,12 @@ export const createDiscussion = mutation({
     title: v.string(),
     message: v.string(),
     category: v.optional(v.string()),
-    /** Agent to route the opening message to; defaults to Auto. */
-    agentSlug: v.optional(v.string()),
   },
-  returns: v.object({ threadId: v.string(), streamId: v.string() }),
+  returns: v.object({ threadId: v.string(), mentionCount: v.number() }),
   handler: async (
     ctx,
     args,
-  ): Promise<{ threadId: string; streamId: string }> => {
+  ): Promise<{ threadId: string; mentionCount: number }> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new ConvexError({ code: 'forbidden' });
     await getOrganizationMember(ctx, args.organizationId, authUser);
@@ -85,22 +107,11 @@ export const createDiscussion = mutation({
 
     // Always persist the human's opening post — independent of whether an agent
     // replies — so a discussion never loses the message it was started with.
-    const { messageId } = await saveMessage(ctx, components.agent, {
+    await saveMessage(ctx, components.agent, {
       threadId,
       message: { role: 'user', content: args.message },
       userId: authUser.userId,
     });
-
-    const agentSlug = await resolveDiscussionAgent(
-      ctx,
-      args.organizationId,
-      args.projectId,
-      args.message,
-      args.agentSlug,
-    );
-    const streamId = agentSlug
-      ? await persistentStreaming.createStream(ctx)
-      : '';
 
     await ctx.db.insert('threadMetadata', {
       threadId,
@@ -116,34 +127,20 @@ export const createDiscussion = mutation({
       createdAt,
       updatedAt: createdAt,
       lastReplyAt: createdAt,
-      generationStatus: agentSlug ? 'generating' : 'idle',
-      ...(agentSlug ? { streamId, generationStartTime: createdAt } : {}),
+      generationStatus: 'idle',
       agentReplyDepth: 0,
     });
 
-    // An agent only replies when one was @mentioned / explicitly chosen. The
-    // message is already saved, so generation drains it via queuedPromptMessageId
-    // instead of re-saving.
-    if (agentSlug) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.agents.chat_turn_generate.runChatTurnGeneration,
-        {
-          agentSlug,
-          organizationId: args.organizationId,
-          message: args.message,
-          projectId: args.projectId,
-          threadId,
-          streamId,
-          userId: authUser.userId,
-          userEmail: authUser.email ?? '',
-          userName: authUser.name ?? '',
-          requestStartMs: Date.now(),
-          queuedPromptMessageId: messageId,
-        },
-      );
-    }
-    return { threadId, streamId };
+    // Bring in every @mentioned agent (event-driven; see module header). A post
+    // with no agent mention summons no one — discussions are human-first.
+    const mentionCount = await emitDiscussionMentions(ctx, {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      threadId,
+      body: args.message,
+      actorId: authUser.userId,
+    });
+    return { threadId, mentionCount };
   },
 });
 
@@ -153,10 +150,9 @@ export const postReply = mutation({
     organizationId: v.string(),
     threadId: v.string(),
     message: v.string(),
-    agentSlug: v.optional(v.string()),
   },
-  returns: v.object({ streamId: v.string() }),
-  handler: async (ctx, args): Promise<{ streamId: string }> => {
+  returns: v.object({ mentionCount: v.number() }),
+  handler: async (ctx, args): Promise<{ mentionCount: number }> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new ConvexError({ code: 'forbidden' });
     const meta = await assertThreadAccess(
@@ -175,58 +171,31 @@ export const postReply = mutation({
       });
     }
 
-    if (meta.generationStatus === 'generating' && meta.streamId) {
-      await cancelGeneration(ctx, meta.userId, args.threadId);
-    }
-
     // Always persist the human reply first.
-    const { messageId } = await saveMessage(ctx, components.agent, {
+    await saveMessage(ctx, components.agent, {
       threadId: args.threadId,
       message: { role: 'user', content: args.message },
       userId: authUser.userId,
     });
 
-    const agentSlug = await resolveDiscussionAgent(
-      ctx,
-      args.organizationId,
-      meta.projectId ?? undefined,
-      args.message,
-      args.agentSlug,
-    );
     const now = Date.now();
-    const streamId = agentSlug
-      ? await persistentStreaming.createStream(ctx)
-      : '';
-
     await ctx.db.patch(meta._id, {
-      generationStatus: agentSlug ? 'generating' : 'idle',
-      ...(agentSlug ? { streamId, generationStartTime: now } : {}),
+      generationStatus: 'idle',
       updatedAt: now,
       lastReplyAt: now,
-      // A human reply resets the agent→agent reply-chain counter (loop guard).
+      // A human reply resets the agent→agent reply-chain counter (loop guard),
+      // giving every fresh human turn a clean budget of agent replies.
       agentReplyDepth: 0,
     });
 
-    if (agentSlug) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.agents.chat_turn_generate.runChatTurnGeneration,
-        {
-          agentSlug,
-          organizationId: args.organizationId,
-          message: args.message,
-          projectId: meta.projectId ?? undefined,
-          threadId: args.threadId,
-          streamId,
-          userId: authUser.userId,
-          userEmail: authUser.email ?? '',
-          userName: authUser.name ?? '',
-          requestStartMs: Date.now(),
-          queuedPromptMessageId: messageId,
-        },
-      );
-    }
-    return { streamId };
+    const mentionCount = await emitDiscussionMentions(ctx, {
+      organizationId: args.organizationId,
+      projectId: meta.projectId ?? undefined,
+      threadId: args.threadId,
+      body: args.message,
+      actorId: authUser.userId,
+    });
+    return { mentionCount };
   },
 });
 
