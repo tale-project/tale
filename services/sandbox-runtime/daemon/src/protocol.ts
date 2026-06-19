@@ -26,9 +26,12 @@ export const RUNNERD_ENV_DENY_PREFIXES = ['TALE_RUNNERD_'] as const;
 export const RUNNERD_ENV_DENY_PROXY_RE = /^(https?|no)_proxy$/i;
 
 export function isDeniedEnvName(name: string): boolean {
-  if (RUNNERD_ENV_DENYLIST.some((v) => v === name)) return true;
+  // Case-insensitive (mirrors services/sandbox/src/session/runnerd-protocol.ts):
+  // a lowercase variant of a reserved name must not slip past the deny-list.
+  const upper = name.toUpperCase();
+  if (RUNNERD_ENV_DENYLIST.some((v) => v === upper)) return true;
   if (RUNNERD_ENV_DENY_PROXY_RE.test(name)) return true;
-  return RUNNERD_ENV_DENY_PREFIXES.some((p) => name.startsWith(p));
+  return RUNNERD_ENV_DENY_PREFIXES.some((p) => upper.startsWith(p));
 }
 
 export interface RunnerdHealth {

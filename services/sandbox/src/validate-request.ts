@@ -14,6 +14,11 @@
 // field was forwarded into deeper logic (spawn.ts, docker-args.ts) where
 // a malformed input would crash with a less useful diagnostic.
 
+import {
+  isDeniedEnvName,
+  RUNNERD_ENV_MAX_ENTRIES,
+  RUNNERD_ENV_MAX_VALUE_BYTES,
+} from './session/runnerd-protocol.ts';
 import type { ExecuteRequest, Language, SandboxFile } from './types.ts';
 import {
   FILE_PATH_SEGMENT_RE,
@@ -29,6 +34,59 @@ import {
 } from './wire.ts';
 
 const MAX_FILE_URL_LENGTH = 4096;
+
+// POSIX environment variable name: a letter or underscore, then letters,
+// digits, or underscores. Anything else can't be a real env var.
+const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+// Infrastructure env the one-shot backends set themselves (the dependency
+// caches). `isDeniedEnvName` already covers HOME/PATH/TMPDIR/proxy/TALE_RUNNERD_*;
+// these are the extra one-shot baseline names a user step env must not shadow.
+// Dropped (with a log) at this boundary so the user sees why it didn't apply,
+// rather than being silently skipped later in the argv/pod builder.
+const SPAWNER_CACHE_ENV = new Set([
+  'PIP_CACHE_DIR',
+  'UV_CACHE_DIR',
+  'NPM_CONFIG_CACHE',
+]);
+
+/**
+ * Sanitize the optional step-scoped `env` overlay. Env injection is a
+ * best-effort overlay (mirrors the session env-patch posture), so a policy
+ * or cap violation DROPS that one entry rather than failing the execution:
+ *   - reserved names (HOME/PATH/TMPDIR, proxy vars, TALE_RUNNERD_*) — the
+ *     canonical `isDeniedEnvName` rule the session path enforces;
+ *   - names that aren't valid POSIX env identifiers;
+ *   - values carrying a NUL (illegal in process env) or exceeding the
+ *     per-value byte cap;
+ *   - entries beyond the count cap.
+ * Returns the clean map plus the dropped names (for an observability log).
+ * Pure (no I/O) so it is unit-testable in isolation.
+ */
+export function sanitizeUserEnv(raw: Record<string, string>): {
+  env: Record<string, string>;
+  dropped: string[];
+} {
+  const env: Record<string, string> = {};
+  const dropped: string[] = [];
+  let count = 0;
+  for (const [name, value] of Object.entries(raw)) {
+    if (
+      count >= RUNNERD_ENV_MAX_ENTRIES ||
+      !ENV_NAME_RE.test(name) ||
+      isDeniedEnvName(name) ||
+      SPAWNER_CACHE_ENV.has(name.toUpperCase()) ||
+      value.includes('\u0000') ||
+      new TextEncoder().encode(value).length > RUNNERD_ENV_MAX_VALUE_BYTES
+    ) {
+      dropped.push(name);
+      continue;
+    }
+    env[name] = value;
+    count += 1;
+  }
+  return { env, dropped };
+}
 
 type ValidateResult =
   | { ok: true; request: ExecuteRequest }
@@ -200,6 +258,32 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       };
     }
     timeoutMs = r.timeoutMs;
+  }
+
+  // env: optional step-scoped env overlay. A genuine wire-shape error (not an
+  // object, or a non-string value) rejects; reserved/cap violations are
+  // DROPPED by sanitizeUserEnv (best-effort overlay, mirrors session env).
+  let env: Record<string, string> | undefined;
+  if (r.env !== undefined) {
+    if (r.env === null || typeof r.env !== 'object' || Array.isArray(r.env)) {
+      return { ok: false, error: 'env must be an object of string values' };
+    }
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const rawEnv = r.env as Record<string, unknown>;
+    const stringEnv: Record<string, string> = {};
+    for (const [k, v] of Object.entries(rawEnv)) {
+      if (!isString(v)) {
+        return { ok: false, error: `env["${k}"] must be a string` };
+      }
+      stringEnv[k] = v;
+    }
+    const sanitized = sanitizeUserEnv(stringEnv);
+    if (sanitized.dropped.length > 0) {
+      console.warn(
+        `[validate-request] dropped reserved/invalid env names: ${sanitized.dropped.join(', ')}`,
+      );
+    }
+    if (Object.keys(sanitized.env).length > 0) env = sanitized.env;
   }
 
   // files: required for both single-script and multi-script modes —
@@ -409,6 +493,7 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       ...(packages !== undefined && { packages }),
       ...(packagesByLang !== undefined && { packagesByLang }),
       ...(timeoutMs !== undefined && { timeoutMs }),
+      ...(env !== undefined && { env }),
       files,
       ...(entryPath !== undefined && { entryPath }),
       ...(steps !== undefined && { steps }),

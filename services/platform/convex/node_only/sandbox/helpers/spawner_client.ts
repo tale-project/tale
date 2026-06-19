@@ -76,6 +76,15 @@ interface SpawnerExecuteBody {
   };
   timeoutMs?: number;
   /**
+   * Step-scoped environment variables injected into the runtime process.
+   * Mirrors `services/sandbox/src/types.ts:ExecuteRequest.env`. Already
+   * resolved/templated by the workflow engine; the spawner sanitizes it
+   * (drops reserved names + over-cap entries) before merging into the
+   * launch env. Only the deterministic-script workflow path populates this
+   * today; the run_code LLM tool never sets it.
+   */
+  env?: Record<string, string>;
+  /**
    * Prior-run output downloads. Each entry carries a name (filename to
    * write inside /user/output/) and a URL the spawner GETs to pull
    * the bytes. URLs are pre-rewritten through `toSandboxStorageUrl()` so

@@ -214,6 +214,7 @@ export class DockerBackend implements ExecutionBackend, LocalWorkspaceRuntime {
       workspaceHostDir: spec.workspace.localRoot,
       startedAtMs: spec.startedAtMs,
       entryPath: spec.entryPath,
+      ...(spec.userEnv !== undefined && { userEnv: spec.userEnv }),
     });
     return new DockerRunningExecution(containerName, argv, spec.timeoutMs);
   }

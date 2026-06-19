@@ -128,6 +128,7 @@ export async function runLocalWorkspaceExecution(
         timeoutMs,
         startedAtMs,
         entryPath,
+        ...(req.env !== undefined && { userEnv: req.env }),
         workspace: ws,
       },
       cache,

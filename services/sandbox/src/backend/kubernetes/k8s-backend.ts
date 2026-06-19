@@ -366,6 +366,7 @@ export class KubernetesBackend implements ExecutionBackend {
               entryPath,
               startedAtMs,
               ...(cache !== undefined && { cache }),
+              ...(req.env !== undefined && { userEnv: req.env }),
             }),
           },
           apiTimeout(),

@@ -120,6 +120,18 @@ export interface ExecuteRequest {
   };
   timeoutMs?: number;
   /**
+   * Step-scoped environment variables injected into the runtime process
+   * (the user script sees them in os.environ / process.env). Mirrors the
+   * platform's `SpawnerExecuteBody.env`. The spawner sanitizes this map
+   * (validate-request.ts): reserved names (HOME/PATH/proxy/TALE_RUNNERD_*)
+   * and oversize/over-count entries are dropped; the rest are merged into
+   * the launch env WITHOUT overriding the infrastructure baseline (proxy /
+   * cache / HOME). Distinct from a session's runnerd env-store: a one-shot
+   * container already carries its whole baseline env via `docker run --env`,
+   * so these ride the same mechanism.
+   */
+  env?: Record<string, string>;
+  /**
    * Pre-allocated upload-slot URLs the spawner POSTs harvested output
    * files to. Length = platform's pre-alloc N (defaults to 2). When the
    * spawner exhausts this pool it lazily requests more via

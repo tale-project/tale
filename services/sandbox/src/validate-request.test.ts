@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import { validateExecuteRequest } from './validate-request.ts';
+import { sanitizeUserEnv, validateExecuteRequest } from './validate-request.ts';
 
 // Minimal valid request shape. Each workspace file carries a URL the
 // spawner GETs to fetch the bytes (no inline content) — see
@@ -577,5 +577,141 @@ describe('validateExecuteRequest', () => {
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/combined.*limit/i);
+  });
+
+  test('accepts a clean env overlay and passes it through', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      env: { API_TOKEN: 'sk-live-123', GREETING: 'hello world' },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.request.env).toEqual({
+        API_TOKEN: 'sk-live-123',
+        GREETING: 'hello world',
+      });
+    }
+  });
+
+  test('drops reserved env names but keeps the rest (env stays defined)', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      env: {
+        HOME: '/evil',
+        PATH: '/evil/bin',
+        HTTP_PROXY: 'http://x',
+        OK: '1',
+      },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.request.env).toEqual({ OK: '1' });
+  });
+
+  test('omits env entirely when every entry is dropped', () => {
+    const r = validateExecuteRequest({ ...good, env: { HOME: '/evil' } });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.request.env).toBeUndefined();
+  });
+
+  test('rejects a non-object env', () => {
+    const r = validateExecuteRequest({ ...good, env: 'NOPE=1' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/env/);
+  });
+
+  test('rejects a non-string env value', () => {
+    const r = validateExecuteRequest({ ...good, env: { N: 5 } });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/env/);
+  });
+});
+
+describe('sanitizeUserEnv', () => {
+  test('passes literal values through unchanged', () => {
+    expect(sanitizeUserEnv({ A: '1', B: 'two words' })).toEqual({
+      env: { A: '1', B: 'two words' },
+      dropped: [],
+    });
+  });
+
+  test('drops reserved names case-insensitively (lowercase/mixed variants too)', () => {
+    const { env, dropped } = sanitizeUserEnv({
+      home: 'x',
+      Path: 'x',
+      tale_runnerd_token: 'x',
+      http_proxy: 'x',
+      KEEP: 'ok',
+    });
+    expect(env).toEqual({ KEEP: 'ok' });
+    expect(dropped.sort()).toEqual(
+      ['Path', 'home', 'http_proxy', 'tale_runnerd_token'].sort(),
+    );
+  });
+
+  test('drops the one-shot cache-var baseline (any case)', () => {
+    const { env, dropped } = sanitizeUserEnv({
+      PIP_CACHE_DIR: '/evil',
+      uv_cache_dir: '/evil',
+      NPM_CONFIG_CACHE: '/evil',
+      KEEP: 'ok',
+    });
+    expect(env).toEqual({ KEEP: 'ok' });
+    expect(dropped.sort()).toEqual(
+      ['NPM_CONFIG_CACHE', 'PIP_CACHE_DIR', 'uv_cache_dir'].sort(),
+    );
+  });
+
+  test('drops the canonical reserved names (HOME/PATH/TMPDIR/proxy/TALE_RUNNERD_*)', () => {
+    const { env, dropped } = sanitizeUserEnv({
+      HOME: 'x',
+      PATH: 'x',
+      TMPDIR: 'x',
+      HTTP_PROXY: 'x',
+      https_proxy: 'x',
+      NO_PROXY: 'x',
+      TALE_RUNNERD_TOKEN: 'x',
+      KEEP: 'ok',
+    });
+    expect(env).toEqual({ KEEP: 'ok' });
+    expect(dropped.sort()).toEqual(
+      [
+        'HOME',
+        'PATH',
+        'TMPDIR',
+        'HTTP_PROXY',
+        'https_proxy',
+        'NO_PROXY',
+        'TALE_RUNNERD_TOKEN',
+      ].sort(),
+    );
+  });
+
+  test('drops malformed env names', () => {
+    const { env, dropped } = sanitizeUserEnv({
+      'BAD-NAME': 'x',
+      '1LEADING': 'x',
+      GOOD: 'y',
+    });
+    expect(env).toEqual({ GOOD: 'y' });
+    expect(dropped.sort()).toEqual(['1LEADING', 'BAD-NAME']);
+  });
+
+  test('drops values with a NUL byte', () => {
+    const { env, dropped } = sanitizeUserEnv({ N: 'a\u0000b', OK: 'fine' });
+    expect(env).toEqual({ OK: 'fine' });
+    expect(dropped).toEqual(['N']);
+  });
+
+  test('drops oversize values (> 32 KiB) and entries beyond the count cap', () => {
+    const big = 'x'.repeat(33 * 1024);
+    const { env: e1, dropped: d1 } = sanitizeUserEnv({ BIG: big, OK: 'y' });
+    expect(e1).toEqual({ OK: 'y' });
+    expect(d1).toEqual(['BIG']);
+
+    const many: Record<string, string> = {};
+    for (let i = 0; i < 130; i += 1) many[`V${i}`] = String(i);
+    const { env: e2, dropped: d2 } = sanitizeUserEnv(many);
+    expect(Object.keys(e2).length).toBe(128);
+    expect(d2.length).toBe(2);
   });
 });

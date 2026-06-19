@@ -31,6 +31,53 @@ interface DockerRunInput {
    * rejects anything outside those two roots.
    */
   entryPath: string;
+  /**
+   * Sanitized step-scoped env (reserved names already dropped upstream by
+   * validate-request). Emitted as extra `--env KEY=VALUE` flags. Defense in
+   * depth: re-checked here against the env-name regex + the infrastructure
+   * baseline names, so a user key can never shadow the proxy/cache/HOME vars.
+   */
+  userEnv?: Record<string, string>;
+}
+
+// Infrastructure env the runtime depends on — a user-supplied step env must
+// never shadow these (would break egress/caching or unwrite HOME). Names that
+// collide are skipped (validate-request already drops the security-critical
+// ones; this is the last line of defense for the cache vars too).
+// Uppercase; the collision check normalizes the candidate name so a lowercase
+// variant can't sneak past. Includes the canonical reserved names (HOME/PATH/
+// TMPDIR) as well as the proxy + cache vars, so this defensive layer covers the
+// same ground as the upstream `isDeniedEnvName` filter.
+const BASELINE_ENV_NAMES = new Set([
+  'HTTPS_PROXY',
+  'HTTP_PROXY',
+  'NO_PROXY',
+  'PIP_CACHE_DIR',
+  'UV_CACHE_DIR',
+  'NPM_CONFIG_CACHE',
+  'HOME',
+  'PATH',
+  'TMPDIR',
+]);
+// POSIX env var name (matches validate-request's ENV_NAME_RE).
+const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Build the `--env KEY=VALUE` flag pairs for the sanitized step env, skipping
+ *  any name that collides with the infrastructure baseline or isn't a valid
+ *  env identifier. `KEY=VALUE` is one argv element — `docker run` receives it
+ *  via Bun.spawn's argv array (no shell), so the value is never re-parsed. */
+function buildUserEnvArgs(
+  userEnv: Record<string, string> | undefined,
+): string[] {
+  if (!userEnv) return [];
+  const out: string[] = [];
+  for (const [name, value] of Object.entries(userEnv)) {
+    if (!ENV_NAME_RE.test(name) || BASELINE_ENV_NAMES.has(name.toUpperCase())) {
+      continue;
+    }
+    out.push('--env', `${name}=${value}`);
+  }
+  return out;
 }
 
 // executionId is either a UUID (hex + hyphens) from a direct caller or a
@@ -112,6 +159,10 @@ export function buildDockerRunArgs(
     // HOME at the tmpfs /tmp so transient state goes somewhere writable.
     `--env`,
     `HOME=/tmp`,
+    // Step-scoped env (sanitized; baseline names already filtered out) — placed
+    // AFTER the infrastructure baseline so it can only ADD vars, never shadow
+    // the proxy/cache/HOME the runtime depends on.
+    ...buildUserEnvArgs(inp.userEnv),
     '--cpus=1',
     '--memory=1500m',
     '--memory-swap=1500m',

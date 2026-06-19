@@ -193,6 +193,9 @@ export const runSandboxScript = internalAction({
     inputs: inputArgValidator,
     output: outputArgValidator,
     timeoutMs: v.optional(v.number()),
+    // Step-scoped env (resolved/templated by the engine). Forwarded to the
+    // spawner, which sanitizes + injects it into the script's process env.
+    env: v.optional(v.record(v.string(), v.string())),
   },
   returns: sandboxRunResultValidator,
   handler: async (ctx, args): Promise<SandboxRunResult> => {
@@ -281,6 +284,8 @@ export const runSandboxScript = internalAction({
           ...(userUploadDownloads.length > 0 && { userUploadDownloads }),
           entryPath: scriptName,
           ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+          ...(args.env !== undefined &&
+            Object.keys(args.env).length > 0 && { env: args.env }),
           purpose: `sandbox step ${args.stepSlug}`,
         },
       );
