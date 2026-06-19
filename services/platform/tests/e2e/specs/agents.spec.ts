@@ -127,9 +127,9 @@ test('creates a custom agent then deletes it', async ({ page, org }) => {
 
 test('renders the organigram delegation graph', async ({ page, org }) => {
   const { organizationId } = org;
-  // The organigram is the Overview tab — the default `/agents` landing (the
-  // standalone `/agents/organigram` route was folded into the index).
-  await page.goto(`/dashboard/${organizationId}/agents`);
+  // The organigram is the Overview tab (`/agents/overview`); `/agents` itself
+  // now lands on the List tab (`/agents/all`), so deep-link to Overview.
+  await page.goto(`/dashboard/${organizationId}/agents/overview`);
 
   // The agents layout owns the level-1 heading ("Agents"); the organigram's own
   // title is the level-2 section heading beneath it, so pin to level 2 (`exact`

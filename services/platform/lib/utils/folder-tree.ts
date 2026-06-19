@@ -7,7 +7,7 @@
  * identically — like a file explorer.
  */
 
-export interface FolderRow {
+interface FolderRow {
   /** Last path segment — what the folder row shows. */
   name: string;
   /** Full '/'-joined path, used to drill into the folder. */
@@ -16,7 +16,7 @@ export interface FolderRow {
   count: number;
 }
 
-export interface FolderView<T> {
+interface FolderView<T> {
   /** Immediate child folders of the current folder, sorted by name. */
   subfolders: FolderRow[];
   /** Items that live directly in the current folder. */

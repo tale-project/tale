@@ -248,9 +248,10 @@ test.describe('navigation: breadcrumbs', () => {
         .filter({ visible: true })
         .first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    // Confirm we left the detail route (back on the bare agents list URL).
+    // Confirm we left the detail route. The "Agents" crumb links to `/agents`,
+    // which now redirects to the List tab (`/agents/all`), so accept either.
     await expect(page).toHaveURL(
-      new RegExp(`/dashboard/${organizationId}/agents$`),
+      new RegExp(`/dashboard/${organizationId}/agents(?:/all)?$`),
     );
   });
 });
