@@ -13,6 +13,7 @@ import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -63,7 +64,7 @@ function UserEnvSettingsView({
   const { t } = useT('userEnv');
 
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <SettingsSection
         title={t('page.title')}
         description={t('page.description')}
@@ -196,13 +197,20 @@ function AddEnvVarForm({ organizationId }: { organizationId: string }) {
           {t('add.whitespaceWarning')}
         </Text>
       )}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Secret as a full-width settings row (label + help left, toggle pinned
+          right) so the toggle stays anchored to the right edge instead of
+          floating mid-row at full width. Add gets its own right-aligned row. */}
+      <SettingsRow
+        label={t('add.secretLabel')}
+        description={t('add.secretHelp')}
+      >
         <Switch
           checked={isSecret}
           onCheckedChange={setIsSecret}
-          label={t('add.secretLabel')}
-          description={t('add.secretHelp')}
+          aria-label={t('add.secretLabel')}
         />
+      </SettingsRow>
+      <div className="flex justify-end">
         <Button type="submit" variant="primary" disabled={!canSubmit}>
           {t('add.submit')}
         </Button>

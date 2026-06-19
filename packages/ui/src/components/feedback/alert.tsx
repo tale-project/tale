@@ -10,12 +10,16 @@ const alertVariants = cva(
   'relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground',
   {
     variants: {
+      // A real banner = a soft tinted fill + a colored icon, with neutral
+      // readable title/body. The accent lives in the background + icon (+
+      // border), not in a wall of colored text.
       variant: {
         default: 'bg-background text-foreground',
         destructive:
-          'border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive',
-        warning: 'border-amber-500/50 text-amber-600 [&>svg]:text-amber-600',
-        info: 'border-blue-500/50 text-blue-600 dark:text-blue-400 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400',
+          'border-destructive/25 bg-destructive/10 text-foreground [&>svg]:text-destructive',
+        warning:
+          'border-amber-500/30 bg-amber-50 text-foreground dark:bg-amber-950/30 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-500',
+        info: 'border-blue-500/30 bg-blue-50 text-foreground dark:bg-blue-950/30 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400',
       },
     },
     defaultVariants: {
@@ -62,10 +66,15 @@ export function Alert({
           {title}
         </Heading>
       )}
+      {/* Body is muted for hierarchy under the foreground title — the variant
+          color lives on the border, icon, and tint, not on a wall of colored
+          text. */}
       {description && (
-        <div className="text-sm [&_p]:leading-relaxed">{description}</div>
+        <div className="text-muted-foreground text-sm [&_p]:leading-relaxed">
+          {description}
+        </div>
       )}
-      {children}
+      {children && <div className="text-muted-foreground">{children}</div>}
     </div>
   );
 }

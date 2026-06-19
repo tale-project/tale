@@ -1,12 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
-import { Separator } from '@tale/ui/separator';
 import {
   createFileRoute,
   useNavigate,
   useSearch,
 } from '@tanstack/react-router';
+import { AlertCircle } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -15,6 +15,7 @@ import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
+import { Label } from '@/app/components/ui/forms/label';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import {
   useHasAnyUsers,
@@ -313,7 +314,7 @@ export function LogInPage() {
 
   return (
     <AuthFormLayout title={t('login.loginTitle')}>
-      <Stack gap={8}>
+      <Stack gap={6}>
         {signedOutForIdle && (
           <p
             role="status"
@@ -337,51 +338,61 @@ export function LogInPage() {
               })}
             />
 
-            <Input
-              id="password"
-              type="password"
-              label={t('password')}
-              placeholder={t('passwordPlaceholder')}
-              disabled={isSubmitting}
-              autoComplete="current-password"
-              className="shadow-xs"
-              description={
-                <span className="flex justify-end">
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    onClick={() =>
-                      toast({
-                        title: t('login.forgotPasswordToast.title'),
-                        description: t('login.forgotPasswordToast.description'),
-                        position: 'top-center',
-                      })
-                    }
-                  >
-                    {t('login.forgotPassword')}
-                  </Button>
-                </span>
-              }
-              {...form.register('password', {
-                onChange: () => setLoginError(null),
-              })}
-            />
+            {/* "Forgot password?" sits on the label row (label left, link
+                right) — the standard pattern — so the space directly under the
+                input is free for the error message to read as field feedback. */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="password">{t('password')}</Label>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  onClick={() =>
+                    toast({
+                      title: t('login.forgotPasswordToast.title'),
+                      description: t('login.forgotPasswordToast.description'),
+                      position: 'top-center',
+                    })
+                  }
+                >
+                  {t('login.forgotPassword')}
+                </Button>
+              </div>
+              <Input
+                id="password"
+                type="password"
+                placeholder={t('passwordPlaceholder')}
+                disabled={isSubmitting}
+                autoComplete="current-password"
+                className="shadow-xs"
+                {...form.register('password', {
+                  onChange: () => setLoginError(null),
+                })}
+              />
+            </div>
 
             {loginError && (
-              <p
+              // Pull up tight against the fields (counteracting the form's
+              // `space-y-4`) so the message reads as feedback on the inputs —
+              // matching the ~6px gap a field-level error uses — rather than
+              // floating midway to the button.
+              <div
                 role="alert"
                 aria-live="polite"
-                className="text-destructive flex items-center gap-1.5 text-sm"
+                className="-mt-2.5 flex flex-col gap-1"
               >
-                {loginError}
-              </p>
-            )}
-
-            {showLockoutHint && (
-              <p aria-live="polite" className="text-muted-foreground text-xs">
-                {t('login.lockoutAdvisory')}
-              </p>
+                <p className="text-destructive flex items-start gap-1.5 text-sm font-medium">
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  {loginError}
+                </p>
+                {showLockoutHint && (
+                  <p className="text-muted-foreground pl-[1.375rem] text-xs">
+                    {t('login.lockoutAdvisory')}
+                  </p>
+                )}
+              </div>
             )}
 
             <Button type="submit" fullWidth disabled={isSubmitting || !isValid}>
@@ -390,19 +401,26 @@ export function LogInPage() {
           </Form>
         </FormSection>
 
-        <Button
-          onClick={handlePasskeyLogin}
-          variant="secondary"
-          fullWidth
-          disabled={isSubmitting}
-        >
-          {t('login.continueWithPasskey')}
-        </Button>
+        {/* A single "or" divider separates the credential method above from the
+            alternative sign-in methods grouped below — it reads correctly with
+            one alternative (passkey) or two (passkey + SSO). */}
+        <div className="flex items-center gap-3" aria-hidden="true">
+          <span className="bg-border h-px flex-1" />
+          <span className="text-muted-foreground text-xs">{tCommon('or')}</span>
+          <span className="bg-border h-px flex-1" />
+        </div>
 
-        {showSsoButton && (
-          <>
-            <Separator variant="muted" />
+        <Stack gap={3}>
+          <Button
+            onClick={handlePasskeyLogin}
+            variant="secondary"
+            fullWidth
+            disabled={isSubmitting}
+          >
+            {t('login.continueWithPasskey')}
+          </Button>
 
+          {showSsoButton && (
             <Button
               onClick={handleSsoLogin}
               variant="secondary"
@@ -414,8 +432,8 @@ export function LogInPage() {
               </span>
               {t('login.continueWithSso')}
             </Button>
-          </>
-        )}
+          )}
+        </Stack>
       </Stack>
     </AuthFormLayout>
   );
