@@ -200,7 +200,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const createdProduct = await ctx.runQuery(
           internal.products.internal_queries.getProductById,
-          { productId: result.productId },
+          { productId: result.productId, callerOrgId: organizationId },
         );
 
         return createdProduct;
@@ -208,10 +208,13 @@ export const productAction: ActionDefinition<ProductActionParams> = {
 
       case 'get_by_id': {
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        // callerOrgId org-scopes the read so a workflow can't fetch another
+        // tenant's product by id.
         const product = await ctx.runQuery(
           internal.products.internal_queries.getProductById,
           {
             productId: toId<'products'>(params.productId),
+            callerOrgId: organizationId,
           },
         );
 

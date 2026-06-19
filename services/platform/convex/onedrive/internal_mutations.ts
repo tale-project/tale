@@ -17,6 +17,9 @@ export const updateSyncConfig = internalMutation({
     lastSyncAt: v.optional(v.number()),
     lastSyncStatus: v.optional(v.string()),
     errorMessage: v.optional(v.string()),
+    // Caller's org — when set, updateSyncConfig rejects a config in another
+    // tenant. The workflow onedrive action passes it.
+    organizationId: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),

@@ -392,7 +392,13 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
       }
 
       case 'update_sync_config': {
-        // Update OneDrive sync configuration
+        if (!organizationId) {
+          throw new Error(
+            'update_sync_config requires organizationId in workflow context',
+          );
+        }
+        // Update OneDrive sync configuration (org-scoped so a workflow can't
+        // touch another tenant's sync config by id).
         await ctx.runMutation(
           internal.onedrive.internal_mutations.updateSyncConfig,
           {
@@ -401,6 +407,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             lastSyncAt: params.lastSyncAt,
             lastSyncStatus: params.lastSyncStatus,
             errorMessage: params.errorMessage,
+            organizationId,
           },
         );
 

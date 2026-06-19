@@ -20,8 +20,20 @@ export async function updateSyncConfig(
     lastSyncAt?: number;
     lastSyncStatus?: string;
     errorMessage?: string;
+    /**
+     * Caller's org — when set, the target sync config must belong to it.
+     * Closes the cross-tenant write IDOR on the workflow onedrive action
+     * (mirrors the website/customer/conversation guards).
+     */
+    organizationId?: string;
   },
 ): Promise<UpdateSyncConfigResult> {
+  if (args.organizationId !== undefined) {
+    const cfg = await ctx.db.get(args.configId);
+    if (!cfg || cfg.organizationId !== args.organizationId) {
+      throw new Error('Sync config not found');
+    }
+  }
   const updates: {
     status?: 'active' | 'inactive' | 'error';
     lastSyncAt?: number;
