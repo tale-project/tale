@@ -70,6 +70,32 @@ const resultShape = {
   mentionCount: v.optional(v.number()),
 };
 
+/** A non-throwing refusal result (the action never throws — see module header). */
+function refuse(
+  refusedReason: string,
+  error: string,
+): RunAgentOnDiscussionResult {
+  return { ok: false, refusedReason, error };
+}
+
+/**
+ * Flatten the recent transcript tail into the prompt body: most-recent
+ * `MAX_TRANSCRIPT_MESSAGES`, string content only, separated by `---`, then
+ * head-truncated to `MAX_TRANSCRIPT_CHARS` (keeping the latest content).
+ * Returns `''` when there is nothing readable to reply to.
+ */
+function buildTranscript(
+  messages: ReadonlyArray<{ content: unknown }>,
+): string {
+  const transcript = messages
+    .slice(-MAX_TRANSCRIPT_MESSAGES)
+    .map((m) => (typeof m.content === 'string' ? m.content.trim() : ''))
+    .filter((c) => c.length > 0)
+    .join('\n\n---\n\n');
+  if (transcript.length <= MAX_TRANSCRIPT_CHARS) return transcript;
+  return `…\n${transcript.slice(-MAX_TRANSCRIPT_CHARS)}`;
+}
+
 async function readTaskAutomationConfig(
   ctx: ActionCtx,
   organizationId: string,
@@ -146,11 +172,10 @@ export const runAgentOnDiscussion = internalAction({
         args.organizationId,
       );
       if (!automation.enabled) {
-        return {
-          ok: false,
-          refusedReason: 'automation_disabled',
-          error: 'Workforce automation is disabled for this organization.',
-        };
+        return refuse(
+          'automation_disabled',
+          'Workforce automation is disabled for this organization.',
+        );
       }
 
       // 2. Load + install/enable gate.
@@ -162,22 +187,20 @@ export const runAgentOnDiscussion = internalAction({
         orgSlug,
       );
       if (!delegate) {
-        return {
-          ok: false,
-          refusedReason: 'agent_not_found',
-          error: `Agent "${args.agentSlug}" not found or misconfigured.`,
-        };
+        return refuse(
+          'agent_not_found',
+          `Agent "${args.agentSlug}" not found or misconfigured.`,
+        );
       }
       const live = await ctx.runQuery(
         internal.agents.installations.isAgentLiveInternal,
         { organizationId: args.organizationId, agentSlug: args.agentSlug },
       );
       if (!live) {
-        return {
-          ok: false,
-          refusedReason: 'agent_disabled',
-          error: `Agent "${args.agentSlug}" is disabled or not installed.`,
-        };
+        return refuse(
+          'agent_disabled',
+          `Agent "${args.agentSlug}" is disabled or not installed.`,
+        );
       }
       const agentConfig = delegate.agentConfig;
 
@@ -192,11 +215,10 @@ export const runAgentOnDiscussion = internalAction({
         },
       );
       if (!verdict.allowed) {
-        return {
-          ok: false,
-          refusedReason: verdict.reason ?? 'budget_paused',
-          error: `Agent "${args.agentSlug}" cannot run right now (${verdict.reason ?? 'budget'}).`,
-        };
+        return refuse(
+          verdict.reason ?? 'budget_paused',
+          `Agent "${args.agentSlug}" cannot run right now (${verdict.reason ?? 'budget'}).`,
+        );
       }
 
       // 4. Discussion pre-check.
@@ -205,28 +227,22 @@ export const runAgentOnDiscussion = internalAction({
         { organizationId: args.organizationId, threadId: args.threadId },
       );
       if (!discussion) {
-        return {
-          ok: false,
-          refusedReason: 'discussion_not_found',
-          error: 'Discussion not found.',
-        };
+        return refuse('discussion_not_found', 'Discussion not found.');
       }
       if (
         discussion.discussionStatus &&
         discussion.discussionStatus !== 'open'
       ) {
-        return {
-          ok: false,
-          refusedReason: 'discussion_not_open',
-          error: `Discussion is ${discussion.discussionStatus}.`,
-        };
+        return refuse(
+          'discussion_not_open',
+          `Discussion is ${discussion.discussionStatus}.`,
+        );
       }
       if ((discussion.agentReplyDepth ?? 0) >= MAX_AGENT_REPLY_CHAIN_DEPTH) {
-        return {
-          ok: false,
-          refusedReason: 'reply_chain_depth_exceeded',
-          error: 'Discussion agent-reply chain is at its depth limit.',
-        };
+        return refuse(
+          'reply_chain_depth_exceeded',
+          'Discussion agent-reply chain is at its depth limit.',
+        );
       }
 
       // 5. Transcript (recent tail) for the prompt.
@@ -234,14 +250,7 @@ export const runAgentOnDiscussion = internalAction({
         internal.threads.internal_queries.getThreadMessagesInternal,
         { threadId: args.threadId, callerOrgId: args.organizationId },
       );
-      const recent = messages.slice(-MAX_TRANSCRIPT_MESSAGES);
-      let transcript = recent
-        .map((m) => (typeof m.content === 'string' ? m.content.trim() : ''))
-        .filter((c) => c.length > 0)
-        .join('\n\n---\n\n');
-      if (transcript.length > MAX_TRANSCRIPT_CHARS) {
-        transcript = `…\n${transcript.slice(-MAX_TRANSCRIPT_CHARS)}`;
-      }
+      const transcript = buildTranscript(messages);
       if (transcript.length === 0) {
         return {
           ok: false,

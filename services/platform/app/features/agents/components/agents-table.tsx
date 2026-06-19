@@ -19,6 +19,7 @@ import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { useDeleteAgent } from '../hooks/mutations';
 import { useListAgents } from '../hooks/queries';
 import { useAgentsTableConfig } from '../hooks/use-agents-table-config';
+import { toConfigurableAgent } from '../utils/agent-list-item';
 import { AgentsActionMenu } from './agents-action-menu';
 
 export interface AgentRow {
@@ -51,22 +52,20 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
   const agents = useMemo(() => {
     if (!rawAgents) return [];
     const validAgents: AgentRow[] = [];
-    for (const a of rawAgents) {
-      // Skip read errors surfaced by listAgents (they have `status`/`message`
-      // instead of config fields).
-      if (!a || typeof a.name !== 'string' || 'status' in a) continue;
-      // System-managed agents (e.g. the Auto router) are not editable here.
-      if (a.uiConfigurable === false) continue;
-      const resolved = resolveAgentLocale(a, locale);
+    for (const raw of rawAgents) {
+      // Drops read-error rows + system-managed agents (the Auto router etc.).
+      const agent = toConfigurableAgent(raw);
+      if (!agent) continue;
+      const resolved = resolveAgentLocale(agent, locale);
       if (!resolved.displayName) continue;
       validAgents.push({
-        name: a.name,
+        name: agent.name,
         displayName: resolved.displayName,
         description: resolved.description,
-        supportedModels: a.supportedModels,
-        toolNames: a.toolNames,
-        visibleInChat: a.visibleInChat,
-        roleRestriction: a.roleRestriction,
+        supportedModels: agent.supportedModels,
+        toolNames: agent.toolNames,
+        visibleInChat: agent.visibleInChat,
+        roleRestriction: agent.roleRestriction,
       });
     }
     return validAgents;
@@ -117,11 +116,9 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
   );
 
   const teamNameMap = useMemo(() => {
-    const map = new Map();
-    if (teams) {
-      for (const team of teams) {
-        map.set(team.id, team.name);
-      }
+    const map = new Map<string, string>();
+    for (const team of teams ?? []) {
+      map.set(team.id, team.name);
     }
     return map;
   }, [teams]);
@@ -196,15 +193,13 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
       onRowClick={handleRowClick}
       onRowMouseEnter={handleRowMouseEnter}
       actionMenu={
-        <div className="flex items-center gap-2">
-          {/* Overview / Catalog / Metrics now live in the agents-page tab strip
-              (agents.tsx), so the list keeps just the create menu. */}
-          <AgentsActionMenu
-            organizationId={organizationId}
-            createOpen={createOpen}
-            onCreateOpenChange={setCreateOpen}
-          />
-        </div>
+        // Overview / Catalog / Metrics live in the agents-page tab strip
+        // (agents.tsx); this list carries only the create action.
+        <AgentsActionMenu
+          organizationId={organizationId}
+          createOpen={createOpen}
+          onCreateOpenChange={setCreateOpen}
+        />
       }
       emptyState={{
         icon: Bot,

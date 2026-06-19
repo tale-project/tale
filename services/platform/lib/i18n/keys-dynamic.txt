@@ -211,6 +211,24 @@ inbox
 # translators can work in parallel. Remove once the board UI ships.
 tasks
 
+# Agent catalog: the install/enable/disable/uninstall success toasts are
+# raised via `t(okKey)` in agent-catalog.tsx, where `okKey` is the literal
+# action name ('installed' | 'enabled' | 'disabled' | 'uninstalled') passed
+# into the shared action handler. The scanner sees `t(okKey)` with a runtime
+# variable, so it can't tie those four keys back to the agentCatalog namespace.
+agentCatalog.installed
+agentCatalog.enabled
+agentCatalog.disabled
+agentCatalog.uninstalled
+
+# Department folder section headers, rendered via `t(`folders.${folder}`)` in
+# agent-catalog.tsx with a runtime folder key — the scanner can't follow the
+# template literal back to these keys.
+agentCatalog.folders.workforce
+agentCatalog.folders.chat
+agentCatalog.folders.github
+agentCatalog.folders.other
+
 # Settings rail sub-section labels. The API sub-pages (REST / MCP / WebDAV /
 # Runtimes) are driven by the API_NAV_ITEMS catalog in
 # app/routes/dashboard/$id/settings/api/nav-items.ts and rendered via

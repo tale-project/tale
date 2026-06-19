@@ -1,5 +1,7 @@
 import { v } from 'convex/values';
 
+import { discussionActivityAt } from '../../lib/shared/constants/discussions';
+import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -28,6 +30,24 @@ const discussionSummaryValidator = v.object({
   linkedTaskId: v.optional(v.id('tasks')),
 });
 
+type DiscussionSummary = typeof discussionSummaryValidator.type;
+
+/** Project a `threadMetadata` row into the user-facing discussion summary. */
+function toDiscussionSummary(meta: Doc<'threadMetadata'>): DiscussionSummary {
+  return {
+    threadId: meta.threadId,
+    title: meta.title,
+    discussionCategory: meta.discussionCategory,
+    discussionStatus: meta.discussionStatus,
+    userId: meta.userId,
+    createdAt: meta.createdAt,
+    updatedAt: meta.updatedAt,
+    lastReplyAt: meta.lastReplyAt,
+    pinnedAt: meta.pinnedAt,
+    linkedTaskId: meta.linkedTaskId,
+  };
+}
+
 /** List a project's discussions (any org member), newest activity first. */
 export const listProjectDiscussions = query({
   args: {
@@ -46,7 +66,7 @@ export const listProjectDiscussions = query({
     );
     if (!member) return [];
 
-    const rows: Array<typeof discussionSummaryValidator.type> = [];
+    const rows: DiscussionSummary[] = [];
     for await (const meta of ctx.db
       .query('threadMetadata')
       .withIndex('by_kind_projectId', (q) =>
@@ -55,26 +75,12 @@ export const listProjectDiscussions = query({
       if (meta.organizationId !== args.organizationId) continue;
       if (meta.status !== 'active') continue;
       if (args.category && meta.discussionCategory !== args.category) continue;
-      rows.push({
-        threadId: meta.threadId,
-        title: meta.title,
-        discussionCategory: meta.discussionCategory,
-        discussionStatus: meta.discussionStatus,
-        userId: meta.userId,
-        createdAt: meta.createdAt,
-        updatedAt: meta.updatedAt,
-        lastReplyAt: meta.lastReplyAt,
-        pinnedAt: meta.pinnedAt,
-        linkedTaskId: meta.linkedTaskId,
-      });
+      rows.push(toDiscussionSummary(meta));
     }
     // Pinned first, then most-recent activity.
     rows.sort((a, b) => {
       if (!!a.pinnedAt !== !!b.pinnedAt) return a.pinnedAt ? -1 : 1;
-      return (
-        (b.lastReplyAt ?? b.updatedAt ?? b.createdAt) -
-        (a.lastReplyAt ?? a.updatedAt ?? a.createdAt)
-      );
+      return discussionActivityAt(b) - discussionActivityAt(a);
     });
     return rows;
   },
@@ -94,17 +100,6 @@ export const getDiscussion = query({
       args.organizationId,
     );
     if (!meta) return null;
-    return {
-      threadId: meta.threadId,
-      title: meta.title,
-      discussionCategory: meta.discussionCategory,
-      discussionStatus: meta.discussionStatus,
-      userId: meta.userId,
-      createdAt: meta.createdAt,
-      updatedAt: meta.updatedAt,
-      lastReplyAt: meta.lastReplyAt,
-      pinnedAt: meta.pinnedAt,
-      linkedTaskId: meta.linkedTaskId,
-    };
+    return toDiscussionSummary(meta);
   },
 });

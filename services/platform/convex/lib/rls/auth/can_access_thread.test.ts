@@ -22,6 +22,7 @@ interface MockMetadata {
   organizationId?: string;
   isShared?: boolean;
   status?: string;
+  kind?: 'chat' | 'project_discussion' | 'task_discussion';
 }
 
 interface BetterAuthMember {
@@ -299,6 +300,110 @@ describe('canAccessThread — shared branch', () => {
     });
 
     const result = await canAccessThread(ctx as never, 't_private', authUser);
+
+    expect(result).toBeNull();
+  });
+});
+
+describe('canAccessThread — discussion branch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('grants a non-owner org member access to a project_discussion', async () => {
+    // Discussions are a shared surface: unlike a private `chat` thread, any
+    // member of the thread's org may read/reply even though it isn't `isShared`.
+    const meta: MockMetadata = {
+      _id: 'tm_disc',
+      threadId: 't_disc',
+      userId: 'user_owner',
+      organizationId: 'org_disc',
+      kind: 'project_discussion',
+    };
+    const ctx = createMockCtx({
+      metadata: meta,
+      members: [
+        {
+          _id: 'm_1',
+          organizationId: 'org_disc',
+          userId: 'user_1',
+          role: 'member',
+        },
+      ],
+    });
+
+    const result = await canAccessThread(
+      ctx as never,
+      't_disc',
+      authUser,
+      'org_disc',
+    );
+
+    expect(result).toEqual(meta);
+  });
+
+  it('grants a non-owner org member access to a task_discussion', async () => {
+    const meta: MockMetadata = {
+      _id: 'tm_task_disc',
+      threadId: 't_task_disc',
+      userId: 'user_owner',
+      organizationId: 'org_disc',
+      kind: 'task_discussion',
+    };
+    const ctx = createMockCtx({
+      metadata: meta,
+      members: [
+        {
+          _id: 'm_1',
+          organizationId: 'org_disc',
+          userId: 'user_1',
+          role: 'member',
+        },
+      ],
+    });
+
+    const result = await canAccessThread(ctx as never, 't_task_disc', authUser);
+
+    expect(result).toEqual(meta);
+  });
+
+  it('denies a non-owner who is not a member of the discussion org', async () => {
+    const meta: MockMetadata = {
+      _id: 'tm_disc',
+      threadId: 't_disc',
+      userId: 'user_owner',
+      organizationId: 'org_disc',
+      kind: 'project_discussion',
+    };
+    const ctx = createMockCtx({ metadata: meta, members: [] });
+
+    const result = await canAccessThread(ctx as never, 't_disc', authUser);
+
+    expect(result).toBeNull();
+  });
+
+  it('does not grant non-members access to a non-discussion thread on kind alone', async () => {
+    // A private `chat` thread (kind absent) must NOT inherit the discussion
+    // branch's org-wide access — only owner / shared branches apply.
+    const meta: MockMetadata = {
+      _id: 'tm_chat',
+      threadId: 't_chat',
+      userId: 'user_owner',
+      organizationId: 'org_disc',
+    };
+    const ctx = createMockCtx({
+      metadata: meta,
+      members: [
+        {
+          _id: 'm_1',
+          organizationId: 'org_disc',
+          userId: 'user_1',
+          role: 'member',
+        },
+      ],
+    });
+
+    const result = await canAccessThread(ctx as never, 't_chat', authUser);
 
     expect(result).toBeNull();
   });

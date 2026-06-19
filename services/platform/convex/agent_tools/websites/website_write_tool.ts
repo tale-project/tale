@@ -17,23 +17,28 @@ import type { ToolDefinition } from '../types';
 
 const STATUS = z.enum(['idle', 'scanning', 'active', 'error']);
 
+// Optional attributes shared by create and update. `domain` and `scanInterval`
+// carry create-specific .describe() text, so they stay declared inline per
+// member rather than folded in here.
+const websiteFields = {
+  title: z.string().optional(),
+  description: z.string().optional(),
+  status: STATUS.optional(),
+} as const;
+
 const websiteWriteArgs = z.discriminatedUnion('operation', [
   z.object({
     operation: z.literal('create'),
     domain: z.string().describe('Domain to register (e.g. example.com)'),
-    title: z.string().optional(),
-    description: z.string().optional(),
     scanInterval: z.string().optional().describe('e.g. "6h", "1d"'),
-    status: STATUS.optional(),
+    ...websiteFields,
   }),
   z.object({
     operation: z.literal('update'),
     websiteId: z.string().describe('Convex Id<"websites">'),
     domain: z.string().optional(),
-    title: z.string().optional(),
-    description: z.string().optional(),
     scanInterval: z.string().optional(),
-    status: STATUS.optional(),
+    ...websiteFields,
   }),
 ]);
 

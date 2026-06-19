@@ -12,7 +12,7 @@
 
 import { v } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-utils';
+import { getString, isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import {
@@ -30,14 +30,9 @@ async function requiringAgentSlugs(
   const out: string[] = [];
   for (const entry of roster) {
     if (!isRecord(entry)) continue;
-    const meta = entry.metadata;
-    const agentSlug =
-      typeof entry.slug === 'string'
-        ? entry.slug
-        : typeof entry.name === 'string'
-          ? entry.name
-          : undefined;
+    const agentSlug = getString(entry, 'slug') ?? getString(entry, 'name');
     if (!agentSlug) continue;
+    const meta = entry.metadata;
     const requires =
       isRecord(meta) && isRecord(meta.requires)
         ? meta.requires.integrations

@@ -690,7 +690,8 @@
       "createFailed": "Échec de la création de l'automatisation"
     },
     "validation": {
-      "duplicateName": "Une automatisation avec ce nom existe déjà"
+      "duplicateName": "Une automatisation avec ce nom existe déjà",
+      "invalidName": "Le nom doit contenir au moins une lettre ou un chiffre"
     },
     "deleteAutomation": {
       "title": "Supprimer l'automatisation",
@@ -5015,12 +5016,6 @@
         "exampleFileUploadStream": "Téléversement de fichier avec streaming (réponse SSE)",
         "exampleOpenAICompat": "Point de terminaison compatible OpenAI (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "Configuration client OpenAI (p. ex. Meetily)"
-      },
-      "organigram": {
-        "menuItem": "Organigramme"
-      },
-      "metrics": {
-        "link": "Voir les métriques"
       }
     },
     "skills": {
@@ -6462,7 +6457,6 @@
       "brandingUpdateFailed": "Échec de la mise à jour de l'image de marque",
       "addMemberFailed": "Échec de l'ajout du membre",
       "automationDuplicateFailed": "Échec de la duplication de l'automatisation",
-      "automationRenameFailed": "Échec du renommage de l'automatisation",
       "automationDeleteFailed": "Échec de la suppression de l'automatisation",
       "generic": "Une erreur s'est produite. Merci de réessayer."
     }
@@ -7102,10 +7096,19 @@
     }
   },
   "discussions": {
+    "categories": {
+      "general": "Général",
+      "qa": "Questions-réponses",
+      "ideas": "Idées",
+      "decisions": "Décisions",
+      "announcements": "Annonces",
+      "show-and-tell": "Démos",
+      "polls": "Sondages"
+    },
     "title": "Discussions",
-    "subtitle": "Conversations par fil pour ce projet — posez des questions, prenez des décisions et @mentionnez un agent pour l'impliquer.",
+    "subtitle": "Conversations par fil pour ce projet — pose des questions, prends des décisions et @mentionne un agent pour l'impliquer.",
     "new": "Nouvelle discussion",
-    "empty": "Aucune discussion pour l'instant. Lancez-en une pour poser une question ou prendre une décision.",
+    "empty": "Aucune discussion pour l'instant. Lance-en une pour poser une question ou prendre une décision.",
     "untitled": "Discussion sans titre",
     "backToList": "Retour aux discussions",
     "resolve": "Résoudre",
@@ -7124,19 +7127,19 @@
       "failed": "Impossible de créer la tâche"
     },
     "reply": {
-      "placeholder": "Répondre… utilisez @ pour mentionner un coéquipier ou un agent",
+      "placeholder": "Répondre… utilise @ pour mentionner un coéquipier ou un agent",
       "lockedPlaceholder": "Cette discussion est verrouillée",
-      "hint": "@mentionnez un agent pour lui demander de répondre.",
-      "failed": "Impossible de publier votre réponse"
+      "hint": "@mentionne un agent pour lui demander de répondre.",
+      "failed": "Impossible de publier ta réponse"
     },
     "create": {
       "title": "Nouvelle discussion",
       "titleLabel": "Titre",
       "titlePlaceholder": "De quoi s'agit-il dans cette discussion ?",
-      "titleRequired": "Ajoutez d'abord un titre",
+      "titleRequired": "Ajoute d'abord un titre",
       "category": "Catégorie",
-      "bodyPlaceholder": "Lancez la discussion… utilisez @ pour mentionner un coéquipier ou un agent",
-      "hint": "Appuyez sur envoyer pour ouvrir la discussion. @mentionnez un agent pour l'impliquer.",
+      "bodyPlaceholder": "Lance la discussion… utilise @ pour mentionner un coéquipier ou un agent",
+      "hint": "Appuie sur envoyer pour ouvrir la discussion. @mentionne un agent pour l'impliquer.",
       "cancel": "Annuler",
       "failed": "Impossible de créer la discussion"
     },
@@ -7145,8 +7148,23 @@
     }
   },
   "agentCatalog": {
+    "folders": {
+      "workforce": "Effectif",
+      "chat": "Chat",
+      "github": "GitHub",
+      "other": "Autre"
+    },
+    "loadError": {
+      "title": "Impossible de charger le catalogue",
+      "description": "Le catalogue d'agents n'a pas pu être chargé. Vérifie ta connexion et réessaie.",
+      "retry": "Réessayer"
+    },
+    "noResults": {
+      "title": "Aucun agent correspondant",
+      "description": "Aucun agent ne correspond à ta recherche. Essaie un autre terme."
+    },
     "title": "Catalogue d'agents",
-    "subtitle": "Parcourez la main-d'œuvre IA par département et installez, activez ou désactivez des agents pour votre organisation.",
+    "subtitle": "Parcours la main-d'œuvre IA par département et installe, active ou désactive des agents pour ton organisation.",
     "menuItem": "Catalogue",
     "searchPlaceholder": "Rechercher des agents…",
     "install": "Installer",
@@ -7187,11 +7205,11 @@
     },
     "errors": {
       "self": "Un agent ne peut pas rendre compte à ni déléguer à lui-même.",
-      "forbidden": "Votre rôle ne peut pas modifier l'organigramme.",
+      "forbidden": "Ton rôle ne peut pas modifier l'organigramme.",
       "generic": "Impossible de mettre à jour l'organigramme."
     },
     "empty": {
-      "noAgents": "Pas encore d'agents — créez des agents puis organisez-les ici."
+      "noAgents": "Pas encore d'agents — crée des agents, puis organise-les ici."
     },
     "humans": {
       "title": "Humains",
@@ -7202,7 +7220,7 @@
   },
   "workforce": {
     "title": "Workforce",
-    "subtitle": "Les performances de votre workforce IA : résultats, interventions humaines et coûts — toujours ensemble.",
+    "subtitle": "Les performances de ta workforce IA : résultats, interventions humaines et coûts — toujours ensemble.",
     "period": {
       "label": "Période",
       "last7Days": "7 derniers jours",

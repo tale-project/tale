@@ -19,7 +19,6 @@
   "metadata": {
     "labels": ["Conversations"]
   },
-  "enabled": true,
   "config": {
     "timeout": 60000,
     "retryPolicy": {

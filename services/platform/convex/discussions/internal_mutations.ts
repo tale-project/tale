@@ -8,7 +8,7 @@
  * exactly mirroring the `agent*` task mutations in `tasks/internal_mutations.ts`.
  *
  * Posting a reply that @mentions another agent emits `discussion.mentioned`,
- * which the `react-to-mention-in-discussion` workflow turns into that agent's
+ * which the `react-to-discussion-mention` workflow turns into that agent's
  * reply — the same event-driven routing task comments use. The `agentReplyDepth`
  * loop guard bounds runaway agent→agent chatter (reset by any human reply in
  * the user-facing `postReply`).
@@ -21,6 +21,7 @@ import {
   DEFAULT_DISCUSSION_CATEGORY,
   DISCUSSION_MESSAGE_MAX,
   DISCUSSION_TITLE_MAX,
+  isDiscussionKind,
   MAX_AGENT_REPLY_CHAIN_DEPTH,
 } from '../../lib/shared/constants/discussions';
 import { components, internal } from '../_generated/api';
@@ -42,6 +43,24 @@ function eventActor(actorId: string): {
   };
 }
 
+/** Trim + bound-check a discussion title; throws on empty/over-length. */
+function assertValidTitle(raw: string): string {
+  const title = raw.trim();
+  if (title.length === 0 || title.length > DISCUSSION_TITLE_MAX) {
+    throw new ConvexError({ code: 'DISCUSSION_TITLE_INVALID' });
+  }
+  return title;
+}
+
+/** Trim + bound-check a discussion message body; throws on empty/over-length. */
+function assertValidBody(raw: string): string {
+  const body = raw.trim();
+  if (body.length === 0 || body.length > DISCUSSION_MESSAGE_MAX) {
+    throw new ConvexError({ code: 'DISCUSSION_MESSAGE_INVALID' });
+  }
+  return body;
+}
+
 async function loadDiscussionMeta(
   ctx: MutationCtx,
   threadId: string,
@@ -54,7 +73,7 @@ async function loadDiscussionMeta(
   if (!meta || meta.organizationId !== organizationId) {
     throw new ConvexError({ code: 'DISCUSSION_NOT_FOUND' });
   }
-  if (meta.kind !== 'project_discussion' && meta.kind !== 'task_discussion') {
+  if (!isDiscussionKind(meta.kind)) {
     throw new ConvexError({ code: 'NOT_A_DISCUSSION' });
   }
   return meta;
@@ -77,6 +96,34 @@ async function resolveDiscussionMentions(
   return extractMentions(body, directory.entries, directory.permissiveAgents);
 }
 
+/**
+ * Emit `discussion.mentioned` for an agent/workflow-authored post when it
+ * @mentions anyone. No-op for an empty mention set, keeping the two write paths
+ * (`agentOpenDiscussion` / `agentReplyToDiscussion`) free of repeated emit code.
+ */
+async function emitMentionedEvent(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    actorId: string;
+    threadId: string;
+    projectId: Id<'projects'> | undefined;
+    mentions: ResolvedMention[];
+  },
+): Promise<void> {
+  if (args.mentions.length === 0) return;
+  await emitEvent(ctx, {
+    organizationId: args.organizationId,
+    eventType: 'discussion.mentioned',
+    eventData: {
+      threadId: args.threadId,
+      projectId: args.projectId ? String(args.projectId) : undefined,
+      mentions: args.mentions,
+      ...eventActor(args.actorId),
+    },
+  });
+}
+
 /** Open a new project discussion authored by an agent (no human owner). */
 export const agentOpenDiscussion = internalMutation({
   args: {
@@ -95,14 +142,8 @@ export const agentOpenDiscussion = internalMutation({
     if (!project || project.organizationId !== args.organizationId) {
       throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
     }
-    const title = args.title.trim();
-    const body = args.message.trim();
-    if (title.length === 0 || title.length > DISCUSSION_TITLE_MAX) {
-      throw new ConvexError({ code: 'DISCUSSION_TITLE_INVALID' });
-    }
-    if (body.length === 0 || body.length > DISCUSSION_MESSAGE_MAX) {
-      throw new ConvexError({ code: 'DISCUSSION_MESSAGE_INVALID' });
-    }
+    const title = assertValidTitle(args.title);
+    const body = assertValidBody(args.message);
 
     const threadId = await createThread(ctx, components.agent, {
       userId: args.actorId,
@@ -147,18 +188,13 @@ export const agentOpenDiscussion = internalMutation({
         ...eventActor(args.actorId),
       },
     });
-    if (mentions.length > 0) {
-      await emitEvent(ctx, {
-        organizationId: args.organizationId,
-        eventType: 'discussion.mentioned',
-        eventData: {
-          threadId,
-          projectId: String(args.projectId),
-          mentions,
-          ...eventActor(args.actorId),
-        },
-      });
-    }
+    await emitMentionedEvent(ctx, {
+      organizationId: args.organizationId,
+      actorId: args.actorId,
+      threadId,
+      projectId: args.projectId,
+      mentions,
+    });
     return { threadId, mentionCount: mentions.length };
   },
 });
@@ -196,10 +232,7 @@ export const agentReplyToDiscussion = internalMutation({
         mentionCount: 0,
       };
     }
-    const body = args.message.trim();
-    if (body.length === 0 || body.length > DISCUSSION_MESSAGE_MAX) {
-      throw new ConvexError({ code: 'DISCUSSION_MESSAGE_INVALID' });
-    }
+    const body = assertValidBody(args.message);
 
     const now = Date.now();
     await saveMessage(ctx, components.agent, {
@@ -229,18 +262,13 @@ export const agentReplyToDiscussion = internalMutation({
         ...eventActor(args.actorId),
       },
     });
-    if (mentions.length > 0) {
-      await emitEvent(ctx, {
-        organizationId: args.organizationId,
-        eventType: 'discussion.mentioned',
-        eventData: {
-          threadId: args.threadId,
-          projectId: meta.projectId ? String(meta.projectId) : undefined,
-          mentions,
-          ...eventActor(args.actorId),
-        },
-      });
-    }
+    await emitMentionedEvent(ctx, {
+      organizationId: args.organizationId,
+      actorId: args.actorId,
+      threadId: args.threadId,
+      projectId: meta.projectId,
+      mentions,
+    });
     return { posted: true, mentionCount: mentions.length };
   },
 });

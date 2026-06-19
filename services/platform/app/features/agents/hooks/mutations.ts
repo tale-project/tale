@@ -71,19 +71,27 @@ export function useUpdateAgentSharing() {
 // ---------------------------------------------------------------------------
 // Agent catalog: install / enable / disable (RLS + admin gated server-side).
 // listInstallStates is a live Convex query, so it refreshes automatically; no
-// manual invalidation needed.
+// manual invalidation needed. `errorToast: false` because the catalog UI
+// surfaces a domain-specific error toast itself — without this the user would
+// see two toasts (the hook's generic one and the catalog's).
 // ---------------------------------------------------------------------------
 
 export function useInstallCatalogAgent() {
-  return useConvexMutation(api.agents.installations.installCatalogAgent);
+  return useConvexMutation(api.agents.installations.installCatalogAgent, {
+    errorToast: false,
+  });
 }
 
 export function useSetAgentEnabled() {
-  return useConvexMutation(api.agents.installations.setAgentEnabled);
+  return useConvexMutation(api.agents.installations.setAgentEnabled, {
+    errorToast: false,
+  });
 }
 
 export function useUninstallAgent() {
-  return useConvexMutation(api.agents.installations.uninstallAgent);
+  return useConvexMutation(api.agents.installations.uninstallAgent, {
+    errorToast: false,
+  });
 }
 
 export function useAddKnowledgeFile() {

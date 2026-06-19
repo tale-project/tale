@@ -19,7 +19,6 @@
   "metadata": {
     "labels": ["Knowledge", "OneDrive"]
   },
-  "enabled": true,
   "config": {
     "timeout": 120000,
     "retryPolicy": {

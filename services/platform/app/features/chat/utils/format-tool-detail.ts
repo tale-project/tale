@@ -16,6 +16,20 @@ export interface ToolDetail {
 }
 
 /**
+ * Title-cases a `-`/`_`-separated slug (e.g. `research_agent` → "Research
+ * Agent", `tavily` → "Tavily"), dropping empty segments from leading/trailing
+ * or doubled separators. Used for slugs that aren't in the explicit
+ * display-name map (MCP tool/server segments, delegate-target agent slugs).
+ */
+function humanizeSeparatedSlug(slug: string): string {
+  return slug
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/**
  * One-line summary of an external-agent (Claude Code / OpenCode) tool call,
  * surfacing the load-bearing argument so the timeline reads "Bash · gh pr diff"
  * instead of a bare "Bash". Returns null for tools handled by the platform
@@ -34,20 +48,16 @@ function externalAgentToolSummary(
   // "Mcp Integrations Integration". Handled before the `!input` guard so
   // argument-less calls (e.g. integration_status) still get a clean label.
   if (toolName.startsWith('mcp__')) {
-    const humanizeSeg = (s: string) =>
-      s
-        .split(/[-_]+/)
-        .filter(Boolean)
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
     const segments = toolName.slice('mcp__'.length).split('__').filter(Boolean);
     const toolSeg = segments[segments.length - 1] ?? toolName;
     if (toolSeg === 'integration') {
       const slug = str(input?.slug);
-      return slug ? `Integration · ${humanizeSeg(slug)}` : 'Integration';
+      return slug
+        ? `Integration · ${humanizeSeparatedSlug(slug)}`
+        : 'Integration';
     }
     if (toolSeg === 'integration_status') return 'Integration status';
-    return humanizeSeg(toolSeg) || toolName;
+    return humanizeSeparatedSlug(toolSeg) || toolName;
   }
 
   if (!input) return null;
@@ -137,13 +147,8 @@ export function formatToolDetail(
   }
 
   if (toolName.startsWith('delegate_')) {
-    const rawName = toolName.slice('delegate_'.length);
     const agentDisplayName =
-      rawName
-        .split(/[-_]+/)
-        .filter(Boolean)
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ') || toolName;
+      humanizeSeparatedSlug(toolName.slice('delegate_'.length)) || toolName;
     return {
       toolName,
       displayText: t('thinking.delegating', { agent: agentDisplayName }),

@@ -93,13 +93,9 @@ export function AutomationsActionMenu({
         title={tAutomations('uploadDialog.title')}
         description={tAutomations('uploadDialog.description')}
         existingKeys={existingSlugs}
-        getKey={(entry) =>
-          entry.relPath.replace(/\.json$/i, '').replace(/\\/g, '/')
-        }
+        getKey={(entry) => relPathToWorkflowSlug(entry.relPath)}
         onSaveOne={async (entry, { overwrite }) => {
-          const workflowSlug = entry.relPath
-            .replace(/\.json$/i, '')
-            .replace(/\\/g, '/');
+          const workflowSlug = relPathToWorkflowSlug(entry.relPath);
           const config = withFallbackName(entry.json, entry.baseName);
           await saveWorkflow({
             organizationId,
@@ -124,6 +120,15 @@ export function AutomationsActionMenu({
       />
     </>
   );
+}
+
+/**
+ * Workflow slug for an uploaded file: drop the `.json` extension and normalize
+ * Windows path separators to `/`. Used both to dedupe against existing slugs
+ * (`getKey`) and as the save target, so the two must agree.
+ */
+function relPathToWorkflowSlug(relPath: string): string {
+  return relPath.replace(/\.json$/i, '').replace(/\\/g, '/');
 }
 
 function withFallbackName(json: unknown, fallback: string): unknown {

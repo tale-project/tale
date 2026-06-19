@@ -41,8 +41,6 @@ import {
   MAX_FILE_SIZE_BYTES,
   MAX_HISTORY_ENTRIES,
   parseAgentJson,
-  resolveAgentFilePath,
-  resolveAgentFilePathFromRelative,
   resolveHistoryDir,
   serializeAgentJson,
   type AgentJsonConfig,
@@ -51,23 +49,8 @@ import { DEFAULT_AGENT_WORKFORCE } from './guardrails/budget_guard';
 import {
   invalidateAgentListCache,
   listAgentsForOrg,
-  resolveAgentRelativePath,
+  resolveAgentPath,
 } from './internal_actions';
-
-/**
- * Absolute path of the file backing an EXISTING agent slug — located through
- * the folder-aware index so a delegation write lands on the file wherever it
- * lives (chat/, workforce/, …). Flat `<slug>.json` fallback for unindexed slugs.
- */
-async function resolveAgentPath(
-  orgSlug: string,
-  slug: string,
-): Promise<string> {
-  const rel = await resolveAgentRelativePath(orgSlug, slug);
-  return rel
-    ? resolveAgentFilePathFromRelative(orgSlug, rel)
-    : resolveAgentFilePath(orgSlug, slug);
-}
 import {
   buildOrgChart,
   chainOfCommand,

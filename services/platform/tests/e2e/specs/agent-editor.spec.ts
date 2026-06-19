@@ -74,7 +74,9 @@ test.describe('agent editor depth', () => {
     });
     const page = await context.newPage();
     try {
-      await page.goto(`/dashboard/${workerOrg.organizationId}/agents`);
+      // The agents table + "Create agent" trigger live on the "All agents" tab;
+      // `/agents` is the organigram Overview landing.
+      await page.goto(`/dashboard/${workerOrg.organizationId}/agents/all`);
       await page
         .getByRole('button', { name: t('settings.agents.createAgent') })
         .click();
@@ -115,7 +117,7 @@ test.describe('agent editor depth', () => {
     });
     const page = await context.newPage();
     try {
-      await page.goto(`/dashboard/${workerOrg.organizationId}/agents`);
+      await page.goto(`/dashboard/${workerOrg.organizationId}/agents/all`);
       const row = agentRow(page, AGENT_DISPLAY_NAME);
       await expect(row).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
       await row

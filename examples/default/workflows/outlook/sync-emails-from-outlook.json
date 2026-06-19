@@ -19,7 +19,6 @@
   "metadata": {
     "labels": ["Email", "Outlook"]
   },
-  "enabled": true,
   "config": {
     "timeout": 300000,
     "retryPolicy": {

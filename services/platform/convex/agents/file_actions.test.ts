@@ -88,10 +88,13 @@ vi.mock('./file_utils', async () => {
   };
 });
 
-// The folder-aware index lives in internal_actions; stub it so reads fall back
-// to the flat path (resolveAgentRelativePath → undefined) and cache drops no-op.
+// The folder-aware index lives in internal_actions; stub `resolveAgentPath` to
+// the flat `<slug>.json` location (the unindexed-slug fallback) so edit/delete/
+// history ops resolve to the path these assertions expect, and cache drops no-op.
 vi.mock('./internal_actions', () => ({
-  resolveAgentRelativePath: vi.fn(async () => undefined),
+  resolveAgentPath: vi.fn(
+    async (_orgSlug: string, slug: string) => `/data/agents/${slug}.json`,
+  ),
   invalidateAgentListCache: vi.fn(),
   listAgentsForOrg: (...args: unknown[]) => mockListAgentsForOrg(...args),
 }));

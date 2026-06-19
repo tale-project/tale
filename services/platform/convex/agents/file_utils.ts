@@ -180,10 +180,6 @@ export type AgentReadResult =
       message: string;
     };
 
-export function agentNameFromFileName(fileName: string): string {
-  return path.basename(fileName, '.json');
-}
-
 export function serializeAgentJson(config: AgentJsonConfig): string {
   return serializeJson(canonicalizeAgentConfig(config));
 }

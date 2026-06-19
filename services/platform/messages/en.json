@@ -689,7 +689,8 @@
       "createFailed": "Failed to create automation"
     },
     "validation": {
-      "duplicateName": "An automation with this name already exists"
+      "duplicateName": "An automation with this name already exists",
+      "invalidName": "Name must contain at least one letter or number"
     },
     "deleteAutomation": {
       "title": "Delete automation",
@@ -5275,12 +5276,6 @@
         "exampleFileUploadStream": "File upload with streaming (SSE response)",
         "exampleOpenAICompat": "OpenAI-compatible endpoint (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI client config (e.g. Meetily)"
-      },
-      "organigram": {
-        "menuItem": "Organigram"
-      },
-      "metrics": {
-        "link": "Metrics"
       }
     },
     "skills": {
@@ -6722,7 +6717,6 @@
       "brandingUpdateFailed": "Failed to update branding",
       "addMemberFailed": "Failed to add member",
       "automationDuplicateFailed": "Failed to duplicate automation",
-      "automationRenameFailed": "Failed to rename automation",
       "automationDeleteFailed": "Failed to delete automation",
       "generic": "Something went wrong. Please try again."
     }
@@ -7101,6 +7095,15 @@
     }
   },
   "discussions": {
+    "categories": {
+      "general": "General",
+      "qa": "Q&A",
+      "ideas": "Ideas",
+      "decisions": "Decisions",
+      "announcements": "Announcements",
+      "show-and-tell": "Show and tell",
+      "polls": "Polls"
+    },
     "title": "Discussions",
     "subtitle": "Threaded conversations for this project — ask questions, make decisions, and @mention an agent to bring it in.",
     "new": "New discussion",
@@ -7144,6 +7147,21 @@
     }
   },
   "agentCatalog": {
+    "folders": {
+      "workforce": "Workforce",
+      "chat": "Chat",
+      "github": "GitHub",
+      "other": "Other"
+    },
+    "loadError": {
+      "title": "Couldn't load the catalog",
+      "description": "The agent catalog couldn't be loaded. Check your connection and try again.",
+      "retry": "Try again"
+    },
+    "noResults": {
+      "title": "No matching agents",
+      "description": "No agents match your search. Try a different term."
+    },
     "title": "Agent catalog",
     "subtitle": "Browse the AI workforce by department and install, enable, or disable agents for your organization.",
     "menuItem": "Catalog",

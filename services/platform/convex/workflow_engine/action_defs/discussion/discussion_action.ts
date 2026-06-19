@@ -4,18 +4,28 @@
  * writes to the `workflow` actor via `discussions/internal_mutations.ts`, which
  * enforces org scope and the agent-reply loop guard.
  *
- * The headline use: a `react-to-mention-in-discussion` workflow triggers on
+ * The headline use: a `react-to-discussion-mention` workflow triggers on
  * `discussion.mentioned`, runs the mentioned agent (the `agent` action), then
  * posts its answer back with `reply`. Mirrors `task_action.ts`.
  */
 
-import { v } from 'convex/values';
+import { type Infer, v } from 'convex/values';
 
 import { internal } from '../../../_generated/api';
 import { toId } from '../../../lib/type_cast_helpers';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 const WORKFLOW_ACTOR_ID = 'workflow';
+
+const discussionStatusValidator = v.union(
+  v.literal('open'),
+  v.literal('resolved'),
+  v.literal('locked'),
+);
+
+// Derived from the validator so the param type stays in lockstep with what the
+// `parametersValidator` accepts.
+type DiscussionStatus = Infer<typeof discussionStatusValidator>;
 
 type DiscussionActionParams =
   | {
@@ -33,7 +43,7 @@ type DiscussionActionParams =
   | {
       operation: 'set_status';
       threadId: string;
-      status: 'open' | 'resolved' | 'locked';
+      status: DiscussionStatus;
     }
   | {
       operation: 'spawn_task';
@@ -46,19 +56,13 @@ type DiscussionActionParams =
       operation: 'list';
       projectId: string;
       category?: string;
-      status?: 'open' | 'resolved' | 'locked';
+      status?: DiscussionStatus;
       limit?: number;
     }
   | {
       operation: 'get';
       threadId: string;
     };
-
-const discussionStatusValidator = v.union(
-  v.literal('open'),
-  v.literal('resolved'),
-  v.literal('locked'),
-);
 
 export const discussionAction: ActionDefinition<DiscussionActionParams> = {
   type: 'discussion',

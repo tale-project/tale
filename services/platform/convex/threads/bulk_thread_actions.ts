@@ -2,6 +2,7 @@ import { ConvexError } from 'convex/values';
 
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { loadActiveHolds } from '../governance/legal_hold';
+import { isHiddenFromChatHistory } from './list_threads';
 
 // The action a "manage all my chats" sweep applies to each thread.
 //   'delete'  → soft-delete (move to Trash) every active OR archived chat
@@ -39,13 +40,9 @@ export async function collectBulkActionThreadIds(
 
   return rows
     .filter((row) => {
-      if (row.isBranch === true) return false;
-      // Discussions reuse chatType 'general' but live under Projects, not the
-      // chat-history sidebar — never sweep them in a "manage all my chats"
-      // bulk delete/archive (mirrors the exclusion in list_threads.ts).
-      if (row.kind === 'project_discussion' || row.kind === 'task_discussion') {
-        return false;
-      }
+      // Branches and discussions aren't part of the user-facing chat history,
+      // so a "manage all my chats" sweep must never touch them.
+      if (isHiddenFromChatHistory(row)) return false;
       if (organizationId && row.organizationId !== organizationId) {
         return false;
       }

@@ -15,8 +15,11 @@ import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Grid, HStack, Stack } from '@tale/ui/layout';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { Bot } from 'lucide-react';
+import type { TFunction } from 'i18next';
+import { Bot, TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -32,6 +35,11 @@ import {
   useUninstallAgent,
 } from '../hooks/mutations';
 import { useAgentInstallations, useListAgents } from '../hooks/queries';
+import {
+  agentLabels,
+  agentRequiredIntegrations,
+  toConfigurableAgent,
+} from '../utils/agent-list-item';
 
 interface AgentCatalogProps {
   organizationId: string;
@@ -50,51 +58,65 @@ interface CatalogEntry {
   enabled: boolean;
   installedBy?: string;
   bundledBy?: string;
-  disabledReason?: 'integration_disabled' | 'user';
 }
 
-const FOLDER_LABELS: Record<string, string> = {
-  workforce: 'Workforce',
-  chat: 'Chat',
-  github: 'GitHub',
-};
+/**
+ * One row from `listInstallStates`, keyed in `installBySlug` by `agentSlug`.
+ * Derived from the live query's element type so it can't drift from the backend
+ * `installStateValidator` shape.
+ */
+type InstallStateRow = NonNullable<
+  ReturnType<typeof useAgentInstallations>['data']
+>[number];
 
-/** Title for a folder section; falls back to capitalizing the raw folder. */
-function folderLabel(folder: string): string {
-  if (FOLDER_LABELS[folder]) return FOLDER_LABELS[folder];
-  if (!folder) return 'Other';
-  return folder.charAt(0).toUpperCase() + folder.slice(1);
+/** Number of placeholder cards rendered while the catalog roster loads. */
+const PLACEHOLDER_CARD_COUNT = 6;
+
+/**
+ * Localized title for a folder section. Known folders have dedicated keys
+ * (`agentCatalog.folders.workforce` …); unknown folders fall back to a
+ * capitalized form of the raw value so a new department still renders a sane
+ * label even before a translation exists. `defaultValue` keeps i18next from
+ * surfacing a raw key while the localized string lands.
+ */
+function folderLabel(t: TFunction, folder: string): string {
+  const fallback = folder
+    ? folder.charAt(0).toUpperCase() + folder.slice(1)
+    : t('folders.other', { defaultValue: 'Other' });
+  if (!folder) return fallback;
+  return t(`folders.${folder}`, { defaultValue: fallback });
 }
 
 export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   const { t } = useT('agentCatalog');
   const { i18n } = useTranslation();
   const locale = i18n.language;
-  const { agents: rawAgents, isLoading } = useListAgents(organizationId);
+  const {
+    agents: rawAgents,
+    isLoading,
+    error: agentsError,
+    refetch: refetchAgents,
+  } = useListAgents(organizationId);
   const installStates = useAgentInstallations(organizationId);
   const [search, setSearch] = useState('');
+  // Track slugs with an in-flight roster write so the card's buttons disable
+  // until the reactive install-state query settles — prevents a double-click
+  // firing install/enable twice. The mutations themselves are not optimistic
+  // (listInstallStates is live and refreshes on its own).
+  const [pendingSlugs, setPendingSlugs] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
+  // These hooks set `errorToast: false`; `run()` below owns the failure toast
+  // so the catalog can surface a domain-specific message without double-toasting.
   const { mutateAsync: install } = useInstallCatalogAgent();
   const { mutateAsync: setEnabled } = useSetAgentEnabled();
   const { mutateAsync: uninstall } = useUninstallAgent();
 
   const installBySlug = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        enabled: boolean;
-        installedBy: string;
-        bundledBy?: string;
-        disabledReason?: 'integration_disabled' | 'user';
-      }
-    >();
+    const map = new Map<string, InstallStateRow>();
     for (const row of installStates.data ?? []) {
-      map.set(row.agentSlug, {
-        enabled: row.enabled,
-        installedBy: row.installedBy,
-        bundledBy: row.bundledBy,
-        disabledReason: row.disabledReason,
-      });
+      map.set(row.agentSlug, row);
     }
     return map;
   }, [installStates.data]);
@@ -102,41 +124,32 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   const entries = useMemo<CatalogEntry[]>(() => {
     if (!rawAgents) return [];
     const out: CatalogEntry[] = [];
-    for (const a of rawAgents) {
-      // Skip read-error rows + system agents (the Auto router etc.).
-      if (!a || typeof a.name !== 'string' || 'status' in a) continue;
-      if (a.uiConfigurable === false) continue;
-      // oxlint-disable-next-line typescript/no-explicit-any -- metadata is optional config not in the narrow list type
-      const meta = (a as { metadata?: Record<string, any> }).metadata ?? {};
-      // Catalog hides agents explicitly flagged out of the template catalog.
-      if (meta.templateCatalog === false && !installBySlug.has(a.name)) {
-        // still show if installed (e.g. github-bundled), otherwise hide
-        if (!installBySlug.has(a.name)) continue;
+    for (const raw of rawAgents) {
+      // Drops read-error rows + system agents (the Auto router etc.).
+      const agent = toConfigurableAgent(raw);
+      if (!agent) continue;
+      // Catalog hides agents explicitly flagged out of the template catalog,
+      // unless they're already installed (e.g. github-bundled).
+      if (
+        agent.metadata?.templateCatalog === false &&
+        !installBySlug.has(agent.name)
+      ) {
+        continue;
       }
-      const resolved = resolveAgentLocale(a, locale);
+      const resolved = resolveAgentLocale(agent, locale);
       if (!resolved.displayName) continue;
-      const state = installBySlug.get(a.name);
-      const labels = Array.isArray(meta.labels)
-        ? meta.labels.filter((l: unknown): l is string => typeof l === 'string')
-        : [];
-      const folder =
-        typeof (a as { folder?: unknown }).folder === 'string'
-          ? (a as { folder: string }).folder
-          : '';
+      const state = installBySlug.get(agent.name);
       out.push({
-        slug: a.name,
+        slug: agent.name,
         displayName: resolved.displayName,
         description: resolved.description,
-        folder,
-        labels,
-        requiresIntegrations: Array.isArray(meta.requires?.integrations)
-          ? meta.requires.integrations
-          : [],
+        folder: agent.folder ?? '',
+        labels: agentLabels(agent),
+        requiresIntegrations: agentRequiredIntegrations(agent),
         installed: !!state,
-        enabled: state ? state.enabled : false,
+        enabled: state?.enabled ?? false,
         installedBy: state?.installedBy,
         bundledBy: state?.bundledBy,
-        disabledReason: state?.disabledReason,
       });
     }
     return out;
@@ -164,9 +177,11 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   }, [filtered]);
 
   const run = async (
+    slug: string,
     action: () => Promise<unknown>,
     okKey: string,
   ): Promise<void> => {
+    setPendingSlugs((prev) => new Set(prev).add(slug));
     try {
       await action();
       toast({ title: t(okKey) });
@@ -176,10 +191,55 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
         description: err instanceof Error ? err.message : undefined,
         variant: 'destructive',
       });
+    } finally {
+      setPendingSlugs((prev) => {
+        const next = new Set(prev);
+        next.delete(slug);
+        return next;
+      });
     }
   };
 
-  if (!isLoading && entries.length === 0) {
+  // The action read failed (e.g. transient backend error) — distinct from an
+  // empty roster, so offer a retry rather than the "no agents" empty state.
+  if (agentsError) {
+    return (
+      <EmptyState
+        icon={TriangleAlert}
+        title={t('loadError.title')}
+        description={t('loadError.description')}
+        action={
+          <Button variant="secondary" onClick={() => void refetchAgents()}>
+            {t('loadError.retry')}
+          </Button>
+        }
+      />
+    );
+  }
+
+  // Loading: render the same grid shape with placeholder cards inside a single
+  // Skeletonize so the roster resolves under stable page chrome (mirrors the
+  // integrations catalog) rather than swapping in from a blank page.
+  if (isLoading) {
+    return (
+      <Skeletonize loading label={t('title')}>
+        <Stack gap={6}>
+          <div className="w-64">
+            <SkeletonBox>
+              <div className="h-9 rounded-md" />
+            </SkeletonBox>
+          </div>
+          <Grid cols={1} md={2} lg={3} gap={3}>
+            {Array.from({ length: PLACEHOLDER_CARD_COUNT }).map((_, i) => (
+              <CatalogCardSkeleton key={i} />
+            ))}
+          </Grid>
+        </Stack>
+      </Skeletonize>
+    );
+  }
+
+  if (entries.length === 0) {
     return (
       <EmptyState
         icon={Bot}
@@ -189,6 +249,10 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
     );
   }
 
+  // Search resolved to nothing — keep the search box so the user can clear it,
+  // and explain why the grid is empty rather than showing a bare page.
+  const noSearchResults = filtered.length === 0 && search.trim().length > 0;
+
   return (
     <Stack gap={6}>
       <SearchInput
@@ -197,102 +261,181 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
         placeholder={t('searchPlaceholder')}
         className="w-64"
       />
-      {byFolder.map(([folder, items]) => (
-        <Stack key={folder} gap={3}>
-          <Text variant="caption" className="text-muted-foreground font-medium">
-            {folderLabel(folder)}
-          </Text>
-          <Grid cols={1} md={2} lg={3} gap={3}>
-            {items.map((e) => (
-              <Card key={e.slug} className="flex flex-col gap-3 p-4">
-                <Stack gap={1}>
-                  <HStack gap={2} align="center" justify="between">
-                    <span className="truncate text-sm font-semibold">
-                      {e.displayName}
-                    </span>
-                    <CatalogStatusBadge entry={e} t={t} />
-                  </HStack>
-                  {e.description ? (
-                    <Text
-                      variant="caption"
-                      className="text-muted-foreground line-clamp-2 text-sm"
-                    >
-                      {e.description}
-                    </Text>
-                  ) : null}
-                </Stack>
-
-                <LabelBadges labels={e.labels} />
-
-                {e.installedBy?.startsWith('integration:') || e.bundledBy ? (
-                  <Badge variant="outline" className="w-fit">
-                    {t('installedByIntegration', {
-                      integration:
-                        e.bundledBy ?? e.installedBy?.split(':')[1] ?? '',
-                    })}
-                  </Badge>
-                ) : e.requiresIntegrations.length > 0 && !e.installed ? (
-                  <Badge variant="outline" className="w-fit">
-                    {t('requiresIntegration', {
-                      integration: e.requiresIntegrations.join(', '),
-                    })}
-                  </Badge>
-                ) : null}
-
-                <HStack gap={2} className="mt-auto">
-                  {!e.installed ? (
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        void run(
-                          () => install({ organizationId, agentSlug: e.slug }),
-                          'installed',
-                        )
-                      }
-                    >
-                      {t('install')}
-                    </Button>
-                  ) : (
-                    <>
-                      <Button
-                        size="sm"
-                        variant={e.enabled ? 'secondary' : 'primary'}
-                        onClick={() =>
-                          void run(
-                            () =>
-                              setEnabled({
-                                organizationId,
-                                agentSlug: e.slug,
-                                enabled: !e.enabled,
-                              }),
-                            e.enabled ? 'disabled' : 'enabled',
-                          )
-                        }
-                      >
-                        {e.enabled ? t('disable') : t('enable')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          void run(
-                            () =>
-                              uninstall({ organizationId, agentSlug: e.slug }),
-                            'uninstalled',
-                          )
-                        }
-                      >
-                        {t('uninstall')}
-                      </Button>
-                    </>
-                  )}
-                </HStack>
-              </Card>
-            ))}
-          </Grid>
-        </Stack>
-      ))}
+      {noSearchResults ? (
+        <EmptyState
+          icon={Bot}
+          title={t('noResults.title')}
+          description={t('noResults.description')}
+        />
+      ) : (
+        byFolder.map(([folder, items]) => (
+          <Stack key={folder} gap={3}>
+            <Text
+              variant="caption"
+              className="text-muted-foreground font-medium"
+            >
+              {folderLabel(t, folder)}
+            </Text>
+            <Grid cols={1} md={2} lg={3} gap={3}>
+              {items.map((entry) => (
+                <CatalogCard
+                  key={entry.slug}
+                  entry={entry}
+                  t={t}
+                  pending={pendingSlugs.has(entry.slug)}
+                  onInstall={() =>
+                    void run(
+                      entry.slug,
+                      () => install({ organizationId, agentSlug: entry.slug }),
+                      'installed',
+                    )
+                  }
+                  onToggleEnabled={() =>
+                    void run(
+                      entry.slug,
+                      () =>
+                        setEnabled({
+                          organizationId,
+                          agentSlug: entry.slug,
+                          enabled: !entry.enabled,
+                        }),
+                      entry.enabled ? 'disabled' : 'enabled',
+                    )
+                  }
+                  onUninstall={() =>
+                    void run(
+                      entry.slug,
+                      () =>
+                        uninstall({ organizationId, agentSlug: entry.slug }),
+                      'uninstalled',
+                    )
+                  }
+                />
+              ))}
+            </Grid>
+          </Stack>
+        ))
+      )}
     </Stack>
+  );
+}
+
+/** One catalog card: status, labels, provenance badge, and roster actions. */
+function CatalogCard({
+  entry,
+  t,
+  pending,
+  onInstall,
+  onToggleEnabled,
+  onUninstall,
+}: {
+  entry: CatalogEntry;
+  t: TFunction;
+  pending: boolean;
+  onInstall: () => void;
+  onToggleEnabled: () => void;
+  onUninstall: () => void;
+}) {
+  const fromIntegration =
+    entry.installedBy?.startsWith('integration:') || !!entry.bundledBy;
+
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <Stack gap={1}>
+        <HStack gap={2} align="center" justify="between">
+          <span className="truncate text-sm font-semibold">
+            {entry.displayName}
+          </span>
+          <CatalogStatusBadge entry={entry} t={t} />
+        </HStack>
+        {entry.description ? (
+          <Text
+            variant="caption"
+            className="text-muted-foreground line-clamp-2 text-sm"
+          >
+            {entry.description}
+          </Text>
+        ) : null}
+      </Stack>
+
+      <LabelBadges labels={entry.labels} />
+
+      {fromIntegration ? (
+        <Badge variant="outline" className="w-fit">
+          {t('installedByIntegration', {
+            integration:
+              entry.bundledBy ?? entry.installedBy?.split(':')[1] ?? '',
+          })}
+        </Badge>
+      ) : entry.requiresIntegrations.length > 0 && !entry.installed ? (
+        <Badge variant="outline" className="w-fit">
+          {t('requiresIntegration', {
+            integration: entry.requiresIntegrations.join(', '),
+          })}
+        </Badge>
+      ) : null}
+
+      <HStack gap={2} className="mt-auto">
+        {!entry.installed ? (
+          <Button size="sm" isLoading={pending} onClick={onInstall}>
+            {t('install')}
+          </Button>
+        ) : (
+          <>
+            <Button
+              size="sm"
+              isLoading={pending}
+              variant={entry.enabled ? 'secondary' : 'primary'}
+              onClick={onToggleEnabled}
+            >
+              {entry.enabled ? t('disable') : t('enable')}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={onUninstall}
+            >
+              {t('uninstall')}
+            </Button>
+          </>
+        )}
+      </HStack>
+    </Card>
+  );
+}
+
+/**
+ * Placeholder card matching `CatalogCard`'s footprint (title + status badge,
+ * two description lines, a label badge, an action button) so the loading grid
+ * occupies the same height as the loaded grid. Decorative; the enclosing
+ * `<Skeletonize>` owns the single status announcement.
+ */
+function CatalogCardSkeleton() {
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <Stack gap={1}>
+        <HStack gap={2} align="center" justify="between">
+          <div className="w-28 text-sm leading-none">
+            <SkeletonText />
+          </div>
+          <SkeletonBox>
+            <div className="h-5 w-16 rounded-full" />
+          </SkeletonBox>
+        </HStack>
+        <div className="text-sm leading-[1.43]">
+          <SkeletonText lines={2} />
+        </div>
+      </Stack>
+      <SkeletonBox>
+        <div className="h-5 w-20 rounded-full" />
+      </SkeletonBox>
+      <HStack gap={2} className="mt-auto">
+        <SkeletonBox>
+          <div className="h-8 w-20 rounded-md" />
+        </SkeletonBox>
+      </HStack>
+    </Card>
   );
 }
 
@@ -301,7 +444,7 @@ function CatalogStatusBadge({
   t,
 }: {
   entry: CatalogEntry;
-  t: (key: string) => string;
+  t: TFunction;
 }) {
   if (!entry.installed) {
     return <Badge variant="outline">{t('status.available')}</Badge>;

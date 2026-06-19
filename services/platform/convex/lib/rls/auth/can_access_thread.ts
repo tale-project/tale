@@ -70,17 +70,20 @@ export async function canAccessThread(
     return isMember ? metadata : null;
   }
 
+  // Non-owner access rules below grant access to any current member of the
+  // thread's org. They reuse the already-resolved `expectedMembership` when the
+  // hint matched, else fall back to a lookup against the actual org. A `false`
+  // result falls THROUGH to the next rule (a thread can be both shared and a
+  // discussion), unlike the owner branch which denies outright.
+  const grantedToOrgMember = async (): Promise<boolean> => {
+    if (!metadata.organizationId) return false;
+    if (expectedOrgId === metadata.organizationId) return !!expectedMembership;
+    return isOrgMember(ctx, authUser.userId, metadata.organizationId);
+  };
+
   // Shared branch
   if (metadata.isShared && metadata.organizationId) {
-    if (expectedOrgId === metadata.organizationId) {
-      return expectedMembership ? metadata : null;
-    }
-    const member = await isOrgMember(
-      ctx,
-      authUser.userId,
-      metadata.organizationId,
-    );
-    if (member) return metadata;
+    if (await grantedToOrgMember()) return metadata;
   }
 
   // Discussion branch: project/task discussions are a shared surface — any
@@ -92,15 +95,7 @@ export async function canAccessThread(
       metadata.kind === 'task_discussion') &&
     metadata.organizationId
   ) {
-    if (expectedOrgId === metadata.organizationId && expectedMembership) {
-      return metadata;
-    }
-    const member = await isOrgMember(
-      ctx,
-      authUser.userId,
-      metadata.organizationId,
-    );
-    if (member) return metadata;
+    if (await grantedToOrgMember()) return metadata;
   }
 
   return null;

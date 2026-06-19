@@ -25,27 +25,26 @@ const ADDRESS = z
   })
   .optional();
 
+// Shared between create and update — both accept the same optional attributes.
+const vendorFields = {
+  name: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  locale: z.string().optional(),
+  address: ADDRESS,
+  tags: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+} as const;
+
 const vendorWriteArgs = z.discriminatedUnion('operation', [
   z.object({
     operation: z.literal('create'),
-    name: z.string().optional(),
-    email: z.string().optional(),
-    phone: z.string().optional(),
-    locale: z.string().optional(),
-    address: ADDRESS,
-    tags: z.array(z.string()).optional(),
-    notes: z.string().optional(),
+    ...vendorFields,
   }),
   z.object({
     operation: z.literal('update'),
     vendorId: z.string().describe('Convex Id<"vendors">'),
-    name: z.string().optional(),
-    email: z.string().optional(),
-    phone: z.string().optional(),
-    locale: z.string().optional(),
-    address: ADDRESS,
-    tags: z.array(z.string()).optional(),
-    notes: z.string().optional(),
+    ...vendorFields,
   }),
 ]);
 

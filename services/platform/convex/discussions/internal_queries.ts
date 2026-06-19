@@ -9,6 +9,10 @@
 
 import { v } from 'convex/values';
 
+import {
+  discussionActivityAt,
+  isDiscussionKind,
+} from '../../lib/shared/constants/discussions';
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 
@@ -64,11 +68,7 @@ export const listProjectDiscussionsInternal = internalQuery({
       if (args.status && meta.discussionStatus !== args.status) continue;
       rows.push(toSummary(meta));
     }
-    rows.sort(
-      (a, b) =>
-        (b.lastReplyAt ?? b.updatedAt ?? b.createdAt) -
-        (a.lastReplyAt ?? a.updatedAt ?? a.createdAt),
-    );
+    rows.sort((a, b) => discussionActivityAt(b) - discussionActivityAt(a));
     return typeof args.limit === 'number' ? rows.slice(0, args.limit) : rows;
   },
 });
@@ -82,9 +82,7 @@ export const getDiscussionInternal = internalQuery({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
     if (!meta || meta.organizationId !== args.organizationId) return null;
-    if (meta.kind !== 'project_discussion' && meta.kind !== 'task_discussion') {
-      return null;
-    }
+    if (!isDiscussionKind(meta.kind)) return null;
     return toSummary(meta);
   },
 });

@@ -20,6 +20,29 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { UpdateCustomersResult } from './types';
 
+/**
+ * Apply a partial metadata update onto an existing metadata record. Dot-notation
+ * keys (`a.b.c`) are written via `lodash.set`; for top-level keys, two plain
+ * objects are deep-merged while any other value (primitive / array / null)
+ * replaces. Returns a fresh object — the inputs are never mutated.
+ */
+function mergeMetadataUpdates(
+  existing: Record<string, unknown>,
+  updates: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...existing };
+  for (const [key, value] of Object.entries(updates)) {
+    if (key.includes('.')) {
+      set(merged, key, value);
+      continue;
+    }
+    const current = merged[key];
+    merged[key] =
+      isRecord(value) && isRecord(current) ? merge({}, current, value) : value;
+  }
+  return merged;
+}
+
 export interface UpdateCustomersArgs {
   customerId?: Id<'customers'>;
   organizationId?: string;
@@ -102,33 +125,15 @@ export async function updateCustomers(
     if (args.updates.address !== undefined)
       patch.address = args.updates.address;
 
-    // Handle metadata updates with lodash
     if (args.updates.metadata) {
-      // Use type guard to safely access existing metadata
+      // `customer.metadata` is untyped JSON — narrow before merging.
       const existingMetadata = isRecord(customer.metadata)
         ? customer.metadata
         : {};
-      const updatedMetadata: Record<string, unknown> = {
-        ...existingMetadata,
-      };
-
-      for (const [key, value] of Object.entries(args.updates.metadata)) {
-        if (key.includes('.')) {
-          // Use lodash.set for dot-notation keys
-          set(updatedMetadata, key, value);
-        } else {
-          // For top-level keys, use merge for objects if both are plain records
-          const existingValue = updatedMetadata[key];
-
-          if (isRecord(value) && isRecord(existingValue)) {
-            updatedMetadata[key] = merge({}, existingValue, value);
-          } else {
-            updatedMetadata[key] = value;
-          }
-        }
-      }
-
-      patch.metadata = updatedMetadata;
+      patch.metadata = mergeMetadataUpdates(
+        existingMetadata,
+        args.updates.metadata,
+      );
     }
 
     return { id: customer._id, patch };

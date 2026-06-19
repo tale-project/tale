@@ -15,6 +15,7 @@ import { v } from 'convex/values';
 
 import { DEFAULT_CHAT_AGENT_SLUG } from '../../lib/shared/constants/agents';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 
 const EXAMPLE_TASKS = [
@@ -48,7 +49,7 @@ export const seedStarterContent = internalAction({
     );
     if (alreadySeeded) return null;
 
-    let projectId;
+    let projectId: Id<'projects'>;
     try {
       const created = await ctx.runMutation(
         internal.tasks.internal_mutations.agentCreateProject,

@@ -1,6 +1,10 @@
 import { createThread, saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
+import {
+  DEFAULT_DISCUSSION_CATEGORY,
+  isDiscussionKind,
+} from '../../lib/shared/constants/discussions';
 import { components, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -8,6 +12,7 @@ import { mutation } from '../_generated/server';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import type { AuthenticatedUser } from '../lib/rls/types';
 import { buildMentionDirectory } from '../tasks/directory';
 import { extractMentions } from '../tasks/mentions';
 import { emitEvent } from '../workflows/triggers/emit_event';
@@ -22,7 +27,7 @@ import { emitEvent } from '../workflows/triggers/emit_event';
  *
  * Agent replies are EVENT-DRIVEN, not inline-streamed: posting a message that
  * @mentions one or more agents emits a `discussion.mentioned` event, which the
- * `react-to-mention-in-discussion` workflow turns into a `run_on_discussion`
+ * `react-to-discussion-mention` workflow turns into a `run_on_discussion`
  * run PER mentioned agent — so several agents can join one discussion off a
  * single human post (a board, not a 1:1 chat). This is the exact same routing
  * agents themselves use (`discussions/internal_mutations.ts`), so human- and
@@ -30,11 +35,34 @@ import { emitEvent } from '../workflows/triggers/emit_event';
  * bounded by the `agentReplyDepth` loop guard (reset to 0 by any human reply).
  */
 
-const DEFAULT_CATEGORY = 'general';
+/**
+ * Authorize a discussion write: the caller must be able to access the thread
+ * (org membership / sharing, via `assertThreadAccess`) AND it must actually be
+ * a discussion — never a private `chat` thread. Mirrors `loadDiscussionMeta` in
+ * `internal_mutations.ts` so the user- and agent-authored write paths apply the
+ * same gate (a holder of a chat-thread URL can't drive it through this API).
+ */
+async function assertDiscussionAccess(
+  ctx: MutationCtx,
+  threadId: string,
+  authUser: AuthenticatedUser,
+  organizationId: string,
+) {
+  const meta = await assertThreadAccess(
+    ctx,
+    threadId,
+    authUser,
+    organizationId,
+  );
+  if (!isDiscussionKind(meta.kind)) {
+    throw new ConvexError({ code: 'not_a_discussion' });
+  }
+  return meta;
+}
 
 /**
  * Bring every @mentioned agent into a discussion post by emitting a single
- * `discussion.mentioned` event (the `react-to-mention-in-discussion` workflow
+ * `discussion.mentioned` event (the `react-to-discussion-mention` workflow
  * fans it out to a `run_on_discussion` run per agent mention). A post with no
  * agent mention stays a pure human message — no event, no agent summoned —
  * keeping discussions human-first. Returns the count of agent mentions.
@@ -121,7 +149,7 @@ export const createDiscussion = mutation({
       kind: 'project_discussion',
       projectId: args.projectId,
       discussionStatus: 'open',
-      discussionCategory: args.category ?? DEFAULT_CATEGORY,
+      discussionCategory: args.category ?? DEFAULT_DISCUSSION_CATEGORY,
       organizationId: args.organizationId,
       title: args.title,
       createdAt,
@@ -155,15 +183,12 @@ export const postReply = mutation({
   handler: async (ctx, args): Promise<{ mentionCount: number }> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new ConvexError({ code: 'forbidden' });
-    const meta = await assertThreadAccess(
+    const meta = await assertDiscussionAccess(
       ctx,
       args.threadId,
       authUser,
       args.organizationId,
     );
-    if (meta.kind !== 'project_discussion' && meta.kind !== 'task_discussion') {
-      throw new ConvexError({ code: 'not_a_discussion' });
-    }
     if (meta.discussionStatus === 'locked') {
       throw new ConvexError({
         code: 'discussion_locked',

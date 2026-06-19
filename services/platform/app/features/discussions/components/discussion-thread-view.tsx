@@ -33,6 +33,12 @@ import {
   useSetDiscussionStatus,
 } from '../hooks/mutations';
 import { useDiscussion } from '../hooks/queries';
+import {
+  discussionCategoryLabel,
+  DISCUSSION_STATUS_BADGE,
+  type DiscussionStatus,
+  toDiscussionStatus,
+} from '../lib';
 
 interface DiscussionThreadViewProps {
   organizationId: string;
@@ -40,17 +46,6 @@ interface DiscussionThreadViewProps {
   threadId: string;
   onBack: () => void;
 }
-
-type DiscussionStatus = 'open' | 'resolved' | 'locked';
-
-const STATUS_BADGE: Record<
-  DiscussionStatus,
-  'green' | 'outline' | 'destructive'
-> = {
-  open: 'green',
-  resolved: 'outline',
-  locked: 'destructive',
-};
 
 export function DiscussionThreadView({
   organizationId,
@@ -86,8 +81,9 @@ export function DiscussionThreadView({
   const { mutateAsync: setStatus } = useSetDiscussionStatus();
   const { mutateAsync: createTask } = useCreateTaskFromDiscussion();
 
-  const status = (discussion?.discussionStatus ?? 'open') as DiscussionStatus;
+  const status = toDiscussionStatus(discussion?.discussionStatus);
   const isLocked = status === 'locked';
+  const category = discussion?.discussionCategory;
 
   const handleSend = useCallback(
     async (message: string, _attachments?: FileAttachment[]) => {
@@ -96,7 +92,8 @@ export function DiscussionThreadView({
       try {
         await postReply({ organizationId, threadId, message });
         setInputValue('');
-      } catch {
+      } catch (error) {
+        console.error('Failed to post discussion reply', error);
         toast({ title: t('reply.failed'), variant: 'destructive' });
       } finally {
         setIsSending(false);
@@ -109,7 +106,8 @@ export function DiscussionThreadView({
     async (next: DiscussionStatus) => {
       try {
         await setStatus({ organizationId, threadId, status: next });
-      } catch {
+      } catch (error) {
+        console.error('Failed to set discussion status', error);
         toast({ title: t('status.failed'), variant: 'destructive' });
       }
     },
@@ -126,7 +124,8 @@ export function DiscussionThreadView({
         title: discussion.title,
       });
       toast({ title: t('spawnTask.success'), variant: 'success' });
-    } catch {
+    } catch (error) {
+      console.error('Failed to create task from discussion', error);
       toast({ title: t('spawnTask.failed'), variant: 'destructive' });
     }
   }, [createTask, organizationId, threadId, projectId, discussion?.title, t]);
@@ -148,13 +147,13 @@ export function DiscussionThreadView({
               <span className="truncate text-sm font-semibold">
                 {discussion?.title ?? t('untitled')}
               </span>
-              <Badge variant={STATUS_BADGE[status]}>
+              <Badge variant={DISCUSSION_STATUS_BADGE[status]}>
                 {t(`status.${status}`)}
               </Badge>
             </HStack>
-            {discussion?.discussionCategory ? (
+            {category ? (
               <Text variant="caption" className="text-muted-foreground text-xs">
-                {discussion.discussionCategory}
+                {discussionCategoryLabel(category, t)}
               </Text>
             ) : null}
           </div>

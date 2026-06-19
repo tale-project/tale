@@ -11,7 +11,7 @@ export function useProjectDiscussions(
   return useConvexQuery(
     api.discussions.queries.listProjectDiscussions,
     { organizationId, projectId, ...(category ? { category } : {}) },
-    { enabled: !!organizationId },
+    { enabled: !!organizationId && !!projectId },
   );
 }
 
@@ -21,18 +21,5 @@ export function useDiscussion(organizationId: string, threadId: string | null) {
     api.discussions.queries.getDiscussion,
     { organizationId, threadId: threadId ?? '' },
     { enabled: !!organizationId && !!threadId },
-  );
-}
-
-/**
- * The discussion's message transcript. Reuses the same reactive reader chat
- * uses (`getThreadMessages`, gated by `can_access_thread` which now grants
- * project members) so new replies + agent generations appear live.
- */
-export function useDiscussionMessages(threadId: string | null) {
-  return useConvexQuery(
-    api.threads.queries.getThreadMessages,
-    { threadId: threadId ?? '' },
-    { enabled: !!threadId },
   );
 }

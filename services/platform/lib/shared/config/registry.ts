@@ -30,9 +30,9 @@ import {
 
 /**
  * On-disk shape of a domain's catalog/data dir:
- *  - `flat`        — one file per item, no subdirs (agents, providers, prompts, governance).
+ *  - `flat`        — one file per item, no subdirs (providers, prompts, governance).
  *  - `bundle`      — one dir per item (skills, integrations).
- *  - `tree`        — arbitrary nested files (workflows, branding + images/).
+ *  - `tree`        — arbitrary nested files (agents, workflows, branding + images/).
  *  - `single-file` — exactly one file for the whole area (retention). Nested in
  *                    a parent domain dir rather than scaffolded on its own.
  */
@@ -40,9 +40,9 @@ export type ConfigLayout = 'flat' | 'bundle' | 'tree' | 'single-file';
 
 /**
  * Scaffold/override copy semantics (mirrors the historical `DOMAINS.kind`):
- *  - `flat`   — per-file atomicWrite; user-added files + secrets + `.history/` survive.
- *  - `bundle` — per-item dir replace (staging + atomic rename); domain-root siblings survive.
- *  - `tree`   — per-file overwrite, no rm; user-only folders survive.
+ *  - `flat`   — per-file atomicWrite; user-added files + secrets + `.history/` survive (providers/prompts/governance).
+ *  - `bundle` — per-item dir replace (staging + atomic rename); domain-root siblings survive (skills/integrations).
+ *  - `tree`   — per-file overwrite recursing into subdirs, no rm; user-only folders survive (agents/workflows/branding).
  */
 export type ScaffoldKind = 'flat' | 'bundle' | 'tree';
 

@@ -4,7 +4,10 @@ import { v } from 'convex/values';
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery, type QueryCtx } from '../_generated/server';
 import { getThreadMessages as getThreadMessagesHelper } from './get_thread_messages';
-import { listThreads as listThreadsHelper } from './list_threads';
+import {
+  isHiddenFromChatHistory,
+  listThreads as listThreadsHelper,
+} from './list_threads';
 
 /** Look up a thread's metadata row by its public `threadId`. */
 function getThreadMetadataRow(
@@ -114,14 +117,8 @@ export const listArchivedThreadsInternal = internalQuery({
     return {
       page: result.page
         .filter((row) => {
-          if (row.isBranch) return false;
-          // Discussions live under Projects — never in the archived chat list.
-          if (
-            row.kind === 'project_discussion' ||
-            row.kind === 'task_discussion'
-          ) {
-            return false;
-          }
+          // Branches and discussions are never part of the archived chat list.
+          if (isHiddenFromChatHistory(row)) return false;
           if (
             args.organizationId !== undefined &&
             row.organizationId !== args.organizationId

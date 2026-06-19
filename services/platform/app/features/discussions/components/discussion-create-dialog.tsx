@@ -12,6 +12,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   DEFAULT_DISCUSSION_CATEGORIES,
+  DEFAULT_DISCUSSION_CATEGORY,
   type DiscussionCategory,
 } from '@/lib/shared/constants/discussions';
 import { cn } from '@/lib/utils/cn';
@@ -39,7 +40,7 @@ export function DiscussionCreateDialog({
   const { t } = useT('discussions');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<DiscussionCategory>(
-    DEFAULT_DISCUSSION_CATEGORIES[0],
+    DEFAULT_DISCUSSION_CATEGORY,
   );
   const [body, setBody] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -56,8 +57,9 @@ export function DiscussionCreateDialog({
 
   const reset = () => {
     setTitle('');
-    setCategory(DEFAULT_DISCUSSION_CATEGORIES[0]);
+    setCategory(DEFAULT_DISCUSSION_CATEGORY);
     setBody('');
+    clearAttachments();
   };
 
   const handleCreate = async (message: string, _att?: FileAttachment[]) => {
@@ -73,7 +75,8 @@ export function DiscussionCreateDialog({
       });
       reset();
       onCreated(result.threadId);
-    } catch {
+    } catch (error) {
+      console.error('Failed to create discussion', error);
       toast({ title: t('create.failed'), variant: 'destructive' });
     } finally {
       setIsCreating(false);
@@ -107,13 +110,13 @@ export function DiscussionCreateDialog({
                 type="button"
                 onClick={() => setCategory(c)}
                 className={cn(
-                  'rounded-full border px-3 py-1 text-xs capitalize transition-colors',
+                  'rounded-full border px-3 py-1 text-xs transition-colors',
                   category === c
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border text-muted-foreground hover:bg-muted/50',
                 )}
               >
-                {c.replace(/-/g, ' ')}
+                {t(`categories.${c}`)}
               </button>
             ))}
           </div>

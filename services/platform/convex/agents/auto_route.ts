@@ -208,14 +208,13 @@ export const resolveAutoRoute = internalAction({
   handler: async (ctx: ActionCtx, args): Promise<AutoRouteResult> => {
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
 
-    // Call the agent-list projection IN-PROCESS — we're already in the Node
-    // runtime, so a cross-action `runAction` hop is pure dispatch overhead.
-    // This runs on EVERY Auto turn (incl. cached/short-circuited reuse), so on a
-    // self-hosted backend that hop dominated reuse latency. Shares the same
-    // module-level 60s cache as the `listAgentsInternal` action wrapper.
     // Gated roster: only installed && enabled agents are routing candidates, so
-    // a disabled/uninstalled agent is never routed to. In-process (no runAction
-    // hop) on the hot path; shares the module-level 60s cache.
+    // a disabled/uninstalled agent is never routed to. Called IN-PROCESS (we're
+    // already in the Node runtime, so a cross-action `runAction` hop would be
+    // pure dispatch overhead) on the hot path — this runs on EVERY Auto turn,
+    // incl. cached/short-circuited reuse, where that hop dominated reuse latency
+    // on a self-hosted backend. Shares the module-level 60s cache as the
+    // `listAgentsInternal` action wrapper.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- returns unknown[]; shape is the file-read projection
     const raw = (await listInstalledAgentsForOrg(
       ctx,

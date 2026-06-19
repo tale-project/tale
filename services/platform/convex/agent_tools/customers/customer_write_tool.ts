@@ -26,23 +26,24 @@ const ADDRESS = z
   })
   .optional();
 
+// Shared between create and update — both accept the same optional attributes.
+const customerFields = {
+  name: z.string().optional(),
+  email: z.string().optional(),
+  status: STATUS.optional(),
+  locale: z.string().optional(),
+  address: ADDRESS,
+} as const;
+
 const customerWriteArgs = z.discriminatedUnion('operation', [
   z.object({
     operation: z.literal('create'),
-    name: z.string().optional(),
-    email: z.string().optional(),
-    status: STATUS.optional(),
-    locale: z.string().optional(),
-    address: ADDRESS,
+    ...customerFields,
   }),
   z.object({
     operation: z.literal('update'),
     customerId: z.string().describe('Convex Id<"customers">'),
-    name: z.string().optional(),
-    email: z.string().optional(),
-    status: STATUS.optional(),
-    locale: z.string().optional(),
-    address: ADDRESS,
+    ...customerFields,
   }),
 ]);
 

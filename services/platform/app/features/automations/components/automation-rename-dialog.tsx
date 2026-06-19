@@ -1,7 +1,6 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ConvexError } from 'convex/values';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -10,6 +9,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorCode } from '@/lib/utils/convex-error';
 
 type FormData = {
   name: string;
@@ -80,10 +80,7 @@ export function AutomationRenameDialog({
       // A name collision is a field-level problem — surface it inline like the
       // create dialog does, rather than as a transient toast. Other failures
       // stay a destructive toast.
-      if (
-        error instanceof ConvexError &&
-        error.data?.code === 'DUPLICATE_NAME'
-      ) {
+      if (convexErrorCode(error) === 'DUPLICATE_NAME') {
         setError('name', {
           message: tAutomations('validation.duplicateName'),
         });

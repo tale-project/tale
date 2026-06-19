@@ -1,9 +1,9 @@
 ---
 title: Catalogue d'agents
-description: Parcourez la main-d'œuvre IA préinstallée par service et installez, activez ou désactivez les agents de votre organisation.
+description: Parcours la main-d'œuvre IA préinstallée par service et installe, active ou désactive les agents de ton organisation.
 ---
 
-Une organisation toute neuve démarre avec une équipe d'agents déjà au travail — une direction et, sous elle, les exécutants, organisés par service. Le **catalogue** (Agents → Catalogue) est l'endroit où vous parcourez cette main-d'œuvre et décidez quels agents sont actifs.
+Une organisation toute neuve démarre avec une équipe d'agents déjà au travail — une direction et, sous elle, les exécutants, organisés par service. Le **catalogue** (Agents → Catalogue) est l'endroit où tu parcours cette main-d'œuvre et décides quels agents sont actifs.
 
 La configuration JSON de chaque agent fait foi pour son nom, sa description et ses libellés de service ; le catalogue les lit et affiche par-dessus l'état d'installation.
 
@@ -11,7 +11,7 @@ La configuration JSON de chaque agent fait foi pour son nom, sa description et s
 
 Chaque carte affiche l'un de trois états et l'action correspondante :
 
-- **Disponible** — au catalogue mais pas installé. **Installer** l'ajoute à votre organisation (activé).
+- **Disponible** — au catalogue mais pas installé. **Installer** l'ajoute à ton organisation (activé).
 - **Activé** — installé et actif : il peut être mentionné, recevoir du routage et des tâches. **Désactiver** conserve l'installation mais le met hors service ; **Désinstaller** le retire.
 - **Désactivé** — installé mais hors service. **Activer** le remet en service.
 
@@ -19,7 +19,7 @@ Les cartes sont regroupées par service (leur libellé principal — Ingénierie
 
 ## Provenance et agents liés à une intégration
 
-Certains agents sont installés pour vous lorsque vous connectez une intégration — connecter GitHub, par exemple, installe le relecteur de pull requests et le trieur d'issues. Ceux-là portent un badge **Installé par &lt;intégration&gt;**, et le catalogue ne vous laisse pas les désactiver ni les désinstaller à la main (déconnectez plutôt l'intégration). Un agent qui requiert encore une intégration affiche un badge **Requiert &lt;intégration&gt;** jusqu'à ce que vous la connectiez.
+Certains agents sont installés pour toi lorsque tu connectes une intégration — connecter GitHub, par exemple, installe le relecteur de pull requests et le trieur d'issues. Ceux-là portent un badge **Installé par &lt;intégration&gt;**, et le catalogue ne te laisse pas les désactiver ni les désinstaller à la main (déconnecte plutôt l'intégration). Un agent qui requiert encore une intégration affiche un badge **Requiert &lt;intégration&gt;** jusqu'à ce que tu la connectes.
 
 ## Permissions
 

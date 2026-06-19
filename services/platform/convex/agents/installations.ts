@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import {
+  type QueryCtx,
   internalMutation,
   internalQuery,
   mutation,
@@ -30,35 +31,61 @@ const installStateValidator = v.object({
   ),
 });
 
+type InstallState = {
+  agentSlug: string;
+  enabled: boolean;
+  installedBy: string;
+  bundledBy?: string;
+  disabledReason?: 'integration_disabled' | 'user';
+};
+
+/** Project a stored row to the wire shape, omitting absent optional fields. */
+function toInstallState(row: Doc<'agentInstallations'>): InstallState {
+  return {
+    agentSlug: row.agentSlug,
+    enabled: row.enabled,
+    installedBy: row.installedBy,
+    ...(row.bundledBy !== undefined ? { bundledBy: row.bundledBy } : {}),
+    ...(row.disabledReason !== undefined
+      ? { disabledReason: row.disabledReason }
+      : {}),
+  };
+}
+
+/** The single (org, agent) install row, or null — the shared point-lookup. */
+function findInstallation(
+  ctx: QueryCtx,
+  organizationId: string,
+  agentSlug: string,
+): Promise<Doc<'agentInstallations'> | null> {
+  return ctx.db
+    .query('agentInstallations')
+    .withIndex('by_org_slug', (q) =>
+      q.eq('organizationId', organizationId).eq('agentSlug', agentSlug),
+    )
+    .first();
+}
+
+async function listInstallStatesForOrg(
+  ctx: QueryCtx,
+  organizationId: string,
+): Promise<InstallState[]> {
+  const states: InstallState[] = [];
+  for await (const row of ctx.db
+    .query('agentInstallations')
+    .withIndex('by_organization', (q) =>
+      q.eq('organizationId', organizationId),
+    )) {
+    states.push(toInstallState(row));
+  }
+  return states;
+}
+
 /** All install states for an org — the gate's single query (one indexed read). */
 export const listInstallStatesInternal = internalQuery({
   args: { organizationId: v.string() },
   returns: v.array(installStateValidator),
-  handler: async (ctx, args) => {
-    const states: Array<{
-      agentSlug: string;
-      enabled: boolean;
-      installedBy: string;
-      bundledBy?: string;
-      disabledReason?: 'integration_disabled' | 'user';
-    }> = [];
-    for await (const row of ctx.db
-      .query('agentInstallations')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      states.push({
-        agentSlug: row.agentSlug,
-        enabled: row.enabled,
-        installedBy: row.installedBy,
-        ...(row.bundledBy !== undefined ? { bundledBy: row.bundledBy } : {}),
-        ...(row.disabledReason !== undefined
-          ? { disabledReason: row.disabledReason }
-          : {}),
-      });
-    }
-    return states;
-  },
+  handler: (ctx, args) => listInstallStatesForOrg(ctx, args.organizationId),
 });
 
 /**
@@ -74,14 +101,11 @@ export const isAgentLiveInternal = internalQuery({
   args: { organizationId: v.string(), agentSlug: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args): Promise<boolean> => {
-    const row = await ctx.db
-      .query('agentInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('agentSlug', args.agentSlug),
-      )
-      .first();
+    const row = await findInstallation(
+      ctx,
+      args.organizationId,
+      args.agentSlug,
+    );
     if (row) return row.enabled;
     // No row for THIS agent → live only if the org has no install rows at all
     // (un-provisioned legacy org); otherwise it's simply not installed.
@@ -97,17 +121,10 @@ export const isAgentLiveInternal = internalQuery({
 
 export const getInstallationInternal = internalQuery({
   args: { organizationId: v.string(), agentSlug: v.string() },
-  returns: v.union(v.any(), v.null()),
-  handler: async (ctx, args): Promise<Doc<'agentInstallations'> | null> => {
-    return await ctx.db
-      .query('agentInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('agentSlug', args.agentSlug),
-      )
-      .first();
-  },
+  // `v.any()` already admits null; the handler's typed return is the contract.
+  returns: v.any(),
+  handler: (ctx, args): Promise<Doc<'agentInstallations'> | null> =>
+    findInstallation(ctx, args.organizationId, args.agentSlug),
 });
 
 /**
@@ -127,14 +144,11 @@ export const upsertInstallation = internalMutation({
   },
   returns: v.id('agentInstallations'),
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query('agentInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('agentSlug', args.agentSlug),
-      )
-      .first();
+    const existing = await findInstallation(
+      ctx,
+      args.organizationId,
+      args.agentSlug,
+    );
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -171,14 +185,11 @@ export const setEnabled = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const existing = await ctx.db
-      .query('agentInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('agentSlug', args.agentSlug),
-      )
-      .first();
+    const existing = await findInstallation(
+      ctx,
+      args.organizationId,
+      args.agentSlug,
+    );
     if (!existing) return null;
     await ctx.db.patch(existing._id, {
       enabled: args.enabled,
@@ -193,14 +204,11 @@ export const deleteInstallation = internalMutation({
   args: { organizationId: v.string(), agentSlug: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const existing = await ctx.db
-      .query('agentInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('agentSlug', args.agentSlug),
-      )
-      .first();
+    const existing = await findInstallation(
+      ctx,
+      args.organizationId,
+      args.agentSlug,
+    );
     if (existing) await ctx.db.delete(existing._id);
     return null;
   },
@@ -214,29 +222,7 @@ export const listInstallStates = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
     await getOrganizationMember(ctx, args.organizationId, authUser);
-    const states: Array<{
-      agentSlug: string;
-      enabled: boolean;
-      installedBy: string;
-      bundledBy?: string;
-      disabledReason?: 'integration_disabled' | 'user';
-    }> = [];
-    for await (const row of ctx.db
-      .query('agentInstallations')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      states.push({
-        agentSlug: row.agentSlug,
-        enabled: row.enabled,
-        installedBy: row.installedBy,
-        ...(row.bundledBy !== undefined ? { bundledBy: row.bundledBy } : {}),
-        ...(row.disabledReason !== undefined
-          ? { disabledReason: row.disabledReason }
-          : {}),
-      });
-    }
-    return states;
+    return await listInstallStatesForOrg(ctx, args.organizationId);
   },
 });
 
@@ -261,20 +247,35 @@ async function assertCanManageRoster(
   }
 }
 
+/**
+ * A cascade-owned (integration-bundled) row resists user mutations: disabling
+ * or uninstalling it fights the connect/disconnect cascade, so we require an
+ * explicit `force`. Throws when the guard trips.
+ */
+function assertNotCascadeOwned(
+  row: Doc<'agentInstallations'>,
+  force: boolean | undefined,
+): void {
+  if (row.bundledBy && !force) {
+    throw new ConvexError({
+      code: 'cascade_owned',
+      message:
+        'This agent was installed by an integration. Disconnect that integration, or pass force to override.',
+    });
+  }
+}
+
 /** Install (or re-enable) a catalog agent for the org. Admin-gated. */
 export const installCatalogAgent = mutation({
   args: { organizationId: v.string(), agentSlug: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     await assertCanManageRoster(ctx, args.organizationId);
-    const existing = await ctx.db
-      .query('agentInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('agentSlug', args.agentSlug),
-      )
-      .first();
+    const existing = await findInstallation(
+      ctx,
+      args.organizationId,
+      args.agentSlug,
+    );
     if (existing) {
       await ctx.db.patch(existing._id, {
         installedAt: Date.now(),
@@ -307,23 +308,14 @@ export const setAgentEnabled = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     await assertCanManageRoster(ctx, args.organizationId);
-    const existing = await ctx.db
-      .query('agentInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('agentSlug', args.agentSlug),
-      )
-      .first();
+    const existing = await findInstallation(
+      ctx,
+      args.organizationId,
+      args.agentSlug,
+    );
     if (!existing) return null;
     // Disabling an integration-bundled agent fights the cascade; require force.
-    if (!args.enabled && existing.bundledBy && !args.force) {
-      throw new ConvexError({
-        code: 'cascade_owned',
-        message:
-          'This agent was installed by an integration. Disconnect that integration, or pass force to override.',
-      });
-    }
+    if (!args.enabled) assertNotCascadeOwned(existing, args.force);
     await ctx.db.patch(existing._id, {
       enabled: args.enabled,
       disabledReason: args.enabled ? undefined : 'user',
@@ -342,22 +334,13 @@ export const uninstallAgent = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     await assertCanManageRoster(ctx, args.organizationId);
-    const existing = await ctx.db
-      .query('agentInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('agentSlug', args.agentSlug),
-      )
-      .first();
+    const existing = await findInstallation(
+      ctx,
+      args.organizationId,
+      args.agentSlug,
+    );
     if (!existing) return null;
-    if (existing.bundledBy && !args.force) {
-      throw new ConvexError({
-        code: 'cascade_owned',
-        message:
-          'This agent was installed by an integration. Disconnect that integration, or pass force to override.',
-      });
-    }
+    assertNotCascadeOwned(existing, args.force);
     await ctx.db.delete(existing._id);
     return null;
   },

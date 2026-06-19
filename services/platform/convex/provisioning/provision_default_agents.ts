@@ -21,6 +21,38 @@ import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 
+interface OrgRef {
+  id: string;
+  slug: string;
+}
+
+/**
+ * Normalize one `betterAuth.adapter.findMany` page into the orgs it carries plus
+ * the next cursor / done flag. A non-record/garbled response terminates the walk
+ * (empty page, null cursor, done) so a backend hiccup never loops forever.
+ */
+function parseOrgPage(res: unknown): {
+  orgs: OrgRef[];
+  cursor: string | null;
+  isDone: boolean;
+} {
+  if (!isRecord(res)) return { orgs: [], cursor: null, isDone: true };
+  const orgs: OrgRef[] = [];
+  const page = Array.isArray(res.page) ? res.page : [];
+  for (const raw of page) {
+    if (!isRecord(raw)) continue;
+    const id = getString(raw, '_id') ?? getString(raw, 'id');
+    const slug = getString(raw, 'slug');
+    if (!id || !slug || !isValidOrgSlug(slug)) continue;
+    orgs.push({ id, slug });
+  }
+  return {
+    orgs,
+    cursor: typeof res.continueCursor === 'string' ? res.continueCursor : null,
+    isDone: typeof res.isDone === 'boolean' ? res.isDone : true,
+  };
+}
+
 export const provisionDefaultAgents = internalAction({
   args: { organizationId: v.string(), orgSlug: v.string() },
   returns: v.object({
@@ -54,7 +86,7 @@ export const provisionDefaultAgentsAllOrgs = internalAction({
   handler: async (
     ctx,
   ): Promise<{ orgs: number; provisioned: number; failedOrgs: number }> => {
-    const orgs: Array<{ id: string; slug: string }> = [];
+    const orgs: OrgRef[] = [];
     let cursor: string | null = null;
     let prevCursor: string | null | undefined;
     let isDone = false;
@@ -80,20 +112,10 @@ export const provisionDefaultAgentsAllOrgs = internalAction({
           where: [],
         },
       );
-      const page = isRecord(res) && Array.isArray(res.page) ? res.page : [];
-      for (const raw of page) {
-        if (!isRecord(raw)) continue;
-        const id = getString(raw, '_id') ?? getString(raw, 'id');
-        const slug = getString(raw, 'slug');
-        if (!id || !slug || !isValidOrgSlug(slug)) continue;
-        orgs.push({ id, slug });
-      }
-      cursor =
-        isRecord(res) && typeof res.continueCursor === 'string'
-          ? res.continueCursor
-          : null;
-      isDone =
-        isRecord(res) && typeof res.isDone === 'boolean' ? res.isDone : true;
+      const parsed = parseOrgPage(res);
+      orgs.push(...parsed.orgs);
+      cursor = parsed.cursor;
+      isDone = parsed.isDone;
     }
 
     let provisioned = 0;

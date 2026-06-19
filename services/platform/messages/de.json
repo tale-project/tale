@@ -689,7 +689,8 @@
       "createFailed": "Automatisierung konnte nicht erstellt werden"
     },
     "validation": {
-      "duplicateName": "Eine Automatisierung mit diesem Namen existiert bereits"
+      "duplicateName": "Eine Automatisierung mit diesem Namen existiert bereits",
+      "invalidName": "Der Name muss mindestens einen Buchstaben oder eine Ziffer enthalten"
     },
     "deleteAutomation": {
       "title": "Automatisierung löschen",
@@ -5014,12 +5015,6 @@
         "exampleFileUploadStream": "Datei-Upload mit Streaming (SSE-Antwort)",
         "exampleOpenAICompat": "OpenAI-kompatibler Endpunkt (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI-Client-Konfiguration (z. B. Meetily)"
-      },
-      "organigram": {
-        "menuItem": "Organigramm"
-      },
-      "metrics": {
-        "link": "Metriken anzeigen"
       }
     },
     "skills": {
@@ -6461,7 +6456,6 @@
       "brandingUpdateFailed": "Branding konnte nicht aktualisiert werden",
       "addMemberFailed": "Mitglied konnte nicht hinzugefügt werden",
       "automationDuplicateFailed": "Automatisierung konnte nicht dupliziert werden",
-      "automationRenameFailed": "Automatisierung konnte nicht umbenannt werden",
       "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden",
       "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
     }
@@ -7101,10 +7095,19 @@
     }
   },
   "discussions": {
+    "categories": {
+      "general": "Allgemein",
+      "qa": "Fragen & Antworten",
+      "ideas": "Ideen",
+      "decisions": "Entscheidungen",
+      "announcements": "Ankündigungen",
+      "show-and-tell": "Zeigen & Erzählen",
+      "polls": "Umfragen"
+    },
     "title": "Diskussionen",
     "subtitle": "Themen-Konversationen für dieses Projekt — Fragen stellen, Entscheidungen treffen und einen Agenten per @ einbeziehen.",
     "new": "Neue Diskussion",
-    "empty": "Noch keine Diskussionen. Starten Sie eine, um eine Frage zu stellen oder eine Entscheidung zu treffen.",
+    "empty": "Noch keine Diskussionen. Starte eine, um eine Frage zu stellen oder eine Entscheidung zu treffen.",
     "untitled": "Diskussion ohne Titel",
     "backToList": "Zurück zu den Diskussionen",
     "resolve": "Lösen",
@@ -7125,7 +7128,7 @@
     "reply": {
       "placeholder": "Antworten… mit @ ein Teammitglied oder einen Agenten erwähnen",
       "lockedPlaceholder": "Diese Diskussion ist gesperrt",
-      "hint": "Erwähnen Sie einen Agenten mit @, damit er antwortet.",
+      "hint": "Erwähne einen Agenten mit @, damit er antwortet.",
       "failed": "Antwort konnte nicht gesendet werden"
     },
     "create": {
@@ -7135,7 +7138,7 @@
       "titleRequired": "Zuerst einen Titel hinzufügen",
       "category": "Kategorie",
       "bodyPlaceholder": "Diskussion beginnen… mit @ ein Teammitglied oder einen Agenten erwähnen",
-      "hint": "Zum Öffnen der Diskussion senden. Erwähnen Sie einen Agenten mit @, um ihn einzubeziehen.",
+      "hint": "Zum Öffnen der Diskussion senden. Erwähne einen Agenten mit @, um ihn einzubeziehen.",
       "cancel": "Abbrechen",
       "failed": "Diskussion konnte nicht erstellt werden"
     },
@@ -7144,8 +7147,23 @@
     }
   },
   "agentCatalog": {
+    "folders": {
+      "workforce": "Belegschaft",
+      "chat": "Chat",
+      "github": "GitHub",
+      "other": "Sonstige"
+    },
+    "loadError": {
+      "title": "Katalog konnte nicht geladen werden",
+      "description": "Der Agentenkatalog konnte nicht geladen werden. Prüfe deine Verbindung und versuch es erneut.",
+      "retry": "Erneut versuchen"
+    },
+    "noResults": {
+      "title": "Keine passenden Agenten",
+      "description": "Keine Agenten passen zu deiner Suche. Versuch einen anderen Begriff."
+    },
     "title": "Agentenkatalog",
-    "subtitle": "Durchsuchen Sie die KI-Belegschaft nach Abteilung und installieren, aktivieren oder deaktivieren Sie Agenten für Ihre Organisation.",
+    "subtitle": "Durchsuche die KI-Belegschaft nach Abteilung und installiere, aktiviere oder deaktiviere Agenten für deine Organisation.",
     "menuItem": "Katalog",
     "searchPlaceholder": "Agenten suchen…",
     "install": "Installieren",

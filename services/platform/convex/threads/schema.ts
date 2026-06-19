@@ -262,7 +262,8 @@ export const threadMetadataTable = defineTable({
    * Agent→agent reply-chain depth for the discussion loop guard. Incremented
    * when an agent reply is triggered by another agent; reset to 0 by any human
    * reply. The discussion reply path refuses to dispatch once this exceeds the
-   * governance `maxAgentReplyChainDepth`, bounding runaway agent chatter.
+   * `MAX_AGENT_REPLY_CHAIN_DEPTH` constant (lib/shared/constants/discussions),
+   * bounding runaway agent chatter.
    */
   agentReplyDepth: v.optional(v.number()),
 })

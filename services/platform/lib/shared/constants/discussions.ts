@@ -27,6 +27,36 @@ export const DISCUSSION_STATUSES = ['open', 'resolved', 'locked'] as const;
 export type DiscussionStatus = (typeof DISCUSSION_STATUSES)[number];
 
 /**
+ * Thread `kind` values that denote a discussion (vs a private `chat` thread).
+ * The single source of truth for the "is this a discussion?" discriminator that
+ * every write/read path applies before treating a `threadMetadata` row as one.
+ */
+export const DISCUSSION_KINDS = [
+  'project_discussion',
+  'task_discussion',
+] as const;
+export type DiscussionKind = (typeof DISCUSSION_KINDS)[number];
+
+/** True when a thread `kind` denotes a discussion (never a `chat` thread). */
+export function isDiscussionKind(
+  kind: string | undefined,
+): kind is DiscussionKind {
+  return kind === 'project_discussion' || kind === 'task_discussion';
+}
+
+/**
+ * Activity timestamp used to order discussions (newest first): the most recent
+ * reply, falling back to the last metadata update, then creation time.
+ */
+export function discussionActivityAt(meta: {
+  lastReplyAt?: number;
+  updatedAt?: number;
+  createdAt: number;
+}): number {
+  return meta.lastReplyAt ?? meta.updatedAt ?? meta.createdAt;
+}
+
+/**
  * Max number of consecutive agent→agent replies in one discussion before the
  * loop guard refuses further auto-replies. Reset to 0 by any human reply.
  * Mirrors the per-(task,agent) circuit breaker for the discussion surface.

@@ -9,6 +9,7 @@
 import { readFile, stat } from 'node:fs/promises';
 
 import { resolveAgentLocale } from '../../../lib/shared/utils/resolve-agent-locale';
+import { isRecord } from '../../../lib/utils/type-utils';
 import type { ActionCtx } from '../../_generated/server';
 import { toSerializableConfig } from '../../agents/config';
 import {
@@ -78,10 +79,7 @@ export async function loadDelegateAgents(
     } catch (err) {
       // ENOENT = the delegate file was removed (expected; quiet). Anything else
       // (parse / validation error) is a config bug the operator must see.
-      const code =
-        err != null && typeof err === 'object'
-          ? Reflect.get(err, 'code')
-          : undefined;
+      const code = isRecord(err) ? err.code : undefined;
       if (code === 'ENOENT') {
         console.warn(`Delegate agent "${name}" not found; skipping.`);
       } else {

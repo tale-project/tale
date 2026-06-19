@@ -46,6 +46,8 @@ Use this to spot bottlenecks (rising pendingReviews/queuedRuns/openBreakers), tr
         internal.task_metrics.internal_queries.getDailySummaryInternal,
         { organizationId, windowHours: args.windowHours },
       );
+      // Single rolled-up "is the workforce busy?" figure: the volume-bearing
+      // counters only (spend and pass/fail ratios are read off the raw fields).
       const activity =
         summary.tasksCreated +
         summary.tasksCompleted +

@@ -1,6 +1,7 @@
 import type { PaginationOptions } from 'convex/server';
 
 import type { QueryCtx } from '../_generated/server';
+import { excludeDiscussionThreads } from './list_threads';
 import type { Thread } from './types';
 
 interface ListArchivedThreadsPaginatedResult {
@@ -27,30 +28,28 @@ export async function listArchivedThreads(
         .eq('status', 'archived'),
     )
     .filter((q) => {
-      // Discussions reuse chatType 'general' but live under Projects — never
-      // surface them in the archived chat-history list (mirrors list_threads).
-      const notDiscussion = q.and(
-        q.neq(q.field('kind'), 'project_discussion'),
-        q.neq(q.field('kind'), 'task_discussion'),
-      );
+      // Exclude discussions but KEEP fork branches: an archived branch still
+      // belongs in the archived chat-history list (unlike the active list and
+      // command palette, which also hide branches).
+      const baseExclusions = excludeDiscussionThreads(q);
       // Filter by organizationId to prevent cross-tenant thread visibility.
       if (args.teamId && args.organizationId) {
         return q.and(
-          notDiscussion,
+          baseExclusions,
           q.eq(q.field('teamId'), args.teamId),
           q.eq(q.field('organizationId'), args.organizationId),
         );
       }
       if (args.organizationId) {
         return q.and(
-          notDiscussion,
+          baseExclusions,
           q.eq(q.field('organizationId'), args.organizationId),
         );
       }
       if (args.teamId) {
-        return q.and(notDiscussion, q.eq(q.field('teamId'), args.teamId));
+        return q.and(baseExclusions, q.eq(q.field('teamId'), args.teamId));
       }
-      return notDiscussion;
+      return baseExclusions;
     })
     .order('desc')
     .paginate(args.paginationOpts);

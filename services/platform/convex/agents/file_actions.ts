@@ -60,25 +60,9 @@ import {
 import {
   invalidateAgentListCache,
   listAgentsForOrg,
-  resolveAgentRelativePath,
+  resolveAgentPath,
 } from './internal_actions';
-
-/**
- * Absolute path of the file backing an EXISTING agent slug — located through
- * the folder-aware index so an edit/delete/history op writes back to wherever
- * the file lives (chat/, workforce/, github/, …). Falls back to the flat
- * `<slug>.json` path when the slug isn't indexed (a brand-new agent, or a file
- * written in this isolate before the 60s cache refreshed).
- */
-async function resolveAgentPath(
-  orgSlug: string,
-  slug: string,
-): Promise<string> {
-  const rel = await resolveAgentRelativePath(orgSlug, slug);
-  return rel
-    ? resolveAgentFilePathFromRelative(orgSlug, rel)
-    : resolveAgentFilePath(orgSlug, slug);
-}
+import { agentSlugFromFileName } from './validators';
 
 async function readAgentFile(
   orgSlug: string,
@@ -216,10 +200,7 @@ export const listAgents = action({
         );
         const slug = read.ok
           ? effectiveAgentSlug(read.data, relativePath)
-          : relativePath
-              .replace(/\.json$/, '')
-              .split('/')
-              .pop()!;
+          : agentSlugFromFileName(relativePath);
         if (seen.has(slug)) return null; // duplicate slug — first wins
         seen.add(slug);
         if (read.ok) {
@@ -605,6 +586,7 @@ export const duplicateAgent = action({
       throw new Error(`Cannot duplicate: ${source.message}`);
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listAgentsForOrg returns a v.any() projection; we read only `name` for the duplicate-name guard
     const roster = (await listAgentsForOrg(orgSlug)) as Array<{
       name?: string;
     }>;

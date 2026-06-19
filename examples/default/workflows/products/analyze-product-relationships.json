@@ -19,7 +19,6 @@
   "metadata": {
     "labels": ["Products"]
   },
-  "enabled": true,
   "config": {
     "timeout": 1800000,
     "retryPolicy": {

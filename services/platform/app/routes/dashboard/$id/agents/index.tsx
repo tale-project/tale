@@ -1,7 +1,7 @@
 import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 
+import { AgentTabTitle } from '@/app/features/agents/components/agent-tab-title';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -35,12 +35,7 @@ function AgentsOverviewPage() {
 
   return (
     <Stack gap={6} className="p-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-base font-semibold">{t('title')}</h1>
-        <Text variant="caption" className="text-muted-foreground text-sm">
-          {t('subtitle')}
-        </Text>
-      </div>
+      <AgentTabTitle title={t('title')} subtitle={t('subtitle')} />
       <OrganigramCanvas organizationId={organizationId} canEdit={canEdit} />
     </Stack>
   );

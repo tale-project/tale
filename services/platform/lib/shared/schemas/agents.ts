@@ -266,12 +266,7 @@ export const agentJsonSchema = z
       // Defaults to [] when absent so a BYO agent file with no model still
       // parses; the superRefine below enforces ≥1 for every non-BYO agent.
       .default([]),
-    provider: z
-      .string()
-      .min(1)
-      .max(100)
-      .regex(/^[a-z0-9][a-z0-9_-]*$/)
-      .optional(),
+    provider: z.string().min(1).max(100).regex(AGENT_SLUG_REGEX).optional(),
     knowledgeMode: retrievalModeSchema.optional(),
     webSearchMode: retrievalModeSchema.optional(),
     includeOrgKnowledge: z.boolean().optional(),

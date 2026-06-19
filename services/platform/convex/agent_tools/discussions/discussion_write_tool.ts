@@ -5,7 +5,7 @@
  * resolve/lock it, or spawn a task from it. All writes attribute to the acting
  * agent via `discussions/internal_mutations.ts`, which re-enforces org scope
  * and the agent-reply loop guard. @mentioning a teammate or agent in a reply
- * routes it to them (the `react-to-mention-in-discussion` workflow).
+ * routes it to them (the `react-to-discussion-mention` workflow).
  */
 
 import type { ToolCtx } from '@convex-dev/agent';

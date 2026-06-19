@@ -15,22 +15,24 @@
  * (cycles allowed). Roster ops refuse to flip integration-bundled agents
  * (cascade-owned, `bundledBy` set) without `force`. Editing an agent's
  * model/instructions/full config stays HUMAN-ONLY (never a tool).
+ *
+ * The privilege gate reuses the SAME `developerSettings` CASL capability the
+ * human org-chart editor enforces (`lib/auth/require_org_admin_or_developer`),
+ * rather than a parallel hardcoded role list — so the two can never drift if
+ * the role matrix changes. owner/admin/developer hold it today.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import { defineAbilityFor } from '../../../lib/permissions/ability';
 import { internal } from '../../_generated/api';
-import { requireOrganizationId } from '../tasks/helpers/context';
+import {
+  readToolCtxString,
+  requireOrganizationId,
+} from '../tasks/helpers/context';
 import type { ToolDefinition } from '../types';
-
-function readCtxString(ctx: ToolCtx, key: string): string | undefined {
-  const value: unknown = Reflect.get(ctx, key);
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-const PRIVILEGED = new Set(['admin', 'developer', 'owner']);
 
 const agentWriteArgs = z.discriminatedUnion('operation', [
   z.object({
@@ -68,6 +70,15 @@ const agentWriteArgs = z.discriminatedUnion('operation', [
   }),
 ]);
 
+// Actionable guidance for the failure codes `setDelegatesFromAgent` can return.
+// Codes without an entry (RESERVED_AGENT_SLUG / AGENT_NOT_FOUND / UNKNOWN) get
+// no hint, matching the prior behaviour.
+const SET_DELEGATES_HINTS: Readonly<Record<string, string>> = {
+  SELF_EDGE: 'An agent cannot delegate to itself — remove it from the list.',
+  INVALID_TARGET:
+    'One of the slugs is not a real agent — call agent_read get_chart for the valid slugs.',
+};
+
 export const agentWriteTool: ToolDefinition = {
   name: 'agent_write',
   tool: createTool({
@@ -86,16 +97,17 @@ All operations require an organization admin behind the request (changing the wo
 
       // ALL agent_write operations — rewiring delegation AND the roster ops —
       // change org structure, so every one requires a privileged human behind
-      // the request (the human org-chart editor is admin-gated too). Autonomous
-      // runs with no privileged human are denied. Re-check the member role
-      // server-side; mirrors check_role_access.ts.
-      const userId = readCtxString(ctx, 'userId');
+      // the request (the human org-chart editor enforces the same capability).
+      // Autonomous runs with no privileged human are denied. Re-check the
+      // member role server-side and gate on the SAME `developerSettings`
+      // capability `require_org_admin_or_developer` uses for the human editor.
+      const userId = readToolCtxString(ctx, 'userId');
       if (!userId) return { ok: false, error: 'MISSING_USER_CONTEXT' };
       const role = await ctx.runQuery(
         internal.members.internal_queries.getMemberRole,
         { userId, organizationId },
       );
-      if (!PRIVILEGED.has((role ?? 'member').toLowerCase())) {
+      if (defineAbilityFor(role).cannot('read', 'developerSettings')) {
         return {
           ok: false,
           error: 'FORBIDDEN',
@@ -119,12 +131,7 @@ All operations require an organization admin behind the request (changing the wo
             ok: false,
             operation: 'set_delegates',
             error: result.code,
-            hint:
-              result.code === 'SELF_EDGE'
-                ? 'An agent cannot delegate to itself — remove it from the list.'
-                : result.code === 'INVALID_TARGET'
-                  ? 'One of the slugs is not a real agent — call agent_read get_chart for the valid slugs.'
-                  : undefined,
+            hint: result.code ? SET_DELEGATES_HINTS[result.code] : undefined,
           };
         }
         return {

@@ -81,9 +81,11 @@ const exposeAsCapabilitySchema = z.object({
 
 /**
  * Agents + workflows this integration auto-installs when its credential is
- * connected, and cascade-disables when it is disconnected. Agent slugs are
- * 2-level (e.g. `github/pull-request-reviewer`); workflow slugs are the
- * relative path without extension (e.g. `github/review-pull-request-in-github`).
+ * connected, and cascade-disables when it is disconnected. Agent slugs are the
+ * agent's canonical single-level slug (the file's `config.slug`, e.g.
+ * `pull-request-reviewer` — never folder-prefixed; agent slugs cannot contain
+ * `/`). Workflow slugs are the relative path without extension (e.g.
+ * `github/review-pull-request-in-github`).
  */
 const bundlesSchema = z.object({
   agents: z.array(z.string().min(1)).optional(),

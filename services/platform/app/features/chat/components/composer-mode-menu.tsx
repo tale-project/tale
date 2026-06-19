@@ -239,18 +239,14 @@ export function ComposerModeMenu({
         { type: 'label', content: tChat('sandbox.label') },
         {
           type: 'item',
-          label: tChat('workspaceFiles.toggleLabel', {
-            defaultValue: 'Workspace files',
-          }),
+          label: tChat('workspaceFiles.toggleLabel'),
           icon: FolderOpen,
           selected: files.isOpen,
           onClick: () => files.toggle(),
         },
         {
           type: 'item',
-          label: tChat('liveBrowser.toggleLabel', {
-            defaultValue: 'Live browser',
-          }),
+          label: tChat('liveBrowser.toggleLabel'),
           icon: MonitorPlay,
           selected: live.isOpen,
           onClick: () => live.toggle(),

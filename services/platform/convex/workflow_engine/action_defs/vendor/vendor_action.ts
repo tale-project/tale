@@ -4,12 +4,16 @@
  * `vendors/internal_queries.ts`. Mirrors `customer_action.ts`.
  */
 
-import { v } from 'convex/values';
+import { type Infer, v } from 'convex/values';
 
 import { internal } from '../../../_generated/api';
 import { toId } from '../../../lib/type_cast_helpers';
 import { vendorAddressValidator } from '../../../vendors/validators';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
+
+// Derived from the shared validator so the param type can never drift from the
+// shape the `parametersValidator` actually accepts.
+type VendorAddress = Infer<typeof vendorAddressValidator>;
 
 type VendorActionParams =
   | {
@@ -18,6 +22,7 @@ type VendorActionParams =
       email?: string;
       phone?: string;
       locale?: string;
+      address?: VendorAddress;
       tags?: string[];
       notes?: string;
     }
@@ -28,6 +33,7 @@ type VendorActionParams =
       email?: string;
       phone?: string;
       locale?: string;
+      address?: VendorAddress;
       tags?: string[];
       notes?: string;
     }
@@ -100,6 +106,7 @@ export const vendorAction: ActionDefinition<VendorActionParams> = {
             phone: params.phone,
             source: 'manual_import',
             locale: params.locale,
+            address: params.address,
             tags: params.tags,
             notes: params.notes,
           },
@@ -120,6 +127,7 @@ export const vendorAction: ActionDefinition<VendorActionParams> = {
             email: params.email,
             phone: params.phone,
             locale: params.locale,
+            address: params.address,
             tags: params.tags,
             notes: params.notes,
             callerOrgId: organizationId,

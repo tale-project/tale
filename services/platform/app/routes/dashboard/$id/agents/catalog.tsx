@@ -1,7 +1,7 @@
 import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 
+import { AgentTabTitle } from '@/app/features/agents/components/agent-tab-title';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { seo } from '@/lib/utils/seo';
@@ -23,9 +23,8 @@ export const Route = createFileRoute('/dashboard/$id/agents/catalog')({
 });
 
 /**
- * Same page shape as the Organigram sibling: the agents layout's breadcrumb
- * ("Agents › Catalog") is the way back, so the content opens with a plain
- * title block.
+ * Same page shape as the Overview sibling: the agents layout owns the page
+ * <h1> + tab strip, so the content opens with a section title block.
  */
 function AgentCatalogPage() {
   const { id: organizationId } = Route.useParams();
@@ -33,12 +32,7 @@ function AgentCatalogPage() {
 
   return (
     <Stack gap={6} className="p-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-base font-semibold">{t('title')}</h1>
-        <Text variant="caption" className="text-muted-foreground text-sm">
-          {t('subtitle')}
-        </Text>
-      </div>
+      <AgentTabTitle title={t('title')} subtitle={t('subtitle')} />
       <AgentCatalog organizationId={organizationId} />
     </Stack>
   );

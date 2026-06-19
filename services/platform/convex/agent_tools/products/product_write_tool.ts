@@ -17,29 +17,29 @@ import type { ToolDefinition } from '../types';
 
 const STATUS = z.enum(['active', 'inactive', 'draft', 'archived']);
 
+// Optional attributes shared by create and update. `name` is required on
+// create (declared inline there) and optional on update (folded in here).
+const productFields = {
+  description: z.string().optional(),
+  price: z.number().optional(),
+  currency: z.string().optional(),
+  stock: z.number().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  status: STATUS.optional(),
+} as const;
+
 const productWriteArgs = z.discriminatedUnion('operation', [
   z.object({
     operation: z.literal('create'),
     name: z.string().describe('Product name'),
-    description: z.string().optional(),
-    price: z.number().optional(),
-    currency: z.string().optional(),
-    stock: z.number().optional(),
-    category: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-    status: STATUS.optional(),
+    ...productFields,
   }),
   z.object({
     operation: z.literal('update'),
     productId: z.string().describe('Convex Id<"products">'),
     name: z.string().optional(),
-    description: z.string().optional(),
-    price: z.number().optional(),
-    currency: z.string().optional(),
-    stock: z.number().optional(),
-    category: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-    status: STATUS.optional(),
+    ...productFields,
   }),
 ]);
 

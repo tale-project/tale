@@ -18,10 +18,12 @@ import {
   MAX_FILE_SIZE_BYTES,
   effectiveAgentSlug,
   parseAgentJson,
+  resolveAgentFilePath,
   resolveAgentFilePathFromRelative,
   walkAgentRelativePaths,
 } from './file_utils';
 import { knowledgeFileRagStatusValidator } from './schema';
+import { agentSlugFromFileName } from './validators';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
 const MAX_POLLING_ATTEMPTS = 50;
@@ -284,12 +286,12 @@ async function buildAgentIndex(orgSlug: string): Promise<AgentIndex> {
     await Promise.all(
       relPaths.map(async (relativePath) => {
         const result = await readAgentByRelPath(orgSlug, relativePath);
+        // Unreadable file: identity falls back to the basename (no parsed
+        // config to read `slug` from). `agentSlugFromFileName` is the shared
+        // basename helper — it never returns undefined (no `!` needed).
         const slug = result.ok
           ? effectiveAgentSlug(result.config, relativePath)
-          : relativePath
-              .replace(/\.json$/, '')
-              .split('/')
-              .pop()!;
+          : agentSlugFromFileName(relativePath);
 
         if (slugToPath.has(slug)) {
           console.warn(
@@ -390,12 +392,12 @@ export async function listInstalledAgentsForOrg(
   if (states.length === 0) return entries;
   const bySlug = new Map(states.map((s) => [s.agentSlug, s] as const));
   return entries.filter((e) => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- entries come from buildAgentIndex's v.any() projection; we read only slug/name/isRouter for the gate
     const entry = e as { slug?: string; name?: string; isRouter?: boolean };
     if (entry.isRouter === true) return true;
     const slug = entry.slug ?? entry.name;
     if (!slug) return false;
-    const st = bySlug.get(slug);
-    return st !== undefined && st.enabled;
+    return bySlug.get(slug)?.enabled === true;
   });
 }
 
@@ -410,6 +412,24 @@ export async function resolveAgentRelativePath(
   slug: string,
 ): Promise<string | undefined> {
   return (await ensureAgentIndex(orgSlug)).slugToPath.get(slug);
+}
+
+/**
+ * Absolute path of the file backing an EXISTING agent slug — located through
+ * the folder-aware index so an edit/delete/history/delegation op writes back to
+ * wherever the file lives (chat/, workforce/, github/, …). Falls back to the
+ * flat `<slug>.json` path when the slug isn't indexed (a brand-new agent, or a
+ * file written in this isolate before the 60s cache refreshed). Shared by every
+ * read/write path so file location is resolved in exactly one place.
+ */
+export async function resolveAgentPath(
+  orgSlug: string,
+  slug: string,
+): Promise<string> {
+  const rel = await resolveAgentRelativePath(orgSlug, slug);
+  return rel
+    ? resolveAgentFilePathFromRelative(orgSlug, rel)
+    : resolveAgentFilePath(orgSlug, slug);
 }
 
 /**

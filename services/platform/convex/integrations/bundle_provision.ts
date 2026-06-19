@@ -62,7 +62,14 @@ export const provisionIntegrationBundle = internalAction({
         files = await listCatalogArea('workflows', orgSlug, {
           recursive: true,
         });
-      } catch {
+      } catch (error) {
+        // No workflows dir / unreadable catalog: skip bundled workflows rather
+        // than abort the whole bundle (the agents above are still installed).
+        console.warn('[IntegrationBundle] could not list workflows', {
+          org: args.organizationId,
+          slug: args.slug,
+          error: error instanceof Error ? error.message : String(error),
+        });
         files = [];
       }
       for (const { relativePath, content } of files) {

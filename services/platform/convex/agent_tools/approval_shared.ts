@@ -1,3 +1,25 @@
+/**
+ * Shared post-approval continuation for agent tools.
+ *
+ * The agent-tool security contract has two layers, enforced in two places:
+ *
+ *  1. TENANT SCOPING (every tool). A tool reads the bound org via
+ *     `requireOrganizationId(ctx)` (tasks/helpers/context.ts) and passes it to
+ *     its mutation; cross-tenant writes are closed by the `callerOrgId` guard
+ *     in each domain's `internal_mutations` (the target row must belong to the
+ *     caller's org — see customers/products/vendors/websites/conversations).
+ *  2. APPROVAL / HUMAN-IN-THE-LOOP (async tools only). Tools that transmit
+ *     externally or run automations (integration send, workflow run, human
+ *     input, location) park the run and resume here once the user approves or
+ *     the async op completes. `triggerCompletionResponseHandler` is that single
+ *     resume path: it saves the system continuation message, opens a stream,
+ *     RE-ENFORCES the budget before re-scheduling generation (so an approval
+ *     can't bypass a spend limit), and reschedules the agent. Direct CRM-style
+ *     writes (customer/product/vendor/website/conversation) are NOT approval
+ *     gated by design — they are reversible and destructive deletes are simply
+ *     not exposed to agents.
+ */
+
 import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
