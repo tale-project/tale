@@ -121,7 +121,7 @@ describe('ColorPickerInput', () => {
     expect(swatch).toHaveStyle({ backgroundColor: '#FF0000' });
   });
 
-  it('renders white swatch for invalid hex value', () => {
+  it('renders a muted swatch for an invalid hex value', () => {
     render(
       <ColorPickerInput
         value="#ZZZ"
@@ -131,8 +131,12 @@ describe('ColorPickerInput', () => {
       />,
     );
 
+    // An invalid/unset value falls back to the muted "empty slot" fill (a
+    // class, not an inline color) so it doesn't read as an invisible white
+    // block on the white field.
     const swatch = screen.getByLabelText('Pick color');
-    expect(swatch).toHaveStyle({ backgroundColor: '#FFFFFF' });
+    expect(swatch).toHaveClass('bg-muted');
+    expect(swatch).not.toHaveStyle({ backgroundColor: '#FFFFFF' });
   });
 
   it('associates label with input via id', () => {

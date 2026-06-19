@@ -31,11 +31,8 @@ export type DiscussionStatus = (typeof DISCUSSION_STATUSES)[number];
  * The single source of truth for the "is this a discussion?" discriminator that
  * every write/read path applies before treating a `threadMetadata` row as one.
  */
-export const DISCUSSION_KINDS = [
-  'project_discussion',
-  'task_discussion',
-] as const;
-export type DiscussionKind = (typeof DISCUSSION_KINDS)[number];
+const DISCUSSION_KINDS = ['project_discussion', 'task_discussion'] as const;
+type DiscussionKind = (typeof DISCUSSION_KINDS)[number];
 
 /** True when a thread `kind` denotes a discussion (never a `chat` thread). */
 export function isDiscussionKind(
