@@ -37,6 +37,7 @@ const sample: K8sHarvestResult = {
   reportFailed: false,
   readFailed: false,
   stageMs: 120,
+  executeMs: 900,
   harvestMs: 45,
   uploadMs: 30,
   steps: [{ path: 'a.py', status: 'completed', exitCode: 0, durationMs: 10 }],

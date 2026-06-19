@@ -145,6 +145,11 @@ describe('buildSandboxPod', () => {
     expect(c.command?.[2]).toContain('/entrypoint.sh "$0" "$1" "$2" "$3"');
     expect(c.command?.[2]).toContain('2>/user/.runtime/tale/stderr.log');
     expect(c.command?.[2]).toContain('echo $? > /user/.runtime/tale/exit-code');
+    // runner-started-at written immediately before entrypoint so harvest can
+    // compute exact executeMs without including pod scheduling or stage init.
+    expect(c.command?.[2]).toContain(
+      'date +%s%3N > /user/.runtime/tale/runner-started-at',
+    );
     // No sentinel handshake — staging is an initContainer now.
     expect(c.command?.[2]).not.toContain('.staged');
     expect(c.command?.[2]).not.toContain('exec /entrypoint.sh');
