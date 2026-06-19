@@ -203,7 +203,7 @@ describe('task-ops pack: loop-safety invariants', () => {
         const action = actionOp(step);
         if (action?.type !== 'task' || action.op !== 'update_status') continue;
         if (actionParams(step).status === 'done') {
-          expect(wf.file).toBe('review-gate.json');
+          expect(wf.file).toBe('gate-review-before-completion.json');
         }
       }
     }
