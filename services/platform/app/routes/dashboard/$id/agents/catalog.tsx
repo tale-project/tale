@@ -1,7 +1,7 @@
 import { Stack } from '@tale/ui/layout';
+import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { AgentTabTitle } from '@/app/features/agents/components/agent-tab-title';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { seo } from '@/lib/utils/seo';
@@ -32,7 +32,7 @@ function AgentCatalogPage() {
 
   return (
     <Stack gap={6} className="p-6">
-      <AgentTabTitle title={t('title')} subtitle={t('subtitle')} />
+      <SectionHeader title={t('title')} description={t('subtitle')} />
       <AgentCatalog organizationId={organizationId} />
     </Stack>
   );
