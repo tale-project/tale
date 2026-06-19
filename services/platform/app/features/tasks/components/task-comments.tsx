@@ -2,11 +2,11 @@
 
 import { Button } from '@tale/ui/button';
 import { Text } from '@tale/ui/text';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import type { Doc, Id } from '@/convex/_generated/dataModel';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -15,21 +15,36 @@ import {
   useDeleteTaskComment,
   useEditTaskComment,
 } from '../hooks/mutations';
-import { useTaskComments } from '../hooks/queries';
+import { useTaskDiscussion } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { AssigneeAvatar } from './assignee-avatar';
 import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
 
-type CommentDoc = Doc<'taskComments'>;
+/**
+ * A task comment in the unified model: a `task_discussion` message joined with
+ * its side-car meta (pre-joined by `getTaskDiscussion` — no render-time lookup).
+ * `messageId` is the agent message-store id (an opaque string, not a Convex id).
+ */
+interface TaskComment {
+  messageId: string;
+  authorType: 'user' | 'agent';
+  authorId: string;
+  body: string;
+  createdAt: number;
+  editedAt?: number;
+  mentions?: Array<{ type: 'user' | 'agent'; id: string }>;
+}
 
 /**
- * Task comment thread: author identity (resolved name + avatar) and relative
- * timestamps, single-level replies, and inline edit/delete. The same item
- * rendering is reused for top-level comments and replies. Composer + reply +
- * edit are gated on `canEdit` (project write); edit is author-only; delete is
- * author-or-admin (enforced again server-side).
+ * Task comment thread, unified onto the task's `task_discussion` thread (one
+ * conversation surface shared with project discussions). A flat message list —
+ * author identity (resolved name + avatar), relative timestamps, the `(edited)`
+ * marker, and inline edit/delete. Composer + edit are gated on `canEdit`
+ * (project write); edit is author-only; delete is author-or-admin (re-enforced
+ * server-side). Agent replies (from `run_on_task`) render as agent-authored
+ * messages here. A task with no comments yet shows just the composer.
  */
 export function TaskComments({
   taskId,
@@ -48,7 +63,7 @@ export function TaskComments({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
-  const { comments } = useTaskComments(taskId);
+  const { comments } = useTaskDiscussion(taskId);
   const { resolveActor } = useActorDirectory(organizationId, projectId);
   const { formatRelative, formatDate } = useFormatDate();
 
@@ -57,28 +72,8 @@ export function TaskComments({
   const deleteComment = useDeleteTaskComment();
 
   const [draft, setDraft] = useState('');
-  const [replyTo, setReplyTo] = useState<Id<'taskComments'> | null>(null);
-  const [replyDraft, setReplyDraft] = useState('');
-  const [editingId, setEditingId] = useState<Id<'taskComments'> | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
-
-  const { roots, repliesByParent } = useMemo(() => {
-    const ids = new Set(comments.map((c) => c._id));
-    const rootList: CommentDoc[] = [];
-    const replies = new Map<string, CommentDoc[]>();
-    for (const c of comments) {
-      // Promote an orphaned reply (its parent was deleted) to a root so it
-      // never silently disappears.
-      if (c.parentCommentId && ids.has(c.parentCommentId)) {
-        const arr = replies.get(c.parentCommentId) ?? [];
-        arr.push(c);
-        replies.set(c.parentCommentId, arr);
-      } else {
-        rootList.push(c);
-      }
-    }
-    return { roots: rootList, repliesByParent: replies };
-  }, [comments]);
 
   const currentUser = currentUserId
     ? resolveActor('user', currentUserId)
@@ -109,44 +104,32 @@ export function TaskComments({
     }
   };
 
-  const submitReply = async (parentCommentId: Id<'taskComments'>) => {
-    const body = replyDraft.trim();
-    if (!body) return;
-    try {
-      await addComment.mutateAsync({ taskId, body, parentCommentId });
-      setReplyDraft('');
-      setReplyTo(null);
-    } catch (error) {
-      onError(error);
-    }
-  };
-
-  const submitEdit = async (commentId: Id<'taskComments'>) => {
+  const submitEdit = async (messageId: string) => {
     const body = editDraft.trim();
     if (!body) return;
     try {
-      await editComment.mutateAsync({ commentId, body });
+      await editComment.mutateAsync({ messageId, body });
       setEditingId(null);
     } catch (error) {
       onError(error);
     }
   };
 
-  const handleDelete = async (commentId: Id<'taskComments'>) => {
+  const handleDelete = async (messageId: string) => {
     if (!globalThis.confirm(t('comment.deleteConfirm'))) return;
     try {
-      await deleteComment.mutateAsync({ commentId });
+      await deleteComment.mutateAsync({ messageId });
     } catch (error) {
       onError(error);
     }
   };
 
-  const canManage = (c: CommentDoc) =>
+  const canManage = (c: TaskComment) =>
     c.authorType === 'user' && !!currentUserId && c.authorId === currentUserId;
 
-  const renderItem = (c: CommentDoc, isReply: boolean) => {
+  const renderItem = (c: TaskComment) => {
     const author = resolveActor(c.authorType, c.authorId);
-    const isEditing = editingId === c._id;
+    const isEditing = editingId === c.messageId;
     return (
       <div className="group/comment flex items-start gap-2">
         <AssigneeAvatar
@@ -172,20 +155,20 @@ export function TaskComments({
           {isEditing ? (
             <div className="mt-1 flex flex-col gap-2">
               <MentionTextarea
-                id={`edit-comment-${c._id}`}
+                id={`edit-comment-${c.messageId}`}
                 organizationId={organizationId}
                 projectId={projectId}
                 rows={2}
                 value={editDraft}
                 onValueChange={setEditDraft}
-                onKeyDown={onModEnter(() => void submitEdit(c._id))}
+                onKeyDown={onModEnter(() => void submitEdit(c.messageId))}
                 autoFocus
               />
               <div className="flex gap-2">
                 <Button
                   size="sm"
                   disabled={editDraft.trim().length === 0}
-                  onClick={() => void submitEdit(c._id)}
+                  onClick={() => void submitEdit(c.messageId)}
                 >
                   {tCommon('actions.save')}
                 </Button>
@@ -209,20 +192,10 @@ export function TaskComments({
 
           {!isEditing && canEdit && (
             <div className="mt-1 flex items-center gap-3 text-xs opacity-0 transition-opacity group-focus-within/comment:opacity-100 group-hover/comment:opacity-100">
-              {!isReply && (
-                <CommentAction
-                  onClick={() => {
-                    setReplyTo(replyTo === c._id ? null : c._id);
-                    setReplyDraft('');
-                  }}
-                >
-                  {t('actions.reply')}
-                </CommentAction>
-              )}
               {canManage(c) && (
                 <CommentAction
                   onClick={() => {
-                    setEditingId(c._id);
+                    setEditingId(c.messageId);
                     setEditDraft(c.body);
                   }}
                 >
@@ -232,7 +205,7 @@ export function TaskComments({
               {(canManage(c) || isAdmin) && (
                 <CommentAction
                   destructive
-                  onClick={() => void handleDelete(c._id)}
+                  onClick={() => void handleDelete(c.messageId)}
                 >
                   {tCommon('actions.delete')}
                 </CommentAction>
@@ -251,64 +224,16 @@ export function TaskComments({
       </Text>
 
       <ul className="mt-3 flex flex-col gap-4">
-        {roots.length === 0 && (
+        {comments.length === 0 && (
           <li>
             <Text as="p" variant="muted">
               {t('detail.noComments')}
             </Text>
           </li>
         )}
-        {roots.map((root) => {
-          const replies = repliesByParent.get(root._id) ?? [];
-          return (
-            <li key={root._id} className="flex flex-col gap-3">
-              {renderItem(root, false)}
-              {replies.length > 0 && (
-                <ul className="border-border ml-8 flex flex-col gap-3 border-l pl-3">
-                  {replies.map((reply) => (
-                    <li key={reply._id}>{renderItem(reply, true)}</li>
-                  ))}
-                </ul>
-              )}
-              {replyTo === root._id && canEdit && (
-                <div className="ml-8 flex flex-col gap-2">
-                  <MentionTextarea
-                    id={`reply-${root._id}`}
-                    organizationId={organizationId}
-                    projectId={projectId}
-                    rows={2}
-                    value={replyDraft}
-                    onValueChange={setReplyDraft}
-                    onKeyDown={onModEnter(() => void submitReply(root._id))}
-                    placeholder={t('actions.reply')}
-                    autoFocus
-                  />
-                  <MentionTriggerChips
-                    organizationId={organizationId}
-                    target={{ taskId }}
-                    draft={replyDraft}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      disabled={replyDraft.trim().length === 0}
-                      onClick={() => void submitReply(root._id)}
-                    >
-                      {t('actions.reply')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setReplyTo(null)}
-                    >
-                      {tCommon('actions.cancel')}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </li>
-          );
-        })}
+        {comments.map((c) => (
+          <li key={c.messageId}>{renderItem(c)}</li>
+        ))}
       </ul>
 
       {canEdit && (

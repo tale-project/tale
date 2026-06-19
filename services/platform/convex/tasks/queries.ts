@@ -21,6 +21,7 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { canClaimTask, checkProjectAccess } from './access';
+import { readTaskDiscussionMessages } from './internal_queries';
 import {
   boardViewFiltersValidator,
   boardViewScopeValidator,
