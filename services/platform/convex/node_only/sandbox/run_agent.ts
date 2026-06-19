@@ -58,6 +58,14 @@ const STEER_POLL_INTERVAL_MS = 2_000;
 // Liveness heartbeat cadence (independent of output) — the recovery watchdog's
 // staleness threshold must be a comfortable multiple of this.
 const HEARTBEAT_INTERVAL_MS = 20_000;
+// Hard-deadline grace past `budgetDeadlineMs`: the budget guard's AbortSignal is
+// best-effort (the SSE read / reconnect backoff may not unblock promptly), so a
+// watchdog races the drain against `budgetDeadlineMs + this` and FORCES the
+// handoff if the drain wedges — guaranteeing the action returns + checkpoints
+// before the platform's wall-clock cap hard-kills it (a hard kill bypasses
+// teardown + leaks the session). Sized above the worst-case clean abort-settle
+// (a flushProgress's ~30s sessionListFiles) so it never fires on a healthy drain.
+const HANDOFF_HARD_GRACE_MS = 45_000;
 // Linger-loop cadence (claude-code stdin-hold): after the per-turn agent
 // result, the process stays alive on its held-open stdin. The loop delivers
 // queued steer messages via stdin (the CLI processes idle-state stdin
@@ -1107,18 +1115,52 @@ export async function runAgentInSessionImpl(
   // terminal result. An explicit Stop yields a terminal 'cancelled' result, so
   // it returns rather than looping. On resume the first attempt is an attach.
   let result: SessionExecResult;
+  // Hard-deadline watchdog (see HANDOFF_HARD_GRACE_MS): the AbortSignal handed to
+  // the drain is best-effort, so RACE the drain against `budgetDeadlineMs + grace`.
+  // If the drain wedges past the soft abort, the watchdog forces the handoff and
+  // rejects INTO the existing handoff-return path below — guaranteeing this action
+  // returns + checkpoints before the platform hard-kills it. The abandoned drain
+  // is harmless: the next segment re-attaches from cursor.lastSeq.
+  const drainPromise = drainSessionExecResilient(
+    args.sessionId,
+    body,
+    controller.signal,
+    callbacks,
+    {
+      cursor,
+      ...(resuming && { resumeSinceSeq: args.resumeFrom?.lastSeq ?? 0 }),
+    },
+  );
+  let hardDeadlineTimer: ReturnType<typeof setTimeout> | undefined;
+  let guardedDrain: Promise<SessionExecResult>;
+  if (args.budgetDeadlineMs === undefined) {
+    guardedDrain = drainPromise;
+  } else {
+    const hardDeadlineAtMs = args.budgetDeadlineMs + HANDOFF_HARD_GRACE_MS;
+    // Swallow a LATE drain rejection (settling after the deadline already won the
+    // race) so an abandoned drain never surfaces as an unhandledRejection.
+    void drainPromise.catch(() => {});
+    const deadline = new Promise<never>((_resolve, reject) => {
+      hardDeadlineTimer = setTimeout(
+        () => {
+          if (!handoff) {
+            handoff = true;
+            controller.abort();
+          }
+          console.warn(
+            `[run_agent] hard-deadline watchdog forced handoff — drain did not honor the abort in time (execId=${args.execId})`,
+          );
+          reject(new Error('hard-deadline-handoff'));
+        },
+        Math.max(0, hardDeadlineAtMs - Date.now()),
+      );
+    });
+    guardedDrain = Promise.race([drainPromise, deadline]);
+  }
   try {
-    result = await drainSessionExecResilient(
-      args.sessionId,
-      body,
-      controller.signal,
-      callbacks,
-      {
-        cursor,
-        ...(resuming && { resumeSinceSeq: args.resumeFrom?.lastSeq ?? 0 }),
-      },
-    );
+    result = await guardedDrain;
   } catch (err) {
+    if (hardDeadlineTimer) clearTimeout(hardDeadlineTimer);
     drainActive = false;
     if (budgetTimer) clearTimeout(budgetTimer);
     if (lingerTimer) clearInterval(lingerTimer);
@@ -1168,6 +1210,7 @@ export async function runAgentInSessionImpl(
     }
     throw err;
   }
+  if (hardDeadlineTimer) clearTimeout(hardDeadlineTimer);
   drainActive = false;
   if (budgetTimer) clearTimeout(budgetTimer);
   if (lingerTimer) clearInterval(lingerTimer);

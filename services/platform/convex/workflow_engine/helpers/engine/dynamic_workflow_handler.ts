@@ -44,6 +44,12 @@ export type DynamicWorkflowArgs = {
   debugMode?: boolean;
 };
 
+// Default retry for DURABLE sandbox steps (see the call site): a long run is a
+// sequence of segments across action boundaries, and a single transient hard-kill
+// on any one would otherwise be fatal. The retry resumes from the checkpoint, so
+// these attempts re-attach rather than restart the agent's work.
+const DEFAULT_SANDBOX_RETRY_POLICY = { maxRetries: 4, backoffMs: 3000 };
+
 function buildRetryBehaviorFromPolicy(policy?: {
   maxRetries: number;
   backoffMs: number;
@@ -193,8 +199,20 @@ export async function handleDynamicWorkflow(
                 : 0,
           }
         : null;
+    // A DURABLE `sandbox` step crosses many <10-min action boundaries (one per
+    // segment); a single transient platform hard-kill on ANY segment would
+    // otherwise fail the whole long run. Default it to retry — the retry re-runs
+    // executeStep, which loads the segment checkpoint and RESUMES (re-attaches to
+    // the still-running exec, or cleanly restarts if the container is gone). A
+    // clean {ok:false} is NOT a throw, so genuine agent failures still flow to
+    // the following condition rather than being retried. Explicit step- or
+    // workflow-level policy still wins.
     const effectiveRetryPolicy =
-      stepRetryPolicy ?? workflowRetryPolicy ?? undefined;
+      stepRetryPolicy ??
+      workflowRetryPolicy ??
+      (stepDef.stepType === 'sandbox'
+        ? DEFAULT_SANDBOX_RETRY_POLICY
+        : undefined);
     const retryBehavior = buildRetryBehaviorFromPolicy(effectiveRetryPolicy);
 
     let stepResult;

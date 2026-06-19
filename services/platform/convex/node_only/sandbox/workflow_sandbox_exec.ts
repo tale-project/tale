@@ -50,6 +50,7 @@ import {
 import {
   type SessionStageFile,
   SessionDuplicateError,
+  SessionNotFoundError,
   sessionCreate,
   sessionDestroy,
   sessionEnvPatch,
@@ -92,11 +93,14 @@ const SUMMARY_MANDATE = [
 const EPHEMERAL_TTL_GRACE_MS = 5 * 60 * 1000;
 
 // Per-action attach window: how long ONE Convex action drains the (continuously
-// running) exec before handing off to the next durable-step segment, staying
-// safely under the 10-min action ceiling. Mirrors run_external_agent — same env
-// knob so chat + workflow segment identically.
+// running) exec before handing off to the next durable-step segment. Default
+// 360s (6min) — comfortably under the smallest realistic action wall-clock cap
+// (10min on default Convex cloud; 30min on this deployment) WITH margin for the
+// hard-deadline watchdog grace below, so a wedged drain still returns + writes a
+// checkpoint before the platform hard-kills the action (which would bypass
+// teardown + leak the session). Operator-overridable via the env knob.
 const ACTION_WINDOW_MS = Number(
-  process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(480 * 1000),
+  process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(360 * 1000),
 );
 
 // Runaway backstop on the number of handoffs a single step may do. The real
@@ -940,6 +944,15 @@ export const runSandboxAgent = internalAction({
         }),
       };
     } catch (e) {
+      // A RESUME whose session/container is GONE (a hard kill took it down past
+      // the runnerd detach-grace): the checkpoint now points at a dead exec.
+      // RE-THROW so the step's retry restarts FRESH (the `finally` below tears
+      // down + deletes the checkpoint first, so the retry finds none and
+      // re-creates) — re-cloning + continuing from the already-pushed branch —
+      // instead of giving up with ok:false on a checkpoint it can never resume.
+      if (resuming && e instanceof SessionNotFoundError) {
+        throw e;
+      }
       return fail(e instanceof Error ? e.message : String(e));
     } finally {
       // Teardown UNLESS we handed off mid-run (then the session + VK + exec must
