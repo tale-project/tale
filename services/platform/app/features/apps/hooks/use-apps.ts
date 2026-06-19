@@ -1,9 +1,17 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { api } from '@/convex/_generated/api';
-import type { ViewConfig } from '@/lib/shared/schemas/views';
+import type { FunctionBinding } from '@/lib/shared/platform/function_bindings';
+
+/** One page of an app — a Puck Data document with an id/title. */
+export interface AppViewDoc {
+  id: string;
+  title?: string;
+  /** Puck Data ({ content, root, zones }). */
+  data: unknown;
+}
 
 /** An app as surfaced in the Apps hub — read from its `app.json` manifest plus
- * its bundled view configs (the configurable pages). */
+ * its bundled Puck view documents + its function allowlist. */
 export interface AppSummary {
   slug: string;
   name: string;
@@ -12,7 +20,9 @@ export interface AppSummary {
   messageNamespace?: string;
   workflows: string[];
   agents: string[];
-  views: ViewConfig[];
+  /** capabilities.functions — the views' allowed Convex calls. */
+  functions: FunctionBinding[];
+  views: AppViewDoc[];
 }
 
 export function useApps(organizationId: string): {

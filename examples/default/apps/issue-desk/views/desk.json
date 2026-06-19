@@ -1,45 +1,72 @@
 {
   "id": "desk",
   "title": "Issue resolution desk",
-  "layout": "stack",
-  "parts": [
-    {
-      "id": "issues",
-      "title": "Issues",
-      "render": "collection",
-      "source": { "kind": "task_collection" },
-      "params": { "layout": "table" },
-      "actions": [
-        {
-          "id": "triage",
-          "kind": "trigger_workflow",
-          "title": "Triage & run",
-          "params": { "workflow": "issue-desk/desk-process" }
-        },
-        {
-          "id": "assign-impl",
-          "kind": "assign",
-          "title": "Assign implementer",
-          "params": { "assigneeId": "desk-implementer" }
+  "data": {
+    "root": { "props": {} },
+    "zones": {},
+    "content": [
+      {
+        "type": "Collection",
+        "props": {
+          "id": "issues",
+          "title": "Issues",
+          "query": {
+            "path": "tasks/queries:listTasksByOrg",
+            "args": { "organizationId": "$orgId" }
+          },
+          "columns": ["title", "status", "externalId"],
+          "actions": [
+            {
+              "label": "Triage & run",
+              "variant": "primary",
+              "path": "workflow_executions/actions:startWorkflowFromFile",
+              "mode": "action",
+              "args": {
+                "organizationId": "$orgId",
+                "workflowSlug": "issue-desk/desk-process",
+                "triggeredBy": "user",
+                "input": { "task": "$selected" }
+              }
+            },
+            {
+              "label": "Assign implementer",
+              "path": "tasks/mutations:assignTask",
+              "mode": "mutation",
+              "args": {
+                "taskId": "$selected._id",
+                "assigneeType": "agent",
+                "assigneeId": "desk-implementer"
+              }
+            }
+          ]
         }
-      ]
-    },
-    {
-      "id": "reviews",
-      "title": "Pending reviews",
-      "render": "review",
-      "source": { "kind": "approval_queue" },
-      "params": { "cardinality": "many" }
-    },
-    {
-      "id": "runs",
-      "title": "Recent runs",
-      "render": "collection",
-      "source": {
-        "kind": "workflow_runs",
-        "params": { "workflow": "issue-desk/desk-process" }
       },
-      "params": { "layout": "table" }
-    }
-  ]
+      {
+        "type": "ReviewQueue",
+        "props": {
+          "id": "reviews",
+          "title": "Pending reviews",
+          "query": {
+            "path": "approvals/queries:listActiveApprovalsByOrganization",
+            "args": { "organizationId": "$orgId" }
+          }
+        }
+      },
+      {
+        "type": "Collection",
+        "props": {
+          "id": "runs",
+          "title": "Recent runs",
+          "query": {
+            "path": "workflow_executions/queries:listExecutions",
+            "args": {
+              "paginationOpts": { "numItems": 25, "cursor": null },
+              "wfDefinitionId": "issue-desk/desk-process"
+            }
+          },
+          "columns": ["status"]
+        }
+      }
+    ]
+  }
 }

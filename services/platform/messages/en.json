@@ -27,6 +27,15 @@
       "broken": "Some installed files are missing. Reinstall to restore them.",
       "connect": "Connect {integration} to use this app.",
       "connectButton": "Connect"
+    },
+    "confirm": "Are you sure?",
+    "binding": {
+      "empty": "Nothing to show yet.",
+      "blocked": "This view is not allowed to call {path}."
+    },
+    "review": {
+      "none": "No pending reviews.",
+      "awaiting": "Awaiting approval"
     }
   },
   "operator": {
@@ -76,8 +85,7 @@
       "waitingExternal": "Waiting for an external event to continue.",
       "empty": "This step produced no output.",
       "noDetails": "No details to show.",
-      "noJournal": "No journal is available for this run.",
-      "selectItem": "Select an item to see details."
+      "noJournal": "No journal is available for this run."
     },
     "error": {
       "title": "Could not load this run",

@@ -1,9 +1,10 @@
 /**
  * Proves the on-disk issue-resolution demo APP (examples/default/apps/
  * issue-desk) is well-formed against the platform skeleton — the "new app =
- * data" litmus: the app manifest composes the workflow + agents by reference,
- * its workflow + view configs validate, and its ui/view labels pass the
- * cross-locale consistency check — with zero per-vertical system code.
+ * data" litmus: the manifest composes the workflow + agents by reference, the
+ * workflow validates, the view is a Puck Data document whose bound functions are
+ * all declared in the app's `capabilities.functions` allowlist, and its labels
+ * pass the cross-locale check — with zero per-vertical system code.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -11,14 +12,13 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { validateViewBindings } from '../../../../lib/shared/platform/function_bindings';
 import { validatePack } from '../../../../lib/shared/platform/validate_pack';
 import { agentJsonSchema } from '../../../../lib/shared/schemas/agents';
 import { appManifestSchema } from '../../../../lib/shared/schemas/apps';
-import { viewConfigSchema } from '../../../../lib/shared/schemas/views';
 import { workflowJsonSchema } from '../../../../lib/shared/schemas/workflows';
 import { validateWorkflowDefinition } from './validate_workflow_definition';
 
-// Resolve the repo-root demo app relative to THIS test file (cwd-independent).
 const APP_DIR = fileURLToPath(
   new URL(
     '../../../../../../examples/default/apps/issue-desk/',
@@ -29,18 +29,23 @@ const read = (rel: string) => readFileSync(resolve(APP_DIR, rel), 'utf8');
 const readJson = (rel: string): unknown => JSON.parse(read(rel));
 
 describe('issue-desk demo app (data) validates against the skeleton', () => {
+  const manifest = appManifestSchema.parse(readJson('app.json'));
   const workflow = workflowJsonSchema.safeParse(
     readJson('workflows/issue-desk/desk-process.json'),
   );
-  const view = viewConfigSchema.safeParse(readJson('views/desk.json'));
+  const view = readJson('views/desk.json') as {
+    data?: { content?: Array<{ type?: string }> };
+  };
 
-  it('app.json manifest composes the workflow + agents by reference', () => {
-    const manifest = appManifestSchema.parse(readJson('app.json'));
+  it('app.json manifest composes the workflow + agents + functions by reference', () => {
     expect(manifest.name).toBe('Issue resolution desk');
     expect(manifest.messageNamespace).toBe('issueDesk');
     expect(manifest.workflows).toContain('issue-desk/desk-process');
     expect(manifest.agents).toContain('desk-implementer');
     expect(manifest.roles?.coordinator).toBe('desk-coordinator');
+    expect(manifest.capabilities?.functions?.map((f) => f.path)).toContain(
+      'tasks/queries:listTasksByOrg',
+    );
   });
 
   it('workflow parses + passes validateWorkflowDefinition (ui/role annotations)', () => {
@@ -53,13 +58,20 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(result.errors).toEqual([]);
   });
 
-  it('view config parses (render-kinds + data-sources)', () => {
-    expect(view.success).toBe(true);
+  it('view is a Puck Data document with connected blocks', () => {
+    const types = (view.data?.content ?? []).map((n) => n.type);
+    expect(types).toContain('Collection');
+    expect(types).toContain('ReviewQueue');
   });
 
-  it('app passes the cross-locale consistency check (workflow + views, en/de/fr)', () => {
-    expect(workflow.success && view.success).toBe(true);
-    if (!workflow.success || !view.success) return;
+  it('every function the view binds is in capabilities.functions (allowlist)', () => {
+    const errors = validateViewBindings(view, manifest.capabilities?.functions);
+    expect(errors).toEqual([]);
+  });
+
+  it('workflow passes the cross-locale label consistency check (en/de/fr)', () => {
+    expect(workflow.success).toBe(true);
+    if (!workflow.success) return;
     const catalogs = {
       en: readJson('messages/en.json') as Record<string, string>,
       de: readJson('messages/de.json') as Record<string, string>,
@@ -67,7 +79,6 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     };
     const result = validatePack({
       workflows: [{ name: workflow.data.name, steps: workflow.data.steps }],
-      views: [view.data],
       catalogs,
       baseLocales: ['en', 'de', 'fr'],
     });

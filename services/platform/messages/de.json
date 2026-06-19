@@ -27,6 +27,15 @@
       "broken": "Einige installierte Dateien fehlen. Installiere neu, um sie wiederherzustellen.",
       "connect": "Verbinde {integration}, um diese App zu nutzen.",
       "connectButton": "Verbinden"
+    },
+    "confirm": "Bist du sicher?",
+    "binding": {
+      "empty": "Noch nichts anzuzeigen.",
+      "blocked": "Diese Ansicht darf {path} nicht aufrufen."
+    },
+    "review": {
+      "none": "Keine ausstehenden Prüfungen.",
+      "awaiting": "Wartet auf Genehmigung"
     }
   },
   "operator": {
@@ -76,8 +85,7 @@
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
       "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
       "noDetails": "Keine Details vorhanden.",
-      "noJournal": "Für diesen Lauf ist kein Protokoll verfügbar.",
-      "selectItem": "Wähle einen Eintrag, um Details zu sehen."
+      "noJournal": "Für diesen Lauf ist kein Protokoll verfügbar."
     },
     "error": {
       "title": "Lauf konnte nicht geladen werden",

@@ -15,7 +15,6 @@ import {
   appManifestSchema,
   isValidAppSlug,
 } from '../../lib/shared/schemas/apps';
-import { viewConfigSchema } from '../../lib/shared/schemas/views';
 import { action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { errnoCode } from '../lib/file_io';
@@ -26,6 +25,10 @@ import {
 } from './file_utils';
 
 const MAX_VIEW_BYTES = 256 * 1024;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export const listApps = action({
   args: { organizationId: v.string() },
@@ -81,15 +84,23 @@ export const listApps = action({
             console.warn(`[listApps] view too large, skipping: ${filePath}`);
             continue;
           }
-          const parsed = viewConfigSchema.safeParse(
-            JSON.parse(await readFile(filePath, 'utf8')),
-          );
-          if (parsed.success) views.push(parsed.data);
-          else
+          // A view is a Puck Data document wrapped with id/title:
+          // `{ id, title?, data: { content, root, zones } }`.
+          const raw: unknown = JSON.parse(await readFile(filePath, 'utf8'));
+          if (isRecord(raw) && isRecord(raw.data)) {
+            views.push({
+              id:
+                typeof raw.id === 'string'
+                  ? raw.id
+                  : file.replace(/\.json$/, ''),
+              ...(typeof raw.title === 'string' && { title: raw.title }),
+              data: raw.data,
+            });
+          } else {
             console.warn(
-              `[listApps] invalid view ${file}:`,
-              parsed.error.message,
+              `[listApps] view ${file} has no Puck \`data\`; skipping`,
             );
+          }
         } catch (err) {
           console.warn(`[listApps] view read failed ${file}:`, err);
         }
@@ -105,6 +116,7 @@ export const listApps = action({
         }),
         workflows: manifest.workflows ?? [],
         agents: manifest.agents ?? [],
+        functions: manifest.capabilities?.functions ?? [],
         views,
       });
     }

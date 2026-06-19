@@ -64,6 +64,20 @@ export const appManifestSchema = z
         workflows: z.array(z.string()).optional(),
         roles: z.array(z.string()).optional(),
         queues: z.array(z.string()).optional(),
+        /**
+         * The allowlist of public Convex functions the app's views may call —
+         * the "data freedom" surface. A bound component / action may only invoke
+         * a `path` listed here (validated at publish, gated client-side, audited).
+         * `path` is the `makeFunctionReference` form `<dir>/<file>:<export>`.
+         */
+        functions: z
+          .array(
+            z.object({
+              path: z.string(),
+              mode: z.enum(['query', 'mutation', 'action']),
+            }),
+          )
+          .optional(),
       })
       .optional(),
   })

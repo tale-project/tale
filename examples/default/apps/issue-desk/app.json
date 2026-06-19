@@ -12,7 +12,20 @@
   },
   "capabilities": {
     "workflows": ["issue-desk/desk-process"],
-    "roles": ["desk-implementer", "desk-reviewer"]
+    "roles": ["desk-implementer", "desk-reviewer"],
+    "functions": [
+      { "path": "tasks/queries:listTasksByOrg", "mode": "query" },
+      {
+        "path": "approvals/queries:listActiveApprovalsByOrganization",
+        "mode": "query"
+      },
+      { "path": "workflow_executions/queries:listExecutions", "mode": "query" },
+      { "path": "tasks/mutations:assignTask", "mode": "mutation" },
+      {
+        "path": "workflow_executions/actions:startWorkflowFromFile",
+        "mode": "action"
+      }
+    ]
   },
   "requires": {
     "integrations": ["github"]

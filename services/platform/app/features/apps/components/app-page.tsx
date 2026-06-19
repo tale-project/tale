@@ -22,7 +22,7 @@ import {
   useAppInstallActions,
   useAppInstallStates,
 } from '../hooks/use-install-state';
-import { ViewRenderer } from './view-renderer';
+import { AppView } from '../registry/app-view';
 
 function ReadinessChecklist({
   organizationId,
@@ -150,21 +150,21 @@ export function AppPage({
           description={t('noViews.description')}
         />
       ) : (
-        app.views.map((view) => {
-          const title = view.titleKey
-            ? t(view.titleKey, { defaultValue: view.title ?? view.id })
-            : view.title;
-          return (
-            <VStack key={view.id} gap={3}>
-              {title && (
-                <Text as="span" className="text-lg font-semibold">
-                  {title}
-                </Text>
-              )}
-              <ViewRenderer view={view} organizationId={organizationId} />
-            </VStack>
-          );
-        })
+        app.views.map((view) => (
+          <VStack key={view.id} gap={3}>
+            {view.title && (
+              <Text as="span" className="text-lg font-semibold">
+                {view.title}
+              </Text>
+            )}
+            <AppView
+              organizationId={organizationId}
+              appSlug={appSlug}
+              allowlist={app.functions}
+              data={view.data}
+            />
+          </VStack>
+        ))
       )}
       <HStack gap={2} className="justify-end">
         <Button
