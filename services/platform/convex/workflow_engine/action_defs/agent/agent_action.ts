@@ -83,23 +83,6 @@ type AgentActionParams =
       operation: 'requeue_queued_runs';
       olderThanMinutes?: number;
       limit?: number;
-    }
-  | {
-      operation: 'install_agent';
-      agentSlug: string;
-    }
-  | {
-      operation: 'enable_agent';
-      agentSlug: string;
-    }
-  | {
-      operation: 'disable_agent';
-      agentSlug: string;
-    }
-  | {
-      operation: 'set_delegates';
-      agentSlug: string;
-      delegateSlugs: string[];
     };
 
 const triggerValidator = v.union(
@@ -119,7 +102,7 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
   type: 'agent',
   title: 'Agent Operation',
   description:
-    'Workforce operations on org agents: run_on_task / decompose_task (never throw — {ok, error, refusedReason} rides output.data for condition branches), check_run_budget, get_org_role, list_task_candidates, reassign_or_unassign, plus roster admin (install_agent, enable_agent, disable_agent, set_delegates). organizationId is read from workflow context variables.',
+    'Workforce operations on org agents: run_on_task / decompose_task (never throw — {ok, error, refusedReason} rides output.data for condition branches), check_run_budget, get_org_role, list_task_candidates, reassign_or_unassign, requeue_queued_runs. organizationId is read from workflow context variables. (Roster admin — install/enable/disable/set_delegates — is intentionally NOT here: it is privilege-gated and lives in the agent_write tool, the catalog mutations, and the integration cascade.)',
   parametersValidator: v.union(
     v.object({
       operation: v.literal('run_on_task'),
@@ -164,23 +147,6 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
       operation: v.literal('requeue_queued_runs'),
       olderThanMinutes: v.optional(v.number()),
       limit: v.optional(v.number()),
-    }),
-    v.object({
-      operation: v.literal('install_agent'),
-      agentSlug: v.string(),
-    }),
-    v.object({
-      operation: v.literal('enable_agent'),
-      agentSlug: v.string(),
-    }),
-    v.object({
-      operation: v.literal('disable_agent'),
-      agentSlug: v.string(),
-    }),
-    v.object({
-      operation: v.literal('set_delegates'),
-      agentSlug: v.string(),
-      delegateSlugs: v.array(v.string()),
     }),
   ),
   async execute(ctx, params, variables, extras) {
@@ -285,52 +251,6 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
           },
         );
         return { operation: 'requeue_queued_runs', ...result };
-      }
-
-      case 'install_agent': {
-        await ctx.runMutation(
-          internal.agents.installations.upsertInstallation,
-          {
-            organizationId,
-            agentSlug: params.agentSlug,
-            installedBy: 'workflow',
-            contentHash: 'manual',
-            enabled: true,
-          },
-        );
-        return { operation: 'install_agent', agentSlug: params.agentSlug };
-      }
-
-      case 'enable_agent': {
-        await ctx.runMutation(internal.agents.installations.setEnabled, {
-          organizationId,
-          agentSlug: params.agentSlug,
-          enabled: true,
-        });
-        return { operation: 'enable_agent', agentSlug: params.agentSlug };
-      }
-
-      case 'disable_agent': {
-        await ctx.runMutation(internal.agents.installations.setEnabled, {
-          organizationId,
-          agentSlug: params.agentSlug,
-          enabled: false,
-          disabledReason: 'user',
-        });
-        return { operation: 'disable_agent', agentSlug: params.agentSlug };
-      }
-
-      case 'set_delegates': {
-        const result = await ctx.runAction(
-          internal.agents.workforce_ops.setDelegatesFromAgent,
-          {
-            organizationId,
-            actorUserId: 'workflow',
-            agentSlug: params.agentSlug,
-            delegateSlugs: params.delegateSlugs,
-          },
-        );
-        return { operation: 'set_delegates', ...result };
       }
 
       default: {

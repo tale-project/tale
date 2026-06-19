@@ -105,6 +105,10 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
             lastScannedAt: params.lastScannedAt,
             status: params.status,
             metadata: params.metadata,
+            // Org-scope the patch so a workflow can't update another tenant's
+            // website by id (mirrors vendor_action). organizationId is the
+            // running workflow's org, validated above.
+            callerOrgId: organizationId,
           },
         );
 

@@ -250,6 +250,9 @@ export const productAction: ActionDefinition<ProductActionParams> = {
           {
             productId: toId<'products'>(params.productId),
             updates: params.updates,
+            // Org-scope the patch so a workflow can't update another tenant's
+            // product by id (mirrors vendor_action / website_action).
+            callerOrgId: organizationId,
           },
         );
 
