@@ -113,6 +113,44 @@ export const listApps = action({
         }
       }
 
+      // The app's own label catalog (pack-authored): messages/<locale>.json,
+      // each a flat { labelKey: string } map. Delivered with the app so the
+      // client can resolve `ui.labelKey` (friendly step names etc.) by direct
+      // lookup — the same flat-key model validatePack checks at publish time —
+      // without a per-label server round-trip.
+      const messages: Record<string, Record<string, string>> = {};
+      const messagesDir = path.join(resolveAppDir(orgSlug, slug), 'messages');
+      let messageFiles: string[] = [];
+      try {
+        messageFiles = (await readdir(messagesDir)).filter((f) =>
+          f.endsWith('.json'),
+        );
+      } catch {
+        // No messages dir — app ships no own labels; labelKeys fall back.
+      }
+      for (const file of messageFiles) {
+        const filePath = path.join(messagesDir, file);
+        try {
+          const info = await stat(filePath);
+          if (info.size > MAX_VIEW_BYTES) {
+            console.warn(
+              `[listApps] messages too large, skipping: ${filePath}`,
+            );
+            continue;
+          }
+          const raw: unknown = JSON.parse(await readFile(filePath, 'utf8'));
+          if (isRecord(raw)) {
+            const flat: Record<string, string> = {};
+            for (const [k, val] of Object.entries(raw)) {
+              if (typeof val === 'string') flat[k] = val;
+            }
+            messages[file.replace(/\.json$/, '')] = flat;
+          }
+        } catch (err) {
+          console.warn(`[listApps] messages read failed ${file}:`, err);
+        }
+      }
+
       apps.push({
         slug,
         name: manifest.name,
@@ -125,6 +163,7 @@ export const listApps = action({
         agents: manifest.agents ?? [],
         functions: manifest.capabilities?.functions ?? [],
         views,
+        ...(Object.keys(messages).length > 0 && { messages }),
       });
     }
 

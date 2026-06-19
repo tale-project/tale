@@ -15,6 +15,12 @@ export interface AppRuntime {
   appSlug: string;
   /** The app's declared function allowlist (capabilities.functions). */
   allowlist: FunctionBinding[];
+  /**
+   * The app's pack-authored label catalog for the ACTIVE locale, a flat
+   * `{ labelKey: string }` map (resolved from `messages/<locale>.json`).
+   * Connected blocks resolve `ui.labelKey` against this via `usePackLabel`.
+   */
+  labels: Record<string, string>;
 }
 
 const AppRuntimeContext = createContext<AppRuntime | null>(null);
@@ -39,4 +45,17 @@ export function useAppRuntime(): AppRuntime {
     throw new Error('useAppRuntime must be used within an AppRuntimeProvider');
   }
   return value;
+}
+
+/**
+ * Resolve a pack `ui.labelKey` (e.g. `issueDesk.assign`) against the app's
+ * active-locale catalog, falling back to the given text when the key is absent
+ * — so a label always renders even if the app ships no catalog for it.
+ */
+export function usePackLabel(): (
+  labelKey: string | undefined,
+  fallback: string,
+) => string {
+  const { labels } = useAppRuntime();
+  return (labelKey, fallback) => (labelKey && labels[labelKey]) || fallback;
 }

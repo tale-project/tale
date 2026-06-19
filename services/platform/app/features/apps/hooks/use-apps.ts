@@ -35,6 +35,12 @@ export interface AppSummary {
   /** capabilities.functions — the views' allowed Convex calls. */
   functions: FunctionBinding[];
   views: AppViewDoc[];
+  /**
+   * The app's own pack-authored label catalogs (`messages/<locale>.json`),
+   * locale -> flat `{ labelKey: string }` map. Used to resolve `ui.labelKey`
+   * references (e.g. friendly workflow-step names) at render time.
+   */
+  messages?: Record<string, Record<string, string>>;
 }
 
 export function useApps(organizationId: string): {

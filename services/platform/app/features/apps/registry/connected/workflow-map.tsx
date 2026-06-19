@@ -44,7 +44,7 @@ import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundAction } from '../../hooks/use-bound-action';
-import { useAppRuntime } from '../../runtime/app-runtime';
+import { useAppRuntime, usePackLabel } from '../../runtime/app-runtime';
 import { Section } from './section';
 
 export interface WorkflowMapProps {
@@ -74,7 +74,10 @@ const NO_STAGE = '_';
 
 interface MapStep {
   slug: string;
+  /** The step's `name` — the fallback when no pack `labelKey` resolves. */
   label: string;
+  /** Pack `ui.labelKey` (resolved against the app catalog at render). */
+  labelKey?: string;
   render: RenderKind;
   stage: string;
   role?: string;
@@ -107,6 +110,8 @@ function projectSteps(result: unknown): MapStep[] {
       render: isRenderKind(renderRaw) ? renderRaw : 'status',
       stage: str(ui, 'stage') || NO_STAGE,
     };
+    const labelKey = str(ui, 'labelKey');
+    if (labelKey) step.labelKey = labelKey;
     const role = str(raw, 'role');
     if (role) step.role = role;
     out.push(step);
@@ -130,6 +135,7 @@ function groupByStage(steps: MapStep[]): { stage: string; steps: MapStep[] }[] {
 
 function StepCard({ step }: { step: MapStep }) {
   const { t } = useT('apps');
+  const packLabel = usePackLabel();
   const Icon = RENDER_ICON[step.render];
   return (
     <Card className="w-full lg:w-56">
@@ -140,7 +146,7 @@ function StepCard({ step }: { step: MapStep }) {
           </div>
           <VStack gap={0} className="min-w-0">
             <Text as="span" className="text-sm leading-snug font-medium">
-              {step.label}
+              {packLabel(step.labelKey, step.label)}
             </Text>
             <Text variant="muted" className="text-xs">
               {t(`process.kind.${step.render}`, { defaultValue: step.render })}

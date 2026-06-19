@@ -8,13 +8,14 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { LayoutGrid } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -124,6 +125,7 @@ export function AppPage({
   appSlug: string;
 }) {
   const { t } = useT('apps');
+  const { locale } = useLocale();
   const { apps, isLoading } = useApps(organizationId);
   const { bySlug, isLoading: stateLoading } =
     useAppInstallStates(organizationId);
@@ -132,6 +134,14 @@ export function AppPage({
 
   const app = apps.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
+
+  // The app's pack labels for the active locale, with graceful fallback:
+  // exact locale → base language (de-CH → de) → en → empty.
+  const labels = useMemo<Record<string, string>>(() => {
+    const m = app?.messages;
+    if (!m) return {};
+    return m[locale] ?? m[locale.split('-')[0]] ?? m.en ?? {};
+  }, [app?.messages, locale]);
 
   // Re-check that the copied files still exist when an installed app opens.
   // Guard by appSlug so it runs once per app (verify's identity is unstable and
@@ -172,7 +182,7 @@ export function AppPage({
 
   return (
     <AppRuntimeProvider
-      value={{ organizationId, appSlug, allowlist: app.functions }}
+      value={{ organizationId, appSlug, allowlist: app.functions, labels }}
     >
       <VStack gap={6}>
         <ReadinessChecklist
