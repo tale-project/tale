@@ -121,9 +121,9 @@ function resolveGate(
 
 // =============================================================================
 // Container — owns the Convex reads (preferences + org defaults + memory
-// lists) and the loading state. Wraps the real `SettingsPage narrow` view in
-// `<Skeletonize>` so the skeleton inherits the SAME narrow centering and
-// section structure (no horizontal shift on load).
+// lists) and the loading state. Wraps the real full-width view in
+// `<Skeletonize>` so the skeleton inherits the SAME section structure (no
+// horizontal shift on load).
 // =============================================================================
 function PersonalizationSettingsInner({
   organizationId,
@@ -178,7 +178,7 @@ function PersonalizationSettingsInner({
 }
 
 // =============================================================================
-// Plain presentational view — renders the real `SettingsPage narrow` layout.
+// Plain presentational view — renders the real full-width layout.
 // Rendered both live and (wrapped in `<Skeletonize>`) as its own skeleton, so
 // loading and loaded layouts are the SAME tree and cannot drift. While loading
 // the gate-dependent sections are force-rendered (masked) so they reserve
@@ -206,7 +206,7 @@ function PersonalizationSettingsView({
   const loading = useSkeleton();
 
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <SettingsSection
         title={t('page.title')}
         description={
@@ -421,6 +421,7 @@ function CustomInstructionsSection({
 
   return (
     <SettingsSection
+      className="border-border border-t pt-8"
       title={t('page.customInstructions.title')}
       description={t('page.customInstructions.description')}
     >
@@ -592,7 +593,10 @@ function SavedMemoriesSection({
   const loading = useSkeleton();
 
   return (
-    <SettingsSection title={t('page.memories.title')}>
+    <SettingsSection
+      className="border-border border-t pt-8"
+      title={t('page.memories.title')}
+    >
       {loading ? (
         <MemoryListSkeletonRows />
       ) : memories.length === 0 ? (
@@ -644,7 +648,10 @@ function PendingMemoriesSection({
   const loading = useSkeleton();
 
   return (
-    <SettingsSection title={t('page.pending.title')}>
+    <SettingsSection
+      className="border-border border-t pt-8"
+      title={t('page.pending.title')}
+    >
       {loading ? (
         <MemoryListSkeletonRows />
       ) : memories.length === 0 ? (

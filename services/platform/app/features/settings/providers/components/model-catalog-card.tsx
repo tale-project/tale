@@ -16,6 +16,8 @@ import { useT } from '@/lib/i18n/client';
 
 interface ModelCatalogCardProps {
   organizationId: string;
+  /** Forwarded to the section root (e.g. a divider border). */
+  className?: string;
 }
 
 /**
@@ -23,7 +25,10 @@ interface ModelCatalogCardProps {
  * last synced from the proven source (OpenRouter) and offers a manual refresh.
  * The cron keeps it fresh automatically; this is the on-demand escape hatch.
  */
-export function ModelCatalogCard({ organizationId }: ModelCatalogCardProps) {
+export function ModelCatalogCard({
+  organizationId,
+  className,
+}: ModelCatalogCardProps) {
   const { t } = useT('settings');
   const { formatDate } = useFormatDate();
   const { data: status } = useConvexQuery(
@@ -87,6 +92,7 @@ export function ModelCatalogCard({ organizationId }: ModelCatalogCardProps) {
   return (
     <PageSection
       as="h2"
+      className={className}
       title={t('providers.modelCatalog.title')}
       description={t('providers.modelCatalog.description')}
     >

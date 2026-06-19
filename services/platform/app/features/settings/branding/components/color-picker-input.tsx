@@ -67,10 +67,13 @@ export function ColorPickerInput({
       <button
         type="button"
         onClick={handleSwatchClick}
-        className="h-full w-7 shrink-0 cursor-pointer border-none"
-        style={{
-          backgroundColor: isValidHex ? value : '#FFFFFF',
-        }}
+        className={cn(
+          'h-full w-7 shrink-0 cursor-pointer border-none',
+          // No color set yet → a muted swatch reads as an empty slot instead of
+          // an invisible white block on the white field.
+          !isValidHex && 'bg-muted',
+        )}
+        style={isValidHex ? { backgroundColor: value } : undefined}
         aria-label={`Pick ${label.toLowerCase()}`}
       />
       <input
@@ -92,7 +95,8 @@ export function ColorPickerInput({
           value={displayValue}
           onChange={handleTextChange}
           maxLength={8}
-          className="text-foreground w-[4.5rem] border-none bg-transparent text-sm leading-5 font-normal outline-none"
+          placeholder="6366F1"
+          className="text-foreground placeholder:text-muted-foreground w-[4.5rem] border-none bg-transparent text-sm leading-5 font-normal outline-none"
           aria-label={`${label} hex value`}
         />
       </div>
