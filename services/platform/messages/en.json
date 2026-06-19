@@ -1440,6 +1440,7 @@
   },
   "common": {
     "optional": "optional",
+    "or": "or",
     "dates": {
       "today": "Today",
       "yesterday": "Yesterday"
