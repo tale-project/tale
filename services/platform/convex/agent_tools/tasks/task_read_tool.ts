@@ -82,7 +82,7 @@ To pick up work: list tasks (e.g. status='todo' and unassigned), then use task_w
 
       if (args.operation === 'list_comments') {
         const comments = await ctx.runQuery(
-          internal.tasks.internal_queries.listTaskCommentsInternal,
+          internal.tasks.internal_queries.listTaskDiscussionMessagesInternal,
           { taskId: toId<'tasks'>(args.taskId), organizationId },
         );
         return { operation: 'list_comments', comments };
