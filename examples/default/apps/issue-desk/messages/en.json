@@ -2,6 +2,6 @@
   "issueDesk.assign": "Triage & assign",
   "issueDesk.implement": "Implement the fix",
   "issueDesk.verify": "Run tests",
-  "issueDesk.review": "Human review",
+  "issueDesk.review": "Review & fix",
   "issueDesk.openPr": "Open pull request"
 }

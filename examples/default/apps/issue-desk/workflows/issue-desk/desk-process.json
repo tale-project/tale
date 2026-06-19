@@ -1,6 +1,6 @@
 {
   "name": "Issue resolution desk",
-  "description": "The config-driven multi-agent desk: a GitHub issue (bound to a task by the github sync) flows through a FIXED process — coordinator triages and assigns by role, an implementer agent resolves it in a sandbox (clones the repo, fixes on a tale/<id> branch), a deterministic sandbox step runs the repo's tests, a human reviews and signs off, then a pull request is opened. The process is the backbone; agent autonomy is bounded to within each step and a human gate is the only path to done. Every step carries ui/role annotations so the generic operator workspace renders it without any per-vertical UI code — this whole app is data.",
+  "description": "The config-driven multi-agent desk: a GitHub issue (bound to a task by the github sync) flows through a FIXED process — coordinator triages and assigns by role, an implementer agent resolves it in a sandbox (clones the repo, fixes on a tale/<id> branch), a deterministic sandbox step runs the repo's tests, a reviewer agent checks the fix and corrects any issues, then a pull request is opened. The process is the backbone; agent autonomy is bounded to within each step. Every step carries ui/role annotations so the generic operator workspace renders it without any per-vertical UI code — this whole app is data.",
   "version": "1.0.0",
   "metadata": {
     "pack": "issue-desk",
@@ -122,25 +122,25 @@
     },
     {
       "stepSlug": "review",
-      "name": "Human review gate",
+      "name": "Reviewer checks & fixes",
       "stepType": "action",
       "role": "reviewer",
       "ui": {
         "stage": "review",
-        "render": "review",
+        "render": "stream",
         "labelKey": "issueDesk.review",
         "params": {
-          "mode": "gate",
-          "cardinality": "one"
+          "entryKind": "message"
         }
       },
       "config": {
-        "type": "approval",
+        "type": "agent",
         "parameters": {
-          "operation": "request_review",
+          "operation": "run_on_task",
+          "agentSlug": "{{config.variables.roles.reviewer}}",
           "taskId": "{{input.task._id}}",
-          "agentSlug": "{{input.task.assigneeId}}",
-          "question": "The implementer's fix is ready. Approve to open the PR, or request changes."
+          "trigger": "revision",
+          "instructions": "Review the implementer's fix on its branch: verify correctness, run the repo tests, and fix any issues you find directly. Summarize the review and the final state."
         }
       },
       "nextSteps": {
