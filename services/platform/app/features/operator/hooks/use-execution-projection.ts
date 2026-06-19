@@ -85,16 +85,36 @@ function resolveRenderKind(ui: StepUiAnnotation | undefined): RenderKind {
 
 function parseOutput(node: ExecutionNodeState | undefined): unknown {
   if (!node?.outputPreview || node.outputTruncated) return undefined;
+  let parsed: unknown;
   try {
-    return JSON.parse(node.outputPreview);
+    parsed = JSON.parse(node.outputPreview);
   } catch {
     return undefined;
   }
+  // A run-detail node output is the engine's StepOutput envelope, whose shape is
+  // EXACTLY { type, data, meta? }; unwrap to the inner payload so the render-kind
+  // panels read the REAL fields (a sandbox step's `summary`, a transform's
+  // `rowsIn`, …) instead of finding them nested under `.data` and bailing to the
+  // raw-JSON view. Match the canonical shape PRECISELY (only type/data/meta keys)
+  // so a payload that merely happens to carry a `type`+`data` pair isn't unwrapped;
+  // map a null inner payload to undefined (a step that produced no output).
+  if (
+    isRecord(parsed) &&
+    typeof parsed.type === 'string' &&
+    'data' in parsed &&
+    Object.keys(parsed).every(
+      (k) => k === 'type' || k === 'data' || k === 'meta',
+    )
+  ) {
+    return parsed.data ?? undefined;
+  }
+  return parsed;
 }
 
 function projectStep(
   step: DefinitionStep,
   node: ExecutionNodeState | undefined,
+  liveProgress?: string,
 ): StepProjection {
   const render = resolveRenderKind(step.ui);
   const interaction = RENDER_KIND_META[render].interaction;
@@ -111,7 +131,18 @@ function projectStep(
   if (step.role !== undefined) projection.role = step.role;
   if (node !== undefined) projection.node = node;
   const output = parseOutput(node);
-  if (output !== undefined) projection.output = output;
+  // A RUNNING sandbox step has no `summary` yet (its result only lands at the
+  // segment seam), so its envelope would fall back to raw JSON. Surface the
+  // agent's LIVE op progress as the stream summary so the operator watches it
+  // work; once the step finishes, `output.summary` (persisted) takes over.
+  if (liveProgress !== undefined && liveProgress.trim() !== '') {
+    projection.output = {
+      ...(isRecord(output) ? output : {}),
+      summary: liveProgress,
+    };
+  } else if (output !== undefined) {
+    projection.output = output;
+  }
   return projection;
 }
 
@@ -133,6 +164,38 @@ export function useExecutionProjection(args: {
   const workflowSlug = statuses.data?.execution.workflowSlug;
   const definition = useReadWorkflow(args.organizationId, workflowSlug);
 
+  // The running `sandbox` step (if any) whose live agent op we subscribe to —
+  // its progress feeds the stream panel so it shows live work, not raw JSON.
+  const runningSandboxStepSlug = useMemo<string | null>(() => {
+    const live = statuses.data;
+    if (!live || live.execution.status !== 'running') return null;
+    const slug = live.execution.currentStepSlug;
+    if (slug === undefined) return null;
+    if (live.nodes[slug]?.status !== 'running') return null;
+    const def = definition.data;
+    const defStep = parseDefinitionSteps(
+      def && def.ok ? def.config : undefined,
+    ).find((s) => s.stepSlug === slug);
+    const stepType = defStep?.stepType ?? live.nodes[slug]?.stepType;
+    return stepType === 'sandbox' ? slug : null;
+  }, [statuses.data, definition.data]);
+
+  // Called UNCONDITIONALLY (Rules of Hooks): `'skip'` is Convex's no-subscription
+  // sentinel passed as the ARGS, not a React conditional around the hook — so it
+  // stays valid when runningSandboxStepSlug flips between null and a slug.
+  const liveOp = useConvexQuery(
+    api.sandbox.session_queries_public.getWorkflowSandboxOp,
+    runningSandboxStepSlug !== null
+      ? {
+          organizationId: args.organizationId,
+          executionId: args.executionId,
+          stepSlug: runningSandboxStepSlug,
+        }
+      : 'skip',
+  );
+  const liveProgress =
+    runningSandboxStepSlug !== null ? liveOp.data?.progressText : undefined;
+
   const projection = useMemo<OperatorProjection | null>(() => {
     const live = statuses.data;
     if (!live) return null;
@@ -153,7 +216,11 @@ export function useExecutionProjection(args: {
           }));
 
     const steps = sourceSteps.map((step) =>
-      projectStep(step, live.nodes[step.stepSlug]),
+      projectStep(
+        step,
+        live.nodes[step.stepSlug],
+        step.stepSlug === runningSandboxStepSlug ? liveProgress : undefined,
+      ),
     );
 
     const stages: string[] = [];
@@ -183,7 +250,7 @@ export function useExecutionProjection(args: {
       result.currentStepSlug = live.execution.currentStepSlug;
     }
     return result;
-  }, [statuses.data, definition.data]);
+  }, [statuses.data, definition.data, runningSandboxStepSlug, liveProgress]);
 
   return {
     projection,

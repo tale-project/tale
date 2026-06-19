@@ -67,7 +67,7 @@ function fmt(ts: unknown): string {
 
 export function RunList({ title, workflowSlug }: RunListProps) {
   const { t } = useT('apps');
-  const { organizationId } = useAppRuntime();
+  const { organizationId, appSlug } = useAppRuntime();
   const navigate = useNavigate();
   const args = useMemo(
     () => ({
@@ -124,10 +124,10 @@ export function RunList({ title, workflowSlug }: RunListProps) {
                       disabled={!id}
                       onClick={() =>
                         void navigate({
-                          to: '/dashboard/$id/automations/$amId/operator/$executionId',
+                          to: '/dashboard/$id/apps/$appSlug/runs/$executionId',
                           params: {
                             id: organizationId,
-                            amId: workflowSlug,
+                            appSlug,
                             executionId: id,
                           },
                         })

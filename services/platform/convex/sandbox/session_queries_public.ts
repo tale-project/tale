@@ -16,7 +16,7 @@ import type {
   BetterAuthFindManyResult,
   BetterAuthUser,
 } from '../members/types';
-import { userOwnerId } from './session_naming';
+import { sessionIdForWorkflowRun, userOwnerId } from './session_naming';
 import { isLiveSessionStatus } from './sessions_schema';
 
 /**
@@ -72,6 +72,81 @@ export const getActiveSessionOp = query({
       status: latest.status,
       ...(latest.agentIdleAt !== undefined && {
         agentIdleAt: latest.agentIdleAt,
+      }),
+    };
+  },
+});
+
+/**
+ * The live `agent-run` op for a workflow `sandbox` step, so the operator view's
+ * stream panel can render the agent's live progress WHILE the step runs (the
+ * chat path renders its timeline from the persisted message; a workflow run has
+ * no message, so the op's `progressText` is the live source). Keyed by
+ * (executionId, stepSlug) — the deterministic workflow-run session — and gated on
+ * ORG membership: workflow ops are org-scoped via `ownerType:'workflow_run'`, not
+ * thread RLS, so any org member who can see the app's runs can watch. Returns
+ * null when the caller isn't a member, no op exists yet, or the step finished
+ * (its op is torn down) — the UI then falls back to the step's persisted summary.
+ */
+export const getWorkflowSandboxOp = query({
+  args: {
+    organizationId: v.string(),
+    executionId: v.string(),
+    stepSlug: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      status: v.union(
+        v.literal('running'),
+        v.literal('completed'),
+        v.literal('failed'),
+        v.literal('cancelled'),
+      ),
+      progressText: v.optional(v.string()),
+      lastEventAt: v.optional(v.number()),
+      agentIdleAt: v.optional(v.number()),
+      continuationCount: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+    try {
+      await getOrganizationMember(ctx, args.organizationId, {
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch (err) {
+      // Non-member / disabled → null (the operator view degrades to the
+      // persisted output), mirroring listSandboxesForOrg. Re-throw real errors.
+      if (err instanceof UnauthorizedError) return null;
+      throw err;
+    }
+
+    const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
+    // Newest AGENT-RUN op for this deterministic workflow-run session. Filter on
+    // `kind` (the by_sessionId index doesn't carry it) so a later non-agent-run
+    // op never shadows the agent-run row; order desc picks the newest if the
+    // deterministic id was reused across incarnations.
+    const op = await ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
+      .order('desc')
+      .filter((q) => q.eq(q.field('kind'), 'agent-run'))
+      .first();
+    if (!op) return null;
+    // Defense in depth: the deterministic id is org-derived, but verify the row's
+    // org matches the gated org before exposing its progress text.
+    if (op.organizationId !== args.organizationId) return null;
+    return {
+      status: op.status,
+      ...(op.progressText !== undefined && { progressText: op.progressText }),
+      ...(op.lastEventAt !== undefined && { lastEventAt: op.lastEventAt }),
+      ...(op.agentIdleAt !== undefined && { agentIdleAt: op.agentIdleAt }),
+      ...(op.continuationCount !== undefined && {
+        continuationCount: op.continuationCount,
       }),
     };
   },
