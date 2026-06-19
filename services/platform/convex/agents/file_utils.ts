@@ -18,6 +18,7 @@ import {
   type ResponseTuningConfig,
 } from '../../lib/shared/schemas/agents';
 import { canonicalizeAgentConfig } from '../../lib/shared/utils/canonicalize-config';
+import { resolveAppDir } from '../apps/file_utils';
 import {
   errnoCode,
   getConfigRoot,
@@ -200,6 +201,29 @@ export function resolveAgentsDir(orgSlug: string): string {
   return path.join(getConfigRoot('agents'), orgSlug, 'agents');
 }
 
+/**
+ * App-owned agents live under the app's OWN bundle dir (`org/apps/<app>/agents/`),
+ * NOT the global `org/agents/`. This is what keeps them out of the global agent
+ * surfaces (chat picker, `/agents`, org-chart) by construction.
+ */
+export function resolveAppAgentsDir(orgSlug: string, appSlug: string): string {
+  return path.join(resolveAppDir(orgSlug, appSlug), 'agents');
+}
+
+/**
+ * Split a possibly-composite agent identity. A flat name (no `/`) is a GLOBAL
+ * agent; `<app>/<name>` is APP-owned. `validateAgentName` has already proven the
+ * shape, so a single `indexOf('/')` is enough.
+ */
+function splitAgentName(agentName: string): { appSlug?: string; name: string } {
+  const slash = agentName.indexOf('/');
+  if (slash === -1) return { name: agentName };
+  return {
+    appSlug: agentName.slice(0, slash),
+    name: agentName.slice(slash + 1),
+  };
+}
+
 export function resolveAgentFilePath(
   orgSlug: string,
   agentName: string,
@@ -207,7 +231,11 @@ export function resolveAgentFilePath(
   if (!validateAgentName(agentName)) {
     throw new Error(`Invalid agent name: ${agentName}`);
   }
-  return safeJoinWithinDir(resolveAgentsDir(orgSlug), `${agentName}.json`);
+  const { appSlug, name } = splitAgentName(agentName);
+  const dir = appSlug
+    ? resolveAppAgentsDir(orgSlug, appSlug)
+    : resolveAgentsDir(orgSlug);
+  return safeJoinWithinDir(dir, `${name}.json`);
 }
 
 export function resolveHistoryDir(orgSlug: string, agentName: string): string {
@@ -220,10 +248,14 @@ export function resolveHistoryDir(orgSlug: string, agentName: string): string {
   if (!validateAgentName(agentName)) {
     throw new Error(`Invalid agent name: ${agentName}`);
   }
-  return safeJoinWithinDir(
-    safeJoinWithinDir(resolveAgentsDir(orgSlug), '.history'),
-    agentName,
-  );
+  // App-owned history lives under the app's own agents dir, so it travels with
+  // the bundle (and is removed by the shell `rm` on uninstall). The final
+  // segment is the bare local name — never the composite (no `/` in it).
+  const { appSlug, name } = splitAgentName(agentName);
+  const baseDir = appSlug
+    ? resolveAppAgentsDir(orgSlug, appSlug)
+    : resolveAgentsDir(orgSlug);
+  return safeJoinWithinDir(safeJoinWithinDir(baseDir, '.history'), name);
 }
 
 /** Dirs never treated as agent folders (history trails + archived catalog). */

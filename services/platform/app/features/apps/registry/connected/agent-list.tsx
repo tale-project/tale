@@ -2,11 +2,13 @@
 
 /**
  * Connected `AgentList` block — shows the app's agents (the team doing the work)
- * with entry points to configure them. Binds the allowlisted `listAgents` action
- * (one-shot), filtered to the app's manifest agents. Everything is edited INLINE
- * on this page (no navigation): "Edit instructions" + "Env & secrets" open
- * modals, and the BYO|Managed auth mode flips in place — configuring the team
- * stays in one place.
+ * with entry points to configure them. Binds the allowlisted `listAppAgents`
+ * action (one-shot), scoped to THIS app's own agents dir — app agents are
+ * app-scoped and never appear in the global `/agents`. Each agent's identity is
+ * the composite slug `<app>/<name>` (passed to the dialogs / save); the card
+ * shows the bare short name. Everything is edited INLINE on this page (no
+ * navigation): "Edit instructions" + "Env & secrets" open modals, and the
+ * BYO|Managed auth mode flips in place — configuring the team stays in one place.
  */
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
@@ -22,13 +24,18 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundAction } from '../../hooks/use-bound-action';
+import { useAppRuntime } from '../../runtime/app-runtime';
 import { AgentEnvDialog } from './agent-env-dialog';
 import { AgentInstructionsDialog } from './agent-instructions-dialog';
 import { Section } from './section';
 
 export interface AgentListProps {
   title?: string;
-  /** The app's agent slugs (manifest.agents) to show; empty = all org agents. */
+  /**
+   * Optional subset/order of the app's agents to show (matched against either
+   * the composite slug `<app>/<name>` or the bare short name); empty = all of
+   * the app's agents.
+   */
   agents?: string[];
   /** role token -> agent slug (manifest.roles), for the role badge. */
   roles?: Record<string, string>;
@@ -37,6 +44,11 @@ export interface AgentListProps {
 function str(rec: Record<string, unknown>, key: string): string {
   const v = rec[key];
   return typeof v === 'string' ? v : '';
+}
+
+/** Card label: display name → bare short name → composite slug. */
+function labelOf(rec: Record<string, unknown>): string {
+  return str(rec, 'displayName') || str(rec, 'shortName') || str(rec, 'name');
 }
 
 function strArr(rec: Record<string, unknown>, key: string): string[] {
@@ -83,7 +95,8 @@ function AuthModeToggle({
 
 export function AgentList({ title, agents, roles }: AgentListProps) {
   const { t } = useT('apps');
-  const list = useBoundAction('agents/file_actions:listAgents', 'action');
+  const { appSlug } = useAppRuntime();
+  const list = useBoundAction('agents/file_actions:listAppAgents', 'action');
   const listRef = useRef(list);
   listRef.current = list;
   const read = useBoundAction('agents/file_actions:readAgent', 'action');
@@ -150,11 +163,18 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
       try {
         const result = await listRef.current.dispatch({
           organizationId: '$orgId',
+          appSlug,
         });
         const all = Array.isArray(result) ? result.filter(isRecord) : [];
+        // The action already scopes to this app's agents; `agents` is only an
+        // optional subset/order, matched on either the composite or short name.
         const wanted =
           agents && agents.length > 0
-            ? all.filter((a) => agents.includes(str(a, 'name')))
+            ? all.filter(
+                (a) =>
+                  agents.includes(str(a, 'name')) ||
+                  agents.includes(str(a, 'shortName')),
+              )
             : all;
         if (!cancelled) setRows(wanted);
       } catch (err) {
@@ -168,7 +188,7 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
     return () => {
       cancelled = true;
     };
-  }, [agents]);
+  }, [agents, appSlug]);
 
   const roleOf = (slug: string): string | undefined => {
     if (!roles) return undefined;
@@ -201,7 +221,7 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
                     <HStack gap={3} className="items-center justify-between">
                       <HStack gap={2} className="min-w-0 items-center">
                         <Text as="span" className="font-medium" truncate>
-                          {str(agent, 'displayName') || slug}
+                          {labelOf(agent)}
                         </Text>
                         {role && <Badge variant="blue">{role}</Badge>}
                       </HStack>
@@ -212,7 +232,7 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
                           onClick={() =>
                             setEditing({
                               slug,
-                              name: str(agent, 'displayName') || slug,
+                              name: labelOf(agent),
                             })
                           }
                         >
@@ -224,7 +244,7 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
                           onClick={() =>
                             setEditingEnv({
                               slug,
-                              name: str(agent, 'displayName') || slug,
+                              name: labelOf(agent),
                             })
                           }
                         >

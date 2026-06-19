@@ -7,13 +7,16 @@
  * No Convex dependencies — these can be used in any Node.js context.
  */
 
+import { statSync } from 'node:fs';
 import path from 'node:path';
 
+import { isValidAppSlug } from '../../lib/shared/schemas/apps';
 import {
   workflowJsonSchema,
   type WorkflowJsonConfig,
 } from '../../lib/shared/schemas/workflows';
 import { canonicalizeWorkflowConfig } from '../../lib/shared/utils/canonicalize-config';
+import { resolveAppDir } from '../apps/file_utils';
 import {
   getConfigRoot,
   safeJoinWithinDir,
@@ -95,8 +98,47 @@ export function resolveWorkflowsDir(orgSlug: string): string {
 }
 
 /**
- * Resolve the absolute file path for a workflow JSON file.
- * Validates the slug and checks for path traversal.
+ * App-owned workflows live under the app's OWN bundle dir
+ * (`org/apps/<app>/workflows/`), keeping them out of the global automations
+ * surfaces by construction.
+ */
+export function resolveAppWorkflowsDir(
+  orgSlug: string,
+  appSlug: string,
+): string {
+  return path.join(resolveAppDir(orgSlug, appSlug), 'workflows');
+}
+
+/**
+ * Decide whether a workflow slug `a/b` is APP-owned: iff `a` is a valid app slug
+ * AND that app has a workflows dir on disk. The `/` is OVERLOADED here (global
+ * folders like `general/…` vs an app prefix), so — unlike agents, where `/`
+ * unambiguously means app — this needs an existence check. Done SYNCHRONOUSLY so
+ * the path builders stay sync and every existing call site is untouched. The
+ * install guard forbids an app slug from shadowing a global workflow folder, so
+ * the first segment is decisive.
+ */
+function workflowAppOwner(
+  orgSlug: string,
+  workflowSlug: string,
+): string | undefined {
+  const slash = workflowSlug.indexOf('/');
+  if (slash === -1) return undefined;
+  const seg = workflowSlug.slice(0, slash);
+  if (!isValidAppSlug(seg)) return undefined;
+  try {
+    return statSync(resolveAppWorkflowsDir(orgSlug, seg)).isDirectory()
+      ? seg
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve the absolute file path for a workflow JSON file. Validates the slug
+ * and checks for path traversal. App-owned slugs resolve under the app's bundle
+ * (`org/apps/<app>/workflows/`); global slugs under `org/workflows/`.
  */
 export function resolveWorkflowFilePath(
   orgSlug: string,
@@ -105,10 +147,11 @@ export function resolveWorkflowFilePath(
   if (!validateWorkflowSlug(workflowSlug)) {
     throw new Error(`Invalid workflow slug: ${workflowSlug}`);
   }
-  return safeJoinWithinDir(
-    resolveWorkflowsDir(orgSlug),
-    `${workflowSlug}.json`,
-  );
+  const appSlug = workflowAppOwner(orgSlug, workflowSlug);
+  const baseDir = appSlug
+    ? resolveAppWorkflowsDir(orgSlug, appSlug)
+    : resolveWorkflowsDir(orgSlug);
+  return safeJoinWithinDir(baseDir, `${workflowSlug}.json`);
 }
 
 /**
@@ -120,7 +163,11 @@ export function resolveHistoryDir(
   workflowSlug: string,
 ): string {
   const flatSlug = slugToUrlParam(workflowSlug);
-  return path.join(resolveWorkflowsDir(orgSlug), '.history', flatSlug);
+  const appSlug = workflowAppOwner(orgSlug, workflowSlug);
+  const baseDir = appSlug
+    ? resolveAppWorkflowsDir(orgSlug, appSlug)
+    : resolveWorkflowsDir(orgSlug);
+  return path.join(baseDir, '.history', flatSlug);
 }
 
 export function serializeWorkflowJson(config: WorkflowJsonConfig): string {

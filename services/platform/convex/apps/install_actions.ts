@@ -10,7 +10,8 @@
  * — the source of the "reinstall" prompt. Secrets are never touched: the GitHub
  * token etc. live in `integrationCredentials`, collected by the readiness wizard.
  */
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
+import path from 'node:path';
 
 import { v } from 'convex/values';
 
@@ -18,10 +19,12 @@ import { isValidAppSlug } from '../../lib/shared/schemas/apps';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
 import { type ActionCtx, action } from '../_generated/server';
+import { resolveAgentFilePath } from '../agents/file_utils';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { sha256 } from '../lib/file_io';
 import {
   resolveWorkflowFilePath,
+  resolveWorkflowsDir,
   validateWorkflowSlug,
 } from '../workflows/file_utils';
 import {
@@ -97,6 +100,19 @@ export const installApp = action({
     );
     if (!isValidAppSlug(args.appSlug)) {
       throw new Error(`Invalid app slug: ${args.appSlug}`);
+    }
+    // An app slug must not collide with an existing GLOBAL workflow folder of the
+    // same name: the workflow resolver prefers the app dir, so a collision would
+    // silently shadow those global workflows. Refuse the install instead — this
+    // keeps the app-vs-global workflow dispatch unambiguous.
+    const globalFolder = path.join(resolveWorkflowsDir(orgSlug), args.appSlug);
+    const shadowsGlobal = await stat(globalFolder)
+      .then((s) => s.isDirectory())
+      .catch(() => false);
+    if (shadowsGlobal) {
+      throw new Error(
+        `Cannot install app "${args.appSlug}": a global workflow folder of the same name exists and would be shadowed.`,
+      );
     }
     const installedBy = email !== '' ? email : userId;
 
@@ -198,7 +214,34 @@ export const verifyAppIntegrity = action({
     if (!record) return { status: 'active' };
 
     const missing = await findMissingResources(orgSlug, record.resources);
-    const status = missing.length > 0 ? 'broken' : 'active';
+    // Agents/workflows are no longer in the ledger (they live under the app dir,
+    // removed by the shell rm) — check their existence from the manifest so a
+    // user deleting one still surfaces a 'broken' install + reinstall prompt.
+    const manifest = await readAppBundleManifest(args.appSlug).catch(
+      () => null,
+    );
+    let appResourceMissing = false;
+    if (manifest) {
+      const checks: Array<Promise<boolean>> = [];
+      for (const name of manifest.agents ?? []) {
+        const slug = `${args.appSlug}/${name}`;
+        checks.push(
+          stat(resolveAgentFilePath(orgSlug, slug))
+            .then(() => false)
+            .catch(() => true),
+        );
+      }
+      for (const slug of manifest.workflows ?? []) {
+        checks.push(
+          stat(resolveWorkflowFilePath(orgSlug, slug))
+            .then(() => false)
+            .catch(() => true),
+        );
+      }
+      appResourceMissing = (await Promise.all(checks)).some(Boolean);
+    }
+    const status =
+      missing.length > 0 || appResourceMissing ? 'broken' : 'active';
     await ctx.runMutation(internal.apps.install_mutations.setAppInstallStatus, {
       organizationId: args.organizationId,
       appSlug: args.appSlug,

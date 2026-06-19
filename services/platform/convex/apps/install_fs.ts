@@ -9,9 +9,12 @@
  * back to the template; a later-deleted file surfaces as a broken install.
  *
  * Bundle layout (`template/apps/<slug>/`): `app.json` + `views/` + `messages/` +
- * `scripts/` are the SHELL (copied into `org/apps/<slug>/`); `agents/`,
- * `workflows/`, `integrations/` are the app-owned RESOURCES, fanned out into the
- * org's domain dirs (`org/agents/` …) so slug resolution finds them as usual.
+ * `scripts/` + `agents/` + `workflows/` all copy into `org/apps/<slug>/` (the
+ * SHELL). Agents/workflows are APP-SCOPED — resolved by the composite slug
+ * `<app>/<name>` and invisible to the global agent/workflow surfaces by
+ * construction, removed wholesale by the shell `rm` on uninstall. Only
+ * `integrations/` fans OUT into the org's SHARED `org/integrations/` dir (one
+ * credential per org), so only it is recorded in the removal ledger.
  */
 import { lstat, readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -31,17 +34,19 @@ import { resolveAppDir } from './file_utils';
 
 const BUILTIN_ENV = 'TALE_CONFIG_BUILTIN_DIR';
 
-/** Domain subdirs of an app bundle that fan OUT into the org's domain dirs.
- *  `agents` = flat, `workflows` = tree (nested slugs), `integrations` = bundle. */
-const RESOURCE_DOMAINS: Record<string, { allowSubdirs: boolean }> = {
-  agents: { allowSubdirs: false },
-  workflows: { allowSubdirs: true },
+/**
+ * Bundle subdirs that fan OUT into the org's SHARED domain dirs and so need a
+ * removal ledger. Only `integrations` qualifies now: `agents` + `workflows`
+ * copy UNDER the app's own dir (with the shell) and are removed by the shell
+ * `rm` on uninstall, so they need no ledger.
+ */
+const FANOUT_DOMAINS: Record<string, { allowSubdirs: boolean }> = {
   integrations: { allowSubdirs: true },
 };
 
 export interface InstalledResource {
   domain: string;
-  /** Path relative to the org domain dir (e.g. `issue-desk/desk-process.json`). */
+  /** Path relative to the org domain dir (e.g. `github/connector.ts`). */
   path: string;
   contentHash: string;
 }
@@ -112,7 +117,9 @@ async function copyShell(
   const entries = await readdir(templateDir, { withFileTypes: true });
   for (const entry of entries) {
     const name = entry.name;
-    if (skip(name) || name in RESOURCE_DOMAINS) continue;
+    // Everything except the fan-out domains (integrations) is shell — including
+    // `agents/` + `workflows/`, which are app-scoped and live under the app dir.
+    if (skip(name) || name in FANOUT_DOMAINS) continue;
     const src = path.join(templateDir, name);
     const dst = path.join(orgAppDir, name);
     if (entry.isSymbolicLink()) continue;
@@ -145,7 +152,7 @@ export async function installAppFiles(
   }
 
   const ledger: InstalledResource[] = [];
-  for (const [domain, opts] of Object.entries(RESOURCE_DOMAINS)) {
+  for (const [domain, opts] of Object.entries(FANOUT_DOMAINS)) {
     await recordingCopy(
       path.join(templateDir, domain),
       resolveDomainDir(domain, orgSlug),
@@ -176,9 +183,11 @@ async function pruneEmptyDirs(dir: string, stopAt: string): Promise<void> {
 }
 
 /**
- * Reverse `installAppFiles`: remove every copied resource file (pruning emptied
- * dirs) and the app shell. The template bundle is never touched (overlap guard),
- * so local dev can reinstall. Org secrets / `.history` are untouched.
+ * Reverse `installAppFiles`: remove the fanned-out integration files (pruning
+ * emptied dirs) via the ledger, then remove the app shell dir. The shell `rm`
+ * ALSO takes the app's agents/workflows (+ their `.history`) — they live under
+ * the app dir, so they need no ledger entry. The template bundle is never
+ * touched (overlap guard), so local dev can reinstall. Org secrets are untouched.
  */
 export async function uninstallAppFiles(
   orgSlug: string,
@@ -194,6 +203,7 @@ export async function uninstallAppFiles(
     await pruneEmptyDirs(path.dirname(target), domainDir);
   }
 
+  // Removes the shell AND the app-scoped agents/workflows nested under it.
   const orgAppDir = resolveAppDir(orgSlug, appSlug);
   const templateDir = appBundleTemplateDir(appSlug);
   if (!(await pathsOverlap(orgAppDir, templateDir))) {
@@ -204,8 +214,11 @@ export async function uninstallAppFiles(
 }
 
 /**
- * Integrity check: which ledger resources are missing from the org dir (a user
- * deleted them). A non-empty result means the install is broken → reinstall.
+ * Integrity check for the fan-out (integration) ledger: which ledger resources
+ * are missing from the org dir (a user deleted them). A non-empty result means
+ * the install is broken → reinstall. App agents/workflows aren't in the ledger,
+ * so their integrity is checked separately (manifest-driven) in
+ * `verifyAppIntegrity`.
  */
 export async function findMissingResources(
   orgSlug: string,

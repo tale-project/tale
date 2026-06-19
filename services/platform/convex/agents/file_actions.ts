@@ -19,6 +19,7 @@ import {
   RESERVED_AGENT_SLUGS,
 } from '../../lib/shared/constants/agents';
 import { agentJsonSchema } from '../../lib/shared/schemas/agents';
+import { isValidAppSlug } from '../../lib/shared/schemas/apps';
 import { parseModelRef } from '../../lib/shared/utils/model-ref';
 import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-config';
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
@@ -48,27 +49,21 @@ import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
   MAX_HISTORY_ENTRIES,
-  effectiveAgentSlug,
+  agentNameFromFileName,
   parseAgentJson,
   resolveAgentFilePath,
-  resolveAgentFilePathFromRelative,
+  resolveAgentsDir,
+  resolveAppAgentsDir,
   resolveHistoryDir,
   serializeAgentJson,
   validateAgentName,
-  walkAgentRelativePaths,
 } from './file_utils';
-import {
-  invalidateAgentListCache,
-  listAgentsForOrg,
-  resolveAgentPath,
-} from './internal_actions';
-import { agentSlugFromFileName } from './validators';
 
 async function readAgentFile(
   orgSlug: string,
   agentName: string,
 ): Promise<AgentReadResult> {
-  const filePath = await resolveAgentPath(orgSlug, agentName);
+  const filePath = resolveAgentFilePath(orgSlug, agentName);
   const result = await readJsonFile<AgentJsonConfig>(
     filePath,
     MAX_FILE_SIZE_BYTES,
@@ -186,56 +181,49 @@ export const listAgents = action({
       ctx,
       args.organizationId,
     );
-    // Recursive walk of the folder tree (chat/, workforce/, github/, …);
-    // identity is the config's explicit `slug` (basename fallback), NOT the path.
-    const relPaths = await walkAgentRelativePaths(orgSlug);
-    const seen = new Set<string>();
+    const dir = resolveAgentsDir(orgSlug);
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch (err) {
+      handleDirReadError(err, 'agents.listAgents');
+      return [];
+    }
+
+    const jsonFiles = entries.filter(
+      (e) => e.endsWith('.json') && !e.startsWith('.'),
+    );
 
     const results = await Promise.all(
-      relPaths.map(async (relativePath) => {
-        const read = await readJsonFile<AgentJsonConfig>(
-          resolveAgentFilePathFromRelative(orgSlug, relativePath),
-          MAX_FILE_SIZE_BYTES,
-          parseAgentJson,
-        );
-        const slug = read.ok
-          ? effectiveAgentSlug(read.data, relativePath)
-          : agentSlugFromFileName(relativePath);
-        if (seen.has(slug)) return null; // duplicate slug — first wins
-        seen.add(slug);
-        if (read.ok) {
-          const config = read.data;
+      jsonFiles.map(async (fileName) => {
+        const agentName = agentNameFromFileName(fileName);
+        if (!validateAgentName(agentName)) return null;
+        const result = await readAgentFile(orgSlug, agentName);
+        if (result.ok) {
           return {
-            name: slug,
-            slug,
-            // The '/'-joined folder path the agent file lives in (every path
-            // segment except the file itself), so nested folders survive in the
-            // list/catalog — e.g. `marketing/seo` → `marketing/seo`. Seeded
-            // single-level agents (workforce/, github/) are unaffected.
-            // Independent of `labels`, which are flat equal tags.
-            folder: relativePath.includes('/')
-              ? relativePath.split('/').slice(0, -1).join('/')
-              : '',
-            labels: config.metadata?.labels,
-            displayName: config.displayName,
-            description: config.description,
-            visibleInChat: config.visibleInChat,
-            primaryBehavior: config.primaryBehavior,
-            agentKind: config.agentKind,
-            authMode: config.authMode,
-            supportedModels: config.supportedModels,
-            toolNames: config.toolNames,
-            integrationBindings: config.integrationBindings,
-            roleRestriction: config.roleRestriction,
-            conversationStarters: config.conversationStarters,
-            composerMode: config.composerMode,
-            isRouter: config.isRouter,
-            uiConfigurable: config.uiConfigurable,
-            i18n: config.i18n,
-            metadata: config.metadata,
+            name: agentName,
+            displayName: result.config.displayName,
+            description: result.config.description,
+            visibleInChat: result.config.visibleInChat,
+            primaryBehavior: result.config.primaryBehavior,
+            agentKind: result.config.agentKind,
+            authMode: result.config.authMode,
+            supportedModels: result.config.supportedModels,
+            toolNames: result.config.toolNames,
+            integrationBindings: result.config.integrationBindings,
+            roleRestriction: result.config.roleRestriction,
+            conversationStarters: result.config.conversationStarters,
+            composerMode: result.config.composerMode,
+            isRouter: result.config.isRouter,
+            uiConfigurable: result.config.uiConfigurable,
+            i18n: result.config.i18n,
           };
         }
-        return { name: slug, slug, status: read.error, message: read.message };
+        return {
+          name: agentName,
+          status: result.error,
+          message: result.message,
+        };
       }),
     );
 
@@ -244,28 +232,78 @@ export const listAgents = action({
 });
 
 /**
- * Parse a create name that MAY be foldered (e.g. `marketing/seo-writer`) into
- * the agent's flat identity slug (the basename — the last segment) and the
- * '/'-joined relative path the file lives at (no extension). Every segment must
- * be a valid flat agent name; a leading/trailing/double slash yields an empty
- * segment and is rejected. A flat name maps to `{ slug: name, relativePath: name }`.
+ * List one app's OWN agents (scoped to `org/apps/<app>/agents/`). The global
+ * `listAgents` only scans `org/agents/`, so app agents never surface there — this
+ * is the app page's window into its own cast. Each row's `name` is the COMPOSITE
+ * identity `<app>/<agent>` (what the env/instructions dialogs, `readAgent`, and
+ * `saveAgent` key on); `shortName` is the bare local name for display.
  */
-function parseAgentNamePath(name: string): {
-  slug: string;
-  relativePath: string;
-} {
-  const segments = name.split('/');
-  if (segments.some((segment) => !validateAgentName(segment))) {
-    throw new ConvexError({
-      code: 'VALIDATION_ERROR',
-      message: `Invalid agent name: ${name}`,
-    });
-  }
-  return {
-    slug: segments[segments.length - 1],
-    relativePath: segments.join('/'),
-  };
-}
+export const listAppAgents = action({
+  args: {
+    organizationId: v.string(),
+    appSlug: v.string(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
+    if (!isValidAppSlug(args.appSlug)) {
+      throw new Error(`Invalid app slug: ${args.appSlug}`);
+    }
+    const dir = resolveAppAgentsDir(orgSlug, args.appSlug);
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch (err) {
+      handleDirReadError(err, 'agents.listAppAgents');
+      return [];
+    }
+
+    const jsonFiles = entries.filter(
+      (e) => e.endsWith('.json') && !e.startsWith('.'),
+    );
+
+    const results = await Promise.all(
+      jsonFiles.map(async (fileName) => {
+        const shortName = agentNameFromFileName(fileName);
+        const slug = `${args.appSlug}/${shortName}`;
+        if (!validateAgentName(slug)) return null;
+        const result = await readAgentFile(orgSlug, slug);
+        if (result.ok) {
+          return {
+            name: slug,
+            shortName,
+            displayName: result.config.displayName,
+            description: result.config.description,
+            visibleInChat: result.config.visibleInChat,
+            primaryBehavior: result.config.primaryBehavior,
+            agentKind: result.config.agentKind,
+            authMode: result.config.authMode,
+            supportedModels: result.config.supportedModels,
+            toolNames: result.config.toolNames,
+            integrationBindings: result.config.integrationBindings,
+            roleRestriction: result.config.roleRestriction,
+            conversationStarters: result.config.conversationStarters,
+            composerMode: result.config.composerMode,
+            isRouter: result.config.isRouter,
+            uiConfigurable: result.config.uiConfigurable,
+            i18n: result.config.i18n,
+          };
+        }
+        return {
+          name: slug,
+          shortName,
+          status: result.error,
+          message: result.message,
+        };
+      }),
+    );
+
+    return results.filter(Boolean);
+  },
+});
 
 export const saveAgent = action({
   args: {
@@ -283,17 +321,13 @@ export const saveAgent = action({
     ctx,
     args,
   ): Promise<{ hash: string; warnings?: string[] }> => {
-    // A create name may be foldered ("marketing/seo-writer"); edits/renames pass
-    // a flat slug. Parse into the flat identity slug (basename) and the on-disk
-    // relative path. Foldering only applies on create — an edit keeps the agent
-    // wherever its file already lives (resolved through the index below).
-    const { slug: agentSlug, relativePath: agentRelPath } = parseAgentNamePath(
-      args.agentName,
-    );
-    if ((RESERVED_AGENT_SLUGS as readonly string[]).includes(agentSlug)) {
+    if (!validateAgentName(args.agentName)) {
+      throw new Error(`Invalid agent name: ${args.agentName}`);
+    }
+    if ((RESERVED_AGENT_SLUGS as readonly string[]).includes(args.agentName)) {
       throw new ConvexError({
         code: 'RESERVED_AGENT_SLUG',
-        message: `"${agentSlug}" is a reserved name and cannot be used for an agent.`,
+        message: `"${args.agentName}" is a reserved name and cannot be used for an agent.`,
       });
     }
 
@@ -332,19 +366,8 @@ export const saveAgent = action({
 
     const prevAgent = await readAgentFile(
       orgSlug,
-      args.oldAgentName ?? agentSlug,
+      args.oldAgentName ?? args.agentName,
     );
-
-    // A new agent must not reuse an existing agent's identity slug — even when
-    // it would land in a different folder (the file-path check below only
-    // catches a same-path collision, so two agents sharing a basename across
-    // folders would otherwise both write and then collide in the slug index).
-    if (args.isNew === true && prevAgent.ok) {
-      throw new ConvexError({
-        code: 'DUPLICATE_NAME',
-        message: `Agent '${agentSlug}' already exists`,
-      });
-    }
 
     // System-managed agents (e.g. the Auto router, `uiConfigurable: false`) are
     // not editable through the UI, and the UI may not mint new ones.
@@ -509,13 +532,7 @@ export const saveAgent = action({
     }
 
     const content = serializeAgentJson(normalized);
-    // Existing agents are written back to wherever their file lives (a catalog
-    // agent under workforce/ etc.). A NEW agent is created at the relative path
-    // its (possibly foldered) name resolves to — `agents/<folder>/<slug>.json`,
-    // or the flat `agents/<slug>.json` for an unfoldered name.
-    const filePath = args.isNew
-      ? resolveAgentFilePathFromRelative(orgSlug, `${agentRelPath}.json`)
-      : await resolveAgentPath(orgSlug, args.agentName);
+    const filePath = resolveAgentFilePath(orgSlug, args.agentName);
 
     if (args.isNew) {
       const existing = await readFileSafe(filePath);
@@ -539,7 +556,7 @@ export const saveAgent = action({
           message: `Agent '${args.agentName}' already exists`,
         });
       }
-      const oldFilePath = await resolveAgentPath(orgSlug, args.oldAgentName);
+      const oldFilePath = resolveAgentFilePath(orgSlug, args.oldAgentName);
       // ENOENT-tolerant only — silently swallowing EACCES/EBUSY/EIO
       // would leave the OLD file on disk while the NEW file is being
       // written next to it, so `listAgents` would surface the same
@@ -556,17 +573,14 @@ export const saveAgent = action({
     }
 
     await atomicWrite(filePath, content);
-    // Drop the cached roster/slug-index so the create/edit/rename is visible to
-    // the next read in this isolate without waiting out the 60s TTL.
-    invalidateAgentListCache(orgSlug);
 
     await logAgentAudit(
       ctx,
       writeAuth,
       args.isNew === true ? 'create_agent' : 'update_agent',
-      agentSlug,
+      args.agentName,
       {
-        resourceName: agentSlug,
+        resourceName: args.agentName,
         ...(prevAgent.ok && {
           previousState: captureCapability(prevAgent.config),
         }),
@@ -592,7 +606,7 @@ export const snapshotToHistory = action({
       ctx,
       args.organizationId,
     );
-    const filePath = await resolveAgentPath(orgSlug, args.agentName);
+    const filePath = resolveAgentFilePath(orgSlug, args.agentName);
     const currentContent = await readFileSafe(filePath);
     if (!currentContent) return null;
 
@@ -628,14 +642,18 @@ export const duplicateAgent = action({
       throw new Error(`Cannot duplicate: ${source.message}`);
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listAgentsForOrg returns a v.any() projection; we read only `name` for the duplicate-name guard
-    const roster = (await listAgentsForOrg(orgSlug)) as Array<{
-      name?: string;
-    }>;
+    const dir = resolveAgentsDir(orgSlug);
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch (err) {
+      handleDirReadError(err, 'agents.duplicateAgent');
+      entries = [];
+    }
     const existingNames = new Set(
-      roster
-        .map((e) => e.name)
-        .filter((n): n is string => typeof n === 'string'),
+      entries
+        .filter((e) => e.endsWith('.json'))
+        .map((e) => agentNameFromFileName(e)),
     );
 
     let newName = `${args.agentName}-copy`;
@@ -705,10 +723,8 @@ export const duplicateAgent = action({
 
     const normalized = normalizeAgentConfig(draft, orgLocale);
     const content = serializeAgentJson(normalized);
-    // A duplicate is a NEW agent → flat `agents/<slug>.json`.
     const filePath = resolveAgentFilePath(orgSlug, newName);
     await atomicWrite(filePath, content);
-    invalidateAgentListCache(orgSlug);
 
     await logAgentAudit(ctx, auth, 'duplicate_agent', newName, {
       resourceName: newName,
@@ -736,7 +752,7 @@ export const deleteAgent = action({
 
     const auth = await requireOrgMembershipById(ctx, args.organizationId);
     const { orgSlug } = auth;
-    const filePath = await resolveAgentPath(orgSlug, args.agentName);
+    const filePath = resolveAgentFilePath(orgSlug, args.agentName);
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
 
     // Capture pre-delete capability snapshot for the audit row — agents
@@ -777,7 +793,6 @@ export const deleteAgent = action({
       }
     });
     await rm(historyDir, { recursive: true, force: true });
-    invalidateAgentListCache(orgSlug);
 
     await ctx.runMutation(internal.agents.mutations.cleanupAgentBinding, {
       organizationId: args.organizationId,
@@ -877,7 +892,7 @@ export const restoreFromHistory = action({
     }
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
     const historyPath = safeJoinWithinDir(historyDir, `${args.timestamp}.json`);
-    const agentPath = await resolveAgentPath(orgSlug, args.agentName);
+    const agentPath = resolveAgentFilePath(orgSlug, args.agentName);
 
     const historyContent = await readFileSafe(historyPath);
     if (!historyContent) throw new Error('History entry not found');
@@ -906,7 +921,6 @@ export const restoreFromHistory = action({
 
     // Write the restored version
     await atomicWrite(agentPath, historyContent);
-    invalidateAgentListCache(orgSlug);
 
     // Snapshot the previous state (best-effort)
     if (currentContent) {
