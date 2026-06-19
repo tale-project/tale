@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
-import { Row, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import {
   createFileRoute,
   useNavigate,
@@ -258,16 +258,9 @@ export function LogInPage() {
   const handleSsoLogin = useCallback(() => {
     const siteUrl = getEnv('SITE_URL');
     const basePath = getEnv('BASE_PATH');
-    const base = `${siteUrl}${basePath}/http_api/api/sso`;
-    // SAML uses SP-initiated redirect (AuthnRequest); OIDC/OAuth2 use the
-    // authorization-code flow via /authorize.
-    if (ssoConfig?.providerType === 'saml') {
-      window.location.href = `${base}/saml/login`;
-      return;
-    }
-    const callbackUri = `${base}/callback`;
-    window.location.href = `${base}/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
-  }, [ssoConfig?.providerType]);
+    const callbackUri = `${siteUrl}${basePath}/http_api/api/sso/callback`;
+    window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
+  }, []);
 
   // Passkey / WebAuthn sign-in (#1508). Drives the browser's get-credential
   // ceremony; on success the session is live, so refresh the cache and route
@@ -349,11 +342,12 @@ export function LogInPage() {
                 right) — the standard pattern — so the space directly under the
                 input is free for the error message to read as field feedback. */}
             <div className="flex flex-col gap-1.5">
-              <Row gap={2} justify="between">
+              <div className="flex items-center justify-between gap-2">
                 <Label htmlFor="password">{t('password')}</Label>
                 <Button
                   type="button"
                   variant="link"
+                  size="sm"
                   className="h-auto p-0"
                   onClick={() =>
                     toast({
@@ -365,7 +359,7 @@ export function LogInPage() {
                 >
                   {t('login.forgotPassword')}
                 </Button>
-              </Row>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -384,11 +378,10 @@ export function LogInPage() {
               // `space-y-4`) so the message reads as feedback on the inputs —
               // matching the ~6px gap a field-level error uses — rather than
               // floating midway to the button.
-              <Stack
+              <div
                 role="alert"
                 aria-live="polite"
-                gap={1}
-                className="-mt-2.5"
+                className="-mt-2.5 flex flex-col gap-1"
               >
                 <p className="text-destructive flex items-start gap-1.5 text-sm font-medium">
                   <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -399,7 +392,7 @@ export function LogInPage() {
                     {t('login.lockoutAdvisory')}
                   </p>
                 )}
-              </Stack>
+              </div>
             )}
 
             <Button type="submit" fullWidth disabled={isSubmitting || !isValid}>
@@ -411,11 +404,11 @@ export function LogInPage() {
         {/* A single "or" divider separates the credential method above from the
             alternative sign-in methods grouped below — it reads correctly with
             one alternative (passkey) or two (passkey + SSO). */}
-        <Row gap={3} aria-hidden="true">
+        <div className="flex items-center gap-3" aria-hidden="true">
           <span className="bg-border h-px flex-1" />
           <span className="text-muted-foreground text-xs">{tCommon('or')}</span>
           <span className="bg-border h-px flex-1" />
-        </Row>
+        </div>
 
         <Stack gap={3}>
           <Button
