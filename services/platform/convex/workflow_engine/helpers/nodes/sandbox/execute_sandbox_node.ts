@@ -70,5 +70,12 @@ export async function executeSandboxNode(
           },
         );
 
-  return { port: 'success', output: { type: 'sandbox', data } };
+  // A DURABLE agent run hands off with status 'running' when its per-action
+  // window elapses mid-run (the sandbox exec keeps running). Surface it on a
+  // dedicated 'running' port so the handler re-enters the SAME step to attach
+  // the next segment, transparently spanning the 10-min action ceiling.
+  // Everything terminal stays on 'success' (ok/error live in output.data, so a
+  // following condition branches as before). Script runs never return 'running'.
+  const port = data.status === 'running' ? 'running' : 'success';
+  return { port, output: { type: 'sandbox', data } };
 }

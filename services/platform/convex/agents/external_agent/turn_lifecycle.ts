@@ -9,8 +9,8 @@
 //    guarded by an exactly-once claim so the initial action, a continuation, the
 //    recovery watchdog, and cancel can all race safely.
 //  - handleTurnOutcome: dispatch a runAgentInSessionImpl result — TERMINAL ⇒
-//    finalize; 'continued' ⇒ checkpoint to _storage + schedule the continuation
-//    action (the cross-30-min-ceiling handoff).
+//    finalize; 'running' (non-terminal handoff) ⇒ checkpoint to _storage +
+//    schedule the continuation action (the cross-30-min-ceiling handoff).
 
 import { saveMessage } from '@convex-dev/agent';
 
@@ -259,15 +259,16 @@ async function reconcileSteeredMessages(
 
 /**
  * Dispatch a turn result. TERMINAL ⇒ finalize the message + side-effects.
- * 'continued' ⇒ persist the timeline checkpoint to _storage, stamp the op, and
- * schedule the continuation action that re-attaches and resumes.
+ * 'running' (a non-terminal handoff) ⇒ persist the timeline checkpoint to
+ * _storage, stamp the op, and schedule the continuation action that re-attaches
+ * and resumes.
  */
 export async function handleTurnOutcome(
   ctx: ActionCtx,
   turn: TurnContext,
   result: RunAgentInSessionResult,
 ): Promise<void> {
-  if (result.status === 'continued') {
+  if (result.status === 'running') {
     // No continuation cap — a long run is an unbounded sequence of handoffs.
     // Just log a heartbeat occasionally so a genuine runaway bug is still
     // visible in the logs (the VK budget + the exec's sliding deadline bound
@@ -478,8 +479,8 @@ export async function handleTurnOutcome(
   // Zero-output completion (empty-but-200 model response): render an honest
   // failed bubble instead of a success "Agent run completed." — the run did
   // nothing the user can use, and the failed state carries the Try-again
-  // affordance. Only for a single-segment turn: a continued turn's empty
-  // FINAL segment is normal (earlier segments hold the work) and keeps the
+  // affordance. Only for a single-segment turn: a resumed (multi-segment) turn's
+  // empty FINAL segment is normal (earlier segments hold the work) and keeps the
   // fallback below. run_external_agent retries once before this is reached.
   if (
     turn.continuationCount === 0 &&
@@ -640,7 +641,7 @@ function turnTokensOf(
     : null;
 }
 
-/** A continued segment that produced no renderable content — reuse its message
+/** A resumed segment that produced no renderable content — reuse its message
  * across the seam rather than sealing an empty bubble. */
 function isContentEmpty(content: AgentAssistantContent | undefined): boolean {
   if (content === undefined) return true;

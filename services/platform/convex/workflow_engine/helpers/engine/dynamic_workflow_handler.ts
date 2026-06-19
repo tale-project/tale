@@ -271,6 +271,33 @@ export async function handleDynamicWorkflow(
       }
     }
 
+    // A DURABLE sandbox-step agent run that handed off mid-run (its per-action
+    // window elapsed; the sandbox exec keeps running). Re-enter the SAME step —
+    // a fresh durable `step.runAction` segment that re-attaches and resumes —
+    // WITHOUT advancing `currentStepSlug`, transparently spanning the 10-min
+    // action ceiling. This is an INTERNAL control port (the author never maps
+    // it), so it MUST be handled before the nextSteps resolution below (which
+    // would otherwise throw "No next step for port 'running'"). The per-segment
+    // cursor lives in the sandbox checkpoint; the step's own `maxWallClockMs` +
+    // a continuation backstop in `runSandboxAgent` bound the loop and eventually
+    // return a terminal status on the 'success' port.
+    if (stepResult.port === 'running') {
+      debugLog('dynamicWorkflow Re-entering durable sandbox step (handoff)', {
+        executionId,
+        stepSlug: stepDef.stepSlug,
+      });
+      await step.runMutation(
+        internal.workflow_executions.internal_mutations.updateExecutionStatus,
+        {
+          executionId,
+          status: 'running',
+          currentStepSlug: stepDef.stepSlug,
+          currentStepName: stepDef.name,
+        },
+      );
+      continue;
+    }
+
     let nextStepSlug: string | null = null;
 
     // Check if there's an explicit nextSteps mapping for this port

@@ -141,8 +141,9 @@ export interface RunAgentInSessionArgs {
   onHumanControlRequest?: (reason: string) => Promise<void>;
   /** Absolute time (ms) by which THIS action must hand off (it runs under the
    * Convex action ceiling). Reached without a terminal result → the run returns
-   * status 'continued' + a checkpoint instead of finishing, and the caller
-   * schedules a continuation action that resumes via `resumeFrom`. */
+   * status 'running' (a non-terminal handoff) + a checkpoint instead of
+   * finishing, and the caller schedules a continuation action that resumes via
+   * `resumeFrom` by re-attaching to the still-running exec. */
   budgetDeadlineMs?: number;
   /** Resume a turn a prior action handed off: re-attach at `lastSeq` — no new
    * exec is started (the same exec keeps running under the detach-grace). The
@@ -176,9 +177,10 @@ export interface RunAgentInSessionArgs {
 }
 
 export interface RunAgentInSessionResult {
-  /** 'completed' | 'failed' | 'cancelled' (terminal) or 'continued' (the action
-   * budget elapsed mid-turn → hand off to a continuation action). */
-  status: 'completed' | 'failed' | 'cancelled' | 'continued';
+  /** 'completed' | 'failed' | 'cancelled' (terminal) or 'running' (a non-terminal
+   * handoff: the action budget elapsed mid-turn, the exec keeps running, and a
+   * continuation action re-attaches to it). */
+  status: 'completed' | 'failed' | 'cancelled' | 'running';
   exitCode: number | null;
   agentSessionId?: string;
   finalText?: string;
@@ -195,19 +197,19 @@ export interface RunAgentInSessionResult {
    * completed turn's tool calls survive (not just the live, capped op buffer).
    * A plain string when the turn had no timeline. */
   assistantContent?: AgentAssistantContent;
-  /** Handoff cursor (status==='continued' only): the seq the continuation
+  /** Handoff cursor (status==='running' only): the seq the continuation
    * action re-attaches from. The timeline is NOT carried — each segment renders
    * into its own message (S4). */
   lastSeq?: number;
-  /** status==='continued' only: toolUseId → toolName for every tool-use this
+  /** status==='running' only: toolUseId → toolName for every tool-use this
    * turn has seen so far, checkpointed so a continuation segment can name the
    * orphan results of pre-seam tool calls. */
   toolNames?: Record<string, string>;
-  /** status==='continued' only: childToolUseId → immediate parentToolUseId for
+  /** status==='running' only: childToolUseId → immediate parentToolUseId for
    * every sub-agent tool-use this turn has seen, checkpointed so a continuation
    * segment can fold a pre-seam sub-agent's later result under its Task. */
   toolUseParents?: Record<string, string>;
-  /** status==='continued' only: this seam was tripped by an OBSERVED steer
+  /** status==='running' only: this seam was tripped by an OBSERVED steer
    * injection — the in-sandbox hook delivered queued user message(s) into the
    * running turn (Stop-hook stream sentinel, or consumed.* markers found by
    * the dir poll). The next segment must open a FRESH message (even if this
@@ -226,7 +228,7 @@ export interface RunAgentInSessionResult {
    * external_agent_human_control approval that parks the turn until a human
    * takes + returns browser control. */
   humanControlReason?: string;
-  /** status==='continued' only — stdin-hold lifecycle for the checkpoint (see
+  /** status==='running' only — stdin-hold lifecycle for the checkpoint (see
    * resumeFrom): result-seen flag, idle flag, and the unbalanced background-
    * task ledger at the seam. */
   agentResultSeen?: boolean;
@@ -338,7 +340,7 @@ export async function runAgentInSessionImpl(
     Object.entries(args.resumeFrom?.toolUseParents ?? {}),
   );
   // Handoff control (hoisted so flushProgress can trip it): the budget deadline
-  // OR the per-message byte budget aborts the drain → the run returns 'continued'
+  // OR the per-message byte budget aborts the drain → the run returns 'running'
   // and the caller segments (finalizes this message, opens a fresh one).
   const controller = new AbortController();
   let handoff = false;
@@ -937,7 +939,7 @@ export async function runAgentInSessionImpl(
     // Per-message byte budget (S4 segmentation): a long task accumulates an
     // unbounded number of tool-call parts. Before this segment's serialized
     // content nears Convex's 1 MB doc cap, trip the SAME handoff the budget
-    // deadline uses → the drain aborts, the run returns 'continued', and the
+    // deadline uses → the drain aborts, the run returns 'running', and the
     // caller finalizes this message and opens a fresh one for the next segment.
     // The agent's exec keeps running (detach-grace) and `--resume` keeps the
     // conversation continuous; only the rendered message is segmented.
@@ -1137,7 +1139,7 @@ export async function runAgentInSessionImpl(
         );
       }
       return {
-        status: 'continued',
+        status: 'running',
         exitCode: null,
         ...(capturedSessionId !== undefined && {
           agentSessionId: capturedSessionId,
@@ -1305,7 +1307,7 @@ export const runAgentInSession = internalAction({
       v.literal('completed'),
       v.literal('failed'),
       v.literal('cancelled'),
-      v.literal('continued'),
+      v.literal('running'),
     ),
     exitCode: v.union(v.number(), v.null()),
     agentSessionId: v.optional(v.string()),

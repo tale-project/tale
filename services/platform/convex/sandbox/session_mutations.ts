@@ -415,6 +415,76 @@ export const deleteOpsForThread = internalMutation({
   },
 });
 
+// --- durable workflow sandbox-step checkpoint ------------------------------
+
+/**
+ * Upsert the resume checkpoint for a durable workflow `sandbox`-step agent run
+ * (one row per deterministic session). Written on each action-window handoff;
+ * the next step segment reads it via `loadAgentCheckpoint` to re-attach to the
+ * still-running exec. Each handoff writes the COMPLETE current cursor (a full
+ * snapshot — `replace`, not merge), so a field cleared this segment (e.g. a
+ * background task that finished) is correctly dropped.
+ */
+export const insertAgentCheckpoint = internalMutation({
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    execId: v.string(),
+    lastSeq: v.number(),
+    agentSessionId: v.optional(v.string()),
+    agentResultSeen: v.optional(v.boolean()),
+    agentIdle: v.optional(v.boolean()),
+    pendingTaskIds: v.optional(v.array(v.string())),
+    startedAt: v.number(),
+    continuationCount: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId: args.execId,
+      lastSeq: args.lastSeq,
+      ...(args.agentSessionId !== undefined && {
+        agentSessionId: args.agentSessionId,
+      }),
+      ...(args.agentResultSeen !== undefined && {
+        agentResultSeen: args.agentResultSeen,
+      }),
+      ...(args.agentIdle !== undefined && { agentIdle: args.agentIdle }),
+      ...(args.pendingTaskIds !== undefined && {
+        pendingTaskIds: args.pendingTaskIds,
+      }),
+      startedAt: args.startedAt,
+      continuationCount: args.continuationCount,
+      updatedAt: Date.now(),
+    };
+    for await (const existing of ctx.db
+      .query('sandboxAgentCheckpoints')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      await ctx.db.replace(existing._id, row);
+      return null;
+    }
+    await ctx.db.insert('sandboxAgentCheckpoints', row);
+    return null;
+  },
+});
+
+/** Delete a session's durable checkpoint (the terminal segment, or the stale
+ * `workflow_run` reaper). Idempotent — no row is a no-op. */
+export const deleteAgentCheckpoint = internalMutation({
+  args: { sessionId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    for await (const row of ctx.db
+      .query('sandboxAgentCheckpoints')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      await ctx.db.delete(row._id);
+    }
+    return null;
+  },
+});
+
 // --- in-session exec progress ----------------------------------------------
 
 /**

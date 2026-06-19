@@ -96,6 +96,7 @@ import {
 import { reasoningProfilesTable } from './reasoning_profiles/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
 import {
+  sandboxAgentCheckpointsTable,
   sandboxCredentialAccessTable,
   sandboxSessionOpsTable,
   sandboxSessionsTable,
@@ -261,6 +262,7 @@ export default defineSchema({
   sandboxSessions: sandboxSessionsTable,
   sandboxSessionTokens: sandboxSessionTokensTable,
   sandboxSessionOps: sandboxSessionOpsTable,
+  sandboxAgentCheckpoints: sandboxAgentCheckpointsTable,
   sandboxCredentialAccess: sandboxCredentialAccessTable,
   sandboxIntegrationCalls: sandboxIntegrationCallsTable,
   sandboxUserEnv: sandboxUserEnvTable,

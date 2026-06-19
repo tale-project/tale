@@ -249,7 +249,7 @@ describe('handleTurnOutcome — terminal status mapping', () => {
     expect(claims).toHaveLength(1);
   });
 
-  it('an empty FINAL segment of a continued turn keeps the success fallback', async () => {
+  it('an empty FINAL segment of a resumed turn keeps the success fallback', async () => {
     const ctx = createMockCtx();
     const turn: TurnContext = { ...makeTurn(), continuationCount: 2 };
     await handleTurnOutcome(ctx as unknown as ActionCtx, turn, {
@@ -320,9 +320,7 @@ describe('isEmptyCompletedTurn', () => {
     expect(isEmptyCompletedTurn({ status: 'cancelled' }, undefined)).toBe(
       false,
     );
-    expect(isEmptyCompletedTurn({ status: 'continued' }, undefined)).toBe(
-      false,
-    );
+    expect(isEmptyCompletedTurn({ status: 'running' }, undefined)).toBe(false);
   });
 
   it('false when anything renderable exists', () => {
@@ -508,7 +506,7 @@ describe('handleTurnOutcome — steer seam segmentation', () => {
   it('quiet handoff without a steer seam reuses the same message', async () => {
     const ctx = createSeamCtx();
     await handleTurnOutcome(ctx as unknown as ActionCtx, makeTurn(), {
-      status: 'continued',
+      status: 'running',
       exitCode: null,
       assistantContent: '',
       lastSeq: 7,
@@ -531,7 +529,7 @@ describe('handleTurnOutcome — steer seam segmentation', () => {
   it('steer seam with an empty segment replaces the bubble (fresh below, empty deleted)', async () => {
     const ctx = createSeamCtx();
     await handleTurnOutcome(ctx as unknown as ActionCtx, makeTurn(), {
-      status: 'continued',
+      status: 'running',
       exitCode: null,
       assistantContent: '',
       lastSeq: 7,
@@ -553,7 +551,7 @@ describe('handleTurnOutcome — steer seam segmentation', () => {
   it('steer seam with content seals the old bubble and opens a fresh one', async () => {
     const ctx = createSeamCtx();
     await handleTurnOutcome(ctx as unknown as ActionCtx, makeTurn(), {
-      status: 'continued',
+      status: 'running',
       exitCode: null,
       assistantContent: 'work so far',
       lastSeq: 7,

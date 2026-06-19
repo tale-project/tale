@@ -334,6 +334,54 @@ export const listStaleWorkflowRunSessions = internalQuery({
   },
 });
 
+/** The durable resume checkpoint for a workflow `sandbox`-step session, or null.
+ * `runSandboxAgent` reads this on entry: present ⇒ a prior segment handed off,
+ * so RE-ATTACH from this cursor (skip session create / cred injection / mint);
+ * absent ⇒ a fresh run. One row per deterministic session. */
+export const loadAgentCheckpoint = internalQuery({
+  args: { sessionId: v.string() },
+  returns: v.union(
+    v.object({
+      organizationId: v.string(),
+      sessionId: v.string(),
+      execId: v.string(),
+      lastSeq: v.number(),
+      agentSessionId: v.optional(v.string()),
+      agentResultSeen: v.optional(v.boolean()),
+      agentIdle: v.optional(v.boolean()),
+      pendingTaskIds: v.optional(v.array(v.string())),
+      startedAt: v.number(),
+      continuationCount: v.number(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    for await (const row of ctx.db
+      .query('sandboxAgentCheckpoints')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      return {
+        organizationId: row.organizationId,
+        sessionId: row.sessionId,
+        execId: row.execId,
+        lastSeq: row.lastSeq,
+        ...(row.agentSessionId !== undefined && {
+          agentSessionId: row.agentSessionId,
+        }),
+        ...(row.agentResultSeen !== undefined && {
+          agentResultSeen: row.agentResultSeen,
+        }),
+        ...(row.agentIdle !== undefined && { agentIdle: row.agentIdle }),
+        ...(row.pendingTaskIds !== undefined && {
+          pendingTaskIds: row.pendingTaskIds,
+        }),
+        startedAt: row.startedAt,
+        continuationCount: row.continuationCount,
+      };
+    }
+    return null;
+  },
+});
+
 /** The LIVE session row for a spawner session id, or null. The management-page
  * controls fetch it to confirm the session belongs to the caller's org before
  * acting (defense in depth — the public id is org-scoped at the UI). The

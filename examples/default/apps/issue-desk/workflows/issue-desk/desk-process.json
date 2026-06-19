@@ -1,6 +1,6 @@
 {
   "name": "Issue resolution desk",
-  "description": "A config-driven, repo-agnostic issue-resolution desk. A GitHub issue (bound to a task by the github sync) is picked up by an implementer Claude Code agent that runs in the platform's own ephemeral sandbox on the user's BYO Claude credentials: it derives the repo from the issue, clones it, fixes the issue on a tale/<id> branch, runs the project's OWN tests to verify, commits, pushes (broker-injected github token + the in-image credential helper, private repos included), and opens a pull request. A separate reviewer agent fetches the PR, re-runs the tests, and posts review comments. A toolless LLM judge then reads the review and decides merge-readiness: if yes, the task parks at In review and the workflow ends (the human merges); if no, it loops back to the implementer with the review feedback, repeating until the judge approves. Cross-step state lives on the git branch + PR; the per-step sandboxes are stateless. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
+  "description": "A config-driven, repo-agnostic issue-resolution desk. A GitHub issue (bound to a task by the github sync) is picked up by an implementer Claude Code agent that runs in the platform's own ephemeral sandbox on the user's BYO Claude credentials: it derives the repo from the issue, clones it, fixes the issue on a tale/<id> branch, runs the project's OWN tests to verify, commits, pushes (broker-injected github token + the in-image credential helper, private repos included), opens a pull request, and then WAITS for the project's CI to pass green — fixing failures and re-pushing until it does. The sandbox step is durable: it transparently spans the 10-minute Convex action ceiling (segmenting into re-attached windows), so a 40-50 minute CI run never times the step out, with no separate CI-poll step. A separate reviewer agent fetches the PR, re-runs the tests, confirms CI is green, and posts review comments. A toolless LLM judge then reads the review and decides merge-readiness: if yes, the task parks at In review and the workflow ends (the human merges); if no, it loops back to the implementer with the review feedback, repeating until the judge approves. Cross-step state lives on the git branch + PR; the per-step sandboxes are stateless. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
   "version": "1.0.0",
   "metadata": {
     "pack": "issue-desk",
@@ -18,7 +18,7 @@
     ]
   },
   "config": {
-    "timeout": 3600000,
+    "timeout": 21600000,
     "variables": {
       "workflowId": "issue_desk_process",
       "roles": {
@@ -77,11 +77,11 @@
       "config": {
         "run": {
           "agent": "issue-desk/desk-implementer",
-          "instructions": "Resolve this GitHub issue: '{{input.task.title}}' (#{{input.task.number}}) at {{input.task.externalUrl}}\n{{input.task.description}}\n\nGit is already authenticated for https (broker $GITHUB_TOKEN + credential helper), so clone/commit/push work, private repos included. Do: (1) derive the repo URL from the issue URL and `git clone <repo> repo && cd repo`; (2) checkout branch `tale/{{input.task._id}}` (create it if new, else `git fetch origin tale/{{input.task._id}} && git checkout` it); (3) if a pull request already exists for this branch, READ its open review comments (`gh pr view tale/{{input.task._id}} --comments` or the GitHub REST API) and address every blocking point — this is a re-work pass; (4) implement or refine the fix; (5) VERIFY IT YOURSELF — find the project's test/build command from its own config and run it until green; (6) `git add -A && git commit -m \"Fix #{{input.task.number}}: {{input.task.title}}\" && git push -u origin tale/{{input.task._id}}`; (7) if no pull request exists for this branch yet, open one to the repo's default branch (`gh pr create` or the GitHub REST API with $GITHUB_TOKEN) — otherwise your push already updated it. MANDATORY: write a summary of what you changed, the checks you ran, and the PR URL to /user/output/summary.md (absolute path).",
+          "instructions": "Resolve this GitHub issue: '{{input.task.title}}' (#{{input.task.number}}) at {{input.task.externalUrl}}\n{{input.task.description}}\n\nGit is already authenticated for https (broker $GITHUB_TOKEN + credential helper), so clone/commit/push work, private repos included. Do: (1) derive the repo URL from the issue URL and `git clone <repo> repo && cd repo`; (2) checkout branch `tale/{{input.task._id}}` (create it if new, else `git fetch origin tale/{{input.task._id}} && git checkout` it); (3) if a pull request already exists for this branch, READ its open review comments (`gh pr view tale/{{input.task._id}} --comments` or the GitHub REST API) and address every blocking point — this is a re-work pass; (4) implement or refine the fix; (5) VERIFY IT YOURSELF — find the project's test/build command from its own config and run it until green; (6) `git add -A && git commit -m \"Fix #{{input.task.number}}: {{input.task.title}}\" && git push -u origin tale/{{input.task._id}}`; (7) if no pull request exists for this branch yet, open one to the repo's default branch (`gh pr create` or the GitHub REST API with $GITHUB_TOKEN) — otherwise your push already updated it; (8) WAIT FOR CI: once the PR exists, watch its checks with `gh pr checks tale/{{input.task._id}} --watch` (or poll `gh pr checks tale/{{input.task._id}}`) until they ALL finish. If any check FAILS, read its logs (`gh run view --log-failed`, or open the failing run), fix the cause, commit, push (the PR + checks re-run), and watch again — repeat until every required check is green. Do NOT finish with red or still-pending CI. CI can take 40+ minutes; that is expected — keep waiting, this step is durable and will not time out mid-watch. MANDATORY: write a summary of what you changed, the checks/tests you ran, the FINAL CI state (which checks passed), and the PR URL to /user/output/summary.md (absolute path).",
           "budget": {
-            "maxCents": 250,
-            "maxWallClockMs": 720000,
-            "maxTurns": 60
+            "maxCents": 500,
+            "maxWallClockMs": 5400000,
+            "maxTurns": 120
           }
         }
       },
@@ -134,7 +134,7 @@
       "config": {
         "run": {
           "agent": "issue-desk/desk-reviewer",
-          "instructions": "Review the implementer's fix for '{{input.task.title}}' (#{{input.task.number}}) at {{input.task.externalUrl}} on branch `tale/{{input.task._id}}`. Git is authenticated ($GITHUB_TOKEN + helper). Do: (1) derive the repo URL from the issue URL and `git clone <repo> repo && cd repo`; (2) `git fetch origin tale/{{input.task._id}} && git checkout tale/{{input.task._id}}`; (3) review the change for correctness and run the project's OWN tests; (4) post your review as comments on the pull request (`gh pr review` / `gh pr comment`, or the GitHub REST API with $GITHUB_TOKEN) — do NOT change or push code, the implementer fixes. MANDATORY: write your findings to /user/output/summary.md (absolute path): clearly state whether the change is ready to merge or what specifically must be fixed.",
+          "instructions": "Review the implementer's fix for '{{input.task.title}}' (#{{input.task.number}}) at {{input.task.externalUrl}} on branch `tale/{{input.task._id}}`. Git is authenticated ($GITHUB_TOKEN + helper). Do: (1) derive the repo URL from the issue URL and `git clone <repo> repo && cd repo`; (2) `git fetch origin tale/{{input.task._id}} && git checkout tale/{{input.task._id}}`; (3) review the change for correctness and run the project's OWN tests; (4) confirm the PR's CI is GREEN with `gh pr checks tale/{{input.task._id}}` — red or still-pending CI is a BLOCKING problem you must call out; (5) post your review as comments on the pull request (`gh pr review` / `gh pr comment`, or the GitHub REST API with $GITHUB_TOKEN) — do NOT change or push code, the implementer fixes. MANDATORY: write your findings to /user/output/summary.md (absolute path): state the CI state (which checks passed/failed) and clearly whether the change is ready to merge or what specifically must be fixed.",
           "budget": {
             "maxCents": 200,
             "maxWallClockMs": 480000,

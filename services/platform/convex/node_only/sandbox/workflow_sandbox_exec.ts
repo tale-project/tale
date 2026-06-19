@@ -91,6 +91,20 @@ const SUMMARY_MANDATE = [
 // closes the platform row + VK.
 const EPHEMERAL_TTL_GRACE_MS = 5 * 60 * 1000;
 
+// Per-action attach window: how long ONE Convex action drains the (continuously
+// running) exec before handing off to the next durable-step segment, staying
+// safely under the 10-min action ceiling. Mirrors run_external_agent — same env
+// knob so chat + workflow segment identically.
+const ACTION_WINDOW_MS = Number(
+  process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(480 * 1000),
+);
+
+// Runaway backstop on the number of handoffs a single step may do. The real
+// bound is the step's `maxWallClockMs` (cumulative across segments); this just
+// caps a pathological zero-progress loop. At ~480s/segment this is ~26h —
+// far beyond any legitimate run, so it never bites a healthy long task.
+const MAX_AGENT_CONTINUATIONS = 200;
+
 /**
  * Opportunistic backstop (plan §3d): reap this org's leaked `workflow_run`
  * sessions whose bounded TTL elapsed — the rare hard-kill that skipped the
@@ -134,9 +148,114 @@ async function reapStaleWorkflowRunSessions(
         internal.sandbox.session_mutations.deleteOpsForSession,
         { sessionId },
       );
+      // A leaked session may have been mid-handoff — drop its durable checkpoint
+      // too so no orphan cursor outlives the reaped session.
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.deleteAgentCheckpoint,
+        { sessionId },
+      );
     } catch (e) {
       console.warn('[reapStaleWorkflowRunSessions] row cleanup failed:', e);
     }
+  }
+}
+
+/**
+ * Harvest a finished agent run's output: store every file under the collect dir
+ * to `_storage` and read the mandated `output/summary.md` handoff. Synthesizes a
+ * minimal summary if the agent omitted the file, so "mandatory" never discards
+ * an otherwise-good run on a technicality. Best-effort; a harvest failure leaves
+ * the outputs empty rather than throwing.
+ */
+async function harvestSandboxOutput(
+  ctx: ActionCtx,
+  sessionId: string,
+  collectDir: string,
+  fallbackFinalText: string | undefined,
+): Promise<{ outputFileIds: string[]; summary: string }> {
+  const outputFileIds: string[] = [];
+  let summary: string | undefined;
+  try {
+    const entries = await sessionListFiles(sessionId, collectDir);
+    for (const entry of entries ?? []) {
+      if (entry.type !== 'file') continue;
+      const file = await sessionReadFile(
+        sessionId,
+        `${collectDir}/${entry.name}`,
+      );
+      if (!file) continue;
+      const storageId = await ctx.storage.store(
+        new Blob([file.bytes], { type: file.contentType }),
+      );
+      outputFileIds.push(storageId);
+      if (entry.name === 'summary.md') {
+        summary = new TextDecoder().decode(file.bytes);
+      }
+    }
+  } catch (harvestErr) {
+    console.warn('[runSandboxAgent] output harvest failed:', harvestErr);
+  }
+  if (summary === undefined) {
+    summary = fallbackFinalText
+      ? `(synthesized — agent did not write output/summary.md)\n\n${fallbackFinalText}`
+      : '(synthesized) The agent produced no output/summary.md and no final text.';
+  }
+  return { outputFileIds, summary };
+}
+
+/**
+ * Terminal teardown — destroy the ephemeral session, revoke its VK(s), flip the
+ * row, and drop the durable checkpoint + op rows. Keyed by `sessionId` (NOT a
+ * captured `rowId`/`mintedKeyId`) so it works whichever segment reached terminal
+ * — a multi-segment run's last segment never saw the create/mint. Each leg is
+ * independent best-effort so one failure can't mask the rest.
+ */
+async function teardownAgentSession(
+  ctx: ActionCtx,
+  organizationId: string,
+  sessionId: string,
+): Promise<void> {
+  try {
+    await sessionDestroy(sessionId);
+  } catch (e) {
+    console.warn('[runSandboxAgent] session destroy failed:', e);
+  }
+  try {
+    const { bifrostKeyIds } = await ctx.runMutation(
+      internal.sandbox.session_mutations.revokeTokensForSession,
+      { sessionId },
+    );
+    for (const keyId of bifrostKeyIds) {
+      await revokeVirtualKey(keyId).catch((e) =>
+        console.warn('[runSandboxAgent] VK revoke failed:', e),
+      );
+    }
+  } catch (e) {
+    console.warn('[runSandboxAgent] token revoke failed:', e);
+  }
+  try {
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.markSessionRowDestroyed,
+      { organizationId, sessionId },
+    );
+  } catch (e) {
+    console.warn('[runSandboxAgent] row status update failed:', e);
+  }
+  try {
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.deleteAgentCheckpoint,
+      { sessionId },
+    );
+  } catch (e) {
+    console.warn('[runSandboxAgent] checkpoint delete failed:', e);
+  }
+  try {
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.deleteOpsForSession,
+      { sessionId },
+    );
+  } catch (e) {
+    console.warn('[runSandboxAgent] op cleanup failed:', e);
   }
 }
 
@@ -380,234 +499,295 @@ export const runSandboxAgent = internalAction({
 
     const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
     const execId = `${args.executionId}-${args.stepSlug}`;
-    const startedAt = Date.now();
+    const collectDir = args.output?.collectDir ?? 'output';
+
+    // RESUME? A prior segment of THIS step handed off (status 'running') and the
+    // durable workflow handler re-entered the step. The exec is STILL RUNNING in
+    // the sandbox — re-attach from the cursor and skip the entire setup (no new
+    // exec is built on resume). Absent ⇒ this is the first segment (fresh run).
+    const checkpoint = await ctx.runQuery(
+      internal.sandbox.session_queries.loadAgentCheckpoint,
+      { sessionId },
+    );
+    const resuming = checkpoint !== null;
+
+    // Cumulative budget across ALL segments: `startedAt` is the FIRST segment's
+    // start, so `maxWallClockMs` is a hard TOTAL cap independent of any single
+    // action window; `continuationCount` carries the runaway backstop.
+    const startedAt = checkpoint?.startedAt ?? Date.now();
+    const continuationCount = checkpoint?.continuationCount ?? 0;
+    const hardDeadlineMs = startedAt + args.budget.maxWallClockMs;
     // Bound the container's life to the step budget + grace so the spawner
     // reaps it even if the platform-side teardown is skipped (hard kill).
     const ttlMs = args.budget.maxWallClockMs + EPHEMERAL_TTL_GRACE_MS;
 
-    let rowId: Id<'sandboxSessions'> | null = null;
-    let mintedKeyId: string | null = null;
+    // A re-entry that already exceeded the total budget / backstop → force a
+    // terminal teardown (harvest whatever exists, return a timeout).
+    if (
+      resuming &&
+      (Date.now() >= hardDeadlineMs ||
+        continuationCount >= MAX_AGENT_CONTINUATIONS)
+    ) {
+      const { outputFileIds, summary } = await harvestSandboxOutput(
+        ctx,
+        sessionId,
+        collectDir,
+        undefined,
+      );
+      await teardownAgentSession(ctx, args.organizationId, sessionId);
+      return {
+        mode: 'agent',
+        ok: false,
+        status: 'timeout',
+        summary,
+        outputFileIds,
+        durationMs: Date.now() - startedAt,
+        error: `agent run exceeded its wall-clock budget (${args.budget.maxWallClockMs}ms)`,
+      };
+    }
+
+    // Set true on a handoff (segment ended, run continues) so the `finally`
+    // SKIPS teardown — the session + VK + exec must survive to the next segment.
+    let keepAlive = false;
+    // The session VK (managed runs only). On a fresh segment the mint sets it; on
+    // resume the exec already holds its key (re-attach builds no exec), so the
+    // re-attach needs no gateway args.
+    let gatewayToken: string | null = null;
 
     try {
-      // 0. Opportunistic backstop: reap this org's leaked workflow_run sessions
-      // (TTL elapsed, finally skipped) before adding our own. Best-effort.
-      try {
-        await reapStaleWorkflowRunSessions(ctx, args.organizationId);
-      } catch (reapErr) {
-        console.warn('[runSandboxAgent] stale-session reap failed:', reapErr);
-      }
-
-      // 1. Create the ephemeral agent session (deterministic id → a step retry
-      // reaps the orphan rather than duplicating).
-      rowId = await ctx.runMutation(
-        internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
-        {
-          organizationId: args.organizationId,
-          sessionId,
-          profile: 'agent',
-          ownerType: 'workflow_run',
-          ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
-          createdBy: 'system',
-          agentKind,
-        },
-      );
-      try {
+      if (!resuming) {
+        // ===== FRESH segment: full session setup (steps 0–6) =================
+        // 0. Opportunistic backstop: reap this org's leaked workflow_run
+        // sessions (TTL elapsed, finally skipped) before adding our own.
         try {
-          await sessionCreate({
-            sessionId,
-            organizationId: args.organizationId,
-            profile: 'agent',
-            ttlMs,
-            idleTimeoutMs: ttlMs,
-          });
-        } catch (createErr) {
-          // A deterministic-id collision can only be an orphan (platform-side
-          // creation is serialized by the reserve) — reap and retry once.
-          if (!(createErr instanceof SessionDuplicateError)) throw createErr;
-          await sessionDestroy(sessionId);
-          await sessionCreate({
-            sessionId,
-            organizationId: args.organizationId,
-            profile: 'agent',
-            ttlMs,
-            idleTimeoutMs: ttlMs,
-          });
+          await reapStaleWorkflowRunSessions(ctx, args.organizationId);
+        } catch (reapErr) {
+          console.warn('[runSandboxAgent] stale-session reap failed:', reapErr);
         }
-      } catch (createErr) {
+
+        // 1. Create the ephemeral agent session (deterministic id → a step retry
+        // reaps the orphan rather than duplicating).
+        const rowId: Id<'sandboxSessions'> = await ctx.runMutation(
+          internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
+          {
+            organizationId: args.organizationId,
+            sessionId,
+            profile: 'agent',
+            ownerType: 'workflow_run',
+            ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
+            createdBy: 'system',
+            agentKind,
+          },
+        );
+        try {
+          try {
+            await sessionCreate({
+              sessionId,
+              organizationId: args.organizationId,
+              profile: 'agent',
+              ttlMs,
+              idleTimeoutMs: ttlMs,
+            });
+          } catch (createErr) {
+            // A deterministic-id collision can only be an orphan (platform-side
+            // creation is serialized by the reserve) — reap and retry once.
+            if (!(createErr instanceof SessionDuplicateError)) throw createErr;
+            await sessionDestroy(sessionId);
+            await sessionCreate({
+              sessionId,
+              organizationId: args.organizationId,
+              profile: 'agent',
+              ttlMs,
+              idleTimeoutMs: ttlMs,
+            });
+          }
+        } catch (createErr) {
+          // Mark the row failed (terminal). The sessionId-keyed teardown in the
+          // outer `finally` is a no-op on it (markSessionRowDestroyed skips
+          // non-live rows), so the 'failed' signal is preserved.
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.setSessionStatus,
+            { rowId, status: 'failed' },
+          );
+          throw createErr;
+        }
         await ctx.runMutation(
           internal.sandbox.session_mutations.setSessionStatus,
-          { rowId, status: 'failed' },
+          { rowId, status: 'active', lastActivityAt: Date.now() },
         );
-        rowId = null; // already terminal — skip the finally status flip
-        throw createErr;
-      }
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.setSessionStatus,
-        { rowId, status: 'active', lastActivityAt: Date.now() },
-      );
 
-      // 2. Provider provisioning + gateway auth-hardening (managed only) so the
-      // mint below binds the VK to the org's upstream key. Provisioning is
-      // best-effort (the mint fails closed if no key); auth-hardening is not.
-      let gatewayToken: string | null = null;
-      if (!byo) {
+        // 2. Provider provisioning + gateway auth-hardening (managed only) so the
+        // mint below binds the VK to the org's upstream key. Provisioning is
+        // best-effort (the mint fails closed if no key); auth-hardening is not.
+        if (!byo) {
+          try {
+            const gatewayProviders = await loadOrgGatewayProviders(
+              ctx,
+              args.organizationId,
+            );
+            if (gatewayProviders.length > 0) {
+              await provisionProviders(args.organizationId, gatewayProviders);
+            }
+          } catch (provisionErr) {
+            console.warn(
+              '[runSandboxAgent] provisioning failed (mint fails closed):',
+              provisionErr,
+            );
+          }
+          await applyGatewayConfig();
+        }
+
+        // 3a. Inject the step's declared env (author intent) FIRST, so the
+        // security-critical broker credentials injected in 3b always win on a
+        // name collision. Isolated try/catch: a denied/failed step-env patch
+        // must not block the credential injection below.
+        if (args.env && Object.keys(args.env).length > 0) {
+          try {
+            const denied = await sessionEnvPatch(sessionId, { set: args.env });
+            if (denied.length > 0) {
+              console.warn('[runSandboxAgent] step env names denied:', denied);
+            }
+          } catch (envErr) {
+            console.warn(
+              '[runSandboxAgent] step env injection failed (continuing):',
+              envErr,
+            );
+          }
+        }
+
+        // 3a-bis. Inject the AGENT's own env/secrets (the per-agent store, keyed
+        // by the composite slug — e.g. a byo `CLAUDE_CODE_OAUTH_TOKEN`). This is
+        // how a byo agent gets its LLM credential in the workflow sandbox path
+        // (the chat path uses the user's box env; a workflow run has no single
+        // user, so the org-scoped per-agent store is the right source). After
+        // step env, before broker creds, so a broker var still wins on collision.
         try {
-          const gatewayProviders = await loadOrgGatewayProviders(
-            ctx,
-            args.organizationId,
+          const agentEnv = await ctx.runAction(
+            internal.agents.agent_env_actions.resolveAgentEnv,
+            { organizationId: args.organizationId, agentSlug: args.agentSlug },
           );
-          if (gatewayProviders.length > 0) {
-            await provisionProviders(args.organizationId, gatewayProviders);
+          if (Object.keys(agentEnv.env).length > 0) {
+            const denied = await sessionEnvPatch(sessionId, {
+              set: agentEnv.env,
+            });
+            if (denied.length > 0) {
+              console.warn('[runSandboxAgent] agent env names denied:', denied);
+            }
           }
-        } catch (provisionErr) {
+        } catch (agentEnvErr) {
           console.warn(
-            '[runSandboxAgent] provisioning failed (mint fails closed):',
-            provisionErr,
+            '[runSandboxAgent] agent env injection failed (continuing):',
+            agentEnvErr,
           );
         }
-        await applyGatewayConfig();
-      }
 
-      // 3a. Inject the step's declared env (author intent) FIRST, so the
-      // security-critical broker credentials injected in 3b always win on a
-      // name collision. Isolated try/catch: a denied/failed step-env patch must
-      // not block the credential injection below.
-      if (args.env && Object.keys(args.env).length > 0) {
+        // 3b. Inject Tier-2 broker credentials (e.g. GITHUB_TOKEN) for bound
+        // integrations so the agent can self-fetch code — never persisted.
         try {
-          const denied = await sessionEnvPatch(sessionId, { set: args.env });
-          if (denied.length > 0) {
-            console.warn('[runSandboxAgent] step env names denied:', denied);
-          }
-        } catch (envErr) {
-          console.warn(
-            '[runSandboxAgent] step env injection failed (continuing):',
-            envErr,
-          );
-        }
-      }
-
-      // 3a-bis. Inject the AGENT's own env/secrets (the per-agent store, keyed by
-      // the composite slug — e.g. a byo `CLAUDE_CODE_OAUTH_TOKEN`). This is how a
-      // byo agent gets its LLM credential in the workflow sandbox path (the chat
-      // path uses the user's box env; a workflow run has no single user, so the
-      // org-scoped per-agent store is the right source). After step env, before
-      // broker creds, so a security-critical broker var still wins on collision.
-      try {
-        const agentEnv = await ctx.runAction(
-          internal.agents.agent_env_actions.resolveAgentEnv,
-          { organizationId: args.organizationId, agentSlug: args.agentSlug },
-        );
-        if (Object.keys(agentEnv.env).length > 0) {
-          const denied = await sessionEnvPatch(sessionId, {
-            set: agentEnv.env,
-          });
-          if (denied.length > 0) {
-            console.warn('[runSandboxAgent] agent env names denied:', denied);
-          }
-        }
-      } catch (agentEnvErr) {
-        console.warn(
-          '[runSandboxAgent] agent env injection failed (continuing):',
-          agentEnvErr,
-        );
-      }
-
-      // 3b. Inject Tier-2 broker credentials (e.g. GITHUB_TOKEN) for bound
-      // integrations so the agent can self-fetch code — never persisted.
-      try {
-        const creds = await ctx.runAction(
-          internal.node_only.sandbox.session_credentials
-            .resolveSessionCredentials,
-          {
-            organizationId: args.organizationId,
-            sessionId,
-            grants: brokerGrants,
-            kind: 'bootstrap',
-          },
-        );
-        if (Object.keys(creds.env).length > 0) {
-          const denied = await sessionEnvPatch(sessionId, { set: creds.env });
-          if (denied.length > 0) {
-            console.warn('[runSandboxAgent] env names denied:', denied);
-          }
-        }
-      } catch (credErr) {
-        console.warn(
-          '[runSandboxAgent] credential injection failed (continuing):',
-          credErr,
-        );
-      }
-
-      // 4. Stage the agent's bound integration skills (best-effort).
-      try {
-        await stageIntegrationSkills(ctx, {
-          organizationId: args.organizationId,
-          sessionId,
-        });
-      } catch (skillErr) {
-        console.warn(
-          '[runSandboxAgent] integration skill staging failed (continuing):',
-          skillErr,
-        );
-      }
-
-      // 5. Stage declared inputs into the workspace (folderId is a later
-      // increment; the primary agent path self-fetches via GITHUB_TOKEN).
-      const stageFiles: SessionStageFile[] = [];
-      for (const input of args.inputs) {
-        if ('content' in input.from) {
-          stageFiles.push({
-            path: input.as,
-            contentBase64: Buffer.from(input.from.content).toString('base64'),
-          });
-        } else if ('fileId' in input.from) {
-          const raw = await ctx.storage.getUrl(
-            toId<'_storage'>(input.from.fileId),
-          );
-          if (!raw) return fail(`input file not found: ${input.from.fileId}`);
-          stageFiles.push({ path: input.as, url: toSandboxStorageUrl(raw) });
-        } else {
-          return fail('folderId input staging is not yet supported');
-        }
-      }
-      if (stageFiles.length > 0) {
-        const staged = await sessionStageFiles(sessionId, stageFiles);
-        if (staged.skipped.length > 0) {
-          console.warn('[runSandboxAgent] inputs skipped:', staged.skipped);
-        }
-      }
-
-      // 6. Mint a per-run, budget+model-scoped virtual key (managed only). The
-      // step config's budget bounds the key directly (no org-rolling-remaining
-      // accounting — the workflow owns the budget for this run).
-      if (!byo) {
-        const vk = await mintVirtualKey({
-          budgetCents: args.budget.maxCents,
-          allowedModels: [modelRef],
-          organizationId: args.organizationId,
-          sessionId,
-        });
-        mintedKeyId = vk.keyId;
-        gatewayToken = vk.key;
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.insertSessionToken,
-          {
-            organizationId: args.organizationId,
-            sessionId,
-            tokenHash: hashVirtualKey(vk.key),
-            bifrostKeyId: vk.keyId,
-            scope: {
-              agentKind,
-              allowedModels: [modelRef],
-              integrationGrants: brokerGrants,
-              budgetCents: args.budget.maxCents,
+          const creds = await ctx.runAction(
+            internal.node_only.sandbox.session_credentials
+              .resolveSessionCredentials,
+            {
+              organizationId: args.organizationId,
+              sessionId,
+              grants: brokerGrants,
+              kind: 'bootstrap',
             },
-            expiresAt: startedAt + args.budget.maxWallClockMs,
-          },
-        );
+          );
+          if (Object.keys(creds.env).length > 0) {
+            const denied = await sessionEnvPatch(sessionId, { set: creds.env });
+            if (denied.length > 0) {
+              console.warn('[runSandboxAgent] env names denied:', denied);
+            }
+          }
+        } catch (credErr) {
+          console.warn(
+            '[runSandboxAgent] credential injection failed (continuing):',
+            credErr,
+          );
+        }
+
+        // 4. Stage the agent's bound integration skills (best-effort).
+        try {
+          await stageIntegrationSkills(ctx, {
+            organizationId: args.organizationId,
+            sessionId,
+          });
+        } catch (skillErr) {
+          console.warn(
+            '[runSandboxAgent] integration skill staging failed (continuing):',
+            skillErr,
+          );
+        }
+
+        // 5. Stage declared inputs into the workspace (folderId is a later
+        // increment; the primary agent path self-fetches via GITHUB_TOKEN).
+        const stageFiles: SessionStageFile[] = [];
+        for (const input of args.inputs) {
+          if ('content' in input.from) {
+            stageFiles.push({
+              path: input.as,
+              contentBase64: Buffer.from(input.from.content).toString('base64'),
+            });
+          } else if ('fileId' in input.from) {
+            const raw = await ctx.storage.getUrl(
+              toId<'_storage'>(input.from.fileId),
+            );
+            if (!raw) return fail(`input file not found: ${input.from.fileId}`);
+            stageFiles.push({ path: input.as, url: toSandboxStorageUrl(raw) });
+          } else {
+            return fail('folderId input staging is not yet supported');
+          }
+        }
+        if (stageFiles.length > 0) {
+          const staged = await sessionStageFiles(sessionId, stageFiles);
+          if (staged.skipped.length > 0) {
+            console.warn('[runSandboxAgent] inputs skipped:', staged.skipped);
+          }
+        }
+
+        // 6. Mint a per-run, budget+model-scoped virtual key (managed only). The
+        // step config's budget bounds the key directly (no org-rolling-remaining
+        // accounting — the workflow owns the budget for this run). The key is
+        // persisted in sandboxSessionTokens; the terminal teardown revokes it via
+        // revokeTokensForSession (works on whichever segment reaches terminal).
+        if (!byo) {
+          const vk = await mintVirtualKey({
+            budgetCents: args.budget.maxCents,
+            allowedModels: [modelRef],
+            organizationId: args.organizationId,
+            sessionId,
+          });
+          gatewayToken = vk.key;
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.insertSessionToken,
+            {
+              organizationId: args.organizationId,
+              sessionId,
+              tokenHash: hashVirtualKey(vk.key),
+              bifrostKeyId: vk.keyId,
+              scope: {
+                agentKind,
+                allowedModels: [modelRef],
+                integrationGrants: brokerGrants,
+                budgetCents: args.budget.maxCents,
+              },
+              expiresAt: hardDeadlineMs,
+            },
+          );
+        }
       }
 
-      // 7. Run the agent autonomously (no human in the loop, no steering).
+      // 7. Run ONE action-safe segment. `budgetDeadlineMs` trips the handoff at
+      // the action window (or the hard total budget, whichever is sooner); the
+      // exec keeps running across the seam under runnerd's detach-grace, so the
+      // next segment re-attaches rather than restarting.
+      const budgetDeadlineMs = Math.min(
+        Date.now() + ACTION_WINDOW_MS,
+        hardDeadlineMs,
+      );
+      const segmentTimeoutMs = Math.max(0, hardDeadlineMs - Date.now());
+      // Fresh-run exec args (ignored on resume — no new exec is built).
       const prompt =
         args.instructions ??
         (agentConfig.instructions || 'Complete the assigned task.');
@@ -624,68 +804,127 @@ export const runSandboxAgent = internalAction({
         !byo && modelRef && modelRef !== 'default'
           ? resolveGatewayRoutingFromRef(modelRef).gatewayModel
           : undefined;
-      const result = await runAgentInSessionImpl(ctx, {
-        organizationId: args.organizationId,
-        sessionId,
-        execId,
-        agentSlug: agentKind,
-        prompt,
-        ...(useModel !== undefined && { model: useModel }),
-        authMode: byo ? 'byo' : 'managed',
-        interactionMode: 'autonomous',
-        systemPromptAppend,
-        ...(args.budget.maxTurns !== undefined && {
-          maxTurns: args.budget.maxTurns,
-        }),
-        ...(!byo &&
-          gatewayToken !== null && {
-            gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
-            gatewayToken,
-            integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
-          }),
-        timeoutMs: args.budget.maxWallClockMs,
-      });
+      const result =
+        checkpoint !== null
+          ? await runAgentInSessionImpl(ctx, {
+              organizationId: args.organizationId,
+              sessionId,
+              execId,
+              agentSlug: agentKind,
+              // Unused on resume — we re-attach to the still-running exec.
+              prompt: '',
+              interactionMode: 'autonomous',
+              budgetDeadlineMs,
+              timeoutMs: segmentTimeoutMs,
+              resumeFrom: {
+                lastSeq: checkpoint.lastSeq,
+                ...(checkpoint.agentSessionId !== undefined && {
+                  agentSessionId: checkpoint.agentSessionId,
+                }),
+                ...(checkpoint.agentResultSeen === true && {
+                  agentResultSeen: true,
+                }),
+                ...(checkpoint.agentIdle === true && { agentIdle: true }),
+                ...(checkpoint.pendingTaskIds !== undefined && {
+                  pendingTaskIds: checkpoint.pendingTaskIds,
+                }),
+              },
+            })
+          : await runAgentInSessionImpl(ctx, {
+              organizationId: args.organizationId,
+              sessionId,
+              execId,
+              agentSlug: agentKind,
+              prompt,
+              ...(useModel !== undefined && { model: useModel }),
+              authMode: byo ? 'byo' : 'managed',
+              interactionMode: 'autonomous',
+              systemPromptAppend,
+              ...(args.budget.maxTurns !== undefined && {
+                maxTurns: args.budget.maxTurns,
+              }),
+              ...(!byo &&
+                gatewayToken !== null && {
+                  gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
+                  gatewayToken,
+                  integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
+                }),
+              budgetDeadlineMs,
+              timeoutMs: segmentTimeoutMs,
+            });
 
-      // 8. Harvest output: store every file under the collect dir to _storage
-      // and read the mandated output/summary.md handoff.
-      const collectDir = args.output?.collectDir ?? 'output';
-      const outputFileIds: string[] = [];
-      let summary: string | undefined;
-      try {
-        const entries = await sessionListFiles(sessionId, collectDir);
-        for (const entry of entries ?? []) {
-          if (entry.type !== 'file') continue;
-          const file = await sessionReadFile(
-            sessionId,
-            `${collectDir}/${entry.name}`,
+      // HANDOFF: the action window elapsed mid-run. Persist the cursor, keep the
+      // session alive, and return `running` so the workflow handler re-enters
+      // this step — UNLESS the total budget / backstop is now exhausted (then
+      // fall through to a terminal teardown as a timeout).
+      if (result.status === 'running') {
+        const nextCount = continuationCount + 1;
+        const exhausted =
+          Date.now() >= hardDeadlineMs || nextCount >= MAX_AGENT_CONTINUATIONS;
+        if (!exhausted) {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.insertAgentCheckpoint,
+            {
+              organizationId: args.organizationId,
+              sessionId,
+              execId,
+              lastSeq: result.lastSeq ?? 0,
+              ...(result.agentSessionId !== undefined && {
+                agentSessionId: result.agentSessionId,
+              }),
+              ...(result.agentResultSeen === true && { agentResultSeen: true }),
+              ...(result.agentIdle === true && { agentIdle: true }),
+              ...(result.pendingTaskIds !== undefined &&
+                result.pendingTaskIds.length > 0 && {
+                  pendingTaskIds: result.pendingTaskIds,
+                }),
+              startedAt,
+              continuationCount: nextCount,
+            },
           );
-          if (!file) continue;
-          const storageId = await ctx.storage.store(
-            new Blob([file.bytes], { type: file.contentType }),
-          );
-          outputFileIds.push(storageId);
-          if (entry.name === 'summary.md') {
-            summary = new TextDecoder().decode(file.bytes);
-          }
+          // Refresh the session lifetime each seam so the platform reaper never
+          // expires a mid-run session (mirrors the chat path's per-seam bump).
+          await ctx
+            .runMutation(
+              internal.sandbox.session_mutations.resumeStoppedSession,
+              { organizationId: args.organizationId, sessionId },
+            )
+            .catch((err) =>
+              console.warn(
+                '[runSandboxAgent] session lifetime refresh failed:',
+                err,
+              ),
+            );
+          keepAlive = true;
+          return {
+            mode: 'agent',
+            ok: false,
+            status: 'running',
+            outputFileIds: [],
+            durationMs: Date.now() - startedAt,
+          };
         }
-      } catch (harvestErr) {
-        console.warn('[runSandboxAgent] output harvest failed:', harvestErr);
-      }
-      // Synthesize a minimal handoff if the agent omitted the mandated file, so
-      // "mandatory" never discards an otherwise-good run on a technicality.
-      if (summary === undefined) {
-        summary = result.finalText
-          ? `(synthesized — agent did not write output/summary.md)\n\n${result.finalText}`
-          : '(synthesized) The agent produced no output/summary.md and no final text.';
+        // exhausted → treat the handoff as a terminal timeout below.
       }
 
+      // 8. TERMINAL (completed / failed / cancelled, or an exhausted handoff).
+      // Harvest output: store every file under the collect dir to _storage and
+      // read the mandated output/summary.md handoff.
+      const terminalStatus =
+        result.status === 'running' ? 'timeout' : result.status;
+      const { outputFileIds, summary } = await harvestSandboxOutput(
+        ctx,
+        sessionId,
+        collectDir,
+        result.finalText,
+      );
       const ok =
-        result.status === 'completed' &&
+        terminalStatus === 'completed' &&
         (result.exitCode === 0 || result.exitCode === null);
       return {
         mode: 'agent',
         ok,
-        status: result.status,
+        status: terminalStatus,
         summary,
         outputFileIds,
         ...(result.exitCode !== null && { exitCode: result.exitCode }),
@@ -693,35 +932,21 @@ export const runSandboxAgent = internalAction({
           stdoutPreview: result.finalText.slice(0, 2000),
         }),
         durationMs: Date.now() - startedAt,
-        ...(!ok && { error: `agent run ${result.status}` }),
+        ...(!ok && {
+          error:
+            terminalStatus === 'timeout'
+              ? `agent run exceeded its wall-clock budget (${args.budget.maxWallClockMs}ms)`
+              : `agent run ${terminalStatus}`,
+        }),
       };
     } catch (e) {
       return fail(e instanceof Error ? e.message : String(e));
     } finally {
-      // Teardown ALWAYS: destroy the ephemeral session + revoke the VK so
-      // nothing outlives the step (outputs were already harvested to _storage).
-      // Each leg is independent best-effort so one failure can't mask the rest.
-      try {
-        await sessionDestroy(sessionId);
-      } catch (e) {
-        console.warn('[runSandboxAgent] session destroy failed:', e);
-      }
-      if (mintedKeyId) {
-        try {
-          await revokeVirtualKey(mintedKeyId);
-        } catch (e) {
-          console.warn('[runSandboxAgent] VK revoke failed:', e);
-        }
-      }
-      if (rowId) {
-        try {
-          await ctx.runMutation(
-            internal.sandbox.session_mutations.setSessionStatus,
-            { rowId, status: 'destroyed' },
-          );
-        } catch (e) {
-          console.warn('[runSandboxAgent] row status update failed:', e);
-        }
+      // Teardown UNLESS we handed off mid-run (then the session + VK + exec must
+      // survive to the next segment). Keyed by sessionId so it works on ANY
+      // segment — a resumed terminal segment never saw the create/mint.
+      if (!keepAlive) {
+        await teardownAgentSession(ctx, args.organizationId, sessionId);
       }
     }
   },
