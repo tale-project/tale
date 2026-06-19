@@ -32,8 +32,7 @@
                 "coordinator": "desk-coordinator",
                 "implementer": "desk-implementer",
                 "reviewer": "desk-reviewer"
-              },
-              "workflowSlug": "issue-desk/desk-process"
+              }
             }
           }
         ]

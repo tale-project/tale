@@ -3,10 +3,10 @@
 /**
  * Connected `AgentList` block — shows the app's agents (the team doing the work)
  * with entry points to configure them. Binds the allowlisted `listAgents` action
- * (one-shot), filtered to the app's manifest agents. "Edit instructions" opens
- * an INLINE modal on this page (no navigation) so configuring the team stays in
- * one place; the env/secrets link still routes to the workflow's Configuration
- * tab (workflow-scoped, where step env/secrets are authored).
+ * (one-shot), filtered to the app's manifest agents. Everything is edited INLINE
+ * on this page (no navigation): "Edit instructions" + "Env & secrets" open
+ * modals, and the BYO|Managed auth mode flips in place — configuring the team
+ * stays in one place.
  */
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
@@ -14,7 +14,6 @@ import { Card } from '@tale/ui/card';
 import { HStack, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
-import { useNavigate } from '@tanstack/react-router';
 import { Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -23,7 +22,7 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundAction } from '../../hooks/use-bound-action';
-import { useAppRuntime } from '../../runtime/app-runtime';
+import { AgentEnvDialog } from './agent-env-dialog';
 import { AgentInstructionsDialog } from './agent-instructions-dialog';
 import { Section } from './section';
 
@@ -33,12 +32,6 @@ export interface AgentListProps {
   agents?: string[];
   /** role token -> agent slug (manifest.roles), for the role badge. */
   roles?: Record<string, string>;
-  /**
-   * The workflow these agents run inside. When set, the env/secrets link opens
-   * that workflow's Configuration tab (the correct, app-scoped place to set
-   * step env/secrets); when absent, it falls back to personal env settings.
-   */
-  workflowSlug?: string;
 }
 
 function str(rec: Record<string, unknown>, key: string): string {
@@ -88,29 +81,8 @@ function AuthModeToggle({
   );
 }
 
-export function AgentList({
-  title,
-  agents,
-  roles,
-  workflowSlug,
-}: AgentListProps) {
+export function AgentList({ title, agents, roles }: AgentListProps) {
   const { t } = useT('apps');
-  const { organizationId } = useAppRuntime();
-  const navigate = useNavigate();
-
-  const openEnvSettings = (): void => {
-    if (workflowSlug) {
-      void navigate({
-        to: '/dashboard/$id/automations/$amId/configuration',
-        params: { id: organizationId, amId: workflowSlug },
-      });
-    } else {
-      void navigate({
-        to: '/dashboard/$id/settings/environment',
-        params: { id: organizationId },
-      });
-    }
-  };
   const list = useBoundAction('agents/file_actions:listAgents', 'action');
   const listRef = useRef(list);
   listRef.current = list;
@@ -128,6 +100,11 @@ export function AgentList({
   const [editing, setEditing] = useState<{ slug: string; name: string } | null>(
     null,
   );
+  // The agent whose env vars are being edited inline (null = closed).
+  const [editingEnv, setEditingEnv] = useState<{
+    slug: string;
+    name: string;
+  } | null>(null);
   // The agent whose auth mode is mid-switch (disables its toggle).
   const [switching, setSwitching] = useState<string | null>(null);
 
@@ -244,7 +221,12 @@ export function AgentList({
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={openEnvSettings}
+                          onClick={() =>
+                            setEditingEnv({
+                              slug,
+                              name: str(agent, 'displayName') || slug,
+                            })
+                          }
                         >
                           {t('agents.envSecrets')}
                         </Button>
@@ -281,6 +263,11 @@ export function AgentList({
         agentSlug={editing?.slug ?? null}
         displayName={editing?.name ?? ''}
         onClose={() => setEditing(null)}
+      />
+      <AgentEnvDialog
+        agentSlug={editingEnv?.slug ?? null}
+        displayName={editingEnv?.name ?? ''}
+        onClose={() => setEditingEnv(null)}
       />
     </>
   );

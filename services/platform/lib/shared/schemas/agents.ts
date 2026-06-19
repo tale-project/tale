@@ -245,6 +245,15 @@ export const agentJsonSchema = z
      * already a privileged action, so there is no separate org-level gate.
      */
     authMode: z.enum(['managed', 'byo']).optional(),
+    /**
+     * Plain (non-secret) environment variables injected into this agent's
+     * external run process — merged over the runtime's own env by the daemon's
+     * `execAdapter`. For extra per-agent config set from the UI; NOT for
+     * secrets (values are stored in plaintext in the agent file — a BYO agent's
+     * real credentials live on the runtime machine). Only the external-run path
+     * consumes it.
+     */
+    env: z.record(z.string(), z.string()).optional(),
     systemInstructions: z.string().optional(),
     toolNames: z.array(z.string()).optional(),
     integrationBindings: z.array(z.string().min(1)).optional(),

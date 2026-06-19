@@ -70,6 +70,22 @@
         "saved": "Instructions saved",
         "saveError": "Couldn't save instructions",
         "loadError": "Couldn't load this agent."
+      },
+      "env": {
+        "title": "Environment variables — {name}",
+        "description": "Plain (non-secret) env injected into this agent's runs. Secrets aren't stored here — a BYO agent uses its runtime machine's own credentials.",
+        "none": "No environment variables yet.",
+        "keyPlaceholder": "NAME",
+        "valuePlaceholder": "value",
+        "add": "Add variable",
+        "remove": "Remove",
+        "save": "Save",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "saved": "Environment saved",
+        "saveError": "Couldn't save environment",
+        "loadError": "Couldn't load this agent.",
+        "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit)."
       }
     },
     "workflow": {

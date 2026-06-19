@@ -82,6 +82,9 @@ export interface SerializableAgentConfig {
     permissionMode: 'safe' | 'auto_edits' | 'full_auto';
     workspaceKey?: string;
   };
+  /** Plain (non-secret) env vars injected into this agent's external run
+   *  process by the runtime daemon. Authored inline; secrets stay machine-local. */
+  env?: Record<string, string>;
   /**
    * Hard allowlist of skill slugs the agent may use. Empty / omitted = no
    * skills available; the runtime emits no `expand_skill` tool and no

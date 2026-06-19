@@ -160,13 +160,8 @@ export const taleConfig: Config<TaleComponents> = {
     },
     AgentList: {
       fields: { title: { type: 'text' } },
-      render: ({ title, agents, roles, workflowSlug }) => (
-        <AgentList
-          title={title}
-          agents={agents}
-          roles={roles}
-          workflowSlug={workflowSlug}
-        />
+      render: ({ title, agents, roles }) => (
+        <AgentList title={title} agents={agents} roles={roles} />
       ),
     },
     WorkflowMap: {

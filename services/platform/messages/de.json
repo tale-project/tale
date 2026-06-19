@@ -70,6 +70,22 @@
         "saved": "Anweisungen gespeichert",
         "saveError": "Anweisungen konnten nicht gespeichert werden",
         "loadError": "Dieser Agent konnte nicht geladen werden."
+      },
+      "env": {
+        "title": "Umgebungsvariablen — {name}",
+        "description": "Einfache (nicht geheime) Umgebungsvariablen für die Läufe dieses Agenten. Geheimnisse werden hier nicht gespeichert — ein BYO-Agent nutzt die Anmeldedaten seiner Laufzeitmaschine.",
+        "none": "Noch keine Umgebungsvariablen.",
+        "keyPlaceholder": "NAME",
+        "valuePlaceholder": "Wert",
+        "add": "Variable hinzufügen",
+        "remove": "Entfernen",
+        "save": "Speichern",
+        "saving": "Wird gespeichert…",
+        "cancel": "Abbrechen",
+        "saved": "Umgebung gespeichert",
+        "saveError": "Umgebung konnte nicht gespeichert werden",
+        "loadError": "Dieser Agent konnte nicht geladen werden.",
+        "badKey": "„{key}“ ist kein gültiger Umgebungsvariablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend)."
       }
     },
     "workflow": {
