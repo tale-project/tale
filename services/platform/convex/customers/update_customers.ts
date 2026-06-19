@@ -62,6 +62,15 @@ export async function updateCustomers(
     if (!customer) {
       throw new Error(`Customer not found: ${args.customerId}`);
     }
+    // Cross-tenant write guard: when the caller's org is known (the customer
+    // workflow action passes it), the target customer must belong to it.
+    // Closes the by-id IDOR; mirrors updateConversations.
+    if (
+      args.organizationId &&
+      customer.organizationId !== args.organizationId
+    ) {
+      throw new Error(`Customer not found: ${args.customerId}`);
+    }
     customersToUpdate = [customer];
   } else if (args.organizationId) {
     const orgId = args.organizationId;
