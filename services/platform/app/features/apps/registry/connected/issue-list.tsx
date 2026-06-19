@@ -10,7 +10,7 @@
  */
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { HStack, VStack } from '@tale/ui/layout';
+import { HStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import {
   Table,
@@ -21,12 +21,14 @@ import {
   TableRow,
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
+import { CircleDot } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundAction } from '../../hooks/use-bound-action';
+import { Section } from './section';
 
 export interface IssueListProps {
   title?: string;
@@ -140,24 +142,19 @@ export function IssueList({
     }
   };
 
-  return (
-    <VStack gap={3}>
-      <HStack gap={3} className="items-center justify-between">
-        {title && (
-          <Text as="span" className="text-lg font-semibold">
-            {title}
-          </Text>
-        )}
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={loading}
-          onClick={() => void fetchIssues()}
-        >
-          {t('issues.refresh')}
-        </Button>
-      </HStack>
+  const refresh = (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={loading}
+      onClick={() => void fetchIssues()}
+    >
+      {t('issues.refresh')}
+    </Button>
+  );
 
+  return (
+    <Section title={title} icon={CircleDot} action={refresh}>
       {loading && issues.length === 0 ? (
         <SkeletonText lines={3} />
       ) : error ? (
@@ -231,6 +228,6 @@ export function IssueList({
           </HStack>
         </>
       )}
-    </VStack>
+    </Section>
   );
 }

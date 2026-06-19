@@ -84,21 +84,28 @@ export const listApps = action({
             console.warn(`[listApps] view too large, skipping: ${filePath}`);
             continue;
           }
-          // A view is a Puck Data document wrapped with id/title:
-          // `{ id, title?, data: { content, root, zones } }`.
+          // A view wraps id/title/description over either a flat Puck Data
+          // document (`data`) or a tabbed shell (`tabs`).
           const raw: unknown = JSON.parse(await readFile(filePath, 'utf8'));
-          if (isRecord(raw) && isRecord(raw.data)) {
+          if (
+            isRecord(raw) &&
+            (isRecord(raw.data) || Array.isArray(raw.tabs))
+          ) {
             views.push({
               id:
                 typeof raw.id === 'string'
                   ? raw.id
                   : file.replace(/\.json$/, ''),
               ...(typeof raw.title === 'string' && { title: raw.title }),
-              data: raw.data,
+              ...(typeof raw.description === 'string' && {
+                description: raw.description,
+              }),
+              ...(isRecord(raw.data) && { data: raw.data }),
+              ...(Array.isArray(raw.tabs) && { tabs: raw.tabs }),
             });
           } else {
             console.warn(
-              `[listApps] view ${file} has no Puck \`data\`; skipping`,
+              `[listApps] view ${file} has no Puck \`data\`/\`tabs\`; skipping`,
             );
           }
         } catch (err) {

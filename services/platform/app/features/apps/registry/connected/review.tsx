@@ -9,11 +9,13 @@ import { Badge } from '@tale/ui/badge';
 import { Card } from '@tale/ui/card';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { ClipboardCheck } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundQuery } from '../../hooks/use-bound-query';
+import { Section } from './section';
 
 export interface ReviewQueueProps {
   title?: string;
@@ -34,12 +36,7 @@ export function ReviewQueue({ title, query }: ReviewQueueProps) {
   const rows = (Array.isArray(data) ? data : []).filter(isRecord);
 
   return (
-    <VStack gap={3}>
-      {title && (
-        <Text as="span" className="text-lg font-semibold">
-          {title}
-        </Text>
-      )}
+    <Section title={title} icon={ClipboardCheck}>
       {blocked ? (
         <Text variant="error">
           {t('binding.blocked', { path: query.path })}
@@ -47,15 +44,17 @@ export function ReviewQueue({ title, query }: ReviewQueueProps) {
       ) : rows.length === 0 ? (
         <Text variant="muted">{t('review.none')}</Text>
       ) : (
-        rows.map((row, i) => (
-          <Card key={i}>
-            <HStack gap={3} className="items-center justify-between">
-              <Text as="span">{label(row)}</Text>
-              <Badge variant="yellow">{t('review.awaiting')}</Badge>
-            </HStack>
-          </Card>
-        ))
+        <VStack gap={2}>
+          {rows.map((row, i) => (
+            <Card key={i}>
+              <HStack gap={3} className="items-center justify-between">
+                <Text as="span">{label(row)}</Text>
+                <Badge variant="yellow">{t('review.awaiting')}</Badge>
+              </HStack>
+            </Card>
+          ))}
+        </VStack>
       )}
-    </VStack>
+    </Section>
   );
 }

@@ -18,9 +18,15 @@ import { Card } from '@tale/ui/card';
 import { Heading } from '@tale/ui/heading';
 import { Text } from '@tale/ui/text';
 
+import { AgentList, type AgentListProps } from './connected/agent-list';
 import { Collection, type CollectionProps } from './connected/collection';
 import { IssueList, type IssueListProps } from './connected/issue-list';
 import { ReviewQueue, type ReviewQueueProps } from './connected/review';
+import { RunList, type RunListProps } from './connected/run-list';
+import {
+  WorkflowSteps,
+  type WorkflowStepsProps,
+} from './connected/workflow-steps';
 
 type TextVariant =
   | 'body'
@@ -52,6 +58,9 @@ interface TaleComponents {
   Collection: Partial<CollectionProps>;
   ReviewQueue: Partial<ReviewQueueProps>;
   IssueList: Partial<IssueListProps>;
+  AgentList: Partial<AgentListProps>;
+  WorkflowSteps: Partial<WorkflowStepsProps>;
+  RunList: Partial<RunListProps>;
 }
 
 const opts = <T extends string | number>(values: readonly T[]) =>
@@ -151,6 +160,30 @@ export const taleConfig: Config<TaleComponents> = {
       fields: { title: { type: 'text' } },
       render: ({ title, query }) =>
         query ? <ReviewQueue title={title} query={query} /> : <></>,
+    },
+    AgentList: {
+      fields: { title: { type: 'text' } },
+      render: ({ title, agents, roles }) => (
+        <AgentList title={title} agents={agents} roles={roles} />
+      ),
+    },
+    WorkflowSteps: {
+      fields: { title: { type: 'text' } },
+      render: ({ title, workflowSlug }) =>
+        workflowSlug ? (
+          <WorkflowSteps title={title} workflowSlug={workflowSlug} />
+        ) : (
+          <></>
+        ),
+    },
+    RunList: {
+      fields: { title: { type: 'text' } },
+      render: ({ title, workflowSlug }) =>
+        workflowSlug ? (
+          <RunList title={title} workflowSlug={workflowSlug} />
+        ) : (
+          <></>
+        ),
     },
     IssueList: {
       fields: {

@@ -48,6 +48,23 @@
       "prev": "Previous",
       "next": "Next",
       "page": "Page {page}"
+    },
+    "agents": {
+      "none": "No agents configured.",
+      "error": "Couldn't load agents: {error}",
+      "editInstructions": "Edit instructions",
+      "envSecrets": "Env & secrets"
+    },
+    "workflow": {
+      "none": "This workflow has no steps.",
+      "error": "Couldn't load the workflow: {error}"
+    },
+    "runs": {
+      "none": "No runs yet.",
+      "colRun": "Run",
+      "colStatus": "Status",
+      "colStarted": "Started",
+      "watchLive": "Watch live"
     }
   },
   "operator": {

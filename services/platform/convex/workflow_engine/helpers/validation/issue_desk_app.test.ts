@@ -12,7 +12,10 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { validateViewBindings } from '../../../../lib/shared/platform/function_bindings';
+import {
+  collectViewBindings,
+  validateViewBindings,
+} from '../../../../lib/shared/platform/function_bindings';
 import { validatePack } from '../../../../lib/shared/platform/validate_pack';
 import { agentJsonSchema } from '../../../../lib/shared/schemas/agents';
 import { appManifestSchema } from '../../../../lib/shared/schemas/apps';
@@ -34,7 +37,7 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     readJson('workflows/issue-desk/desk-process.json'),
   );
   const view = readJson('views/desk.json') as {
-    data?: { content?: Array<{ type?: string }> };
+    tabs?: Array<{ id?: string }>;
   };
 
   it('app.json manifest composes the workflow + agents + functions by reference', () => {
@@ -58,13 +61,16 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(result.errors).toEqual([]);
   });
 
-  it('view is a Puck Data document with connected blocks', () => {
-    const types = (view.data?.content ?? []).map((n) => n.type);
-    expect(types).toContain('Collection');
-    expect(types).toContain('ReviewQueue');
+  it('view is a tabbed shell with the expected areas', () => {
+    const ids = (view.tabs ?? []).map((tab) => tab.id);
+    expect(ids).toEqual(
+      expect.arrayContaining(['overview', 'issues', 'tasks', 'runs']),
+    );
   });
 
-  it('every function the view binds is in capabilities.functions (allowlist)', () => {
+  it('every function the view binds (across tabs + columns) is allowlisted', () => {
+    // Sanity: bindings are actually discovered across the tab/column layout.
+    expect(collectViewBindings(view).length).toBeGreaterThan(0);
     const errors = validateViewBindings(view, manifest.capabilities?.functions);
     expect(errors).toEqual([]);
   });

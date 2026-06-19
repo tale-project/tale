@@ -2,12 +2,24 @@ import { useActionQuery } from '@/app/hooks/use-action-query';
 import { api } from '@/convex/_generated/api';
 import type { FunctionBinding } from '@/lib/shared/platform/function_bindings';
 
-/** One page of an app — a Puck Data document with an id/title. */
+/** A navigable area of a view — its content is single-column Puck Data, or a
+ *  `columns` array of Puck Data documents laid out side by side. */
+export interface AppTabDoc {
+  id: string;
+  label: string;
+  data?: unknown;
+  columns?: unknown[];
+}
+
+/** One page of an app. Either a flat Puck Data document (`data`) or a tabbed
+ *  shell (`tabs`) — the structural layout, navigated rather than scrolled. */
 export interface AppViewDoc {
   id: string;
   title?: string;
-  /** Puck Data ({ content, root, zones }). */
-  data: unknown;
+  description?: string;
+  /** Puck Data ({ content, root, zones }) for a flat (untabbed) view. */
+  data?: unknown;
+  tabs?: AppTabDoc[];
 }
 
 /** An app as surfaced in the Apps hub — read from its `app.json` manifest plus

@@ -1,96 +1,162 @@
 {
   "id": "desk",
   "title": "Issue resolution desk",
-  "data": {
-    "root": { "props": {} },
-    "zones": {},
-    "content": [
-      {
-        "type": "IssueList",
-        "props": {
-          "id": "issues",
-          "title": "GitHub issues",
-          "owner": "tale-project",
-          "repo": "tale",
-          "state": "open"
-        }
-      },
-      {
-        "type": "Collection",
-        "props": {
-          "id": "tasks",
-          "title": "Tasks",
-          "query": {
-            "path": "tasks/queries:listTasksByOrg",
-            "args": { "organizationId": "$orgId", "externalSystem": "github" }
-          },
-          "columns": ["title", "status", "externalId"],
-          "actions": [
+  "description": "Pull GitHub issues, turn them into tasks, and let the agent team resolve them — watch each run execute live.",
+  "tabs": [
+    {
+      "id": "overview",
+      "label": "Overview",
+      "columns": [
+        {
+          "root": { "props": {} },
+          "zones": {},
+          "content": [
             {
-              "label": "Start",
-              "path": "tasks/mutations:updateTaskStatus",
-              "mode": "mutation",
-              "when": "status == backlog || status == todo",
-              "args": { "taskId": "$selected._id", "status": "in_progress" }
-            },
-            {
-              "label": "Mark done",
-              "path": "tasks/mutations:updateTaskStatus",
-              "mode": "mutation",
-              "when": "status != done",
-              "args": { "taskId": "$selected._id", "status": "done" }
-            },
-            {
-              "label": "Assign implementer",
-              "path": "tasks/mutations:assignTask",
-              "mode": "mutation",
-              "args": {
-                "taskId": "$selected._id",
-                "assigneeType": "agent",
-                "assigneeId": "desk-implementer"
+              "type": "WorkflowSteps",
+              "props": {
+                "id": "workflow",
+                "title": "Workflow",
+                "workflowSlug": "issue-desk/desk-process"
               }
-            },
+            }
+          ]
+        },
+        {
+          "root": { "props": {} },
+          "zones": {},
+          "content": [
             {
-              "label": "Triage & run",
-              "variant": "primary",
-              "path": "workflow_executions/actions:startWorkflowFromFile",
-              "mode": "action",
-              "args": {
-                "organizationId": "$orgId",
-                "workflowSlug": "issue-desk/desk-process",
-                "triggeredBy": "user",
-                "input": { "task": "$selected" }
+              "type": "AgentList",
+              "props": {
+                "id": "agents",
+                "title": "Agents",
+                "agents": [
+                  "desk-coordinator",
+                  "desk-implementer",
+                  "desk-reviewer"
+                ],
+                "roles": {
+                  "coordinator": "desk-coordinator",
+                  "implementer": "desk-implementer",
+                  "reviewer": "desk-reviewer"
+                }
               }
             }
           ]
         }
-      },
-      {
-        "type": "ReviewQueue",
-        "props": {
-          "id": "reviews",
-          "title": "Pending reviews",
-          "query": {
-            "path": "approvals/queries:listActiveApprovalsByOrganization",
-            "args": { "organizationId": "$orgId" }
+      ]
+    },
+    {
+      "id": "issues",
+      "label": "Issues",
+      "data": {
+        "root": { "props": {} },
+        "zones": {},
+        "content": [
+          {
+            "type": "IssueList",
+            "props": {
+              "id": "issues",
+              "title": "GitHub issues",
+              "owner": "tale-project",
+              "repo": "tale",
+              "state": "open"
+            }
           }
-        }
-      },
-      {
-        "type": "Collection",
-        "props": {
-          "id": "runs",
-          "title": "Recent runs",
-          "query": {
-            "path": "workflow_executions/queries:listExecutions",
-            "args": {
-              "paginationOpts": { "numItems": 25, "cursor": null },
-              "wfDefinitionId": "issue-desk/desk-process"
+        ]
+      }
+    },
+    {
+      "id": "tasks",
+      "label": "Tasks",
+      "data": {
+        "root": { "props": {} },
+        "zones": {},
+        "content": [
+          {
+            "type": "Collection",
+            "props": {
+              "id": "tasks",
+              "title": "Tasks",
+              "query": {
+                "path": "tasks/queries:listTasksByOrg",
+                "args": {
+                  "organizationId": "$orgId",
+                  "externalSystem": "github"
+                }
+              },
+              "columns": ["title", "status", "externalId"],
+              "actions": [
+                {
+                  "label": "Start",
+                  "path": "tasks/mutations:updateTaskStatus",
+                  "mode": "mutation",
+                  "when": "status == backlog || status == todo",
+                  "args": { "taskId": "$selected._id", "status": "in_progress" }
+                },
+                {
+                  "label": "Mark done",
+                  "path": "tasks/mutations:updateTaskStatus",
+                  "mode": "mutation",
+                  "when": "status != done",
+                  "args": { "taskId": "$selected._id", "status": "done" }
+                },
+                {
+                  "label": "Assign implementer",
+                  "path": "tasks/mutations:assignTask",
+                  "mode": "mutation",
+                  "args": {
+                    "taskId": "$selected._id",
+                    "assigneeType": "agent",
+                    "assigneeId": "desk-implementer"
+                  }
+                },
+                {
+                  "label": "Triage & run",
+                  "variant": "primary",
+                  "path": "workflow_executions/actions:startWorkflowFromFile",
+                  "mode": "action",
+                  "args": {
+                    "organizationId": "$orgId",
+                    "workflowSlug": "issue-desk/desk-process",
+                    "triggeredBy": "user",
+                    "input": { "task": "$selected" }
+                  }
+                }
+              ]
             }
           },
-          "columns": ["status"]
-        }
+          {
+            "type": "ReviewQueue",
+            "props": {
+              "id": "reviews",
+              "title": "Pending reviews",
+              "query": {
+                "path": "approvals/queries:listActiveApprovalsByOrganization",
+                "args": { "organizationId": "$orgId" }
+              }
+            }
+          }
+        ]
       }
-    ]
-  }
+    },
+    {
+      "id": "runs",
+      "label": "Runs",
+      "data": {
+        "root": { "props": {} },
+        "zones": {},
+        "content": [
+          {
+            "type": "RunList",
+            "props": {
+              "id": "runs",
+              "title": "Recent runs",
+              "workflowSlug": "issue-desk/desk-process"
+            }
+          }
+        ]
+      }
+    }
+  ]
 }

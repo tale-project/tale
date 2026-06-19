@@ -56,17 +56,12 @@ function isRec(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-/**
- * Collect every bound function path in a view (Puck Data, or its `.data`
- * wrapper): a connected block's `query.path` + each action's `path`/`mode`.
- */
-export function collectViewBindings(
-  view: unknown,
-): Array<{ path: string; mode: FunctionMode }> {
-  const out: Array<{ path: string; mode: FunctionMode }> = [];
-  const root = isRec(view) && isRec(view.data) ? view.data : view;
+type CollectedBinding = { path: string; mode: FunctionMode };
+
+/** Collect bindings from one Puck Data document's `content` (block props). */
+function collectFromData(data: unknown, out: CollectedBinding[]): void {
   const content =
-    isRec(root) && Array.isArray(root.content) ? root.content : [];
+    isRec(data) && Array.isArray(data.content) ? data.content : [];
   for (const node of content) {
     if (!isRec(node) || !isRec(node.props)) continue;
     const props = node.props;
@@ -83,6 +78,28 @@ export function collectViewBindings(
         ) {
           out.push({ path: a.path, mode: a.mode });
         }
+      }
+    }
+  }
+}
+
+/**
+ * Collect every bound function path in a view — across the whole layout: a flat
+ * `data` document, a bare Puck Data (`content` at top level), or a tabbed shell
+ * (`tabs[].data` + `tabs[].columns[]`). Each connected block's `query.path` +
+ * each action's `path`/`mode`.
+ */
+export function collectViewBindings(view: unknown): CollectedBinding[] {
+  const out: CollectedBinding[] = [];
+  if (!isRec(view)) return out;
+  if (isRec(view.data)) collectFromData(view.data, out);
+  if (Array.isArray(view.content)) collectFromData(view, out);
+  if (Array.isArray(view.tabs)) {
+    for (const tab of view.tabs) {
+      if (!isRec(tab)) continue;
+      if (isRec(tab.data)) collectFromData(tab.data, out);
+      if (Array.isArray(tab.columns)) {
+        for (const col of tab.columns) collectFromData(col, out);
       }
     }
   }

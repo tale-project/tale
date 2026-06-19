@@ -48,6 +48,23 @@
       "prev": "Précédent",
       "next": "Suivant",
       "page": "Page {page}"
+    },
+    "agents": {
+      "none": "Aucun agent configuré.",
+      "error": "Impossible de charger les agents : {error}",
+      "editInstructions": "Modifier les instructions",
+      "envSecrets": "Env & secrets"
+    },
+    "workflow": {
+      "none": "Ce workflow n'a aucune étape.",
+      "error": "Impossible de charger le workflow : {error}"
+    },
+    "runs": {
+      "none": "Aucune exécution pour le moment.",
+      "colRun": "Exécution",
+      "colStatus": "Statut",
+      "colStarted": "Démarré",
+      "watchLive": "Voir en direct"
     }
   },
   "operator": {

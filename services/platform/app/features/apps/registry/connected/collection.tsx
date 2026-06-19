@@ -9,7 +9,6 @@
  * data-source pair.
  */
 import { Badge } from '@tale/ui/badge';
-import { VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import {
   Table,
@@ -20,12 +19,14 @@ import {
   TableRow,
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
+import { ListChecks } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundQuery } from '../../hooks/use-bound-query';
 import { BoundButton, type BoundActionSpec } from './bound-button';
+import { Section } from './section';
 
 export interface CollectionProps {
   title?: string;
@@ -114,12 +115,7 @@ export function Collection({
   const acts = actions ?? [];
 
   return (
-    <VStack gap={3}>
-      {title && (
-        <Text as="span" className="text-lg font-semibold">
-          {title}
-        </Text>
-      )}
+    <Section title={title} icon={ListChecks}>
       {blocked ? (
         <Text variant="error">
           {t('binding.blocked', { path: query.path })}
@@ -160,6 +156,6 @@ export function Collection({
           </TableBody>
         </Table>
       )}
-    </VStack>
+    </Section>
   );
 }

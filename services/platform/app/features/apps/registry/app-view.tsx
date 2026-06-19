@@ -1,35 +1,18 @@
 'use client';
 
 /**
- * Renders one app view — a Puck Data document — through the Tale registry,
- * inside the runtime context that the connected blocks read (org + the app's
- * function allowlist). Headless `<Render>`: no editor, just the composed UI.
+ * Renders one region of Puck Data through the Tale registry. The runtime context
+ * (org + the app's function allowlist) is provided once by the app page that
+ * hosts the tabbed shell, so this is just the headless `<Render>` — usable per
+ * tab and per column.
  */
 import { type Data, Render } from '@measured/puck';
 
-import type { FunctionBinding } from '@/lib/shared/platform/function_bindings';
-
-import { AppRuntimeProvider } from '../runtime/app-runtime';
 import { taleConfig } from './tale-config';
 
-export function AppView({
-  organizationId,
-  appSlug,
-  allowlist,
-  data,
-}: {
-  organizationId: string;
-  appSlug: string;
-  allowlist: FunctionBinding[];
-  data: unknown;
-}) {
-  return (
-    <AppRuntimeProvider value={{ organizationId, appSlug, allowlist }}>
-      {/* The view is a Puck Data document read from the app bundle; Puck's
-          Render tolerates shape at runtime. Its Data type is too structural to
-          hand-guard, so assert at this single JSON boundary. */}
-      {/* oxlint-disable-next-line typescript/no-unsafe-type-assertion */}
-      <Render config={taleConfig} data={data as Data} />
-    </AppRuntimeProvider>
-  );
+export function AppView({ data }: { data: unknown }) {
+  // The view is a Puck Data document from the app bundle; Render tolerates shape
+  // at runtime, and its Data type is too structural to hand-guard.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  return <Render config={taleConfig} data={data as Data} />;
 }

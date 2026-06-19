@@ -10,6 +10,7 @@ import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { HStack, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
+import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { LayoutGrid } from 'lucide-react';
@@ -17,12 +18,13 @@ import { useEffect, useRef } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { useApps } from '../hooks/use-apps';
+import { type AppTabDoc, type AppViewDoc, useApps } from '../hooks/use-apps';
 import {
   useAppInstallActions,
   useAppInstallStates,
 } from '../hooks/use-install-state';
 import { AppView } from '../registry/app-view';
+import { AppRuntimeProvider } from '../runtime/app-runtime';
 
 function ReadinessChecklist({
   organizationId,
@@ -82,6 +84,38 @@ function ReadinessChecklist({
   );
 }
 
+/** A tab's content: side-by-side columns, or a single Puck Data region. */
+function TabContent({ tab }: { tab: AppTabDoc }) {
+  if (tab.columns && tab.columns.length > 0) {
+    return (
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        {tab.columns.map((col, i) => (
+          <AppView key={i} data={col} />
+        ))}
+      </div>
+    );
+  }
+  return <AppView data={tab.data} />;
+}
+
+/** A view body: the tabbed shell (navigated) or a flat Puck Data document. */
+function ViewBody({ view }: { view: AppViewDoc }) {
+  if (view.tabs && view.tabs.length > 0) {
+    return (
+      <Tabs
+        variant="underline"
+        defaultValue={view.tabs[0].id}
+        items={view.tabs.map((tab) => ({
+          value: tab.id,
+          label: tab.label,
+          content: <TabContent tab={tab} />,
+        }))}
+      />
+    );
+  }
+  return <AppView data={view.data} />;
+}
+
 export function AppPage({
   organizationId,
   appSlug,
@@ -137,45 +171,51 @@ export function AppPage({
   }
 
   return (
-    <VStack gap={6}>
-      <ReadinessChecklist
-        organizationId={organizationId}
-        appSlug={appSlug}
-        status={state.status}
-        blockedIntegrations={state.blockedIntegrations}
-      />
-      {app.views.length === 0 ? (
-        <EmptyState
-          title={t('noViews.title')}
-          description={t('noViews.description')}
+    <AppRuntimeProvider
+      value={{ organizationId, appSlug, allowlist: app.functions }}
+    >
+      <VStack gap={6}>
+        <ReadinessChecklist
+          organizationId={organizationId}
+          appSlug={appSlug}
+          status={state.status}
+          blockedIntegrations={state.blockedIntegrations}
         />
-      ) : (
-        app.views.map((view) => (
-          <VStack key={view.id} gap={3}>
-            {view.title && (
-              <Text as="span" className="text-lg font-semibold">
-                {view.title}
-              </Text>
-            )}
-            <AppView
-              organizationId={organizationId}
-              appSlug={appSlug}
-              allowlist={app.functions}
-              data={view.data}
-            />
-          </VStack>
-        ))
-      )}
-      <HStack gap={2} className="justify-end">
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={isPending}
-          onClick={() => void uninstall(appSlug)}
-        >
-          {t('install.uninstall')}
-        </Button>
-      </HStack>
-    </VStack>
+        {app.views.length === 0 ? (
+          <EmptyState
+            title={t('noViews.title')}
+            description={t('noViews.description')}
+          />
+        ) : (
+          app.views.map((view) => (
+            <VStack key={view.id} gap={4}>
+              {(view.title || view.description) && (
+                <VStack gap={1}>
+                  {view.title && (
+                    <Text as="span" className="text-xl font-semibold">
+                      {view.title}
+                    </Text>
+                  )}
+                  {view.description && (
+                    <Text variant="muted">{view.description}</Text>
+                  )}
+                </VStack>
+              )}
+              <ViewBody view={view} />
+            </VStack>
+          ))
+        )}
+        <HStack gap={2} className="justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={isPending}
+            onClick={() => void uninstall(appSlug)}
+          >
+            {t('install.uninstall')}
+          </Button>
+        </HStack>
+      </VStack>
+    </AppRuntimeProvider>
   );
 }
