@@ -158,6 +158,10 @@ export async function runLocalWorkspaceExecution(
         stderrMaxBytes: cfg.stderrMaxBytes,
       },
     );
+    // Capture here (container already running) so executeMs excludes staging
+    // time. Aligns with the k8s path where runner-started-at is written just
+    // before the runtime entrypoint starts.
+    const runStartedAtMs = Date.now();
     const result: RunResult = await launched.wait({
       outerTimeoutMs: timeoutMs + 30_000,
       signal: opts.signal,
@@ -171,7 +175,9 @@ export async function runLocalWorkspaceExecution(
     });
     scanner.finalize();
 
-    const durationMs = Date.now() - startedAtMs;
+    const runEndedAtMs = Date.now();
+    const durationMs = runEndedAtMs - startedAtMs;
+    const executeMs = Math.max(0, runEndedAtMs - runStartedAtMs);
     const exitCode = result.exitCode;
 
     const stdoutWithoutPhases = stripPhaseMarkers(result.stdout);
@@ -266,7 +272,7 @@ export async function runLocalWorkspaceExecution(
       uploadStats: harvestUploadStats,
       timing: {
         stageMs,
-        executeMs: Math.max(0, durationMs),
+        executeMs,
         harvestMs,
         uploadMs,
       },

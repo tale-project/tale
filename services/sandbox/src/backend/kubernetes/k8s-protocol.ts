@@ -18,6 +18,14 @@ export const TALE_DIR = '/user/.runtime/tale';
 export const EXIT_CODE_PATH = `${TALE_DIR}/exit-code`;
 export const STDERR_PATH = `${TALE_DIR}/stderr.log`;
 export const PRESTAGE_PATH = `${TALE_DIR}/prestage.json`;
+/**
+ * Written by the runner wrapper (RUNNER_WRAPPER in k8s-pod-spec.ts) just before
+ * calling the runtime entrypoint. Content: epoch milliseconds as a decimal
+ * string. Read by the harvest container to compute exact executeMs (container
+ * start → exit) without including pod scheduling or stage init time.
+ * Absent on older spawner images — harvest falls back to the approximation.
+ */
+export const RUNNER_STARTED_PATH = `${TALE_DIR}/runner-started-at`;
 
 /** What the stage initContainer persists for the harvest container to forward. */
 export interface PrestageFile {
@@ -105,6 +113,13 @@ export interface K8sHarvestResult {
   stageMs: number;
   harvestMs: number;
   uploadMs: number;
+  /**
+   * Exact container execution time in ms: from the runner-started-at timestamp
+   * (written by RUNNER_WRAPPER before calling the runtime entrypoint) to when
+   * the harvest container detected the runner's exit-code file. Absent when
+   * the runner-started-at file is missing (older spawner images on cluster).
+   */
+  executeMs?: number;
   steps?: SandboxStepResult[];
   priorStage?: PriorStageResult;
 }

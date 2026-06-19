@@ -42,7 +42,12 @@ import type {
 import type { Language, SpawnerConfig } from '../../types.ts';
 import type { CacheStores } from '../types.ts';
 import { EXEC_SPEC_MOUNT_DIR, secretNameFor } from './exec-spec.ts';
-import { EXIT_CODE_PATH, STDERR_PATH, TALE_DIR } from './k8s-protocol.ts';
+import {
+  EXIT_CODE_PATH,
+  RUNNER_STARTED_PATH,
+  STDERR_PATH,
+  TALE_DIR,
+} from './k8s-protocol.ts';
 
 interface SandboxPodInput {
   executionId: string;
@@ -94,8 +99,12 @@ export function podNameFor(executionId: string): string {
 // replaces only that child, so `sh -c` resumes here to capture the exit code.
 // stderr → a file (kept out of the K8s log stream, which is stdout-only for
 // clean phase parsing). $0..$3 come from the Pod `args` trailer below.
+// The runner-started-at timestamp (epoch ms, GNU date +%s%3N) is written just
+// before the entrypoint is called so the harvest sidecar can compute the exact
+// container execution time without including pod scheduling or stage init.
 const RUNNER_WRAPPER = [
   `mkdir -p ${TALE_DIR}`,
+  `date +%s%3N > ${RUNNER_STARTED_PATH}`,
   `/entrypoint.sh "$0" "$1" "$2" "$3" 2>${STDERR_PATH}`,
   `echo $? > ${EXIT_CODE_PATH}`,
 ].join('\n');

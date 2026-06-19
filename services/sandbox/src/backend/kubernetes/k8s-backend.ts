@@ -968,11 +968,18 @@ export class KubernetesBackend implements ExecutionBackend {
       },
       timing: {
         stageMs: h?.stageMs ?? 0,
-        // Approximates the docker path's pre-harvest semantics; the residual
-        // (pod scheduling/startup) is documented on ExecutionBackend.execute.
+        // Prefer the exact measurement from the harvest container (runner
+        // start → runner exit, written by RUNNER_WRAPPER). Falls back to an
+        // approximation for older spawner images still on cluster: subtract
+        // stage, harvest, and upload time from the total wall-clock, leaving
+        // pod scheduling + image pull as the only unaccounted residual.
         executeMs: Math.max(
           0,
-          durationMs - (h?.harvestMs ?? 0) - (h?.uploadMs ?? 0),
+          h?.executeMs ??
+            durationMs -
+              (h?.stageMs ?? 0) -
+              (h?.harvestMs ?? 0) -
+              (h?.uploadMs ?? 0),
         ),
         harvestMs: h?.harvestMs ?? 0,
         uploadMs: h?.uploadMs ?? 0,

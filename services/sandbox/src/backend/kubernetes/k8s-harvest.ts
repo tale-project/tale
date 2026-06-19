@@ -29,6 +29,7 @@ import { EXEC_SPEC_PATH, parseExecSpec, type ExecSpec } from './exec-spec.ts';
 import {
   EXIT_CODE_PATH,
   PRESTAGE_PATH,
+  RUNNER_STARTED_PATH,
   STDERR_PATH,
   formatResultLine,
   formatStartedLine,
@@ -124,10 +125,26 @@ async function readPrestage(): Promise<PrestageFile> {
   }
 }
 
+async function readRunnerStartedAtMs(): Promise<number | undefined> {
+  try {
+    const raw = (await readFile(RUNNER_STARTED_PATH, 'utf8')).trim();
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0) return n;
+  } catch (err) {
+    if (!isENOENT(err)) {
+      console.warn('[sandbox.harvest] runner-started-at read error:', err);
+    }
+  }
+  return undefined;
+}
+
 async function run(spec: ExecSpec): Promise<K8sHarvestResult> {
   const { req, caps } = spec;
 
   const { exitCode, timedOut } = await waitForExitCode(spec.timeoutMs);
+  // Capture immediately after the runner exits so executeMs reflects actual
+  // container run time rather than harvest work time.
+  const runnerFinishedAtMs = Date.now();
   // Progress marker: tells the spawner we're past the exit-code wait (so a
   // dead runner can't be the reason we're silent) and carries the real exit
   // code so it survives even a later harvest crash.
@@ -140,6 +157,11 @@ async function run(spec: ExecSpec): Promise<K8sHarvestResult> {
 
   const stderr = await readCapped(STDERR_PATH, caps.stderrMaxBytes);
   const prestage = await readPrestage();
+  const runnerStartedAtMs = await readRunnerStartedAtMs();
+  const executeMs =
+    runnerStartedAtMs !== undefined
+      ? Math.max(0, runnerFinishedAtMs - runnerStartedAtMs)
+      : undefined;
 
   // Mirror the docker path (local-workspace-run.ts): a harvest crash must not
   // erase the result line — degrade to readFailed and ship the real exitCode,
@@ -197,6 +219,7 @@ async function run(spec: ExecSpec): Promise<K8sHarvestResult> {
     stageMs: prestage.stageMs,
     harvestMs,
     uploadMs: harvested.uploadMs,
+    ...(executeMs !== undefined && { executeMs }),
     ...(steps !== undefined && { steps }),
     ...(prestage.priorStage !== undefined && {
       priorStage: prestage.priorStage,
