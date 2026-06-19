@@ -3,6 +3,7 @@
   "agentKind": "claude-code",
   "displayName": "Desk Implementer",
   "description": "Implementer for the issue-resolution desk. Runs as Claude Code in an isolated sandbox: clones the repo via the github integration, fixes the issue on a tale/<id> branch, runs and summarizes the change. Cannot mark a task done — a human gate does that.",
+  "authMode": "byo",
   "integrationBindings": ["github"],
   "supportedModels": [
     "openrouter:anthropic/claude-sonnet-4.6",

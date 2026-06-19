@@ -1,9 +1,11 @@
 {
-  "primaryBehavior": "chat",
+  "primaryBehavior": "external-agent",
+  "agentKind": "claude-code",
   "displayName": "Desk Coordinator",
-  "description": "Coordinator for the issue-resolution desk. Triages incoming issue-bound tasks and assigns them to the implementer; owns escalation. Delegates to the implementer and reviewer.",
+  "description": "Coordinator for the issue-resolution desk. Triages incoming issue-bound tasks and assigns them to the implementer; owns escalation. Runs as Claude Code in an isolated sandbox.",
   "systemInstructions": "You are the coordinator of a software issue-resolution desk. When an issue-bound task arrives, triage it (clarity, scope, labels) and hand it to the implementer. Keep a tight, reviewable trail in task comments.",
+  "authMode": "byo",
   "supportedModels": ["openrouter:anthropic/claude-sonnet-4.6"],
-  "delegates": ["desk-implementer", "desk-reviewer"],
+  "runtime": { "adapterType": "claude_code" },
   "metadata": { "role": "coordinator", "pack": "issue-desk" }
 }

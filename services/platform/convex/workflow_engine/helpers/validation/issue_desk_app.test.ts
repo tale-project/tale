@@ -92,21 +92,19 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(result.valid).toBe(true);
   });
 
-  it('the three role agents are valid configs (org-chart delegation)', () => {
+  it('the three role agents are valid external-agent + BYO sandbox configs', () => {
     for (const slug of [
       'desk-coordinator',
       'desk-implementer',
       'desk-reviewer',
     ]) {
-      const res = agentJsonSchema.safeParse(readJson(`agents/${slug}.json`));
-      expect(res.success, `${slug} should parse`).toBe(true);
+      const cfg = agentJsonSchema.parse(readJson(`agents/${slug}.json`));
+      // Every desk agent runs in a sandbox on the user's own credentials.
+      expect(cfg.primaryBehavior, `${slug} primaryBehavior`).toBe(
+        'external-agent',
+      );
+      expect(cfg.authMode, `${slug} authMode`).toBe('byo');
+      expect(cfg.runtime?.adapterType, `${slug} runtime`).toBe('claude_code');
     }
-    const coordinator = agentJsonSchema.parse(
-      readJson('agents/desk-coordinator.json'),
-    );
-    expect(coordinator.delegates).toEqual([
-      'desk-implementer',
-      'desk-reviewer',
-    ]);
   });
 });

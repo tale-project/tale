@@ -54,6 +54,12 @@
       "error": "Agenten konnten nicht geladen werden: {error}",
       "editInstructions": "Anweisungen bearbeiten",
       "envSecrets": "Env & Secrets",
+      "authMode": {
+        "label": "Auth",
+        "byo": "BYO",
+        "managed": "Verwaltet",
+        "error": "Auth-Modus des Agenten konnte nicht gewechselt werden"
+      },
       "instructions": {
         "title": "Anweisungen bearbeiten — {name}",
         "description": "Der System-Prompt, der diesen Agenten steuert. Änderungen gelten ab dem nächsten Lauf.",

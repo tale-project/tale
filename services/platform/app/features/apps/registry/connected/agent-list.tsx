@@ -18,6 +18,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -52,6 +53,41 @@ function strArr(rec: Record<string, unknown>, key: string): string[] {
     : [];
 }
 
+type AuthMode = 'byo' | 'managed';
+
+/** Compact 2-segment switch for an external-agent's auth mode (BYO ⇄ Managed). */
+function AuthModeToggle({
+  mode,
+  pending,
+  onSwitch,
+}: {
+  mode: AuthMode;
+  pending: boolean;
+  onSwitch: (next: AuthMode) => void;
+}) {
+  const { t } = useT('apps');
+  return (
+    <HStack gap={0} className="border-border overflow-hidden rounded-md border">
+      {(['byo', 'managed'] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          disabled={pending || mode === m}
+          aria-pressed={mode === m}
+          onClick={() => onSwitch(m)}
+          className={
+            mode === m
+              ? 'bg-muted text-foreground px-2 py-1 text-xs font-medium'
+              : 'text-muted-foreground hover:bg-muted/50 px-2 py-1 text-xs disabled:opacity-50'
+          }
+        >
+          {t(`agents.authMode.${m}`)}
+        </button>
+      ))}
+    </HStack>
+  );
+}
+
 export function AgentList({
   title,
   agents,
@@ -78,6 +114,12 @@ export function AgentList({
   const list = useBoundAction('agents/file_actions:listAgents', 'action');
   const listRef = useRef(list);
   listRef.current = list;
+  const read = useBoundAction('agents/file_actions:readAgent', 'action');
+  const readRef = useRef(read);
+  readRef.current = read;
+  const save = useBoundAction('agents/file_actions:saveAgent', 'action');
+  const saveRef = useRef(save);
+  saveRef.current = save;
 
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +128,42 @@ export function AgentList({
   const [editing, setEditing] = useState<{ slug: string; name: string } | null>(
     null,
   );
+  // The agent whose auth mode is mid-switch (disables its toggle).
+  const [switching, setSwitching] = useState<string | null>(null);
+
+  // Flip an external-agent's authMode in place: read the full config, save it
+  // back with the new mode (an authMode-only change isn't capability-widening,
+  // so it passes for any member), then reflect it optimistically in the list.
+  const switchAuthMode = async (
+    slug: string,
+    next: AuthMode,
+  ): Promise<void> => {
+    setSwitching(slug);
+    try {
+      const cfg = await readRef.current.dispatch({
+        organizationId: '$orgId',
+        agentName: slug,
+      });
+      if (!isRecord(cfg) || cfg.ok !== true || !isRecord(cfg.config)) {
+        throw new Error(t('agents.authMode.error'));
+      }
+      await saveRef.current.dispatch({
+        organizationId: '$orgId',
+        agentName: slug,
+        config: { ...cfg.config, authMode: next },
+      });
+      setRows((rs) =>
+        rs.map((r) => (str(r, 'name') === slug ? { ...r, authMode: next } : r)),
+      );
+    } catch (err) {
+      toast({
+        title: t('agents.authMode.error'),
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setSwitching(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -136,6 +214,10 @@ export function AgentList({
               const role = roleOf(slug);
               const models = strArr(agent, 'supportedModels');
               const integrations = strArr(agent, 'integrationBindings');
+              const isExternal =
+                str(agent, 'primaryBehavior') === 'external-agent';
+              const authMode: AuthMode =
+                str(agent, 'authMode') === 'managed' ? 'managed' : 'byo';
               return (
                 <Card key={i}>
                   <VStack gap={2}>
@@ -168,7 +250,19 @@ export function AgentList({
                         </Button>
                       </HStack>
                     </HStack>
-                    <HStack gap={2} className="flex-wrap">
+                    <HStack gap={2} className="flex-wrap items-center">
+                      {isExternal && (
+                        <HStack gap={2} className="items-center">
+                          <Text as="span" variant="muted" className="text-xs">
+                            {t('agents.authMode.label')}
+                          </Text>
+                          <AuthModeToggle
+                            mode={authMode}
+                            pending={switching === slug}
+                            onSwitch={(next) => void switchAuthMode(slug, next)}
+                          />
+                        </HStack>
+                      )}
                       {models[0] && <Badge variant="slate">{models[0]}</Badge>}
                       {integrations.map((ig) => (
                         <Badge key={ig} variant="green">

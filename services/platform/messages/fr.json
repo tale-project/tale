@@ -54,6 +54,12 @@
       "error": "Impossible de charger les agents : {error}",
       "editInstructions": "Modifier les instructions",
       "envSecrets": "Env & secrets",
+      "authMode": {
+        "label": "Auth",
+        "byo": "BYO",
+        "managed": "Géré",
+        "error": "Impossible de changer le mode d'authentification de l'agent"
+      },
       "instructions": {
         "title": "Modifier les instructions — {name}",
         "description": "Le prompt système qui guide cet agent. Les modifications s'appliquent à la prochaine exécution.",

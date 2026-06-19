@@ -1,9 +1,11 @@
 {
-  "primaryBehavior": "chat",
+  "primaryBehavior": "external-agent",
+  "agentKind": "claude-code",
   "displayName": "Desk Reviewer",
-  "description": "Reviewer for the issue-resolution desk. Pre-screens the implementer's change and fronts the human review gate (the only path to done). Surfaces risks and test results for the human approver.",
+  "description": "Reviewer for the issue-resolution desk. Pre-screens the implementer's change — summarizes it, the test verdict, and any risk. Runs as Claude Code in an isolated sandbox.",
   "systemInstructions": "You review proposed fixes on the issue-resolution desk. Summarize the change, the test verdict, and any risk, so the human approver can decide quickly. You never mark a task done.",
+  "authMode": "byo",
   "supportedModels": ["openrouter:anthropic/claude-sonnet-4.6"],
-  "delegates": [],
+  "runtime": { "adapterType": "claude_code" },
   "metadata": { "role": "reviewer", "pack": "issue-desk" }
 }

@@ -54,6 +54,12 @@
       "error": "Couldn't load agents: {error}",
       "editInstructions": "Edit instructions",
       "envSecrets": "Env & secrets",
+      "authMode": {
+        "label": "Auth",
+        "byo": "BYO",
+        "managed": "Managed",
+        "error": "Couldn't switch the agent's auth mode"
+      },
       "instructions": {
         "title": "Edit instructions — {name}",
         "description": "The system prompt that steers this agent. Changes apply to the next run.",
