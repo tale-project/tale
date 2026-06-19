@@ -2,11 +2,12 @@
  * Convex Tool: Agent Write
  *
  * Manage the AI workforce: rewire the delegation chart and install / enable /
- * disable agents. The roster-admin operations are gated TWICE:
+ * disable agents. ALL operations are gated TWICE (changing the workforce's
+ * structure is admin-only, matching the human org-chart editor):
  *  1. Config: only manager/admin agents carry `agent_write` in their toolNames.
  *  2. Server-side: the acting USER behind the run must be an org admin/developer
  *     (re-checked via the member role) — autonomous runs with no privileged
- *     human behind them are denied for install/enable/disable/uninstall.
+ *     human behind them are denied for every operation, including set_delegates.
  *
  * `set_delegates` goes through the same validated single write path as the
  * canvas (`workforce_ops.writeAgentDelegates`, with a pre-write history
@@ -78,13 +79,32 @@ OPERATIONS:
 • 'enable' / 'disable': Toggle whether an installed agent is live (admin only).
 • 'uninstall': Remove an agent installation (admin only).
 
-Install/enable/disable/uninstall require an organization admin behind the request; integration-bundled agents require force to change. Editing an agent's model/instructions is done by a human in the agent editor.`,
+All operations require an organization admin behind the request (changing the workforce's structure is admin-only); integration-bundled agents require force to change. Editing an agent's model/instructions is done by a human in the agent editor.`,
     inputSchema: agentWriteArgs,
     execute: async (ctx: ToolCtx, args) => {
       const organizationId = requireOrganizationId(ctx);
 
+      // ALL agent_write operations — rewiring delegation AND the roster ops —
+      // change org structure, so every one requires a privileged human behind
+      // the request (the human org-chart editor is admin-gated too). Autonomous
+      // runs with no privileged human are denied. Re-check the member role
+      // server-side; mirrors check_role_access.ts.
+      const userId = readCtxString(ctx, 'userId');
+      if (!userId) return { ok: false, error: 'MISSING_USER_CONTEXT' };
+      const role = await ctx.runQuery(
+        internal.members.internal_queries.getMemberRole,
+        { userId, organizationId },
+      );
+      if (!PRIVILEGED.has((role ?? 'member').toLowerCase())) {
+        return {
+          ok: false,
+          error: 'FORBIDDEN',
+          message:
+            'Managing the AI workforce requires organization administrator permissions.',
+        };
+      }
+
       if (args.operation === 'set_delegates') {
-        const userId = readCtxString(ctx, 'userId') ?? 'agent';
         const result = await ctx.runAction(
           internal.agents.workforce_ops.setDelegatesFromAgent,
           {
@@ -113,22 +133,6 @@ Install/enable/disable/uninstall require an organization admin behind the reques
           agentSlug: args.agentSlug,
           delegateSlugs: args.delegateSlugs,
           previousDelegateSlugs: result.previous ?? [],
-        };
-      }
-
-      // Roster admin ops require a privileged human behind the request.
-      const userId = readCtxString(ctx, 'userId');
-      if (!userId) return { ok: false, error: 'MISSING_USER_CONTEXT' };
-      const role = await ctx.runQuery(
-        internal.members.internal_queries.getMemberRole,
-        { userId, organizationId },
-      );
-      if (!PRIVILEGED.has((role ?? 'member').toLowerCase())) {
-        return {
-          ok: false,
-          error: 'FORBIDDEN',
-          message:
-            'Managing the agent roster requires organization administrator permissions.',
         };
       }
 

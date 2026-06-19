@@ -94,7 +94,6 @@ import type * as agent_tools_mcp_create_bound_mcp_tool from "../agent_tools/mcp/
 import type * as agent_tools_mcp_mcp_call_tool from "../agent_tools/mcp/mcp_call_tool.js";
 import type * as agent_tools_memory_propose_memory_tool from "../agent_tools/memory/propose_memory_tool.js";
 import type * as agent_tools_metrics_metrics_read_tool from "../agent_tools/metrics/metrics_read_tool.js";
-import type * as agent_tools_organigram_context from "../agent_tools/organigram/context.js";
 import type * as agent_tools_products_helpers_count_products from "../agent_tools/products/helpers/count_products.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
 import type * as agent_tools_products_helpers_read_product_list from "../agent_tools/products/helpers/read_product_list.js";
@@ -1615,7 +1614,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/mcp/mcp_call_tool": typeof agent_tools_mcp_mcp_call_tool;
   "agent_tools/memory/propose_memory_tool": typeof agent_tools_memory_propose_memory_tool;
   "agent_tools/metrics/metrics_read_tool": typeof agent_tools_metrics_metrics_read_tool;
-  "agent_tools/organigram/context": typeof agent_tools_organigram_context;
   "agent_tools/products/helpers/count_products": typeof agent_tools_products_helpers_count_products;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;
   "agent_tools/products/helpers/read_product_list": typeof agent_tools_products_helpers_read_product_list;

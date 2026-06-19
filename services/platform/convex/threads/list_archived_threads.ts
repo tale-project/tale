@@ -27,20 +27,30 @@ export async function listArchivedThreads(
         .eq('status', 'archived'),
     )
     .filter((q) => {
+      // Discussions reuse chatType 'general' but live under Projects — never
+      // surface them in the archived chat-history list (mirrors list_threads).
+      const notDiscussion = q.and(
+        q.neq(q.field('kind'), 'project_discussion'),
+        q.neq(q.field('kind'), 'task_discussion'),
+      );
       // Filter by organizationId to prevent cross-tenant thread visibility.
       if (args.teamId && args.organizationId) {
         return q.and(
+          notDiscussion,
           q.eq(q.field('teamId'), args.teamId),
           q.eq(q.field('organizationId'), args.organizationId),
         );
       }
       if (args.organizationId) {
-        return q.eq(q.field('organizationId'), args.organizationId);
+        return q.and(
+          notDiscussion,
+          q.eq(q.field('organizationId'), args.organizationId),
+        );
       }
       if (args.teamId) {
-        return q.eq(q.field('teamId'), args.teamId);
+        return q.and(notDiscussion, q.eq(q.field('teamId'), args.teamId));
       }
-      return true;
+      return notDiscussion;
     })
     .order('desc')
     .paginate(args.paginationOpts);

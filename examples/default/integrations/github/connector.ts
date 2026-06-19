@@ -675,9 +675,11 @@ function createPullRequestReview(
   headers: Record<string, string>,
   params: Record<string, unknown>,
 ) {
-  const body = requireParam(params, 'body', 'create_pull_request_review');
   const event = requireParam(params, 'event', 'create_pull_request_review');
-  const payload: Record<string, unknown> = { body: body, event: event };
+  const payload: Record<string, unknown> = { event: event };
+  // `body` is optional for event APPROVE (the common approve-without-summary
+  // case); GitHub only requires it for REQUEST_CHANGES / COMMENT.
+  if (params.body !== undefined) payload.body = params.body;
   if (params.comments) payload.comments = params.comments;
   if (params.commit_id) payload.commit_id = params.commit_id;
 

@@ -115,6 +115,13 @@ export const listArchivedThreadsInternal = internalQuery({
       page: result.page
         .filter((row) => {
           if (row.isBranch) return false;
+          // Discussions live under Projects — never in the archived chat list.
+          if (
+            row.kind === 'project_discussion' ||
+            row.kind === 'task_discussion'
+          ) {
+            return false;
+          }
           if (
             args.organizationId !== undefined &&
             row.organizationId !== args.organizationId

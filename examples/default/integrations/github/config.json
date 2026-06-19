@@ -384,8 +384,8 @@
           },
           "body": {
             "type": "string",
-            "description": "Overall review summary (Markdown)",
-            "required": true
+            "description": "Overall review summary (Markdown). Required for REQUEST_CHANGES and COMMENT; optional for APPROVE.",
+            "required": false
           },
           "commit_id": {
             "type": "string",

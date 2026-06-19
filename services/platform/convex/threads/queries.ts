@@ -422,6 +422,12 @@ export const countMyChats = query({
     let archived = 0;
     for (const row of rows) {
       if (row.isBranch === true) continue;
+      // Discussions reuse chatType 'general' but live under Projects, not the
+      // chat-history sidebar — exclude them so the count matches what the
+      // sidebar shows and what a bulk archive/delete would actually touch.
+      if (row.kind === 'project_discussion' || row.kind === 'task_discussion') {
+        continue;
+      }
       if (args.organizationId && row.organizationId !== args.organizationId) {
         continue;
       }

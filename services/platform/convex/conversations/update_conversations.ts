@@ -32,6 +32,15 @@ export async function updateConversations(
     if (!conversation) {
       throw new Error(`Conversation not found: ${args.conversationId}`);
     }
+    // Cross-tenant write guard: when the caller's org is known (the agent
+    // conversation_write tool always passes it), the target conversation must
+    // belong to it — mirrors addMessageToConversation. Closes the IDOR.
+    if (
+      args.organizationId &&
+      conversation.organizationId !== args.organizationId
+    ) {
+      throw new Error(`Conversation not found: ${args.conversationId}`);
+    }
     conversationsToUpdate = [conversation];
   } else if (args.organizationId) {
     const orgId = args.organizationId;

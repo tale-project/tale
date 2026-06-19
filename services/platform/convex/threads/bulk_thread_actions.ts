@@ -40,6 +40,12 @@ export async function collectBulkActionThreadIds(
   return rows
     .filter((row) => {
       if (row.isBranch === true) return false;
+      // Discussions reuse chatType 'general' but live under Projects, not the
+      // chat-history sidebar — never sweep them in a "manage all my chats"
+      // bulk delete/archive (mirrors the exclusion in list_threads.ts).
+      if (row.kind === 'project_discussion' || row.kind === 'task_discussion') {
+        return false;
+      }
       if (organizationId && row.organizationId !== organizationId) {
         return false;
       }

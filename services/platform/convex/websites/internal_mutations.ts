@@ -42,6 +42,9 @@ export const patchWebsite = internalMutation({
     pageCount: v.optional(v.number()),
     crawledPageCount: v.optional(v.number()),
     metadata: v.optional(jsonRecordValidator),
+    // Caller's org — when set, updateWebsite rejects a target row in another
+    // tenant. REST handlers + the agent website_write tool MUST pass this.
+    callerOrgId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await WebsitesHelpers.updateWebsite(ctx, args);

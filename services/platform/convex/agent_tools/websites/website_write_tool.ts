@@ -80,6 +80,7 @@ This manages website ENTITIES; to read a page's content use the 'web' tool.`,
           description: args.description,
           scanInterval: args.scanInterval,
           status: args.status,
+          callerOrgId: organizationId,
         },
       );
       return { operation: 'update', result };
