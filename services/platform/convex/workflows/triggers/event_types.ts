@@ -17,6 +17,9 @@ export const EVENT_TYPE_CATEGORIES = {
   agents: {
     label: 'Agents',
   },
+  discussions: {
+    label: 'Discussions',
+  },
 } as const;
 
 export type EventTypeCategory = keyof typeof EVENT_TYPE_CATEGORIES;
@@ -36,6 +39,28 @@ interface EventTypeDef {
 }
 
 export const EVENT_TYPES: Record<string, EventTypeDef> = {
+  'discussion.created': {
+    category: 'discussions',
+    label: 'Discussion created',
+    description: 'Triggered when a new project discussion is opened',
+    filterFields: [
+      { key: 'projectId', label: 'Project', inputType: 'text' },
+      { key: 'category', label: 'Category', inputType: 'text' },
+    ],
+  },
+  'discussion.reply': {
+    category: 'discussions',
+    label: 'Discussion reply',
+    description: 'Triggered when someone replies in a discussion',
+    filterFields: [{ key: 'projectId', label: 'Project', inputType: 'text' }],
+  },
+  'discussion.mentioned': {
+    category: 'discussions',
+    label: 'Discussion mention',
+    description:
+      'Triggered when a user or agent is @mentioned in a discussion reply',
+    filterFields: [{ key: 'projectId', label: 'Project', inputType: 'text' }],
+  },
   'customer.created': {
     category: 'customers',
     label: 'Customer created',

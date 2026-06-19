@@ -2,12 +2,7 @@
   "slug": "software-developer",
   "metadata": {
     "group": "Engineering",
-    "autoInstall": false,
-    "templateCatalog": false,
-    "bundledByIntegration": "github",
-    "requires": {
-      "integrations": ["github"]
-    }
+    "autoInstall": true
   },
   "primaryBehavior": "external-agent",
   "agentKind": "claude-code",

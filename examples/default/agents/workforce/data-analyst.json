@@ -12,6 +12,7 @@
     "excel",
     "document_write",
     "task_read",
+    "metrics_read",
     "task_write"
   ],
   "supportedModels": ["openrouter:anthropic/claude-sonnet-4.6"],

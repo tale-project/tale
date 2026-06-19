@@ -83,6 +83,26 @@ export async function canAccessThread(
     if (member) return metadata;
   }
 
+  // Discussion branch: project/task discussions are a shared surface — any
+  // member of the thread's org may read/reply (the owner branch above already
+  // covered the author). This is what lets a non-owner teammate participate in
+  // a discussion, unlike a private `chat` thread.
+  if (
+    (metadata.kind === 'project_discussion' ||
+      metadata.kind === 'task_discussion') &&
+    metadata.organizationId
+  ) {
+    if (expectedOrgId === metadata.organizationId && expectedMembership) {
+      return metadata;
+    }
+    const member = await isOrgMember(
+      ctx,
+      authUser.userId,
+      metadata.organizationId,
+    );
+    if (member) return metadata;
+  }
+
   return null;
 }
 

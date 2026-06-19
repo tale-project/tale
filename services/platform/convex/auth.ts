@@ -816,6 +816,14 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                     .syncDefaultAgentInstallations,
                   { organizationId: data.organization.id, orgSlug: slug },
                 );
+                // Seed example content (a "Getting started" project + a few
+                // tasks + one discussion) after the agents are installed, so
+                // the @mentioned assistant exists. Idempotent + best-effort.
+                await runCtx.scheduler.runAfter(
+                  15_000,
+                  internal.provisioning.seed_starter.seedStarterContent,
+                  { organizationId: data.organization.id },
+                );
               } catch (err) {
                 console.error(
                   '[afterCreateOrganization] failed to schedule scaffold',

@@ -45,7 +45,13 @@ export async function listThreads(
       // Filter by organizationId so users who belong to multiple orgs don't
       // see threads created in other tenants. threadMetadata.organizationId
       // is optional for backward-compat with pre-multi-org rows.
-      let expr = q.neq(q.field('isBranch'), true);
+      // Discussions reuse threadMetadata (chatType 'general') but must NOT
+      // appear in the chat-history sidebar — they live under Projects.
+      let expr = q.and(
+        q.neq(q.field('isBranch'), true),
+        q.neq(q.field('kind'), 'project_discussion'),
+        q.neq(q.field('kind'), 'task_discussion'),
+      );
       if (args.teamId) {
         expr = q.and(expr, q.eq(q.field('teamId'), args.teamId));
       }

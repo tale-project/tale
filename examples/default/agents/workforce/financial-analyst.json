@@ -13,6 +13,7 @@
     "file_write",
     "rag_search",
     "task_read",
+    "metrics_read",
     "task_write"
   ],
   "supportedModels": ["openrouter:anthropic/claude-sonnet-4.6"],

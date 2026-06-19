@@ -165,6 +165,23 @@ export function formatToolDetail(
     save_workflow_definition: t('tools.saveWorkflowDefinition'),
     validate_workflow_definition: t('tools.validateWorkflowDefinition'),
     excel: t('tools.excel'),
+    customer_write: t('tools.customerWrite'),
+    product_write: t('tools.productWrite'),
+    website_read: t('tools.websiteRead'),
+    website_write: t('tools.websiteWrite'),
+    vendor_read: t('tools.vendorRead'),
+    vendor_write: t('tools.vendorWrite'),
+    conversation_read: t('tools.conversationRead'),
+    conversation_write: t('tools.conversationWrite'),
+    discussion_read: t('tools.discussionRead'),
+    discussion_write: t('tools.discussionWrite'),
+    agent_read: t('tools.agentRead'),
+    agent_write: t('tools.agentWrite'),
+    metrics_read: t('tools.metricsRead'),
+    task_read: t('tools.taskRead'),
+    task_write: t('tools.taskWrite'),
+    project_read: t('tools.projectRead'),
+    project_write: t('tools.projectWrite'),
   };
 
   const displayText =

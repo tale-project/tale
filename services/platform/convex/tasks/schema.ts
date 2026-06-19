@@ -128,6 +128,10 @@ export const tasksTable = defineTable({
   // agent run). Revision/mention runs share it so context accumulates.
   threadId: v.optional(v.string()),
 
+  // Discussion this task was spawned from (createTaskFromDiscussion); the
+  // reverse link lives on threadMetadata.linkedTaskId.
+  sourceDiscussionThreadId: v.optional(v.string()),
+
   // Authorship + lifecycle
   createdBy: v.string(),
   createdByType: taskActorTypeValidator,

@@ -428,7 +428,7 @@ export const reassignOrUnassign = internalAction({
 
 // ---------------------------------------------------------------------------
 // Delegation-edge writers (shared by the organigram UI actions and the
-// organigram_write agent tool — validation lives HERE so every writer gets it).
+// agent_write agent tool — validation lives HERE so every writer gets it).
 //
 // The graph is a many-to-many DELEGATION graph stored as each agent's
 // `delegates` array (the agents it delegates to). There is no limitation
@@ -569,7 +569,7 @@ export async function writeAgentParents(args: {
 }
 
 // ---------------------------------------------------------------------------
-// Agent-tool surface (consumed by the `organigram_read` / `organigram_write`
+// Agent-tool surface (consumed by the `agent_read` / `agent_write`
 // agent tools)
 // ---------------------------------------------------------------------------
 

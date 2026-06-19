@@ -5,9 +5,15 @@
  * Array-based registry for type inference, with derived object for O(1) lookups.
  */
 
+import { agentReadTool } from './agents/agent_read_tool';
+import { agentWriteTool } from './agents/agent_write_tool';
 import { conversationReadTool } from './conversations/conversation_read_tool';
+import { conversationWriteTool } from './conversations/conversation_write_tool';
 import { customerReadTool } from './customers/customer_read_tool';
+import { customerWriteTool } from './customers/customer_write_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
+import { discussionReadTool } from './discussions/discussion_read_tool';
+import { discussionWriteTool } from './discussions/discussion_write_tool';
 import { documentFindTool } from './documents/document_find_tool';
 import { documentRetrieveTool } from './documents/document_retrieve_tool';
 import { documentWriteTool } from './documents/document_write_tool';
@@ -28,9 +34,9 @@ import { integrationIntrospectTool } from './integrations/integration_introspect
 import { integrationTool } from './integrations/integration_tool';
 import { requestUserLocationTool } from './location/request_user_location_tool';
 import { proposeMemoryTool } from './memory/propose_memory_tool';
-import { organigramReadTool } from './organigram/organigram_read_tool';
-import { organigramWriteTool } from './organigram/organigram_write_tool';
+import { metricsReadTool } from './metrics/metrics_read_tool';
 import { productReadTool } from './products/product_read_tool';
+import { productWriteTool } from './products/product_write_tool';
 import { knowledgeWriteTool } from './rag/knowledge_write_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
 import { runCodeTool } from './run_code_tool';
@@ -42,7 +48,11 @@ import { taskWriteTool } from './tasks/task_write_tool';
 import type { ToolName } from './tool_names';
 import type { ToolDefinition } from './types';
 import { updateTodosTool } from './update_todos/update_todos_tool';
+import { vendorReadTool } from './vendors/vendor_read_tool';
+import { vendorWriteTool } from './vendors/vendor_write_tool';
 import { webTool } from './web/web_tool';
+import { websiteReadTool } from './websites/website_read_tool';
+import { websiteWriteTool } from './websites/website_write_tool';
 import { createWorkflowTool } from './workflows/create_workflow_tool';
 import { runWorkflowTool } from './workflows/run_workflow_tool';
 import { saveWorkflowDefinitionTool } from './workflows/save_workflow_definition_tool';
@@ -90,10 +100,20 @@ export const TOOL_REGISTRY = [
   documentWriteTool,
   requestUserLocationTool,
   conversationReadTool,
+  conversationWriteTool,
+  customerWriteTool,
+  productWriteTool,
+  websiteReadTool,
+  websiteWriteTool,
+  vendorReadTool,
+  vendorWriteTool,
+  discussionReadTool,
+  discussionWriteTool,
+  agentReadTool,
+  agentWriteTool,
+  metricsReadTool,
   updateTodosTool,
   proposeMemoryTool,
-  organigramReadTool,
-  organigramWriteTool,
   taskReadTool,
   taskWriteTool,
   projectReadTool,

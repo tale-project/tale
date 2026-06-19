@@ -91,6 +91,14 @@ const connector = {
     'list_pull_requests',
     'get_pull_request',
     'create_pull_request',
+    'get_pull_request_files',
+    'get_pull_request_diff',
+    'create_pull_request_review',
+    'create_pull_request_review_comment',
+    'list_issue_comments',
+    'create_issue_comment',
+    'update_issue',
+    'add_labels_to_issue',
     'list_commits',
     'search_code',
   ],
@@ -162,6 +170,21 @@ const connector = {
       return getPullRequest(http, headers, params);
     if (operation === 'create_pull_request')
       return createPullRequest(http, headers, params);
+    if (operation === 'get_pull_request_files')
+      return getPullRequestFiles(http, headers, params);
+    if (operation === 'get_pull_request_diff')
+      return getPullRequestDiff(http, headers, params);
+    if (operation === 'create_pull_request_review')
+      return createPullRequestReview(http, headers, params);
+    if (operation === 'create_pull_request_review_comment')
+      return createPullRequestReviewComment(http, headers, params);
+    if (operation === 'list_issue_comments')
+      return listIssueComments(http, headers, params);
+    if (operation === 'create_issue_comment')
+      return createIssueComment(http, headers, params);
+    if (operation === 'update_issue') return updateIssue(http, headers, params);
+    if (operation === 'add_labels_to_issue')
+      return addLabelsToIssue(http, headers, params);
     if (operation === 'list_commits') return listCommits(http, headers, params);
     if (operation === 'search_code') return searchCode(http, headers, params);
 
@@ -566,6 +589,261 @@ function createPullRequest(
   return {
     success: true,
     operation: 'create_pull_request',
+    data: response.json(),
+    count: 1,
+    timestamp: Date.now(),
+  };
+}
+
+function prBaseUrl(params: Record<string, unknown>, operation: string) {
+  const owner = requireParam(params, 'owner', operation);
+  const repo = requireParam(params, 'repo', operation);
+  const pullNumber = requireParam(params, 'pull_number', operation);
+  return (
+    API_BASE +
+    '/repos/' +
+    encodeURIComponent(String(owner)) +
+    '/' +
+    encodeURIComponent(String(repo)) +
+    '/pulls/' +
+    encodeURIComponent(String(pullNumber))
+  );
+}
+
+function issueBaseUrl(params: Record<string, unknown>, operation: string) {
+  const owner = requireParam(params, 'owner', operation);
+  const repo = requireParam(params, 'repo', operation);
+  const issueNumber = requireParam(params, 'issue_number', operation);
+  return (
+    API_BASE +
+    '/repos/' +
+    encodeURIComponent(String(owner)) +
+    '/' +
+    encodeURIComponent(String(repo)) +
+    '/issues/' +
+    encodeURIComponent(String(issueNumber))
+  );
+}
+
+function getPullRequestFiles(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const qs = buildQueryString(params, ['per_page', 'page']);
+  const url = prBaseUrl(params, 'get_pull_request_files') + '/files' + qs;
+  const response = http.get(url, { headers: headers });
+  handleError(response, 'get_pull_request_files');
+  const files = response.json();
+  return {
+    success: true,
+    operation: 'get_pull_request_files',
+    data: files,
+    count: files.length,
+    pagination: extractPagination(response),
+    timestamp: Date.now(),
+  };
+}
+
+function getPullRequestDiff(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  // The raw unified diff requires the diff media type; read it as text rather
+  // than JSON (GitHub returns text/plain for this Accept header).
+  const diffHeaders: Record<string, string> = {
+    Authorization: headers.Authorization,
+    Accept: 'application/vnd.github.diff',
+    'X-GitHub-Api-Version': headers['X-GitHub-Api-Version'],
+    'User-Agent': headers['User-Agent'],
+  };
+  const url = prBaseUrl(params, 'get_pull_request_diff');
+  const response = http.get(url, { headers: diffHeaders });
+  handleError(response, 'get_pull_request_diff');
+  return {
+    success: true,
+    operation: 'get_pull_request_diff',
+    data: { diff: response.text() },
+    count: 1,
+    timestamp: Date.now(),
+  };
+}
+
+function createPullRequestReview(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const body = requireParam(params, 'body', 'create_pull_request_review');
+  const event = requireParam(params, 'event', 'create_pull_request_review');
+  const payload: Record<string, unknown> = { body: body, event: event };
+  if (params.comments) payload.comments = params.comments;
+  if (params.commit_id) payload.commit_id = params.commit_id;
+
+  const url = prBaseUrl(params, 'create_pull_request_review') + '/reviews';
+  const response = http.post(url, {
+    headers: headers,
+    body: JSON.stringify(payload),
+  });
+  if (response.status === 0) {
+    return {
+      success: true,
+      operation: 'create_pull_request_review',
+      data: { pending: true },
+    };
+  }
+  handleError(response, 'create_pull_request_review');
+  return {
+    success: true,
+    operation: 'create_pull_request_review',
+    data: response.json(),
+    count: 1,
+    timestamp: Date.now(),
+  };
+}
+
+function createPullRequestReviewComment(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const op = 'create_pull_request_review_comment';
+  const body = requireParam(params, 'body', op);
+  const commitId = requireParam(params, 'commit_id', op);
+  const path = requireParam(params, 'path', op);
+  const payload: Record<string, unknown> = {
+    body: body,
+    commit_id: commitId,
+    path: path,
+  };
+  if (params.line !== undefined) payload.line = params.line;
+  if (params.side) payload.side = params.side;
+  if (params.start_line !== undefined) payload.start_line = params.start_line;
+
+  const url = prBaseUrl(params, op) + '/comments';
+  const response = http.post(url, {
+    headers: headers,
+    body: JSON.stringify(payload),
+  });
+  if (response.status === 0) {
+    return { success: true, operation: op, data: { pending: true } };
+  }
+  handleError(response, op);
+  return {
+    success: true,
+    operation: op,
+    data: response.json(),
+    count: 1,
+    timestamp: Date.now(),
+  };
+}
+
+function listIssueComments(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const qs = buildQueryString(params, ['per_page', 'page']);
+  const url = issueBaseUrl(params, 'list_issue_comments') + '/comments' + qs;
+  const response = http.get(url, { headers: headers });
+  handleError(response, 'list_issue_comments');
+  const comments = response.json();
+  return {
+    success: true,
+    operation: 'list_issue_comments',
+    data: comments,
+    count: comments.length,
+    pagination: extractPagination(response),
+    timestamp: Date.now(),
+  };
+}
+
+function createIssueComment(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const body = requireParam(params, 'body', 'create_issue_comment');
+  const url = issueBaseUrl(params, 'create_issue_comment') + '/comments';
+  const response = http.post(url, {
+    headers: headers,
+    body: JSON.stringify({ body: body }),
+  });
+  if (response.status === 0) {
+    return {
+      success: true,
+      operation: 'create_issue_comment',
+      data: { pending: true },
+    };
+  }
+  handleError(response, 'create_issue_comment');
+  return {
+    success: true,
+    operation: 'create_issue_comment',
+    data: response.json(),
+    count: 1,
+    timestamp: Date.now(),
+  };
+}
+
+function updateIssue(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const payload: Record<string, unknown> = {};
+  if (params.title !== undefined) payload.title = params.title;
+  if (params.body !== undefined) payload.body = params.body;
+  if (params.state !== undefined) payload.state = params.state;
+  if (params.labels !== undefined) payload.labels = params.labels;
+  if (params.assignees !== undefined) payload.assignees = params.assignees;
+  if (params.milestone !== undefined) payload.milestone = params.milestone;
+
+  const url = issueBaseUrl(params, 'update_issue');
+  const response = http.patch(url, {
+    headers: headers,
+    body: JSON.stringify(payload),
+  });
+  if (response.status === 0) {
+    return {
+      success: true,
+      operation: 'update_issue',
+      data: { pending: true },
+    };
+  }
+  handleError(response, 'update_issue');
+  return {
+    success: true,
+    operation: 'update_issue',
+    data: response.json(),
+    count: 1,
+    timestamp: Date.now(),
+  };
+}
+
+function addLabelsToIssue(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const labels = requireParam(params, 'labels', 'add_labels_to_issue');
+  const url = issueBaseUrl(params, 'add_labels_to_issue') + '/labels';
+  const response = http.post(url, {
+    headers: headers,
+    body: JSON.stringify({ labels: labels }),
+  });
+  if (response.status === 0) {
+    return {
+      success: true,
+      operation: 'add_labels_to_issue',
+      data: { pending: true },
+    };
+  }
+  handleError(response, 'add_labels_to_issue');
+  return {
+    success: true,
+    operation: 'add_labels_to_issue',
     data: response.json(),
     count: 1,
     timestamp: Date.now(),
