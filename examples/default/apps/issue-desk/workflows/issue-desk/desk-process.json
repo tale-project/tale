@@ -1,6 +1,6 @@
 {
   "name": "Issue resolution desk",
-  "description": "The config-driven multi-agent desk: a GitHub issue (bound to a task by the github sync) flows through a FIXED process — coordinator triages and assigns by role, an implementer agent resolves it in a sandbox (clones the repo, fixes on a tale/<id> branch), a deterministic sandbox step runs the repo's tests, a reviewer agent checks the fix and corrects any issues, then a pull request is opened. The process is the backbone; agent autonomy is bounded to within each step. Every step carries ui/role annotations so the generic operator workspace renders it without any per-vertical UI code — this whole app is data.",
+  "description": "A config-driven, repo-agnostic issue-resolution desk. A GitHub issue (bound to a task by the github sync) is picked up by an implementer Claude Code agent that runs in the platform's own ephemeral sandbox on the user's BYO Claude credentials: it derives the repo from the issue, clones it, fixes the issue on a tale/<id> branch, runs the project's OWN tests to verify, commits, pushes (broker-injected github token + the in-image credential helper, private repos included), and opens a pull request. A separate reviewer agent fetches the PR, re-runs the tests, and posts review comments. A toolless LLM judge then reads the review and decides merge-readiness: if yes, the task parks at In review and the workflow ends (the human merges); if no, it loops back to the implementer with the review feedback, repeating until the judge approves. Cross-step state lives on the git branch + PR; the per-step sandboxes are stateless. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
   "version": "1.0.0",
   "metadata": {
     "pack": "issue-desk",
@@ -18,13 +18,12 @@
     ]
   },
   "config": {
-    "timeout": 1800000,
+    "timeout": 3600000,
     "variables": {
       "workflowId": "issue_desk_process",
       "roles": {
-        "coordinator": "desk-coordinator",
-        "implementer": "desk-implementer",
-        "reviewer": "desk-reviewer"
+        "implementer": "issue-desk/desk-implementer",
+        "reviewer": "issue-desk/desk-reviewer"
       }
     }
   },
@@ -43,27 +42,19 @@
       "stepType": "start",
       "config": {},
       "nextSteps": {
-        "success": "assign"
+        "success": "ack"
       }
     },
     {
-      "stepSlug": "assign",
-      "name": "Coordinator assigns by role",
+      "stepSlug": "ack",
+      "name": "Acknowledge (In progress)",
       "stepType": "action",
-      "role": "coordinator",
-      "ui": {
-        "stage": "intake",
-        "render": "status",
-        "labelKey": "issueDesk.assign"
-      },
       "config": {
-        "type": "agent",
+        "type": "task",
         "parameters": {
-          "operation": "run_on_task",
-          "agentSlug": "{{config.variables.roles.coordinator}}",
+          "operation": "update_status",
           "taskId": "{{input.task._id}}",
-          "trigger": "assignment",
-          "instructions": "Triage this issue-bound task and hand it to the implementer."
+          "status": "in_progress"
         }
       },
       "nextSteps": {
@@ -72,8 +63,8 @@
     },
     {
       "stepSlug": "implement",
-      "name": "Implementer resolves the issue in a sandbox",
-      "stepType": "action",
+      "name": "Implementer resolves the issue & opens/updates the PR",
+      "stepType": "sandbox",
       "role": "implementer",
       "ui": {
         "stage": "work",
@@ -84,46 +75,53 @@
         }
       },
       "config": {
-        "type": "agent",
-        "parameters": {
-          "operation": "run_on_task",
-          "agentSlug": "{{config.variables.roles.implementer}}",
-          "taskId": "{{input.task._id}}",
-          "trigger": "assignment",
-          "instructions": "Clone the repo, fix the issue on a tale/<id> branch, and summarize the change."
+        "run": {
+          "agent": "issue-desk/desk-implementer",
+          "instructions": "Resolve this GitHub issue: '{{input.task.title}}' (#{{input.task.number}}) at {{input.task.externalUrl}}\n{{input.task.description}}\n\nGit is already authenticated for https (broker $GITHUB_TOKEN + credential helper), so clone/commit/push work, private repos included. Do: (1) derive the repo URL from the issue URL and `git clone <repo> repo && cd repo`; (2) checkout branch `tale/{{input.task._id}}` (create it if new, else `git fetch origin tale/{{input.task._id}} && git checkout` it); (3) if a pull request already exists for this branch, READ its open review comments (`gh pr view tale/{{input.task._id}} --comments` or the GitHub REST API) and address every blocking point — this is a re-work pass; (4) implement or refine the fix; (5) VERIFY IT YOURSELF — find the project's test/build command from its own config and run it until green; (6) `git add -A && git commit -m \"Fix #{{input.task.number}}: {{input.task.title}}\" && git push -u origin tale/{{input.task._id}}`; (7) if no pull request exists for this branch yet, open one to the repo's default branch (`gh pr create` or the GitHub REST API with $GITHUB_TOKEN) — otherwise your push already updated it. MANDATORY: write a summary of what you changed, the checks you ran, and the PR URL to /user/output/summary.md (absolute path).",
+          "budget": {
+            "maxCents": 250,
+            "maxWallClockMs": 720000,
+            "maxTurns": 60
+          }
         }
       },
       "nextSteps": {
-        "success": "verify"
+        "success": "impl_check"
       }
     },
     {
-      "stepSlug": "verify",
-      "name": "Run the repo test suite (deterministic)",
-      "stepType": "sandbox",
-      "ui": {
-        "stage": "verify",
-        "render": "validation",
-        "labelKey": "issueDesk.verify"
-      },
+      "stepSlug": "impl_check",
+      "name": "Did the implementer succeed?",
+      "stepType": "condition",
       "config": {
-        "run": {
-          "script": "pack://issue-desk/scripts/run_tests.py",
-          "language": "python"
-        },
-        "output": {
-          "resultFile": "result.json"
-        },
-        "timeoutMs": 600000
+        "expression": "steps.implement.output.data.ok == true",
+        "description": "A sandbox step always returns the success port; the real verdict is in output.data.ok. Stop if the implementer failed to push a verified fix + PR."
       },
       "nextSteps": {
-        "success": "review"
+        "true": "review",
+        "false": "impl_failed"
+      }
+    },
+    {
+      "stepSlug": "impl_failed",
+      "name": "Explain the implementer failure",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] The implementer could not resolve this issue: {{steps.implement.output.data.error || steps.implement.output.data.summary || 'no output'}} — returned to To do."
+        }
+      },
+      "nextSteps": {
+        "success": "rollback"
       }
     },
     {
       "stepSlug": "review",
-      "name": "Reviewer checks & fixes",
-      "stepType": "action",
+      "name": "Reviewer re-tests & comments on the PR",
+      "stepType": "sandbox",
       "role": "reviewer",
       "ui": {
         "stage": "review",
@@ -134,43 +132,79 @@
         }
       },
       "config": {
-        "type": "agent",
-        "parameters": {
-          "operation": "run_on_task",
-          "agentSlug": "{{config.variables.roles.reviewer}}",
-          "taskId": "{{input.task._id}}",
-          "trigger": "revision",
-          "instructions": "Review the implementer's fix on its branch: verify correctness, run the repo tests, and fix any issues you find directly. Summarize the review and the final state."
+        "run": {
+          "agent": "issue-desk/desk-reviewer",
+          "instructions": "Review the implementer's fix for '{{input.task.title}}' (#{{input.task.number}}) at {{input.task.externalUrl}} on branch `tale/{{input.task._id}}`. Git is authenticated ($GITHUB_TOKEN + helper). Do: (1) derive the repo URL from the issue URL and `git clone <repo> repo && cd repo`; (2) `git fetch origin tale/{{input.task._id}} && git checkout tale/{{input.task._id}}`; (3) review the change for correctness and run the project's OWN tests; (4) post your review as comments on the pull request (`gh pr review` / `gh pr comment`, or the GitHub REST API with $GITHUB_TOKEN) — do NOT change or push code, the implementer fixes. MANDATORY: write your findings to /user/output/summary.md (absolute path): clearly state whether the change is ready to merge or what specifically must be fixed.",
+          "budget": {
+            "maxCents": 200,
+            "maxWallClockMs": 480000,
+            "maxTurns": 40
+          }
         }
       },
       "nextSteps": {
-        "success": "open_pr"
+        "success": "judge"
       }
     },
     {
-      "stepSlug": "open_pr",
-      "name": "Open the pull request",
+      "stepSlug": "judge",
+      "name": "Merge gate (LLM decides mergeability)",
+      "stepType": "llm",
+      "config": {
+        "name": "merge-judge",
+        "systemPrompt": "You are a strict merge gate for a code-review desk. You are given ONLY the reviewer's written summary of a proposed fix. Decide whether it is ready to merge: approve only when the reviewer reports no blocking problems and the tests pass. You have no tools and must judge solely from the summary. Reply with EXACTLY one lowercase word and nothing else: yes (ready to merge) or no (needs more work).",
+        "userPrompt": "Reviewer summary for issue #{{input.task.number}} ('{{input.task.title}}'):\n\n{{steps.review.output.data.summary}}\n\nReady to merge? Answer yes or no.",
+        "outputFormat": "text",
+        "tools": []
+      },
+      "nextSteps": {
+        "success": "judge_decision"
+      }
+    },
+    {
+      "stepSlug": "judge_decision",
+      "name": "Mergeable?",
+      "stepType": "condition",
+      "config": {
+        "expression": "'yes' in steps.judge.output.data",
+        "description": "The judge replies with a bare yes/no (trimmed); jexl `in` does substring, and a 'no' can never contain 'yes', so this never false-approves. If yes, park for human merge; otherwise loop back to the implementer with the review feedback (bounded by the workflow timeout)."
+      },
+      "nextSteps": {
+        "true": "to_review",
+        "false": "implement"
+      }
+    },
+    {
+      "stepSlug": "to_review",
+      "name": "Park at In review (await human merge)",
       "stepType": "action",
       "ui": {
         "stage": "deliver",
-        "render": "artifact",
-        "labelKey": "issueDesk.openPr",
-        "params": {
-          "display": "object"
-        }
+        "render": "status",
+        "labelKey": "issueDesk.openPr"
       },
       "config": {
-        "type": "integration",
+        "type": "task",
         "parameters": {
-          "name": "github",
-          "operation": "create_pull_request",
-          "params": {
-            "owner": "tale-project",
-            "repo": "tale",
-            "title": "Fix: {{input.task.title}}",
-            "head": "tale/{{input.task._id}}",
-            "base": "main"
-          }
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "in_review"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "rollback",
+      "name": "Roll back to To do",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "todo"
         }
       },
       "nextSteps": {

@@ -5,7 +5,7 @@
   "description": "Reviewer for the issue-resolution desk. Reviews the implementer's change on its branch, raises issues, and fixes them directly. Runs as Claude Code in an isolated sandbox.",
   "systemInstructions": "You review proposed fixes on the issue-resolution desk. Check the implementer's change on its branch for correctness, run the repo tests, and fix any issues you find directly. Summarize the review and the final state.",
   "authMode": "byo",
+  "integrationBindings": ["github"],
   "supportedModels": ["openrouter:anthropic/claude-sonnet-4.6"],
-  "runtime": { "adapterType": "claude_code" },
   "metadata": { "role": "reviewer", "pack": "issue-desk" }
 }

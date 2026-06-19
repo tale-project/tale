@@ -44,11 +44,23 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(manifest.name).toBe('Issue resolution desk');
     expect(manifest.messageNamespace).toBe('issueDesk');
     expect(manifest.workflows).toContain('issue-desk/desk-process');
+    // Agents are referenced BARE in the manifest (their on-disk filename); the
+    // app-owned IDENTITY is the COMPOSITE slug `<app>/<name>`, used wherever an
+    // agent is resolved at runtime — the roles map, workflow steps, env keys.
     expect(manifest.agents).toContain('desk-implementer');
-    expect(manifest.roles?.coordinator).toBe('desk-coordinator');
-    expect(manifest.capabilities?.functions?.map((f) => f.path)).toContain(
-      'tasks/queries:listTasksByOrg',
+    expect(manifest.roles?.implementer).toBe('issue-desk/desk-implementer');
+    expect(manifest.capabilities?.roles).toEqual(
+      expect.arrayContaining([
+        'issue-desk/desk-implementer',
+        'issue-desk/desk-reviewer',
+      ]),
     );
+    const fnPaths = manifest.capabilities?.functions?.map((f) => f.path) ?? [];
+    expect(fnPaths).toContain('tasks/queries:listTasksByOrg');
+    // App agents are listed via the app-scoped action; the global `listAgents`
+    // would never return them.
+    expect(fnPaths).toContain('agents/file_actions:listAppAgents');
+    expect(fnPaths).not.toContain('agents/file_actions:listAgents');
   });
 
   it('workflow parses + passes validateWorkflowDefinition (ui/role annotations)', () => {
@@ -92,19 +104,41 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(result.valid).toBe(true);
   });
 
-  it('the three role agents are valid external-agent + BYO sandbox configs', () => {
-    for (const slug of [
-      'desk-coordinator',
-      'desk-implementer',
-      'desk-reviewer',
-    ]) {
+  it('the role agents are valid external-agent + BYO sandbox configs', () => {
+    for (const slug of ['desk-implementer', 'desk-reviewer']) {
       const cfg = agentJsonSchema.parse(readJson(`agents/${slug}.json`));
-      // Every desk agent runs in a sandbox on the user's own credentials.
+      // Every desk agent runs as Claude Code in a sandbox on the user's own
+      // credentials.
       expect(cfg.primaryBehavior, `${slug} primaryBehavior`).toBe(
         'external-agent',
       );
       expect(cfg.authMode, `${slug} authMode`).toBe('byo');
-      expect(cfg.runtime?.adapterType, `${slug} runtime`).toBe('claude_code');
+      expect(cfg.agentKind, `${slug} agentKind`).toBe('claude-code');
+      // They run in the PLATFORM's own ephemeral sandbox (the `sandbox` step's
+      // `run.agent`), NOT an external tale-daemon — so they carry NO `runtime`.
+      expect(cfg.runtime, `${slug} runtime`).toBeUndefined();
     }
+  });
+
+  it('the agent steps run named agents in the platform sandbox (sandbox/run.agent)', () => {
+    expect(workflow.success).toBe(true);
+    if (!workflow.success) return;
+    const steps = workflow.data.steps as Array<Record<string, unknown>>;
+    for (const slug of ['implement', 'review']) {
+      const step = steps.find((s) => s.stepSlug === slug);
+      expect(step?.stepType, `${slug} stepType`).toBe('sandbox');
+      const run = (
+        step?.config as {
+          run?: { agent?: string; budget?: { maxCents?: number } };
+        }
+      )?.run;
+      expect(typeof run?.agent, `${slug} run.agent is a string`).toBe('string');
+      expect(run?.budget?.maxCents ?? 0, `${slug} budget`).toBeGreaterThan(0);
+    }
+    // The roles the steps template against resolve to the app-scoped composite.
+    const vars = workflow.data.config?.variables as
+      | { roles?: Record<string, string> }
+      | undefined;
+    expect(vars?.roles?.implementer).toBe('issue-desk/desk-implementer');
   });
 });

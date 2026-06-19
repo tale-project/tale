@@ -9,7 +9,6 @@
     "openrouter:anthropic/claude-sonnet-4.6",
     "openrouter:anthropic/claude-opus-4.6"
   ],
-  "runtime": { "adapterType": "claude_code" },
   "delegates": [],
   "metadata": { "role": "implementer", "pack": "issue-desk" }
 }

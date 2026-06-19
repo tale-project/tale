@@ -23,15 +23,9 @@
             "props": {
               "id": "agents",
               "title": "Agents",
-              "agents": [
-                "desk-coordinator",
-                "desk-implementer",
-                "desk-reviewer"
-              ],
               "roles": {
-                "coordinator": "desk-coordinator",
-                "implementer": "desk-implementer",
-                "reviewer": "desk-reviewer"
+                "implementer": "issue-desk/desk-implementer",
+                "reviewer": "issue-desk/desk-reviewer"
               }
             }
           }
@@ -100,7 +94,7 @@
                   "args": {
                     "taskId": "$selected._id",
                     "assigneeType": "agent",
-                    "assigneeId": "desk-implementer"
+                    "assigneeId": "issue-desk/desk-implementer"
                   }
                 },
                 {

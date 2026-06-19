@@ -1,18 +1,17 @@
 {
   "name": "Issue resolution desk",
-  "description": "A config-driven multi-agent issue-resolution desk. GitHub issues (bound to tasks by the github sync) flow through a fixed process — a coordinator triages and assigns by role, an implementer resolves the issue in a sandbox, a deterministic step runs the repo's tests, a human signs off, and a pull request is opened. The whole app is data — a workflow + agents + views + a localized catalog — composed on the platform skeleton with no per-vertical system code.",
+  "description": "A config-driven, repo-agnostic issue-resolution desk. GitHub issues (bound to tasks by the github sync) flow through a fixed process — an implementer agent resolves the issue in the platform sandbox, tests it, and opens a PR; a reviewer agent re-tests and comments; a toolless LLM judge decides merge-readiness, looping back to the implementer until approved, then a human merges. The whole app is data — a workflow + agents + views + a localized catalog — composed on the platform skeleton with no per-vertical system code.",
   "icon": "ticket",
   "messageNamespace": "issueDesk",
   "workflows": ["issue-desk/desk-process"],
-  "agents": ["desk-coordinator", "desk-implementer", "desk-reviewer"],
+  "agents": ["desk-implementer", "desk-reviewer"],
   "roles": {
-    "coordinator": "desk-coordinator",
-    "implementer": "desk-implementer",
-    "reviewer": "desk-reviewer"
+    "implementer": "issue-desk/desk-implementer",
+    "reviewer": "issue-desk/desk-reviewer"
   },
   "capabilities": {
     "workflows": ["issue-desk/desk-process"],
-    "roles": ["desk-implementer", "desk-reviewer"],
+    "roles": ["issue-desk/desk-implementer", "issue-desk/desk-reviewer"],
     "functions": [
       { "path": "tasks/queries:listTasksByOrg", "mode": "query" },
       {
@@ -20,7 +19,7 @@
         "mode": "query"
       },
       { "path": "workflow_executions/queries:listExecutions", "mode": "query" },
-      { "path": "agents/file_actions:listAgents", "mode": "action" },
+      { "path": "agents/file_actions:listAppAgents", "mode": "action" },
       { "path": "agents/file_actions:readAgent", "mode": "action" },
       { "path": "agents/file_actions:saveAgent", "mode": "action" },
       { "path": "agents/agent_env:listAgentEnv", "mode": "query" },
