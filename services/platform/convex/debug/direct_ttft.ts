@@ -43,8 +43,10 @@ import {
   MAX_FILE_SIZE_BYTES,
   parseAgentJson,
   resolveAgentFilePath,
+  resolveAgentFilePathFromRelative,
   type AgentJsonConfig,
 } from '../agents/file_utils';
+import { resolveAgentRelativePath } from '../agents/internal_actions';
 import { isDeploymentEditor } from '../deployment/editors';
 import { buildSystemPrompt } from '../lib/agent_response/build_system_prompt';
 import type { UserPersonalization } from '../lib/agent_response/build_user_personalization';
@@ -125,8 +127,14 @@ async function assembleAgentTools(
   agentSlug: string,
 ): Promise<{ tools?: ToolSet; system?: string; toolCount: number }> {
   const orgSlug = await resolveOrgSlug(ctx, organizationId);
+  // Folder-aware (chat/, workforce/, …) slug→path, flat fallback for system
+  // agents / freshly-written files — matches the runtime config loaders.
+  const rel = await resolveAgentRelativePath(orgSlug, agentSlug);
+  const filePath = rel
+    ? resolveAgentFilePathFromRelative(orgSlug, rel)
+    : resolveAgentFilePath(orgSlug, agentSlug);
   const result = await readJsonFile<AgentJsonConfig>(
-    resolveAgentFilePath(orgSlug, agentSlug),
+    filePath,
     MAX_FILE_SIZE_BYTES,
     parseAgentJson,
   );
