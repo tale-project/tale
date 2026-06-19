@@ -53,7 +53,18 @@
       "none": "No agents configured.",
       "error": "Couldn't load agents: {error}",
       "editInstructions": "Edit instructions",
-      "envSecrets": "Env & secrets"
+      "envSecrets": "Env & secrets",
+      "instructions": {
+        "title": "Edit instructions — {name}",
+        "description": "The system prompt that steers this agent. Changes apply to the next run.",
+        "placeholder": "Describe how this agent should behave…",
+        "save": "Save",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "saved": "Instructions saved",
+        "saveError": "Couldn't save instructions",
+        "loadError": "Couldn't load this agent."
+      }
     },
     "workflow": {
       "none": "This workflow has no steps.",

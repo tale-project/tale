@@ -53,7 +53,18 @@
       "none": "Keine Agenten konfiguriert.",
       "error": "Agenten konnten nicht geladen werden: {error}",
       "editInstructions": "Anweisungen bearbeiten",
-      "envSecrets": "Env & Secrets"
+      "envSecrets": "Env & Secrets",
+      "instructions": {
+        "title": "Anweisungen bearbeiten — {name}",
+        "description": "Der System-Prompt, der diesen Agenten steuert. Änderungen gelten ab dem nächsten Lauf.",
+        "placeholder": "Beschreiben Sie, wie sich dieser Agent verhalten soll…",
+        "save": "Speichern",
+        "saving": "Wird gespeichert…",
+        "cancel": "Abbrechen",
+        "saved": "Anweisungen gespeichert",
+        "saveError": "Anweisungen konnten nicht gespeichert werden",
+        "loadError": "Dieser Agent konnte nicht geladen werden."
+      }
     },
     "workflow": {
       "none": "Dieser Workflow hat keine Schritte.",

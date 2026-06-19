@@ -21,6 +21,8 @@
       },
       { "path": "workflow_executions/queries:listExecutions", "mode": "query" },
       { "path": "agents/file_actions:listAgents", "mode": "action" },
+      { "path": "agents/file_actions:readAgent", "mode": "action" },
+      { "path": "agents/file_actions:saveAgent", "mode": "action" },
       { "path": "workflows/file_actions:readWorkflow", "mode": "action" },
       { "path": "tasks/mutations:assignTask", "mode": "mutation" },
       { "path": "tasks/mutations:updateTaskStatus", "mode": "mutation" },

@@ -53,7 +53,18 @@
       "none": "Aucun agent configuré.",
       "error": "Impossible de charger les agents : {error}",
       "editInstructions": "Modifier les instructions",
-      "envSecrets": "Env & secrets"
+      "envSecrets": "Env & secrets",
+      "instructions": {
+        "title": "Modifier les instructions — {name}",
+        "description": "Le prompt système qui guide cet agent. Les modifications s'appliquent à la prochaine exécution.",
+        "placeholder": "Décrivez le comportement attendu de cet agent…",
+        "save": "Enregistrer",
+        "saving": "Enregistrement…",
+        "cancel": "Annuler",
+        "saved": "Instructions enregistrées",
+        "saveError": "Impossible d'enregistrer les instructions",
+        "loadError": "Impossible de charger cet agent."
+      }
     },
     "workflow": {
       "none": "Ce workflow n'a aucune étape.",
