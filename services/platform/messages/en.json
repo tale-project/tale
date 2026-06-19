@@ -36,6 +36,18 @@
     "review": {
       "none": "No pending reviews.",
       "awaiting": "Awaiting approval"
+    },
+    "issues": {
+      "refresh": "Refresh",
+      "error": "Couldn't load issues: {error}",
+      "none": "No open issues.",
+      "colTitle": "Title",
+      "colState": "State",
+      "createTask": "Create task",
+      "created": "Created",
+      "prev": "Previous",
+      "next": "Next",
+      "page": "Page {page}"
     }
   },
   "operator": {

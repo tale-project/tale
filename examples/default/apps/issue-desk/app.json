@@ -21,6 +21,15 @@
       },
       { "path": "workflow_executions/queries:listExecutions", "mode": "query" },
       { "path": "tasks/mutations:assignTask", "mode": "mutation" },
+      { "path": "tasks/mutations:updateTaskStatus", "mode": "mutation" },
+      {
+        "path": "integrations/public_actions:listGitHubIssues",
+        "mode": "action"
+      },
+      {
+        "path": "tasks/public_actions:createTaskFromExternalIssue",
+        "mode": "action"
+      },
       {
         "path": "workflow_executions/actions:startWorkflowFromFile",
         "mode": "action"

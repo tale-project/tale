@@ -6,16 +6,50 @@
     "zones": {},
     "content": [
       {
-        "type": "Collection",
+        "type": "IssueList",
         "props": {
           "id": "issues",
-          "title": "Issues",
+          "title": "GitHub issues",
+          "owner": "tale-project",
+          "repo": "tale",
+          "state": "open"
+        }
+      },
+      {
+        "type": "Collection",
+        "props": {
+          "id": "tasks",
+          "title": "Tasks",
           "query": {
             "path": "tasks/queries:listTasksByOrg",
-            "args": { "organizationId": "$orgId" }
+            "args": { "organizationId": "$orgId", "externalSystem": "github" }
           },
           "columns": ["title", "status", "externalId"],
           "actions": [
+            {
+              "label": "Start",
+              "path": "tasks/mutations:updateTaskStatus",
+              "mode": "mutation",
+              "when": "status == backlog || status == todo",
+              "args": { "taskId": "$selected._id", "status": "in_progress" }
+            },
+            {
+              "label": "Mark done",
+              "path": "tasks/mutations:updateTaskStatus",
+              "mode": "mutation",
+              "when": "status != done",
+              "args": { "taskId": "$selected._id", "status": "done" }
+            },
+            {
+              "label": "Assign implementer",
+              "path": "tasks/mutations:assignTask",
+              "mode": "mutation",
+              "args": {
+                "taskId": "$selected._id",
+                "assigneeType": "agent",
+                "assigneeId": "desk-implementer"
+              }
+            },
             {
               "label": "Triage & run",
               "variant": "primary",
@@ -26,16 +60,6 @@
                 "workflowSlug": "issue-desk/desk-process",
                 "triggeredBy": "user",
                 "input": { "task": "$selected" }
-              }
-            },
-            {
-              "label": "Assign implementer",
-              "path": "tasks/mutations:assignTask",
-              "mode": "mutation",
-              "args": {
-                "taskId": "$selected._id",
-                "assigneeType": "agent",
-                "assigneeId": "desk-implementer"
               }
             }
           ]

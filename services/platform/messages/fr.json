@@ -36,6 +36,18 @@
     "review": {
       "none": "Aucune révision en attente.",
       "awaiting": "En attente d'approbation"
+    },
+    "issues": {
+      "refresh": "Actualiser",
+      "error": "Impossible de charger les issues : {error}",
+      "none": "Aucune issue ouverte.",
+      "colTitle": "Titre",
+      "colState": "État",
+      "createTask": "Créer une tâche",
+      "created": "Créée",
+      "prev": "Précédent",
+      "next": "Suivant",
+      "page": "Page {page}"
     }
   },
   "operator": {

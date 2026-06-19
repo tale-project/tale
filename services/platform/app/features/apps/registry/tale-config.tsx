@@ -19,6 +19,7 @@ import { Heading } from '@tale/ui/heading';
 import { Text } from '@tale/ui/text';
 
 import { Collection, type CollectionProps } from './connected/collection';
+import { IssueList, type IssueListProps } from './connected/issue-list';
 import { ReviewQueue, type ReviewQueueProps } from './connected/review';
 
 type TextVariant =
@@ -50,6 +51,7 @@ interface TaleComponents {
   // so the editor fields are optional here (the `<Puck>` editor is Phase 2).
   Collection: Partial<CollectionProps>;
   ReviewQueue: Partial<ReviewQueueProps>;
+  IssueList: Partial<IssueListProps>;
 }
 
 const opts = <T extends string | number>(values: readonly T[]) =>
@@ -149,6 +151,23 @@ export const taleConfig: Config<TaleComponents> = {
       fields: { title: { type: 'text' } },
       render: ({ title, query }) =>
         query ? <ReviewQueue title={title} query={query} /> : <></>,
+    },
+    IssueList: {
+      fields: {
+        title: { type: 'text' },
+        owner: { type: 'text' },
+        repo: { type: 'text' },
+        state: {
+          type: 'select',
+          options: opts(['open', 'closed', 'all'] as const),
+        },
+      },
+      render: ({ title, owner, repo, state }) =>
+        owner && repo ? (
+          <IssueList title={title} owner={owner} repo={repo} state={state} />
+        ) : (
+          <></>
+        ),
     },
   },
 };

@@ -36,6 +36,18 @@
     "review": {
       "none": "Keine ausstehenden Prüfungen.",
       "awaiting": "Wartet auf Genehmigung"
+    },
+    "issues": {
+      "refresh": "Aktualisieren",
+      "error": "Issues konnten nicht geladen werden: {error}",
+      "none": "Keine offenen Issues.",
+      "colTitle": "Titel",
+      "colState": "Status",
+      "createTask": "Aufgabe erstellen",
+      "created": "Erstellt",
+      "prev": "Zurück",
+      "next": "Weiter",
+      "page": "Seite {page}"
     }
   },
   "operator": {
