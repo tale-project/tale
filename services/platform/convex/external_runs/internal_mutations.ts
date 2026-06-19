@@ -73,9 +73,6 @@ export const enqueueExternalRun = internalMutation({
     guardMaxConcurrentTasks: v.optional(v.number()),
     wfExecutionId: v.optional(v.string()),
     workflowSlug: v.optional(v.string()),
-    // Plain (non-secret) env the agent declared — handed to the daemon at claim
-    // and merged into the spawned agent process (secrets stay the machine's own).
-    env: v.optional(v.record(v.string(), v.string())),
   },
   returns: v.object({
     enqueued: v.boolean(),
@@ -151,7 +148,6 @@ export const enqueueExternalRun = internalMutation({
       guardMaxConcurrentTasks: args.guardMaxConcurrentTasks,
       wfExecutionId: args.wfExecutionId,
       workflowSlug: args.workflowSlug,
-      env: args.env,
       createdAt: now,
       dispatchDeadlineAt: now + EXTERNAL_DISPATCH_DEADLINE_MS,
     });
@@ -279,7 +275,6 @@ export const claimExternalRun = internalMutation({
         kind: run.kind,
         resumeSessionRef: run.resumeSessionRef,
         prompt: run.prompt,
-        ...(run.env !== undefined && { env: run.env }),
         timeoutMs: EXTERNAL_RUN_TIMEOUT_MS,
       };
     }

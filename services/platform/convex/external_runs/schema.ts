@@ -82,10 +82,6 @@ export const externalRunsTable = defineTable({
   wfExecutionId: v.optional(v.string()),
   workflowSlug: v.optional(v.string()),
 
-  /** Plain (non-secret) env the agent declared, handed to the daemon at claim
-   *  and merged into the spawned agent process. */
-  env: v.optional(v.record(v.string(), v.string())),
-
   /** Adapter session ref returned on completion — resume handle. */
   sessionRef: v.optional(v.string()),
   resultSummary: v.optional(v.string()),

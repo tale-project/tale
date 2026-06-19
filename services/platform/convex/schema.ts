@@ -8,6 +8,7 @@ import {
 import {
   agentBindingsTable,
   agentDefaultProvisionsTable,
+  agentEnvTable,
   agentInstallationsTable,
   autoRouteCacheTable,
 } from './agents/schema';
@@ -198,6 +199,7 @@ export default defineSchema({
   agentBindings: agentBindingsTable,
   agentInstallations: agentInstallationsTable,
   agentDefaultProvisions: agentDefaultProvisionsTable,
+  agentEnv: agentEnvTable,
   autoRouteCache: autoRouteCacheTable,
   agentWebhooks: agentWebhooksTable,
   agentWebhookUserThreads: agentWebhookUserThreadsTable,

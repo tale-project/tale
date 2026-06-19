@@ -154,6 +154,8 @@ import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_
 import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/workflows/workflow_read_tool.js";
 import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
 import type * as agents_access from "../agents/access.js";
+import type * as agents_agent_env from "../agents/agent_env.js";
+import type * as agents_agent_env_actions from "../agents/agent_env_actions.js";
 import type * as agents_arena_chat from "../agents/arena_chat.js";
 import type * as agents_audit_mutations from "../agents/audit_mutations.js";
 import type * as agents_auto_route from "../agents/auto_route.js";
@@ -1689,6 +1691,8 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/workflow_read_tool": typeof agent_tools_workflows_workflow_read_tool;
   "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;
   "agents/access": typeof agents_access;
+  "agents/agent_env": typeof agents_agent_env;
+  "agents/agent_env_actions": typeof agents_agent_env_actions;
   "agents/arena_chat": typeof agents_arena_chat;
   "agents/audit_mutations": typeof agents_audit_mutations;
   "agents/auto_route": typeof agents_auto_route;

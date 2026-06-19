@@ -78,9 +78,6 @@ export interface AgentJsonConfig {
    * there is no separate org-level gate.
    */
   authMode?: 'managed' | 'byo';
-  /** Plain (non-secret) env injected into this agent's external run process
-   *  by the runtime daemon. Mirrors `agentJsonSchema.env`. */
-  env?: Record<string, string>;
   systemInstructions?: string;
   toolNames?: string[];
   integrationBindings?: string[];

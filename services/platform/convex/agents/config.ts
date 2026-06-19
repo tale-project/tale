@@ -131,9 +131,6 @@ export function toSerializableConfig(
     // External runtime binding rides along so the task-run dispatch seam
     // (run_agent_on_task) can branch without a second file read.
     runtime: config.runtime,
-    // Plain (non-secret) env the agent declared — threaded through to the
-    // external-run dispatch so the daemon injects it into the spawned process.
-    env: config.env,
     structuredResponsesEnabled: config.structuredResponsesEnabled ?? false,
     timeoutMs: config.timeoutMs,
     outputReserve: config.outputReserve,

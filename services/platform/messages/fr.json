@@ -72,11 +72,13 @@
         "loadError": "Impossible de charger cet agent."
       },
       "env": {
-        "title": "Variables d'environnement — {name}",
-        "description": "Variables d'environnement simples (non secrètes) injectées dans les exécutions de cet agent. Les secrets ne sont pas stockés ici — un agent BYO utilise les identifiants de sa machine d'exécution.",
+        "title": "Environnement et secrets — {name}",
+        "description": "Variables d'environnement et secrets injectés dans les exécutions de cet agent. Les secrets sont chiffrés au repos, affichés masqués et déchiffrés uniquement à l'exécution.",
         "none": "Aucune variable d'environnement pour l'instant.",
         "keyPlaceholder": "NOM",
         "valuePlaceholder": "valeur",
+        "secret": "Secret",
+        "secretKept": "•••••••• (inchangé)",
         "add": "Ajouter une variable",
         "remove": "Supprimer",
         "save": "Enregistrer",
@@ -84,8 +86,8 @@
         "cancel": "Annuler",
         "saved": "Environnement enregistré",
         "saveError": "Impossible d'enregistrer l'environnement",
-        "loadError": "Impossible de charger cet agent.",
-        "badKey": "« {key} » n'est pas un nom de variable d'environnement valide (lettres, chiffres, underscore ; ne commence pas par un chiffre)."
+        "badKey": "« {key} » n'est pas un nom de variable d'environnement valide (lettres, chiffres, underscore ; ne commence pas par un chiffre).",
+        "dupKey": "Nom de variable en double — chaque NOM doit être unique."
       }
     },
     "workflow": {

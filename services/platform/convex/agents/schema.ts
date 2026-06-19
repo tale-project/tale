@@ -144,3 +144,25 @@ export const agentDefaultProvisionsTable = defineTable({
   contentHash: v.string(),
   provisionedAt: v.number(),
 }).index('by_org_slug', ['organizationId', 'agentSlug']);
+
+/**
+ * Per-agent env/secrets — one row per (organizationId, agentSlug, key). Plain
+ * vars carry `value`; secrets carry an `encryptedValue` (JWE) and are
+ * write-only. Resolved + injected at the agent's external-run claim. CRUD in
+ * `agents/agent_env.ts`; encryption in `agents/agent_env_actions.ts`.
+ */
+export const agentEnvTable = defineTable({
+  organizationId: v.string(),
+  agentSlug: v.string(),
+  /** Env var name (validated `^[A-Za-z_][A-Za-z0-9_]*$`). */
+  key: v.string(),
+  isSecret: v.boolean(),
+  /** Plaintext value for non-secret vars; omitted for secrets. */
+  value: v.optional(v.string()),
+  /** JWE ciphertext for secrets; omitted for non-secret vars. */
+  encryptedValue: v.optional(v.string()),
+  updatedAt: v.number(),
+  updatedBy: v.string(),
+})
+  .index('by_org_agent', ['organizationId', 'agentSlug'])
+  .index('by_org_agent_key', ['organizationId', 'agentSlug', 'key']);

@@ -420,7 +420,6 @@ export const runAgentOnTask = internalAction({
             guardMaxConcurrentTasks: agentConfig.maxConcurrentTasks,
             wfExecutionId: args.wfExecutionId,
             workflowSlug: args.workflowSlug,
-            ...(agentConfig.env !== undefined && { env: agentConfig.env }),
           },
         );
         logRun('dispatched-external', {

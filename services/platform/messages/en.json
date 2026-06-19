@@ -72,11 +72,13 @@
         "loadError": "Couldn't load this agent."
       },
       "env": {
-        "title": "Environment variables — {name}",
-        "description": "Plain (non-secret) env injected into this agent's runs. Secrets aren't stored here — a BYO agent uses its runtime machine's own credentials.",
+        "title": "Environment & secrets — {name}",
+        "description": "Env vars and secrets injected into this agent's runs. Secrets are encrypted at rest, shown masked, and decrypted only at run time.",
         "none": "No environment variables yet.",
         "keyPlaceholder": "NAME",
         "valuePlaceholder": "value",
+        "secret": "Secret",
+        "secretKept": "•••••••• (unchanged)",
         "add": "Add variable",
         "remove": "Remove",
         "save": "Save",
@@ -84,8 +86,8 @@
         "cancel": "Cancel",
         "saved": "Environment saved",
         "saveError": "Couldn't save environment",
-        "loadError": "Couldn't load this agent.",
-        "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit)."
+        "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit).",
+        "dupKey": "Duplicate variable name — each NAME must be unique."
       }
     },
     "workflow": {
