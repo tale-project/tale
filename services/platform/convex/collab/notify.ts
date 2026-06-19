@@ -299,7 +299,10 @@ export async function notifyTaskComment(
   ctx: MutationCtx,
   args: {
     task: Doc<'tasks'>;
-    commentId: Id<'taskComments'>;
+    // The comment's identity for the notification deep-link. Now a message id
+    // (string) since task comments live in the message store; `resourceId`
+    // already stores it via `String()`, and `resourceType:'comment'` is unchanged.
+    commentId: string;
     mentions: Array<{ type: 'user' | 'agent'; id: string }>;
     actorType: ActorType;
     actorId: string;
@@ -341,7 +344,7 @@ export async function notifyTaskComment(
         ? { title: args.task.title, actor: actorName }
         : { title: args.task.title },
       resourceType: 'comment',
-      resourceId: String(args.commentId),
+      resourceId: args.commentId,
       taskId: args.task._id,
       actorType: args.actorType,
       actorId: args.actorId,
@@ -366,7 +369,7 @@ export async function notifyTaskComment(
         ? { title: args.task.title, actor: actorName }
         : { title: args.task.title },
       resourceType: 'comment',
-      resourceId: String(args.commentId),
+      resourceId: args.commentId,
       taskId: args.task._id,
       actorType: args.actorType,
       actorId: args.actorId,

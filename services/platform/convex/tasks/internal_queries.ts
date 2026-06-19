@@ -14,9 +14,72 @@ import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
+import { getThreadMessages } from '../threads/get_thread_messages';
 import { taskActorTypeValidator, taskStatusValidator } from './schema';
 
 const AGENT_TASK_LIST_CAP = 200;
+const TASK_COMMENTS_CAP = 500;
+
+/**
+ * A task comment in the unified model: a `task_discussion` message joined with
+ * its side-car meta (author / `editedAt` / parsed `mentions`). Superset of the
+ * legacy `taskComments` doc fields the agent prompt + UI read
+ * (`authorType`/`authorId`/`body`/`createdAt`), so consumers are byte-compatible.
+ */
+export interface TaskDiscussionMessage {
+  messageId: string;
+  authorType: 'user' | 'agent';
+  authorId: string;
+  body: string;
+  createdAt: number;
+  editedAt?: number;
+  mentions?: Array<{ type: 'user' | 'agent'; id: string }>;
+}
+
+/**
+ * List a task's comments from its `task_discussion` thread, joining the message
+ * store (bodies, chronological) with `taskDiscussionMessageMeta` (author/
+ * editedAt/mentions). Replaces `listTaskCommentsInternal`. Returns [] when the
+ * task has no discussion thread yet (no comments). Reads ONLY
+ * `tasks.discussionThreadId` — never the private `tasks.threadId` agent thread.
+ */
+export const listTaskDiscussionMessagesInternal = internalQuery({
+  args: {
+    taskId: v.id('tasks'),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args): Promise<TaskDiscussionMessage[]> => {
+    const task = await ctx.db.get(args.taskId);
+    if (
+      !task ||
+      task.organizationId !== args.organizationId ||
+      !task.discussionThreadId
+    ) {
+      return [];
+    }
+    const { messages } = await getThreadMessages(ctx, task.discussionThreadId);
+    const metas = await ctx.db
+      .query('taskDiscussionMessageMeta')
+      .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
+      .collect();
+    const metaById = new Map(metas.map((m) => [m.messageId, m]));
+    return messages.slice(0, TASK_COMMENTS_CAP).map((msg) => {
+      const meta = metaById.get(msg._id);
+      return {
+        messageId: msg._id,
+        // The meta row is the source of truth (written in lockstep); fall back
+        // to the message role only defensively if a meta row is ever missing.
+        authorType:
+          meta?.authorType ?? (msg.role === 'user' ? 'user' : 'agent'),
+        authorId: meta?.authorId ?? '',
+        body: msg.content,
+        createdAt: meta?.createdAt ?? msg._creationTime,
+        editedAt: meta?.editedAt,
+        mentions: meta?.mentions,
+      };
+    });
+  },
+});
 
 export const getTaskByIdInternal = internalQuery({
   args: {

@@ -114,6 +114,7 @@ import {
   taskActivityTable,
   taskCommentsTable,
   taskDependenciesTable,
+  taskDiscussionMessageMetaTable,
   tasksTable,
 } from './tasks/schema';
 import { threadFilesTable } from './thread_files/schema';
@@ -232,6 +233,7 @@ export default defineSchema({
   projects: projectsTable,
   tasks: tasksTable,
   taskComments: taskCommentsTable,
+  taskDiscussionMessageMeta: taskDiscussionMessageMetaTable,
   taskActivity: taskActivityTable,
   taskDependencies: taskDependenciesTable,
   boardViews: boardViewsTable,

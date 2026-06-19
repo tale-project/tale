@@ -128,6 +128,13 @@ export const tasksTable = defineTable({
   // agent run). Revision/mention runs share it so context accumulates.
   threadId: v.optional(v.string()),
 
+  // The task's UNIFIED comment surface: a `kind:'task_discussion'` chat thread
+  // (created lazily on the first comment) whose messages ARE the task comments.
+  // DISTINCT from `threadId` (the private agent working/run context — reusing it
+  // would leak run prompts into the visible discussion) and from
+  // `sourceDiscussionThreadId` (the createTaskFromDiscussion spawn backlink).
+  discussionThreadId: v.optional(v.string()),
+
   // Discussion this task was spawned from (createTaskFromDiscussion); the
   // reverse link lives on threadMetadata.linkedTaskId.
   sourceDiscussionThreadId: v.optional(v.string()),
@@ -186,6 +193,60 @@ export const taskCommentsTable = defineTable({
 })
   .index('by_task_createdAt', ['taskId', 'createdAt'])
   .index('by_organization', ['organizationId']);
+
+/**
+ * Mutable side-car for the unified task-discussion comment surface. Task
+ * comments are stored as messages in a `kind:'task_discussion'` thread (the
+ * `@convex-dev/agent` message store), but that store has no author field, no
+ * `editedAt`, no queryable `mentions`, and immutable metadata — so the bits a
+ * task comment needs beyond raw text live here, keyed by `messageId` and
+ * written in LOCKSTEP with every message (see `postTaskDiscussionMessage`). One
+ * row per visible comment; the row is deleted when the message is hard-deleted.
+ */
+export const taskDiscussionMessageMetaTable = defineTable({
+  organizationId: v.string(),
+  // The `kind:'task_discussion'` thread the message lives in (= tasks.discussionThreadId).
+  threadId: v.string(),
+  taskId: v.id('tasks'),
+  // The `@convex-dev/agent` message id (opaque string; not a Convex doc id).
+  messageId: v.string(),
+  // Human-vs-agent authorship. Workflow-authored comments are stored as `agent`
+  // (the validator has no `workflow` literal); the workflow-vs-agent distinction
+  // survives only in emitted `eventData` via `eventActor(actorId)`, exactly as
+  // the legacy taskComments path behaved.
+  authorType: taskActorTypeValidator,
+  authorId: v.string(),
+  // Parsed at write time from `@token` syntax and re-parsed on edit — the agent
+  // prompt context and the `react-to-mention-in-task` loop guard read this.
+  mentions: v.optional(
+    v.array(
+      v.object({
+        type: taskActorTypeValidator,
+        id: v.string(),
+      }),
+    ),
+  ),
+  createdAt: v.number(),
+  editedAt: v.optional(v.number()),
+})
+  .index('by_messageId', ['messageId'])
+  .index('by_task', ['taskId', 'createdAt']);
+
+/**
+ * The `comment` object embedded in `comment.created` / `comment.mentioned`
+ * automation events. Task comments now live in the message store (no
+ * `taskComments` doc to attach), so this object is RECONSTRUCTED at emit time.
+ * Its shape is load-bearing for the task-ops pack: `react-to-mention-in-task`
+ * reads `input.comment.body`, and `comment.*` event filters resolve
+ * `comment.projectId` by dot-notation — keep both fields. Typing the
+ * reconstruction here fails the build if an emit site drifts from this shape.
+ */
+export interface CommentEventComment {
+  body: string;
+  projectId: string;
+  taskId: string;
+  mentions: Array<{ type: 'user' | 'agent'; id: string }>;
+}
 
 /**
  * Append-only per-task activity timeline (status/assignee/etc. changes). This
