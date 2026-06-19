@@ -33,6 +33,7 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
 import { emitEvent } from '../workflows/triggers/emit_event';
 import { canClaimTask, checkProjectAccess, normalizeAssignee } from './access';
 import {
@@ -1696,10 +1697,21 @@ async function deleteTaskTree(
     deletedChildren += 1 + (await deleteTaskTree(ctx, childId));
   }
 
-  for await (const comment of ctx.db
-    .query('taskComments')
-    .withIndex('by_task_createdAt', (q) => q.eq('taskId', taskId))) {
-    await ctx.db.delete(comment._id);
+  // Comments are messages in the task's `task_discussion` thread now. Delete
+  // the side-car meta rows, then cascade the thread itself (its agent-component
+  // messages + threadMetadata) via the canonical teardown. Single pass — a task
+  // discussion is small; the helper is hold-aware and idempotent.
+  const task = await ctx.db.get(taskId);
+  if (task?.discussionThreadId) {
+    for await (const meta of ctx.db
+      .query('taskDiscussionMessageMeta')
+      .withIndex('by_task', (q) => q.eq('taskId', taskId))) {
+      await ctx.db.delete(meta._id);
+    }
+    await cascadeDeleteThreadChildren(ctx, {
+      threadId: task.discussionThreadId,
+      organizationId: task.organizationId,
+    });
   }
   for await (const activity of ctx.db
     .query('taskActivity')

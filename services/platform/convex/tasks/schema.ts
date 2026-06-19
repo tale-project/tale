@@ -162,39 +162,6 @@ export const tasksTable = defineTable({
   .index('by_org_status', ['organizationId', 'status']);
 
 /**
- * Plain-text comments on a task (MVP — no rich text). `mentions` is parsed at
- * write time from `@token` syntax and resolved against the project member/agent
- * directory; unresolved tokens are dropped. `projectId` is denormalized from
- * the task so comment access checks avoid a second task fetch.
- */
-export const taskCommentsTable = defineTable({
-  organizationId: v.string(),
-  taskId: v.id('tasks'),
-  projectId: v.id('projects'),
-  authorType: taskActorTypeValidator,
-  authorId: v.string(),
-  body: v.string(),
-  // Single-level threading: a reply points at the top-level comment it answers.
-  // Top-level comments leave this undefined. Replies-to-replies are flattened
-  // onto their root thread (the mutation re-roots a nested parent).
-  parentCommentId: v.optional(v.id('taskComments')),
-  mentions: v.optional(
-    v.array(
-      v.object({
-        type: taskActorTypeValidator,
-        id: v.string(),
-      }),
-    ),
-  ),
-  createdAt: v.number(),
-  updatedAt: v.number(),
-  editedAt: v.optional(v.number()),
-  deletedAt: v.optional(v.number()),
-})
-  .index('by_task_createdAt', ['taskId', 'createdAt'])
-  .index('by_organization', ['organizationId']);
-
-/**
  * Mutable side-car for the unified task-discussion comment surface. Task
  * comments are stored as messages in a `kind:'task_discussion'` thread (the
  * `@convex-dev/agent` message store), but that store has no author field, no

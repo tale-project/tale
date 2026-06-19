@@ -698,7 +698,7 @@ async function ensureTaskDiscussionThread(
  * thread — author/`editedAt`/`mentions` live ONLY in the meta row written here,
  * so a message without its meta would render unattributed and be uneditable.
  */
-async function postTaskDiscussionMessage(
+export async function postTaskDiscussionMessage(
   ctx: MutationCtx,
   args: {
     organizationId: string;
@@ -1028,11 +1028,12 @@ export const backfillTaskCommentCounts = internalMutation({
         q.eq('organizationId', args.organizationId),
       )) {
       scanned += 1;
+      // Comments are now `task_discussion` messages, 1:1 with their meta rows.
       let count = 0;
-      for await (const comment of ctx.db
-        .query('taskComments')
-        .withIndex('by_task_createdAt', (q) => q.eq('taskId', task._id))) {
-        if (!comment.deletedAt) count += 1;
+      for await (const _meta of ctx.db
+        .query('taskDiscussionMessageMeta')
+        .withIndex('by_task', (q) => q.eq('taskId', task._id))) {
+        count += 1;
       }
       if ((task.commentCount ?? 0) !== count) {
         await ctx.db.patch(task._id, { commentCount: count });

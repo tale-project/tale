@@ -112,7 +112,6 @@ import {
 import {
   boardViewsTable,
   taskActivityTable,
-  taskCommentsTable,
   taskDependenciesTable,
   taskDiscussionMessageMetaTable,
   tasksTable,
@@ -232,7 +231,6 @@ export default defineSchema({
   products: productsTable,
   projects: projectsTable,
   tasks: tasksTable,
-  taskComments: taskCommentsTable,
   taskDiscussionMessageMeta: taskDiscussionMessageMetaTable,
   taskActivity: taskActivityTable,
   taskDependencies: taskDependenciesTable,
