@@ -33,8 +33,17 @@ vi.mock('./config', () => ({
 vi.mock('./file_utils', () => ({
   resolveAgentFilePath: (orgSlug: string, agentSlug: string) =>
     `${orgSlug}/${agentSlug}.json`,
+  resolveAgentFilePathFromRelative: (orgSlug: string, rel: string) =>
+    `${orgSlug}/${rel}`,
   parseAgentJson: 'mock-parseAgentJson',
   MAX_FILE_SIZE_BYTES: 123,
+}));
+
+// The inline resolver consults the folder-aware slug→path index; here we force
+// the "unindexed slug" branch so it falls back to the flat `<slug>.json` path
+// these assertions expect (the index itself is covered by internal_actions).
+vi.mock('./internal_actions', () => ({
+  resolveAgentRelativePath: () => Promise.resolve(undefined),
 }));
 
 const { resolveAgentConfigInline } = await import('./resolve_agent_config');

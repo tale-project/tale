@@ -15,7 +15,9 @@ import {
   MAX_FILE_SIZE_BYTES,
   parseAgentJson,
   resolveAgentFilePath,
+  resolveAgentFilePathFromRelative,
 } from '../../agents/file_utils';
+import { resolveAgentRelativePath } from '../../agents/internal_actions';
 import type { DelegateAgentMeta } from './create_delegation_tool';
 
 export async function loadDelegateAgents(
@@ -31,7 +33,15 @@ export async function loadDelegateAgents(
 
   for (const name of delegateNames) {
     try {
-      const filePath = resolveAgentFilePath(orgSlug, name);
+      // Locate the backing file through the folder-aware index (chat/,
+      // workforce/, github/, …) — a flat `<slug>.json` fallback covers a
+      // brand-new file written before the 60s index cache refreshed. Without
+      // this, every foldered agent (the entire workforce) resolved to a
+      // non-existent flat path and was silently skipped as "not found".
+      const rel = await resolveAgentRelativePath(orgSlug, name);
+      const filePath = rel
+        ? resolveAgentFilePathFromRelative(orgSlug, rel)
+        : resolveAgentFilePath(orgSlug, name);
       const fileStat = await stat(filePath);
       if (fileStat.size > MAX_FILE_SIZE_BYTES) {
         console.warn(
