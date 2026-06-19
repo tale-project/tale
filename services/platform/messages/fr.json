@@ -60,6 +60,28 @@
       "error": "Impossible de charger le workflow : {error}",
       "openEditor": "Ouvrir dans l'éditeur"
     },
+    "process": {
+      "stage": {
+        "intake": "Réception",
+        "work": "Traitement",
+        "verify": "Vérification",
+        "review": "Validation",
+        "deliver": "Livraison",
+        "steps": "Étapes"
+      },
+      "kind": {
+        "status": "Statut",
+        "ingest": "Réception",
+        "transform": "Traitement",
+        "validation": "Contrôles",
+        "reconciliation": "Rapprochement",
+        "diff": "Comparaison",
+        "collection": "Éléments",
+        "artifact": "Résultat",
+        "stream": "Travail de l'agent",
+        "review": "Revue humaine"
+      }
+    },
     "runs": {
       "none": "Aucune exécution pour le moment.",
       "colRun": "Exécution",

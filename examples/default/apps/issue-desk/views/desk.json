@@ -11,10 +11,10 @@
         "zones": {},
         "content": [
           {
-            "type": "WorkflowGraph",
+            "type": "WorkflowMap",
             "props": {
               "id": "workflow",
-              "title": "Workflow",
+              "title": "How it works",
               "workflowSlug": "issue-desk/desk-process"
             }
           },

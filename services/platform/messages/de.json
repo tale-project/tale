@@ -60,6 +60,28 @@
       "error": "Workflow konnte nicht geladen werden: {error}",
       "openEditor": "Im Editor öffnen"
     },
+    "process": {
+      "stage": {
+        "intake": "Aufnahme",
+        "work": "Bearbeitung",
+        "verify": "Prüfung",
+        "review": "Freigabe",
+        "deliver": "Auslieferung",
+        "steps": "Schritte"
+      },
+      "kind": {
+        "status": "Status",
+        "ingest": "Aufnahme",
+        "transform": "Verarbeitung",
+        "validation": "Prüfungen",
+        "reconciliation": "Abgleich",
+        "diff": "Vergleich",
+        "collection": "Elemente",
+        "artifact": "Ausgabe",
+        "stream": "Agentenarbeit",
+        "review": "Menschliche Prüfung"
+      }
+    },
     "runs": {
       "none": "Noch keine Läufe.",
       "colRun": "Lauf",

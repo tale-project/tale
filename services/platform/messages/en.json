@@ -60,6 +60,28 @@
       "error": "Couldn't load the workflow: {error}",
       "openEditor": "Open in editor"
     },
+    "process": {
+      "stage": {
+        "intake": "Intake",
+        "work": "Work",
+        "verify": "Verify",
+        "review": "Review",
+        "deliver": "Deliver",
+        "steps": "Steps"
+      },
+      "kind": {
+        "status": "Status",
+        "ingest": "Intake",
+        "transform": "Process",
+        "validation": "Checks",
+        "reconciliation": "Reconcile",
+        "diff": "Compare",
+        "collection": "Items",
+        "artifact": "Output",
+        "stream": "Agent work",
+        "review": "Human review"
+      }
+    },
     "runs": {
       "none": "No runs yet.",
       "colRun": "Run",
