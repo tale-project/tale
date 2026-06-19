@@ -7096,6 +7096,49 @@
       "cancel": "Cancel"
     }
   },
+  "discussions": {
+    "title": "Discussions",
+    "subtitle": "Threaded conversations for this project — ask questions, make decisions, and @mention an agent to bring it in.",
+    "new": "New discussion",
+    "empty": "No discussions yet. Start one to ask a question or make a decision.",
+    "untitled": "Untitled discussion",
+    "backToList": "Back to discussions",
+    "resolve": "Resolve",
+    "reopen": "Reopen",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "status": {
+      "open": "Open",
+      "resolved": "Resolved",
+      "locked": "Locked",
+      "failed": "Could not update the discussion status"
+    },
+    "spawnTask": {
+      "cta": "Create task",
+      "success": "Task created from discussion",
+      "failed": "Could not create the task"
+    },
+    "reply": {
+      "placeholder": "Reply… use @ to mention a teammate or agent",
+      "lockedPlaceholder": "This discussion is locked",
+      "hint": "@mention an agent to ask it to respond.",
+      "failed": "Could not post your reply"
+    },
+    "create": {
+      "title": "New discussion",
+      "titleLabel": "Title",
+      "titlePlaceholder": "What's this discussion about?",
+      "titleRequired": "Add a title first",
+      "category": "Category",
+      "bodyPlaceholder": "Start the discussion… use @ to mention a teammate or agent",
+      "hint": "Press send to open the discussion. @mention an agent to involve it.",
+      "cancel": "Cancel",
+      "failed": "Could not create the discussion"
+    },
+    "aria": {
+      "transcript": "Discussion messages"
+    }
+  },
   "agentCatalog": {
     "title": "Agent catalog",
     "subtitle": "Browse the AI workforce by department and install, enable, or disable agents for your organization.",

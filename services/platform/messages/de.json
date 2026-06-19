@@ -7096,6 +7096,49 @@
       "cancel": "Abbrechen"
     }
   },
+  "discussions": {
+    "title": "Diskussionen",
+    "subtitle": "Themen-Konversationen für dieses Projekt — Fragen stellen, Entscheidungen treffen und einen Agenten per @ einbeziehen.",
+    "new": "Neue Diskussion",
+    "empty": "Noch keine Diskussionen. Starten Sie eine, um eine Frage zu stellen oder eine Entscheidung zu treffen.",
+    "untitled": "Diskussion ohne Titel",
+    "backToList": "Zurück zu den Diskussionen",
+    "resolve": "Lösen",
+    "reopen": "Wieder öffnen",
+    "lock": "Sperren",
+    "unlock": "Entsperren",
+    "status": {
+      "open": "Offen",
+      "resolved": "Gelöst",
+      "locked": "Gesperrt",
+      "failed": "Diskussionsstatus konnte nicht aktualisiert werden"
+    },
+    "spawnTask": {
+      "cta": "Aufgabe erstellen",
+      "success": "Aufgabe aus Diskussion erstellt",
+      "failed": "Aufgabe konnte nicht erstellt werden"
+    },
+    "reply": {
+      "placeholder": "Antworten… mit @ ein Teammitglied oder einen Agenten erwähnen",
+      "lockedPlaceholder": "Diese Diskussion ist gesperrt",
+      "hint": "Erwähnen Sie einen Agenten mit @, damit er antwortet.",
+      "failed": "Antwort konnte nicht gesendet werden"
+    },
+    "create": {
+      "title": "Neue Diskussion",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "Worum geht es in dieser Diskussion?",
+      "titleRequired": "Zuerst einen Titel hinzufügen",
+      "category": "Kategorie",
+      "bodyPlaceholder": "Diskussion beginnen… mit @ ein Teammitglied oder einen Agenten erwähnen",
+      "hint": "Zum Öffnen der Diskussion senden. Erwähnen Sie einen Agenten mit @, um ihn einzubeziehen.",
+      "cancel": "Abbrechen",
+      "failed": "Diskussion konnte nicht erstellt werden"
+    },
+    "aria": {
+      "transcript": "Diskussionsnachrichten"
+    }
+  },
   "agentCatalog": {
     "title": "Agentenkatalog",
     "subtitle": "Durchsuchen Sie die KI-Belegschaft nach Abteilung und installieren, aktivieren oder deaktivieren Sie Agenten für Ihre Organisation.",

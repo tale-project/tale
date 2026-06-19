@@ -7097,6 +7097,49 @@
       "cancel": "Annuler"
     }
   },
+  "discussions": {
+    "title": "Discussions",
+    "subtitle": "Conversations par fil pour ce projet — posez des questions, prenez des décisions et @mentionnez un agent pour l'impliquer.",
+    "new": "Nouvelle discussion",
+    "empty": "Aucune discussion pour l'instant. Lancez-en une pour poser une question ou prendre une décision.",
+    "untitled": "Discussion sans titre",
+    "backToList": "Retour aux discussions",
+    "resolve": "Résoudre",
+    "reopen": "Rouvrir",
+    "lock": "Verrouiller",
+    "unlock": "Déverrouiller",
+    "status": {
+      "open": "Ouverte",
+      "resolved": "Résolue",
+      "locked": "Verrouillée",
+      "failed": "Impossible de mettre à jour le statut de la discussion"
+    },
+    "spawnTask": {
+      "cta": "Créer une tâche",
+      "success": "Tâche créée depuis la discussion",
+      "failed": "Impossible de créer la tâche"
+    },
+    "reply": {
+      "placeholder": "Répondre… utilisez @ pour mentionner un coéquipier ou un agent",
+      "lockedPlaceholder": "Cette discussion est verrouillée",
+      "hint": "@mentionnez un agent pour lui demander de répondre.",
+      "failed": "Impossible de publier votre réponse"
+    },
+    "create": {
+      "title": "Nouvelle discussion",
+      "titleLabel": "Titre",
+      "titlePlaceholder": "De quoi s'agit-il dans cette discussion ?",
+      "titleRequired": "Ajoutez d'abord un titre",
+      "category": "Catégorie",
+      "bodyPlaceholder": "Lancez la discussion… utilisez @ pour mentionner un coéquipier ou un agent",
+      "hint": "Appuyez sur envoyer pour ouvrir la discussion. @mentionnez un agent pour l'impliquer.",
+      "cancel": "Annuler",
+      "failed": "Impossible de créer la discussion"
+    },
+    "aria": {
+      "transcript": "Messages de la discussion"
+    }
+  },
   "agentCatalog": {
     "title": "Catalogue d'agents",
     "subtitle": "Parcourez la main-d'œuvre IA par département et installez, activez ou désactivez des agents pour votre organisation.",

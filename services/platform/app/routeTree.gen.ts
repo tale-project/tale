@@ -102,6 +102,7 @@ import { Route as DashboardIdProjectsProjectIdSecretsRouteImport } from './route
 import { Route as DashboardIdProjectsProjectIdMetricsRouteImport } from './routes/dashboard/$id/projects/$projectId/metrics';
 import { Route as DashboardIdProjectsProjectIdInstructionsRouteImport } from './routes/dashboard/$id/projects/$projectId/instructions';
 import { Route as DashboardIdProjectsProjectIdFilesRouteImport } from './routes/dashboard/$id/projects/$projectId/files';
+import { Route as DashboardIdProjectsProjectIdDiscussionsRouteImport } from './routes/dashboard/$id/projects/$projectId/discussions';
 import { Route as DashboardIdProjectsProjectIdAgentsRouteImport } from './routes/dashboard/$id/projects/$projectId/agents';
 import { Route as DashboardIdChatSharedShareTokenRouteImport } from './routes/dashboard/$id/chat/shared/$shareToken';
 import { Route as DashboardIdAutomationsAmIdTriggersRouteImport } from './routes/dashboard/$id/automations/$amId/triggers';
@@ -651,6 +652,12 @@ const DashboardIdProjectsProjectIdFilesRoute =
     path: '/files',
     getParentRoute: () => DashboardIdProjectsProjectIdRoute,
   } as any);
+const DashboardIdProjectsProjectIdDiscussionsRoute =
+  DashboardIdProjectsProjectIdDiscussionsRouteImport.update({
+    id: '/discussions',
+    path: '/discussions',
+    getParentRoute: () => DashboardIdProjectsProjectIdRoute,
+  } as any);
 const DashboardIdProjectsProjectIdAgentsRoute =
   DashboardIdProjectsProjectIdAgentsRouteImport.update({
     id: '/agents',
@@ -846,6 +853,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
+  '/dashboard/$id/projects/$projectId/discussions': typeof DashboardIdProjectsProjectIdDiscussionsRoute;
   '/dashboard/$id/projects/$projectId/files': typeof DashboardIdProjectsProjectIdFilesRoute;
   '/dashboard/$id/projects/$projectId/instructions': typeof DashboardIdProjectsProjectIdInstructionsRoute;
   '/dashboard/$id/projects/$projectId/metrics': typeof DashboardIdProjectsProjectIdMetricsRoute;
@@ -946,6 +954,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
+  '/dashboard/$id/projects/$projectId/discussions': typeof DashboardIdProjectsProjectIdDiscussionsRoute;
   '/dashboard/$id/projects/$projectId/files': typeof DashboardIdProjectsProjectIdFilesRoute;
   '/dashboard/$id/projects/$projectId/instructions': typeof DashboardIdProjectsProjectIdInstructionsRoute;
   '/dashboard/$id/projects/$projectId/metrics': typeof DashboardIdProjectsProjectIdMetricsRoute;
@@ -1061,6 +1070,7 @@ export interface FileRoutesById {
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
+  '/dashboard/$id/projects/$projectId/discussions': typeof DashboardIdProjectsProjectIdDiscussionsRoute;
   '/dashboard/$id/projects/$projectId/files': typeof DashboardIdProjectsProjectIdFilesRoute;
   '/dashboard/$id/projects/$projectId/instructions': typeof DashboardIdProjectsProjectIdInstructionsRoute;
   '/dashboard/$id/projects/$projectId/metrics': typeof DashboardIdProjectsProjectIdMetricsRoute;
@@ -1175,6 +1185,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
+    | '/dashboard/$id/projects/$projectId/discussions'
     | '/dashboard/$id/projects/$projectId/files'
     | '/dashboard/$id/projects/$projectId/instructions'
     | '/dashboard/$id/projects/$projectId/metrics'
@@ -1275,6 +1286,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
+    | '/dashboard/$id/projects/$projectId/discussions'
     | '/dashboard/$id/projects/$projectId/files'
     | '/dashboard/$id/projects/$projectId/instructions'
     | '/dashboard/$id/projects/$projectId/metrics'
@@ -1389,6 +1401,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
+    | '/dashboard/$id/projects/$projectId/discussions'
     | '/dashboard/$id/projects/$projectId/files'
     | '/dashboard/$id/projects/$projectId/instructions'
     | '/dashboard/$id/projects/$projectId/metrics'
@@ -2087,6 +2100,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdProjectsProjectIdFilesRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdRoute;
     };
+    '/dashboard/$id/projects/$projectId/discussions': {
+      id: '/dashboard/$id/projects/$projectId/discussions';
+      path: '/discussions';
+      fullPath: '/dashboard/$id/projects/$projectId/discussions';
+      preLoaderRoute: typeof DashboardIdProjectsProjectIdDiscussionsRouteImport;
+      parentRoute: typeof DashboardIdProjectsProjectIdRoute;
+    };
     '/dashboard/$id/projects/$projectId/agents': {
       id: '/dashboard/$id/projects/$projectId/agents';
       path: '/agents';
@@ -2564,6 +2584,7 @@ const DashboardIdSettingsRouteWithChildren =
 
 interface DashboardIdProjectsProjectIdRouteChildren {
   DashboardIdProjectsProjectIdAgentsRoute: typeof DashboardIdProjectsProjectIdAgentsRoute;
+  DashboardIdProjectsProjectIdDiscussionsRoute: typeof DashboardIdProjectsProjectIdDiscussionsRoute;
   DashboardIdProjectsProjectIdFilesRoute: typeof DashboardIdProjectsProjectIdFilesRoute;
   DashboardIdProjectsProjectIdInstructionsRoute: typeof DashboardIdProjectsProjectIdInstructionsRoute;
   DashboardIdProjectsProjectIdMetricsRoute: typeof DashboardIdProjectsProjectIdMetricsRoute;
@@ -2580,6 +2601,8 @@ const DashboardIdProjectsProjectIdRouteChildren: DashboardIdProjectsProjectIdRou
   {
     DashboardIdProjectsProjectIdAgentsRoute:
       DashboardIdProjectsProjectIdAgentsRoute,
+    DashboardIdProjectsProjectIdDiscussionsRoute:
+      DashboardIdProjectsProjectIdDiscussionsRoute,
     DashboardIdProjectsProjectIdFilesRoute:
       DashboardIdProjectsProjectIdFilesRoute,
     DashboardIdProjectsProjectIdInstructionsRoute:

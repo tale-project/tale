@@ -43,6 +43,7 @@ function ProjectDetailLayout() {
   const { t: tCommon } = useT('common');
   const { t: tTasks } = useT('tasks');
   const { t: tSecrets } = useT('projectSecrets');
+  const { t: tDiscussions } = useT('discussions');
 
   const { project, isLoading } = useProject(asProjectId(projectId));
 
@@ -59,6 +60,11 @@ function ProjectDetailLayout() {
       {
         label: t('navigation.threads'),
         href: `/dashboard/${organizationId}/projects/${projectId}/threads`,
+        matchMode: 'exact',
+      },
+      {
+        label: tDiscussions('title'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/discussions`,
         matchMode: 'exact',
       },
       {
@@ -97,7 +103,7 @@ function ProjectDetailLayout() {
       // in the Overview header now; Archive/Delete are in the 3-dot row menu
       // on the projects list page.
     ],
-    [t, tTasks, tSecrets, organizationId, projectId],
+    [t, tTasks, tSecrets, tDiscussions, organizationId, projectId],
   );
 
   if (!isLoading && !project) {
