@@ -1,26 +1,60 @@
-import { createThread } from '@convex-dev/agent';
+import { createThread, saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
-import { AUTO_AGENT_SLUG } from '../../lib/shared/constants/agents';
 import { components, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import { mutation } from '../_generated/server';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { persistentStreaming } from '../streaming/helpers';
+import { buildMentionDirectory } from '../tasks/directory';
+import { extractMentions } from '../tasks/mentions';
 import { cancelGeneration } from '../threads/cancel_generation';
 
 /**
  * Discussions = chat threads with `kind: 'project_discussion' | 'task_discussion'`.
  * They REUSE the @convex-dev/agent message store and the chat generation action
- * (`runChatTurnGeneration`); the only differences are (1) project-member access
- * instead of owner-only (see `can_access_thread`), and (2) a discussion
- * lifecycle (open/resolved/locked). Posting a reply that @mentions an agent
- * drives the same routing + generation as chat.
+ * (`runChatTurnGeneration`); the differences are (1) project-member access
+ * instead of owner-only (see `can_access_thread`), (2) a discussion lifecycle
+ * (open/resolved/locked), and (3) they are HUMAN-FIRST: a post is always
+ * persisted, and an agent only replies when one is explicitly chosen or
+ * @mentioned in the body (mirrors the GitHub-Discussions "bring an agent in"
+ * model). Generation, when triggered, reuses the chat turn with
+ * `queuedPromptMessageId` so it never re-saves the already-persisted message.
  */
 
 const DEFAULT_CATEGORY = 'general';
+
+/**
+ * Which agent (if any) should reply to a discussion post: an explicit
+ * `agentSlug` wins, otherwise the first agent @mentioned in the body. Returns
+ * `undefined` for a pure human post (no generation). Mention resolution reuses
+ * the project mention directory (members + agents).
+ */
+async function resolveDiscussionAgent(
+  ctx: MutationCtx,
+  organizationId: string,
+  projectId: Id<'projects'> | undefined,
+  message: string,
+  explicitAgentSlug: string | undefined,
+): Promise<string | undefined> {
+  if (explicitAgentSlug) return explicitAgentSlug;
+  if (!projectId) return undefined;
+  const project = await ctx.db.get(projectId);
+  if (!project) return undefined;
+  const directory = await buildMentionDirectory(ctx, {
+    organizationId,
+    project,
+  });
+  const mentions = extractMentions(
+    message,
+    directory.entries,
+    directory.permissiveAgents,
+  );
+  return mentions.find((m) => m.type === 'agent')?.id;
+}
 
 /** Open a new project discussion with an initial message (optionally @an agent). */
 export const createDiscussion = mutation({
@@ -47,12 +81,26 @@ export const createDiscussion = mutation({
       title: args.title,
       summary: JSON.stringify({ kind: 'project_discussion' }),
     });
-    const thread = await ctx.runQuery(components.agent.threads.getThread, {
+    const createdAt = Date.now();
+
+    // Always persist the human's opening post — independent of whether an agent
+    // replies — so a discussion never loses the message it was started with.
+    const { messageId } = await saveMessage(ctx, components.agent, {
       threadId,
+      message: { role: 'user', content: args.message },
+      userId: authUser.userId,
     });
-    const createdAt = thread?._creationTime ?? Date.now();
-    const streamId = await persistentStreaming.createStream(ctx);
-    const agentSlug = args.agentSlug ?? AUTO_AGENT_SLUG;
+
+    const agentSlug = await resolveDiscussionAgent(
+      ctx,
+      args.organizationId,
+      args.projectId,
+      args.message,
+      args.agentSlug,
+    );
+    const streamId = agentSlug
+      ? await persistentStreaming.createStream(ctx)
+      : '';
 
     await ctx.db.insert('threadMetadata', {
       threadId,
@@ -67,28 +115,34 @@ export const createDiscussion = mutation({
       title: args.title,
       createdAt,
       updatedAt: createdAt,
-      generationStatus: 'generating',
-      streamId,
-      generationStartTime: Date.now(),
+      lastReplyAt: createdAt,
+      generationStatus: agentSlug ? 'generating' : 'idle',
+      ...(agentSlug ? { streamId, generationStartTime: createdAt } : {}),
       agentReplyDepth: 0,
     });
 
-    await ctx.scheduler.runAfter(
-      0,
-      internal.agents.chat_turn_generate.runChatTurnGeneration,
-      {
-        agentSlug,
-        organizationId: args.organizationId,
-        message: args.message,
-        projectId: args.projectId,
-        threadId,
-        streamId,
-        userId: authUser.userId,
-        userEmail: authUser.email ?? '',
-        userName: authUser.name ?? '',
-        requestStartMs: Date.now(),
-      },
-    );
+    // An agent only replies when one was @mentioned / explicitly chosen. The
+    // message is already saved, so generation drains it via queuedPromptMessageId
+    // instead of re-saving.
+    if (agentSlug) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.agents.chat_turn_generate.runChatTurnGeneration,
+        {
+          agentSlug,
+          organizationId: args.organizationId,
+          message: args.message,
+          projectId: args.projectId,
+          threadId,
+          streamId,
+          userId: authUser.userId,
+          userEmail: authUser.email ?? '',
+          userName: authUser.name ?? '',
+          requestStartMs: Date.now(),
+          queuedPromptMessageId: messageId,
+        },
+      );
+    }
     return { threadId, streamId };
   },
 });
@@ -124,32 +178,54 @@ export const postReply = mutation({
     if (meta.generationStatus === 'generating' && meta.streamId) {
       await cancelGeneration(ctx, meta.userId, args.threadId);
     }
-    const streamId = await persistentStreaming.createStream(ctx);
+
+    // Always persist the human reply first.
+    const { messageId } = await saveMessage(ctx, components.agent, {
+      threadId: args.threadId,
+      message: { role: 'user', content: args.message },
+      userId: authUser.userId,
+    });
+
+    const agentSlug = await resolveDiscussionAgent(
+      ctx,
+      args.organizationId,
+      meta.projectId ?? undefined,
+      args.message,
+      args.agentSlug,
+    );
+    const now = Date.now();
+    const streamId = agentSlug
+      ? await persistentStreaming.createStream(ctx)
+      : '';
+
     await ctx.db.patch(meta._id, {
-      generationStatus: 'generating',
-      streamId,
-      generationStartTime: Date.now(),
-      updatedAt: Date.now(),
+      generationStatus: agentSlug ? 'generating' : 'idle',
+      ...(agentSlug ? { streamId, generationStartTime: now } : {}),
+      updatedAt: now,
+      lastReplyAt: now,
       // A human reply resets the agent→agent reply-chain counter (loop guard).
       agentReplyDepth: 0,
     });
 
-    await ctx.scheduler.runAfter(
-      0,
-      internal.agents.chat_turn_generate.runChatTurnGeneration,
-      {
-        agentSlug: args.agentSlug ?? AUTO_AGENT_SLUG,
-        organizationId: args.organizationId,
-        message: args.message,
-        projectId: meta.projectId ?? undefined,
-        threadId: args.threadId,
-        streamId,
-        userId: authUser.userId,
-        userEmail: authUser.email ?? '',
-        userName: authUser.name ?? '',
-        requestStartMs: Date.now(),
-      },
-    );
+    if (agentSlug) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.agents.chat_turn_generate.runChatTurnGeneration,
+        {
+          agentSlug,
+          organizationId: args.organizationId,
+          message: args.message,
+          projectId: meta.projectId ?? undefined,
+          threadId: args.threadId,
+          streamId,
+          userId: authUser.userId,
+          userEmail: authUser.email ?? '',
+          userName: authUser.name ?? '',
+          requestStartMs: Date.now(),
+          queuedPromptMessageId: messageId,
+        },
+      );
+    }
     return { streamId };
   },
 });
