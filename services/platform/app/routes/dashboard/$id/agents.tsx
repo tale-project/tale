@@ -28,6 +28,7 @@ function AgentsLayout() {
   const { t } = useT('settings');
   const { t: tOrganigram } = useT('organigram');
   const { t: tWorkforce } = useT('workforce');
+  const { t: tCatalog } = useT('agentCatalog');
   const { t: tAccessDenied } = useT('accessDenied');
   const navigate = useNavigate();
 
@@ -50,11 +51,17 @@ function AgentsLayout() {
     from: '/dashboard/$id/agents/metrics',
     shouldThrow: false,
   });
+  const isCatalog = useMatch({
+    from: '/dashboard/$id/agents/catalog',
+    shouldThrow: false,
+  });
   const breadcrumbLeaf = isOrganigram
     ? tOrganigram('title')
     : isMetrics
       ? tWorkforce('title')
-      : null;
+      : isCatalog
+        ? tCatalog('title')
+        : null;
 
   // Access is only knowable once the ability has loaded. Until then render the
   // SAME PageLayout chrome (the header doesn't depend on the ability) so it

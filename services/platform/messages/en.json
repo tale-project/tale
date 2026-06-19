@@ -7096,6 +7096,32 @@
       "cancel": "Cancel"
     }
   },
+  "agentCatalog": {
+    "title": "Agent catalog",
+    "subtitle": "Browse the AI workforce by department and install, enable, or disable agents for your organization.",
+    "menuItem": "Catalog",
+    "searchPlaceholder": "Search agents…",
+    "install": "Install",
+    "enable": "Enable",
+    "disable": "Disable",
+    "uninstall": "Uninstall",
+    "installed": "Agent installed",
+    "enabled": "Agent enabled",
+    "disabled": "Agent disabled",
+    "uninstalled": "Agent uninstalled",
+    "error": "Could not update the agent roster",
+    "installedByIntegration": "Installed by {integration}",
+    "requiresIntegration": "Requires {integration}",
+    "status": {
+      "available": "Available",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "empty": {
+      "title": "No catalog agents",
+      "description": "No installable agents were found for this organization."
+    }
+  },
   "organigram": {
     "title": "Organigram",
     "subtitle": "How your AI workforce delegates work — delegation, epic decomposition, SLA escalation, and budget handoff all follow these edges.",

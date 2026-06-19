@@ -23,6 +23,19 @@ export function useListAgents(organizationId: string) {
   return { agents: data, isLoading, error, refetch };
 }
 
+/**
+ * Live install-state for the agent catalog (which agents are installed/enabled
+ * for the org, their provenance, and disabled reason). Reactive Convex query —
+ * install/enable/disable mutations refresh it automatically.
+ */
+export function useAgentInstallations(organizationId: string) {
+  return useConvexQuery(
+    api.agents.installations.listInstallStates,
+    { organizationId },
+    { enabled: !!organizationId },
+  );
+}
+
 export function useReadAgent(organizationId: string, agentName: string) {
   return useActionQuery(
     configKeys.detail('agents', organizationId, agentName),

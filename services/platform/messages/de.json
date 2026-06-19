@@ -7096,6 +7096,32 @@
       "cancel": "Abbrechen"
     }
   },
+  "agentCatalog": {
+    "title": "Agentenkatalog",
+    "subtitle": "Durchsuchen Sie die KI-Belegschaft nach Abteilung und installieren, aktivieren oder deaktivieren Sie Agenten für Ihre Organisation.",
+    "menuItem": "Katalog",
+    "searchPlaceholder": "Agenten suchen…",
+    "install": "Installieren",
+    "enable": "Aktivieren",
+    "disable": "Deaktivieren",
+    "uninstall": "Deinstallieren",
+    "installed": "Agent installiert",
+    "enabled": "Agent aktiviert",
+    "disabled": "Agent deaktiviert",
+    "uninstalled": "Agent deinstalliert",
+    "error": "Agentenliste konnte nicht aktualisiert werden",
+    "installedByIntegration": "Installiert von {integration}",
+    "requiresIntegration": "Erfordert {integration}",
+    "status": {
+      "available": "Verfügbar",
+      "enabled": "Aktiviert",
+      "disabled": "Deaktiviert"
+    },
+    "empty": {
+      "title": "Keine Katalog-Agenten",
+      "description": "Für diese Organisation wurden keine installierbaren Agenten gefunden."
+    }
+  },
   "organigram": {
     "title": "Organigramm",
     "subtitle": "Wie deine KI-Belegschaft Arbeit delegiert — Delegation, Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe folgen alle diesen Kanten.",

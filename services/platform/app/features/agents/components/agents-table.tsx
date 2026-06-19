@@ -4,7 +4,7 @@ import { LinkButton } from '@tale/ui/button';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
-import { BarChart3, Bot, Network, Plus } from 'lucide-react';
+import { BarChart3, Bot, LayoutGrid, Network, Plus } from 'lucide-react';
 import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -41,6 +41,7 @@ interface AgentsTableProps {
 export function AgentsTable({ organizationId }: AgentsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { t: tSettings } = useT('settings');
+  const { t: tCatalog } = useT('agentCatalog');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
   const preloadRoute = usePreloadRoute();
@@ -216,6 +217,14 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
             icon={Network}
           >
             {tSettings('agents.organigram.menuItem')}
+          </LinkButton>
+          <LinkButton
+            href="/dashboard/$id/agents/catalog"
+            params={{ id: organizationId }}
+            variant="secondary"
+            icon={LayoutGrid}
+          >
+            {tCatalog('menuItem')}
           </LinkButton>
           <AgentsActionMenu
             organizationId={organizationId}

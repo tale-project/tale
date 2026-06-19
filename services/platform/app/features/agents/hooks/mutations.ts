@@ -68,6 +68,24 @@ export function useUpdateAgentSharing() {
   return useConvexMutation(api.agents.mutations.updateAgentSharing);
 }
 
+// ---------------------------------------------------------------------------
+// Agent catalog: install / enable / disable (RLS + admin gated server-side).
+// listInstallStates is a live Convex query, so it refreshes automatically; no
+// manual invalidation needed.
+// ---------------------------------------------------------------------------
+
+export function useInstallCatalogAgent() {
+  return useConvexMutation(api.agents.installations.installCatalogAgent);
+}
+
+export function useSetAgentEnabled() {
+  return useConvexMutation(api.agents.installations.setAgentEnabled);
+}
+
+export function useUninstallAgent() {
+  return useConvexMutation(api.agents.installations.uninstallAgent);
+}
+
 export function useAddKnowledgeFile() {
   return useConvexMutation(api.agents.mutations.addKnowledgeFile);
 }

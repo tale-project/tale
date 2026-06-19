@@ -7097,6 +7097,32 @@
       "cancel": "Annuler"
     }
   },
+  "agentCatalog": {
+    "title": "Catalogue d'agents",
+    "subtitle": "Parcourez la main-d'œuvre IA par département et installez, activez ou désactivez des agents pour votre organisation.",
+    "menuItem": "Catalogue",
+    "searchPlaceholder": "Rechercher des agents…",
+    "install": "Installer",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "uninstall": "Désinstaller",
+    "installed": "Agent installé",
+    "enabled": "Agent activé",
+    "disabled": "Agent désactivé",
+    "uninstalled": "Agent désinstallé",
+    "error": "Impossible de mettre à jour la liste des agents",
+    "installedByIntegration": "Installé par {integration}",
+    "requiresIntegration": "Nécessite {integration}",
+    "status": {
+      "available": "Disponible",
+      "enabled": "Activé",
+      "disabled": "Désactivé"
+    },
+    "empty": {
+      "title": "Aucun agent au catalogue",
+      "description": "Aucun agent installable n'a été trouvé pour cette organisation."
+    }
+  },
   "organigram": {
     "title": "Organigramme",
     "subtitle": "Comment ta main-d'œuvre IA délègue le travail — délégation, décomposition d'epics, escalade SLA et transfert de budget suivent tous ces liens.",
