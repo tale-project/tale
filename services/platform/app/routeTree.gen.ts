@@ -62,9 +62,9 @@ import { Route as DashboardIdConversationsStatusRouteImport } from './routes/das
 import { Route as DashboardIdChatThreadIdRouteImport } from './routes/dashboard/$id/chat/$threadId';
 import { Route as DashboardIdAutomationsMetricsRouteImport } from './routes/dashboard/$id/automations/metrics';
 import { Route as DashboardIdAutomationsAmIdRouteImport } from './routes/dashboard/$id/automations/$amId';
-import { Route as DashboardIdAgentsOrganigramRouteImport } from './routes/dashboard/$id/agents/organigram';
 import { Route as DashboardIdAgentsMetricsRouteImport } from './routes/dashboard/$id/agents/metrics';
 import { Route as DashboardIdAgentsCatalogRouteImport } from './routes/dashboard/$id/agents/catalog';
+import { Route as DashboardIdAgentsAllRouteImport } from './routes/dashboard/$id/agents/all';
 import { Route as DashboardIdAgentsAgentIdRouteImport } from './routes/dashboard/$id/agents/$agentId';
 import { Route as DashboardIdKnowledgeWebsitesRouteImport } from './routes/dashboard/$id/_knowledge/websites';
 import { Route as DashboardIdKnowledgeVendorsRouteImport } from './routes/dashboard/$id/_knowledge/vendors';
@@ -412,12 +412,6 @@ const DashboardIdAutomationsAmIdRoute =
     path: '/$amId',
     getParentRoute: () => DashboardIdAutomationsRoute,
   } as any);
-const DashboardIdAgentsOrganigramRoute =
-  DashboardIdAgentsOrganigramRouteImport.update({
-    id: '/organigram',
-    path: '/organigram',
-    getParentRoute: () => DashboardIdAgentsRoute,
-  } as any);
 const DashboardIdAgentsMetricsRoute =
   DashboardIdAgentsMetricsRouteImport.update({
     id: '/metrics',
@@ -430,6 +424,11 @@ const DashboardIdAgentsCatalogRoute =
     path: '/catalog',
     getParentRoute: () => DashboardIdAgentsRoute,
   } as any);
+const DashboardIdAgentsAllRoute = DashboardIdAgentsAllRouteImport.update({
+  id: '/all',
+  path: '/all',
+  getParentRoute: () => DashboardIdAgentsRoute,
+} as any);
 const DashboardIdAgentsAgentIdRoute =
   DashboardIdAgentsAgentIdRouteImport.update({
     id: '/$agentId',
@@ -806,9 +805,9 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute;
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute;
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdRouteWithChildren;
+  '/dashboard/$id/agents/all': typeof DashboardIdAgentsAllRoute;
   '/dashboard/$id/agents/catalog': typeof DashboardIdAgentsCatalogRoute;
   '/dashboard/$id/agents/metrics': typeof DashboardIdAgentsMetricsRoute;
-  '/dashboard/$id/agents/organigram': typeof DashboardIdAgentsOrganigramRoute;
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
   '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
@@ -910,9 +909,9 @@ export interface FileRoutesByTo {
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute;
   '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute;
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute;
+  '/dashboard/$id/agents/all': typeof DashboardIdAgentsAllRoute;
   '/dashboard/$id/agents/catalog': typeof DashboardIdAgentsCatalogRoute;
   '/dashboard/$id/agents/metrics': typeof DashboardIdAgentsMetricsRoute;
-  '/dashboard/$id/agents/organigram': typeof DashboardIdAgentsOrganigramRoute;
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
   '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
@@ -1023,9 +1022,9 @@ export interface FileRoutesById {
   '/dashboard/$id/_knowledge/vendors': typeof DashboardIdKnowledgeVendorsRoute;
   '/dashboard/$id/_knowledge/websites': typeof DashboardIdKnowledgeWebsitesRoute;
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdRouteWithChildren;
+  '/dashboard/$id/agents/all': typeof DashboardIdAgentsAllRoute;
   '/dashboard/$id/agents/catalog': typeof DashboardIdAgentsCatalogRoute;
   '/dashboard/$id/agents/metrics': typeof DashboardIdAgentsMetricsRoute;
-  '/dashboard/$id/agents/organigram': typeof DashboardIdAgentsOrganigramRoute;
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
   '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
@@ -1138,9 +1137,9 @@ export interface FileRouteTypes {
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
     | '/dashboard/$id/agents/$agentId'
+    | '/dashboard/$id/agents/all'
     | '/dashboard/$id/agents/catalog'
     | '/dashboard/$id/agents/metrics'
-    | '/dashboard/$id/agents/organigram'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/automations/metrics'
     | '/dashboard/$id/chat/$threadId'
@@ -1242,9 +1241,9 @@ export interface FileRouteTypes {
     | '/dashboard/$id/products'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
+    | '/dashboard/$id/agents/all'
     | '/dashboard/$id/agents/catalog'
     | '/dashboard/$id/agents/metrics'
-    | '/dashboard/$id/agents/organigram'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/automations/metrics'
     | '/dashboard/$id/chat/$threadId'
@@ -1354,9 +1353,9 @@ export interface FileRouteTypes {
     | '/dashboard/$id/_knowledge/vendors'
     | '/dashboard/$id/_knowledge/websites'
     | '/dashboard/$id/agents/$agentId'
+    | '/dashboard/$id/agents/all'
     | '/dashboard/$id/agents/catalog'
     | '/dashboard/$id/agents/metrics'
-    | '/dashboard/$id/agents/organigram'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/automations/metrics'
     | '/dashboard/$id/chat/$threadId'
@@ -1820,13 +1819,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAutomationsAmIdRouteImport;
       parentRoute: typeof DashboardIdAutomationsRoute;
     };
-    '/dashboard/$id/agents/organigram': {
-      id: '/dashboard/$id/agents/organigram';
-      path: '/organigram';
-      fullPath: '/dashboard/$id/agents/organigram';
-      preLoaderRoute: typeof DashboardIdAgentsOrganigramRouteImport;
-      parentRoute: typeof DashboardIdAgentsRoute;
-    };
     '/dashboard/$id/agents/metrics': {
       id: '/dashboard/$id/agents/metrics';
       path: '/metrics';
@@ -1839,6 +1831,13 @@ declare module '@tanstack/react-router' {
       path: '/catalog';
       fullPath: '/dashboard/$id/agents/catalog';
       preLoaderRoute: typeof DashboardIdAgentsCatalogRouteImport;
+      parentRoute: typeof DashboardIdAgentsRoute;
+    };
+    '/dashboard/$id/agents/all': {
+      id: '/dashboard/$id/agents/all';
+      path: '/all';
+      fullPath: '/dashboard/$id/agents/all';
+      preLoaderRoute: typeof DashboardIdAgentsAllRouteImport;
       parentRoute: typeof DashboardIdAgentsRoute;
     };
     '/dashboard/$id/agents/$agentId': {
@@ -2318,17 +2317,17 @@ const DashboardIdAgentsAgentIdRouteWithChildren =
 
 interface DashboardIdAgentsRouteChildren {
   DashboardIdAgentsAgentIdRoute: typeof DashboardIdAgentsAgentIdRouteWithChildren;
+  DashboardIdAgentsAllRoute: typeof DashboardIdAgentsAllRoute;
   DashboardIdAgentsCatalogRoute: typeof DashboardIdAgentsCatalogRoute;
   DashboardIdAgentsMetricsRoute: typeof DashboardIdAgentsMetricsRoute;
-  DashboardIdAgentsOrganigramRoute: typeof DashboardIdAgentsOrganigramRoute;
   DashboardIdAgentsIndexRoute: typeof DashboardIdAgentsIndexRoute;
 }
 
 const DashboardIdAgentsRouteChildren: DashboardIdAgentsRouteChildren = {
   DashboardIdAgentsAgentIdRoute: DashboardIdAgentsAgentIdRouteWithChildren,
+  DashboardIdAgentsAllRoute: DashboardIdAgentsAllRoute,
   DashboardIdAgentsCatalogRoute: DashboardIdAgentsCatalogRoute,
   DashboardIdAgentsMetricsRoute: DashboardIdAgentsMetricsRoute,
-  DashboardIdAgentsOrganigramRoute: DashboardIdAgentsOrganigramRoute,
   DashboardIdAgentsIndexRoute: DashboardIdAgentsIndexRoute,
 };
 

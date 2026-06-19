@@ -1,10 +1,5 @@
-import {
-  createFileRoute,
-  Outlet,
-  useMatch,
-  useNavigate,
-} from '@tanstack/react-router';
-import { ChevronRight } from 'lucide-react';
+import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
+import { useMemo } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import {
@@ -12,6 +7,10 @@ import {
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
+import {
+  TabNavigation,
+  type TabNavigationItem,
+} from '@/app/components/ui/navigation/tab-navigation';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -26,47 +25,48 @@ export const Route = createFileRoute('/dashboard/$id/agents')({
 function AgentsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('settings');
-  const { t: tOrganigram } = useT('organigram');
-  const { t: tWorkforce } = useT('workforce');
   const { t: tCatalog } = useT('agentCatalog');
+  const { t: tWorkforce } = useT('workforce');
   const { t: tAccessDenied } = useT('accessDenied');
-  const navigate = useNavigate();
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
 
+  // The agent detail page owns its own header; the layout shows no tabs there.
   const isDetailPage = useMatch({
     from: '/dashboard/$id/agents/$agentId',
     shouldThrow: false,
   });
 
-  // Organigram and Metrics are sibling pages opened from the list's own
-  // buttons — same breadcrumb-in-header navigation as the automations
-  // Metrics page: "Agents › Organigram" with the parent clickable.
-  const isOrganigram = useMatch({
-    from: '/dashboard/$id/agents/organigram',
-    shouldThrow: false,
-  });
-  const isMetrics = useMatch({
-    from: '/dashboard/$id/agents/metrics',
-    shouldThrow: false,
-  });
-  const isCatalog = useMatch({
-    from: '/dashboard/$id/agents/catalog',
-    shouldThrow: false,
-  });
-  const breadcrumbLeaf = isOrganigram
-    ? tOrganigram('title')
-    : isMetrics
-      ? tWorkforce('title')
-      : isCatalog
-        ? tCatalog('title')
-        : null;
+  // Overview (organigram) is the default landing; the rest are sibling tabs.
+  // Memoized so TabNavigation's ResizeObserver chain doesn't re-attach each
+  // render (see projects/$projectId.tsx).
+  const tabs = useMemo<TabNavigationItem[]>(
+    () => [
+      {
+        label: t('agents.tabs.overview'),
+        href: `/dashboard/${organizationId}/agents`,
+        matchMode: 'exact',
+      },
+      {
+        label: tCatalog('menuItem'),
+        href: `/dashboard/${organizationId}/agents/catalog`,
+        matchMode: 'exact',
+      },
+      {
+        label: t('agents.tabs.allAgents'),
+        href: `/dashboard/${organizationId}/agents/all`,
+        matchMode: 'exact',
+      },
+      {
+        label: tWorkforce('title'),
+        href: `/dashboard/${organizationId}/agents/metrics`,
+        matchMode: 'exact',
+      },
+    ],
+    [t, tCatalog, tWorkforce, organizationId],
+  );
 
-  // Access is only knowable once the ability has loaded. Until then render the
-  // SAME PageLayout chrome (the header doesn't depend on the ability) so it
-  // never pops in — only the Outlet is held back. The detail route owns its own
-  // header, so this layout shows none on the detail page in either state.
   if (!abilityLoading && ability.cannot('write', 'agents')) {
     return <AccessDenied message={tAccessDenied('agents')} />;
   }
@@ -76,30 +76,16 @@ function AgentsLayout() {
       organizationId={organizationId}
       header={
         !isDetailPage ? (
-          <AdaptiveHeaderRoot standalone={false}>
-            <AdaptiveHeaderTitle>
-              {breadcrumbLeaf ? (
-                <span className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void navigate({
-                        to: '/dashboard/$id/agents',
-                        params: { id: organizationId },
-                      })
-                    }
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {t('agents.title')}
-                  </button>
-                  <ChevronRight className="text-muted-foreground size-4 shrink-0" />
-                  <span>{breadcrumbLeaf}</span>
-                </span>
-              ) : (
-                t('agents.title')
-              )}
-            </AdaptiveHeaderTitle>
-          </AdaptiveHeaderRoot>
+          <>
+            <AdaptiveHeaderRoot standalone={false}>
+              <AdaptiveHeaderTitle>{t('agents.title')}</AdaptiveHeaderTitle>
+            </AdaptiveHeaderRoot>
+            <TabNavigation
+              items={tabs}
+              standalone={false}
+              ariaLabel={t('agents.title')}
+            />
+          </>
         ) : undefined
       }
     >

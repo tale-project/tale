@@ -4708,6 +4708,10 @@
     },
     "agents": {
       "title": "Agenten",
+      "tabs": {
+        "overview": "Übersicht",
+        "allAgents": "Alle Agenten"
+      },
       "entityLabel": "Agenten",
       "createAgent": "Agent erstellen",
       "searchAgent": "Agents suchen",

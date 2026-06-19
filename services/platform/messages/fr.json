@@ -4709,6 +4709,10 @@
     },
     "agents": {
       "title": "Agents",
+      "tabs": {
+        "overview": "Vue d'ensemble",
+        "allAgents": "Tous les agents"
+      },
       "entityLabel": "agents",
       "createAgent": "Créer un agent",
       "searchAgent": "Rechercher des agents",
