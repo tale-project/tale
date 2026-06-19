@@ -4,7 +4,10 @@
   "version": 1,
   "bundles": {
     "agents": ["pull-request-reviewer", "issue-triager"],
-    "workflows": ["github/sync-issues-from-github"]
+    "workflows": [
+      "github/sync-issues-from-github",
+      "github/review-pull-request-in-github"
+    ]
   },
   "authMethod": "bearer_token",
   "supportedAuthMethods": ["bearer_token"],

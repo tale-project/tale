@@ -1,0 +1,120 @@
+{
+  "name": "Review a pull request in GitHub",
+  "description": "Run the Pull Request Reviewer agent against a specific GitHub pull request. The workflow links the PR to a task on the board (idempotently, by a stable external reference) and hands it to the pull-request-reviewer agent, which reads the diff and changed files via the GitHub connector (get_pull_request_diff / get_pull_request_files) and posts a structured review (create_pull_request_review — APPROVE / REQUEST_CHANGES / COMMENT) plus any inline comments. Like the other GitHub automations, provider access lives in the `github` integration connector and the logic lives here as data — there is no PR-specific backend code. Bundled with the GitHub integration alongside the Pull Request Reviewer agent.",
+  "i18n": {
+    "en": {
+      "name": "Review a pull request in GitHub",
+      "description": "Links a GitHub pull request to a task and has the Pull Request Reviewer agent read the diff and post a review."
+    },
+    "de": {
+      "name": "Pull Request in GitHub prüfen",
+      "description": "Verknüpft einen GitHub-Pull-Request mit einer Aufgabe und lässt den Pull-Request-Reviewer-Agenten den Diff lesen und eine Review posten."
+    },
+    "fr": {
+      "name": "Examiner une pull request dans GitHub",
+      "description": "Relie une pull request GitHub à une tâche et fait lire le diff par l'agent réviseur de pull requests, qui publie une revue."
+    }
+  },
+  "version": "1.0.0",
+  "config": {
+    "timeout": 600000,
+    "retryPolicy": {
+      "maxRetries": 1,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "workflowId": "github_review_pull_request"
+    }
+  },
+  "requires": {
+    "integrations": [
+      {
+        "name": "github",
+        "operations": [
+          "get_pull_request_diff",
+          "get_pull_request_files",
+          "create_pull_request_review"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {
+        "inputSchema": {
+          "properties": {
+            "owner": {
+              "description": "GitHub repository owner (user or organization login), e.g. \"tale-project\".",
+              "type": "string"
+            },
+            "repo": {
+              "description": "GitHub repository name, e.g. \"tale\".",
+              "type": "string"
+            },
+            "pull_number": {
+              "description": "Pull request number to review.",
+              "type": "number"
+            },
+            "projectId": {
+              "description": "Tale project ID whose board the review task lives on. Copy from the project URL.",
+              "type": "string"
+            }
+          },
+          "required": ["owner", "repo", "pull_number", "projectId"]
+        }
+      },
+      "nextSteps": {
+        "success": "upsert_review_task"
+      }
+    },
+    {
+      "stepSlug": "upsert_review_task",
+      "name": "Link PR To A Review Task",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "upsert_external",
+          "projectId": "{{input.projectId}}",
+          "externalSystem": "github_pr",
+          "externalId": "{{input.owner + '/' + input.repo + '#' + input.pull_number}}",
+          "title": "{{'Review pull request ' + input.owner + '/' + input.repo + '#' + input.pull_number}}",
+          "description": "{{'Review GitHub pull request ' + input.owner + '/' + input.repo + '#' + input.pull_number + '. Read the diff and changed files, then post a review.'}}",
+          "labels": ["review"]
+        }
+      },
+      "nextSteps": {
+        "success": "review"
+      }
+    },
+    {
+      "stepSlug": "review",
+      "name": "Run The Pull Request Reviewer",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "run_on_task",
+          "agentSlug": "pull-request-reviewer",
+          "taskId": "{{steps.upsert_review_task.output.data.task._id}}",
+          "trigger": "assignment",
+          "instructions": "Review the GitHub pull request named in the task. Use the GitHub integration to call get_pull_request_diff and get_pull_request_files for the diff and changed files, assess correctness, risk, and style, then post your verdict with create_pull_request_review using event REQUEST_CHANGES (if issues), APPROVE (if clean), or COMMENT (if only notes). Add inline comments for specific lines where useful. Do NOT merge. Summarize your review as a task comment and finish the task at in_review.",
+          "promptContext": "{{'GitHub pull request to review: ' + input.owner + '/' + input.repo + '#' + input.pull_number}}"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}
