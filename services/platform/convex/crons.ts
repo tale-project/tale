@@ -2,7 +2,8 @@
  * Cron Jobs
  *
  * Includes workflow scheduling and other periodic tasks.
- * Uses Convex native cron functionality for optimal performance.
+ * Uses Convex's native `cronJobs` API; sub-hourly jobs are suppressed in E2E
+ * to prevent test flake (see the `E2E` constant below).
  */
 
 import { cronJobs } from 'convex/server';
