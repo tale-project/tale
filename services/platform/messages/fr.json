@@ -20,7 +20,17 @@
       "setup": "Terminer la configuration",
       "uninstall": "Désinstaller",
       "notInstalledTitle": "Pas encore installé",
-      "notInstalledDescription": "Installez cette application pour ajouter ses agents et workflows à votre organisation."
+      "notInstalledDescription": "Installez cette application pour ajouter ses agents et workflows à votre organisation.",
+      "menuLabel": "Gérer {name}",
+      "reinstallTitle": "Réinstaller l'application",
+      "reinstallDescription": "Actualise les fichiers de cette application à partir du dernier modèle. Vos variables d'environnement et vos secrets sont conservés ; vos modifications des fichiers sont remplacées.",
+      "reinstalled": "Application réinstallée",
+      "reinstallFailed": "Impossible de réinstaller l'application",
+      "uninstallTitle": "Désinstaller l'application",
+      "uninstallDescription": "Cette action supprime l'application et tout ce qu'elle a installé de votre organisation.",
+      "uninstallWarning": "Ses agents, workflows, pages ainsi que leurs variables d'environnement et secrets sont supprimés. Les intégrations connectées sont conservées.",
+      "uninstalled": "Application désinstallée",
+      "uninstallFailed": "Impossible de désinstaller l'application"
     },
     "readiness": {
       "title": "Terminer la configuration",

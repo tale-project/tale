@@ -203,3 +203,39 @@ export const deleteAgentEnvVar = mutation({
     return null;
   },
 });
+
+/**
+ * Delete every env/secret entry for an installed app's agents. Internal —
+ * called by app uninstall. Sweeps the WHOLE `<appSlug>/` agent namespace, not
+ * just the manifest's current agents: a prior app version may have installed an
+ * agent since renamed or removed, whose env/secrets (keyed by the old composite
+ * `<app>/<name>` slug) would otherwise be orphaned and silently reattach on a
+ * later reinstall. The `/` delimiter scopes the sweep to exactly this app — a
+ * sibling app (`<appSlug>-2/…`) or a global agent (`<name>`) sorts outside the
+ * range. An app's agents × env entries are bounded, so a single collect +
+ * delete stays well under the mutation write budget.
+ */
+export const deleteAppAgentEnvInternal = internalMutation({
+  args: { organizationId: v.string(), appSlug: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Exclusive upper bound = the code point right after '/' (0x2F -> 0x30):
+    // ['<app>/', '<app>' + next) is exactly this app's agent namespace, so a
+    // sibling app ('<app>-2/...') or a global agent ('<name>') sorts outside it.
+    const prefix = `${args.appSlug}/`;
+    const prefixEnd = `${args.appSlug}${String.fromCharCode(
+      '/'.charCodeAt(0) + 1,
+    )}`;
+    const rows = await ctx.db
+      .query('agentEnv')
+      .withIndex('by_org_agent', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .gte('agentSlug', prefix)
+          .lt('agentSlug', prefixEnd),
+      )
+      .collect();
+    for (const row of rows) await ctx.db.delete(row._id);
+    return null;
+  },
+});

@@ -177,6 +177,10 @@ export const installApp = action({
     }
     const installedBy = email !== '' ? email : userId;
 
+    // Idempotent on a reinstall: re-copies the latest template files and upserts
+    // the install rows. It deliberately never touches `agentEnv` (env/secrets) —
+    // reinstalling re-syncs files but keeps an org's per-agent env/secrets. Only
+    // `uninstallApp` tears those down.
     const manifest = await readAppBundleManifest(args.appSlug);
     const { resources } = await installAppFiles(orgSlug, args.appSlug);
 
@@ -258,14 +262,32 @@ export const uninstallApp = action({
       );
     }
 
-    // Mirror for app agents (composite slug `<app>/<name>`) — drop their install
-    // rows so the app's agents stop being live once the app is gone.
+    // Mirror for app agents (composite slug `<app>/<name>`) — drop the manifest
+    // agents' install rows + knowledge bindings so they stop being live once the
+    // app is gone.
     for (const name of manifest?.agents ?? []) {
+      const agentSlug = `${args.appSlug}/${name}`;
       await ctx.runMutation(internal.agents.installations.deleteInstallation, {
         organizationId: args.organizationId,
-        agentSlug: `${args.appSlug}/${name}`,
+        agentSlug,
+      });
+      await ctx.runMutation(internal.agents.mutations.cleanupAgentBinding, {
+        organizationId: args.organizationId,
+        agentSlug,
       });
     }
+
+    // Env/secrets are the destructive path's whole point: sweep the ENTIRE
+    // `<app>/` agent namespace, not just the manifest's current agents. A prior
+    // app version may have installed an agent since renamed/removed, whose
+    // secrets (keyed by the old composite slug) must not survive uninstall and
+    // silently reattach on a later reinstall. (Reinstall keeps env/secrets — it
+    // re-runs `installApp`, which never touches `agentEnv`.) Runs even when the
+    // bundle manifest is gone, since it keys off the slug namespace, not files.
+    await ctx.runMutation(internal.agents.agent_env.deleteAppAgentEnvInternal, {
+      organizationId: args.organizationId,
+      appSlug: args.appSlug,
+    });
 
     await uninstallAppFiles(orgSlug, args.appSlug, record.resources);
     await ctx.runMutation(

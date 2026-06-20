@@ -28,6 +28,7 @@ import {
 import { AppView } from '../registry/app-view';
 import { AppRuntimeProvider } from '../runtime/app-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
+import { AppLifecycleActions } from './app-lifecycle-actions';
 
 function ReadinessChecklist({
   organizationId,
@@ -131,8 +132,7 @@ export function AppPage({
   const { apps, isLoading } = useApps(organizationId);
   const { bySlug, isLoading: stateLoading } =
     useAppInstallStates(organizationId);
-  const { install, uninstall, verify, isPending } =
-    useAppInstallActions(organizationId);
+  const { install, verify, isPending } = useAppInstallActions(organizationId);
 
   const app = apps.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
@@ -218,14 +218,11 @@ export function AppPage({
             ))
           )}
           <HStack gap={2} className="justify-end">
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={isPending}
-              onClick={() => void uninstall(appSlug)}
-            >
-              {t('install.uninstall')}
-            </Button>
+            <AppLifecycleActions
+              appSlug={appSlug}
+              appName={app.name}
+              organizationId={organizationId}
+            />
           </HStack>
         </VStack>
       </ResourceDetailProvider>

@@ -22,6 +22,7 @@ import {
   useAppInstallActions,
   useAppInstallStates,
 } from '../hooks/use-install-state';
+import { AppLifecycleActions } from './app-lifecycle-actions';
 
 function InstallBadge({ state }: { state: AppInstallState }) {
   const { t } = useT('apps');
@@ -81,11 +82,23 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
                     </HStack>
                     {state && <InstallBadge state={state} />}
                   </HStack>
-                  {!state && <div className="h-8" />}
+                  {/* Reserve the footer row for the overlaid action (Install for
+                      not-installed apps, the lifecycle ⋯ menu for installed). */}
+                  <div className="h-8" />
                 </VStack>
               </Card>
             </Link>
-            {!state && (
+            {/* Interactive controls live OUTSIDE the card Link so they don't
+                trigger navigation; the dropdown content portals out. */}
+            {state ? (
+              <div className="absolute right-3 bottom-3 z-10">
+                <AppLifecycleActions
+                  appSlug={app.slug}
+                  appName={app.name}
+                  organizationId={organizationId}
+                />
+              </div>
+            ) : (
               <div className="absolute bottom-3 left-3 z-10">
                 <Button
                   size="sm"

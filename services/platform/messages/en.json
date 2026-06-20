@@ -20,7 +20,17 @@
       "setup": "Finish setup",
       "uninstall": "Uninstall",
       "notInstalledTitle": "Not installed yet",
-      "notInstalledDescription": "Install this app to add its agents and workflows to your organization."
+      "notInstalledDescription": "Install this app to add its agents and workflows to your organization.",
+      "menuLabel": "Manage {name}",
+      "reinstallTitle": "Reinstall app",
+      "reinstallDescription": "Refreshes this app's files from the latest template. Your environment variables and secrets are kept; any changes you made to its files are replaced.",
+      "reinstalled": "App reinstalled",
+      "reinstallFailed": "Couldn't reinstall the app",
+      "uninstallTitle": "Uninstall app",
+      "uninstallDescription": "This removes the app and everything it installed from your organization.",
+      "uninstallWarning": "Its agents, workflows, pages, and their environment variables and secrets are deleted. Connected integrations stay.",
+      "uninstalled": "App uninstalled",
+      "uninstallFailed": "Couldn't uninstall the app"
     },
     "readiness": {
       "title": "Finish setup",

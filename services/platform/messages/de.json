@@ -20,7 +20,17 @@
       "setup": "Einrichtung abschließen",
       "uninstall": "Deinstallieren",
       "notInstalledTitle": "Noch nicht installiert",
-      "notInstalledDescription": "Installiere diese App, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen."
+      "notInstalledDescription": "Installiere diese App, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen.",
+      "menuLabel": "{name} verwalten",
+      "reinstallTitle": "App neu installieren",
+      "reinstallDescription": "Aktualisiert die Dateien dieser App aus der neuesten Vorlage. Deine Umgebungsvariablen und Secrets bleiben erhalten; eigene Änderungen an den Dateien werden ersetzt.",
+      "reinstalled": "App neu installiert",
+      "reinstallFailed": "App konnte nicht neu installiert werden",
+      "uninstallTitle": "App deinstallieren",
+      "uninstallDescription": "Dadurch werden die App und alles, was sie installiert hat, aus deiner Organisation entfernt.",
+      "uninstallWarning": "Ihre Agenten, Workflows, Seiten sowie deren Umgebungsvariablen und Secrets werden gelöscht. Verbundene Integrationen bleiben erhalten.",
+      "uninstalled": "App deinstalliert",
+      "uninstallFailed": "App konnte nicht deinstalliert werden"
     },
     "readiness": {
       "title": "Einrichtung abschließen",

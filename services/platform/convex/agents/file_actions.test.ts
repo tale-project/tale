@@ -32,6 +32,7 @@ vi.mock('../_generated/api', () => ({
     agents: {
       mutations: { cleanupAgentBinding: 'cleanupAgentBinding' },
       internal_queries: { getBindingByAgent: 'getBindingByAgent' },
+      installations: { getInstallationInternal: 'getInstallationInternal' },
     },
     organizations: {
       internal_queries: {
