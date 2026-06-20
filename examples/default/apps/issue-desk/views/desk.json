@@ -46,7 +46,8 @@
               "title": "GitHub issues",
               "owner": "tale-project",
               "repo": "tale",
-              "state": "open"
+              "state": "open",
+              "taskTemplateKey": "issueDesk.taskTemplate"
             }
           }
         ]
@@ -71,7 +72,7 @@
                   "externalSystem": "github"
                 }
               },
-              "columns": ["title", "status", "externalId"],
+              "columns": ["title", "status"],
               "actions": [
                 {
                   "label": "Start",
@@ -110,17 +111,6 @@
                   }
                 }
               ]
-            }
-          },
-          {
-            "type": "ReviewQueue",
-            "props": {
-              "id": "reviews",
-              "title": "Pending reviews",
-              "query": {
-                "path": "approvals/queries:listActiveApprovalsByOrganization",
-                "args": { "organizationId": "$orgId" }
-              }
             }
           }
         ]

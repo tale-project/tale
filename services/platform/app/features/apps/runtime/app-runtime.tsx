@@ -51,11 +51,15 @@ export function useAppRuntime(): AppRuntime {
  * Resolve a pack `ui.labelKey` (e.g. `issueDesk.assign`) against the app's
  * active-locale catalog, falling back to the given text when the key is absent
  * — so a label always renders even if the app ships no catalog for it.
+ *
+ * Reads the context DIRECTLY (not via `useAppRuntime`) so it never throws when
+ * used outside a provider — the operator run view resolves pack labels through
+ * this too, and a panel must degrade to its fallback rather than crash.
  */
 export function usePackLabel(): (
   labelKey: string | undefined,
   fallback: string,
 ) => string {
-  const { labels } = useAppRuntime();
-  return (labelKey, fallback) => (labelKey && labels[labelKey]) || fallback;
+  const rt = useContext(AppRuntimeContext);
+  return (labelKey, fallback) => (labelKey && rt?.labels[labelKey]) || fallback;
 }

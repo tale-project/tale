@@ -33,17 +33,21 @@ import {
   UserCheck,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 
+import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';
 import { useT } from '@/lib/i18n/client';
 import {
   isRenderKind,
   type RenderKind,
 } from '@/lib/shared/platform/render_kinds';
+import {
+  isStepVisible,
+  stepTreatment,
+} from '@/lib/shared/platform/step_display';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
-import { useBoundAction } from '../../hooks/use-bound-action';
 import { useAppRuntime, usePackLabel } from '../../runtime/app-runtime';
 import { Section } from './section';
 
@@ -67,8 +71,6 @@ const RENDER_ICON: Record<RenderKind, LucideIcon> = {
   review: UserCheck,
 };
 
-// Step types that are pure structure, not process the user cares to see.
-const STRUCTURAL_TYPES = new Set(['start', 'trigger', 'output']);
 // Steps with no `ui.stage` collapse under one neutral bucket so they still show.
 const NO_STAGE = '_';
 
@@ -80,6 +82,8 @@ interface MapStep {
   labelKey?: string;
   render: RenderKind;
   stage: string;
+  /** `gate` = a quiet decision checkpoint (the LLM judge); `normal` otherwise. */
+  treatment: 'normal' | 'gate';
   role?: string;
 }
 
@@ -100,8 +104,15 @@ function projectSteps(result: unknown): MapStep[] {
   const out: MapStep[] = [];
   for (const raw of result.config.steps) {
     if (!isRecord(raw)) continue;
-    if (STRUCTURAL_TYPES.has(str(raw, 'stepType'))) continue;
-    const ui = isRecord(raw.ui) ? raw.ui : {};
+    const stepType = str(raw, 'stepType');
+    const hasUi = isRecord(raw.ui);
+    const ui = hasUi && isRecord(raw.ui) ? raw.ui : {};
+    const uiParams = isRecord(ui.params) ? ui.params : {};
+    const display = str(uiParams, 'display') || undefined;
+    const displayInput = { stepType, hasUi, ...(display && { display }) };
+    // Pure plumbing (structural, routing conditions, status-bumps) collapses out
+    // via the SHARED predicate so this map and the run view show the same spine.
+    if (!isStepVisible(displayInput)) continue;
     const renderRaw = str(ui, 'render');
     const step: MapStep = {
       slug: str(raw, 'stepSlug'),
@@ -109,6 +120,7 @@ function projectSteps(result: unknown): MapStep[] {
       // Graceful degradation mirrors the operator: unknown/absent → `status`.
       render: isRenderKind(renderRaw) ? renderRaw : 'status',
       stage: str(ui, 'stage') || NO_STAGE,
+      treatment: stepTreatment(displayInput) === 'gate' ? 'gate' : 'normal',
     };
     const labelKey = str(ui, 'labelKey');
     if (labelKey) step.labelKey = labelKey;
@@ -136,20 +148,33 @@ function groupByStage(steps: MapStep[]): { stage: string; steps: MapStep[] }[] {
 function StepCard({ step }: { step: MapStep }) {
   const { t } = useT('apps');
   const packLabel = usePackLabel();
-  const Icon = RENDER_ICON[step.render];
+  const isGate = step.treatment === 'gate';
+  // A decision checkpoint (the LLM judge) reads as a quiet gate, not a peer of
+  // the agent-work cards.
+  const Icon = isGate ? Scale : RENDER_ICON[step.render];
   return (
-    <Card className="w-full lg:w-56">
+    <Card className={cn('w-full lg:w-56', isGate && 'bg-muted/30')}>
       <VStack gap={2}>
         <HStack gap={2} className="items-start">
           <div className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
             <Icon className="size-4" />
           </div>
           <VStack gap={0} className="min-w-0">
-            <Text as="span" className="text-sm leading-snug font-medium">
+            <Text
+              as="span"
+              className={cn(
+                'text-sm leading-snug font-medium',
+                isGate && 'text-muted-foreground',
+              )}
+            >
               {packLabel(step.labelKey, step.label)}
             </Text>
             <Text variant="muted" className="text-xs">
-              {t(`process.kind.${step.render}`, { defaultValue: step.render })}
+              {isGate
+                ? t('process.gate', { defaultValue: 'Decision' })
+                : t(`process.kind.${step.render}`, {
+                    defaultValue: step.render,
+                  })}
             </Text>
           </VStack>
         </HStack>
@@ -209,37 +234,10 @@ export function WorkflowMap({ title, workflowSlug }: WorkflowMapProps) {
   const { t } = useT('apps');
   const { organizationId } = useAppRuntime();
   const navigate = useNavigate();
-  const read = useBoundAction('workflows/file_actions:readWorkflow', 'action');
-  const readRef = useRef(read);
-  readRef.current = read;
-
-  const [steps, setSteps] = useState<MapStep[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await readRef.current.dispatch({
-          organizationId: '$orgId',
-          workflowSlug,
-        });
-        if (!cancelled) setSteps(projectSteps(result));
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [workflowSlug]);
+  // Reactive read (the SAME hook the run view uses) — loads from cache and
+  // updates live, instead of a one-shot action that sits on a long skeleton.
+  const read = useReadWorkflow(organizationId, workflowSlug);
+  const steps = useMemo(() => projectSteps(read.data), [read.data]);
 
   const openEditor = useMemo(
     () => () =>
@@ -261,9 +259,11 @@ export function WorkflowMap({ title, workflowSlug }: WorkflowMapProps) {
         </Button>
       }
     >
-      {error ? (
-        <Text variant="error">{t('workflow.error', { error })}</Text>
-      ) : loading && steps.length === 0 ? (
+      {read.error ? (
+        <Text variant="error">
+          {t('workflow.error', { error: read.error.message })}
+        </Text>
+      ) : read.isLoading && steps.length === 0 ? (
         <SkeletonText lines={4} />
       ) : steps.length === 0 ? (
         <Text variant="muted">{t('workflow.none')}</Text>

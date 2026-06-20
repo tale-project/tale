@@ -118,6 +118,24 @@ export const sandboxSessionOpsTable = defineTable({
    *  parallel op buffer. Kept optional so legacy rows still pass the read
    *  validator. */
   recentEvents: v.optional(v.array(v.string())),
+  /** Live tool/reasoning transcript for a WORKFLOW-RUN step, in the AI-SDK
+   *  UI-part shape `buildMessageSegments` reads. The chat path renders this from
+   *  the persisted assistant message, but a workflow run has no message — so its
+   *  run view reads a bounded tail (recent N parts) from here. Written only for
+   *  threadId-less workflow ops; dies with the op at teardown. */
+  liveTimeline: v.optional(
+    v.array(
+      v.object({
+        type: v.string(),
+        text: v.optional(v.string()),
+        state: v.optional(v.string()),
+        toolCallId: v.optional(v.string()),
+        input: v.optional(v.any()),
+        output: v.optional(v.any()),
+        errorText: v.optional(v.string()),
+      }),
+    ),
+  ),
   /** Captured agent session id so the next turn can --resume / -s. */
   agentSessionId: v.optional(v.string()),
   exitCode: v.optional(v.number()),

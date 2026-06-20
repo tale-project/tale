@@ -3,5 +3,7 @@
   "issueDesk.implement": "Implement the fix",
   "issueDesk.verify": "Run tests",
   "issueDesk.review": "Review & fix",
-  "issueDesk.openPr": "Open pull request"
+  "issueDesk.judge": "Merge decision",
+  "issueDesk.openPr": "Open pull request",
+  "issueDesk.taskTemplate": "Resolve this GitHub issue: {title} (#{number}). Details: {url}"
 }

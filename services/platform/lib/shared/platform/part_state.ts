@@ -7,6 +7,7 @@
  * that reads this from the step's runtime output.
  */
 export const PART_STATES = [
+  'upcoming', // in the plan but not yet reached — a quiet preview row, no skeleton
   'loading',
   'running',
   'output_available',

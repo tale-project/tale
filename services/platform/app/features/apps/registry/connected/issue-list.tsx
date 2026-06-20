@@ -25,9 +25,11 @@ import { CircleDot } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { interpolateTemplate } from '@/lib/shared/utils/interpolate';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundAction } from '../../hooks/use-bound-action';
+import { usePackLabel } from '../../runtime/app-runtime';
 import { Section } from './section';
 
 export interface IssueListProps {
@@ -35,9 +37,17 @@ export interface IssueListProps {
   owner: string;
   repo: string;
   state?: string;
+  /** Pack `labelKey` of the task-description template, with `{title}`/`{number}`/
+   * `{url}` placeholders. Resolved against the app's active-locale catalog so the
+   * created task reads as a natural-language instruction in the user's locale. */
+  taskTemplateKey?: string;
 }
 
 const PER_PAGE = 30;
+
+// Generic fallback when the app ships no template (the block is app-agnostic).
+const DEFAULT_TASK_TEMPLATE =
+  'Resolve this GitHub issue: {title} (#{number}). Details: {url}';
 
 /**
  * The dispatch wraps the connector result as `{ result: { count, data, pagination } }`
@@ -79,8 +89,10 @@ export function IssueList({
   owner,
   repo,
   state = 'open',
+  taskTemplateKey,
 }: IssueListProps) {
   const { t } = useT('apps');
+  const packLabel = usePackLabel();
   const list = useBoundAction(
     'integrations/public_actions:listGitHubIssues',
     'action',
@@ -129,13 +141,23 @@ export function IssueList({
 
   const onCreate = async (issue: Record<string, unknown>) => {
     const number = typeof issue.number === 'number' ? issue.number : undefined;
+    // Tasks are handled by an LLM, so the description is a natural-language
+    // instruction generated from a localized template (the user's locale, via
+    // the pack catalog) — not the raw issue body. The structured external* refs
+    // are kept as metadata (trigger filter, dedup key, repo-clone source).
+    const template = packLabel(taskTemplateKey, DEFAULT_TASK_TEMPLATE);
+    const description = interpolateTemplate(template, {
+      title: str(issue, 'title'),
+      number: number ?? '',
+      url: str(issue, 'html_url'),
+    });
     await create.dispatch({
       organizationId: '$orgId',
       externalSystem: 'github',
       externalId: `${owner}/${repo}#${number ?? ''}`,
       title: str(issue, 'title'),
       externalUrl: str(issue, 'html_url'),
-      description: str(issue, 'body'),
+      description,
     });
     if (number !== undefined) {
       setCreated((prev) => new Set(prev).add(number));

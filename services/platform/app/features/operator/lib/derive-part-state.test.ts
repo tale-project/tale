@@ -15,6 +15,14 @@ describe('derivePartState', () => {
     expect(derivePartState(undefined, 'read_only')).toBe('loading');
   });
 
+  it('maps an absent node on the CURRENT step to loading (imminent)', () => {
+    expect(derivePartState(undefined, 'read_only', true)).toBe('loading');
+  });
+
+  it('maps an absent node NOT yet reached to upcoming (quiet preview)', () => {
+    expect(derivePartState(undefined, 'read_only', false)).toBe('upcoming');
+  });
+
   it('maps running through directly', () => {
     expect(derivePartState(node({ status: 'running' }), 'read_only')).toBe(
       'running',

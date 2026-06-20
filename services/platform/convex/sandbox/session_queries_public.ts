@@ -103,6 +103,19 @@ export const getWorkflowSandboxOp = query({
         v.literal('cancelled'),
       ),
       progressText: v.optional(v.string()),
+      liveTimeline: v.optional(
+        v.array(
+          v.object({
+            type: v.string(),
+            text: v.optional(v.string()),
+            state: v.optional(v.string()),
+            toolCallId: v.optional(v.string()),
+            input: v.optional(v.any()),
+            output: v.optional(v.any()),
+            errorText: v.optional(v.string()),
+          }),
+        ),
+      ),
       lastEventAt: v.optional(v.number()),
       agentIdleAt: v.optional(v.number()),
       continuationCount: v.optional(v.number()),
@@ -143,6 +156,7 @@ export const getWorkflowSandboxOp = query({
     return {
       status: op.status,
       ...(op.progressText !== undefined && { progressText: op.progressText }),
+      ...(op.liveTimeline !== undefined && { liveTimeline: op.liveTimeline }),
       ...(op.lastEventAt !== undefined && { lastEventAt: op.lastEventAt }),
       ...(op.agentIdleAt !== undefined && { agentIdleAt: op.agentIdleAt }),
       ...(op.continuationCount !== undefined && {

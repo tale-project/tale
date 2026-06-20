@@ -37,8 +37,16 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     readJson('workflows/issue-desk/desk-process.json'),
   );
   const view = readJson('views/desk.json') as {
-    tabs?: Array<{ id?: string }>;
+    tabs?: Array<{
+      id?: string;
+      data?: {
+        content?: Array<{ type?: string; props?: Record<string, unknown> }>;
+      };
+    }>;
   };
+
+  const blocks = (view.tabs ?? []).flatMap((tab) => tab.data?.content ?? []);
+  const blockOfType = (type: string) => blocks.find((b) => b.type === type);
 
   it('app.json manifest composes the workflow + agents + functions by reference', () => {
     expect(manifest.name).toBe('Issue resolution desk');
@@ -102,6 +110,42 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     });
     expect(result.errors).toEqual([]);
     expect(result.valid).toBe(true);
+  });
+
+  it('Tasks board drops the internal externalId marker column', () => {
+    const collection = blockOfType('Collection');
+    const columns = collection?.props?.columns;
+    expect(Array.isArray(columns)).toBe(true);
+    expect(columns).not.toContain('externalId');
+  });
+
+  it('has no org-wide approvals ReviewQueue (it leaked unrelated approvals)', () => {
+    expect(blockOfType('ReviewQueue')).toBeUndefined();
+    const fnPaths = manifest.capabilities?.functions?.map((f) => f.path) ?? [];
+    expect(fnPaths).not.toContain(
+      'approvals/queries:listActiveApprovalsByOrganization',
+    );
+  });
+
+  it('quick-create uses a localized task-description template in every locale', () => {
+    // The IssueList block points at a pack `labelKey` for the task description.
+    const issues = blockOfType('IssueList');
+    const key = issues?.props?.taskTemplateKey;
+    expect(typeof key).toBe('string');
+    // validatePack only enforces parity for keys a WORKFLOW step references; this
+    // one is read at runtime by the view, so guard its cross-locale parity here.
+    for (const locale of ['en', 'de', 'fr']) {
+      const catalog = readJson(`messages/${locale}.json`) as Record<
+        string,
+        string
+      >;
+      const template = catalog[key as string];
+      expect(template, `${locale} ${String(key)}`).toBeTruthy();
+      // The placeholders the client fills must be present.
+      for (const ph of ['{title}', '{number}', '{url}']) {
+        expect(template, `${locale} ${ph}`).toContain(ph);
+      }
+    }
   });
 
   it('the role agents are valid external-agent + BYO sandbox configs', () => {

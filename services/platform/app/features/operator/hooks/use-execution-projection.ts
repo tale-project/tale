@@ -9,12 +9,17 @@ import { useMemo } from 'react';
 import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import type { ExecutionNodeState } from '@/convex/workflows/executions/get_execution_step_statuses';
 import {
   RENDER_KIND_META,
   type RenderKind,
   isRenderKind,
 } from '@/lib/shared/platform/render_kinds';
+import {
+  isStepVisible,
+  stepTreatment,
+} from '@/lib/shared/platform/step_display';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { derivePartState } from '../lib/derive-part-state';
@@ -111,10 +116,49 @@ function parseOutput(node: ExecutionNodeState | undefined): unknown {
   return parsed;
 }
 
+/** The `step_display` predicate input for a definition step. */
+function displayInput(step: DefinitionStep): {
+  stepType: string;
+  hasUi: boolean;
+  display?: string;
+} {
+  return {
+    stepType: step.stepType,
+    hasUi: step.ui !== undefined,
+    ...(step.ui?.params?.display !== undefined && {
+      display: step.ui.params.display,
+    }),
+  };
+}
+
+/** Resolve a node's harvested output files to openable {name,url} links. */
+function filesForNode(
+  node: ExecutionNodeState | undefined,
+  urlByStorageId: ReadonlyMap<string, string>,
+): { name: string; url: string }[] | undefined {
+  const out = parseOutput(node);
+  if (!isRecord(out) || !Array.isArray(out.outputFiles)) return undefined;
+  const files: { name: string; url: string }[] = [];
+  for (const f of out.outputFiles) {
+    if (!isRecord(f)) continue;
+    if (typeof f.name !== 'string' || typeof f.storageId !== 'string') continue;
+    const url = urlByStorageId.get(f.storageId);
+    if (url) files.push({ name: f.name, url });
+  }
+  return files.length > 0 ? files : undefined;
+}
+
 function projectStep(
   step: DefinitionStep,
   node: ExecutionNodeState | undefined,
-  liveProgress?: string,
+  opts: {
+    liveProgress?: string;
+    liveParts?: unknown[];
+    files?: { name: string; url: string }[];
+    /** True only for the step the run is currently on (loading vs upcoming). */
+    reached: boolean;
+    treatment: 'normal' | 'gate';
+  },
 ): StepProjection {
   const render = resolveRenderKind(step.ui);
   const interaction = RENDER_KIND_META[render].interaction;
@@ -123,22 +167,28 @@ function projectStep(
     name: step.name,
     stepType: step.stepType,
     render,
-    partState: derivePartState(node, interaction),
+    treatment: opts.treatment,
+    partState: derivePartState(node, interaction, opts.reached),
   };
   if (step.ui?.stage !== undefined) projection.stage = step.ui.stage;
   if (step.ui?.labelKey !== undefined) projection.labelKey = step.ui.labelKey;
   if (step.ui?.params !== undefined) projection.params = step.ui.params;
   if (step.role !== undefined) projection.role = step.role;
   if (node !== undefined) projection.node = node;
+  if (opts.liveParts !== undefined && opts.liveParts.length > 0) {
+    projection.liveParts = opts.liveParts;
+  }
+  if (opts.files !== undefined) projection.files = opts.files;
   const output = parseOutput(node);
-  // A RUNNING sandbox step has no `summary` yet (its result only lands at the
-  // segment seam), so its envelope would fall back to raw JSON. Surface the
-  // agent's LIVE op progress as the stream summary so the operator watches it
-  // work; once the step finishes, `output.summary` (persisted) takes over.
-  if (liveProgress !== undefined && liveProgress.trim() !== '') {
+  // A RUNNING sandbox step has no persisted `summary`/timeline yet (the result
+  // only lands at the segment seam). The rich live transcript (`liveParts`) is
+  // the primary feed; keep the agent's LIVE op progress text as the stream
+  // summary too so there's always something, and once the step finishes the
+  // persisted `output.summary` takes over.
+  if (opts.liveProgress !== undefined && opts.liveProgress.trim() !== '') {
     projection.output = {
       ...(isRecord(output) ? output : {}),
-      summary: liveProgress,
+      summary: opts.liveProgress,
     };
   } else if (output !== undefined) {
     projection.output = output;
@@ -195,6 +245,40 @@ export function useExecutionProjection(args: {
   );
   const liveProgress =
     runningSandboxStepSlug !== null ? liveOp.data?.progressText : undefined;
+  const liveTimeline =
+    runningSandboxStepSlug !== null ? liveOp.data?.liveTimeline : undefined;
+
+  // Harvested output-file storage ids across all steps → resolved to openable
+  // urls (one batched query) so the stream panel can offer "Open summary.md".
+  const outputFileStorageIds = useMemo<string[]>(() => {
+    const live = statuses.data;
+    if (!live) return [];
+    const ids = new Set<string>();
+    for (const slug of Object.keys(live.nodes)) {
+      const out = parseOutput(live.nodes[slug]);
+      if (isRecord(out) && Array.isArray(out.outputFiles)) {
+        for (const f of out.outputFiles) {
+          if (isRecord(f) && typeof f.storageId === 'string')
+            ids.add(f.storageId);
+        }
+      }
+    }
+    return [...ids];
+  }, [statuses.data]);
+
+  const fileUrls = useConvexQuery(
+    api.files.queries.getFileUrls,
+    outputFileStorageIds.length > 0
+      ? // The ids are `_storage` ids harvested into the step output.
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+        { fileIds: outputFileStorageIds as Id<'_storage'>[] }
+      : 'skip',
+  );
+  const urlByStorageId = useMemo<Map<string, string>>(() => {
+    const m = new Map<string, string>();
+    for (const r of fileUrls.data ?? []) if (r.url) m.set(r.fileId, r.url);
+    return m;
+  }, [fileUrls.data]);
 
   const projection = useMemo<OperatorProjection | null>(() => {
     const live = statuses.data;
@@ -203,25 +287,35 @@ export function useExecutionProjection(args: {
     const def = definition.data;
     const config = def && def.ok ? def.config : undefined;
     const defSteps = parseDefinitionSteps(config);
+    const usingDef = defSteps.length > 0;
 
-    // The definition is the spine (every step shows, even unstarted). Until it
-    // loads, fall back to the live node keys so something renders.
-    const sourceSteps: DefinitionStep[] =
-      defSteps.length > 0
-        ? defSteps
-        : Object.keys(live.nodes).map((stepSlug) => ({
-            stepSlug,
-            name: live.nodes[stepSlug]?.stepName ?? stepSlug,
-            stepType: live.nodes[stepSlug]?.stepType ?? 'action',
-          }));
+    // The definition is the spine (every meaningful step shows, even unstarted),
+    // with pure plumbing (routing conditions, status-bumps) collapsed out via the
+    // shared predicate so map and run view agree. Until it loads, fall back to
+    // the live node keys UNFILTERED (transient) so something renders.
+    const sourceSteps: DefinitionStep[] = usingDef
+      ? defSteps.filter((step) => isStepVisible(displayInput(step)))
+      : Object.keys(live.nodes).map((stepSlug) => ({
+          stepSlug,
+          name: live.nodes[stepSlug]?.stepName ?? stepSlug,
+          stepType: live.nodes[stepSlug]?.stepType ?? 'action',
+        }));
 
-    const steps = sourceSteps.map((step) =>
-      projectStep(
-        step,
-        live.nodes[step.stepSlug],
-        step.stepSlug === runningSandboxStepSlug ? liveProgress : undefined,
-      ),
-    );
+    const steps = sourceSteps.map((step) => {
+      const node = live.nodes[step.stepSlug];
+      const isRunning = step.stepSlug === runningSandboxStepSlug;
+      const treatment =
+        stepTreatment(displayInput(step)) === 'gate' ? 'gate' : 'normal';
+      const files = filesForNode(node, urlByStorageId);
+      return projectStep(step, node, {
+        reached: step.stepSlug === live.execution.currentStepSlug,
+        treatment,
+        ...(isRunning && liveProgress !== undefined && { liveProgress }),
+        ...(isRunning &&
+          liveTimeline !== undefined && { liveParts: liveTimeline }),
+        ...(files !== undefined && { files }),
+      });
+    });
 
     const stages: string[] = [];
     for (const step of steps) {
@@ -250,7 +344,14 @@ export function useExecutionProjection(args: {
       result.currentStepSlug = live.execution.currentStepSlug;
     }
     return result;
-  }, [statuses.data, definition.data, runningSandboxStepSlug, liveProgress]);
+  }, [
+    statuses.data,
+    definition.data,
+    runningSandboxStepSlug,
+    liveProgress,
+    liveTimeline,
+    urlByStorageId,
+  ]);
 
   return {
     projection,

@@ -507,6 +507,20 @@ export const upsertSessionOp = internalMutation({
       v.literal('cancelled'),
     ),
     progressText: v.optional(v.string()),
+    /** Bounded live UI-part transcript for a workflow-run step (run-view feed). */
+    liveTimeline: v.optional(
+      v.array(
+        v.object({
+          type: v.string(),
+          text: v.optional(v.string()),
+          state: v.optional(v.string()),
+          toolCallId: v.optional(v.string()),
+          input: v.optional(v.any()),
+          output: v.optional(v.any()),
+          errorText: v.optional(v.string()),
+        }),
+      ),
+    ),
     agentSessionId: v.optional(v.string()),
     exitCode: v.optional(v.number()),
     eventLogStorageId: v.optional(v.string()),
@@ -546,6 +560,7 @@ export const upsertSessionOp = internalMutation({
     // them never clobbers a value set at turn start.
     const optional = [
       'progressText',
+      'liveTimeline',
       'agentSessionId',
       'exitCode',
       'eventLogStorageId',

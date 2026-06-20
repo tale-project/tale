@@ -4,8 +4,12 @@
  * (message | tool_call | log) hints the dominant entry type; folds transcript /
  * tool-call-card / event-log into one kind. */
 import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { FileText } from 'lucide-react';
+
+import { useT } from '@/lib/i18n/client';
 
 import {
   asRecord,
@@ -14,16 +18,52 @@ import {
   scalar,
 } from '../../lib/output-helpers';
 import type { RenderPart } from '../../types';
+import { LiveAgentTimeline } from '../live-agent-timeline';
 import { OutputFallback } from '../output-fallback';
+
+/** Openable links to harvested output files (e.g. the mandated `summary.md`). */
+function FileLinks({ files }: { files: NonNullable<RenderPart['files']> }) {
+  const { t } = useT('operator');
+  return (
+    <HStack gap={2} className="flex-wrap">
+      {files.map((file) => (
+        <Button key={file.name} asChild variant="secondary" size="sm">
+          <a href={file.url} target="_blank" rel="noopener noreferrer">
+            <FileText className="size-4" />
+            {t('action.openFile', { name: file.name, defaultValue: file.name })}
+          </a>
+        </Button>
+      ))}
+    </HStack>
+  );
+}
 
 export function StreamPanel({ part }: { part: RenderPart }) {
   const out = asRecord(part.data);
   const entries = pickArray(out, 'entries', 'transcript', 'events', 'messages');
+  const files = part.files;
+
+  // The rich LIVE transcript (a running sandbox step) takes over the feed: the
+  // agent's tool/reasoning/text activity, not a flat blob.
+  const liveParts = part.liveParts;
+  const isLive = part.partState === 'running';
+  if (liveParts !== undefined && liveParts.length > 0) {
+    return (
+      <VStack gap={2}>
+        <LiveAgentTimeline parts={liveParts} active={isLive} />
+        {files !== undefined && files.length > 0 && <FileLinks files={files} />}
+      </VStack>
+    );
+  }
 
   // The agent-run handoff summary, when present, is the headline of the feed.
   const summary = pickString(out, 'summary');
 
-  if (entries.length === 0 && summary === undefined) {
+  if (
+    entries.length === 0 &&
+    summary === undefined &&
+    (files === undefined || files.length === 0)
+  ) {
     return <OutputFallback part={part} />;
   }
 
@@ -34,6 +74,7 @@ export function StreamPanel({ part }: { part: RenderPart }) {
           {summary}
         </Text>
       )}
+      {files !== undefined && files.length > 0 && <FileLinks files={files} />}
       {entries.slice(0, 100).map((raw, i) => {
         const entry = asRecord(raw);
         const kind =

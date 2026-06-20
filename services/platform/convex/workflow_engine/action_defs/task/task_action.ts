@@ -400,6 +400,10 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
             title: params.title,
             externalUrl: params.externalUrl,
             description: params.description,
+            // A background re-sync must not clobber a task's clean/localized
+            // description (e.g. one a user set via quick-create) — the
+            // description is a stable pointer; the agent reads live details.
+            descriptionMode: 'preserve',
             labels: params.labels,
             priority: params.priority,
             externalState: params.externalState,

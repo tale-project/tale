@@ -44,6 +44,16 @@ export interface StepProjection {
   role?: string;
   /** The orthogonal lifecycle/streaming state the part envelope renders. */
   partState: PartState;
+  /** How the step renders in the friendly view: `gate` = a quiet decision
+   * checkpoint (the LLM judge); `normal` otherwise. Hidden steps are filtered
+   * out before projection, so this never carries `'hidden'`. */
+  treatment?: 'normal' | 'gate';
+  /** Live agent UI-part transcript for a RUNNING sandbox step (the run-view
+   * feed), read from the workflow-run op. Absent once the step finishes. */
+  liveParts?: unknown[];
+  /** Openable output files (name + resolved url) harvested from the step, e.g.
+   * the mandated `summary.md`. Resolved at the projection boundary. */
+  files?: { name: string; url: string }[];
   /** Live node-state — absent until the step has executed. */
   node?: ExecutionNodeState;
   /** Parsed `node.outputPreview` JSON, when present and parseable. */
@@ -66,9 +76,17 @@ export interface RenderPart {
   labelKey?: string;
   stage?: string;
   role?: string;
+  /** `gate` renders a quiet decision checkpoint; `normal` otherwise. */
+  treatment?: 'normal' | 'gate';
   params?: StepUiAnnotation['params'];
   /** The payload the render-kind component renders. */
   data: unknown;
+  /** Live agent UI-part transcript for a RUNNING sandbox step — the rich live
+   * feed the `stream` panel renders in place of the flat summary. */
+  liveParts?: unknown[];
+  /** Openable output files (name + resolved url), e.g. the harvested
+   * `summary.md` — surfaced by the `stream` panel. */
+  files?: { name: string; url: string }[];
   /** Error text surfaced by the envelope in the output_error state. */
   error?: string;
   /** Run-detail-only node timing (the status/transform panels show it). */
@@ -104,7 +122,10 @@ export function stepToPart(step: StepProjection): RenderPart {
   if (step.labelKey !== undefined) part.labelKey = step.labelKey;
   if (step.stage !== undefined) part.stage = step.stage;
   if (step.role !== undefined) part.role = step.role;
+  if (step.treatment !== undefined) part.treatment = step.treatment;
   if (step.params !== undefined) part.params = step.params;
+  if (step.liveParts !== undefined) part.liveParts = step.liveParts;
+  if (step.files !== undefined) part.files = step.files;
   if (step.node?.error !== undefined) part.error = step.node.error;
   if (step.node) {
     part.meta = {

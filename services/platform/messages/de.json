@@ -96,6 +96,7 @@
       "openEditor": "Im Editor öffnen"
     },
     "process": {
+      "gate": "Entscheidung",
       "stage": {
         "intake": "Aufnahme",
         "work": "Bearbeitung",
@@ -128,7 +129,10 @@
   "operator": {
     "title": "Operator",
     "tab": { "operator": "Operator", "raw": "Rohprotokoll" },
+    "gate": "Entscheidung",
     "state": {
+      "upcoming": "Als Nächstes",
+      "live": "Live",
       "loading": "Ausstehend",
       "running": "Läuft",
       "output_available": "Fertig",
@@ -163,6 +167,7 @@
       "reject": "Änderungen anfordern",
       "respond": "Antworten",
       "trigger_workflow": "Starten",
+      "openFile": "{name} öffnen",
       "steer": "Steuern",
       "assign": "Zuweisen",
       "comment": "Kommentieren",

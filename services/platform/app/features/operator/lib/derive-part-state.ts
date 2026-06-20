@@ -11,9 +11,14 @@ import type { RenderInteraction } from '@/lib/shared/platform/render_kinds';
 export function derivePartState(
   node: ExecutionNodeState | undefined,
   interaction: RenderInteraction,
+  /** True when this is the step the run is ON right now (the current step). A
+   * not-yet-run step that is the current one is `loading` (about to run); one
+   * still further down the plan is `upcoming` (a quiet preview, no skeleton). */
+  reached = true,
 ): PartState {
-  // No journal entry yet → the step is scheduled but hasn't run.
-  if (!node) return 'loading';
+  // No journal entry yet → scheduled. The current step is loading; later steps
+  // are merely upcoming, so a 9-step run on step 3 isn't a wall of skeletons.
+  if (!node) return reached ? 'loading' : 'upcoming';
 
   switch (node.status) {
     case 'running':

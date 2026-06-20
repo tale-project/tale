@@ -13,8 +13,10 @@ import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import type { ReactNode } from 'react';
 
+import { usePackLabel } from '@/app/features/apps/runtime/app-runtime';
 import { useT } from '@/lib/i18n/client';
 import type { PartState } from '@/lib/shared/platform/part_state';
+import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import type { RenderPart } from '../types';
@@ -29,6 +31,7 @@ type BadgeVariant =
   | 'orange';
 
 const STATE_BADGE: Record<PartState, BadgeVariant> = {
+  upcoming: 'slate',
   loading: 'slate',
   running: 'blue',
   output_available: 'green',
@@ -39,7 +42,9 @@ const STATE_BADGE: Record<PartState, BadgeVariant> = {
 };
 
 // States whose own affordance replaces the panel body (nothing useful to show).
+// `upcoming` is a quiet preview row (no skeleton); `loading` is the imminent step.
 const BODY_SUPPRESSED = new Set<PartState>([
+  'upcoming',
   'loading',
   'waiting_external',
   'empty',
@@ -53,19 +58,33 @@ export function PartEnvelope({
   children: ReactNode;
 }) {
   const { t } = useT('operator');
-  const title = part.labelKey
-    ? t(part.labelKey, { defaultValue: part.title })
-    : part.title;
+  const packLabel = usePackLabel();
+  // Pack-authored Tier-2 label wins; the operator structural i18n key (or the
+  // raw step name) is the fallback — parity with the Overview map.
+  const title = packLabel(
+    part.labelKey,
+    part.labelKey ? t(part.labelKey, { defaultValue: part.title }) : part.title,
+  );
   const showBody = !BODY_SUPPRESSED.has(part.partState);
+  const isGate = part.treatment === 'gate';
 
   return (
-    <Card>
+    <Card className={cn(isGate && 'bg-muted/30')}>
       <VStack gap={3}>
         <HStack gap={2} className="flex-wrap items-center justify-between">
           <HStack gap={2} className="min-w-0 flex-wrap items-center">
-            <Text as="span" className="font-medium" truncate>
+            <Text
+              as="span"
+              className={cn('font-medium', isGate && 'text-muted-foreground')}
+              truncate
+            >
               {title}
             </Text>
+            {isGate && (
+              <Badge variant="outline">
+                {t('gate', { defaultValue: 'Decision' })}
+              </Badge>
+            )}
             {part.stage && (
               <Badge variant="slate">
                 {t(`stage.${part.stage}`, { defaultValue: part.stage })}

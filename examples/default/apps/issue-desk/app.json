@@ -14,10 +14,6 @@
     "roles": ["issue-desk/desk-implementer", "issue-desk/desk-reviewer"],
     "functions": [
       { "path": "tasks/queries:listTasksByOrg", "mode": "query" },
-      {
-        "path": "approvals/queries:listActiveApprovalsByOrganization",
-        "mode": "query"
-      },
       { "path": "workflow_executions/queries:listExecutions", "mode": "query" },
       { "path": "agents/file_actions:listAppAgents", "mode": "action" },
       { "path": "agents/file_actions:readAgent", "mode": "action" },

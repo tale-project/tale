@@ -150,6 +150,12 @@
       "stepSlug": "judge",
       "name": "Merge gate (LLM decides mergeability)",
       "stepType": "llm",
+      "ui": {
+        "stage": "review",
+        "render": "status",
+        "labelKey": "issueDesk.judge",
+        "params": { "display": "gate" }
+      },
       "config": {
         "name": "merge-judge",
         "systemPrompt": "You are a strict merge gate for a code-review desk. You are given ONLY the reviewer's written summary of a proposed fix. Decide whether it is ready to merge: approve only when the reviewer reports no blocking problems and the tests pass. You have no tools and must judge solely from the summary. Reply with EXACTLY one lowercase word and nothing else: yes (ready to merge) or no (needs more work).",

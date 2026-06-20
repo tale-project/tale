@@ -71,6 +71,7 @@ describe('platform render-kinds vocabulary', () => {
 describe('platform state / mode / field / role vocabularies', () => {
   it('freezes the lifecycle state axis (incl. waiting + empty)', () => {
     expect([...PART_STATES]).toEqual([
+      'upcoming',
       'loading',
       'running',
       'output_available',

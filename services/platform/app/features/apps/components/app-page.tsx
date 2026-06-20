@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { resolvePackLabels } from '../hooks/use-app-pack-labels';
 import { type AppTabDoc, type AppViewDoc, useApps } from '../hooks/use-apps';
 import {
   useAppInstallActions,
@@ -135,13 +136,12 @@ export function AppPage({
   const app = apps.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
 
-  // The app's pack labels for the active locale, with graceful fallback:
-  // exact locale → base language (de-CH → de) → en → empty.
-  const labels = useMemo<Record<string, string>>(() => {
-    const m = app?.messages;
-    if (!m) return {};
-    return m[locale] ?? m[locale.split('-')[0]] ?? m.en ?? {};
-  }, [app?.messages, locale]);
+  // The app's pack labels for the active locale (shared resolver — the run view
+  // resolves `ui.labelKey` against the same catalog via `useAppPackLabels`).
+  const labels = useMemo<Record<string, string>>(
+    () => resolvePackLabels(app?.messages, locale),
+    [app?.messages, locale],
+  );
 
   // Re-check that the copied files still exist when an installed app opens.
   // Guard by appSlug so it runs once per app (verify's identity is unstable and

@@ -96,6 +96,7 @@
       "openEditor": "Ouvrir dans l'éditeur"
     },
     "process": {
+      "gate": "Décision",
       "stage": {
         "intake": "Réception",
         "work": "Traitement",
@@ -128,7 +129,10 @@
   "operator": {
     "title": "Opérateur",
     "tab": { "operator": "Opérateur", "raw": "Journal brut" },
+    "gate": "Décision",
     "state": {
+      "upcoming": "À venir",
+      "live": "Live",
       "loading": "En attente",
       "running": "En cours",
       "output_available": "Terminé",
@@ -163,6 +167,7 @@
       "reject": "Demander des modifications",
       "respond": "Répondre",
       "trigger_workflow": "Lancer",
+      "openFile": "Ouvrir {name}",
       "steer": "Orienter",
       "assign": "Assigner",
       "comment": "Commenter",

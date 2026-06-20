@@ -96,6 +96,7 @@
       "openEditor": "Open in editor"
     },
     "process": {
+      "gate": "Decision",
       "stage": {
         "intake": "Intake",
         "work": "Work",
@@ -128,7 +129,10 @@
   "operator": {
     "title": "Operator",
     "tab": { "operator": "Operator", "raw": "Raw journal" },
+    "gate": "Decision",
     "state": {
+      "upcoming": "Up next",
+      "live": "Live",
       "loading": "Pending",
       "running": "Running",
       "output_available": "Done",
@@ -163,6 +167,7 @@
       "reject": "Request changes",
       "respond": "Respond",
       "trigger_workflow": "Run",
+      "openFile": "Open {name}",
       "steer": "Steer",
       "assign": "Assign",
       "comment": "Comment",

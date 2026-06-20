@@ -24,6 +24,7 @@ import type { Id } from '../../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
   buildAssistantContent,
+  buildUiPartsFromTimeline,
   estimateContentBytes,
   MAX_MESSAGE_BYTES,
   type AgentAssistantContent,
@@ -142,6 +143,11 @@ export interface RunAgentInSessionArgs {
    * buffer). Best-effort; failures are swallowed (the op flush is the fallback).
    */
   onTimeline?: (content: AgentAssistantContent) => Promise<void>;
+  /** Workflow-run steps have no chat message to render their live timeline from,
+   * so when set the throttled flush also stamps a bounded UI-part transcript onto
+   * the op (`liveTimeline`) for the run view to read. The chat path leaves this
+   * off (it renders from the persisted message via `onTimeline`). */
+  captureLiveTimeline?: boolean;
   /** Fired the MOMENT the agent calls request_human_control (mid-stream), so
    * the handoff card can appear immediately — the turn itself may then linger
    * (I/O-conduit) and not reach the terminal path for a while. Fired at most
@@ -907,6 +913,17 @@ export async function runAgentInSessionImpl(
     // simply retried by the next flush carrying the same value).
     const sendIdle = agentIdleDirty;
     agentIdleDirty = false;
+    // A workflow-run step has no chat message, so stamp a bounded UI-part
+    // transcript on the op for the run view (chat renders from its message).
+    const liveTimeline = args.captureLiveTimeline
+      ? buildUiPartsFromTimeline(
+          timeline,
+          finalText ?? '',
+          toolNames,
+          toolUseParents,
+          liveText,
+        )
+      : undefined;
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
@@ -915,6 +932,7 @@ export async function runAgentInSessionImpl(
       kind: 'agent-run',
       status: 'running',
       progressText: progressText.slice(-8_000),
+      ...(liveTimeline !== undefined && { liveTimeline }),
       // Heartbeat + resume cursor so the recovery watchdog can tell a live
       // draining action from a dead one, and a continuation knows where to
       // re-attach.

@@ -60,6 +60,12 @@ import {
 } from './helpers/session_client';
 import { stageIntegrationSkills } from './integration_skills';
 import { runAgentInSessionImpl } from './run_agent';
+import {
+  shouldForceSummaryReentry,
+  SUMMARY_REENTRY_MAX_TURNS,
+  SUMMARY_REENTRY_PROMPT,
+  SUMMARY_REENTRY_WINDOW_MS,
+} from './summary_reentry';
 
 // Mirrors run_external_agent: the gateway + integration-dispatch base URLs the
 // in-sandbox agent reaches over the sandbox network, and the Tier-2 grants that
@@ -176,8 +182,15 @@ async function harvestSandboxOutput(
   sessionId: string,
   collectDir: string,
   fallbackFinalText: string | undefined,
-): Promise<{ outputFileIds: string[]; summary: string }> {
+): Promise<{
+  outputFileIds: string[];
+  outputFiles: { name: string; storageId: string }[];
+  summary: string;
+  /** True only when a real `summary.md` was found (not the synthesized fallback). */
+  summaryWritten: boolean;
+}> {
   const outputFileIds: string[] = [];
+  const outputFiles: { name: string; storageId: string }[] = [];
   let summary: string | undefined;
   try {
     const entries = await sessionListFiles(sessionId, collectDir);
@@ -192,6 +205,7 @@ async function harvestSandboxOutput(
         new Blob([file.bytes], { type: file.contentType }),
       );
       outputFileIds.push(storageId);
+      outputFiles.push({ name: entry.name, storageId });
       if (entry.name === 'summary.md') {
         summary = new TextDecoder().decode(file.bytes);
       }
@@ -199,12 +213,13 @@ async function harvestSandboxOutput(
   } catch (harvestErr) {
     console.warn('[runSandboxAgent] output harvest failed:', harvestErr);
   }
+  const summaryWritten = summary !== undefined;
   if (summary === undefined) {
     summary = fallbackFinalText
       ? `(synthesized — agent did not write output/summary.md)\n\n${fallbackFinalText}`
       : '(synthesized) The agent produced no output/summary.md and no final text.';
   }
-  return { outputFileIds, summary };
+  return { outputFileIds, outputFiles, summary, summaryWritten };
 }
 
 /**
@@ -289,7 +304,15 @@ export const sandboxRunResultValidator = v.object({
   result: v.optional(v.any()),
   /** Parsed `output/summary.md` (agent runs) — the legible handoff. */
   summary: v.optional(v.string()),
+  /** Whether the agent actually wrote `output/summary.md` (vs a synthesized
+   * fallback). A workflow condition can gate on `output.data.summaryWritten`. */
+  summaryWritten: v.optional(v.boolean()),
   outputFileIds: v.array(v.string()),
+  /** Harvested output files (name ↔ storage id), so the run view can offer
+   * openable links (e.g. "Open summary.md") without re-listing the sandbox. */
+  outputFiles: v.optional(
+    v.array(v.object({ name: v.string(), storageId: v.string() })),
+  ),
   outputFolderId: v.optional(v.string()),
   transcriptFileId: v.optional(v.string()),
   exitCode: v.optional(v.number()),
@@ -818,6 +841,7 @@ export const runSandboxAgent = internalAction({
               // Unused on resume — we re-attach to the still-running exec.
               prompt: '',
               interactionMode: 'autonomous',
+              captureLiveTimeline: true,
               budgetDeadlineMs,
               timeoutMs: segmentTimeoutMs,
               resumeFrom: {
@@ -843,6 +867,7 @@ export const runSandboxAgent = internalAction({
               ...(useModel !== undefined && { model: useModel }),
               authMode: byo ? 'byo' : 'managed',
               interactionMode: 'autonomous',
+              captureLiveTimeline: true,
               systemPromptAppend,
               ...(args.budget.maxTurns !== undefined && {
                 maxTurns: args.budget.maxTurns,
@@ -916,12 +941,72 @@ export const runSandboxAgent = internalAction({
       // read the mandated output/summary.md handoff.
       const terminalStatus =
         result.status === 'running' ? 'timeout' : result.status;
-      const { outputFileIds, summary } = await harvestSandboxOutput(
-        ctx,
-        sessionId,
-        collectDir,
-        result.finalText,
-      );
+      let { outputFileIds, outputFiles, summary, summaryWritten } =
+        await harvestSandboxOutput(
+          ctx,
+          sessionId,
+          collectDir,
+          result.finalText,
+        );
+
+      // FORCE THE HANDOFF: a run that finished clean but skipped summary.md gets
+      // ONE corrective re-entry into the SAME Claude session (still alive — the
+      // `finally` teardown hasn't fired) before destroy, then a single re-harvest.
+      // One-shot (no loop); failure just keeps the synthesized fallback.
+      if (
+        shouldForceSummaryReentry({
+          terminalStatus,
+          summaryWritten,
+          agentSessionId: result.agentSessionId,
+          now: Date.now(),
+          hardDeadlineMs,
+          byo,
+          gatewayToken,
+        })
+      ) {
+        try {
+          await runAgentInSessionImpl(ctx, {
+            organizationId: args.organizationId,
+            sessionId,
+            execId: `${execId}-summary`,
+            agentSlug: agentKind,
+            prompt: SUMMARY_REENTRY_PROMPT,
+            // Resume the just-finished Claude session (a fresh exec, --resume).
+            ...(result.agentSessionId !== undefined && {
+              agentSessionId: result.agentSessionId,
+            }),
+            ...(useModel !== undefined && { model: useModel }),
+            authMode: byo ? 'byo' : 'managed',
+            interactionMode: 'autonomous',
+            captureLiveTimeline: true,
+            maxTurns: SUMMARY_REENTRY_MAX_TURNS,
+            ...(!byo &&
+              gatewayToken !== null && {
+                gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
+                gatewayToken,
+                integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
+              }),
+            budgetDeadlineMs: Math.min(
+              Date.now() + SUMMARY_REENTRY_WINDOW_MS,
+              hardDeadlineMs,
+            ),
+            timeoutMs: Math.max(0, hardDeadlineMs - Date.now()),
+          });
+          ({ outputFileIds, outputFiles, summary, summaryWritten } =
+            await harvestSandboxOutput(
+              ctx,
+              sessionId,
+              collectDir,
+              result.finalText,
+            ));
+        } catch (reentryErr) {
+          console.warn(
+            '[runSandboxAgent] summary.md corrective re-entry failed:',
+            reentryErr,
+          );
+        }
+      }
+
       const ok =
         terminalStatus === 'completed' &&
         (result.exitCode === 0 || result.exitCode === null);
@@ -930,7 +1015,9 @@ export const runSandboxAgent = internalAction({
         ok,
         status: terminalStatus,
         summary,
+        summaryWritten,
         outputFileIds,
+        outputFiles,
         ...(result.exitCode !== null && { exitCode: result.exitCode }),
         ...(result.finalText !== undefined && {
           stdoutPreview: result.finalText.slice(0, 2000),

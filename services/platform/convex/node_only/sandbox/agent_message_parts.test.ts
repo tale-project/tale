@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import type { AgentEvent } from '../../../lib/agent-adapters/events';
 import {
   buildAssistantContent,
+  buildUiPartsFromTimeline,
   estimateContentBytes,
   MAX_MESSAGE_BYTES,
 } from './agent_message_parts';
@@ -531,5 +532,107 @@ describe('buildAssistantContent — live in-progress text (incremental reveal)',
     expect(buildAssistantContent(events, '', undefined, undefined, '')).toBe(
       '',
     );
+  });
+});
+
+describe('buildUiPartsFromTimeline (live workflow-run transcript)', () => {
+  it('returns a single text part for a tool-less turn', () => {
+    const parts = buildUiPartsFromTimeline([], 'the answer');
+    expect(parts).toEqual([
+      { type: 'text', text: 'the answer', state: 'done' },
+    ]);
+  });
+
+  it('marks the trailing text as streaming while liveText is open', () => {
+    const parts = buildUiPartsFromTimeline(
+      [],
+      '',
+      undefined,
+      undefined,
+      'partial…',
+    );
+    expect(parts).toEqual([
+      { type: 'text', text: 'partial…', state: 'streaming' },
+    ]);
+  });
+
+  it('merges tool-use + tool-result into one tool-<name> part with input+output', () => {
+    const events: AgentEvent[] = [
+      { type: 'text', text: 'Running it.' },
+      {
+        type: 'tool-use',
+        toolUseId: 't1',
+        toolName: 'Bash',
+        input: { command: 'echo hi' },
+      },
+      { type: 'tool-result', toolUseId: 't1', output: 'hi', isError: false },
+    ];
+    const parts = buildUiPartsFromTimeline(events, '') as Array<
+      Record<string, unknown>
+    >;
+    expect(parts[0]).toEqual({
+      type: 'text',
+      text: 'Running it.',
+      state: 'done',
+    });
+    expect(parts[1]).toMatchObject({
+      type: 'tool-Bash',
+      toolCallId: 't1',
+      state: 'output-available',
+      input: { command: 'echo hi' },
+      output: 'hi',
+    });
+  });
+
+  it('leaves an in-flight tool (no result yet) as input-available', () => {
+    const events: AgentEvent[] = [
+      { type: 'tool-use', toolUseId: 't1', toolName: 'Bash', input: {} },
+    ];
+    const parts = buildUiPartsFromTimeline(events, '') as Array<
+      Record<string, unknown>
+    >;
+    expect(parts[0]).toMatchObject({
+      type: 'tool-Bash',
+      state: 'input-available',
+    });
+  });
+
+  it('marks an errored tool result as output-error with errorText', () => {
+    const events: AgentEvent[] = [
+      { type: 'tool-use', toolUseId: 't1', toolName: 'Bash', input: {} },
+      { type: 'tool-result', toolUseId: 't1', output: 'boom', isError: true },
+    ];
+    const parts = buildUiPartsFromTimeline(events, '') as Array<
+      Record<string, unknown>
+    >;
+    expect(parts[0]).toMatchObject({
+      type: 'tool-Bash',
+      state: 'output-error',
+      errorText: 'boom',
+    });
+  });
+
+  it('caps a runaway timeline to a bounded tail with a dropped-head marker', () => {
+    const events: AgentEvent[] = [];
+    for (let i = 0; i < 500; i++) {
+      events.push({
+        type: 'tool-use',
+        toolUseId: `t${i}`,
+        toolName: 'Bash',
+        input: { command: `cmd ${i}` },
+      });
+      events.push({
+        type: 'tool-result',
+        toolUseId: `t${i}`,
+        output: `out ${i}`,
+        isError: false,
+      });
+    }
+    const parts = buildUiPartsFromTimeline(events, 'done');
+    // Bounded well under any doc-cap concern…
+    expect(parts.length).toBeLessThanOrEqual(61);
+    // …and the head-drop is signalled rather than silently truncated.
+    expect(parts[0]).toMatchObject({ type: 'text' });
+    expect((parts[0] as { text: string }).text).toContain('hidden');
   });
 });

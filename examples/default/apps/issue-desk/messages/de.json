@@ -3,5 +3,7 @@
   "issueDesk.implement": "Fehler beheben",
   "issueDesk.verify": "Tests ausführen",
   "issueDesk.review": "Prüfen & beheben",
-  "issueDesk.openPr": "Pull Request öffnen"
+  "issueDesk.judge": "Merge-Entscheidung",
+  "issueDesk.openPr": "Pull Request öffnen",
+  "issueDesk.taskTemplate": "Behebe dieses GitHub-Issue: {title} (#{number}). Details: {url}"
 }
