@@ -148,6 +148,7 @@ export const startWorkflowFromFileConfig = internalMutation({
     input: v.optional(jsonValueValidator),
     triggeredBy: v.string(),
     triggerData: v.optional(jsonValueValidator),
+    subject: v.optional(v.object({ type: v.string(), id: v.string() })),
     userId: v.optional(v.string()),
     debugMode: v.optional(v.boolean()),
   },
@@ -190,6 +191,10 @@ export const startWorkflowFromFileConfig = internalMutation({
       updatedAt: Date.now(),
       triggeredBy: args.triggeredBy,
       triggerData: args.triggerData,
+      ...(args.subject && {
+        subjectType: args.subject.type,
+        subjectId: args.subject.id,
+      }),
       userId: args.userId,
       metadata: '{}',
       workflowConfig: workflowData.workflowConfigJson,

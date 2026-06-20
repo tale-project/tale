@@ -3,28 +3,33 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft } from 'lucide-react';
 
 import { useAppPackLabels } from '@/app/features/apps/hooks/use-app-pack-labels';
+import { WorkflowDag } from '@/app/features/apps/registry/connected/workflow-dag';
 import { AppRuntimeProvider } from '@/app/features/apps/runtime/app-runtime';
-import { OperatorShell } from '@/app/features/operator/components/operator-shell';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute(
   '/dashboard/$id/apps/$appSlug/runs/$executionId',
 )({
+  // `wf` (the workflow slug) is passed by the Runs list so the run view can load
+  // the DAG; deep links without it degrade to an empty canvas.
+  validateSearch: (search: Record<string, unknown>): { wf?: string } => ({
+    wf: typeof search.wf === 'string' ? search.wf : undefined,
+  }),
   component: AppRunDetail,
 });
 
 /**
- * In-app run detail: the reusable operator view (stage timeline + per-step
- * render-kind panels) embedded inside the app shell, reached from the app's
- * Runs list. Keeps "watch a run" inside the app instead of ejecting to the
- * global automations operator route.
+ * In-app run detail — **reuses the global workflow DAG** with live per-node
+ * status (the same `AutomationSteps` canvas the automations editor uses), rather
+ * than a bespoke per-app run view. The rich per-step detail (transcript / gate /
+ * artifact) lives in-context on the Task (via the embedded run), per the
+ * "reuse global for standalone display, fuse detail into domain components" split.
  */
 function AppRunDetail() {
   const { id: organizationId, appSlug, executionId } = Route.useParams();
+  const { wf } = Route.useSearch();
   const { t } = useT('apps');
-  // The run view resolves each step's pack `ui.labelKey` (e.g. the curated
-  // "Implement the fix") against the app's catalog — so it needs the same
-  // AppRuntime the app shell provides. Read-only, so the allowlist is empty.
+  // WorkflowDag resolves pack `ui.labelKey`s + org via AppRuntime.
   const { labels } = useAppPackLabels(organizationId, appSlug);
   return (
     <AppRuntimeProvider
@@ -39,10 +44,9 @@ function AppRunDetail() {
           <ArrowLeft className="size-4" />
           {t('runs.backToApp', { defaultValue: 'Back to app' })}
         </Link>
-        <OperatorShell
-          organizationId={organizationId}
-          executionId={executionId}
-        />
+        {wf ? (
+          <WorkflowDag workflowSlug={wf} executionId={executionId} />
+        ) : null}
       </VStack>
     </AppRuntimeProvider>
   );

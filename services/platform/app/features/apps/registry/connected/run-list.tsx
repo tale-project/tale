@@ -130,6 +130,9 @@ export function RunList({ title, workflowSlug }: RunListProps) {
                             appSlug,
                             executionId: id,
                           },
+                          // Pass the workflow slug so the run view can load the
+                          // reused global DAG with live per-node status.
+                          search: { wf: workflowSlug },
                         })
                       }
                     >

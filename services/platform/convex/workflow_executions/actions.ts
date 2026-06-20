@@ -19,6 +19,10 @@ export const startWorkflowFromFile = action({
     input: v.optional(jsonValueValidator),
     triggeredBy: v.string(),
     triggerData: v.optional(jsonValueValidator),
+    // Generic domain resource this run is "about" (e.g. {type:'task', id}). Lets
+    // any UI component show its run inline by querying executions for its
+    // (subjectType, subjectId) — no per-component schema field.
+    subject: v.optional(v.object({ type: v.string(), id: v.string() })),
     debugMode: v.optional(v.boolean()),
   },
   returns: v.union(v.id('wfExecutions'), v.null()),
@@ -52,6 +56,7 @@ export const startWorkflowFromFile = action({
         input: args.input,
         triggeredBy: args.triggeredBy,
         triggerData: args.triggerData,
+        subject: args.subject,
         userId: authUser.userId,
         debugMode: args.debugMode,
       },

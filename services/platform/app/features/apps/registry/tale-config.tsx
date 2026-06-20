@@ -23,7 +23,7 @@ import { Collection, type CollectionProps } from './connected/collection';
 import { IssueList, type IssueListProps } from './connected/issue-list';
 import { ReviewQueue, type ReviewQueueProps } from './connected/review';
 import { RunList, type RunListProps } from './connected/run-list';
-import { WorkflowMap, type WorkflowMapProps } from './connected/workflow-map';
+import { WorkflowDag, type WorkflowDagProps } from './connected/workflow-dag';
 
 type TextVariant =
   | 'body'
@@ -56,7 +56,7 @@ interface TaleComponents {
   ReviewQueue: Partial<ReviewQueueProps>;
   IssueList: Partial<IssueListProps>;
   AgentList: Partial<AgentListProps>;
-  WorkflowMap: Partial<WorkflowMapProps>;
+  WorkflowDag: Partial<WorkflowDagProps>;
   RunList: Partial<RunListProps>;
 }
 
@@ -141,13 +141,22 @@ export const taleConfig: Config<TaleComponents> = {
     },
     Collection: {
       fields: { title: { type: 'text' } },
-      render: ({ title, query, columns, actions }) =>
+      render: ({
+        title,
+        query,
+        columns,
+        actions,
+        subjectType,
+        subjectIdField,
+      }) =>
         query ? (
           <Collection
             title={title}
             query={query}
             columns={columns}
             actions={actions}
+            subjectType={subjectType}
+            subjectIdField={subjectIdField}
           />
         ) : (
           <></>
@@ -164,11 +173,16 @@ export const taleConfig: Config<TaleComponents> = {
         <AgentList title={title} agents={agents} roles={roles} />
       ),
     },
-    WorkflowMap: {
+    WorkflowDag: {
       fields: { title: { type: 'text' } },
-      render: ({ title, workflowSlug }) =>
+      render: ({ title, workflowSlug, executionId, editable }) =>
         workflowSlug ? (
-          <WorkflowMap title={title} workflowSlug={workflowSlug} />
+          <WorkflowDag
+            title={title}
+            workflowSlug={workflowSlug}
+            executionId={executionId}
+            editable={editable}
+          />
         ) : (
           <></>
         ),

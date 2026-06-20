@@ -51,6 +51,54 @@ export const getExecutionStepStatuses = queryWithRLS({
   },
 });
 
+/**
+ * The latest execution "about" a generic domain resource (subjectType, subjectId)
+ * — e.g. the run a task kicked off. Lets ANY UI component show its resource's run
+ * inline without a per-component schema field. Returns a small summary; the caller
+ * uses `executionId` to drive the reused run views (DAG / EmbeddedRun).
+ */
+export const getLatestExecutionForSubject = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+    subjectType: v.string(),
+    subjectId: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      executionId: v.id('wfExecutions'),
+      status: v.string(),
+      currentStepSlug: v.optional(v.string()),
+      currentStepName: v.optional(v.string()),
+      startedAt: v.number(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('wfExecutions')
+      .withIndex('by_org_subject', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('subjectType', args.subjectType)
+          .eq('subjectId', args.subjectId),
+      )
+      .order('desc')
+      .first();
+    if (!row) return null;
+    return {
+      executionId: row._id,
+      status: row.status,
+      ...(row.currentStepSlug !== '' && {
+        currentStepSlug: row.currentStepSlug,
+      }),
+      ...(row.currentStepName !== undefined && {
+        currentStepName: row.currentStepName,
+      }),
+      startedAt: row.startedAt,
+    };
+  },
+});
+
 export const listExecutions = queryWithRLS({
   args: {
     paginationOpts: paginationOptsValidator,

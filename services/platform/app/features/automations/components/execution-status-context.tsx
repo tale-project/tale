@@ -34,11 +34,20 @@ const ExecutionStatusContext = createContext<ExecutionStatusContextValue>({
   statuses: null,
 });
 
-export function ExecutionStatusProvider({ children }: { children: ReactNode }) {
+export function ExecutionStatusProvider({
+  children,
+  executionId: executionIdProp,
+}: {
+  children: ReactNode;
+  /** Drive the viewed execution directly (e.g. when embedded outside the
+   *  automations route). When omitted, falls back to the `execution` URL param
+   *  (the automations editor's behavior). */
+  executionId?: string;
+}) {
   const { state } = useUrlState({
     definitions: AUTOMATION_EXECUTION_URL_DEFINITIONS,
   });
-  const executionId = state.execution;
+  const executionId = executionIdProp ?? state.execution;
   const { data } = useExecutionStepStatuses(executionId ?? undefined);
 
   const value = useMemo(

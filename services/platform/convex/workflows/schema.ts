@@ -42,6 +42,14 @@ export const wfExecutionsTable = defineTable({
   stepsConfigStorageId: v.optional(v.id('_storage')),
   triggeredBy: v.optional(v.string()),
   triggerData: v.optional(jsonValueValidator),
+  // Generic, polymorphic "what domain resource this run is about" — so any UI
+  // component (a task now; a deal/ticket later) can show its run inline by
+  // querying executions for its (subjectType, subjectId), without a per-component
+  // schema field. Open string set (mirrors the sandbox `ownerType`/`ownerId`
+  // doctrine) so new subject kinds never need a migration. Set at start from a
+  // generic `subject` the view supplies.
+  subjectType: v.optional(v.string()),
+  subjectId: v.optional(v.string()),
   error: v.optional(v.string()),
   // Coarse failure classification (see ExecutionErrorCode in executions/types.ts).
   // Kept a plain string in the schema so adding codes never needs a migration.
@@ -85,7 +93,10 @@ export const wfExecutionsTable = defineTable({
   // Subject-scoped scan for GDPR Art 17 erasure (`eraseSubjectWfExecutions`).
   // Walks rows where the subject was the executing user. Combined with
   // `by_org_triggeredBy` for the trigger-author scope.
-  .index('by_org_user', ['organizationId', 'userId']);
+  .index('by_org_user', ['organizationId', 'userId'])
+  // "Runs about this domain resource" — drives inline execution display in any
+  // UI component (e.g. a task showing its latest run).
+  .index('by_org_subject', ['organizationId', 'subjectType', 'subjectId']);
 
 export const wfInstallationsTable = defineTable({
   organizationId: v.string(),

@@ -7,6 +7,10 @@
  * so any list query can drive it. The reactive binding lives here (Puck only
  * composes the block); this is the open successor to the old collection-panel +
  * data-source pair.
+ *
+ * When `subjectType` is set, each row is expandable to show its workflow run
+ * inline (`SubjectRun` → the reused execution view), so a domain list (tasks
+ * now; others later) shows execution detail in-context — no separate run page.
  */
 import { Badge } from '@tale/ui/badge';
 import { SkeletonText } from '@tale/ui/skeleton';
@@ -19,14 +23,17 @@ import {
   TableRow,
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
-import { ListChecks } from 'lucide-react';
+import { ChevronRight, ListChecks } from 'lucide-react';
+import { Fragment, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundQuery } from '../../hooks/use-bound-query';
 import { BoundButton, type BoundActionSpec } from './bound-button';
 import { Section } from './section';
+import { SubjectRun } from './subject-run';
 
 export interface CollectionProps {
   title?: string;
@@ -34,6 +41,11 @@ export interface CollectionProps {
   /** Columns to show; if omitted, inferred from the first row (minus id-like keys). */
   columns?: string[];
   actions?: BoundActionSpec[];
+  /** When set, rows expand to show their workflow run inline (the execution
+   *  "about" this subject). Generic — any domain list opts in. */
+  subjectType?: string;
+  /** Row field holding the subject id (default `_id`). */
+  subjectIdField?: string;
 }
 
 const HIDDEN = new Set([
@@ -100,9 +112,12 @@ export function Collection({
   query,
   columns,
   actions,
+  subjectType,
+  subjectIdField = '_id',
 }: CollectionProps) {
   const { t } = useT('apps');
   const { data, isLoading, blocked } = useBoundQuery(query.path, query.args);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const rows = pickArray(data);
   const cols =
     columns && columns.length > 0
@@ -113,6 +128,8 @@ export function Collection({
             .slice(0, 6)
         : [];
   const acts = actions ?? [];
+  const colCount =
+    cols.length + (subjectType ? 1 : 0) + (acts.length > 0 ? 1 : 0);
 
   return (
     <Section title={title} icon={ListChecks}>
@@ -128,6 +145,7 @@ export function Collection({
         <Table>
           <TableHeader>
             <TableRow>
+              {subjectType && <TableHead className="w-8" />}
               {cols.map((c) => (
                 <TableHead key={c} className="capitalize">
                   {c}
@@ -137,22 +155,66 @@ export function Collection({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.slice(0, 50).map((row, i) => (
-              <TableRow key={i}>
-                {cols.map((c) => (
-                  <TableCell key={c}>{cell(c, row[c])}</TableCell>
-                ))}
-                {acts.length > 0 && (
-                  <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      {acts.map((a, ai) => (
-                        <BoundButton key={ai} action={a} item={row} />
-                      ))}
-                    </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
+            {rows.slice(0, 50).map((row, i) => {
+              const subjectId =
+                subjectType && typeof row[subjectIdField] === 'string'
+                  ? row[subjectIdField]
+                  : undefined;
+              const expandable = subjectId !== undefined;
+              const isExpanded = expandable && expandedId === subjectId;
+              return (
+                <Fragment key={i}>
+                  <TableRow
+                    className={cn(expandable && 'cursor-pointer')}
+                    onClick={
+                      expandable
+                        ? () =>
+                            setExpandedId(
+                              isExpanded ? null : (subjectId ?? null),
+                            )
+                        : undefined
+                    }
+                  >
+                    {subjectType && (
+                      <TableCell className="w-8">
+                        {expandable && (
+                          <ChevronRight
+                            className={cn(
+                              'text-muted-foreground size-4 transition-transform',
+                              isExpanded && 'rotate-90',
+                            )}
+                            aria-hidden
+                          />
+                        )}
+                      </TableCell>
+                    )}
+                    {cols.map((c) => (
+                      <TableCell key={c}>{cell(c, row[c])}</TableCell>
+                    ))}
+                    {acts.length > 0 && (
+                      // Stop row-click expansion when interacting with actions.
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-wrap gap-2">
+                          {acts.map((a, ai) => (
+                            <BoundButton key={ai} action={a} item={row} />
+                          ))}
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                  {isExpanded && subjectId && subjectType && (
+                    <TableRow>
+                      <TableCell colSpan={colCount} className="bg-muted/30">
+                        <SubjectRun
+                          subjectType={subjectType}
+                          subjectId={subjectId}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })}
           </TableBody>
         </Table>
       )}
