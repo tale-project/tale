@@ -2,10 +2,10 @@
 
 /**
  * Generic, capability-gated write. Dispatches ANY public mutation/action the app
- * declared in `capabilities.functions`, by reference path — the open successor
- * to the closed `use-action` dispatch registry. Both a mutation and an action
- * reference are instantiated (rules-of-hooks); `dispatch` invokes the one the
- * binding's `mode` selects, after checking the allowlist and resolving arg
+ * declared in `capabilities.functions`, by reference path — an open allowlist of
+ * function paths, not a fixed set of named action verbs. Both a mutation and an
+ * action reference are instantiated (rules-of-hooks); `dispatch` invokes the one
+ * the binding's `mode` selects, after checking the allowlist and resolving arg
  * templates. A disallowed/invalid path throws rather than calling anything.
  */
 import { makeFunctionReference } from 'convex/server';

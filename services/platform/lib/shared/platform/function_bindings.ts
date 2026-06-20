@@ -2,9 +2,9 @@
  * The generic, capability-gated function-binding vocabulary — the "data freedom"
  * half of the configurable app surface. An app declares an ALLOWLIST of public
  * Convex functions it may call (`capabilities.functions`); a bound component or
- * action invokes one by its reference path. This is the open-ended successor to
- * the closed `data_sources` + `action_kinds` registries: any public function the
- * app declares, rather than a fixed set.
+ * action invokes one by its reference path — any public function the app
+ * declares, rather than a fixed, platform-defined set of named data-sources and
+ * action verbs.
  *
  * Security posture (Phase 1, first-party authors): the allowlist is the app's
  * declared intent — validated at publish, checked client-side before dispatch,

@@ -3,9 +3,12 @@
 /**
  * The Tale Puck registry — `@tale/ui` components + the connected (data-bound)
  * blocks, composed by an app's view (Puck Data) and rendered headlessly with
- * `<Render config={taleConfig} data={view} />`. This is the open successor to
- * the closed render-kinds vocabulary: adding a component = one registry entry
- * (eventually codegen'd over the whole library), not a new render-kind + panel.
+ * `<Render config={taleConfig} data={view} />`. This replaced the old
+ * configurable-view system (view parts bound to the closed data-source +
+ * action-kind vocabularies): adding a component is now one registry entry
+ * (eventually codegen'd over the whole library), not a bespoke panel. The
+ * render-kinds vocabulary is NOT replaced by this — it still renders live
+ * workflow-run steps (`ui.render`), which an app reuses via the embedded run.
  *
  * Phase 1 registers a representative presentational batch + the connected
  * blocks that the issue-desk demo needs; `fields` are minimal (the data is

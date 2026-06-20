@@ -48,7 +48,8 @@
       "error": "Daten konnten nicht geladen werden: {error}",
       "prev": "Zurück",
       "next": "Weiter",
-      "page": "Seite {page}"
+      "page": "Seite {page}",
+      "created": "Erstellt"
     },
     "agents": {
       "none": "Keine Agenten konfiguriert.",
@@ -138,15 +139,7 @@
     },
     "action": {
       "open": "Öffnen",
-      "approve": "Genehmigen",
-      "reject": "Änderungen anfordern",
-      "respond": "Antworten",
-      "trigger_workflow": "Starten",
-      "openFile": "{name} öffnen",
-      "steer": "Steuern",
-      "assign": "Zuweisen",
-      "comment": "Kommentieren",
-      "confirm": "Bist du sicher?"
+      "openFile": "{name} öffnen"
     },
     "body": {
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",

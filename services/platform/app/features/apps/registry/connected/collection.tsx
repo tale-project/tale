@@ -5,8 +5,7 @@
  * as a table, with optional per-row actions. Generic: it shows whatever records
  * the bound query returns (columns specified, or inferred from the first row),
  * so any list query can drive it. The reactive binding lives here (Puck only
- * composes the block); this is the open successor to the old collection-panel +
- * data-source pair. Row rendering is delegated to the shared `DataTable`.
+ * composes the block). Row rendering is delegated to the shared `DataTable`.
  *
  * When `subjectType` is set, each row is expandable to show its workflow run
  * inline (`SubjectRun` → the reused execution view), so a domain list (tasks

@@ -2,8 +2,7 @@
 
 /**
  * Connected `ReviewQueue` block — binds an allowlisted approvals query and lists
- * the pending items. The successor to the old review-panel (cardinality:many):
- * generic over whatever approval rows the bound query returns.
+ * the pending items, generic over whatever approval rows the bound query returns.
  */
 import { Badge } from '@tale/ui/badge';
 import { Card } from '@tale/ui/card';

@@ -2,10 +2,10 @@
 
 /**
  * Generic, capability-gated reactive read. Binds a view to ANY public Convex
- * query the app declared in `capabilities.functions`, by reference path —
- * the open successor to the closed `use-data-source` registry. The allowlist is
- * checked before subscribing; a disallowed/invalid path resolves to `blocked`
- * (and skips the subscription) rather than calling anything.
+ * query the app declared in `capabilities.functions`, by reference path — an
+ * open allowlist of function paths, not a fixed set of named data-sources. The
+ * allowlist is checked before subscribing; a disallowed/invalid path resolves to
+ * `blocked` (and skips the subscription) rather than calling anything.
  */
 import { makeFunctionReference } from 'convex/server';
 

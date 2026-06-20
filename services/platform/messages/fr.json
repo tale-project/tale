@@ -48,7 +48,8 @@
       "error": "Impossible de charger les données : {error}",
       "prev": "Précédent",
       "next": "Suivant",
-      "page": "Page {page}"
+      "page": "Page {page}",
+      "created": "Créé"
     },
     "agents": {
       "none": "Aucun agent configuré.",
@@ -138,15 +139,7 @@
     },
     "action": {
       "open": "Ouvrir",
-      "approve": "Approuver",
-      "reject": "Demander des modifications",
-      "respond": "Répondre",
-      "trigger_workflow": "Lancer",
-      "openFile": "Ouvrir {name}",
-      "steer": "Orienter",
-      "assign": "Assigner",
-      "comment": "Commenter",
-      "confirm": "Êtes-vous sûr ?"
+      "openFile": "Ouvrir {name}"
     },
     "body": {
       "waitingExternal": "En attente d'un événement externe pour continuer.",

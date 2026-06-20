@@ -116,8 +116,7 @@ export const listApps = action({
       // The app's own label catalog (pack-authored): messages/<locale>.json,
       // each a flat { labelKey: string } map. Delivered with the app so the
       // client can resolve `ui.labelKey` (friendly step names etc.) by direct
-      // lookup — the same flat-key model validatePack checks at publish time —
-      // without a per-label server round-trip.
+      // lookup — without a per-label server round-trip.
       const messages: Record<string, Record<string, string>> = {};
       const messagesDir = path.join(resolveAppDir(orgSlug, slug), 'messages');
       let messageFiles: string[] = [];

@@ -16,7 +16,10 @@ import {
   collectViewBindings,
   validateViewBindings,
 } from '../../../../lib/shared/platform/function_bindings';
-import { validatePack } from '../../../../lib/shared/platform/validate_pack';
+import {
+  collectWorkflowLabelKeys,
+  findMissingLabelKeys,
+} from '../../../../lib/shared/platform/label_completeness';
 import { agentJsonSchema } from '../../../../lib/shared/schemas/agents';
 import { appManifestSchema } from '../../../../lib/shared/schemas/apps';
 import { workflowJsonSchema } from '../../../../lib/shared/schemas/workflows';
@@ -109,13 +112,13 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
       de: readJson('messages/de.json') as Record<string, string>,
       fr: readJson('messages/fr.json') as Record<string, string>,
     };
-    const result = validatePack({
-      workflows: [{ name: workflow.data.name, steps: workflow.data.steps }],
-      catalogs,
-      baseLocales: ['en', 'de', 'fr'],
-    });
-    expect(result.errors).toEqual([]);
-    expect(result.valid).toBe(true);
+    const referenced = collectWorkflowLabelKeys({ steps: workflow.data.steps });
+    const missing = findMissingLabelKeys(referenced, catalogs, [
+      'en',
+      'de',
+      'fr',
+    ]);
+    expect(missing).toEqual([]);
   });
 
   it('Tasks board drops the internal externalId marker column', () => {
@@ -144,7 +147,7 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(typeof desc).toBe('string');
     expect((desc as string).startsWith('$label:')).toBe(true);
     const key = (desc as string).slice('$label:'.length);
-    // validatePack only enforces parity for keys a WORKFLOW step references; this
+    // The workflow label check only covers keys a WORKFLOW step references; this
     // one is read at runtime by the view, so guard its cross-locale parity here.
     for (const locale of ['en', 'de', 'fr']) {
       const catalog = readJson(`messages/${locale}.json`) as Record<

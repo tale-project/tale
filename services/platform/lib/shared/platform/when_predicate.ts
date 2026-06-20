@@ -85,18 +85,3 @@ export function evaluateWhen(
     return false;
   }
 }
-
-/** Publish-time shape check: every leaf parses. Returns an error string or null. */
-export function validateWhen(expr: string): string | null {
-  for (const orPart of expr.split('||')) {
-    for (const rawLeaf of orPart.split('&&')) {
-      let leaf = rawLeaf.trim();
-      while (leaf.startsWith('!')) leaf = leaf.slice(1).trim();
-      if (leaf === '') return `empty leaf in when "${expr}"`;
-      if (!LEAF_RE.test(leaf) && !FIELD_RE.test(leaf)) {
-        return `invalid when leaf "${rawLeaf}" in "${expr}"`;
-      }
-    }
-  }
-  return null;
-}

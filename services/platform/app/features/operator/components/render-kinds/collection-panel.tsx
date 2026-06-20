@@ -22,7 +22,6 @@ import type { CollectionLayout } from '@/lib/shared/platform/render_kinds';
 
 import { asRecord, pickArray, scalar } from '../../lib/output-helpers';
 import type { RenderPart } from '../../types';
-import { ActionBar } from '../action-bar';
 import { OutputFallback } from '../output-fallback';
 
 function resolveLayout(value: string | undefined): CollectionLayout {
@@ -75,9 +74,6 @@ export function CollectionPanel({ part }: { part: RenderPart }) {
   if (items.length === 0) return <OutputFallback part={part} />;
   const shown = items.slice(0, 50);
 
-  const rowActions = part.actions ?? [];
-  const onAction = part.onAction;
-  const hasRowActions = rowActions.length > 0 && onAction !== undefined;
   const selectable = part.onSelect !== undefined;
   const selKey = part.selectionKey;
 
@@ -93,7 +89,6 @@ export function CollectionPanel({ part }: { part: RenderPart }) {
                   {c}
                 </TableHead>
               ))}
-              {hasRowActions && <TableHead />}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -115,16 +110,6 @@ export function CollectionPanel({ part }: { part: RenderPart }) {
                       <CellValue col={c} value={row[c]} />
                     </TableCell>
                   ))}
-                  {hasRowActions && onAction && (
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <ActionBar
-                        actions={rowActions}
-                        item={row}
-                        onAction={onAction}
-                        isPending={part.actionsPending}
-                      />
-                    </TableCell>
-                  )}
                 </TableRow>
               );
             })}

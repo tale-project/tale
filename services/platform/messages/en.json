@@ -48,7 +48,8 @@
       "error": "Couldn't load data: {error}",
       "prev": "Previous",
       "next": "Next",
-      "page": "Page {page}"
+      "page": "Page {page}",
+      "created": "Created"
     },
     "agents": {
       "none": "No agents configured.",
@@ -138,15 +139,7 @@
     },
     "action": {
       "open": "Open",
-      "approve": "Approve",
-      "reject": "Request changes",
-      "respond": "Respond",
-      "trigger_workflow": "Run",
-      "openFile": "Open {name}",
-      "steer": "Steer",
-      "assign": "Assign",
-      "comment": "Comment",
-      "confirm": "Are you sure?"
+      "openFile": "Open {name}"
     },
     "body": {
       "waitingExternal": "Waiting for an external event to continue.",
