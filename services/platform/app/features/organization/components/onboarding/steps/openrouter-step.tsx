@@ -159,7 +159,6 @@ export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
             setApiKey(e.target.value);
             if (error) setError(null);
           }}
-          autoComplete="off"
           errorMessage={error ?? undefined}
         />
 

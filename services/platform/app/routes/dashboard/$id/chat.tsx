@@ -350,8 +350,12 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
           )}
         </AnimatePresence>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <BranchProvider threadId={threadId} organizationId={organizationId}>
+        {/* BranchProvider wraps the message column AND the right-side panes so
+            the canvas resolves files against the same active-branch thread the
+            message list uses. Without this, the canvas reads files from the raw
+            route threadId and branch-tip files vanish after streaming. */}
+        <BranchProvider threadId={threadId} organizationId={organizationId}>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <BudgetBanner organizationId={organizationId} />
             <LayoutErrorBoundary organizationId={organizationId}>
               <ThreadGate
@@ -360,28 +364,28 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
                 newChatCount={newChatCount}
               />
             </LayoutErrorBoundary>
-          </BranchProvider>
-        </div>
+          </div>
 
-        <PlanPane />
-        <CanvasPane organizationId={organizationId} />
-        {/* Read-only workspace-files explorer — gated to external-agent threads
-            with a session. On desktop the collapsed strip IS the open affordance
-            (no composer pill); the mobile Sheet below carries it under `md`. */}
-        {!isMobile && sandboxPanesAvailable && (
-          <LayoutErrorBoundary organizationId={organizationId}>
-            <WorkspaceFilesPane />
-          </LayoutErrorBoundary>
-        )}
-        {/* Read-only live-browser stream — independent right-side pane, gated
-            identically. At most one of it / workspace-files is open at a time
-            (see the mutual-exclusion effects above). Desktop only; the mobile
-            Sheet below carries it under `md`. */}
-        {!isMobile && sandboxPanesAvailable && (
-          <LayoutErrorBoundary organizationId={organizationId}>
-            <LiveBrowserPane />
-          </LayoutErrorBoundary>
-        )}
+          <PlanPane />
+          <CanvasPane organizationId={organizationId} />
+          {/* Read-only workspace-files explorer — gated to external-agent threads
+              with a session. On desktop the collapsed strip IS the open affordance
+              (no composer pill); the mobile Sheet below carries it under `md`. */}
+          {!isMobile && sandboxPanesAvailable && (
+            <LayoutErrorBoundary organizationId={organizationId}>
+              <WorkspaceFilesPane />
+            </LayoutErrorBoundary>
+          )}
+          {/* Read-only live-browser stream — independent right-side pane, gated
+              identically. At most one of it / workspace-files is open at a time
+              (see the mutual-exclusion effects above). Desktop only; the mobile
+              Sheet below carries it under `md`. */}
+          {!isMobile && sandboxPanesAvailable && (
+            <LayoutErrorBoundary organizationId={organizationId}>
+              <LiveBrowserPane />
+            </LayoutErrorBoundary>
+          )}
+        </BranchProvider>
       </div>
 
       {/* Mobile: present the workspace-files pane in a right Sheet like the

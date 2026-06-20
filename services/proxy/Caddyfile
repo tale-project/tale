@@ -120,7 +120,7 @@
 	# HTTP: Convex Dashboard static assets at root paths (logo, icons)
 	# Dashboard HTML references these at root but they're served under /convex-dashboard/
 	@convexDashboardAssets {
-		path /convex-logo-only.svg /convex-light.svg /apple-touch-icon.png
+		path /convex-logo-only.svg /convex-light.svg /convex-dark.svg /favicon.ico /apple-touch-icon.png /manifest.webmanifest
 	}
 	handle @convexDashboardAssets {
 		uri replace / /convex-dashboard/ 1

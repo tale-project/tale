@@ -2142,6 +2142,11 @@
       "document": "Document",
       "title": "Document preview",
       "dragToolbar": "Drag toolbar",
+      "link": {
+        "copy": "Copy link",
+        "copied": "Copied",
+        "visit": "Visit link"
+      },
       "sidebar": {
         "document": "Document",
         "size": "Size",

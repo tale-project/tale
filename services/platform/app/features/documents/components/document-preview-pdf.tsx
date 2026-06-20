@@ -33,6 +33,8 @@ import React, {
 
 import { useT } from '@/lib/i18n/client';
 
+import './pdf-layers.css';
+import { PdfLinkPopup, type PdfLinkPopupState } from './pdf-link-popup';
 import { PreviewPane } from './preview-pane';
 
 interface ViewerState {
@@ -101,6 +103,26 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const bufferCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
+  // Container sized to the CSS footprint of the page; the canvas plus the text
+  // and annotation layers all stack inside it so the selectable text and the
+  // clickable links line up pixel-for-pixel with the rasterised page. The text
+  // and annotation layer <div>s are created and appended here by the pdfjs
+  // builders (see renderTextAndAnnotationLayers).
+  const pageWrapRef = useRef<HTMLDivElement | null>(null);
+
+  const [linkPopup, setLinkPopup] = useState<PdfLinkPopupState | null>(null);
+  const pdfLibRef = useRef<typeof import('pdfjs-dist') | null>(null);
+  // pdfjs's high-level layer builders + a navigation-less link service live in
+  // the viewer entrypoint, loaded lazily alongside the core library.
+  const pdfViewerRef = useRef<
+    typeof import('pdfjs-dist/web/pdf_viewer.mjs') | null
+  >(null);
+  const linkServiceRef = useRef<InstanceType<
+    (typeof import('pdfjs-dist/web/pdf_viewer.mjs'))['SimpleLinkService']
+  > | null>(null);
+  const textLayerBuilderRef = useRef<InstanceType<
+    (typeof import('pdfjs-dist/web/pdf_viewer.mjs'))['TextLayerBuilder']
+  > | null>(null);
 
   const renderPageRef = useRef<
     ((params: RenderParams) => Promise<void>) | undefined
@@ -162,12 +184,85 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
       canvas.height = Math.ceil(scaledViewport.height);
 
       ctx.drawImage(bufferCanvas, 0, 0);
+
+      // Size the layer wrapper to the page's CSS footprint so the text and
+      // annotation layers overlay the canvas exactly.
+      if (pageWrapRef.current) {
+        pageWrapRef.current.style.width = `${cssWidth}px`;
+        pageWrapRef.current.style.height = `${cssHeight}px`;
+      }
+
+      await renderTextAndAnnotationLayers(page, params.scale);
     } catch (error) {
       console.error('Error rendering page:', error);
     } finally {
       dispatch({ type: 'RENDER_COMPLETE' });
     }
   };
+
+  // Renders the selectable text layer and the interactive annotation (link)
+  // layer over the rasterised canvas using pdfjs's own layer builders. The
+  // builders own the DOM nodes (created and appended via `onAppend`) and, for
+  // the text layer, the selection-smoothing handlers (the `.selecting` toggle +
+  // `endOfContent` element) that make a drag track the pointer instead of
+  // snapping. The viewport is at the CSS scale (without the device-pixel
+  // multiplier) so the layers map onto the canvas's displayed size.
+  const renderTextAndAnnotationLayers = useCallback(
+    async (page: PDFPageProxy, scale: number) => {
+      const viewer = pdfViewerRef.current;
+      const linkService = linkServiceRef.current;
+      const wrap = pageWrapRef.current;
+      if (!viewer || !linkService || !wrap) return;
+
+      // pdfjs derives layer + glyph layout from `--scale-factor` (the wrapper's
+      // CSS rules turn it into `--total-scale-factor`).
+      wrap.style.setProperty('--scale-factor', String(scale));
+
+      const cssViewport = page.getViewport({ scale });
+
+      // Tear down the previous render's layer nodes (the builders append fresh
+      // ones each time). Cancelling the text builder also detaches its global
+      // selection listeners.
+      textLayerBuilderRef.current?.cancel();
+      wrap
+        .querySelectorAll('.textLayer, .annotationLayer')
+        .forEach((node) => node.remove());
+
+      // Text layer (selection).
+      try {
+        const textBuilder = new viewer.TextLayerBuilder({
+          pdfPage: page,
+          onAppend: (div: HTMLDivElement) => wrap.append(div),
+        });
+        textLayerBuilderRef.current = textBuilder;
+        await textBuilder.render({ viewport: cssViewport });
+      } catch (err) {
+        // A re-render cancels the previous text layer; that's expected.
+        const isAbort = err instanceof Error && err.name === 'AbortException';
+        if (!isAbort) {
+          console.warn('Failed to render PDF text layer:', err);
+        }
+      }
+
+      // Annotation layer (links). SimpleLinkService stamps real hrefs onto the
+      // link <a>s; navigation is still intercepted by our own click handler.
+      try {
+        const annotationBuilder = new viewer.AnnotationLayerBuilder({
+          pdfPage: page,
+          linkService,
+          renderForms: false,
+          onAppend: (div: HTMLDivElement) => wrap.append(div),
+        });
+        await annotationBuilder.render({
+          viewport: cssViewport,
+          intent: 'display',
+        });
+      } catch (err) {
+        console.warn('Failed to render PDF annotation layer:', err);
+      }
+    },
+    [],
+  );
 
   const queueRenderPage = useCallback(
     (params: RenderParams) => {
@@ -196,8 +291,20 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const lib = await import('pdfjs-dist');
+      const [lib, viewer] = await Promise.all([
+        import('pdfjs-dist'),
+        import('pdfjs-dist/web/pdf_viewer.mjs'),
+      ]);
       if (cancelled) return;
+      pdfLibRef.current = lib;
+      pdfViewerRef.current = viewer;
+      // Navigation-less link service: it builds link <a>s with correct hrefs
+      // (inherited addLinkAttributes) but never owns navigation — our click
+      // handler shows a popup instead. LinkTarget.BLANK (2) renders externals
+      // as new-tab anchors.
+      const linkService = new viewer.SimpleLinkService();
+      linkService.externalLinkTarget = 2;
+      linkServiceRef.current = linkService;
       lib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
       try {
         const doc = await lib.getDocument(url).promise;
@@ -223,6 +330,9 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
           renderTaskRef.current.cancel();
         }
       } catch {}
+      // Detach the text layer's global selection listeners.
+      textLayerBuilderRef.current?.cancel();
+      textLayerBuilderRef.current = null;
       bufferCanvasRef.current = null;
     };
   }, []);
@@ -265,6 +375,22 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
     const bounded = Math.min(Math.max(value, 1), state.totalPages || 1);
     dispatch({ type: 'SET_PAGE', page: bounded });
     queueRenderPage({ pageNum: bounded, scale: state.scale });
+  };
+
+  // Intercept clicks on links inside the annotation layer. Rather than letting
+  // the browser navigate away from the preview, surface a popup offering to
+  // copy the destination or open it in a new tab.
+  const onAnnotationLayerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target;
+    const anchor = target instanceof Element ? target.closest('a') : null;
+    const href = anchor?.getAttribute('href');
+    if (!anchor || !href) return;
+    // Only intercept external/absolute URLs; in-document jumps (which the link
+    // service renders as "#...") shouldn't open a popup.
+    if (href.startsWith('#')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setLinkPopup({ url: anchor.href, x: e.clientX, y: e.clientY });
   };
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -334,11 +460,21 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
     <div ref={containerRef} className="relative flex min-h-0 flex-1 flex-col">
       <PreviewPane className="overflow-x-auto">
         <div className="flex min-h-full w-fit min-w-full justify-center">
-          <canvas
-            ref={canvasRef}
-            className="block h-auto"
-            style={{ maxWidth: `calc(48rem * ${state.scale})` }}
-          />
+          {/* Sized imperatively to the page's CSS footprint after each render so
+              the canvas and the pdfjs-appended text/annotation layers share
+              identical dimensions and stay pixel-aligned. The click handler is
+              delegation only — the real interactive elements are the
+              pdfjs-generated, keyboard-focusable <a> link anchors nested inside;
+              this wrapper carries no semantics of its own. Wide pages overflow
+              into the pane's horizontal scroll. */}
+          {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- delegates to nested focusable <a> link annotations */}
+          <div
+            ref={pageWrapRef}
+            className="pdfLayerWrap relative block shrink-0"
+            onClick={onAnnotationLayerClick}
+          >
+            <canvas ref={canvasRef} className="block size-full" />
+          </div>
         </div>
         {!state.pdfDoc && (
           // Document-shaped pulse matching the rendered page footprint, so the
@@ -426,6 +562,9 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
           </HStack>
         </HStack>
       </div>
+      {linkPopup && (
+        <PdfLinkPopup state={linkPopup} onClose={() => setLinkPopup(null)} />
+      )}
     </div>
   );
 };

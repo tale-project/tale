@@ -40,8 +40,18 @@ describe('Input', () => {
   });
 
   describe('password input', () => {
+    // A genuine account-password field opts into the password manager with an
+    // explicit autoComplete; this keeps the real `type="password"` ↔ `"text"`
+    // toggle (the `sensitive` carve-out below covers credential fields that
+    // must NOT trigger the password manager).
     it('renders password input with toggle', () => {
-      render(<Input type="password" label="Password" />);
+      render(
+        <Input
+          type="password"
+          label="Password"
+          autoComplete="current-password"
+        />,
+      );
       const input = screen.getByLabelText(/^Password\b/);
       expect(input).toHaveAttribute('type', 'password');
       expect(
@@ -50,7 +60,13 @@ describe('Input', () => {
     });
 
     it('toggles password visibility', async () => {
-      const { user } = render(<Input type="password" label="Password" />);
+      const { user } = render(
+        <Input
+          type="password"
+          label="Password"
+          autoComplete="current-password"
+        />,
+      );
       const input = screen.getByLabelText(/^Password\b/);
       const toggle = screen.getByRole('button', { name: /show password/i });
 
@@ -86,6 +102,44 @@ describe('Input', () => {
       expect(input.style.color).toBe('red');
       await user.click(toggle);
       expect(input.style.color).toBe('red');
+    });
+  });
+
+  describe('sensitive fields', () => {
+    // Sensitive secrets (API keys, tokens) must NOT trip the browser's
+    // saved-password dropdown, so they render as `type="text"` (masked via CSS
+    // `-webkit-text-security`, which jsdom can't observe) rather than a real
+    // `type="password"`. We assert the observable contract: the `type="text"`
+    // carve-out, the password-manager opt-out attrs, and the reveal toggle.
+    it('renders an explicit sensitive field as text, not type=password', () => {
+      render(<Input sensitive label="API key" />);
+      const input = screen.getByLabelText(/^API key\b/);
+      expect(input).toHaveAttribute('type', 'text');
+    });
+
+    it('treats a bare password field (no autoComplete) as sensitive', () => {
+      render(<Input type="password" label="Secret" />);
+      const input = screen.getByLabelText(/^Secret\b/);
+      // Rendered as text (CSS-masked), not a real password field — this is what
+      // dodges Chrome's saved-password dropdown.
+      expect(input).toHaveAttribute('type', 'text');
+    });
+
+    it('exposes a reveal toggle on a sensitive field', async () => {
+      const { user } = render(<Input sensitive label="API key" />);
+      const toggle = screen.getByRole('button', { name: /show password/i });
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('opts out of password managers on sensitive fields', () => {
+      render(<Input sensitive label="API key" />);
+      const input = screen.getByLabelText(/^API key\b/);
+      expect(input).toHaveAttribute('autocomplete', 'off');
+      expect(input).toHaveAttribute('data-1p-ignore');
+      expect(input).toHaveAttribute('data-lpignore', 'true');
     });
   });
 
@@ -221,7 +275,12 @@ describe('Input', () => {
         defaultValues: { password: 'secret123' },
       });
       return (
-        <Input type="password" label="Password" {...register('password')} />
+        <Input
+          type="password"
+          label="Password"
+          autoComplete="current-password"
+          {...register('password')}
+        />
       );
     }
 
