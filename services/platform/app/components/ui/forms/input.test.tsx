@@ -140,6 +140,8 @@ describe('Input', () => {
       expect(input).toHaveAttribute('autocomplete', 'off');
       expect(input).toHaveAttribute('data-1p-ignore');
       expect(input).toHaveAttribute('data-lpignore', 'true');
+      expect(input).toHaveAttribute('data-form-type', 'other');
+      expect(input).toHaveAttribute('data-bwignore', 'true');
     });
   });
 
