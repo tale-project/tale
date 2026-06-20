@@ -2142,6 +2142,11 @@
       "document": "Dokument",
       "title": "Dokumentvorschau",
       "dragToolbar": "Werkzeugleiste verschieben",
+      "link": {
+        "copy": "Link kopieren",
+        "copied": "Kopiert",
+        "visit": "Link öffnen"
+      },
       "sidebar": {
         "document": "Dokument",
         "size": "Größe",

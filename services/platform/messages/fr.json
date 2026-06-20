@@ -2143,6 +2143,11 @@
       "document": "Document",
       "title": "Aperçu du document",
       "dragToolbar": "Déplacer la barre d'outils",
+      "link": {
+        "copy": "Copier le lien",
+        "copied": "Copié",
+        "visit": "Ouvrir le lien"
+      },
       "sidebar": {
         "document": "Document",
         "size": "Taille",

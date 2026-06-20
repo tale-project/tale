@@ -71,12 +71,13 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
       return undefined;
     }, [hasError, errorMessage]);
 
+    // Search is not a secret, so we don't mask it — but we still suppress
+    // password-manager autofill the same way: readonly until focus.
     const handleFocus = (e: FocusEvent<HTMLInputElement>) => {
       e.currentTarget.removeAttribute('readonly');
       setIsReadOnly(false);
       onFocus?.(e);
     };
-
     const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
       setIsReadOnly(true);
       onBlur?.(e);
@@ -98,10 +99,11 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             ref={ref}
             id={id}
             type="text"
-            autoComplete="new-password"
+            autoComplete="off"
             data-1p-ignore
             data-lpignore="true"
             data-form-type="other"
+            data-bwignore="true"
             readOnly={isReadOnly}
             className={cn(
               'pl-10 max-w-70 h-9',

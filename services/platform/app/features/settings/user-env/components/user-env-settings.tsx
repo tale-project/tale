@@ -180,7 +180,7 @@ function AddEnvVarForm({ organizationId }: { organizationId: string }) {
           label={t('add.valueLabel')}
           placeholder={t('add.valuePlaceholder')}
           // Secret values render masked while typing and never round-trip back.
-          type={isSecret ? 'password' : 'text'}
+          sensitive={isSecret}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           maxLength={VALUE_MAX}

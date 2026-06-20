@@ -641,7 +641,6 @@ export function ProviderAddPanel({
               {...register('apiKey')}
               placeholder={t('providers.apiKeyPlaceholder')}
               errorMessage={errors.apiKey?.message}
-              autoComplete="off"
             />
 
             {/* ── Models section ─────────────────────────────── */}

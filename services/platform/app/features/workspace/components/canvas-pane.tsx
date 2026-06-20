@@ -7,6 +7,7 @@ import { Download, PanelRightOpen, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { useBranchContext } from '@/app/features/chat/context/branch-context';
 import { useStreamingTools } from '@/app/features/chat/context/streaming-tool-context';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -39,7 +40,14 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
     from: '/dashboard/$id/chat/$threadId',
     shouldThrow: false,
   });
-  const threadId = threadMatch?.params?.threadId;
+  const routeThreadId = threadMatch?.params?.threadId;
+
+  // Files written on a branch live on the branch-tip thread, not the route
+  // thread. Resolve to the same active-branch thread the message list uses so
+  // branch-tip files stay visible after streaming; fall back to the route param
+  // before the branch chain resolves.
+  const { activeBranchThreadId } = useBranchContext();
+  const threadId = activeBranchThreadId ?? routeThreadId;
 
   const {
     isOpen,

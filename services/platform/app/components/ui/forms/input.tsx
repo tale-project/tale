@@ -45,6 +45,13 @@ const inputVariants = cva(
 type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
   VariantProps<typeof inputVariants> & {
     passwordToggle?: boolean;
+    /**
+     * Mark the field as holding a secret (API key, token, credential). Suppresses
+     * the browser's "save password" prompt and password-manager autofill overlays
+     * so the value is never cached in the credential store. `type="password"`
+     * fields are treated as sensitive automatically.
+     */
+    sensitive?: boolean;
     errorMessage?: string;
     isInvalid?: boolean;
     label?: string;
@@ -63,6 +70,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
       className,
       type,
       passwordToggle = true,
+      sensitive,
       autoComplete,
       variant,
       size,
@@ -88,9 +96,61 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
     const isPassword = type === 'password';
     const [show, setShow] = useState(false);
     const [showShake, setShowShake] = useState(false);
-    const inputType = isPassword ? (show ? 'text' : 'password') : type;
+
+    // A field is "sensitive" when it holds a secret that is NOT an account
+    // password — API keys, tokens, connector credentials. The caller opts in
+    // via `sensitive`, OR it's a `type="password"` field that did NOT declare
+    // an explicit `autoComplete`. The explicit-autoComplete carve-out keeps
+    // genuine account forms working: login / 2FA / reset pass
+    // `autoComplete="current-password"` / `"new-password"` because they *want*
+    // the password manager to fill and save. Every credential-config field
+    // passes no autoComplete, so it's protected automatically.
+    const isSensitive = sensitive || (isPassword && autoComplete == null);
+
+    // The crux of the fix: Chrome treats ANY `type="password"` as an account
+    // password and shows its saved-password dropdown / "Suggest strong
+    // password" on focus — and largely ignores `autocomplete` hints telling it
+    // otherwise. So a sensitive field is rendered as `type="text"` and masked
+    // purely with CSS (`-webkit-text-security`). To the browser it's plain
+    // text → no password dropdown, no save prompt, no strong-password
+    // suggestion — but it still shows as dots and the eye toggle still reveals
+    // it. Genuine `type="password"` fields keep real type-switching so the
+    // password manager continues to work as expected.
+    const inputType = isSensitive
+      ? 'text'
+      : isPassword
+        ? show
+          ? 'text'
+          : 'password'
+        : type;
+    // For sensitive fields, mask via CSS unless revealed. For real password
+    // fields, clear the browser's autofill `-webkit-text-security` overlay when
+    // the value is revealed (it persists even after `type` flips to "text").
+    const securityStyle: { WebkitTextSecurity?: 'disc' | 'none' } | undefined =
+      isSensitive
+        ? { WebkitTextSecurity: show ? 'none' : 'disc' }
+        : isPassword && show
+          ? { WebkitTextSecurity: 'none' }
+          : undefined;
+    // Whether to render the eye reveal button: any masked field that opts into
+    // the toggle (sensitive secrets or genuine passwords).
+    const showToggle = (isSensitive || isPassword) && passwordToggle;
+
     const resolvedAutoComplete =
-      autoComplete ?? (isPassword ? 'off' : undefined);
+      autoComplete ?? (isSensitive ? 'off' : undefined);
+    // Belt-and-suspenders for password managers, which key off field
+    // name/label rather than just `type`: explicitly opt out of 1Password /
+    // LastPass / Bitwarden / Dashlane. (The `type="text"` switch above is what
+    // actually stops the browser's own password dropdown.)
+    const sensitiveAttrs = isSensitive
+      ? {
+          autoComplete: resolvedAutoComplete,
+          'data-1p-ignore': true,
+          'data-lpignore': 'true',
+          'data-form-type': 'other',
+          'data-bwignore': 'true',
+        }
+      : { autoComplete: resolvedAutoComplete };
     const hasError = !!errorMessage;
     const showInvalid = hasError || !!isInvalid;
     // Merge caller-supplied `aria-describedby` with the internal ids so a
@@ -111,7 +171,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
       return undefined;
     }, [showInvalid, errorMessage]);
 
-    if (isPassword && passwordToggle) {
+    if (showToggle) {
       return (
         <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
           {label && (
@@ -128,7 +188,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
             <input
               id={id}
               type={inputType}
-              autoComplete={resolvedAutoComplete}
+              {...sensitiveAttrs}
               className={cn(
                 inputVariants({ variant, size }),
                 showInvalid &&
@@ -143,13 +203,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
               aria-describedby={describedBy}
               aria-errormessage={hasError ? errorId : undefined}
               {...props}
-              // Force-clear browser autofill masking when password is revealed.
-              // Chrome/Safari apply `-webkit-text-security: disc` via their autofill
-              // overlay, which persists even after `type` changes to "text".
-              style={{
-                ...style,
-                ...(show && { WebkitTextSecurity: 'none' }),
-              }}
+              style={{ ...style, ...securityStyle }}
             />
             <Tooltip
               content={show ? t('aria.hidePassword') : t('aria.showPassword')}
@@ -203,8 +257,8 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
         )}
         <input
           id={id}
-          type={type}
-          autoComplete={resolvedAutoComplete}
+          type={inputType}
+          {...sensitiveAttrs}
           className={cn(
             inputVariants({ variant, size }),
             showInvalid && 'border-destructive focus-visible:ring-destructive',
@@ -217,7 +271,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
           aria-describedby={describedBy}
           aria-errormessage={hasError ? errorId : undefined}
           {...props}
-          style={style}
+          style={{ ...style, ...securityStyle }}
         />
         {errorMessage && (
           <p
