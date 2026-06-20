@@ -61,6 +61,7 @@
               "actions": [
                 {
                   "labelKey": "issues.createTask",
+                  "doneLabelKey": "list.created",
                   "variant": "primary",
                   "path": "tasks/public_actions:createTaskFromExternalIssue",
                   "mode": "action",
