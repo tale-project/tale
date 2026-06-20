@@ -31,7 +31,10 @@ import { describe, expect, it } from 'vitest';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 
 const PACK_DIR = fileURLToPath(
-  new URL('../../../../examples/default/workflows/tasks', import.meta.url),
+  new URL(
+    '../../../../examples/default/workflows/projects/tasks',
+    import.meta.url,
+  ),
 );
 
 interface Step {
@@ -203,7 +206,7 @@ describe('task-ops pack: loop-safety invariants', () => {
         const action = actionOp(step);
         if (action?.type !== 'task' || action.op !== 'update_status') continue;
         if (actionParams(step).status === 'done') {
-          expect(wf.file).toBe('review-gate.json');
+          expect(wf.file).toBe('review-completed-work.json');
         }
       }
     }

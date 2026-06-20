@@ -17,6 +17,13 @@ export interface UpdateWebsiteArgs {
   pageCount?: number;
   crawledPageCount?: number;
   metadata?: unknown;
+  /**
+   * Caller's organizationId — closes the cross-tenant write IDOR. Optional for
+   * in-process callers (e.g. crawler internals); the REST handler and the
+   * agent `website_write` tool MUST pass this so an agent in org A cannot patch
+   * a website row in org B by id. Mirrors the customer/product/vendor pattern.
+   */
+  callerOrgId?: string;
 }
 
 /**
@@ -26,11 +33,19 @@ export async function updateWebsite(
   ctx: MutationCtx,
   args: UpdateWebsiteArgs,
 ): Promise<Doc<'websites'> | null> {
-  const { websiteId, ...updateData } = args;
+  const { websiteId, callerOrgId, ...updateData } = args;
 
   // Get the existing website to check organization
   const existingWebsite = await ctx.db.get(websiteId);
   if (!existingWebsite) {
+    throw new Error('Website not found');
+  }
+  // Cross-tenant write guard: when the caller's org is known, the target row
+  // must belong to it. Closes the IDOR on the agent tool / REST PATCH.
+  if (
+    callerOrgId !== undefined &&
+    existingWebsite.organizationId !== callerOrgId
+  ) {
     throw new Error('Website not found');
   }
 

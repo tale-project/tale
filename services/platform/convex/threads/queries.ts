@@ -10,7 +10,10 @@ import { autoRouteReasonValidator } from '../streaming/validators';
 import { getThreadMessages as getThreadMessagesHelper } from './get_thread_messages';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
 import { listArchivedThreads as listArchivedThreadsHelper } from './list_archived_threads';
-import { listThreads as listThreadsHelper } from './list_threads';
+import {
+  isHiddenFromChatHistory,
+  listThreads as listThreadsHelper,
+} from './list_threads';
 
 export const listThreads = query({
   args: {
@@ -421,7 +424,10 @@ export const countMyChats = query({
     let active = 0;
     let archived = 0;
     for (const row of rows) {
-      if (row.isBranch === true) continue;
+      // Branches and discussions live outside the chat-history sidebar, so the
+      // count must skip them to match what the sidebar shows and what a bulk
+      // archive/delete would actually touch.
+      if (isHiddenFromChatHistory(row)) continue;
       if (args.organizationId && row.organizationId !== args.organizationId) {
         continue;
       }

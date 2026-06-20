@@ -14,8 +14,9 @@ bun run --filter @tale/<workspace> <script>
 ## How to work
 
 Understand the request and the code around it before touching anything. **Look before you build:**
-search the design system ([`packages/ui`](packages/ui/)), then shared `app/`/`lib/` code, then the
-feature — reuse or extend what exists; don't reinvent it. Plan non-trivial work. Implement in atomic
+name the concept and search for it — the design system ([`packages/ui`](packages/ui/)), then shared
+`app/`/`lib/` code, then the feature and any analogous one. Reuse, extend, or generalize what already
+exists; a second way to do one thing is a defect, not a feature. Plan non-trivial work. Implement in atomic
 commits that match the conventions of the files you're already in. Then **prove it works** — run the
 gate and observe the real outcome. Finally, walk the **Ripple Map**: a change is rarely one file.
 
@@ -36,9 +37,10 @@ The biggest quality lever is deciding well, not typing fast. Before you act:
 
 **2. Think twice (pre-flight).** Restate the intent in your own words; if it's ambiguous or has
 hidden forks, **ask** — don't guess. Map the blast radius (Ripple Map) and the dependents (who
-imports/calls this). Weigh at least one alternative; pick the **smallest correct, most reversible**
-change. Name the risk and the rollback. **Never make a radical change without first understanding its
-impact.**
+imports/calls this). **Name the concept you're about to build and search whether it already exists
+under another name** — reuse or generalize it before adding a divergent twin. Weigh at least one
+alternative; pick the **smallest correct, most reversible** change. Name the risk and the rollback.
+**Never make a radical change without first understanding its impact.**
 
 **3. Self-review twice.** Critique your own _plan_ before editing (right altitude? least-radical?
 consistent with the repo?). Re-read your own _diff_ before "done" (correctness, edge cases, security,
@@ -104,18 +106,28 @@ A change is rarely one file. Expand a local edit into its blast radius:
 
 ## Reuse and centralization
 
-Agents reinvent components and utilities because they don't look first, and architecture drifts:
-three near-identical buttons, four date formatters, a feature-local copy of a shared hook. Before you
-create **any** component, hook, util, type, or validator:
+The most common way the architecture decays here is not bad code — it's the **second implementation
+of something that already exists**, built in a different shape because nobody looked for the first.
+Three near-identical buttons; four date formatters; two catalog pages that share no code; agents and
+workflows that drive tasks through two divergent ability sets. Each is a defect: a fix in one copy
+never reaches the others, and the app teaches users two ways to do one thing.
 
-1. **Search the design system first** — [`packages/ui`](packages/ui/) (Button, Input, Badge, Dialog, Skeletonize, …). A UI need almost always has a primitive already.
-2. **Then shared code** — top-level `app/{components,hooks,actions,utils}/`; for backend, `convex/lib/` and `lib/shared/`.
-3. **Then the feature** — a sibling in the feature's own folder to extend.
-4. Only if nothing fits, **create — in its canonical home, once.**
+**One concept, one name, one implementation.** Before you write **any** component, hook, util, type,
+validator, route, page, or capability — and before you build anything that _resembles_ something the
+app already does — find the existing concept first:
 
-- **Compose or extend, don't clone.** Never duplicate a primitive's role — add a `variant`/prop or compose it. A new shared primitive goes in `packages/ui` with a story, never a one-off in a feature folder.
-- **Extract on the second use.** Copy-pasting a block a second time is the signal to lift it into the shared home.
-- **Mirror the neighbours.** Before adding a sibling (domain query, route, locale file), open 1–2 existing ones and match structure, naming, and wrappers exactly.
+1. **Name the concept, then search for it by vocabulary, not just by symbol.** A grep for `CardGrid`
+   that misses an existing `Catalog` is how duplicates are born. Search the words a user or another
+   dev would use (catalog, list, picker, folder tree, ability) and open the closest analogous feature.
+2. **Design system** — [`packages/ui`](packages/ui/) (Button, Input, Badge, Dialog, Skeletonize, …). A UI need almost always already has a primitive.
+3. **Shared code** — top-level `app/{components,hooks,actions,utils}/`; for backend, `convex/lib/` and `lib/shared/`.
+4. **The feature** — a sibling to extend, and the analogous feature to mirror.
+5. Only when nothing fits, **create — in its canonical home, once, under a name the next agent will search for.**
+
+- **Reuse or generalize the first; never fork a second.** Building the second catalog, the second list page, the second capability surface? The shared concept _is_ the deliverable — extract or extend the first so both use it. For anything a user sees or a sibling system calls, the second divergent copy is wrong on sight; there is no "rule of three" grace for user-facing surfaces.
+- **Compose or extend, don't clone.** Add a `variant`/prop or compose the primitive; never duplicate its role. A new shared primitive goes in `packages/ui` with a story, never a one-off in a feature folder.
+- **Mirror the neighbours exactly.** Before adding the Nth of a recurring thing (catalog, list page, domain query, route, locale file), open the existing ones and match structure, naming, order, and wrappers. Same concept, same shape — diverge only when you can say why.
+- **Extract on the second use, generalize on the third** — for internal helpers, where a little duplication is cheaper than the wrong abstraction. Copy-pasting a block a second time is the signal to lift it into the shared home.
 
 → Full guide: [`clean-code`](.claude/skills/clean-code/SKILL.md)
 
@@ -258,20 +270,22 @@ respect `prefers-reduced-motion`. Every component has an `accessibility` describ
 
 ## Anti-patterns — you'll be tempted to X; don't
 
-| Tempted to…                            | Instead                                    | Caught by                      |
-| -------------------------------------- | ------------------------------------------ | ------------------------------ |
-| Update `en.json` only                  | all base locales + variants, same commit   | i18n parity test · Ripple Map  |
-| Add a Convex field, skip the migration | versioned reversible migration + test      | `migrations:check` · DoD       |
-| Hand-roll a skeleton (`h-[200px]`)     | `<Skeletonize>` + skeleton-aware leaves    | `skeleton-conventions.test.ts` |
-| Build a new Button/Input/Badge         | reuse/extend the `packages/ui` primitive   | reuse discipline · review      |
-| `as any` to silence TS                 | type guard / generic / discriminated union | oxlint `no-explicit-any`       |
-| Bare `<img>`                           | the `Image` component                      | oxlint jsx-a11y `alt-text`     |
-| `toLocaleDateString`                   | `useFormatDate()`                          | code style · review            |
-| `.collect()` on a large set            | `for await` / `.paginate()`                | `convex` guide · review        |
-| `window.location` for nav              | `useNavigate`/`<Link>`                     | `react` guide                  |
-| `useEffect` for derived state          | derive in render / event handler           | `react` guide                  |
-| Empty catch                            | log or re-throw                            | code style                     |
-| Declare "done" unrun                   | observe the outcome, show evidence         | verification doctrine          |
+| Tempted to…                                                    | Instead                                            | Caught by                      |
+| -------------------------------------------------------------- | -------------------------------------------------- | ------------------------------ |
+| Update `en.json` only                                          | all base locales + variants, same commit           | i18n parity test · Ripple Map  |
+| Add a Convex field, skip the migration                         | versioned reversible migration + test              | `migrations:check` · DoD       |
+| Hand-roll a skeleton (`h-[200px]`)                             | `<Skeletonize>` + skeleton-aware leaves            | `skeleton-conventions.test.ts` |
+| Build a new Button/Input/Badge                                 | reuse/extend the `packages/ui` primitive           | reuse discipline · review      |
+| Build a 2nd catalog/list/page like an existing one             | extract the shared concept; both render through it | reuse discipline · review      |
+| Two surfaces (agents vs workflows) doing one thing differently | one concept, one implementation both call          | reuse discipline · review      |
+| `as any` to silence TS                                         | type guard / generic / discriminated union         | oxlint `no-explicit-any`       |
+| Bare `<img>`                                                   | the `Image` component                              | oxlint jsx-a11y `alt-text`     |
+| `toLocaleDateString`                                           | `useFormatDate()`                                  | code style · review            |
+| `.collect()` on a large set                                    | `for await` / `.paginate()`                        | `convex` guide · review        |
+| `window.location` for nav                                      | `useNavigate`/`<Link>`                             | `react` guide                  |
+| `useEffect` for derived state                                  | derive in render / event handler                   | `react` guide                  |
+| Empty catch                                                    | log or re-throw                                    | code style                     |
+| Declare "done" unrun                                           | observe the outcome, show evidence                 | verification doctrine          |
 
 ## Skills and guides index
 
@@ -315,7 +329,7 @@ file or the generated adapters are out of sync.
 | [`performance`](.claude/skills/performance/SKILL.md) | cold-load, per-query cost, prompt-cache, prefetch |
 | [`security`](.claude/skills/security/SKILL.md) | a boundary, secrets, SSRF, the SAST gate |
 | [`git`](.claude/skills/git/SKILL.md) | commits, branching, stash vs worktree, rebase |
-| [`python`](.claude/skills/python/SKILL.md) | Python in `services/sandbox-runtime` |
+| [`python`](.claude/skills/python/SKILL.md) | editing a `.py` file (the pptx skill scripts under `examples/*/skills/pptx/`) |
 | [`bash`](.claude/skills/bash/SKILL.md) | shell scripts and Docker entrypoints |
 
 **Domain** — read before that specific work:

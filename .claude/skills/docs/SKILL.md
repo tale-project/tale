@@ -1,29 +1,24 @@
 ---
 name: docs
-description: How to write and edit pages under docs/. Read before writing/editing any docs page, the nav, or the docs build. Translation rules live in the companion translation skill — this skill covers structure and voice; that one covers cross-locale work. Page-type playbooks, worked examples, mechanics, screenshots, and workflow live in companion files in this directory.
+description: How to write and edit pages under docs/ — voice, page shape, mechanics. Read before writing or editing a docs page, the nav, or the docs build. This skill covers structure and voice in English; cross-locale work (translated labels, per-locale grammar) lives in the companion translation skill. Page-type playbooks, worked examples, mechanics, screenshots, and the build workflow live in companion files in this directory.
 ---
 
 # docs
 
-Tale's docs read as one narrator. The reader is a capable peer who landed cold from a search result and wants to understand the product — not be sold to, not be hand-held, not be congratulated. Every page tells them what the thing is, who it's for, why it exists, then walks them through it. This file is the contract: the five rules that fail review, the voice register, the three-part page shape, the six page types, and where each kind of page lives. Cross-locale work is the companion [`translation`](../translation/SKILL.md) skill; running the test suite is [`docs-check`](../docs-check/SKILL.md).
+Tale's docs read as **one narrator**: a calm, opinionated peer who shipped a similar product and is
+telling a capable stranger how this one works — not selling, not hand-holding, not congratulating.
+Every page says what the thing is, who it's for, why it exists, then walks it. This skill owns
+structure and voice for the English source; cross-locale work — translated UI labels, per-locale
+grammar, loanwords — is the companion [`translation`](../translation/SKILL.md) skill.
 
-Closed lists — strike words, half-compound patterns, the formal-pronoun denylist — live in test data, not here; this file teaches the voice well enough that those lists rarely fire. Depth lives in companions, read by name when you need them: [PLAYBOOKS.md](PLAYBOOKS.md) (the seven page-type playbooks), [EXAMPLES.md](EXAMPLES.md) (three worked rewrites — opening, closing, walk-through), [MECHANICS.md](MECHANICS.md) (frontmatter, filenames, code blocks, tables, lists, Mermaid, links), [SCREENSHOTS.md](SCREENSHOTS.md) (capturing and embedding images), and [WORKFLOW.md](WORKFLOW.md) (the pre-PR commands and the fix-first order when a test fails).
+## When this applies
 
-## What fails review
+Editing or creating any page under [`docs/`](../../../docs/) (`en/`, `de/`, `fr/`), editing
+[`docs/nav.json`](../../../docs/nav.json), or touching the docs build under `services/docs/`. Editing
+a non-`en` page → read [`translation`](../translation/SKILL.md) too. Running or triaging the test
+suite → [`docs-check`](../docs-check/SKILL.md).
 
-**Rule 1 — Docs ship with code.** If a pull request alters what a user sees, configures, or interacts with — a feature, a setting, an environment variable, an API response, a CLI flag, a removal — the same PR updates the docs in every base locale (`en`, `de`, `fr`). Regional variant trees (today `de-CH`; more may come) are sparse: only override pages whose wording genuinely differs from the base. Code without docs is incomplete work and does not merge.
-
-**Rule 2 — Every page has a real opening and a real closing.** The block of prose between the frontmatter and the first sub-heading, list, table, or fenced code block contains at least two complete sentences and answers _what is this_, _who is it for_, _why does it exist_. The last sub-section is named for what it does (`## Build one`, `## Where this fits`, `## When to reach for it`) and contains at least one paragraph that recaps the load-bearing idea and one paragraph that introduces the next page in context. `## Next` and `## See also` headings whose body is a single link line are stubs and fail. Enforced by [`services/docs/tests/structure-opening.test.ts`](../../../services/docs/tests/structure-opening.test.ts) and [`structure-closing.test.ts`](../../../services/docs/tests/structure-closing.test.ts).
-
-**Rule 3 — Translations match the shipped UI verbatim.** Every name of a button, menu, panel, or feature in a translated page matches `services/platform/messages/<locale>.json` character for character. Half-English, half-translated sentences (`Öffne **Settings > Members**`) fail. The full translation contract lives in the companion [`translation`](../translation/SKILL.md) skill.
-
-**Rule 4 — Claims are verified against the code.** Every factual claim — a UI label, an env var name, a default value, a behaviour, a route, a limit, a role's permission — is verified against the current source before the page is considered done. The sources of truth: `services/platform/messages/<locale>.json` for UI labels, `services/platform/app/` for routes and screens, `services/platform/convex/` for backend behaviour, `docker-compose.*.yml` for defaults and ports, the env loader for variable names and defaults. Voice rules cover _how_ the page reads; this rule covers _whether the page is true_.
-
-**Rule 5 — One narrator.** Same calm, opinionated, second-person-informal voice across every page and every locale. A page that drifts into marketing softening, first-person `we`, bureaucratic passive, or status chatter fails even if every other rule passes.
-
-## The voice
-
-The narrator is a peer who has shipped a similar product and is telling you how this one works.
+## The voice — see it first
 
 | Version          | Sample                                                                                                                                                                          | Why it fails                              |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
@@ -32,41 +27,63 @@ The narrator is a peer who has shipped a similar product and is telling you how 
 | Imperative naked | Click **Save**.                                                                                                                                                                 | No why — what does Save _do_ here?        |
 | **Tale voice**   | Click **Save**. The new provider is reachable from agents on the next request — there's no separate rollout step, and existing conversations keep their previous model binding. | Imperative, why present, no fluff.        |
 
-Three guardrails the voice always respects:
+Three guardrails the voice always holds:
 
-- **Second person, informal.** `you` in English, `du` in German, `tu` in French. Never `we`, never `the user`, never `Sie`, never `vous`.
-- **Imperative for instructions.** `Run tale deploy` — never `You can run tale deploy`, never `Please run tale deploy`.
-- **Why before what.** Every command names the _consequence_ — what the command does, what breaks when you skip it. The mechanical step follows.
+- **Second person, informal** — `you` / `du` / `tu`. Never `we`, `the user`, `Sie`, `vous`.
+- **Imperative for instructions** — `Run tale deploy`, never `You can run…`, never `Please run…`.
+- **Why before what** — name the consequence (what it does, what breaks if you skip it), then the step.
 
-Closed lists — the 12-word EN strike list, the DE bureaucracy patterns, the FR marketing softeners — live in test data ([`packages/ui/src/i18n/tests/locales/<locale>/voice.ts`](../../../packages/ui/src/i18n/tests/locales/)). The tests catch the obvious slips; the voice paragraph above is what the writer reads to internalise the register.
+Internalise the table; the strike lists catch the slips. The EN strike rules (`simply`, `easy`,
+`seamless`, …), the DE bureaucracy patterns, and the FR softeners live in test data at
+[`packages/ui/src/i18n/tests/locales/<locale>/voice.ts`](../../../packages/ui/src/i18n/tests/locales/).
 
-## Every page has three parts
+## The rules
 
-The opening, the body, and the closing. Every page. No exceptions.
+Five rules fail review. Three are also enforced by tests.
 
-**The opening (2–4 sentences of prose).** Immediately after the frontmatter, before any heading or list. Names the thing, the audience, and the reason it exists. For tutorials, names the outcome and the prerequisites in one sentence.
+1. **Docs ship with code.** A PR that changes what a user sees, configures, or interacts with —
+   feature, setting, env var, API response, CLI flag, removal — updates the docs in every base locale
+   (`en`, `de`, `fr`) in the same PR. Code without docs does not merge. _Reviewer-caught._
+2. **Real opening, real closing.** The prose between the frontmatter and the first
+   heading/list/table/fence is ≥ 2 sentences answering _what / who / why_; the last sub-section is
+   named for what it does (`## Build one`, `## Where this fits`), recaps the load-bearing idea in one
+   paragraph, and sets up the next page in another. A `## Next` over a bare link line is a stub.
+   \_Enforced by [`structure-opening.test.ts`](../../../services/docs/tests/structure-opening.test.ts)
+   - [`structure-closing.test.ts`](../../../services/docs/tests/structure-closing.test.ts);\_ see the
+     rewrites in [EXAMPLES.md](EXAMPLES.md).
+3. **Labels match the shipped string** — every translated UI label is character-for-character the
+   value in `services/platform/messages/<locale>.json`; no half-English `Öffne **Settings**`. The full
+   contract is [`translation`](../translation/SKILL.md). _Enforced by the i18n suite._
+4. **Claims are verified.** Every label, env var, default, behaviour, route, limit, and permission is
+   checked against source before the page is done — labels in `services/platform/messages/<locale>.json`,
+   routes/screens in `services/platform/app/`, backend behaviour in `services/platform/convex/`,
+   defaults/ports in `docker-compose.*.yml` and the env loader. Voice covers _how_ it reads; this
+   covers _whether it's true_. _Reviewer-caught._
+5. **One narrator.** A page that drifts into marketing softening, first-person `we`, bureaucratic
+   passive, or status chatter fails — even if every other rule passes. _Reviewer-caught._
 
-**The body.** Whatever sits between the opening and the closing. Prose is the default — lists are for parallel items of five or more. A heading owns a paragraph, not a list. Tables are for data with row-level identity. Code blocks lead with their effect. UI walk-throughs follow _effect → location → action_: `To add a person to your organisation, open **Settings > Members** and click **Invite member**` — never `Click Settings, then Members, then Invite member; this adds a person`.
+Regional trees (the supported variant is `de-CH`, mirroring the UI-message variant) are sparse when
+one exists: override only pages whose wording genuinely differs from the base locale.
 
-**The closing (one or two paragraphs).** Named for what it does (`## Build one`, `## Where this fits`, `## When to reach for it`, `## What to read next`). Recaps the one thing the reader should remember (one paragraph), then introduces the next page in context (one paragraph with the link inline). `## Next` headings whose body is a single bullet line are stubs and fail.
+## Patterns
 
-See [EXAMPLES.md](EXAMPLES.md) for an opening rewrite, a closing rewrite, and an effect-first walk-through.
+The body is everything between the opening and closing:
 
-## Page types
+- **Prose is the default.** A heading owns a paragraph, not a list. Lists are for 5+ parallel items.
+- **Tables for data with row-level identity. Code blocks lead with their effect.**
+- **Walkthroughs go _effect → location → action_:**
+  - ✗ `Click Settings, then Members, then Invite member. This adds a person.`
+  - ✓ `To add a person to your organisation, open **Settings > Members** and click **Invite member**.`
 
-Seven shapes cover everything in `docs/`. The full per-type playbook (where they live, the shape contract, the pattern example, the common failures) lives in [PLAYBOOKS.md](PLAYBOOKS.md). The table below is a routing aid.
+**`platform/` vs `self-hosted/configuration/`.** `platform/` is the UI — anything a user does inside
+the running app (`Settings > …`). `self-hosted/configuration/` is server-side — config files
+(`TALE_CONFIG_DIR/**`), env vars, CLI, Docker. When a feature has both, `platform/` describes only the
+UI path and links to the self-hosted reference for the file form. Never paste a JSON config snippet or
+env-var table into a `platform/` page — it contradicts the Cloud reader's reality and belongs one tab
+over.
 
-| Type             | What it does                                                    | Canonical example                                                                                                                       |
-| ---------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Concept          | Hand the reader the mental model                                | [`docs/en/platform/agents/concepts.md`](../../../docs/en/platform/agents/concepts.md)                                                   |
-| Tutorial         | Walk a fresh instance from "I want to do X" to a working result | [`docs/en/tutorials/editor/first-agent-end-to-end.md`](../../../docs/en/tutorials/editor/first-agent-end-to-end.md)                     |
-| Reference        | Be the single source of truth for a feature, API, or config     | [`docs/en/self-hosted/configuration/providers.md`](../../../docs/en/self-hosted/configuration/providers.md)                             |
-| Section overview | Frame an area for someone who landed on the section root        | [`docs/en/platform/admin/overview.md`](../../../docs/en/platform/admin/overview.md)                                                     |
-| Troubleshooting  | Map symptoms to fixes for issues maintainers have actually seen | [`docs/en/self-hosted/operate/observability/troubleshooting.md`](../../../docs/en/self-hosted/operate/observability/troubleshooting.md) |
-| Integration      | Walk a specific third-party pairing                             | [`docs/en/tutorials/admin/meeting-transcription.md`](../../../docs/en/tutorials/admin/meeting-transcription.md)                         |
-| Glossary table   | Searchable source of truth for a closed set                     | [`docs/en/self-hosted/configuration/environment-reference.md`](../../../docs/en/self-hosted/configuration/environment-reference.md)     |
-
-## Taxonomy
+Seven page types cover `docs/`; the per-type shape contract, a pattern page, and the common failures
+live in [PLAYBOOKS.md](PLAYBOOKS.md). Where each page lives:
 
 | Directory      | Tab         | Audience                                                                                                      |
 | -------------- | ----------- | ------------------------------------------------------------------------------------------------------------- |
@@ -76,26 +93,11 @@ Seven shapes cover everything in `docs/`. The full per-type playbook (where they
 | `develop/`     | Develop     | API consumers, webhook integrators, SDK users, source contributors.                                           |
 | `legal/`       | (footer)    | Privacy policy, terms of service, DPA. `noindex: true`.                                                       |
 
-**The `platform/` vs `self-hosted/configuration/` boundary.** `platform/` is the UI — anything a user does inside the running app (click, fill, toggle in `Settings > …`). `self-hosted/configuration/` is server-side — filesystem access, config files (`TALE_CONFIG_DIR/**`), env vars, CLI, SOPS, Docker. When the same feature has both a UI path and a config-file path, `platform/` describes only the UI path and links to the self-hosted reference for the file form. Never paste a JSON config snippet or an env-var table into a `platform/` page; those contradict the Cloud reader's reality and belong one tab over.
+## Companion files
 
-## Translation
-
-Translated pages — anything under `docs/de/`, `docs/fr/`, `docs/de-CH/` — live under the contract in the companion [`translation`](../translation/SKILL.md) skill. Read it (and its per-locale companion `locales/<locale>/AGENTS.md`) before editing any page in a non-English tree. This skill covers the docs-specific shape (opening, closing, page types, nav, lifecycle); the translation skill covers the cross-locale voice, the three-bucket loanword policy, the per-locale tone rules, and the test-data lists that catch drift.
-
-The one load-bearing point this skill repeats from the translation skill: **UI labels in translated pages match the shipped string in `services/platform/messages/<locale>.json` character for character.** Half-translated walkthroughs (`Öffne **Settings > Members**`) fail Rule 3. Everything else — bucket policy, drift catalogues, glossary workflow — is in the translation skill.
-
-## Mechanics
-
-Frontmatter (`title`, `description`), filenames (dash-case lowercase), headings (sentence case, max H4), code blocks (always carry a language identifier, lead with effect), tables (`Name | Type | Required | Description` for parameters), lists (5+ parallel items only), Mermaid (one screen per diagram, translate node labels per locale), cross-references (anchor text describes the destination). The full reference lives in [MECHANICS.md](MECHANICS.md).
-
-## Workflow
-
-Run these before every PR (`services/docs` has no `format` script — formatting is repo-wide via root `oxfmt` and the edit hook):
-
-```bash
-bun run --filter @tale/docs lint      # oxlint --type-aware
-bun run --filter @tale/docs test      # structural + prose + terminology + i18n
-bun run --filter @tale/docs build     # search index, prerender, llms.txt, sitemap, robots.txt
-```
-
-When a test fails: navigation parity first, frontmatter second, locale outline third, terminology / pronouns / loanwords fourth, opening / closing fifth. Reading and triaging the suite is [`docs-check`](../docs-check/SKILL.md); full sequencing in [WORKFLOW.md](WORKFLOW.md).
+- [EXAMPLES.md](EXAMPLES.md) — read when writing an opening, closing, or walkthrough and you want to see what passing prose looks like.
+- [PLAYBOOKS.md](PLAYBOOKS.md) — read when you know the page type (concept, tutorial, reference, …) and want its shape contract + common failures.
+- [MECHANICS.md](MECHANICS.md) — read for frontmatter, filenames, headings, code blocks, tables, lists, Mermaid, and links.
+- [SCREENSHOTS.md](SCREENSHOTS.md) — read before adding an image.
+- [WORKFLOW.md](WORKFLOW.md) — read before previewing locally or running the pre-PR suite; reading and triaging the suite itself is [`docs-check`](../docs-check/SKILL.md).
+- [`translation`](../translation/SKILL.md) — read before editing any non-`en` page.

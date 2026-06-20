@@ -32,11 +32,12 @@ const integrationsUrl = (organizationId: string) =>
   `/dashboard/${organizationId}/settings/integrations?tab=all`;
 
 // Catalog titles come from connector config (config.json `title`), not the i18n
-// catalog — match the literal the card renders, like the seed.ts constants.
+// catalog — match the literal the card renders, like the seed.ts constants. The
+// shared CatalogCard makes the whole card a <button> whose accessible name is
+// the title (`ariaLabel`), so target the button by that exact name (`exact`
+// keeps the match off the "Connect {title}" action button in the panel).
 function integrationCard(page: Page, title: string) {
-  return page.getByRole('button').filter({
-    has: page.getByRole('heading', { name: title, exact: true, level: 3 }),
-  });
+  return page.getByRole('button', { name: title, exact: true });
 }
 
 function connectButton(page: Page, title: string) {

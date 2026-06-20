@@ -60,10 +60,10 @@ export function useAutomationsTableConfig(
             <div className="flex min-h-8 items-center gap-3">
               <Workflow className="text-muted-foreground size-4 shrink-0" />
               <Text as="span" variant="label" truncate>
-                {showFolderPath && row.original.category ? (
+                {showFolderPath && row.original.folderPath ? (
                   <>
                     <span className="text-muted-foreground">
-                      {row.original.category} /{' '}
+                      {row.original.folderPath} /{' '}
                     </span>
                     {row.original.name}
                   </>

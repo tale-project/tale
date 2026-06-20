@@ -241,6 +241,9 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
           internal.customers.internal_mutations.updateCustomers,
           {
             customerId, // Required by validator
+            // Org-scope the by-id update so a workflow can't patch another
+            // tenant's customer (engages the updateCustomers guard).
+            organizationId,
             updates: params.updates, // Required by validator
           },
         );

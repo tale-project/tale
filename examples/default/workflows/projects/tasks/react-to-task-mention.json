@@ -1,0 +1,116 @@
+{
+  "name": "React to mention in task",
+  "description": "@-mentioning an agent in a task comment OR in the task description puts it to work: the agent reads the task and the mentioning text, acts with its task tools, and posts its reply as a comment. Both humans AND agents may trigger via mentions (agent-to-agent collaboration, incl. escalations to a manager agent) — runaway chains are bounded by the per-task circuit breaker (runs per hour), and writes by the automation engine itself ('workflow' actor, e.g. nudges and rollup notes) are inert and never trigger anyone. Agents also never trigger themselves.",
+  "i18n": {
+    "en": {
+      "name": "React to mention in task",
+      "description": "When an agent is @-mentioned in a task or its comments, it does the work and replies as a comment."
+    },
+    "de": {
+      "name": "Auf Erwähnung in Aufgabe reagieren",
+      "description": "Wird ein Agent in einer Aufgabe oder deren Kommentaren @-erwähnt, erledigt er die Arbeit und antwortet als Kommentar."
+    },
+    "fr": {
+      "name": "Réagir à une mention dans une tâche",
+      "description": "Quand un agent est @-mentionné dans une tâche ou ses commentaires, il fait le travail et répond en commentaire."
+    }
+  },
+  "version": "1.0.0",
+  "metadata": {
+    "labels": ["Tasks", "Automation"],
+    "autoInstall": true
+  },
+  "triggers": {
+    "events": [
+      {
+        "eventType": "comment.mentioned"
+      },
+      {
+        "eventType": "task.mentioned"
+      }
+    ]
+  },
+  "config": {
+    "timeout": 600000,
+    "variables": {
+      "workflowId": "tasks_mention_response"
+    }
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "not_workflow"
+      }
+    },
+    {
+      "stepSlug": "not_workflow",
+      "name": "Ignore automation-authored comments",
+      "stepType": "condition",
+      "config": {
+        "expression": "input.actorType != 'workflow' && (input.mentions | length) > 0",
+        "description": "Writes by the automation engine itself (nudges, rollups, failure notes, engine-created tasks) are inert by design — only human- and agent-authored mentions trigger runs. This is loop-safety invariant (iii)."
+      },
+      "nextSteps": {
+        "true": "loop_mentions",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "loop_mentions",
+      "name": "Loop over mentions",
+      "stepType": "loop",
+      "config": {
+        "continueOnError": true,
+        "itemVariable": "mention",
+        "items": "{{input.mentions}}"
+      },
+      "nextSteps": {
+        "loop": "is_agent",
+        "done": "done"
+      }
+    },
+    {
+      "stepSlug": "is_agent",
+      "name": "Agent mention (and not self)?",
+      "stepType": "condition",
+      "config": {
+        "expression": "loop.item.type == 'agent' && loop.item.id != input.actorId",
+        "description": "Human mentions are plain notifications (handled by the collab layer). An agent can never trigger itself."
+      },
+      "nextSteps": {
+        "true": "respond",
+        "false": "loop_mentions"
+      }
+    },
+    {
+      "stepSlug": "respond",
+      "name": "Run the mentioned agent",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "run_on_task",
+          "agentSlug": "{{loop.item.id}}",
+          "taskId": "{{input.taskId}}",
+          "trigger": "mention",
+          "instructions": "You were @-mentioned on this task — in a comment or in the task description (the mentioning text is in the trigger context below). Read it, do what it asks of you using your task tools, and post your reply as a task comment. If it asks something outside your abilities, reply with a comment saying so precisely. If the request conflicts with your working agreement, decline politely in a comment.",
+          "promptContext": "{{input.comment.body || input.task.description || ''}}"
+        }
+      },
+      "nextSteps": {
+        "success": "loop_mentions"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}

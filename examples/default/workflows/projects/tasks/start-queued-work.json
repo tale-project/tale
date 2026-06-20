@@ -1,0 +1,130 @@
+{
+  "name": "Retry a queued run when a slot frees",
+  "description": "Starts queued work the moment capacity frees: when an agent run finishes, the guardrails resolve the oldest queued task waiting on that slot and emit agent.slot_freed (at most one wake per freed slot — no thundering herd). Tasks still assigned to the queued agent restart through the standard assignment loop (acknowledge → run → In review); queued mention replies run directly. Every restart passes the normal admission gate, so a lost race simply re-queues. The hourly stale-work sweep re-emits the wake for queue entries a lost event left behind.",
+  "i18n": {
+    "en": {
+      "name": "Retry a queued run when a slot frees",
+      "description": "When an agent slot frees, restarts the oldest queued task through the assignment loop or runs a queued mention reply directly."
+    },
+    "de": {
+      "name": "Wartenden Lauf erneut starten, wenn ein Slot frei wird",
+      "description": "Wird ein Agenten-Slot frei, startet es die älteste wartende Aufgabe über den Zuweisungsablauf neu oder führt eine wartende Erwähnungsantwort direkt aus."
+    },
+    "fr": {
+      "name": "Relancer une exécution en file quand un créneau se libère",
+      "description": "Quand un créneau d'agent se libère, relance la tâche en attente la plus ancienne via le flux d'attribution ou exécute directement une réponse à mention en attente."
+    }
+  },
+  "version": "1.0.0",
+  "metadata": {
+    "labels": ["Tasks", "Automation"],
+    "autoInstall": true
+  },
+  "triggers": {
+    "events": [
+      {
+        "eventType": "agent.slot_freed"
+      }
+    ]
+  },
+  "config": {
+    "timeout": 600000,
+    "variables": {
+      "workflowId": "tasks_slot_retry"
+    }
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "get_task"
+      }
+    },
+    {
+      "stepSlug": "get_task",
+      "name": "Load the queued task",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "get",
+          "taskId": "{{input.taskId}}"
+        }
+      },
+      "nextSteps": {
+        "success": "eligible"
+      }
+    },
+    {
+      "stepSlug": "eligible",
+      "name": "Still worth retrying?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.get_task.output.data.task != null && !steps.get_task.output.data.task.archivedAt && steps.get_task.output.data.task.status != 'done' && steps.get_task.output.data.task.status != 'cancelled' && !steps.get_task.output.data.task.agentRunsPausedAt",
+        "description": "Closed, archived, or breaker-paused tasks don't restart."
+      },
+      "nextSteps": {
+        "true": "still_assigned",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "still_assigned",
+      "name": "Still assigned to the queued agent?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.get_task.output.data.task.assigneeType == 'agent' && steps.get_task.output.data.task.assigneeId == input.agentSlug",
+        "description": "Assigned work restarts through the full assignment loop; a queued MENTION reply on someone else's task runs directly without touching the assignment."
+      },
+      "nextSteps": {
+        "true": "retrigger",
+        "false": "mention_run"
+      }
+    },
+    {
+      "stepSlug": "retrigger",
+      "name": "Re-trigger the assignment loop",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "assign",
+          "taskId": "{{input.taskId}}",
+          "assigneeType": "agent",
+          "assigneeId": "{{input.agentSlug}}"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "mention_run",
+      "name": "Run the queued mention reply",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "run_on_task",
+          "agentSlug": "{{input.agentSlug}}",
+          "taskId": "{{input.taskId}}",
+          "trigger": "mention",
+          "instructions": "Your earlier run on this task was queued behind a concurrency limit and a slot has now freed. Read the recent comments to see what was asked of you, do it with your task tools, and post your reply as a task comment."
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}

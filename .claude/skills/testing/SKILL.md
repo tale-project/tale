@@ -1,54 +1,64 @@
 ---
 name: testing
-description: How testing works in the Tale monorepo — Vitest unit/component tests, Testing Library, vitest-axe a11y blocks, Playwright e2e, the test file layout, and the commands. Read before writing or changing a test, adding an e2e spec, debugging a flaky test, or choosing where a test file goes.
+description: How testing works in the Tale monorepo — Vitest unit/component (co-located), Testing Library, vitest-axe a11y blocks, Playwright e2e, the test-file layout and naming dispatcher, and the commands. Read before writing or changing a test, adding an e2e spec, debugging a flaky test, or deciding where a test file goes. Driving the real app by hand instead is browser-qa.
 ---
 
 # testing
 
-The conventions for tests across the repo: Vitest for unit/component (co-located), Testing Library
-for DOM, vitest-axe for component a11y, and Playwright for e2e. Component-a11y mechanics overlap with
+Test conventions across the repo: Vitest for unit/component (co-located), Testing Library for DOM,
+vitest-axe for component a11y, Playwright for e2e. Component-a11y mechanics overlap with
 [`ui-components`](../ui-components/SKILL.md) and [`react`](../react/SKILL.md); driving the real app in
-a browser by hand is [`browser-qa`](../browser-qa/SKILL.md); perf-sensitive timing lives in
+a browser by hand is [`browser-qa`](../browser-qa/SKILL.md); perf-sensitive timing is
 [`performance`](../performance/SKILL.md).
+
+## When this applies
+
+Writing or changing a `*.test.ts(x)`, adding an e2e `*.spec.ts`, debugging a flaky test, or choosing
+where a new test file goes.
 
 ## Where a test file goes
 
-- **Co-located `*.test.ts(x)` next to the source** is the default — 364 of them under
+- **Co-located `*.test.ts(x)` next to the source** is the default — 385 of them under
   `services/platform/{app,lib}` alone. No `__tests__/` directories anywhere (verified — zero exist).
 - **Workspace-root `tests/`** is only for what can't co-locate:
   - [`services/platform/tests/e2e/`](../../../services/platform/tests/e2e/) — Playwright `*.spec.ts`
-    (`specs/`, `helpers/`, owned by [`playwright.config.ts`](../../../services/platform/playwright.config.ts)),
-    built on the shared `@tale/e2e` factory in [`packages/e2e`](../../../packages/e2e/).
-  - [`tests/integration/`](../../../services/platform/tests/integration/) — out-of-process
-    Bun suites named `*-test.ts`, run directly (`bun services/platform/tests/integration/<name>.ts`,
-    or the root `docker:test*` scripts), **not** by Vitest.
-  - `tests/manual/` — human/AI QA playbooks (see [`browser-qa`](../browser-qa/SKILL.md)); `tests/stress/`, `tests/pii/`.
+    (`specs/`, `helpers/`, `fixtures/`, owned by
+    [`playwright.config.ts`](../../../services/platform/playwright.config.ts)), built on the shared
+    `@tale/e2e` factory in [`packages/e2e`](../../../packages/e2e/).
+  - [`tests/integration/`](../../../services/platform/tests/integration/) — out-of-process Bun suites
+    named `*-test.ts`, run directly (`bun services/platform/tests/integration/<name>.ts`, or the root
+    `docker:test*` scripts), **not** by Vitest.
+  - `tests/manual/` — human/AI QA playbooks (see [`browser-qa`](../browser-qa/SKILL.md));
+    `tests/stress/`, `tests/pii/`.
 - **Naming is the dispatcher:** `*.test.ts(x)` → Vitest, `*.spec.ts` → Playwright, `*-test.ts` →
-  directly-run Bun. Pick the suffix that matches the runner, never mix.
+  directly-run Bun. Pick the suffix that matches the runner; never mix.
 
 ## The rules
 
 - **AAA + query by role/label, never test-id.** Arrange–Act–Assert; locate with
   `getByRole`/`getByLabelText` (accessible-name queries double as a11y coverage); drive interaction
-  with `userEvent`, not `fireEvent`. Use the wrapped `render` from `@/tests/utils/render` (it injects
-  the `AppShell`/i18n providers and returns a `userEvent` `user`).
+  with `userEvent`, not `fireEvent`. Use the wrapped `render` from
+  [`@/tests/utils/render`](../../../services/platform/tests/utils/render.tsx) — it injects the
+  `AppShell`/i18n providers and returns a `userEvent` `user`. Why role/label: a test-id couples to
+  implementation and skips the a11y check.
 - **Every UI component has an `accessibility` describe block** calling `checkAccessibility()` — the
   vitest-axe helper ([`packages/ui/tests/utils/a11y.ts`](../../../packages/ui/tests/utils/a11y.ts) for
   package components, [`services/platform/tests/utils/a11y.ts`](../../../services/platform/tests/utils/a11y.ts)
-  for app). Reviewer-caught; it's the house pattern across `packages/ui`.
-- **Never mock a react-query/Convex hook with a fresh object per render.** Returning a new reference
-  each render retriggers effects → an infinite render loop that OOMs the worker. Hoist the mock value
-  to a stable reference. (Real incident — see project memory.)
+  for app). It's the house pattern across `packages/ui`. Reviewer-caught.
+- **Never mock a react-query/Convex hook with a fresh object per render.** A new reference each render
+  retriggers effects → an infinite render loop that OOMs the worker. Hoist the mock value to a stable
+  reference. (Real incident — see project memory.)
 - **e2e: locate by role + i18n label, never CSS.** Resolve every visible string through
   `t('namespace.key')` ([`helpers/i18n.ts`](../../../services/platform/tests/e2e/helpers/i18n.ts),
   reads `services/platform/messages/en.json`); a literal `'Save'` is a bug. Use the named `TIMEOUT.*`
-  budget, not millisecond literals. Read the e2e
-  [`AGENTS.md`](../../../services/platform/tests/e2e/AGENTS.md) before adding a spec — it is the
-  authoring contract (fixture choice, helpers, cleanup-by-id).
+  budget ([`helpers/env.ts`](../../../services/platform/tests/e2e/helpers/env.ts)), not millisecond
+  literals. Read the e2e [`AGENTS.md`](../../../services/platform/tests/e2e/AGENTS.md) before adding a
+  spec — it's the authoring contract (fixture choice, helpers, cleanup-by-id).
 - **e2e waits on authoritative state, not text.** A chat turn is done when the Send⇄Stop toggle flips
   (`waitForReplyComplete`), not when reply text appears; a save is confirmed by `reloadAndSettle`,
-  never the toast. Per-worker isolated orgs + a mock LLM (`@tale/mocks`, port 4141) make canned
-  content deterministic — gate any LLM-content assertion behind `isMockLlmMode()`.
+  never the toast. Per-worker isolated orgs + a mock LLM ([`@tale/mocks`](../../../services/platform/lib/mocks/),
+  port 4141) make canned content deterministic — gate any LLM-content assertion behind
+  `isMockLlmMode()`.
 
 ## Gotchas
 
@@ -102,5 +112,5 @@ bun run --filter @tale/platform test:e2e # Playwright; boots its own stack + moc
 bun run --filter @tale/platform test:coverage  # v8 coverage
 ```
 
-Need to confirm a fix actually works in the running app, not just green tests? That's
-[`verify`](../verify/SKILL.md) / [`browser-qa`](../browser-qa/SKILL.md).
+Confirming a fix in the running app rather than green tests is [`verify`](../verify/SKILL.md) /
+[`browser-qa`](../browser-qa/SKILL.md).

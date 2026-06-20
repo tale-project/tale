@@ -15,6 +15,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { isTaskLabelColor } from '../../lib/shared/task-label-colors';
+import { components } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
@@ -32,6 +33,7 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
 import { emitEvent } from '../workflows/triggers/emit_event';
 import { canClaimTask, checkProjectAccess, normalizeAssignee } from './access';
 import {
@@ -53,6 +55,7 @@ import {
   TASK_TITLE_MAX,
   TERMINAL_STATUSES,
 } from './helpers';
+import { postTaskDiscussionMessage } from './internal_mutations';
 import {
   addedMentions,
   extractMentions,
@@ -65,6 +68,7 @@ import {
   boardViewFiltersValidator,
   boardViewTypeValidator,
   boardViewScopeValidator,
+  type CommentEventComment,
   taskActorTypeValidator,
   taskPriorityValidator,
   taskStatusValidator,
@@ -909,27 +913,19 @@ export const addTaskComment = mutation({
   args: {
     taskId: v.id('tasks'),
     body: v.string(),
-    // When set, this comment is a reply to an existing comment on the same task.
-    parentCommentId: v.optional(v.id('taskComments')),
   },
-  returns: v.id('taskComments'),
-  handler: async (ctx, args) => {
+  // Returns the new message id AND the (lazily-created) discussion thread id —
+  // the frontend bootstrap needs the threadId to resolve a previously-threadless
+  // task without a read-after-write ordering hole.
+  returns: v.object({ messageId: v.string(), threadId: v.string() }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ messageId: string; threadId: string }> => {
     const task = await loadTaskOrThrow(ctx, args.taskId);
     const project = await loadProjectOrThrow(ctx, task.projectId);
     const auth = await getAuthContext(ctx, task.organizationId);
     assertTaskWritable(project, auth);
-
-    // Resolve the reply target: it must be a live comment on the same task.
-    // Replies-to-replies are re-rooted to their thread root so threading stays
-    // single-level (matches the schema contract).
-    let parentCommentId: Id<'taskComments'> | undefined;
-    if (args.parentCommentId) {
-      const parent = await ctx.db.get(args.parentCommentId);
-      if (!parent || parent.taskId !== args.taskId || parent.deletedAt) {
-        throw new ConvexError({ code: 'TASK_COMMENT_PARENT_INVALID' });
-      }
-      parentCommentId = parent.parentCommentId ?? args.parentCommentId;
-    }
 
     const body = args.body.trim();
     if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
@@ -942,31 +938,21 @@ export const addTaskComment = mutation({
       mapRateLimitError(error);
     }
 
-    const directory = await buildMentionDirectory(ctx, {
-      organizationId: task.organizationId,
-      project,
-    });
-    const mentions = extractMentions(
-      body,
-      directory.entries,
-      directory.permissiveAgents,
+    // Unified surface: persist the comment as a message in the task's
+    // discussion thread (+ its lockstep author/mentions meta row).
+    const { messageId, threadId, mentions } = await postTaskDiscussionMessage(
+      ctx,
+      {
+        organizationId: task.organizationId,
+        task,
+        project,
+        actorType: 'user',
+        actorId: auth.userId,
+        body,
+      },
     );
 
-    const now = Date.now();
-    const commentId = await ctx.db.insert('taskComments', {
-      organizationId: task.organizationId,
-      taskId: args.taskId,
-      projectId: task.projectId,
-      authorType: 'user',
-      authorId: auth.userId,
-      body,
-      parentCommentId,
-      mentions: mentions.length > 0 ? mentions : undefined,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Keep the denormalized comment count in step with the live comment set.
+    // Denormalized count — CRITICAL for the board comment indicator.
     await ctx.db.patch(args.taskId, {
       commentCount: (task.commentCount ?? 0) + 1,
     });
@@ -986,7 +972,7 @@ export const addTaskComment = mutation({
       action: TASK_AUDIT_ACTIONS.commentCreated,
       category: 'data',
       resourceType: TASK_COMMENT_RESOURCE_TYPE,
-      resourceId: String(commentId),
+      resourceId: messageId,
       resourceName: task.title,
       metadata: {
         taskId: String(args.taskId),
@@ -997,13 +983,20 @@ export const addTaskComment = mutation({
 
     await notifyTaskComment(ctx, {
       task,
-      commentId,
+      commentId: messageId,
       mentions,
       actorType: 'user',
       actorId: auth.userId,
     });
 
-    const comment = await ctx.db.get(commentId);
+    // No `taskComments` doc exists — reconstruct the event `comment` to the
+    // shape the task-ops pack reads (`input.comment.body` + `comment.projectId`).
+    const comment: CommentEventComment = {
+      body,
+      projectId: String(task.projectId),
+      taskId: String(args.taskId),
+      mentions,
+    };
     await emitEvent(ctx, {
       organizationId: task.organizationId,
       eventType: 'comment.created',
@@ -1028,7 +1021,7 @@ export const addTaskComment = mutation({
       });
     }
 
-    return commentId;
+    return { messageId, threadId };
   },
 });
 
@@ -1036,34 +1029,39 @@ export const addTaskComment = mutation({
 // Edit / delete a comment (author-only edit; author-or-admin delete)
 // ---------------------------------------------------------------------------
 
-async function loadCommentContext(
-  ctx: MutationCtx,
-  commentId: Id<'taskComments'>,
-) {
-  const comment = await ctx.db.get(commentId);
-  if (!comment || comment.deletedAt) {
+/**
+ * Load a task-discussion message's side-car meta + its task/project/auth for an
+ * edit/delete. The meta row is the authority for authorship (the message store
+ * has none); a missing row means the comment doesn't exist (or was deleted).
+ */
+async function loadTaskMessageContext(ctx: MutationCtx, messageId: string) {
+  const meta = await ctx.db
+    .query('taskDiscussionMessageMeta')
+    .withIndex('by_messageId', (q) => q.eq('messageId', messageId))
+    .first();
+  if (!meta) {
     throw new ConvexError({ code: 'TASK_COMMENT_NOT_FOUND' });
   }
-  const task = await loadTaskOrThrow(ctx, comment.taskId);
+  const task = await loadTaskOrThrow(ctx, meta.taskId);
   const project = await loadProjectOrThrow(ctx, task.projectId);
-  const auth = await getAuthContext(ctx, comment.organizationId);
-  return { comment, task, project, auth };
+  const auth = await getAuthContext(ctx, meta.organizationId);
+  return { meta, task, project, auth };
 }
 
-export const editTaskComment = mutation({
+export const editTaskDiscussionMessage = mutation({
   args: {
-    commentId: v.id('taskComments'),
+    messageId: v.string(),
     body: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { comment, task, project, auth } = await loadCommentContext(
+    const { meta, task, project, auth } = await loadTaskMessageContext(
       ctx,
-      args.commentId,
+      args.messageId,
     );
     assertTaskWritable(project, auth);
     // Only the human author can edit their own comment.
-    if (comment.authorType !== 'user' || comment.authorId !== auth.userId) {
+    if (meta.authorType !== 'user' || meta.authorId !== auth.userId) {
       throw new ConvexError({ code: 'TASK_COMMENT_FORBIDDEN' });
     }
 
@@ -1071,10 +1069,9 @@ export const editTaskComment = mutation({
     if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
       throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
     }
-    if (body === comment.body) return null;
 
     const directory = await buildMentionDirectory(ctx, {
-      organizationId: comment.organizationId,
+      organizationId: meta.organizationId,
       project,
     });
     const mentions = extractMentions(
@@ -1083,25 +1080,28 @@ export const editTaskComment = mutation({
       directory.permissiveAgents,
     );
 
-    const now = Date.now();
-    await ctx.db.patch(args.commentId, {
-      body,
+    // Patch the message body in the store, then re-parse mentions + stamp the
+    // edit marker in the meta row (the store has neither field).
+    await ctx.runMutation(components.agent.messages.updateMessage, {
+      messageId: args.messageId,
+      patch: { message: { role: 'user', content: body } },
+    });
+    await ctx.db.patch(meta._id, {
       mentions: mentions.length > 0 ? mentions : undefined,
-      updatedAt: now,
-      editedAt: now,
+      editedAt: Date.now(),
     });
 
     await createAuditLog(ctx, {
-      organizationId: comment.organizationId,
+      organizationId: meta.organizationId,
       actorId: auth.userId,
       actorEmail: auth.email,
       actorType: 'user',
       action: TASK_AUDIT_ACTIONS.commentUpdated,
       category: 'data',
       resourceType: TASK_COMMENT_RESOURCE_TYPE,
-      resourceId: String(args.commentId),
+      resourceId: args.messageId,
       resourceName: task.title,
-      metadata: { taskId: String(comment.taskId) },
+      metadata: { taskId: String(meta.taskId) },
       status: 'success',
     });
 
@@ -1109,72 +1109,46 @@ export const editTaskComment = mutation({
   },
 });
 
-export const deleteTaskComment = mutation({
-  args: { commentId: v.id('taskComments') },
+export const deleteTaskDiscussionMessage = mutation({
+  args: { messageId: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { comment, task, project, auth } = await loadCommentContext(
+    const { meta, task, project, auth } = await loadTaskMessageContext(
       ctx,
-      args.commentId,
+      args.messageId,
     );
     assertTaskReadable(project, auth);
     const isAuthor =
-      comment.authorType === 'user' && comment.authorId === auth.userId;
+      meta.authorType === 'user' && meta.authorId === auth.userId;
     if (!isAuthor && !ADMIN_ROLES.has(auth.role)) {
       throw new ConvexError({ code: 'TASK_COMMENT_FORBIDDEN' });
     }
 
-    const now = Date.now();
-
-    // Deleting a comment must take its replies down with it — otherwise the
-    // thread is left pointing at a deleted parent. Threading is single-level
-    // today (replies re-root to their thread root), but we walk the
-    // parent → child links transitively so a deeper chain can never strand
-    // orphaned replies. Build the link map from the task's live comments first.
-    const childrenByParent = new Map<string, Id<'taskComments'>[]>();
-    for await (const c of ctx.db
-      .query('taskComments')
-      .withIndex('by_task_createdAt', (q) => q.eq('taskId', comment.taskId))) {
-      if (c.deletedAt || !c.parentCommentId) continue;
-      const parentKey = c.parentCommentId as string;
-      const siblings = childrenByParent.get(parentKey) ?? [];
-      siblings.push(c._id);
-      childrenByParent.set(parentKey, siblings);
-    }
-
-    // Breadth-first walk from the target comment, appending descendants as we
-    // go. Each comment has a single parent, so it is enqueued at most once.
-    const toDelete: Id<'taskComments'>[] = [args.commentId];
-    for (let i = 0; i < toDelete.length; i++) {
-      for (const childId of childrenByParent.get(toDelete[i] as string) ?? []) {
-        toDelete.push(childId);
-      }
-    }
-
-    for (const id of toDelete) {
-      await ctx.db.patch(id, { deletedAt: now, updatedAt: now });
-    }
-
-    // Soft-delete drops the comment (and every cascaded reply) from the live
-    // set, so the denormalized count must follow. Clamp at 0 so a stale/missing
-    // baseline can't go negative.
-    await ctx.db.patch(comment.taskId, {
-      commentCount: Math.max(0, (task.commentCount ?? 0) - toDelete.length),
+    // Flat model (matches project discussions): no reply tree to cascade. Hard
+    // delete the message from the store + its meta row, then decrement the
+    // denormalized count (clamped).
+    await ctx.runMutation(components.agent.messages.deleteByIds, {
+      messageIds: [args.messageId],
+    });
+    await ctx.db.delete(meta._id);
+    await ctx.db.patch(meta.taskId, {
+      commentCount: Math.max(0, (task.commentCount ?? 0) - 1),
     });
 
     await createAuditLog(ctx, {
-      organizationId: comment.organizationId,
+      organizationId: meta.organizationId,
       actorId: auth.userId,
       actorEmail: auth.email,
       actorType: 'user',
       action: TASK_AUDIT_ACTIONS.commentDeleted,
       category: 'data',
       resourceType: TASK_COMMENT_RESOURCE_TYPE,
-      resourceId: String(args.commentId),
+      resourceId: args.messageId,
       resourceName: task.title,
       metadata: {
-        taskId: String(comment.taskId),
-        cascadedReplyCount: toDelete.length - 1,
+        taskId: String(meta.taskId),
+        // Flat model — a message delete never cascades replies.
+        cascadedReplyCount: 0,
       },
       status: 'success',
     });
@@ -1723,10 +1697,21 @@ async function deleteTaskTree(
     deletedChildren += 1 + (await deleteTaskTree(ctx, childId));
   }
 
-  for await (const comment of ctx.db
-    .query('taskComments')
-    .withIndex('by_task_createdAt', (q) => q.eq('taskId', taskId))) {
-    await ctx.db.delete(comment._id);
+  // Comments are messages in the task's `task_discussion` thread now. Delete
+  // the side-car meta rows, then cascade the thread itself (its agent-component
+  // messages + threadMetadata) via the canonical teardown. Single pass — a task
+  // discussion is small; the helper is hold-aware and idempotent.
+  const task = await ctx.db.get(taskId);
+  if (task?.discussionThreadId) {
+    for await (const meta of ctx.db
+      .query('taskDiscussionMessageMeta')
+      .withIndex('by_task', (q) => q.eq('taskId', taskId))) {
+      await ctx.db.delete(meta._id);
+    }
+    await cascadeDeleteThreadChildren(ctx, {
+      threadId: task.discussionThreadId,
+      organizationId: task.organizationId,
+    });
   }
   for await (const activity of ctx.db
     .query('taskActivity')

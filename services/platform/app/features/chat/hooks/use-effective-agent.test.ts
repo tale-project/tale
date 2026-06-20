@@ -66,7 +66,7 @@ const ORG_ID = 'org-1';
 
 const AGENTS: MockAgent[] = [
   {
-    name: 'chat-agent',
+    name: 'assistant',
     displayName: 'Default Chat',
     description: 'Default assistant',
   },
@@ -90,7 +90,7 @@ describe('useEffectiveAgent', () => {
     it('returns null agent with isLoading true even when agents have loaded', () => {
       // The agent localStorage key is keyed on user.userId; while auth is in
       // flight the wrong key is in use, so selectedAgent would be null and
-      // we'd render the chat-agent fallback for one frame. The hook must
+      // we'd render the assistant fallback for one frame. The hook must
       // suppress that fallback until auth resolves.
       mockIsAuthLoading = true;
       mockAgents = AGENTS;
@@ -101,7 +101,7 @@ describe('useEffectiveAgent', () => {
       expect(result.current).toEqual({ agent: null, isLoading: true });
     });
 
-    it('resolves to chat-agent fallback when auth completes', () => {
+    it('resolves to assistant fallback when auth completes', () => {
       // This is the transition the flicker fix actually targets: when auth
       // resolves we must transition cleanly from `null/loading` to the real
       // agent without an intermediate "Default Chat" flash.
@@ -116,7 +116,7 @@ describe('useEffectiveAgent', () => {
       rerender();
 
       expect(result.current).toEqual({
-        agent: { name: 'chat-agent', displayName: 'Default Chat' },
+        agent: { name: 'assistant', displayName: 'Default Chat' },
         isLoading: false,
       });
     });
@@ -136,7 +136,7 @@ describe('useEffectiveAgent', () => {
     it('returns null agent even when selected agent exists in localStorage', () => {
       mockAgents = undefined;
       mockIsLoading = true;
-      mockSelectedAgent = { name: 'chat-agent', displayName: 'Default Chat' };
+      mockSelectedAgent = { name: 'assistant', displayName: 'Default Chat' };
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
@@ -145,14 +145,14 @@ describe('useEffectiveAgent', () => {
   });
 
   describe('when agents are loaded', () => {
-    it('returns default chat-agent when no selection', () => {
+    it('returns default assistant when no selection', () => {
       mockAgents = AGENTS;
       mockSelectedAgent = null;
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        agent: { name: 'chat-agent', displayName: 'Default Chat' },
+        agent: { name: 'assistant', displayName: 'Default Chat' },
         isLoading: false,
       });
     });
@@ -188,7 +188,7 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        agent: { name: 'chat-agent', displayName: 'Default Chat' },
+        agent: { name: 'assistant', displayName: 'Default Chat' },
         isLoading: false,
       });
     });
@@ -209,7 +209,7 @@ describe('useEffectiveAgent', () => {
       const starters = ['Hello', 'Help me'];
       mockAgents = [
         {
-          name: 'chat-agent',
+          name: 'assistant',
           displayName: 'Default Chat',
           description: 'Default assistant',
           conversationStarters: starters,
@@ -221,7 +221,7 @@ describe('useEffectiveAgent', () => {
 
       expect(result.current).toEqual({
         agent: {
-          name: 'chat-agent',
+          name: 'assistant',
           displayName: 'Default Chat',
           conversationStarters: starters,
         },
@@ -229,7 +229,7 @@ describe('useEffectiveAgent', () => {
       });
     });
 
-    it('falls back to first agent when no chat-agent default exists', () => {
+    it('falls back to first agent when no assistant default exists', () => {
       mockAgents = [
         {
           name: 'other-agent',
@@ -251,7 +251,7 @@ describe('useEffectiveAgent', () => {
   describe('i18n locale resolution', () => {
     const I18N_AGENTS: MockAgent[] = [
       {
-        name: 'chat-agent',
+        name: 'assistant',
         displayName: 'Chat Agent',
         description: 'Default assistant',
         conversationStarters: ['Hello', 'Help me'],
@@ -272,7 +272,7 @@ describe('useEffectiveAgent', () => {
 
       expect(result.current).toEqual({
         agent: {
-          name: 'chat-agent',
+          name: 'assistant',
           displayName: 'Chat Agent',
           conversationStarters: ['Hello', 'Help me'],
         },
@@ -288,7 +288,7 @@ describe('useEffectiveAgent', () => {
 
       expect(result.current).toEqual({
         agent: {
-          name: 'chat-agent',
+          name: 'assistant',
           displayName: 'Chat-Assistent',
           conversationStarters: ['Hallo', 'Hilf mir'],
         },
@@ -304,7 +304,7 @@ describe('useEffectiveAgent', () => {
 
       expect(result.current).toEqual({
         agent: {
-          name: 'chat-agent',
+          name: 'assistant',
           displayName: 'Chat Agent',
           conversationStarters: ['Hello', 'Help me'],
         },

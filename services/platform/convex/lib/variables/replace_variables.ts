@@ -61,10 +61,13 @@ export function replaceVariables(
       return jexlInstance.evalSync(expression, context);
     }
 
-    // Mixed content → string replacement
+    // Mixed content → string replacement. replaceVariablesInString renders
+    // every reference, treating a resolved-but-nil one (an absent optional
+    // field) as empty — it never re-emits a `{{marker}}`. So a residual marker
+    // here can only come from a malformed template (e.g. literal/unbalanced
+    // braces), which is a genuine authoring bug worth surfacing.
     const rendered = replaceVariablesInString(value, variables);
 
-    // Fail-fast if template markers remain unresolved
     if (/\{\{[\s\S]*\}\}/.test(rendered)) {
       throw new Error(`Unresolved template after rendering: ${rendered}`);
     }

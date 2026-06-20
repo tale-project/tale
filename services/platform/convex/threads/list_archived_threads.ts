@@ -1,6 +1,7 @@
 import type { PaginationOptions } from 'convex/server';
 
 import type { QueryCtx } from '../_generated/server';
+import { excludeDiscussionThreads } from './list_threads';
 import type { Thread } from './types';
 
 interface ListArchivedThreadsPaginatedResult {
@@ -27,20 +28,28 @@ export async function listArchivedThreads(
         .eq('status', 'archived'),
     )
     .filter((q) => {
+      // Exclude discussions but KEEP fork branches: an archived branch still
+      // belongs in the archived chat-history list (unlike the active list and
+      // command palette, which also hide branches).
+      const baseExclusions = excludeDiscussionThreads(q);
       // Filter by organizationId to prevent cross-tenant thread visibility.
       if (args.teamId && args.organizationId) {
         return q.and(
+          baseExclusions,
           q.eq(q.field('teamId'), args.teamId),
           q.eq(q.field('organizationId'), args.organizationId),
         );
       }
       if (args.organizationId) {
-        return q.eq(q.field('organizationId'), args.organizationId);
+        return q.and(
+          baseExclusions,
+          q.eq(q.field('organizationId'), args.organizationId),
+        );
       }
       if (args.teamId) {
-        return q.eq(q.field('teamId'), args.teamId);
+        return q.and(baseExclusions, q.eq(q.field('teamId'), args.teamId));
       }
-      return true;
+      return baseExclusions;
     })
     .order('desc')
     .paginate(args.paginationOpts);

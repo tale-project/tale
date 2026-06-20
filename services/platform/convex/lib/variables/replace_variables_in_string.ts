@@ -34,17 +34,21 @@ export function replaceVariablesInString(
       const expression = trim(toString(value));
       const evalResult = jexlInstance.evalSync(expression, context);
 
-      if (isNil(evalResult)) {
-        // Preserve original template for unresolved variables — allows
-        // downstream processors to substitute them in a later pass.
-        result += `{{${expression}}}`;
-      } else if (isString(evalResult)) {
+      if (isString(evalResult)) {
         result += evalResult;
       } else if (isBoolean(evalResult) || isNumber(evalResult)) {
         result += toString(evalResult);
-      } else {
+      } else if (!isNil(evalResult)) {
         result += JSON.stringify(evalResult);
       }
+      // A resolved-but-nil reference (an absent optional field — e.g. a task
+      // with no description, or empty labels) contributes nothing to the
+      // rendered string. We deliberately do NOT re-emit the `{{marker}}`: a
+      // leftover marker would reach the LLM verbatim or trip the guard in
+      // replaceVariables(). JEXL returns undefined for both a nil value and an
+      // unknown path, so this can't distinguish a leaf-level typo at runtime;
+      // unknown reference *sources* are caught at authoring time by
+      // validateVariableReferencesKnownSources.
     }
     // Ignore other token types (sections, partials, etc.)
   }

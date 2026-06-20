@@ -1,110 +1,123 @@
 ---
 name: translation
-description: How to translate Tale's UI, marketing copy, and docs across locales. Read before editing any non-English file under services/*/messages/, packages/ui/src/i18n/messages/, or any page under docs/<locale>/. Per-locale specifics live in locales/<locale>/AGENTS.md alongside this file. The loanword buckets live in BUCKETS.md, the conventions table template in CONVENTIONS.md, and the glossary workflow in GLOSSARY_GUIDE.md.
+description: Translate Tale's UI, marketing copy, and docs across locales as one narrator written natively per language. Read before editing any non-English file under services/*/messages/, packages/ui/src/i18n/messages/, or any page under docs/<locale>/. Per-locale voice doctrine lives in locales/<locale>/AGENTS.md; the loanword buckets in BUCKETS.md, the conventions template in CONVENTIONS.md, the glossary workflow in GLOSSARY_GUIDE.md.
 ---
 
 # translation
 
-Tale ships one narrator in three languages. The German page is not a German rendering of the English page — it is the same calm, opinionated voice, written natively in German. The two reliable failure modes are bureaucratic German (passive present, sentence-final `erfolgreich`, third-person `Sie`) and marketed French (`Découvrez`, `N'hésitez pas à`, stacked nominal phrases). Both translate the words and lose the voice. Fix the voice, then the wording follows.
+Tale ships one calm, opinionated, second-person-informal narrator in three languages — the German page
+is the same voice written natively in German, never a German rendering of the English. This file is the
+cross-locale contract; the data that changes between languages (strike lists, drift patterns, gender
+maps, formal-pronoun denylists) lives in the framework's per-locale test data under
+[`packages/ui/src/i18n/tests/locales/`](../../../packages/ui/src/i18n/tests/locales/) and the
+per-locale voice files. Read this first, then the locale file for the locale you're in.
 
-This file is the cross-locale contract. It lists the four rules that fail review, names the translator's stance, summarises the three-bucket loanword policy, and points to the per-language files. The contents that change between languages — strike lists, drift patterns, gender maps, formal-pronoun denylists — live in the framework's per-locale data under [`packages/ui/src/i18n/tests/locales/`](../../../packages/ui/src/i18n/tests/locales/) and are caught by the test suite. Read this file first, then the locale file for the locale you are working in.
+## When this applies
 
-## What fails review
+Editing any non-English value under `services/*/messages/` (e.g. `de.json`, `fr.json`),
+`packages/ui/src/i18n/messages/`, or any page under `docs/<locale>/`. Then read
+[`locales/<locale>/AGENTS.md`](locales/) for that language's voice doctrine and drift catalogue. The
+two reliable failure modes are bureaucratic German (passive present, sentence-final `erfolgreich`,
+third-person `Sie`) and marketed French (`Découvrez`, `N'hésitez pas à`, stacked nominal phrases) —
+both translate the words and lose the voice.
 
-**Rule 1 — Same voice across locales.** The calm, opinionated, second-person-informal narrator survives translation. Translation is a rewrite of the same voice in another language, not a rendering of the source words. A page that reads calmly in English and bureaucratically in German has a tone bug; fix the wording. The drift modes are language-specific — the per-locale file names yours.
+## The rules
 
-**Rule 2 — Informal pronoun, always.** `du` in DE and de-CH, `tu` in FR. Never `Sie`, never `vous`, never their inflections. The formal-pronoun denylist in the test data ([`packages/ui/src/i18n/tests/locales/<locale>/patterns.ts`](../../../packages/ui/src/i18n/tests/locales/)) catches the obvious slips; the carve-out for sentence-initial DE `Sie` (third-person feminine) is built into the check.
+These four fail review. The first is reviewer-caught (voice doesn't lint cleanly); the rest are
+enforced by the i18n test suite (see Patterns).
 
-**Rule 3 — The shipped UI string is the source of truth.** Every button, menu, panel, or feature name in a translated page matches `services/platform/messages/<locale>.json` exactly. When the JSON and a glossary or doc disagree, the JSON wins — the contract bends to what ships. Half-translated sentences (`Öffne **Settings > Members**`) fail.
+- **Same voice across locales.** Translation is a rewrite of the same narrator in another language, not
+  a render of the source words — translate meaning, not words. Sentence structure, idiom, and noun
+  choice all differ: the German equivalent of an English three-clause sentence is often one sentence
+  with a verb-final subordinate clause; the French equivalent of a stacked English noun phrase is often
+  a relative clause. A page that reads calmly in English and bureaucratically in German has a tone bug;
+  fix the wording. The drift modes are language-specific — your per-locale file names yours. (reviewer-caught)
 
-**Rule 4 — Compound terms are whole or kept whole.** `Pull Request` stays English in DE and FR; `Knowledge Base` translates whole to `Wissensdatenbank` / `Base de connaissances`. Half is always wrong — `Pull Anfrage`, `Code Review-Prozess`, `Merge-Anfrage` fail. Whether a compound stays English or translates is a bucket decision (see [BUCKETS.md](BUCKETS.md)); whether it is a half is the rule.
+- **Informal pronoun, always.** `du` in DE and de-CH, `tu` in FR. Never `Sie`, never `vous` — formal
+  pronouns put distance between Tale and the reader. The carve-out for sentence-initial DE `Sie`
+  (third-person feminine) is built into the check. (enforced by `pronouns-formal`)
 
-## The translator's stance
+- **The shipped UI string is the source of truth.** Every button, menu, panel, or feature name in a
+  translated page matches `services/platform/messages/<locale>.json` exactly. When JSON and a glossary
+  or doc disagree, the JSON wins — the contract bends to what ships. Half-translated walkthroughs
+  (`Öffne **Settings > Members**`) are the most common bug. (enforced by `terminology-ui-label`)
 
-Translate meaning, not words. Sentence structure, idiom, and noun choice all differ across languages. A mechanical word-for-word render produces sentences native readers reject even when every individual word is correct. The German equivalent of an English three-clause sentence is often one longer sentence with a verb-final subordinate clause; the French equivalent of a stacked English noun phrase is often a relative clause. Write the _natural_ target-language sentence, not the calque.
+- **Compound terms are whole or kept whole.** `Pull Request` stays English in DE/FR; `Knowledge Base`
+  translates whole to `Wissensdatenbank` / `Base de connaissances`. Half is always wrong — `Pull
+Anfrage`, `Code Review-Prozess`, `Merge-Anfrage` fail. Whether a compound stays English or translates
+  is a bucket decision (see [BUCKETS.md](BUCKETS.md)); whether it's a half is the rule. (enforced by
+  `terminology-half-compound`)
 
-> **A correct translation that correctly does not translate one thing.**
+## Patterns
+
+**A correct translation that correctly does not translate one thing:**
+
+> EN: _Open a pull request from your feature branch. The CI pipeline runs against the head of the
+> branch; the merge into `main` is gated on green._
 >
-> EN: _Open a pull request from your feature branch. The CI pipeline runs against the head of the branch; the merge into `main` is gated on green._
+> DE: _Öffne einen Pull Request aus deinem Feature-Branch. Die CI-Pipeline läuft gegen den Kopf des
+> Branches; der Merge in `main` ist erst möglich, wenn die Pipeline grün ist._
 >
-> DE: _Öffne einen Pull Request aus deinem Feature-Branch. Die CI-Pipeline läuft gegen den Kopf des Branches; der Merge in `main` ist erst möglich, wenn die Pipeline grün ist._
+> `Pull Request`, `Feature-Branch`, `CI`, `Pipeline`, `Merge`, `Branch` stay English (Git-domain
+> loanwords; bucket 2). `du`, never `Sie`. No `erfolgreich`, no `Wird X…`. The English-kept terms are
+> the words a German-speaking developer uses without thinking — not lazy translation.
+
+**The shipped UI read back to the reader:**
+
+> Drift: _Open **Settings > Members** und klicke auf **Invite member**._
 >
-> `Pull Request`, `Feature-Branch`, `CI`, `Pipeline`, `Merge`, `Branch` stay English (Git-domain loanwords; bucket 2a). `du`, never `Sie`. No `erfolgreich`, no `Wird X…`. The English-kept terms are not lazy translation — they are the words a German-speaking developer uses without thinking.
+> Target: _Öffne **Einstellungen > Mitglieder** und klicke auf **Mitglied einladen**._
 
-## Three buckets, summary
+The reader sees the German UI; the page must echo it. Specifics: code identifiers stay English
+everywhere (CLI flags `tale deploy --detach`, env vars `TALE_CONFIG_DIR`, file paths, API paths `POST
+/api/v1/documents`); role names ship per locale (Owner / Inhaber / Propriétaire); parenthetical lists
+translate (`(Products, Customers, Vendors)` → `(Produkte, Kunden, Lieferanten)`); navigation paths
+translate segment by segment (`Settings > Members` → `Einstellungen > Mitglieder`, never
+`Einstellungen > Members`).
 
-Every English noun that appears in a non-English value or docs page falls into one of three buckets. The full per-bucket lists, the assignment rules, and the test enforcement live in [BUCKETS.md](BUCKETS.md).
+**Three buckets, summary** (full lists + assignment in [BUCKETS.md](BUCKETS.md)):
 
-| Bucket                | Examples                                                                                  | Behaviour                                                                    |
-| --------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Always English        | `Tale`, `Convex`, `AI`, `LLM`, `MCP`, env vars, CLI flags                                 | Never translates. Brand, acronym, code identifier.                           |
-| Established loanwords | `Workflow`, `Dashboard`, `Webhook`, `Pull Request`, `Branch`, `Merge`                     | Stays English in DE/FR. Hyphenated in DE compounds (`Workflow-Schritt`).     |
-| Translate-bucket      | `Header → Kopfzeile`, `Request → Anfrage`, `Email → E-Mail`, `Help Center → Hilfe-Center` | Must translate in DE/FR/de-CH. Enforced by the `terminology-loanword` check. |
+| Bucket                | Examples                                                              | Behaviour                                                        |
+| --------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Always English        | `Tale`, `Convex`, `AI`, `LLM`, `MCP`, env vars, CLI flags             | Never translates — brand, acronym, code identifier.              |
+| Established loanwords | `Workflow`, `Dashboard`, `Webhook`, `Pull Request`, `Branch`, `Merge` | Stays English in DE/FR; hyphenated in DE compounds.              |
+| Translate-bucket      | `Header → Kopfzeile`, `Request → Anfrage`, `Email → E-Mail`           | Must translate in DE/FR/de-CH; caught by `terminology-loanword`. |
 
-The bucket assignment for every term lives on its entry in [`packages/ui/src/i18n/tests/glossary/glossary.json`](../../../packages/ui/src/i18n/tests/glossary/glossary.json). Moving a term between buckets is a glossary PR, not a skill PR. See [GLOSSARY_GUIDE.md](GLOSSARY_GUIDE.md).
+The bucket lives on each term's entry in
+[`tests/glossary/glossary.json`](../../../packages/ui/src/i18n/tests/glossary/glossary.json). Moving a
+term between buckets is a glossary PR, not a skill PR.
 
-## The shipped UI is the source
+**What the suite catches** — two layers run on every `bun run check`: parity + usage (sibling test
+files in each consumer's `lib/i18n/` — key parity, orphan detection), and the centralized
+[`@tale/ui/i18n/tests`](../../../packages/ui/src/i18n/tests/) — 26 checks (the registry's 28 entries in
+[`tests/registry.ts`](../../../packages/ui/src/i18n/tests/registry.ts) minus parity + usage) over
+terminology, voice, grammar, style, ICU parity, heuristics, and markdown. Most start in `report` mode
+during rollout; flip to `enforce` after findings clear. **Not caught — reviewer territory:** subtler
+calques past the small denylist, tone drift inside passing prose, sentence flow across clauses, ICU
+plural correctness within branches, idiomatic word choice (Duden-correct ≠ native-sounding).
 
-Every user-facing term a doc page names matches the string the UI actually displays in that locale, verbatim. Source of truth: `services/platform/messages/<locale>.json`. Mixed forms — half English, half translated in the same sentence — are the most common bug.
+**Adding a locale** (e.g. Italian) — three concerns:
 
-> **Drift.** _Open **Settings > Members** und klicke auf **Invite member**._
->
-> **Target.** _Öffne **Einstellungen > Mitglieder** und klicke auf **Mitglied einladen**._
->
-> The reader sees the German UI; the page must read the German UI back to them. Half-translated walkthroughs fail Rule 3.
+1. **Runtime registry** — add `it` to `SUPPORTED_LOCALES` in
+   [`packages/ui/src/i18n/locales.ts`](../../../packages/ui/src/i18n/locales.ts).
+2. **Test framework data** — create `packages/ui/src/i18n/tests/locales/it/` with `index.ts`,
+   `style.ts`, `voice.ts`, `terminology.ts`, `grammar.ts`, `patterns.ts`, and a `planted/` folder of
+   positive/negative fixtures per applicable check; register it. The startup-drift assertion in
+   `locales/index.ts` keeps the runtime and test registries in sync. Optionally extend `glossary.json`
+   with `it` forms on translating terms.
+3. **Doctrine** — create `locales/it/AGENTS.md` per the template in the existing locale files, and add
+   its row to Companion files below.
 
-Specific rules:
+## Companion files
 
-- When the UI and the glossary disagree, the UI wins — update the glossary in the same PR.
-- Code identifiers stay English everywhere (CLI flags `tale deploy --detach`, env vars `TALE_CONFIG_DIR`, file paths `docker-compose.yml`, API paths `POST /api/v1/documents`).
-- Role names ship per locale — Owner / Inhaber / Propriétaire. The per-locale file lists the full 6-row table.
-- Parenthetical lists translate too — `(Products, Customers, Vendors)` becomes `(Produkte, Kunden, Lieferanten)` in DE.
-- Navigation paths translate segment by segment — `Settings > Members` becomes `Einstellungen > Mitglieder`, never `Einstellungen > Members`.
-
-## Per-locale files
-
-Each locale has a folder under [`locales/`](locales/). Read the one for the locale you are working in:
-
-- [`locales/en/AGENTS.md`](locales/en/AGENTS.md) — English voice doctrine.
-- [`locales/de/AGENTS.md`](locales/de/AGENTS.md) — German voice doctrine. Names the bureaucracy-drift modes; required reading when editing `de.json` or any `docs/de/` page.
-- [`locales/fr/AGENTS.md`](locales/fr/AGENTS.md) — French voice doctrine. Names the marketing-drift modes; required reading when editing `fr.json` or any `docs/fr/` page.
-- [`locales/de-CH/AGENTS.md`](locales/de-CH/AGENTS.md) — Swiss German overlay. Only the differences from DE — spelling (no `ß`), quotes, currency, numbers.
-
-## Adding a locale
-
-The framework is locale-extensible by design. Adding a new locale (e.g. Italian) is three concerns:
-
-1. **Runtime registry.** Add `it` to `SUPPORTED_LOCALES` in [`packages/ui/src/i18n/locales.ts`](../../../packages/ui/src/i18n/locales.ts).
-2. **Test framework data.** Create [`packages/ui/src/i18n/tests/locales/it/`](../../../packages/ui/src/i18n/tests/locales/) with `index.ts`, `style.ts`, `voice.ts`, `terminology.ts`, `grammar.ts`, `patterns.ts`, and a `planted/` folder with positive/negative fixtures per applicable check. Add `LOCALE_IT` to the locale registry's array. The startup-drift assertion in `locales/index.ts` keeps the runtime and test registries from getting out of sync.
-3. **Doctrine.** Create `.claude/skills/translation/locales/it/AGENTS.md` per the template in the existing locale files. Add a one-line catalogue entry to this file (the "Per-locale files" section above).
-
-Optional: extend [`packages/ui/src/i18n/tests/glossary/glossary.json`](../../../packages/ui/src/i18n/tests/glossary/glossary.json) with `it` forms on every term that translates (typically the 11+ translate-bucket entries).
-
-No consumer service or plop template needs editing.
-
-## What the test suite catches
-
-Two layers run on every `bun run check`:
-
-- **Parity + usage** — sibling test files in each consumer's `lib/i18n/`. Locale key parity and orphan-key detection. Enforced.
-- **Centralized i18n** — [`@tale/ui/i18n/tests`](../../../packages/ui/src/i18n/tests/). 26 checks (the registry's 28 entries minus the `parity` + `usage` layer above) covering terminology (loanword, half-compound, UI-label), voice (per-locale strikes + drift), grammar (DE articles), style (quotes, apostrophes, dashes, NBSP, numbers, dates, currency, ß), ICU parity (brace-balance + placeholders + plural rules), heuristics (glossary-coverage, placeholder-density), markdown (anchor-parity, link-target, status-chatter, prose-exclamation). The full list is [`tests/registry.ts`](../../../packages/ui/src/i18n/tests/registry.ts). Most start in `report` mode during the rollout; the end-of-run summary surfaces findings without failing the build. Flip a check to `enforce` after its findings are cleared.
-
-What the suite does NOT catch — review territory:
-
-- Calques beyond the small denylist (`Vertrauenshaltung`, `Nutzerreise`); subtler calques pass lint.
-- Tone drift inside passing prose (bureaucratic German that has no `Wird` opener still reads bureaucratic; reviewer's call).
-- Sentence flow across clauses; ICU plural correctness within plural branches; locale-specific quoted-attribution conventions.
-- Word choice in idiomatic phrases (Duden-correct doesn't mean native-sounding).
-
-## Where to read what
-
-| Concern                                                                                                        | File                                               |
-| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| Cross-locale rules and stance                                                                                  | this file                                          |
-| Three-bucket loanword policy, the full per-bucket lists, bucket-assignment workflow                            | [BUCKETS.md](BUCKETS.md)                           |
-| The conventions table template (quotes, apostrophes, dates, numbers, currency, NBSP, ß) that each locale fills | [CONVENTIONS.md](CONVENTIONS.md)                   |
-| Glossary workflow — adding a term, choosing a category, `_lintExclude` semantics                               | [GLOSSARY_GUIDE.md](GLOSSARY_GUIDE.md)             |
-| English voice                                                                                                  | [locales/en/AGENTS.md](locales/en/AGENTS.md)       |
-| German voice + drift catalogue                                                                                 | [locales/de/AGENTS.md](locales/de/AGENTS.md)       |
-| French voice + drift catalogue                                                                                 | [locales/fr/AGENTS.md](locales/fr/AGENTS.md)       |
-| Swiss German overlay                                                                                           | [locales/de-CH/AGENTS.md](locales/de-CH/AGENTS.md) |
+- [`locales/<locale>/AGENTS.md`](locales/) — read when editing that locale's JSON or docs: the voice
+  doctrine and language-specific drift catalogue (`en`, `de`, `fr`, and the `de-CH` Swiss overlay of
+  differences-from-DE only).
+- [BUCKETS.md](BUCKETS.md) — read when deciding whether an English term translates, stays English, or
+  matches the UI verbatim; holds the full per-bucket lists, the assignment workflow, and the
+  half-compound denylists.
+- [CONVENTIONS.md](CONVENTIONS.md) — read when handling quotes, apostrophes, dates, numbers, currency,
+  percent, NBSP, dashes, or ß: the 14-row conventions template every locale fills.
+- [GLOSSARY_GUIDE.md](GLOSSARY_GUIDE.md) — read when adding a glossary term, choosing its category, or
+  using `_lintExclude` to defer a UI-vs-bucket mismatch; also documents the role table and the audit
+  script.

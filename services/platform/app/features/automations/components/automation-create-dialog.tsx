@@ -5,7 +5,6 @@ import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { useNavigate } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import { useMemo, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -15,6 +14,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorCode } from '@/lib/utils/convex-error';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import {
@@ -48,10 +48,19 @@ interface CreateAutomationDialogProps {
 }
 
 function nameToSlug(name: string): string {
+  // `/` separates folder segments (e.g. "Marketing/Social posts" →
+  // "marketing/social-posts"), so slugify each segment and rejoin on `/`.
+  // Empty segments (leading/trailing/double slashes) are dropped.
   return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
+    .split('/')
+    .map((segment) =>
+      segment
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, ''),
+    )
+    .filter(Boolean)
+    .join('/');
 }
 
 function BlankTabContent({
@@ -95,7 +104,7 @@ function BlankTabContent({
     async (data: FormData) => {
       const workflowSlug = nameToSlug(data.name);
       if (!workflowSlug) {
-        setError('name', { message: t('validation.duplicateName') });
+        setError('name', { message: t('validation.invalidName') });
         return;
       }
 
@@ -103,6 +112,10 @@ function BlankTabContent({
         await saveWorkflow({
           organizationId,
           workflowSlug,
+          // Creating, not editing — reject a name collision (DUPLICATE_NAME,
+          // surfaced as a field error below) instead of silently overwriting
+          // an existing workflow. Mirrors the agent create dialog.
+          isNew: true,
           config: {
             name: data.name,
             description: data.description ?? '',
@@ -133,10 +146,7 @@ function BlankTabContent({
           search: { panel: 'ai-chat' },
         });
       } catch (error) {
-        if (
-          error instanceof ConvexError &&
-          error.data?.code === 'DUPLICATE_NAME'
-        ) {
+        if (convexErrorCode(error) === 'DUPLICATE_NAME') {
           setError('name', { message: t('validation.duplicateName') });
           return;
         }

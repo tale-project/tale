@@ -13,10 +13,80 @@
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
-import { internalQuery } from '../_generated/server';
+import { internalQuery, type QueryCtx } from '../_generated/server';
+import { getThreadMessages } from '../threads/get_thread_messages';
 import { taskActorTypeValidator, taskStatusValidator } from './schema';
 
 const AGENT_TASK_LIST_CAP = 200;
+const TASK_COMMENTS_CAP = 500;
+
+/**
+ * A task comment in the unified model: a `task_discussion` message joined with
+ * its side-car meta (author / `editedAt` / parsed `mentions`). Superset of the
+ * legacy `taskComments` doc fields the agent prompt + UI read
+ * (`authorType`/`authorId`/`body`/`createdAt`), so consumers are byte-compatible.
+ */
+export interface TaskDiscussionMessage {
+  messageId: string;
+  authorType: 'user' | 'agent';
+  authorId: string;
+  body: string;
+  createdAt: number;
+  editedAt?: number;
+  mentions?: Array<{ type: 'user' | 'agent'; id: string }>;
+}
+
+/**
+ * Read a task's comments from its `task_discussion` thread: join the message
+ * store (bodies, chronological) with `taskDiscussionMessageMeta` (author/
+ * editedAt/mentions). Returns [] when the task has no discussion thread yet.
+ * Reads ONLY `tasks.discussionThreadId` — never the private `tasks.threadId`
+ * agent run thread. Plain helper so both the internal list query and
+ * `getTaskContextForAgent` share one join (queries can't `runQuery`).
+ */
+export async function readTaskDiscussionMessages(
+  ctx: QueryCtx,
+  task: Doc<'tasks'>,
+): Promise<TaskDiscussionMessage[]> {
+  if (!task.discussionThreadId) return [];
+  const { messages } = await getThreadMessages(ctx, task.discussionThreadId);
+  const metas = await ctx.db
+    .query('taskDiscussionMessageMeta')
+    .withIndex('by_task', (q) => q.eq('taskId', task._id))
+    .collect();
+  const metaById = new Map(metas.map((m) => [m.messageId, m]));
+  return messages.slice(0, TASK_COMMENTS_CAP).map((msg) => {
+    const meta = metaById.get(msg._id);
+    return {
+      messageId: msg._id,
+      // The meta row is the source of truth (written in lockstep); fall back
+      // to the message role only defensively if a meta row is ever missing.
+      authorType: meta?.authorType ?? (msg.role === 'user' ? 'user' : 'agent'),
+      authorId: meta?.authorId ?? '',
+      body: msg.content,
+      createdAt: meta?.createdAt ?? msg._creationTime,
+      editedAt: meta?.editedAt,
+      mentions: meta?.mentions,
+    };
+  });
+}
+
+/**
+ * List a task's comments (unified `task_discussion` model). Replaces
+ * `listTaskCommentsInternal`; the returned shape is a superset of the legacy
+ * `{authorType,authorId,body,createdAt}` the agent prompt reads.
+ */
+export const listTaskDiscussionMessagesInternal = internalQuery({
+  args: {
+    taskId: v.id('tasks'),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args): Promise<TaskDiscussionMessage[]> => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task || task.organizationId !== args.organizationId) return [];
+    return readTaskDiscussionMessages(ctx, task);
+  },
+});
 
 export const getTaskByIdInternal = internalQuery({
   args: {
@@ -68,23 +138,6 @@ export const listTasksForAgent = internalQuery({
         : a.status.localeCompare(b.status),
     );
     return rows;
-  },
-});
-
-export const listTaskCommentsInternal = internalQuery({
-  args: {
-    taskId: v.id('tasks'),
-    organizationId: v.string(),
-  },
-  handler: async (ctx, args): Promise<Doc<'taskComments'>[]> => {
-    const task = await ctx.db.get(args.taskId);
-    if (!task || task.organizationId !== args.organizationId) return [];
-    const comments = await ctx.db
-      .query('taskComments')
-      .withIndex('by_task_createdAt', (q) => q.eq('taskId', args.taskId))
-      .order('asc')
-      .take(200);
-    return comments.filter((c) => !c.deletedAt);
   },
 });
 
@@ -185,21 +238,15 @@ export const getTaskContextForAgent = internalQuery({
     }
 
     const commentLimit = Math.min(Math.max(args.commentLimit ?? 10, 1), 50);
-    const recent = await ctx.db
-      .query('taskComments')
-      .withIndex('by_task_createdAt', (q) => q.eq('taskId', args.taskId))
-      .order('desc')
-      .take(commentLimit * 2);
-    const comments = recent
-      .filter((c) => !c.deletedAt)
-      .slice(0, commentLimit)
-      .toReversed()
-      .map((c) => ({
-        authorType: c.authorType,
-        authorId: c.authorId,
-        body: c.body,
-        createdAt: c.createdAt,
-      }));
+    // Unified model: comments are the task's `task_discussion` messages.
+    // Chronological asc → take the most recent `commentLimit`.
+    const allComments = await readTaskDiscussionMessages(ctx, task);
+    const comments = allComments.slice(-commentLimit).map((c) => ({
+      authorType: c.authorType,
+      authorId: c.authorId,
+      body: c.body,
+      createdAt: c.createdAt,
+    }));
 
     return {
       task,

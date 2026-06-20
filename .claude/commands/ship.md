@@ -18,6 +18,6 @@ Take the current change from "code written" to "ready to merge". Follow the
 4. **Verify behaviour** — run `/verify` for anything a user can see or call.
 5. **Review** — run the [`review`](../skills/review/SKILL.md) skill (CodeRabbit + self-review) and
    address findings.
-6. **Commit & PR** — atomic commits, conventional scope/type (see `commitlint.config.mjs`),
+6. **Commit & PR** — atomic commits, conventional scope/type (see `.commitlintrc.json`),
    imperative ≤72-char header. Paste the Definition-of-Done checklist into the PR body with every box
    ticked or marked N/A. No `Co-Authored-By`, no generated-attribution lines.

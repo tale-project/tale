@@ -274,13 +274,20 @@ export const listWorkflows = action({
 
 /**
  * Save a workflow with an atomic snapshot-then-write operation.
- * Optionally performs compare-and-swap via expectedHash.
+ *
+ * `isNew` makes this a create: it refuses to clobber an existing slug and
+ * throws `DUPLICATE_NAME` instead — mirroring `agents/file_actions.ts::saveAgent`
+ * so creating a workflow whose name collides is rejected rather than silently
+ * overwriting the existing one. Edits (the default) overwrite in place after
+ * snapshotting the prior revision to history. Optionally performs
+ * compare-and-swap via `expectedHash`.
  */
 export const saveWorkflowWithSnapshot = action({
   args: {
     organizationId: v.string(),
     workflowSlug: v.string(),
     config: v.any(),
+    isNew: v.optional(v.boolean()),
     expectedHash: v.optional(v.string()),
   },
   returns: v.object({ hash: v.string() }),
@@ -299,6 +306,16 @@ export const saveWorkflowWithSnapshot = action({
     const filePath = resolveWorkflowFilePath(orgSlug, args.workflowSlug);
 
     const currentContent = await readFileSafe(filePath);
+
+    // A create must not overwrite an existing workflow. `isNew` and
+    // `expectedHash` are mutually exclusive intents (create vs. compare-and-swap
+    // an existing file), so check it first.
+    if (args.isNew && currentContent) {
+      throw new ConvexError({
+        code: 'DUPLICATE_NAME',
+        message: `Workflow '${args.workflowSlug}' already exists`,
+      });
+    }
 
     if (args.expectedHash && currentContent) {
       const currentHash = sha256(currentContent);
@@ -516,7 +533,10 @@ export const renameWorkflow = action({
       },
     );
     if (targetExists) {
-      throw new Error(`Target workflow already exists: ${args.newSlug}`);
+      throw new ConvexError({
+        code: 'DUPLICATE_NAME',
+        message: `Target workflow already exists: ${args.newSlug}`,
+      });
     }
 
     await mkdir(path.dirname(newPath), { recursive: true });

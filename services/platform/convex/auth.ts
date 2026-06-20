@@ -806,6 +806,24 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                     ),
                   },
                 );
+                // Auto-install the AI-workforce agents (metadata.autoInstall):
+                // create their enabled `agentInstallations` rows so the roster
+                // gate treats them as live. Same self-retry/deferral rationale
+                // as the workflow + prompt provisioners above.
+                await runCtx.scheduler.runAfter(
+                  10_000,
+                  internal.agents.provision_defaults
+                    .syncDefaultAgentInstallations,
+                  { organizationId: data.organization.id, orgSlug: slug },
+                );
+                // Seed example content (a "Getting started" project + a few
+                // tasks + one discussion) after the agents are installed, so
+                // the @mentioned assistant exists. Idempotent + best-effort.
+                await runCtx.scheduler.runAfter(
+                  15_000,
+                  internal.provisioning.seed_starter.seedStarterContent,
+                  { organizationId: data.organization.id },
+                );
               } catch (err) {
                 console.error(
                   '[afterCreateOrganization] failed to schedule scaffold',

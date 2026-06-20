@@ -62,6 +62,7 @@ export interface RunAgentOnTaskResult {
     | 'queued'
     | 'task_circuit_breaker'
     | 'agent_not_found'
+    | 'agent_disabled'
     | 'task_not_found';
   runId?: string;
   threadId?: string;
@@ -319,6 +320,23 @@ export const runAgentOnTask = internalAction({
           ok: false,
           refusedReason: 'agent_not_found',
           error: `Agent "${args.agentSlug}" not found or misconfigured.`,
+        };
+      }
+
+      // 2b. Install/enable gate — a disabled or uninstalled agent must never
+      // run, no matter how it was triggered (assignment, @mention, workflow).
+      // This is the enforcement point that backs the roster gate: mention
+      // resolution is permissive (it doesn't enumerate the roster), so the
+      // authoritative "is this agent live?" check lives here at run admission.
+      const live = await ctx.runQuery(
+        internal.agents.installations.isAgentLiveInternal,
+        { organizationId: args.organizationId, agentSlug: args.agentSlug },
+      );
+      if (!live) {
+        return {
+          ok: false,
+          refusedReason: 'agent_disabled',
+          error: `Agent "${args.agentSlug}" is disabled or not installed.`,
         };
       }
       const agentConfig = delegate.agentConfig;

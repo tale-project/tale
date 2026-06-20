@@ -2,7 +2,8 @@
  * Helpers to get the last execution start time (ms since epoch) for a workflow.
  *
  * IMPORTANT: file-based workflow slugs are NOT unique across organizations —
- * every org installs the same default-pack slugs (e.g. `tasks/daily-digest`).
+ * every org installs the same default-pack slugs (e.g.
+ * `projects/tasks/send-daily-digest`).
  * All lookups are therefore org-scoped; a global slug lookup would let org A's
  * execution satisfy org B's schedule dedup and silently starve B's crons.
  */

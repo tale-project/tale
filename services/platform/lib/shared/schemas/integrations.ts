@@ -79,6 +79,19 @@ const exposeAsCapabilitySchema = z.object({
   order: z.number().int().optional(),
 });
 
+/**
+ * Agents + workflows this integration auto-installs when its credential is
+ * connected, and cascade-disables when it is disconnected. Agent slugs are the
+ * agent's canonical single-level slug (the file's `config.slug`, e.g.
+ * `pull-request-reviewer` — never folder-prefixed; agent slugs cannot contain
+ * `/`). Workflow slugs are the relative path without extension (e.g.
+ * `github/review-pull-request-in-github`).
+ */
+const bundlesSchema = z.object({
+  agents: z.array(z.string().min(1)).optional(),
+  workflows: z.array(z.string().min(1)).optional(),
+});
+
 export const integrationJsonSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
@@ -98,6 +111,8 @@ export const integrationJsonSchema = z.object({
   sqlConnectionConfig: sqlConnectionConfigTemplateSchema.optional(),
   sqlOperations: z.array(sqlOperationSchema).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  /** Agents + workflows auto-installed on connect / cascade-disabled on disconnect. */
+  bundles: bundlesSchema.optional(),
   /** Markdown setup guide displayed in the integration config UI (not sent to LLM) */
   setupGuide: z.string().max(5000).optional(),
 });

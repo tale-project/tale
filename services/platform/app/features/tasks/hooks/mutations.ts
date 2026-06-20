@@ -26,11 +26,11 @@ export function useAddTaskComment() {
 }
 
 export function useEditTaskComment() {
-  return useConvexMutation(api.tasks.mutations.editTaskComment);
+  return useConvexMutation(api.tasks.mutations.editTaskDiscussionMessage);
 }
 
 export function useDeleteTaskComment() {
-  return useConvexMutation(api.tasks.mutations.deleteTaskComment);
+  return useConvexMutation(api.tasks.mutations.deleteTaskDiscussionMessage);
 }
 
 export function useArchiveTask() {

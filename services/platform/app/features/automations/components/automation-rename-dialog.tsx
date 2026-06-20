@@ -9,6 +9,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorCode } from '@/lib/utils/convex-error';
 
 type FormData = {
   name: string;
@@ -50,6 +51,7 @@ export function AutomationRenameDialog({
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { isSubmitting, isDirty, errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -74,7 +76,16 @@ export function AutomationRenameDialog({
     try {
       await onRename(trimmedName);
       onOpenChange(false);
-    } catch {
+    } catch (error) {
+      // A name collision is a field-level problem — surface it inline like the
+      // create dialog does, rather than as a transient toast. Other failures
+      // stay a destructive toast.
+      if (convexErrorCode(error) === 'DUPLICATE_NAME') {
+        setError('name', {
+          message: tAutomations('validation.duplicateName'),
+        });
+        return;
+      }
       toast({
         title: tCommon('errors.somethingWentWrong'),
         variant: 'destructive',

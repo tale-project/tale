@@ -277,7 +277,7 @@ function CreateTaskBody({
             organizationId={organizationId}
             projectId={projectId}
             label={t('fields.description')}
-            rows={5}
+            rows={8}
             value={description}
             onValueChange={setDescription}
             disabled={submitting}
@@ -830,7 +830,7 @@ function EditableDescription({
         id="detail-description"
         organizationId={organizationId}
         projectId={projectId}
-        rows={3}
+        rows={6}
         value={draft}
         placeholder={placeholder}
         onValueChange={setDraft}

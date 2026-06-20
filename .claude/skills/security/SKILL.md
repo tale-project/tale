@@ -5,32 +5,34 @@ description: Secure-coding practice for Tale — the OWASP boundary checklist, t
 
 # security
 
-Secure-coding rules for the whole monorepo, plus the two enforcement points: the
-**SAST gate** in [`tools/opengrep/`](../../../tools/opengrep/) and the **sandbox SSRF firewall**
-([`services/sandbox-egress`](../../../services/sandbox-egress/) + [`services/sandbox-runtime`](../../../services/sandbox-runtime/)).
-Per-row access control is the [`convex`](../convex/SKILL.md) skill's job (`queryWithRLS`/`mutationWithRLS`);
-container hardening is [`docker`](../docker/SKILL.md)'s. For a full audit pass of a diff, invoke the
-built-in **security-review** skill — don't reimplement it here.
+Secure-coding rules for the whole monorepo, plus the two enforcement points: the **SAST gate** in
+[`tools/opengrep/`](../../../tools/opengrep/) and the **sandbox SSRF firewall**
+([`services/sandbox-egress`](../../../services/sandbox-egress/) +
+[`services/sandbox-runtime`](../../../services/sandbox-runtime/)). Per-row access control is
+[`convex`](../convex/SKILL.md)'s job (`queryWithRLS`/`mutationWithRLS`); container hardening is
+[`docker`](../docker/SKILL.md)'s. For a full audit pass of a diff, invoke the built-in
+**security-review** skill — don't reimplement it here.
 
 ## When this applies
 
-Read this before any change that: handles untrusted input in a request handler
+Any change that handles untrusted input in a request handler
 ([`convex/http.ts`](../../../services/platform/convex/http.ts), FastAPI routers), touches the file
 system or spawns a shell/subprocess, reads or writes secrets, gates auth, or edits
-`services/sandbox-egress` / `services/sandbox-runtime`. Also read it when a SAST finding blocks
+`services/sandbox-egress` / `services/sandbox-runtime`. Also when a SAST finding blocks
 `bun run lint:sast`.
 
 ## The rules
 
-- **Treat all boundary input as adversarial.** On any change touching a request handler, the file
-  system, or a shell, actively consider: command injection, XSS, SQL injection, SSRF, auth bypass,
-  IDOR, and unsafe deserialization. Don't assume the caller is the UI — assume an attacker.
+- **Treat all boundary input as adversarial — name the attack class.** On any change touching a
+  request handler, the file system, or a shell, actively check for: command injection, XSS, SQL
+  injection, SSRF, auth bypass, IDOR, unsafe deserialization. Don't assume the caller is the UI —
+  assume an attacker. (The default reflex skips this; naming the classes is the point.)
 - **Parameterized queries and argv arrays only.** Never string-concatenate or template-interpolate
-  into SQL or a shell command. Use bound parameters for SQL; `execFile`/`spawn` with an argument
-  array (never `exec`/`execSync` on an interpolated string) — both are SAST-gated below.
+  into SQL or a shell command. Bound parameters for SQL; `execFile`/`spawn` with an argument array
+  (never `exec`/`execSync` on an interpolated string) — both SAST-gated below.
 - **Secrets come from the environment, never source.** No hardcoded keys, tokens, or PEM blocks
-  (gated by `ts-no-private-key-literal` + the `secrets`/`gitleaks` packs). Scrub secrets from logs
-  and error messages before committing; HTTP handlers must not log request secrets.
+  (gated by `ts-no-private-key-literal` + the `secrets`/`gitleaks` packs). Scrub secrets from logs and
+  error messages before committing; HTTP handlers must not log request secrets.
 - **Validate at the boundary with Zod, server-side.** Untrusted payloads get a Zod schema from
   [`lib/shared/schemas/`](../../../services/platform/lib/shared/schemas/) (`zod/v4`) — the server is
   the authority even when the UI also constrains the input. Convex functions additionally validate
@@ -38,12 +40,14 @@ system or spawns a shell/subprocess, reads or writes secrets, gates auth, or edi
 - **Sanitize untrusted text before it reaches an LLM prompt.** Use
   [`sanitizeUntrustedField`](../../../services/platform/lib/shared/sanitize-untrusted-field.ts)
   (strips control / zero-width / bidi-override chars, clamps length) and `wrapUntrusted` from
-  `convex/lib/untrusted_content` for prompt-injection defense.
+  [`convex/lib/untrusted_content.ts`](../../../services/platform/convex/lib/untrusted_content.ts) for
+  prompt-injection defense.
 - **Per-row access is RLS, not hand-rolled checks.** Enforce IDOR/tenant isolation through
-  `queryWithRLS`/`mutationWithRLS` — raw `query`/`mutation` bypass it. Owned by [`convex`](../convex/SKILL.md).
+  `queryWithRLS`/`mutationWithRLS` — raw `query`/`mutation` bypass it. Owned by
+  [`convex`](../convex/SKILL.md).
 - **The SAST gate is blocking — fix, don't bypass.** `bun run lint:sast` is a required CI gate
-  ([`security.yml`](../../../.github/workflows/security.yml)) that exits non-zero on any ERROR/WARNING
-  finding. Suppress a _genuine_ false positive narrowly, never broadly (below).
+  ([`security.yml`](../../../.github/workflows/security.yml)) that exits non-zero on any
+  ERROR/WARNING finding. Suppress a _genuine_ false positive narrowly, never broadly (below).
 - **Never weaken the sandbox firewall.** The IP-layer REJECT rules are the hard SSRF boundary and the
   egress entrypoint fails closed — see the sandbox section before editing either service.
 
@@ -53,10 +57,9 @@ system or spawns a shell/subprocess, reads or writes secrets, gates auth, or edi
 (Semgrep CE fork, `v1.22.0`) binary over two configs: the hand-written
 [`config.yml`](../../../tools/opengrep/config.yml) (always) and a vendored registry snapshot
 [`rules/registry-pinned.yml`](../../../tools/opengrep/rules/registry-pinned.yml). Both are **vendored
-and pinned on purpose** so a blocking gate is deterministic — no scan-time registry fetch can drift
-and fail an unrelated PR. The run gates on ERROR **and** WARNING (`--error`). It's wired into
-`bun run verify` and pre-commit (`OPENGREP_LOCAL_ONLY=1` there → fast local rules only; the full pack
-set is the CI gate).
+and pinned on purpose** so the gate is deterministic — no scan-time registry fetch can drift and fail
+an unrelated PR. The run gates on ERROR **and** WARNING. It's wired into `bun run verify` and
+pre-commit (`OPENGREP_LOCAL_ONLY=1` there → fast local rules only; the full pack set is the CI gate).
 
 Rule classes the custom `config.yml` enforces (all ERROR):
 
@@ -65,9 +68,9 @@ Rule classes the custom `config.yml` enforces (all ERROR):
 - **Python:** `eval`/`exec`, `subprocess(..., shell=True)`, `yaml.load` without `SafeLoader`,
   `requests`/`httpx` `verify=False` (TLS bypass), web-framework `debug=True`.
 
-Refresh the vendored registry snapshot with **`bun tools/opengrep/vendor-rules.ts`** (re-fetches the
-pinned packs — TS/React/Node, OWASP Top Ten, CWE Top 25, XSS, SQLi, command-injection, secrets,
-Python/FastAPI, Dockerfile, etc. — keeping only ERROR/WARNING rules, ASCII-only). Don't hand-edit the
+Refresh the vendored snapshot with **`bun tools/opengrep/vendor-rules.ts`** (re-fetches the pinned
+packs — TS/React/Node, OWASP Top Ten, CWE Top 25, XSS, SQLi, command-injection, secrets,
+Python/FastAPI, Dockerfile — keeping only ERROR/WARNING rules, ASCII-only). Don't hand-edit the
 generated file.
 
 **Suppressing a finding** — only when it's a true false positive, and narrowly:

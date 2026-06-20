@@ -184,6 +184,14 @@
       "description": "Wie Agenten-Arbeit gemessen wird — Workforce-Dashboard, Scorecards pro Agent und Projekt-Metriken, immer Ergebnis mit Eingriff und Kosten gepaart."
     }
   },
+  "de:platform/projects/discussions": {
+    "slug": "platform/projects/discussions",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Diskussionen",
+      "description": "Mehrstimmige Diskussionsstränge innerhalb eines Projekts — Fragen klären und Entscheidungen treffen, mit Agenten, die per @Erwähnung dazukommen."
+    }
+  },
   "de:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "de",
@@ -502,6 +510,14 @@
     "frontmatter": {
       "title": "Organigramm",
       "description": "Das Org-Chart nur für Agenten — Berichtslinien, die Delegation, Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe steuern, mit Menschen immer an der Spitze."
+    }
+  },
+  "de:platform/agents/catalog": {
+    "slug": "platform/agents/catalog",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Agentenkatalog",
+      "description": "Durchsuche die vorinstallierte KI-Belegschaft nach Abteilung und installiere, aktiviere oder deaktiviere Agenten für deine Organisation."
     }
   },
   "de:platform/agents/categories": {
@@ -1288,6 +1304,14 @@
       "description": "Comment le travail des agents est mesuré — tableau de bord workforce, scorecards par agent et métriques par projet, en associant toujours résultats, interventions et coûts."
     }
   },
+  "fr:platform/projects/discussions": {
+    "slug": "platform/projects/discussions",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Discussions",
+      "description": "Des fils de conversation à plusieurs au sein d'un projet — poser des questions et prendre des décisions, les agents s'y joignant dès que tu les @mentionnes."
+    }
+  },
   "fr:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "fr",
@@ -1606,6 +1630,14 @@
     "frontmatter": {
       "title": "Organigramme",
       "description": "L'organigramme réservé aux agents — des liens hiérarchiques qui pilotent la délégation, le découpage d'epics, l'escalade SLA et le transfert de budget, avec les humains toujours au sommet."
+    }
+  },
+  "fr:platform/agents/catalog": {
+    "slug": "platform/agents/catalog",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Catalogue d'agents",
+      "description": "Parcours la main-d'œuvre IA préinstallée par service et installe, active ou désactive les agents de ton organisation."
     }
   },
   "fr:platform/agents/categories": {
@@ -2392,6 +2424,14 @@
       "description": "How agent work is measured — the workforce dashboard, per-agent scorecards, and per-project metrics, always pairing outcomes with intervention and cost."
     }
   },
+  "en:platform/projects/discussions": {
+    "slug": "platform/projects/discussions",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Discussions",
+      "description": "Threaded, multi-participant conversations inside a project — ask questions and make decisions, with agents joining when you @mention them."
+    }
+  },
   "en:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "en",
@@ -2710,6 +2750,14 @@
     "frontmatter": {
       "title": "Organigram",
       "description": "The agents-only org chart — reporting lines that drive delegation, epic decomposition, SLA escalation, and budget handoff, with humans always at the top."
+    }
+  },
+  "en:platform/agents/catalog": {
+    "slug": "platform/agents/catalog",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Agent catalog",
+      "description": "Browse the pre-installed AI workforce by department and install, enable, or disable agents for your organization."
     }
   },
   "en:platform/agents/categories": {

@@ -11,21 +11,35 @@ interface AutomationsListNavigationProps {
 }
 
 export function AutomationsListNavigation({
-  organizationId: _organizationId,
+  organizationId,
 }: AutomationsListNavigationProps) {
+  const { t } = useT('automations');
   const { t: tCommon } = useT('common');
 
-  const navigationItems: TabNavigationItem[] = [];
-
-  if (navigationItems.length === 0) {
-    return null;
-  }
+  // Mirrors the agents section: List is the default landing, then Catalog and
+  // Metrics as sibling tabs.
+  const navigationItems: TabNavigationItem[] = [
+    {
+      label: t('tabs.list'),
+      href: `/dashboard/${organizationId}/automations`,
+      matchMode: 'exact',
+    },
+    {
+      label: t('tabs.catalog'),
+      href: `/dashboard/${organizationId}/automations/catalog`,
+      matchMode: 'exact',
+    },
+    {
+      label: t('tabs.metrics'),
+      href: `/dashboard/${organizationId}/automations/metrics`,
+      matchMode: 'exact',
+    },
+  ];
 
   return (
     <TabNavigation
       items={navigationItems}
       standalone={false}
-      className="py-3"
       ariaLabel={tCommon('aria.automationsNavigation')}
     />
   );

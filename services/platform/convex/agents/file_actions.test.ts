@@ -8,6 +8,7 @@ const mockUnlink = vi.fn();
 const mockRm = vi.fn();
 const mockReaddir = vi.fn();
 const mockMkdir = vi.fn();
+const mockListAgentsForOrg = vi.fn();
 
 vi.mock('node:fs/promises', () => ({
   unlink: (...args: unknown[]) => mockUnlink(...args),
@@ -79,13 +80,28 @@ vi.mock('./file_utils', async () => {
       orgSlug === 'default' ? '/data/agents' : `/data/agents/${orgSlug}`,
     resolveAgentFilePath: (_orgSlug: string, agentName: string) =>
       `/data/agents/${agentName}.json`,
+    resolveAgentFilePathFromRelative: (_orgSlug: string, rel: string) =>
+      `/data/agents/${rel}`,
     resolveHistoryDir: (_orgSlug: string, agentName: string) =>
       `/data/agents/.history/${agentName}`,
+    walkAgentRelativePaths: async () => [],
   };
 });
 
+// The folder-aware index lives in internal_actions; stub `resolveAgentPath` to
+// the flat `<slug>.json` location (the unindexed-slug fallback) so edit/delete/
+// history ops resolve to the path these assertions expect, and cache drops no-op.
+vi.mock('./internal_actions', () => ({
+  resolveAgentPath: vi.fn(
+    async (_orgSlug: string, slug: string) => `/data/agents/${slug}.json`,
+  ),
+  invalidateAgentListCache: vi.fn(),
+  listAgentsForOrg: (...args: unknown[]) => mockListAgentsForOrg(...args),
+}));
+
 vi.mock('../../lib/shared/constants/agents', () => ({
-  PROTECTED_AGENT_NAMES: ['chat-agent', 'workflow-assistant'],
+  PROTECTED_AGENT_NAMES: ['assistant', 'workflow-assistant'],
+  RESERVED_AGENT_SLUGS: ['auto', 'organigram'],
 }));
 
 vi.mock('../../lib/shared/schemas/agents', () => ({
@@ -172,9 +188,9 @@ describe('deleteAgent', () => {
     await expect(
       deleteHandler(
         ctx as never,
-        { organizationId: 'org_test', agentName: 'chat-agent' } as never,
+        { organizationId: 'org_test', agentName: 'assistant' } as never,
       ),
-    ).rejects.toThrow("Agent 'chat-agent' cannot be deleted");
+    ).rejects.toThrow("Agent 'assistant' cannot be deleted");
 
     expect(mockUnlink).not.toHaveBeenCalled();
   });
@@ -265,6 +281,8 @@ describe('duplicateAgent', () => {
       hash: 'abc123',
     });
     mockReaddir.mockResolvedValue(['my-agent.json']);
+    // duplicateAgent now derives existing names from the roster index.
+    mockListAgentsForOrg.mockResolvedValue([{ name: 'my-agent' }]);
     mockAtomicWrite.mockResolvedValue(undefined);
   });
 
@@ -284,7 +302,10 @@ describe('duplicateAgent', () => {
   });
 
   it('increments suffix when copy already exists', async () => {
-    mockReaddir.mockResolvedValue(['my-agent.json', 'my-agent-copy.json']);
+    mockListAgentsForOrg.mockResolvedValue([
+      { name: 'my-agent' },
+      { name: 'my-agent-copy' },
+    ]);
     const ctx = createMockCtx();
 
     const result = await duplicateHandler(

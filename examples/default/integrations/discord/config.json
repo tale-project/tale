@@ -1,6 +1,9 @@
 {
   "title": "Discord",
   "description": "Post messages and manage channels in your Discord server.",
+  "metadata": {
+    "labels": ["Messaging"]
+  },
   "version": 1,
   "authMethod": "bearer_token",
   "supportedAuthMethods": ["bearer_token"],

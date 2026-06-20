@@ -5,29 +5,36 @@ description: How to persist durable learnings and compress context for a long or
 
 # handoff
 
-Long tasks lose state at context boundaries; multi-agent work loses it across agents. A good handoff
-keeps the _decisions and the non-obvious facts_, not a transcript.
+Keep the _decisions and the non-obvious facts_ across a context boundary or an agent handoff — not a
+transcript. Two distinct moves: persist a durable learning to memory (outlives this task), and write
+a continuation note (re-orients the next agent on this task).
 
-## Persist durable learnings (memory)
+## When this applies
 
-When you learn something non-obvious that future work will need — a gotcha, a confirmed approach, a
-constraint that isn't in the code — write it to the project memory rather than letting it evaporate:
+During long iterative work, when nearing a context limit, when handing to another agent, or the
+moment you discover a non-obvious fact future work will need.
 
-- The memory lives under the session memory dir with a one-line pointer per fact in `MEMORY.md` (the index loaded each session). One fact per file, with frontmatter (`type: user | feedback | project | reference`).
-- **Save** what isn't derivable from the code/git: why a decision was made, a constraint, a confirmed fix approach, a sharp gotcha. Convert relative dates to absolute.
-- **Don't save** what the repo already records — code structure, past fixes, file locations, things in `AGENTS.md`. If asked to "remember" one of those, capture what was _non-obvious_ about it instead.
-- **Update, don't duplicate** — if a fact already has a file, edit it. Delete memories that turn out wrong.
-- Treat recalled memories as background context that was true _when written_ — verify a named file/flag still exists before acting on it.
+## The rules
 
-## Compress context for continuation
+**Persist durable learnings to memory.** When you learn a gotcha, a confirmed approach, or a
+constraint that isn't in the code, write it to project memory rather than letting it evaporate. One
+fact per file; a one-line pointer per fact goes in `MEMORY.md` (the index loaded each session).
 
-When a task is long and you're nearing a context limit (or handing to another agent), write a short
-continuation note — not a transcript:
+- **Save** what isn't derivable from the code/git: why a decision was made, a constraint, a confirmed fix approach, a sharp gotcha. Convert relative dates to absolute — "last week" rots.
+- **Don't save** what the repo already records — code structure, past fixes, file locations, anything already in `AGENTS.md`. If asked to "remember" one of those, capture what was _non-obvious_ about it instead.
+- **Update, don't duplicate** — if a fact already has a file, edit it. Delete memories that turn out wrong; a stale memory misleads worse than a missing one.
+- **Treat a recalled memory as true _when written_** — verify a named file/flag still exists before acting on it.
 
-- **Goal & current status** — what's done, what's in progress, what's left.
+**Compress context for continuation.** Nearing a context limit or handing off, write a short note —
+tight enough to re-orient in under a minute:
+
+- **Goal & current status** — what's done, in progress, left.
 - **Key decisions & why** — the forks already resolved, so they aren't relitigated.
 - **Open questions / blockers** and the next concrete step.
 - **Pointers** — the files, branches, and PRs in play (paths, not contents).
 
-Keep it tight enough to re-orient in under a minute. The plan file and the Definition of Done are
-your scaffolding — reference them rather than restating them.
+## Patterns
+
+The plan file and the Definition of Done are your scaffolding — reference them, don't restate them.
+A continuation note that re-derives what `git log` or the plan already says is wasted context; point
+at it instead.

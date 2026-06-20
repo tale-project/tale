@@ -1,5 +1,5 @@
 ---
-description: The local Docker stack — compose files, Dockerfiles, the two-Postgres + dbmate model, the sandbox containers, and SQL-migration / Bash-entrypoint conventions.
+description: The local Docker stack — root compose.*.yml files, per-service Dockerfiles, the two-Postgres + dbmate model, and the three sandbox containers, plus SQL-migration and Bash-entrypoint conventions.
 globs: compose*.yml,**/Dockerfile*,services/db/**
 alwaysApply: false
 ---

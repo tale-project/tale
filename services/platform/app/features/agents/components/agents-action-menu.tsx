@@ -1,6 +1,7 @@
 'use client';
 
-import { Plus, Upload } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { LayoutTemplate, Plus, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import {
@@ -36,6 +37,7 @@ export function AgentsActionMenu({
   const setCreateOpen = onCreateOpenChange ?? setInternalCreateOpen;
   const [uploadOpen, setUploadOpen] = useState(false);
   const { t } = useT('settings');
+  const navigate = useNavigate();
   const { mutateAsync: saveAgent } = useSaveAgent();
   const { agents } = useListAgents(organizationId);
   const existingNames = useMemo(
@@ -46,9 +48,18 @@ export function AgentsActionMenu({
   const menuItems = useMemo<DataTableActionMenuItem[]>(
     () => [
       {
-        label: t('agents.createAgent'),
+        label: t('agents.createMenu.blank'),
         icon: Plus,
         onClick: () => setCreateOpen(true),
+      },
+      {
+        label: t('agents.createMenu.fromTemplate'),
+        icon: LayoutTemplate,
+        onClick: () =>
+          void navigate({
+            to: '/dashboard/$id/agents/catalog',
+            params: { id: organizationId },
+          }),
       },
       {
         label: t('agents.uploadDialog.menuItem'),
@@ -56,7 +67,7 @@ export function AgentsActionMenu({
         onClick: () => setUploadOpen(true),
       },
     ],
-    [t, setCreateOpen],
+    [t, setCreateOpen, navigate, organizationId],
   );
 
   return (

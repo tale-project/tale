@@ -1,6 +1,11 @@
 import { v } from 'convex/values';
 
-import { internalMutation, mutation } from '../_generated/server';
+import { internal } from '../_generated/api';
+import {
+  type MutationCtx,
+  internalMutation,
+  mutation,
+} from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -17,6 +22,39 @@ import {
   capabilitiesValidator,
   sqlConnectionConfigValidator,
 } from './validators';
+
+/**
+ * Connecting an integration installs its bundled agents + workflows. Scheduled
+ * (not awaited) because the provisioner is a `'use node'` action a V8 mutation
+ * cannot call directly.
+ */
+function scheduleBundleProvision(
+  ctx: MutationCtx,
+  organizationId: string,
+  slug: string,
+): Promise<unknown> {
+  return ctx.scheduler.runAfter(
+    0,
+    internal.integrations.bundle_provision.provisionIntegrationBundle,
+    { organizationId, slug },
+  );
+}
+
+/**
+ * Disconnecting an integration cascade-disables its bundled + hard-requiring
+ * agents and deactivates its bundled workflows' triggers.
+ */
+function scheduleCascadeDisable(
+  ctx: MutationCtx,
+  organizationId: string,
+  slug: string,
+): Promise<unknown> {
+  return ctx.scheduler.runAfter(
+    0,
+    internal.integrations.cascade.cascadeIntegration,
+    { organizationId, slug, mode: 'disable' },
+  );
+}
 
 export const createCredentials = internalMutation({
   args: {
@@ -50,7 +88,13 @@ export const createCredentials = internalMutation({
       );
     }
 
-    return await ctx.db.insert('integrationCredentials', args);
+    const id = await ctx.db.insert('integrationCredentials', args);
+    // A credential created already-active connects the integration: install its
+    // bundled agents + workflows.
+    if (args.status === 'active' && args.isActive) {
+      await scheduleBundleProvision(ctx, args.organizationId, args.slug);
+    }
+    return id;
   },
 });
 
@@ -97,6 +141,19 @@ export const updateCredentials = mutation({
       Object.entries(updates).filter(([_, value]) => value !== undefined),
     );
     await ctx.db.patch(credentialId, cleanUpdates);
+
+    // Cascade on connect/disconnect transitions: connecting installs the
+    // integration's bundled agents/workflows; disconnecting disables them (and
+    // any agents that hard-require this integration).
+    const wasActive = cred.isActive && cred.status === 'active';
+    const nowActive =
+      (updates.isActive ?? cred.isActive) &&
+      (updates.status ?? cred.status) === 'active';
+    if (nowActive && !wasActive) {
+      await scheduleBundleProvision(ctx, cred.organizationId, cred.slug);
+    } else if (!nowActive && wasActive) {
+      await scheduleCascadeDisable(ctx, cred.organizationId, cred.slug);
+    }
 
     await AuditLogHelpers.logSuccess(ctx, {
       auditCtx: {
@@ -165,6 +222,10 @@ export const deleteCredentials = mutation({
     }
 
     await ctx.db.delete(args.credentialId);
+
+    // Disconnecting the integration: cascade-disable its bundled + requiring
+    // agents and deactivate its bundled workflows' triggers.
+    await scheduleCascadeDisable(ctx, cred.organizationId, cred.slug);
 
     await AuditLogHelpers.logSuccess(ctx, {
       auditCtx: {

@@ -4,6 +4,7 @@ import { approvalAction } from './approval/approval_action';
 import { conversationAction } from './conversation/conversation_action';
 import { crawlerAction } from './crawler/crawler_action';
 import { customerAction } from './customer/customer_action';
+import { discussionAction } from './discussion/discussion_action';
 import { documentAction } from './document/document_action';
 import { integrationAction } from './integration/integration_action';
 import { integrationProcessingRecordsAction } from './integration_processing_records/integration_processing_records_action';
@@ -11,9 +12,11 @@ import { metricsAction } from './metrics/metrics_action';
 import { notificationAction } from './notification/notification_action';
 import { onedriveAction } from './onedrive/onedrive_action';
 import { productAction } from './product/product_action';
+import { projectAction } from './project/project_action';
 import { ragAction } from './rag/rag_action';
 import { setVariablesAction } from './set_variables_action';
 import { taskAction } from './task/task_action';
+import { vendorAction } from './vendor/vendor_action';
 import { websiteAction } from './website/website_action';
 import { workflowProcessingRecordsAction } from './workflow_processing_records/workflow_processing_records_action';
 
@@ -41,6 +44,9 @@ export const ACTIONS: AnyActionDefinition[] = [
   customerAction,
   conversationAction,
   productAction,
+  projectAction,
+  vendorAction,
+  discussionAction,
   documentAction,
   integrationAction, // Unified integration action (credentials + plugin execution)
   setVariablesAction,

@@ -25,12 +25,14 @@ import {
 export { sha256 };
 
 /**
- * Workflow slug: max 2 levels deep (folder/name), lowercase alphanumeric + hyphens/underscores.
- * Consecutive underscores (__) are reserved as URL separator and not allowed in slugs.
- * Examples: "conversation-sync", "general/conversation-sync", "my_workflow"
+ * Workflow slug: nestable folders (`folder/subfolder/name`), lowercase
+ * alphanumeric + hyphens/underscores per segment. Consecutive underscores (__)
+ * are reserved as the URL separator and not allowed inside a segment.
+ * Examples: "my_workflow", "github/sync-issues-from-github",
+ * "projects/tasks/run-assigned-task".
  */
 const WORKFLOW_SLUG_REGEX =
-  /^(?!.*__)[a-z0-9][a-z0-9_-]*(\/(?!.*__)[a-z0-9][a-z0-9_-]*)?$/;
+  /^(?!.*__)[a-z0-9][a-z0-9_-]*(\/(?!.*__)[a-z0-9][a-z0-9_-]*)*$/;
 
 const MAX_FILE_SIZE_BYTES = 512 * 1024; // 512 KB
 const MAX_HISTORY_ENTRIES = 100;

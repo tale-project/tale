@@ -1,5 +1,5 @@
 ---
-description: Conventions for shell scripts in this repo — strict mode (`set -euo pipefail`), quote every variable, `trap` cleanup, no `eval`, redact secrets before logging, `[[ ]]` tests, loud env-var checks, idempotent/re-entrant scripts, shellcheck-clean.
+description: Conventions for shell scripts in this repo — strict mode (`set -euo pipefail`), quote every expansion, array argv, `trap` cleanup/signals, no `eval`, redact secrets before logging, `[[ ]]` tests, loud env-var checks, idempotent/re-entrant entrypoints, shellcheck- and opengrep-clean.
 globs: **/*.sh,**/Dockerfile*,**/*entrypoint*.sh
 alwaysApply: false
 ---

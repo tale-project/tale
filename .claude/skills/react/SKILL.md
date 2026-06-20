@@ -1,57 +1,72 @@
 ---
 name: react
-description: How to write React 19 + TanStack Router/Query UI in services/platform/app and packages/ui — route-scoped vs shared code, navigation, Convex data-fetching hooks, loader prefetch, Skeletonize loading, optimistic mutations, i18n, and hooks discipline. Read before adding or editing any component/hook/route under services/platform/app/**, fetching Convex data from the client, building a loading state, or wiring a route loader. UI primitives (Radix/CVA/Tailwind/Storybook) have their own guide: ui-components.
+description: How to write React 19 + TanStack Router/Query UI in services/platform/app and packages/ui — route-scoped vs shared code, router navigation, the gated Convex data-fetching hooks, loader prefetch, Skeletonize loading, optimistic mutations, i18n, and the no-useEffect-reflex. Read before adding or editing a component/hook/route under services/platform/app/**, fetching Convex data from the client, building a loading state, or wiring a route loader. Primitive styling (Radix/CVA/Tailwind/Storybook) lives in ui-components.
 ---
 
 # react
 
 The contract for client UI in [`services/platform/app/`](../../../services/platform/app/) and shared
 components in [`packages/ui/`](../../../packages/ui/). React 19, TanStack Router + Query, Convex as the
-live data source. Files are **dash-case**. Primitive styling (Radix, CVA, Tailwind, Storybook, a11y)
-lives in [`ui-components`](../ui-components/SKILL.md); backend queries in [`convex`](../convex/SKILL.md);
-cold-load/prefetch tuning in [`performance`](../performance/SKILL.md). After a change, run the
-`react-doctor` harness skill.
+live data source; files are **dash-case**. Primitive styling (Radix, CVA, Tailwind, Storybook, a11y)
+lives in [`ui-components`](../ui-components/SKILL.md); the backend queries these hooks call in
+[`convex`](../convex/SKILL.md); cold-load auth-gating, prefetch tuning, and memoization in
+[`performance`](../performance/SKILL.md). After a change, run the `react-doctor` harness skill.
+
+## When this applies
+
+Adding or editing any component, hook, or route under `services/platform/app/**` or
+`packages/ui/src/**`; fetching Convex data from the client; building a loading state; wiring a route
+loader; or threading a user-facing string. For how a primitive is _styled_ (CVA vs `cn()`, tokens,
+a11y, Storybook), read [`ui-components`](../ui-components/SKILL.md) instead.
 
 ## The rules
 
 - **`app/` is route-scoped; promote shared code to top-level.** Code used by one route tree lives in
   `app/features/<x>/` or `app/routes/`; anything reused across routes goes to top-level
-  [`components/`](../../../services/platform/app/components/) / [`hooks/`](../../../services/platform/app/hooks/) /
-  `lib/`. This keeps the dependency direction one-way (shared never imports a feature).
+  [`components/`](../../../services/platform/app/components/) /
+  [`hooks/`](../../../services/platform/app/hooks/) / `lib/`. This keeps the dependency direction
+  one-way (shared never imports a feature).
 - **Navigate with the router, never `window.location`.** Use `useNavigate()` / `<Link>` from TanStack
   Router for in-app navigation so loaders, prefetch, and the nav progress bar run. `window.location`
   is only for _leaving_ the SPA (SSO/OAuth redirects).
 - **Fetch through the gated hooks, not raw Convex.** Use
-  [`useConvexQuery`](../../../services/platform/app/hooks/use-convex-query.ts) (gates on
-  `isAuthenticated`, so a cold-load query doesn't fire pre-WS-auth and throw `UnauthorizedError`),
+  [`useConvexQuery`](../../../services/platform/app/hooks/use-convex-query.ts) (defaults
+  `requireAuth: true`),
   [`useConvexMutation`](../../../services/platform/app/hooks/use-convex-mutation.ts),
   [`useConvexPaginatedQuery`](../../../services/platform/app/hooks/use-convex-paginated-query.ts), and
   [`useListPage`](../../../services/platform/app/hooks/use-list-page.ts) (unified infinite-scroll /
   pagination + search/filter; real site:
   [`customers-table.tsx`](../../../services/platform/app/features/customers/components/customers-table.tsx)).
+  _Why_ the gate exists and when to flip `requireAuth: false` is owned by
+  [`performance`](../performance/SKILL.md) — don't restate it here.
 - **Never mirror server state in `useState`.** `useConvexMutation`'s `optimisticUpdate` uses Convex's
-  native `.withOptimisticUpdate` (auto-rolls-back on settle/error); a local `useState` copy double-
-  sources the truth and drifts. Set `errorToast` (or `false` when the caller shows its own toast).
+  native `.withOptimisticUpdate` (auto-rolls-back on settle/error); a local `useState` copy
+  double-sources the truth and drifts. Set `errorToast` (or `false` when the caller shows its own
+  toast).
 - **Loading = `<Skeletonize loading>` masking the real tree, never a parallel mock.** Render the
-  component _once_ inside [`<Skeletonize loading>`](../../../packages/ui/src/components/feedback/skeleton-context.tsx)
-  (from `@tale/ui/skeleton-context`); skeleton-aware leaves mask themselves to their natural size via
+  component _once_ inside
+  [`<Skeletonize loading>`](../../../packages/ui/src/components/feedback/skeleton-context.tsx) (from
+  `@tale/ui/skeleton-context`); skeleton-aware leaves mask themselves to their natural size via
   `useSkeleton()`, so the skeleton can't drift from content. No `if (loading) return <Skeleton/>`
   whole-tree swap, no magic `h-[…]`. `SkeletonBox`/`SkeletonText` (from `@tale/ui/skeleton`) are only
-  for placeholder rows that have no real element to mask.
+  for placeholder rows with no real element to mask.
 - **Prefetch render-gating data in the loader to skip the skeleton.** Await
   [`ensureConvexQuery`](../../../services/platform/app/lib/loader-preload.ts) in a route loader for the
-  _small, bounded_ query that decides what renders (access/member context, the gating entity) so the
-  component reads it warm — see [`routes/dashboard/$id.tsx`](../../../services/platform/app/routes/dashboard/$id.tsx).
-  Never await a list/unbounded query: blocking the transition is worse than a skeleton.
+  _small, bounded_ query that decides what renders (access/member context, the gating entity), so the
+  component reads it warm — see
+  [`routes/dashboard/$id.tsx`](../../../services/platform/app/routes/dashboard/$id.tsx). Never await a
+  list/unbounded query: blocking the transition is worse than a skeleton. (Prefetch mechanics:
+  [`performance`](../performance/SKILL.md).)
 - **No hardcoded strings; no bare `<img>`.** Every user-facing string goes through `useT('namespace')`
   ([`@/lib/i18n/client`](../../../services/platform/lib/i18n/client.tsx) in app code;
-  [`packages/ui/src/i18n/client.tsx`](../../../packages/ui/src/i18n/client.tsx) for shared components).
-  Use `Image` from [`@tale/ui/image`](../../../packages/ui/src/components/primitives/image.tsx).
+  [`@tale/ui/i18n/client`](../../../packages/ui/src/i18n/client.tsx) for shared components). Use
+  `Image` from [`@tale/ui/image`](../../../packages/ui/src/components/primitives/image.tsx).
 - **Resist the `useEffect` reflex.** Prefer derived state in render, event handlers, or the router
   (loaders/search params) over effects that sync state. Reach for `useMemo`/`memo` only when a profile
-  justifies it. (Detail in [`performance`](../performance/SKILL.md).) Reviewer- and `react-doctor`-caught.
+  justifies it ([`performance`](../performance/SKILL.md)). Reviewer- and `react-doctor`-caught.
 - **CVA for named variants, `cn()` for boolean states.** Named axes (`variant`/`size`/`tone`) → CVA; a
-  one-off conditional class → `cn()`. Full styling doctrine in [`ui-components`](../ui-components/SKILL.md).
+  one-off conditional class → `cn()`. Full styling doctrine in
+  [`ui-components`](../ui-components/SKILL.md).
 
 ## Patterns
 
@@ -117,9 +132,9 @@ Helpers (`updateItemInListQuery` / `insertItemIntoListQuery` / `removeItemFromLi
 [`app/hooks/optimistic-updates.ts`](../../../services/platform/app/hooks/optimistic-updates.ts). Don't
 re-derive a server filter's predicate client-side — let the settle re-run the query.
 
----
+## See also
 
-→ Full guide: [`ui-components`](../ui-components/SKILL.md) (primitives, CVA, a11y, Storybook) ·
+[`ui-components`](../ui-components/SKILL.md) (primitives, CVA, a11y, Storybook) ·
 [`convex`](../convex/SKILL.md) (the queries these hooks call) ·
-[`performance`](../performance/SKILL.md) (cold-load, prefetch, memoization) ·
+[`performance`](../performance/SKILL.md) (cold-load gating, prefetch, memoization) ·
 [`testing`](../testing/SKILL.md) (Testing Library + Playwright).

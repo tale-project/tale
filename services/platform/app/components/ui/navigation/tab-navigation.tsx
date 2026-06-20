@@ -307,7 +307,13 @@ export function TabNavigation({
     <nav
       ref={navRef}
       className={cn(
-        'relative border-b border-border min-h-11 flex items-stretch shrink-0',
+        // A single fixed height for EVERY tab strip — list and detail alike.
+        // `min-h-13` (52px) clamps both a bare tab row and one carrying the
+        // taller `h-8` editor actions (Save/Discard/History) to the same height,
+        // which plain `py-3` can't do (the taller content would win). It also
+        // matches the breadcrumb header (`h-13`). `page-action-header` mirrors
+        // this so moving between tabbed and non-tabbed pages doesn't bounce.
+        'relative border-b border-border min-h-13 flex items-stretch shrink-0',
         standalone && 'bg-background z-10',
         className,
       )}

@@ -75,12 +75,16 @@ export function useProjectDependencies(projectId: Id<'projects'> | undefined) {
   return { edges: data ?? [], isLoading };
 }
 
-export function useTaskComments(taskId: Id<'tasks'> | undefined) {
+export function useTaskDiscussion(taskId: Id<'tasks'> | undefined) {
   const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.listTaskComments,
+    api.tasks.queries.getTaskDiscussion,
     taskId ? { taskId } : 'skip',
   );
-  return { comments: data ?? [], isLoading };
+  return {
+    threadId: data?.threadId ?? null,
+    comments: data?.messages ?? [],
+    isLoading,
+  };
 }
 
 export function useTaskActivity(taskId: Id<'tasks'> | undefined) {

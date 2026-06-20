@@ -22,12 +22,5 @@ export function ConversationsNavigation({
     href: `/dashboard/${organizationId}/conversations/${status}`,
   }));
 
-  return (
-    <TabNavigation
-      items={navigationItems}
-      standalone={false}
-      className="py-3"
-      prefetch
-    />
-  );
+  return <TabNavigation items={navigationItems} standalone={false} prefetch />;
 }

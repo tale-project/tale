@@ -352,6 +352,16 @@
   },
   "automations": {
     "title": "Automatisierungen",
+    "tabs": {
+      "list": "Liste",
+      "catalog": "Katalog",
+      "metrics": "Metriken"
+    },
+    "catalog": {
+      "title": "Automatisierungs-Katalog",
+      "subtitle": "Durchsuche vorgefertigte Automatisierungen und installiere sie.",
+      "installed": "Automatisierung installiert"
+    },
     "aria": {
       "openNamed": "{name} öffnen",
       "openLoop": "Schleife öffnen"
@@ -568,14 +578,14 @@
       "title": "Automatisierung erstellen",
       "tabBlank": "Leer",
       "tabTemplate": "Aus Vorlage",
-      "nameTooltip": "Wird zur ID der Automatisierung in ihrer URL. Halte sie kurz — den Anzeigenamen kannst du später ändern.",
+      "nameTooltip": "Wird zur ID der Automatisierung in ihrer URL. Füge ein / hinzu, um sie in einem Ordner abzulegen, z. B. marketing/social-posts. Den Anzeigenamen kannst du später ändern.",
       "namePlaceholder": "z. B. Social-Media-Workflow",
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
       "creating": "Erstelle...",
       "continue": "Weiter"
     },
     "uploadDialog": {
-      "menuItem": "Aus Datei hochladen…",
+      "menuItem": "Datei hochladen",
       "title": "Automatisierungen hochladen",
       "description": "Importiere Workflow-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigene Automatisierung installiert.",
       "toastSuccess": "Automatisierungen importiert"
@@ -689,7 +699,8 @@
       "createFailed": "Automatisierung konnte nicht erstellt werden"
     },
     "validation": {
-      "duplicateName": "Eine Automatisierung mit diesem Namen existiert bereits"
+      "duplicateName": "Eine Automatisierung mit diesem Namen existiert bereits",
+      "invalidName": "Der Name muss mindestens einen Buchstaben oder eine Ziffer enthalten"
     },
     "deleteAutomation": {
       "title": "Automatisierung löschen",
@@ -874,7 +885,47 @@
       "updateWorkflowStep": "Workflow-Schritt",
       "saveWorkflowDefinition": "Workflow speichern",
       "validateWorkflowDefinition": "Workflow validieren",
-      "excel": "Excel-Datei"
+      "excel": "Excel-Datei",
+      "customerWrite": "Kunde bearbeiten",
+      "productWrite": "Produkt bearbeiten",
+      "websiteRead": "Website lesen",
+      "websiteWrite": "Website bearbeiten",
+      "vendorRead": "Lieferant lesen",
+      "vendorWrite": "Lieferant bearbeiten",
+      "conversationRead": "Konversation lesen",
+      "conversationWrite": "Konversation beantworten",
+      "discussionRead": "Diskussion lesen",
+      "discussionWrite": "In Diskussion schreiben",
+      "agentRead": "Agenten ansehen",
+      "agentWrite": "Agenten verwalten",
+      "metricsRead": "Kennzahlen lesen",
+      "taskRead": "Aufgaben lesen",
+      "taskWrite": "Aufgabe bearbeiten",
+      "projectRead": "Projekte lesen",
+      "projectWrite": "Projekt bearbeiten",
+      "fileRead": "Datei lesen",
+      "fileWrite": "Datei schreiben",
+      "fileEdit": "Datei bearbeiten",
+      "fileList": "Dateien auflisten",
+      "fileDelete": "Datei löschen",
+      "runCode": "Code ausführen",
+      "generateImage": "Bild generieren",
+      "text": "Textdatei",
+      "workflowSyntax": "Workflow-Syntax",
+      "createWorkflow": "Workflow erstellen",
+      "runWorkflow": "Workflow ausführen",
+      "integration": "Integration",
+      "integrationBatch": "Batch-Integration",
+      "integrationIntrospect": "Integration prüfen",
+      "databaseSchema": "Datenbankschema",
+      "documentFind": "Dokumente finden",
+      "documentRetrieve": "Dokument abrufen",
+      "documentWrite": "Dokument schreiben",
+      "requestHumanInput": "Mensch fragen",
+      "requestUserLocation": "Standort anfragen",
+      "updateTodos": "To-do-Liste",
+      "proposeMemory": "Erinnerung vorschlagen",
+      "secretRead": "Geheimnis lesen"
     },
     "agentSelector": {
       "label": "Agent auswählen",
@@ -2265,6 +2316,7 @@
       "heading": "Alles bereit",
       "subtitle": "Das kannst du als Nächstes tun:",
       "providerItem": "Verbinde einen KI-Anbieter für Agenten und Chat.",
+      "providerConnected": "KI-Anbieter verbunden.",
       "agentItem": "Erstelle deinen ersten Agenten.",
       "inviteItem": "Lade Teammitglieder zur Zusammenarbeit ein.",
       "providerCta": "Anbieter verbinden",
@@ -4691,8 +4743,17 @@
     },
     "agents": {
       "title": "Agenten",
+      "tabs": {
+        "overview": "Übersicht",
+        "list": "Liste",
+        "metrics": "Metriken"
+      },
       "entityLabel": "Agenten",
       "createAgent": "Agent erstellen",
+      "createMenu": {
+        "blank": "Leer",
+        "fromTemplate": "Aus Vorlage"
+      },
       "searchAgent": "Agents suchen",
       "columns": {
         "displayName": "Name",
@@ -4753,7 +4814,7 @@
         "noModelsLink": "Anbieter hinzufügen"
       },
       "uploadDialog": {
-        "menuItem": "Aus Datei hochladen…",
+        "menuItem": "Datei hochladen",
         "title": "Agents hochladen",
         "description": "Importiere Agent-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigener Agent installiert.",
         "toastSuccess": "Agents importiert"
@@ -4812,9 +4873,9 @@
         "sectionAccessDescription": "Steuern, welche Teams diesen Agent verwenden können",
         "name": "Name",
         "namePlaceholder": "mein-agent",
-        "nameHelp": "Eindeutige Kennung (nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche)",
-        "nameTooltip": "Eine eindeutige, URL-sichere ID für Links und die API. Später nicht änderbar.",
-        "namePatternError": "Muss mit einem Buchstaben oder einer Zahl beginnen und darf nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche enthalten",
+        "nameHelp": "Eindeutige ID — nur Kleinbuchstaben, Zahlen, Bindestriche, Unterstriche. Füge ein / hinzu, um den Agenten in einem Ordner abzulegen, z. B. marketing/seo-writer.",
+        "nameTooltip": "Eine eindeutige, URL-sichere ID für Links und die API. Füge ein / hinzu, um den Agenten in einem Ordner abzulegen (z. B. marketing/seo-writer). Später nicht änderbar.",
+        "namePatternError": "Jeder Teil muss mit einem Buchstaben oder einer Zahl beginnen und darf nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche enthalten. Trenne Ordner mit /.",
         "displayName": "Anzeigename",
         "displayNameTooltip": "Der freundliche Name, den andere im Chat sehen. Jederzeit änderbar.",
         "displayNamePlaceholder": "Mein Agent",
@@ -4951,7 +5012,24 @@
         "webModeContextDescription": "Automatisch relevante Webergebnisse in jede Antwort einfügen",
         "webModeBothDescription": "Webergebnisse automatisch einfügen und Suche bei Bedarf ermöglichen",
         "webSearchHint": "Die Websuche durchsucht nur Inhalte von Websites, die deiner Organisation hinzugefügt wurden.",
-        "webSearchHintLink": "Websites verwalten"
+        "webSearchHintLink": "Websites verwalten",
+        "categories": {
+          "customers": "Kunden",
+          "products": "Produkte",
+          "vendors": "Lieferanten",
+          "websites": "Websites",
+          "conversations": "Konversationen",
+          "discussions": "Diskussionen",
+          "knowledge": "Wissen",
+          "tasksProjects": "Aufgaben & Projekte",
+          "agents": "Agenten",
+          "workflows": "Workflows",
+          "integrations": "Integrationen & Daten",
+          "analytics": "Analysen",
+          "web": "Web",
+          "files": "Dateien",
+          "system": "System"
+        }
       },
       "webhook": {
         "title": "Webhook",
@@ -4993,12 +5071,6 @@
         "exampleFileUploadStream": "Datei-Upload mit Streaming (SSE-Antwort)",
         "exampleOpenAICompat": "OpenAI-kompatibler Endpunkt (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI-Client-Konfiguration (z. B. Meetily)"
-      },
-      "organigram": {
-        "menuItem": "Organigramm"
-      },
-      "metrics": {
-        "link": "Metriken anzeigen"
       }
     },
     "skills": {
@@ -6440,7 +6512,6 @@
       "brandingUpdateFailed": "Branding konnte nicht aktualisiert werden",
       "addMemberFailed": "Mitglied konnte nicht hinzugefügt werden",
       "automationDuplicateFailed": "Automatisierung konnte nicht dupliziert werden",
-      "automationRenameFailed": "Automatisierung konnte nicht umbenannt werden",
       "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden",
       "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
     }
@@ -7079,6 +7150,102 @@
       "cancel": "Abbrechen"
     }
   },
+  "discussions": {
+    "categories": {
+      "general": "Allgemein",
+      "qa": "Fragen & Antworten",
+      "ideas": "Ideen",
+      "decisions": "Entscheidungen",
+      "announcements": "Ankündigungen",
+      "show-and-tell": "Zeigen & Erzählen",
+      "polls": "Umfragen"
+    },
+    "title": "Diskussionen",
+    "subtitle": "Themen-Konversationen für dieses Projekt — Fragen stellen, Entscheidungen treffen und einen Agenten per @ einbeziehen.",
+    "new": "Neue Diskussion",
+    "empty": "Noch keine Diskussionen. Starte eine, um eine Frage zu stellen oder eine Entscheidung zu treffen.",
+    "untitled": "Diskussion ohne Titel",
+    "backToList": "Zurück zu den Diskussionen",
+    "resolve": "Lösen",
+    "reopen": "Wieder öffnen",
+    "lock": "Sperren",
+    "unlock": "Entsperren",
+    "status": {
+      "open": "Offen",
+      "resolved": "Gelöst",
+      "locked": "Gesperrt",
+      "failed": "Diskussionsstatus konnte nicht aktualisiert werden"
+    },
+    "spawnTask": {
+      "cta": "Aufgabe erstellen",
+      "success": "Aufgabe aus Diskussion erstellt",
+      "failed": "Aufgabe konnte nicht erstellt werden",
+      "converted": "In Aufgabe umgewandelt",
+      "viewTask": "Aufgabe ansehen",
+      "alreadyConverted": "Diese Diskussion ist bereits eine Aufgabe"
+    },
+    "reply": {
+      "placeholder": "Antworten… mit @ ein Teammitglied oder einen Agenten erwähnen",
+      "lockedPlaceholder": "Diese Diskussion ist gesperrt",
+      "hint": "Erwähne einen Agenten mit @, damit er antwortet.",
+      "failed": "Antwort konnte nicht gesendet werden"
+    },
+    "create": {
+      "title": "Neue Diskussion",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "Worum geht es in dieser Diskussion?",
+      "titleRequired": "Zuerst einen Titel hinzufügen",
+      "category": "Kategorie",
+      "bodyPlaceholder": "Diskussion beginnen… mit @ ein Teammitglied oder einen Agenten erwähnen",
+      "hint": "Zum Öffnen der Diskussion senden. Erwähne einen Agenten mit @, um ihn einzubeziehen.",
+      "cancel": "Abbrechen",
+      "failed": "Diskussion konnte nicht erstellt werden"
+    },
+    "aria": {
+      "transcript": "Diskussionsnachrichten"
+    }
+  },
+  "agentCatalog": {
+    "folders": {
+      "workforce": "Belegschaft",
+      "chat": "Chat",
+      "github": "GitHub",
+      "other": "Sonstige"
+    },
+    "loadError": {
+      "title": "Katalog konnte nicht geladen werden",
+      "description": "Der Agentenkatalog konnte nicht geladen werden. Prüfe deine Verbindung und versuch es erneut.",
+      "retry": "Erneut versuchen"
+    },
+    "noResults": {
+      "title": "Keine passenden Agenten",
+      "description": "Keine Agenten passen zu deiner Suche. Versuch einen anderen Begriff."
+    },
+    "title": "Agentenkatalog",
+    "subtitle": "Durchsuche die KI-Belegschaft nach Abteilung und installiere, aktiviere oder deaktiviere Agenten für deine Organisation.",
+    "menuItem": "Katalog",
+    "searchPlaceholder": "Agenten suchen…",
+    "install": "Installieren",
+    "enable": "Aktivieren",
+    "disable": "Deaktivieren",
+    "uninstall": "Deinstallieren",
+    "installed": "Agent installiert",
+    "enabled": "Agent aktiviert",
+    "disabled": "Agent deaktiviert",
+    "uninstalled": "Agent deinstalliert",
+    "error": "Agentenliste konnte nicht aktualisiert werden",
+    "installedByIntegration": "Installiert von {integration}",
+    "requiresIntegration": "Erfordert {integration}",
+    "status": {
+      "available": "Verfügbar",
+      "enabled": "Aktiviert",
+      "disabled": "Deaktiviert"
+    },
+    "empty": {
+      "title": "Keine Katalog-Agenten",
+      "description": "Für diese Organisation wurden keine installierbaren Agenten gefunden."
+    }
+  },
   "organigram": {
     "title": "Organigramm",
     "subtitle": "Wie deine KI-Belegschaft Arbeit delegiert — Delegation, Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe folgen alle diesen Kanten.",
@@ -7110,7 +7277,6 @@
     "unsavedChanges": "Nicht gespeicherte Änderungen"
   },
   "workforce": {
-    "title": "Workforce",
     "subtitle": "Wie deine KI-Workforce arbeitet: Ergebnisse, menschliche Eingriffe und Kosten — immer zusammen.",
     "period": {
       "label": "Zeitraum",

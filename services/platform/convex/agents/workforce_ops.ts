@@ -41,14 +41,16 @@ import {
   MAX_FILE_SIZE_BYTES,
   MAX_HISTORY_ENTRIES,
   parseAgentJson,
-  resolveAgentFilePath,
   resolveHistoryDir,
   serializeAgentJson,
   type AgentJsonConfig,
 } from './file_utils';
 import { DEFAULT_AGENT_WORKFORCE } from './guardrails/budget_guard';
-import { invalidateAgentListCache } from './internal_actions';
-import { listAgentsForOrg } from './internal_actions';
+import {
+  invalidateAgentListCache,
+  listAgentsForOrg,
+  resolveAgentPath,
+} from './internal_actions';
 import {
   buildOrgChart,
   chainOfCommand,
@@ -409,7 +411,7 @@ export const reassignOrUnassign = internalAction({
 
 // ---------------------------------------------------------------------------
 // Delegation-edge writers (shared by the organigram UI actions and the
-// organigram_write agent tool — validation lives HERE so every writer gets it).
+// agent_write agent tool — validation lives HERE so every writer gets it).
 //
 // The graph is a many-to-many DELEGATION graph stored as each agent's
 // `delegates` array (the agents it delegates to). There is no limitation
@@ -427,7 +429,7 @@ async function snapshotAgentHistory(
   orgSlug: string,
   agentSlug: string,
 ): Promise<void> {
-  const filePath = resolveAgentFilePath(orgSlug, agentSlug);
+  const filePath = await resolveAgentPath(orgSlug, agentSlug);
   const currentContent = await readFileSafe(filePath);
   if (!currentContent) return;
   const historyDir = resolveHistoryDir(orgSlug, agentSlug);
@@ -493,7 +495,7 @@ export async function writeAgentDelegates(args: {
   }
   const next = sanitizeTargets(args.delegateSlugs, agentSlug, slugs);
 
-  const filePath = resolveAgentFilePath(orgSlug, agentSlug);
+  const filePath = await resolveAgentPath(orgSlug, agentSlug);
   const config = await readAgentConfig(filePath);
   const previous = config.delegates ?? [];
   if (next.length > 0) config.delegates = next;
@@ -533,7 +535,7 @@ export async function writeAgentParents(args: {
     const has = entry.delegates.includes(agentSlug);
     const should = desired.has(entry.slug);
     if (has === should) continue;
-    const filePath = resolveAgentFilePath(orgSlug, entry.slug);
+    const filePath = await resolveAgentPath(orgSlug, entry.slug);
     const config = await readAgentConfig(filePath).catch(() => null);
     if (!config) continue;
     const updated = should
@@ -550,7 +552,7 @@ export async function writeAgentParents(args: {
 }
 
 // ---------------------------------------------------------------------------
-// Agent-tool surface (consumed by the `organigram_read` / `organigram_write`
+// Agent-tool surface (consumed by the `agent_read` / `agent_write`
 // agent tools)
 // ---------------------------------------------------------------------------
 

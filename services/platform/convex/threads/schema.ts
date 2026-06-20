@@ -232,6 +232,40 @@ export const threadMetadataTable = defineTable({
    * the toggle reflecting reality).
    */
   externalAgentMode: v.optional(v.union(v.literal('plan'), v.literal('act'))),
+  /**
+   * Discussions reuse this thread/message store. `kind` distinguishes a normal
+   * chat (absent or 'chat') from a GitHub-Discussions-style project discussion
+   * or a task discussion. Project/task discussions are accessible to project
+   * members (see `can_access_thread`), not just the owner. The fields below are
+   * all optional + additive — a `chat` thread behaves exactly as before.
+   */
+  kind: v.optional(
+    v.union(
+      v.literal('chat'),
+      v.literal('project_discussion'),
+      v.literal('task_discussion'),
+    ),
+  ),
+  /** Task a `task_discussion` is attached to. */
+  taskId: v.optional(v.id('tasks')),
+  /** Discussion lifecycle (orthogonal to the retention `status` field). */
+  discussionStatus: v.optional(
+    v.union(v.literal('open'), v.literal('resolved'), v.literal('locked')),
+  ),
+  /** Category slug (general/qa/ideas/decisions/announcements). */
+  discussionCategory: v.optional(v.string()),
+  /** For a Q&A discussion, the message marked as the accepted answer. */
+  acceptedAnswerMessageId: v.optional(v.string()),
+  /** A task spawned from this discussion (bidirectional with tasks.sourceDiscussionThreadId). */
+  linkedTaskId: v.optional(v.id('tasks')),
+  /**
+   * Agent→agent reply-chain depth for the discussion loop guard. Incremented
+   * when an agent reply is triggered by another agent; reset to 0 by any human
+   * reply. The discussion reply path refuses to dispatch once this exceeds the
+   * `MAX_AGENT_REPLY_CHAIN_DEPTH` constant (lib/shared/constants/discussions),
+   * bounding runaway agent chatter.
+   */
+  agentReplyDepth: v.optional(v.number()),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [
@@ -271,7 +305,10 @@ export const threadMetadataTable = defineTable({
   .index('by_organizationId_and_projectId', ['organizationId', 'projectId'])
   // Projects feature: "my chats in this project" — used by the Threads tab's
   // "Your chats" segment without scanning all threads in the project first.
-  .index('by_projectId_and_userId', ['projectId', 'userId']);
+  .index('by_projectId_and_userId', ['projectId', 'userId'])
+  // Discussions: list a project's discussions, and a task's discussion(s).
+  .index('by_kind_projectId', ['kind', 'projectId'])
+  .index('by_kind_taskId', ['kind', 'taskId']);
 
 /**
  * Messages sent while a turn is running (Claude-Code-TUI-style "keep typing

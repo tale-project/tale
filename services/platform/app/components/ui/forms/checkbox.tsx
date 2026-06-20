@@ -103,10 +103,21 @@ const CheckboxBase = React.forwardRef<
       );
     }
 
+    // `items-start` keeps the box pinned to the FIRST line of the label (not
+    // centered over the whole block) when the text wraps. `leading-5` makes that
+    // first line a 1.25rem box and `mt-0.5` nudges the 1rem checkbox to sit
+    // centered within it, so single-line rows still read as vertically centered.
+    // The checkbox stays a direct previous sibling of the label (offset via the
+    // `[&>button]` variant, not a wrapper) so the label's `peer-disabled:` styles
+    // keep working.
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2 [&>button]:mt-0.5">
         {checkbox}
-        <Label htmlFor={id} required={required} className="cursor-pointer">
+        <Label
+          htmlFor={id}
+          required={required}
+          className="cursor-pointer leading-5"
+        >
           {label}
         </Label>
       </div>

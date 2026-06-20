@@ -1,0 +1,84 @@
+{
+  "name": "Triage a new discussion",
+  "description": "Routes a new project discussion to the right teammate. When a discussion is opened (by a human or an agent — never by the automation engine itself), the Project Manager reads it and posts ONE short reply: either @-mentioning the most relevant teammate to bring them in (which hands off to the react-to-mention-in-discussion workflow) or asking a clarifying question when the topic is broad. Agent→agent hand-offs are bounded by the discussion reply-depth guard. If the Project Manager agent is uninstalled the run is skipped cleanly. Tune the host agent or deactivate the trigger in Automations.",
+  "i18n": {
+    "en": {
+      "name": "Triage a new discussion",
+      "description": "When a discussion is opened, the Project Manager reads it and posts one reply routing it to the right teammate or asking a clarifying question."
+    },
+    "de": {
+      "name": "Neue Diskussion triagieren",
+      "description": "Wird eine Diskussion eröffnet, liest der Projektmanager sie und antwortet einmal, um sie an die richtige Person weiterzuleiten oder eine Rückfrage zu stellen."
+    },
+    "fr": {
+      "name": "Trier une nouvelle discussion",
+      "description": "Quand une discussion est ouverte, le chef de projet la lit et publie une réponse pour l'orienter vers la bonne personne ou poser une question de clarification."
+    }
+  },
+  "version": "1.0.0",
+  "metadata": {
+    "labels": ["Discussions", "Automation"],
+    "autoInstall": true
+  },
+  "triggers": {
+    "events": [
+      {
+        "eventType": "discussion.created"
+      }
+    ]
+  },
+  "config": {
+    "timeout": 600000,
+    "variables": {
+      "workflowId": "discussions_triage"
+    }
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "not_workflow"
+      }
+    },
+    {
+      "stepSlug": "not_workflow",
+      "name": "Ignore automation-opened discussions",
+      "stepType": "condition",
+      "config": {
+        "expression": "input.actorType != 'workflow'",
+        "description": "Don't react to discussions opened by the automation engine itself — only to human- or agent-opened ones."
+      },
+      "nextSteps": {
+        "true": "route",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "route",
+      "name": "Route the discussion via the Project Manager",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "run_on_discussion",
+          "agentSlug": "project-manager",
+          "threadId": "{{input.threadId}}",
+          "instructions": "A new discussion was just opened in this project. Read it. If it clearly falls in one teammate's area, post a short reply that @-mentions that teammate (by slug) to bring them in. If it is broad or still unclear, post a brief welcoming reply with one clarifying question. Keep it to 2-3 sentences and do not answer the question yourself."
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}

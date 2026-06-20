@@ -1,5 +1,5 @@
 ---
-description: Conventions for Python in this repo — ruff (format + lint), type hints, pydantic/dataclasses, pathlib, f-strings, specific-exception handling, context managers, and uv for deps/runs.
+description: Conventions for the repo's only Python — ruff (format + lint), full type hints, pathlib over os.path, f-strings, specific-exception handling, context managers, defusedxml for untrusted XML, and uv to run.
 globs: **/*.py
 alwaysApply: false
 ---

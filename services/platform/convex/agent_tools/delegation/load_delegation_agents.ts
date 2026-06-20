@@ -9,13 +9,16 @@
 import { readFile, stat } from 'node:fs/promises';
 
 import { resolveAgentLocale } from '../../../lib/shared/utils/resolve-agent-locale';
+import { isRecord } from '../../../lib/utils/type-utils';
 import type { ActionCtx } from '../../_generated/server';
 import { toSerializableConfig } from '../../agents/config';
 import {
   MAX_FILE_SIZE_BYTES,
   parseAgentJson,
   resolveAgentFilePath,
+  resolveAgentFilePathFromRelative,
 } from '../../agents/file_utils';
+import { resolveAgentRelativePath } from '../../agents/internal_actions';
 import type { DelegateAgentMeta } from './create_delegation_tool';
 
 export async function loadDelegateAgents(
@@ -31,7 +34,15 @@ export async function loadDelegateAgents(
 
   for (const name of delegateNames) {
     try {
-      const filePath = resolveAgentFilePath(orgSlug, name);
+      // Locate the backing file through the folder-aware index (chat/,
+      // workforce/, github/, …) — a flat `<slug>.json` fallback covers a
+      // brand-new file written before the 60s index cache refreshed. Without
+      // this, every foldered agent (the entire workforce) resolved to a
+      // non-existent flat path and was silently skipped as "not found".
+      const rel = await resolveAgentRelativePath(orgSlug, name);
+      const filePath = rel
+        ? resolveAgentFilePathFromRelative(orgSlug, rel)
+        : resolveAgentFilePath(orgSlug, name);
       const fileStat = await stat(filePath);
       if (fileStat.size > MAX_FILE_SIZE_BYTES) {
         console.warn(
@@ -68,10 +79,7 @@ export async function loadDelegateAgents(
     } catch (err) {
       // ENOENT = the delegate file was removed (expected; quiet). Anything else
       // (parse / validation error) is a config bug the operator must see.
-      const code =
-        err != null && typeof err === 'object'
-          ? Reflect.get(err, 'code')
-          : undefined;
+      const code = isRecord(err) ? err.code : undefined;
       if (code === 'ENOENT') {
         console.warn(`Delegate agent "${name}" not found; skipping.`);
       } else {

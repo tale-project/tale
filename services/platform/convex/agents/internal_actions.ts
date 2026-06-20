@@ -1,7 +1,5 @@
 'use node';
 
-import { readdir } from 'node:fs/promises';
-
 import type { Infer } from 'convex/values';
 import { v } from 'convex/values';
 
@@ -10,7 +8,7 @@ import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { getPollingInterval } from '../documents/internal_actions';
-import { handleDirReadError, readJsonFile } from '../lib/file_io';
+import { readJsonFile } from '../lib/file_io';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { uploadDocument } from '../workflow_engine/action_defs/rag/helpers/upload_document';
@@ -18,13 +16,14 @@ import { resolveAgentDisplay } from './config';
 import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
-  agentNameFromFileName,
+  effectiveAgentSlug,
   parseAgentJson,
   resolveAgentFilePath,
-  resolveAgentsDir,
-  validateAgentName,
+  resolveAgentFilePathFromRelative,
+  walkAgentRelativePaths,
 } from './file_utils';
 import { knowledgeFileRagStatusValidator } from './schema';
+import { agentSlugFromFileName } from './validators';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
 const MAX_POLLING_ATTEMPTS = 50;
@@ -44,10 +43,14 @@ const MAX_POLLING_ATTEMPTS = 50;
 // (≤60s), which is an acceptable trade for keeping every warm Auto turn of a
 // session off the multi-file agent-JSON disk read. Module cache resets on deploy.
 const AGENT_LIST_CACHE_TTL_MS = 60_000;
-const agentListCache = new Map<
-  string,
-  { entries: unknown[]; expiresAt: number }
->();
+interface AgentIndex {
+  /** Projected roster entries (consumed by router / chart / settings). */
+  entries: unknown[];
+  /** slug → relative file path (`workforce/ceo.json`) for read/write resolution. */
+  slugToPath: Map<string, string>;
+  expiresAt: number;
+}
+const agentListCache = new Map<string, AgentIndex>();
 
 /**
  * Write-through cache drop for org-chart writes (`writeAgentDelegates` /
@@ -250,11 +253,12 @@ export const deleteKnowledgeFileFromRag = internalAction({
 // REST API helpers — internal actions for listing/reading agent configs
 // ---------------------------------------------------------------------------
 
-async function readAgentFileInternal(
+/** Read + parse one agent file at a known relative path (`workforce/ceo.json`). */
+async function readAgentByRelPath(
   orgSlug: string,
-  agentName: string,
+  relativePath: string,
 ): Promise<AgentReadResult> {
-  const filePath = resolveAgentFilePath(orgSlug, agentName);
+  const filePath = resolveAgentFilePathFromRelative(orgSlug, relativePath);
   const result = await readJsonFile<AgentJsonConfig>(
     filePath,
     MAX_FILE_SIZE_BYTES,
@@ -267,92 +271,193 @@ async function readAgentFileInternal(
 }
 
 /**
+ * Build (or return cached) the org's agent index: the projected roster entries
+ * AND the slug→relativePath map. ONE recursive scan over the folder tree
+ * (chat/, workforce/, github/, …); identity is the config's explicit `slug`
+ * (basename fallback). Duplicate slugs are dropped (first wins) with a warning —
+ * a misauthored catalog should never silently shadow an agent. The 60s TTL +
+ * write-through `invalidateAgentListCache` keep this off the disk on warm turns.
+ */
+async function buildAgentIndex(orgSlug: string): Promise<AgentIndex> {
+  const relPaths = await walkAgentRelativePaths(orgSlug);
+  const slugToPath = new Map<string, string>();
+
+  const projected = (
+    await Promise.all(
+      relPaths.map(async (relativePath) => {
+        const result = await readAgentByRelPath(orgSlug, relativePath);
+        // Unreadable file: identity falls back to the basename (no parsed
+        // config to read `slug` from). `agentSlugFromFileName` is the shared
+        // basename helper — it never returns undefined (no `!` needed).
+        const slug = result.ok
+          ? effectiveAgentSlug(result.config, relativePath)
+          : agentSlugFromFileName(relativePath);
+
+        if (slugToPath.has(slug)) {
+          console.warn(
+            `[agents.buildAgentIndex] duplicate agent slug "${slug}" — keeping ${slugToPath.get(
+              slug,
+            )}, ignoring ${relativePath}`,
+          );
+          return null;
+        }
+        slugToPath.set(slug, relativePath);
+
+        if (result.ok) {
+          // Resolve display fields from i18n — descriptions/starters live under
+          // `i18n.<locale>`, not top-level, so reading them raw yields undefined
+          // and the Auto router would see every agent as a blank assistant.
+          const display = resolveAgentDisplay(result.config);
+          return {
+            // `name` IS the canonical slug (router/chart/mention consume it).
+            name: slug,
+            slug,
+            displayName: display.displayName,
+            description: display.description,
+            visibleInChat: result.config.visibleInChat,
+            primaryBehavior: result.config.primaryBehavior,
+            supportedModels: result.config.supportedModels,
+            toolNames: result.config.toolNames,
+            roleRestriction: result.config.roleRestriction,
+            conversationStarters: display.conversationStarters,
+            isRouter: result.config.isRouter,
+            uiConfigurable: result.config.uiConfigurable,
+            i18n: result.config.i18n,
+            // Workforce projections (org chart + guardrails) shared via this cache.
+            delegates: result.config.delegates,
+            budget: result.config.budget,
+            maxConcurrentTasks: result.config.maxConcurrentTasks,
+            // Install/catalog/cascade metadata (autoInstall, group, requires, …).
+            metadata: result.config.metadata,
+          };
+        }
+        return {
+          name: slug,
+          slug,
+          status: result.error,
+          message: result.message,
+        };
+      }),
+    )
+  ).filter(Boolean);
+
+  const index: AgentIndex = {
+    entries: projected,
+    slugToPath,
+    expiresAt: Date.now() + AGENT_LIST_CACHE_TTL_MS,
+  };
+  agentListCache.set(orgSlug, index);
+  return index;
+}
+
+/** Ensure the index is warm and return it (cache hit or fresh build). */
+async function ensureAgentIndex(orgSlug: string): Promise<AgentIndex> {
+  const cached = agentListCache.get(orgSlug);
+  if (cached && cached.expiresAt > Date.now()) return cached;
+  return buildAgentIndex(orgSlug);
+}
+
+/**
  * The agent-list projection, as a plain (non-action) async function so callers
  * already running in the Node runtime can invoke it DIRECTLY instead of paying
  * a cross-action `runAction` dispatch. `resolveAutoRoute` does exactly this on
- * EVERY Auto turn (including cached/short-circuited routes), so removing that
- * hop — while still sharing this module's `agentListCache` (module scope is one
- * instance per isolate) — cuts the dominant per-route overhead on a self-hosted
- * backend. The `internalAction` below is the thin wrapper for cross-runtime
- * callers (queries/mutations reach it via the scheduler/runAction).
+ * EVERY Auto turn. Shares this module's `agentListCache` (one instance per
+ * isolate). The `internalAction` below is the thin cross-runtime wrapper.
  */
 export async function listAgentsForOrg(orgSlug: string): Promise<unknown[]> {
-  const cached = agentListCache.get(orgSlug);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.entries;
-  }
+  return (await ensureAgentIndex(orgSlug)).entries;
+}
 
-  const dir = resolveAgentsDir(orgSlug);
-  let entries: string[];
-  try {
-    entries = await readdir(dir);
-  } catch (err) {
-    handleDirReadError(err, 'agents.listAgentsInternal');
-    return [];
-  }
-
-  const jsonFiles = entries.filter(
-    (e) => e.endsWith('.json') && !e.startsWith('.'),
+/**
+ * The roster GATE: the agents that are actually LIVE for an org — installed &&
+ * enabled. This is what the router (`resolveAutoRoute`) and other roster
+ * consumers see, so a disabled/uninstalled agent is never a routing candidate.
+ *
+ * Fallback: an org with ZERO install rows is treated as un-provisioned and is
+ * NOT gated (returns the full catalog) — so a legacy/just-upgraded org never
+ * loses its roster before the autoInstall provisioner runs. Once any install
+ * row exists the gate is authoritative. The system router (`isRouter`) is never
+ * gated out.
+ */
+export async function listInstalledAgentsForOrg(
+  ctx: ActionCtx,
+  organizationId: string,
+  orgSlug: string,
+): Promise<unknown[]> {
+  const entries = await listAgentsForOrg(orgSlug);
+  const states = await ctx.runQuery(
+    internal.agents.installations.listInstallStatesInternal,
+    { organizationId },
   );
-
-  const results = await Promise.all(
-    jsonFiles.map(async (fileName) => {
-      const agentName = agentNameFromFileName(fileName);
-      if (!validateAgentName(agentName)) return null;
-      const result = await readAgentFileInternal(orgSlug, agentName);
-      if (result.ok) {
-        // Resolve display fields from i18n — descriptions/starters live under
-        // `i18n.<locale>`, not top-level, so reading them raw yields undefined
-        // and the Auto router would see every agent as a blank
-        // "General-purpose assistant." and never route to a specialist.
-        const display = resolveAgentDisplay(result.config);
-        return {
-          name: agentName,
-          displayName: display.displayName,
-          description: display.description,
-          visibleInChat: result.config.visibleInChat,
-          // Required by `filterRoutingCandidates` to exclude
-          // image-generation agents from chat routing — without projecting
-          // it here that filter silently never fires (the field is undefined
-          // on the route path) and an image agent becomes a live candidate.
-          primaryBehavior: result.config.primaryBehavior,
-          supportedModels: result.config.supportedModels,
-          toolNames: result.config.toolNames,
-          roleRestriction: result.config.roleRestriction,
-          conversationStarters: display.conversationStarters,
-          isRouter: result.config.isRouter,
-          uiConfigurable: result.config.uiConfigurable,
-          i18n: result.config.i18n,
-          // Workforce projections (org chart + guardrail surfaces): shared
-          // through this 60s cache so chart readers, delegation merging, and
-          // the organigram UI never need a second dir scan.
-          delegates: result.config.delegates,
-          budget: result.config.budget,
-          maxConcurrentTasks: result.config.maxConcurrentTasks,
-        };
-      }
-      return {
-        name: agentName,
-        status: result.error,
-        message: result.message,
-      };
-    }),
-  );
-
-  const projected = results.filter(Boolean);
-  agentListCache.set(orgSlug, {
-    entries: projected,
-    expiresAt: Date.now() + AGENT_LIST_CACHE_TTL_MS,
+  if (states.length === 0) return entries;
+  const bySlug = new Map(states.map((s) => [s.agentSlug, s] as const));
+  return entries.filter((e) => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- entries come from buildAgentIndex's v.any() projection; we read only slug/name/isRouter for the gate
+    const entry = e as { slug?: string; name?: string; isRouter?: boolean };
+    if (entry.isRouter === true) return true;
+    const slug = entry.slug ?? entry.name;
+    if (!slug) return false;
+    return bySlug.get(slug)?.enabled === true;
   });
-  return projected;
+}
+
+/**
+ * Resolve a slug → relative file path (`workforce/ceo.json`) via the index, so
+ * reads/writes/history locate the backing file wherever it lives in the folder
+ * tree. Returns undefined for an unknown slug (caller falls back to the flat
+ * `<slug>.json` path for new-file creation).
+ */
+export async function resolveAgentRelativePath(
+  orgSlug: string,
+  slug: string,
+): Promise<string | undefined> {
+  return (await ensureAgentIndex(orgSlug)).slugToPath.get(slug);
+}
+
+/**
+ * Absolute path of the file backing an EXISTING agent slug — located through
+ * the folder-aware index so an edit/delete/history/delegation op writes back to
+ * wherever the file lives (chat/, workforce/, github/, …). Falls back to the
+ * flat `<slug>.json` path when the slug isn't indexed (a brand-new agent, or a
+ * file written in this isolate before the 60s cache refreshed). Shared by every
+ * read/write path so file location is resolved in exactly one place.
+ */
+export async function resolveAgentPath(
+  orgSlug: string,
+  slug: string,
+): Promise<string> {
+  const rel = await resolveAgentRelativePath(orgSlug, slug);
+  return rel
+    ? resolveAgentFilePathFromRelative(orgSlug, rel)
+    : resolveAgentFilePath(orgSlug, slug);
+}
+
+/**
+ * Read one agent's config by slug, locating the file through the index. Falls
+ * back to the flat `<slug>.json` path when the slug isn't indexed yet (e.g. a
+ * file written in this isolate before the cache refreshed).
+ */
+export async function readAgentBySlug(
+  orgSlug: string,
+  slug: string,
+): Promise<AgentReadResult> {
+  const rel = await resolveAgentRelativePath(orgSlug, slug);
+  if (rel) return readAgentByRelPath(orgSlug, rel);
+  return readAgentByRelPath(orgSlug, `${slug}.json`);
 }
 
 export const listAgentsInternal = internalAction({
   args: {
     orgSlug: v.string(),
+    // Optional for back-compat: when provided, the roster is gated to
+    // installed && enabled agents; when omitted, the full catalog is returned.
+    organizationId: v.optional(v.string()),
   },
   returns: v.any(),
-  handler: async (_ctx, args) => listAgentsForOrg(args.orgSlug),
+  handler: async (ctx, args) =>
+    args.organizationId
+      ? listInstalledAgentsForOrg(ctx, args.organizationId, args.orgSlug)
+      : listAgentsForOrg(args.orgSlug),
 });
 
 export const readAgentInternal = internalAction({
@@ -362,6 +467,6 @@ export const readAgentInternal = internalAction({
   },
   returns: v.any(),
   handler: async (_ctx, args) => {
-    return readAgentFileInternal(args.orgSlug, args.agentName);
+    return readAgentBySlug(args.orgSlug, args.agentName);
   },
 });

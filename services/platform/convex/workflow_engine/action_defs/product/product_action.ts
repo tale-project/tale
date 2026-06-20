@@ -158,20 +158,18 @@ export const productAction: ActionDefinition<ProductActionParams> = {
     }),
   ),
   async execute(ctx, params, variables) {
-    // Read organizationId from workflow context variables
-    const organizationId =
-      typeof variables.organizationId === 'string'
-        ? variables.organizationId
-        : undefined;
+    // Read organizationId from workflow context variables. Required for every
+    // operation — it org-scopes both writes and reads (the cross-tenant IDOR
+    // boundary), so validate once up front like the sibling actions.
+    const organizationId = variables.organizationId;
+    if (typeof organizationId !== 'string' || !organizationId) {
+      throw new Error(
+        'product action requires a non-empty string organizationId in workflow context',
+      );
+    }
 
     switch (params.operation) {
       case 'create': {
-        if (!organizationId) {
-          throw new Error(
-            'product create requires organizationId in workflow context',
-          );
-        }
-
         const rawResult = await ctx.runMutation(
           internal.products.internal_mutations.ingestProduct,
           {
@@ -200,7 +198,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const createdProduct = await ctx.runQuery(
           internal.products.internal_queries.getProductById,
-          { productId: result.productId },
+          { productId: result.productId, callerOrgId: organizationId },
         );
 
         return createdProduct;
@@ -208,10 +206,13 @@ export const productAction: ActionDefinition<ProductActionParams> = {
 
       case 'get_by_id': {
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        // callerOrgId org-scopes the read so a workflow can't fetch another
+        // tenant's product by id.
         const product = await ctx.runQuery(
           internal.products.internal_queries.getProductById,
           {
             productId: toId<'products'>(params.productId),
+            callerOrgId: organizationId,
           },
         );
 
@@ -219,12 +220,6 @@ export const productAction: ActionDefinition<ProductActionParams> = {
       }
 
       case 'query': {
-        if (!organizationId) {
-          throw new Error(
-            'product query requires organizationId in workflow context',
-          );
-        }
-
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- queryProducts returns QueryResult shape (paginated response)
         const result = (await ctx.runQuery(
           internal.products.internal_queries.queryProducts,
@@ -250,6 +245,9 @@ export const productAction: ActionDefinition<ProductActionParams> = {
           {
             productId: toId<'products'>(params.productId),
             updates: params.updates,
+            // Org-scope the patch so a workflow can't update another tenant's
+            // product by id (mirrors vendor_action / website_action).
+            callerOrgId: organizationId,
           },
         );
 
@@ -257,7 +255,10 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const updatedProduct = await ctx.runQuery(
           internal.products.internal_queries.getProductById,
-          { productId: toId<'products'>(params.productId) },
+          {
+            productId: toId<'products'>(params.productId),
+            callerOrgId: organizationId,
+          },
         );
 
         return updatedProduct;
@@ -266,12 +267,6 @@ export const productAction: ActionDefinition<ProductActionParams> = {
       case 'filter': {
         // ⚠️ WARNING: This operation loops through ALL products in the organization.
         // Use with caution on large datasets. For simple queries, prefer the 'query' operation.
-        if (!organizationId) {
-          throw new Error(
-            'product filter requires organizationId in workflow context',
-          );
-        }
-
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- filterProducts returns { products, count } shape
         const result = (await ctx.runQuery(
@@ -306,6 +301,9 @@ export const productAction: ActionDefinition<ProductActionParams> = {
               internal.products.internal_queries.getProductById,
               {
                 productId: toId<'products'>(idVal),
+                // Org-scope the read so a workflow can't hydrate fields from
+                // another tenant's product by smuggling its id into `items`.
+                callerOrgId: organizationId,
               },
             );
             const out: Record<string, unknown> = { ...item };
@@ -327,7 +325,10 @@ export const productAction: ActionDefinition<ProductActionParams> = {
               }
             }
             hydrated.push(out);
-          } catch {
+          } catch (err) {
+            // Resilient by design: a single bad/unknown id must not abort the
+            // whole batch — keep the original item. Log so the drop is visible.
+            console.warn('product hydrate_fields: skipped item', err);
             hydrated.push(item);
           }
         }

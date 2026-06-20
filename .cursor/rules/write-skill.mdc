@@ -1,5 +1,5 @@
 ---
-description: How to author or edit a skill under .claude/skills/ so the set stays consistent and discoverable.
+description: How to author or edit a skill under .claude/skills/ so the set stays consistent, discoverable, and free of stale paths.
 globs: .claude/skills/**
 alwaysApply: false
 ---

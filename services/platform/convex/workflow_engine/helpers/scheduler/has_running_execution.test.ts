@@ -45,7 +45,7 @@ function createMockCtx(executions: MockExecution[]) {
 
 const orgA = 'org_a';
 const orgB = 'org_b';
-const packSlug = 'tasks/daily-digest';
+const packSlug = 'projects/tasks/send-daily-digest';
 
 describe('hasRunningExecutionForOrg', () => {
   it('returns true when a running execution exists in the org', async () => {
@@ -170,7 +170,7 @@ describe('hasRunningExecutionsForOrgs', () => {
       {
         _id: 'exec_2',
         organizationId: orgB,
-        workflowSlug: 'tasks/sla-enforcement',
+        workflowSlug: 'projects/tasks/enforce-task-slas',
         status: 'pending',
       },
     ]);
@@ -179,13 +179,16 @@ describe('hasRunningExecutionsForOrgs', () => {
       keys: [
         { organizationId: orgA, workflowSlug: packSlug },
         { organizationId: orgB, workflowSlug: packSlug },
-        { organizationId: orgB, workflowSlug: 'tasks/sla-enforcement' },
+        {
+          organizationId: orgB,
+          workflowSlug: 'projects/tasks/enforce-task-slas',
+        },
       ],
     });
 
     expect(result.get(`${orgA}::${packSlug}`)).toBe(true);
     expect(result.get(`${orgB}::${packSlug}`)).toBe(false);
-    expect(result.get(`${orgB}::tasks/sla-enforcement`)).toBe(true);
+    expect(result.get(`${orgB}::projects/tasks/enforce-task-slas`)).toBe(true);
   });
 
   it('returns all false for empty executions', async () => {

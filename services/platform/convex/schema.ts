@@ -5,7 +5,12 @@ import {
   agentGuardrailNoticesTable,
   agentRunCountersTable,
 } from './agents/guardrails/schema';
-import { agentBindingsTable, autoRouteCacheTable } from './agents/schema';
+import {
+  agentBindingsTable,
+  agentDefaultProvisionsTable,
+  agentInstallationsTable,
+  autoRouteCacheTable,
+} from './agents/schema';
 import {
   agentWebhooksTable,
   agentWebhookUserThreadsTable,
@@ -107,8 +112,8 @@ import {
 import {
   boardViewsTable,
   taskActivityTable,
-  taskCommentsTable,
   taskDependenciesTable,
+  taskDiscussionMessageMetaTable,
   tasksTable,
 } from './tasks/schema';
 import { threadFilesTable } from './thread_files/schema';
@@ -189,6 +194,8 @@ export default defineSchema({
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
   agentBindings: agentBindingsTable,
+  agentInstallations: agentInstallationsTable,
+  agentDefaultProvisions: agentDefaultProvisionsTable,
   autoRouteCache: autoRouteCacheTable,
   agentWebhooks: agentWebhooksTable,
   agentWebhookUserThreads: agentWebhookUserThreadsTable,
@@ -224,7 +231,7 @@ export default defineSchema({
   products: productsTable,
   projects: projectsTable,
   tasks: tasksTable,
-  taskComments: taskCommentsTable,
+  taskDiscussionMessageMeta: taskDiscussionMessageMetaTable,
   taskActivity: taskActivityTable,
   taskDependencies: taskDependenciesTable,
   boardViews: boardViewsTable,

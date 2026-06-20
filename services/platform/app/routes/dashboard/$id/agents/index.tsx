@@ -1,23 +1,13 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { AgentsTable } from '@/app/features/agents/components/agents-table';
-import { seo } from '@/lib/utils/seo';
-
+// Clicking "Agents" lands on the List (the roster of every agent) — the most
+// actionable default. Overview (organigram), Catalog, and Metrics are sibling
+// tabs. The list lives at ./all so this index is a thin redirect.
 export const Route = createFileRoute('/dashboard/$id/agents/')({
-  head: () => ({
-    meta: seo('agents'),
-  }),
-  // No loader prefetch: the filesystem-backed `listAgents` action requires auth,
-  // and a route loader runs BEFORE the Convex WS auth handshake — on a cold load
-  // it fired unauthenticated and logged `UNAUTHENTICATED` on every nav. The
-  // parent dashboard layout already warms this list once auth is ready
-  // (`prewarmConfigCatalog(... listAgents)`), and `useListAgents` is auth-gated,
-  // so the table still paints warm on real navigations without the racing fetch.
-  component: AgentsPage,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: '/dashboard/$id/agents/all',
+      params: { id: params.id },
+    });
+  },
 });
-
-function AgentsPage() {
-  const { id: organizationId } = Route.useParams();
-
-  return <AgentsTable organizationId={organizationId} />;
-}

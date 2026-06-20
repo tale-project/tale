@@ -1,0 +1,306 @@
+{
+  "name": "Run an assigned task",
+  "description": "The execution loop of the task board: when a task is assigned to an AI agent, acknowledge by moving it to In progress, then either RUN the agent against the task and park the result at In review for a human — or, when the assignee is a manager on the org chart and the task is a root task labeled 'epic', DECOMPOSE it instead: the manager splits it into subtasks assigned to its direct reports (depth 1, enforced server-side), and the parent waits in In progress until the subtask-rollup workflow moves it to In review. On failure the task auto-rolls back to To do with an explanatory comment. Guardrail refusals (concurrency queue, budget pause, circuit breaker) skip the error comment — the guardrails already posted a more specific one. Tune or disable per org: this file is yours to edit, and the trigger can be deactivated in Automations. Agents bound to an external runtime (tale-daemon) dispatch instead of running inline: the task stays In progress until the daemon reports back (its completion moves the task to In review; failures roll back automatically).",
+  "i18n": {
+    "en": {
+      "name": "Run an assigned task",
+      "description": "When a task is assigned to an agent, it runs the work (or decomposes an epic) and parks the result at In review."
+    },
+    "de": {
+      "name": "Eine zugewiesene Aufgabe ausführen",
+      "description": "Wird eine Aufgabe einem Agenten zugewiesen, erledigt er die Arbeit (oder zerlegt ein Epic) und legt das Ergebnis zur Überprüfung ab."
+    },
+    "fr": {
+      "name": "Exécuter une tâche attribuée",
+      "description": "Quand une tâche est attribuée à un agent, il effectue le travail (ou décompose un epic) et place le résultat en revue."
+    }
+  },
+  "version": "1.0.0",
+  "metadata": {
+    "labels": ["Tasks", "Automation"],
+    "autoInstall": true
+  },
+  "triggers": {
+    "events": [
+      {
+        "eventType": "task.assigned",
+        "eventFilter": {
+          "assigneeType": "agent"
+        }
+      }
+    ]
+  },
+  "config": {
+    "timeout": 600000,
+    "variables": {
+      "workflowId": "tasks_agent_assignment"
+    }
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "guard"
+      }
+    },
+    {
+      "stepSlug": "guard",
+      "name": "Skip terminal or archived tasks",
+      "stepType": "condition",
+      "config": {
+        "expression": "input.task.status != 'done' && input.task.status != 'cancelled' && !input.task.archivedAt && input.assigneeId",
+        "description": "Assignment events on closed/archived tasks (e.g. bulk edits) must not start agent work."
+      },
+      "nextSteps": {
+        "true": "ack",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "ack",
+      "name": "Acknowledge (In progress)",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "in_progress"
+        }
+      },
+      "nextSteps": {
+        "success": "role"
+      }
+    },
+    {
+      "stepSlug": "role",
+      "name": "Look up the assignee's org-chart role",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "get_org_role",
+          "agentSlug": "{{input.assigneeId}}"
+        }
+      },
+      "nextSteps": {
+        "success": "is_epic"
+      }
+    },
+    {
+      "stepSlug": "is_epic",
+      "name": "Manager + root task labeled 'epic'?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.role.output.data.isManager == true && !input.task.parentTaskId && input.task.labels && ('epic' in input.task.labels)",
+        "description": "Managers decompose epics for their team instead of working them solo. Subtasks (which have a parent) never decompose again — depth is exactly one, also enforced server-side."
+      },
+      "nextSteps": {
+        "true": "decompose",
+        "false": "run"
+      }
+    },
+    {
+      "stepSlug": "decompose",
+      "name": "Decompose the epic for the team",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "decompose_task",
+          "agentSlug": "{{input.assigneeId}}",
+          "taskId": "{{input.task._id}}",
+          "maxSubtasks": 8
+        }
+      },
+      "nextSteps": {
+        "success": "decompose_created"
+      }
+    },
+    {
+      "stepSlug": "decompose_created",
+      "name": "Did decomposition produce subtasks?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.decompose.output.data.ok == true && steps.decompose.output.data.subtasksCreated > 0",
+        "description": "Subtask assignments cascade into this same workflow per subtask; the parent stays In progress until the subtask-rollup workflow moves it to In review."
+      },
+      "nextSteps": {
+        "true": "done",
+        "false": "decompose_too_small"
+      }
+    },
+    {
+      "stepSlug": "decompose_too_small",
+      "name": "Run succeeded but nothing to split?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.decompose.output.data.ok == true",
+        "description": "The manager judged the task too small to split — fall through to working it directly."
+      },
+      "nextSteps": {
+        "true": "run",
+        "false": "decompose_refused"
+      }
+    },
+    {
+      "stepSlug": "decompose_refused",
+      "name": "Guardrail refusal (decompose)?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.decompose.output.data.refusedReason == 'queued' || steps.decompose.output.data.refusedReason == 'budget_paused' || steps.decompose.output.data.refusedReason == 'task_circuit_breaker' || steps.decompose.output.data.refusedReason == 'automation_disabled'"
+      },
+      "nextSteps": {
+        "true": "rollback_quiet",
+        "false": "decompose_fail_comment"
+      }
+    },
+    {
+      "stepSlug": "decompose_fail_comment",
+      "name": "Explain the decomposition failure",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] ⚠️ {{input.assigneeId}} could not decompose this task: {{steps.decompose.output.data.error || 'unknown error'}} — returned to To do."
+        }
+      },
+      "nextSteps": {
+        "success": "rollback"
+      }
+    },
+    {
+      "stepSlug": "run",
+      "name": "Run the assigned agent",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "run_on_task",
+          "agentSlug": "{{input.assigneeId}}",
+          "taskId": "{{input.task._id}}",
+          "trigger": "assignment",
+          "instructions": "You have been assigned this task on the project board. Do the work it describes to the best of your ability with the tools available, then post your final result as a task comment. Keep the result concise and reviewable — a human will review it next."
+        }
+      },
+      "nextSteps": {
+        "success": "check_ok"
+      }
+    },
+    {
+      "stepSlug": "check_ok",
+      "name": "Did the run succeed?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.run.output.data.ok == true && steps.run.output.data.external != true",
+        "description": "Internal runs park at In review now; external dispatches return immediately and the daemon's completion does it later."
+      },
+      "nextSteps": {
+        "true": "to_review",
+        "false": "check_external"
+      }
+    },
+    {
+      "stepSlug": "check_external",
+      "name": "Dispatched to an external runtime?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.run.output.data.ok == true && steps.run.output.data.external == true",
+        "description": "External work is asynchronous — leave the task In progress; the daemon completes it to In review (or the dispatch watchdog rolls it back)."
+      },
+      "nextSteps": {
+        "true": "done",
+        "false": "check_refused"
+      }
+    },
+    {
+      "stepSlug": "to_review",
+      "name": "Park at In review (human gate)",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "in_review"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "check_refused",
+      "name": "Guardrail refusal?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.run.output.data.refusedReason == 'queued' || steps.run.output.data.refusedReason == 'budget_paused' || steps.run.output.data.refusedReason == 'task_circuit_breaker' || steps.run.output.data.refusedReason == 'automation_disabled'",
+        "description": "Guardrail refusals already posted their own specific comment (queued / budget / breaker) — roll back quietly. Real failures get an explanatory comment."
+      },
+      "nextSteps": {
+        "true": "rollback_quiet",
+        "false": "fail_comment"
+      }
+    },
+    {
+      "stepSlug": "fail_comment",
+      "name": "Explain the failure",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] ⚠️ {{input.assigneeId}} could not complete this task: {{steps.run.output.data.error || 'unknown error'}} — returned to To do."
+        }
+      },
+      "nextSteps": {
+        "success": "rollback"
+      }
+    },
+    {
+      "stepSlug": "rollback",
+      "name": "Roll back to To do",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "todo"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "rollback_quiet",
+      "name": "Roll back to To do (guardrail already commented)",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "todo"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}

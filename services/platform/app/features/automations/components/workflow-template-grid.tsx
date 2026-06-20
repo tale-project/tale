@@ -6,8 +6,11 @@ import { Text } from '@tale/ui/text';
 import { AlertCircle } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
+import {
+  CatalogCard,
+  CatalogGrid,
+} from '@/app/components/catalog/catalog-grid';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   useInstallWorkflow,
@@ -15,17 +18,45 @@ import {
 } from '../hooks/file-mutations';
 import { useListWorkflows } from '../hooks/file-queries';
 import { getIntegrationBrandIcon } from '../utils/integration-brand-icon';
+import { parseWorkflowTemplates } from '../utils/workflow-templates';
 
 interface WorkflowTemplateGridProps {
   organizationId: string;
   integrationName?: string;
   onTemplateInstalled: (slug: string) => void;
+  /**
+   * Constrain the grid to its own scroll area (the create dialog). The full
+   * catalog page passes `false` so the page scrolls instead.
+   */
+  scrollable?: boolean;
+}
+
+/** Small bordered brand chip row shown as a card's meta (one per integration). */
+function TemplateBrandChips({ integrations }: { integrations: string[] }) {
+  if (integrations.length === 0) return null;
+  return (
+    <>
+      {integrations.map((integration) => {
+        const Icon = getIntegrationBrandIcon(integration);
+        return (
+          <div
+            key={integration}
+            className="border-border bg-background text-foreground flex size-5 items-center justify-center rounded border p-1"
+            aria-label={integration}
+          >
+            <Icon className="size-3" />
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 export function WorkflowTemplateGrid({
   organizationId,
   integrationName,
   onTemplateInstalled,
+  scrollable = true,
 }: WorkflowTemplateGridProps) {
   const { t } = useT('automations');
   const { workflows, isLoading: isLoadingTemplates } = useListWorkflows(
@@ -37,50 +68,10 @@ export function WorkflowTemplateGrid({
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const filteredTemplates = useMemo(() => {
-    if (!workflows) return [];
-    const valid: {
-      slug: string;
-      name: string;
-      description?: string;
-      integrations: string[];
-    }[] = [];
-    for (const w of workflows) {
-      if (
-        w &&
-        typeof w === 'object' &&
-        'slug' in w &&
-        'name' in w &&
-        typeof w.slug === 'string' &&
-        typeof w.name === 'string'
-      ) {
-        const rawIntegrations: unknown =
-          'integrations' in w ? w.integrations : undefined;
-        const filtered = Array.isArray(rawIntegrations)
-          ? rawIntegrations.filter((v): v is string => typeof v === 'string')
-          : [];
-        // Inbuilt templates with no third-party integration: show the Tale
-        // logo so the card still gets a brand chip.
-        const integrations = filtered.length > 0 ? filtered : ['tale'];
-        valid.push({
-          slug: w.slug,
-          name: w.name,
-          description:
-            'description' in w && typeof w.description === 'string'
-              ? w.description
-              : undefined,
-          integrations,
-        });
-      }
-    }
-    if (!integrationName) return valid;
-    return valid.filter((w) => {
-      const category = w.slug.includes('/') ? w.slug.split('/')[0] : '';
-      return (
-        category === integrationName || category === 'general' || !category
-      );
-    });
-  }, [workflows, integrationName]);
+  const filteredTemplates = useMemo(
+    () => parseWorkflowTemplates(workflows, integrationName),
+    [workflows, integrationName],
+  );
 
   const handleSelectTemplate = useCallback(
     async (slug: string) => {
@@ -140,59 +131,28 @@ export function WorkflowTemplateGrid({
       )}
 
       <div
-        className="flex max-h-80 flex-col gap-2.5 overflow-y-auto"
+        className={scrollable ? 'max-h-96 overflow-y-auto' : undefined}
         aria-busy={!!installingSlug}
       >
-        {filteredTemplates.map((template) => (
-          <button
-            key={template.slug}
-            type="button"
-            onClick={() => handleSelectTemplate(template.slug)}
-            disabled={!!installingSlug}
-            className={cn(
-              'border-border hover:border-primary/50 bg-background flex w-full items-start gap-3 rounded-lg border p-2 text-left transition-colors',
-              installingSlug === template.slug && 'border-primary/50',
-              installingSlug &&
-                installingSlug !== template.slug &&
-                'opacity-50',
-            )}
-            aria-label={template.name}
-          >
-            <Stack gap={1} className="min-w-0 flex-1">
-              <Text variant="label" className="truncate">
-                {template.name}
-              </Text>
-              {template.description && (
-                <Text variant="caption" className="line-clamp-2">
-                  {template.description}
-                </Text>
-              )}
-            </Stack>
-            {template.integrations.length > 0 && (
-              <div className="flex shrink-0 items-center gap-1">
-                {template.integrations.map((integration) => {
-                  const Icon = getIntegrationBrandIcon(integration);
-                  return (
-                    <div
-                      key={integration}
-                      className="border-border bg-background text-foreground flex size-5 items-center justify-center rounded border p-1"
-                      aria-label={integration}
-                    >
-                      <Icon className="size-3" />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {installingSlug === template.slug && (
-              <Spinner
-                size="sm"
-                label={t('templates.fetching')}
-                className="shrink-0"
-              />
-            )}
-          </button>
-        ))}
+        <CatalogGrid>
+          {filteredTemplates.map((template) => (
+            <CatalogCard
+              key={template.slug}
+              title={template.name}
+              description={template.description}
+              meta={<TemplateBrandChips integrations={template.integrations} />}
+              badge={
+                installingSlug === template.slug ? (
+                  <Spinner size="sm" label={t('templates.fetching')} />
+                ) : undefined
+              }
+              active={installingSlug === template.slug}
+              disabled={!!installingSlug}
+              ariaLabel={template.name}
+              onClick={() => void handleSelectTemplate(template.slug)}
+            />
+          ))}
+        </CatalogGrid>
       </div>
     </Stack>
   );

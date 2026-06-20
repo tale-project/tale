@@ -22,7 +22,9 @@ test('lists the seeded agent and opens its editor tab navigation', async ({
   org,
 }) => {
   const { organizationId } = org;
-  await page.goto(`/dashboard/${organizationId}/agents`);
+  // The agents table lives on the "All agents" tab; `/agents` is the organigram
+  // Overview landing.
+  await page.goto(`/dashboard/${organizationId}/agents/all`);
 
   // The list loads via a filesystem-backed action behind a textless skeleton,
   // so wait for the seeded row to materialize.
@@ -63,17 +65,18 @@ test('creates a custom agent then deletes it', async ({ page, org }) => {
   const agentSlug = `e2e-agent-${suffix}`;
   const agentDisplayName = `E2E Agent ${suffix}`;
 
-  await page.goto(`/dashboard/${organizationId}/agents`);
+  await page.goto(`/dashboard/${organizationId}/agents/all`);
   await expect(agentRow(page, SEEDED_AGENT_DISPLAY_NAME)).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
 
-  // "Create agent" is a dropdown trigger whose menu item opens the dialog.
+  // "Create agent" is a dropdown trigger; its "Blank" item opens the create
+  // dialog (siblings: "From template", "Upload file").
   await page
     .getByRole('button', { name: t('settings.agents.createAgent') })
     .click();
   await page
-    .getByRole('menuitem', { name: t('settings.agents.createAgent') })
+    .getByRole('menuitem', { name: t('settings.agents.createMenu.blank') })
     .click();
 
   // The seeded mock provider supplies a model the dialog pre-selects, so
@@ -102,7 +105,7 @@ test('creates a custom agent then deletes it', async ({ page, org }) => {
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
   // Back to the list and delete it via the per-row 3-dot menu.
-  await page.goto(`/dashboard/${organizationId}/agents`);
+  await page.goto(`/dashboard/${organizationId}/agents/all`);
   const newRow = agentRow(page, agentDisplayName);
   await expect(newRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await newRow
@@ -125,15 +128,17 @@ test('creates a custom agent then deletes it', async ({ page, org }) => {
 
 test('renders the organigram delegation graph', async ({ page, org }) => {
   const { organizationId } = org;
-  await page.goto(`/dashboard/${organizationId}/agents/organigram`);
+  // The organigram is the Overview tab (`/agents/overview`); `/agents` itself
+  // now lands on the List tab (`/agents/all`), so deep-link to Overview.
+  await page.goto(`/dashboard/${organizationId}/agents/overview`);
 
-  // Page title block (organigram route). `exact` — the app-shell breadcrumb
-  // renders its own level-1 heading ("Agents Organigram"), so a substring
-  // match on "Organigram" is ambiguous (strict-mode violation).
+  // The agents layout owns the level-1 heading ("Agents"); the organigram's own
+  // title is the level-2 section heading beneath it, so pin to level 2 (`exact`
+  // keeps the match off the layout's "Agents" h1).
   await expect(
     page.getByRole('heading', {
       name: t('organigram.title'),
-      level: 1,
+      level: 2,
       exact: true,
     }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });

@@ -74,12 +74,14 @@ test.describe('agent editor depth', () => {
     });
     const page = await context.newPage();
     try {
-      await page.goto(`/dashboard/${workerOrg.organizationId}/agents`);
+      // The agents table + "Create agent" trigger live on the "List" tab
+      // (`/agents/all`); the "Blank" menu item opens the create dialog.
+      await page.goto(`/dashboard/${workerOrg.organizationId}/agents/all`);
       await page
         .getByRole('button', { name: t('settings.agents.createAgent') })
         .click();
       await page
-        .getByRole('menuitem', { name: t('settings.agents.createAgent') })
+        .getByRole('menuitem', { name: t('settings.agents.createMenu.blank') })
         .click();
 
       await page
@@ -115,7 +117,7 @@ test.describe('agent editor depth', () => {
     });
     const page = await context.newPage();
     try {
-      await page.goto(`/dashboard/${workerOrg.organizationId}/agents`);
+      await page.goto(`/dashboard/${workerOrg.organizationId}/agents/all`);
       const row = agentRow(page, AGENT_DISPLAY_NAME);
       await expect(row).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
       await row

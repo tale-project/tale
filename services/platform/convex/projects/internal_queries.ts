@@ -138,3 +138,22 @@ export const assertProjectAccessForChat = internalQuery({
     }
   },
 });
+
+/**
+ * Idempotency probe for the starter-content seeder: returns true when the org
+ * already has at least one project, so `seed_starter` never duplicates the
+ * "Getting started" example content on a re-run.
+ */
+export const orgHasAnyProject = internalQuery({
+  args: { organizationId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args): Promise<boolean> => {
+    const first = await ctx.db
+      .query('projects')
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    return first !== null;
+  },
+});

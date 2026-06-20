@@ -15,11 +15,12 @@
  *   - reseed path (`override:true`, called by `reseedAllOrgsFromBuiltin`):
  *     overwrites builtin-named files in place while always preserving
  *     `*.secrets.json` and `.history/` trails. Per-domain semantics —
- *     flat: per-file atomicWrite (agents/providers/prompts/governance —
+ *     flat: per-file atomicWrite (providers/prompts/governance —
  *     governance also carries the `retention.json` bounds catalog as a
  *     flat file); dir-bundle (skills/integrations): `rm -rf <per-bundle>`
- *     then copy bundle; workflows + branding: per-file overwrite
- *     (preserves user-only folders / images).
+ *     then copy bundle; tree (agents/workflows/branding): per-file overwrite
+ *     recursing into subdirs (agents chat/workforce/github folders, workflows
+ *     per-provider folders, user-only folders / images preserved).
  *
  * `cleanupOrgFilesystem` removes the entire `<orgSlug>/` subtree (org is
  * one tree under org-first), guarded by validateOrgSlug + verifyPathWithinBase
@@ -69,7 +70,7 @@ export type DomainResult = {
 // is the canonical template org in the catalog; the catalog tree at
 // `$TALE_CONFIG_BUILTIN_DIR/default/<domain>/` is the source for every org
 // including default itself. Copy semantics per `domain.scaffoldKind`:
-//   - 'flat'   = one file per item, no subdirs (agents/providers/prompts/
+//   - 'flat'   = one file per item, no subdirs (providers/prompts/
 //     governance). override:true overwrites per-file via atomicWrite; user-added
 //     files survive, secrets + .history at the dir level survive. (Governance
 //     also carries the `retention.json` bounds catalog + `*.secrets.json`

@@ -2,13 +2,14 @@
 
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Grid, HStack, Stack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { Search, Unplug } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { CatalogGrid } from '@/app/components/catalog/catalog-grid';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useT } from '@/lib/i18n/client';
 import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
@@ -29,26 +30,24 @@ const PLACEHOLDER_CARD_COUNT = 6;
  */
 function IntegrationCardSkeleton() {
   return (
-    <Card contentClassName="p-0">
-      <div className="w-full p-5 text-left">
-        <Stack gap={3}>
-          <HStack justify="between" align="start">
-            <SkeletonBox>
-              <div className="size-11 rounded-lg" />
-            </SkeletonBox>
+    <Card contentClassName="p-4">
+      <div className="flex items-start gap-3">
+        <SkeletonBox>
+          <div className="size-10 rounded-lg" />
+        </SkeletonBox>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="w-24 text-sm leading-none">
+              <SkeletonText />
+            </div>
             <SkeletonBox>
               <div className="h-5 w-16 rounded-full" />
             </SkeletonBox>
-          </HStack>
-          <Stack gap={1}>
-            <div className="w-24 text-base leading-none">
-              <SkeletonText />
-            </div>
-            <div className="text-sm leading-[1.43]">
-              <SkeletonText lines={2} />
-            </div>
-          </Stack>
-        </Stack>
+          </div>
+          <div className="text-sm leading-snug">
+            <SkeletonText lines={2} />
+          </div>
+        </div>
       </div>
     </Card>
   );
@@ -193,14 +192,14 @@ export function Integrations({
 
       {isLoading ? (
         <Skeletonize loading label={t('integrations.title')}>
-          <Grid cols={1} md={2} lg={3}>
+          <CatalogGrid>
             {Array.from({ length: PLACEHOLDER_CARD_COUNT }).map((_, i) => (
               <IntegrationCardSkeleton key={i} />
             ))}
-          </Grid>
+          </CatalogGrid>
         </Skeletonize>
       ) : filteredIntegrations.length > 0 || (isSsoVisible && !showSearch) ? (
-        <Grid cols={1} md={2} lg={3}>
+        <CatalogGrid>
           {isSsoVisible && !showSearch && (
             <SSOCard
               organizationId={organizationId}
@@ -226,7 +225,7 @@ export function Integrations({
               onClick={() => handleCardClick(integration)}
             />
           ))}
-        </Grid>
+        </CatalogGrid>
       ) : (
         renderEmptyState()
       )}

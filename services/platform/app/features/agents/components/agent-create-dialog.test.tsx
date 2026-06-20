@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
@@ -19,8 +19,9 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
+const navigateSpy = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigateSpy,
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({
@@ -31,8 +32,9 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+const saveAgentMock = vi.fn();
 vi.mock('../hooks/mutations', () => ({
-  useSaveAgent: () => ({ mutateAsync: vi.fn() }),
+  useSaveAgent: () => ({ mutateAsync: saveAgentMock }),
 }));
 
 vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
@@ -49,6 +51,11 @@ vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
 import { CreateAgentDialog } from './agent-create-dialog';
 
 describe('CreateAgentDialog', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    saveAgentMock.mockResolvedValue({ hash: 'h' });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit when open', async () => {
       const { container } = render(
@@ -116,6 +123,60 @@ describe('CreateAgentDialog', () => {
       );
 
       await waitFor(() => expect(submit).toBeDisabled());
+    });
+  });
+
+  // A `/` in the name files the agent into a folder. The name is saved verbatim
+  // (the backend writes it to `agents/<folder>/<slug>.json`), but the agent's
+  // identity slug — and so the route it navigates to — is the last path segment.
+  describe('folder create navigation', () => {
+    it('saves the foldered name but navigates by the basename slug', async () => {
+      const { user } = render(
+        <CreateAgentDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          organizationId="org-1"
+        />,
+      );
+
+      await user.type(
+        screen.getByLabelText('settings.agents.form.name'),
+        'marketing/seo-writer',
+      );
+      await user.type(
+        screen.getByLabelText('settings.agents.form.displayName'),
+        'SEO Writer',
+      );
+
+      const submit = screen.getByRole('button', {
+        name: 'settings.agents.createDialog.continue',
+      });
+      // The slash is valid — Continue enables and no pattern error renders.
+      await waitFor(() => expect(submit).toBeEnabled());
+      expect(
+        screen.queryByText('settings.agents.form.namePatternError'),
+      ).not.toBeInTheDocument();
+
+      await user.click(submit);
+
+      // Saved with the foldered name (the backend derives folder + slug)…
+      await waitFor(() =>
+        expect(saveAgentMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            agentName: 'marketing/seo-writer',
+            isNew: true,
+          }),
+        ),
+      );
+      // …but the editor route uses the flat identity slug (basename).
+      await waitFor(() =>
+        expect(navigateSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            to: '/dashboard/$id/agents/$agentId',
+            params: { id: 'org-1', agentId: 'seo-writer' },
+          }),
+        ),
+      );
     });
   });
 

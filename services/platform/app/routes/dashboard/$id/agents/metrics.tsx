@@ -1,5 +1,5 @@
 import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
+import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
@@ -44,6 +44,7 @@ function AgentsMetricsPage() {
   const { period } = Route.useSearch();
   const navigate = useNavigate();
   const { t } = useT('workforce');
+  const { t: tSettings } = useT('settings');
   const ability = useAbility();
   const canToggle = ability.can('read', 'orgSettings');
 
@@ -74,27 +75,26 @@ function AgentsMetricsPage() {
 
   return (
     <Stack gap={6} className="p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-base font-semibold">{t('title')}</h1>
-          <Text variant="caption" className="text-muted-foreground text-sm">
-            {t('subtitle')}
-          </Text>
-        </div>
-        <div className="w-44 shrink-0">
-          <Select
-            aria-label={t('period.label')}
-            options={periodOptions}
-            value={String(periodDays)}
-            onValueChange={(v) => {
-              const next = Number(v);
-              if (next === 7 || next === 30 || next === 90)
-                handleChangePeriod(next);
-            }}
-            size="sm"
-          />
-        </div>
-      </div>
+      <SectionHeader
+        title={tSettings('agents.tabs.metrics')}
+        description={t('subtitle')}
+        className="items-start"
+        action={
+          <div className="w-44">
+            <Select
+              aria-label={t('period.label')}
+              options={periodOptions}
+              value={String(periodDays)}
+              onValueChange={(v) => {
+                const next = Number(v);
+                if (next === 7 || next === 30 || next === 90)
+                  handleChangePeriod(next);
+              }}
+              size="sm"
+            />
+          </div>
+        }
+      />
       <WorkforceDashboard
         organizationId={organizationId}
         canToggle={canToggle}

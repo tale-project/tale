@@ -143,6 +143,47 @@ export const agentRoutingSchema = z.object({
 export type AgentRoutingConfig = z.infer<typeof agentRoutingSchema>;
 
 /**
+ * Canonical agent slug — a flat, file-location-INDEPENDENT identity stored in
+ * the config itself (the `slug` field below). Because identity lives in the
+ * file rather than the path, an agent file can be moved between folders
+ * (`chat/` → `workforce/`) or renamed without breaking delegates, mentions,
+ * installations, or thread references. Folders are organizational only; the
+ * slug stays a flat single segment (no `/`), so routes need no URL-encoding.
+ * Reserved slugs (`auto`, `organigram`) still apply.
+ */
+const AGENT_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
+
+/**
+ * Install/catalog/cascade metadata. Brings agents to parity with workflows and
+ * prompts (which already carry `metadata.autoInstall`). All optional — an agent
+ * file with no `metadata` behaves exactly as before.
+ *
+ *  - `autoInstall`     — seed an enabled installation row into every org at
+ *                        creation (the workforce default-on set).
+ *  - `templateCatalog` — visible in the agent catalog UI (default true);
+ *                        `false` hides integration-bundled agents.
+ *  - `labels`          — catalog tags (e.g. ["Engineering", "Security"]). The
+ *                        FIRST label is the catalog section (department); the
+ *                        rest are filter tags. Decoupled from the on-disk
+ *                        folder so system agents keep stable flat slugs.
+ *  - `requires.integrations` — HARD dependency: the agent is cascade-disabled
+ *                        when any listed integration is not connected.
+ *  - `bundledByIntegration`  — the integration whose connection installs this
+ *                        agent (provenance also tracked on the install row).
+ */
+const agentMetadataSchema = z.object({
+  autoInstall: z.boolean().optional(),
+  templateCatalog: z.boolean().optional(),
+  labels: z.array(z.string().min(1).max(80)).max(12).optional(),
+  requires: z
+    .object({ integrations: z.array(z.string().min(1)).optional() })
+    .optional(),
+  bundledByIntegration: z.string().min(1).max(80).optional(),
+});
+
+export type AgentMetadata = z.infer<typeof agentMetadataSchema>;
+
+/**
  * Fields that can be overridden per locale via the i18n key.
  *
  * Canonical location for translatable fields under the i18n-first data model.
@@ -167,6 +208,14 @@ const translatableFieldsSchema = z.object({
  */
 export const agentJsonSchema = z
   .object({
+    /**
+     * Canonical, file-location-independent identity. Stored in the config so
+     * moving the file between folders or renaming it never breaks
+     * delegates/mentions/installations/thread refs. When absent, the loader
+     * falls back to the file basename (backward compat for legacy flat files).
+     * Must be unique across the org's agent catalog.
+     */
+    slug: z.string().min(1).max(64).regex(AGENT_SLUG_REGEX).optional(),
     displayName: z.string().min(1).max(200).optional(),
     description: z.string().max(1000).optional(),
     avatarUrl: z.string().url().optional(),
@@ -217,12 +266,7 @@ export const agentJsonSchema = z
       // Defaults to [] when absent so a BYO agent file with no model still
       // parses; the superRefine below enforces ≥1 for every non-BYO agent.
       .default([]),
-    provider: z
-      .string()
-      .min(1)
-      .max(100)
-      .regex(/^[a-z0-9][a-z0-9_-]*$/)
-      .optional(),
+    provider: z.string().min(1).max(100).regex(AGENT_SLUG_REGEX).optional(),
     knowledgeMode: retrievalModeSchema.optional(),
     webSearchMode: retrievalModeSchema.optional(),
     includeOrgKnowledge: z.boolean().optional(),
@@ -256,13 +300,7 @@ export const agentJsonSchema = z
      * organigram canvas/assistant are the single write paths.
      */
     delegates: z
-      .array(
-        z
-          .string()
-          .min(1)
-          .max(64)
-          .regex(/^[a-z0-9][a-z0-9_-]*$/),
-      )
+      .array(z.string().min(1).max(64).regex(AGENT_SLUG_REGEX))
       .max(100)
       .optional(),
     /**
@@ -339,6 +377,8 @@ export const agentJsonSchema = z
         translatableFieldsSchema,
       )
       .optional(),
+    /** Install / catalog / cascade metadata; see {@link agentMetadataSchema}. */
+    metadata: agentMetadataSchema.optional(),
   })
   .superRefine((data, ctx) => {
     const i18nLocales = Object.values(data.i18n ?? {});

@@ -4,6 +4,7 @@
 
 import { set, merge } from 'lodash';
 
+import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
@@ -11,6 +12,29 @@ import type {
   UpdateConversationsArgs,
   UpdateConversationsResult,
 } from './types';
+
+/**
+ * Apply a partial metadata update onto an existing metadata record. Dot-notation
+ * keys (`a.b.c`) are written via `lodash.set`; for top-level keys, two plain
+ * objects are deep-merged while any other value (primitive / array / null)
+ * replaces. Returns a fresh object — the inputs are never mutated.
+ */
+function mergeMetadataUpdates(
+  existing: Record<string, unknown>,
+  updates: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...existing };
+  for (const [key, value] of Object.entries(updates)) {
+    if (key.includes('.')) {
+      set(merged, key, value);
+      continue;
+    }
+    const current = merged[key];
+    merged[key] =
+      isRecord(value) && isRecord(current) ? merge({}, current, value) : value;
+  }
+  return merged;
+}
 
 export async function updateConversations(
   ctx: MutationCtx,
@@ -30,6 +54,15 @@ export async function updateConversations(
     // Update by ID (most common case)
     const conversation = await ctx.db.get(args.conversationId);
     if (!conversation) {
+      throw new Error(`Conversation not found: ${args.conversationId}`);
+    }
+    // Cross-tenant write guard: when the caller's org is known (the agent
+    // conversation_write tool always passes it), the target conversation must
+    // belong to it — mirrors addMessageToConversation. Closes the IDOR.
+    if (
+      args.organizationId &&
+      conversation.organizationId !== args.organizationId
+    ) {
       throw new Error(`Conversation not found: ${args.conversationId}`);
     }
     conversationsToUpdate = [conversation];
@@ -65,38 +98,11 @@ export async function updateConversations(
     if (updates.priority !== undefined) patch.priority = updates.priority;
     if (updates.type !== undefined) patch.type = updates.type;
 
-    // Handle metadata updates with lodash
     if (updates.metadata) {
-      const existingMetadata = conversation.metadata ?? {};
-      const updatedMetadata: Record<string, unknown> = {
-        ...existingMetadata,
-      };
-
-      for (const [key, value] of Object.entries(updates.metadata)) {
-        if (key.includes('.')) {
-          // Use lodash.set for dot-notation keys
-          set(updatedMetadata, key, value);
-        } else {
-          // For top-level keys, use merge for objects
-          const existingValue = updatedMetadata[key];
-          const isValueObject =
-            typeof value === 'object' &&
-            value !== null &&
-            !Array.isArray(value);
-          const isExistingObject =
-            typeof existingValue === 'object' &&
-            existingValue !== null &&
-            !Array.isArray(existingValue);
-
-          if (isValueObject && isExistingObject) {
-            updatedMetadata[key] = merge({}, existingValue, value);
-          } else {
-            updatedMetadata[key] = value;
-          }
-        }
-      }
-
-      patch.metadata = updatedMetadata;
+      patch.metadata = mergeMetadataUpdates(
+        conversation.metadata ?? {},
+        updates.metadata,
+      );
     }
 
     return { id: conversation._id, patch };

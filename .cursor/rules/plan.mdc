@@ -1,5 +1,5 @@
 ---
-description: How to plan a multi-step change before writing code — explore (reuse-first), decompose into vertical slices, decide a verification strategy, and only then implement.
+description: How to plan a multi-step change before writing code — explore reuse-first, decompose into vertical slices, decide a verification strategy, and only then implement.
 alwaysApply: false
 ---
 

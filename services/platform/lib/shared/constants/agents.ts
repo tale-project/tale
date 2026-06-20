@@ -12,13 +12,13 @@ export const MAX_CONVERSATION_STARTER_LENGTH = 200;
 export const SUPPORTED_AGENT_LOCALES = ['en', 'de', 'fr'] as const;
 
 export const PROTECTED_AGENT_NAMES = [
-  'chat-agent',
+  'assistant',
   'workflow-assistant',
 ] as const;
 
 /** The org's general-purpose default assistant. Auto routing falls back to
  *  this when no specialist clearly fits (or there's no signal to route on). */
-export const DEFAULT_CHAT_AGENT_SLUG = 'chat-agent';
+export const DEFAULT_CHAT_AGENT_SLUG = 'assistant';
 
 /**
  * Sentinel agentSlug the composer sends when the user is in "Auto" mode and

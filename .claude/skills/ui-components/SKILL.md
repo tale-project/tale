@@ -1,57 +1,64 @@
 ---
 name: ui-components
-description: How to build UI primitives in packages/ui — Radix composition + CVA + Tailwind v4 + Storybook + accessibility — and the styling reference (CVA vs cn(), tokens, motion-reduce, dark/light). Read before building or editing a primitive in packages/ui, choosing CVA vs cn(), adding a Storybook story, writing a checkAccessibility() test, or styling anything with Tailwind. Cross-locale label rules: the translation skill.
+description: How to build UI primitives in packages/ui — Radix composition + CVA + Tailwind v4 + Storybook + accessibility — and the repo-wide styling reference (CVA vs cn(), semantic tokens, motion-reduce, dark/light). Read before building or editing a primitive in packages/ui, choosing CVA vs cn(), adding a Storybook story, writing a checkAccessibility() test, or styling anything with Tailwind. Cross-locale label wording: the translation skill.
 ---
 
 # ui-components
 
-The contract for shared UI primitives in [`packages/ui/src/components/`](../../../packages/ui/src/components/)
-(consumed via `@tale/ui/*` subpath exports). Compose [Radix](https://www.radix-ui.com/) for
-behavior, style with [CVA](https://cva.style) + Tailwind v4, ship a Storybook story and an axe test
-with every primitive. User-facing strings go through the i18n hook — cross-locale wording lives in
-the [`translation`](../translation/SKILL.md) skill. This file is also the **styling reference** for
-the whole repo (CVA-vs-`cn()`, tokens, motion-reduce, dark/light).
+The contract for shared UI primitives in
+[`packages/ui/src/components/`](../../../packages/ui/src/components/) (consumed via `@tale/ui/*`
+subpath exports). Compose [Radix](https://www.radix-ui.com/) for behavior, style with
+[CVA](https://cva.style) + Tailwind v4, and ship a Storybook story plus an axe test with every
+primitive. This file is also the **styling reference** for the whole repo (CVA-vs-`cn()`, tokens,
+motion-reduce, dark/light). User-facing wording across locales is the
+[`translation`](../translation/SKILL.md) skill; component/hook shape is [`react`](../react/SKILL.md).
 
 ## When this applies
 
-Editing or adding anything under `packages/ui/src/components/**`, deciding how to express variants
-vs. boolean states, adding a `*.stories.tsx`, writing an `accessibility` test block, or styling with
-Tailwind anywhere. Feature-level (non-primitive) UI in `services/platform/app/**` follows the same
-styling + skeleton rules but lives next to its feature.
+Editing or adding anything under `packages/ui/src/components/**`, deciding variants vs. boolean
+states, adding a `*.stories.tsx`, writing an `accessibility` test block, or styling with Tailwind
+anywhere. Feature-level (non-primitive) UI in `services/platform/app/**` follows the same styling +
+skeleton rules but lives next to its feature.
 
 ## The rules
 
-- **CVA for NAMED axes, `cn()` for BOOLEAN states.** A finite set (`variant`/`size`/`tone`) is a
-  `cva` variant; a true/false condition (`isActive`, `hasError`, `pulse`) is `cn(base, flag && '…')`.
-  Always end with `cn(xVariants({ variant }), className)` so a caller's `className` wins (twMerge
-  dedupes). `cn` is [`packages/ui/src/lib/cn.ts`](../../../packages/ui/src/lib/cn.ts).
+- **CVA for NAMED axes, `cn()` for BOOLEAN states.** A finite set (`variant`/`size`/`tone`) is a `cva`
+  variant; a true/false condition (`isActive`, `hasError`, `pulse`) is `cn(base, flag && '…')`. Always
+  end with `cn(xVariants({ variant }), className)` so a caller's `className` wins (twMerge dedupes).
+  `cn` is [`packages/ui/src/lib/cn.ts`](../../../packages/ui/src/lib/cn.ts).
 - **Compose Radix; don't reinvent keyboard/focus/aria.** Build overlays, menus, switches, etc. on the
-  Radix primitive — it gives focus trapping, roving tabindex, and aria for free. Real semantic HTML
-  (`<button>`, labelled inputs) for the rest.
+  Radix primitive — it gives focus trapping, roving tabindex, and aria for free. Use real semantic
+  HTML (`<button>`, labelled inputs) for the rest.
 - **Every primitive ships a Storybook story** (`*.stories.tsx` next to it) covering every
-  variant/size/key state — see [`badge.stories.tsx`](../../../packages/ui/src/components/feedback/badge.stories.tsx).
-  Stories are globbed by [`packages/ui/.storybook/main.ts`](../../../packages/ui/.storybook/main.ts);
-  `@storybook/addon-a11y` (configured in [`src/storybook/main.ts`](../../../packages/ui/src/storybook/main.ts))
-  audits each story against WCAG 2.1 AA — a red violations bar blocks.
+  variant/size/key state — see
+  [`badge.stories.tsx`](../../../packages/ui/src/components/feedback/badge.stories.tsx). Stories are
+  globbed by [`packages/ui/.storybook/main.ts`](../../../packages/ui/.storybook/main.ts);
+  `@storybook/addon-a11y` (configured in
+  [`src/storybook/main.ts`](../../../packages/ui/src/storybook/main.ts)) audits each story against
+  WCAG 2.1 AA — a red violations bar blocks.
 - **Every primitive has an `accessibility` test block calling `checkAccessibility()`** — the
-  vitest-axe helper at [`tests/utils/a11y.ts`](../../../packages/ui/tests/utils/a11y.ts) (WCAG 2.1
-  AA: color-contrast, label, button/link-name, image-alt, aria, heading-order). Run with
+  vitest-axe helper at [`packages/ui/tests/utils/a11y.ts`](../../../packages/ui/tests/utils/a11y.ts)
+  (WCAG 2.1 AA: color-contrast, label, button/link-name, image-alt, aria, heading-order). Run with
   `bunx vitest --run --project unit`. Reviewer- and CI-caught.
 - **New leaf components are skeleton-aware.** Read `useSkeleton()` or wrap in `<SkeletonBox>` from
   [`@tale/ui/skeleton`](../../../packages/ui/src/components/feedback/skeleton.tsx); inside a
-  `<Skeletonize loading>` ([`skeleton-context.tsx`](../../../packages/ui/src/components/feedback/skeleton-context.tsx))
-  the leaf masks itself to its natural size — never `if (loading) return <Skeleton>`. Enforced by
-  `governance/components/skeleton-conventions.test.ts`.
-- **Tokens over arbitrary values.** Use semantic Tailwind tokens (`bg-success`, `text-muted-foreground`,
-  `border-border`) defined in [`globals.css`](../../../packages/ui/src/globals.css), not `[#hex]` /
-  `h-[37px]` magic dimensions. They're theme-aware: dark/light resolves via `resolvedTheme` from
+  `<Skeletonize loading>`
+  ([`skeleton-context.tsx`](../../../packages/ui/src/components/feedback/skeleton-context.tsx)) the leaf
+  masks itself to its natural size — never `if (loading) return <Skeleton>`. Reviewer-caught for
+  primitives; pinned for the governance editors by
+  [`skeleton-conventions.test.ts`](../../../services/platform/app/features/settings/governance/components/skeleton-conventions.test.ts).
+- **Tokens over arbitrary values.** Use semantic Tailwind tokens (`bg-success`,
+  `text-muted-foreground`, `border-border`) from
+  [`globals.css`](../../../packages/ui/src/globals.css), not `[#hex]` / `h-[37px]` magic dimensions.
+  They're theme-aware: dark/light resolves via `resolvedTheme` from
   [`theme-provider.tsx`](../../../packages/ui/src/theme/theme-provider.tsx) (use `dark:` for forks).
 - **Motion respects reduced-motion.** Any `animate-*`/`transition` pairs with `motion-reduce:` to
   disable it (e.g. `pulse && 'animate-pulse motion-reduce:animate-none'`).
-- **Never a bare `<img>`.** Use the [`Image`](../../../packages/ui/src/components/primitives/image.tsx)
-  primitive — it adds an error fallback and lazy loading (`priority` opts into eager).
-- **No hardcoded user-facing strings** — even in stories/tests. Route through the i18n hook
-  (`useT`); wording conventions are the [`translation`](../translation/SKILL.md) skill.
+- **Never a bare `<img>`.** Use the
+  [`Image`](../../../packages/ui/src/components/primitives/image.tsx) primitive — it adds an error
+  fallback and lazy loading (`priority` opts into eager).
+- **No hardcoded user-facing strings** — even in stories/tests. Route through the i18n hook (`useT`);
+  wording conventions are the [`translation`](../translation/SKILL.md) skill.
 
 ## Patterns (show, don't tell)
 
@@ -92,7 +99,8 @@ Boolean state via `cn()`, not a CVA axis — and reduced-motion-safe
 />
 ```
 
-The mandatory axe block ([`badge.test.tsx`](../../../packages/ui/src/components/feedback/badge.test.tsx)):
+The mandatory axe block
+([`badge.test.tsx`](../../../packages/ui/src/components/feedback/badge.test.tsx)):
 
 ```tsx
 describe('accessibility', () => {

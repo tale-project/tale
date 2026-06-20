@@ -17,6 +17,7 @@ import { Wizard } from '@/app/components/ui/wizard/wizard';
 import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { UserButton } from '@/app/components/user-button';
+import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -57,6 +58,26 @@ export function OnboardingWizard({
   // lives outside the wizard's provider). All wizard navigation routes through
   // `onIndexChange`, keeping this the single source of truth.
   const [stepIndex, setStepIndex] = useState(0);
+
+  // Whether an AI provider already has a key (the OpenRouter step, or a prior
+  // connection). Drives the finish step's provider row: a connected provider
+  // shows as done instead of repeating "Connect an AI provider" as a next step.
+  // Gated on the org existing — the action needs auth + a real org slug.
+  const { providers } = useListProviders(createdOrgId ?? '', {
+    enabled: Boolean(createdOrgId),
+  });
+  // `listProviders` returns `v.any()`, so narrow at the boundary instead of
+  // asserting: a provider counts as connected once it has an API key.
+  const providerList: readonly unknown[] = Array.isArray(providers)
+    ? providers
+    : [];
+  const providerConnected = providerList.some(
+    (p) =>
+      typeof p === 'object' &&
+      p !== null &&
+      'hasApiKey' in p &&
+      p.hasApiKey === true,
+  );
 
   const isFirstRun = mode === 'first-run';
 
@@ -186,7 +207,10 @@ export function OnboardingWizard({
             onCreated={setCreatedOrgId}
           />
           <OpenRouterStep organizationId={createdOrgId} />
-          <FinishStep onFinishTo={finishTo} />
+          <FinishStep
+            onFinishTo={finishTo}
+            providerConnected={providerConnected}
+          />
 
           <WizardFooter
             stacked

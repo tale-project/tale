@@ -1,0 +1,136 @@
+{
+  "name": "Roll up completed subtasks",
+  "description": "Closes the loop on decomposed work: when the last open subtask of a parent task is done or cancelled, the parent moves to In review with a rollup comment — so the human gate (review-gate workflow, for agent-assigned parents) signs off on the whole, not just the parts. Upward cascades are bounded by construction: each level parks at In review and needs a human approval before it can close and trigger the next level.",
+  "i18n": {
+    "en": {
+      "name": "Roll up completed subtasks",
+      "description": "When the last open subtask closes, moves the parent task to In review with a rollup comment for human sign-off."
+    },
+    "de": {
+      "name": "Abgeschlossene Teilaufgaben zusammenführen",
+      "description": "Wenn die letzte offene Teilaufgabe geschlossen wird, verschiebt es die übergeordnete Aufgabe mit einem Zusammenfassungskommentar in Überprüfung."
+    },
+    "fr": {
+      "name": "Regrouper les sous-tâches terminées",
+      "description": "Quand la dernière sous-tâche ouverte se ferme, déplace la tâche parente en revue avec un commentaire récapitulatif pour validation humaine."
+    }
+  },
+  "version": "1.0.0",
+  "metadata": {
+    "labels": ["Tasks", "Automation"],
+    "autoInstall": true
+  },
+  "triggers": {
+    "events": [
+      {
+        "eventType": "task.status_changed",
+        "eventFilter": {
+          "toStatus": "done"
+        }
+      },
+      {
+        "eventType": "task.status_changed",
+        "eventFilter": {
+          "toStatus": "cancelled"
+        }
+      }
+    ]
+  },
+  "config": {
+    "timeout": 600000,
+    "variables": {
+      "workflowId": "tasks_subtask_rollup"
+    }
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "guard"
+      }
+    },
+    {
+      "stepSlug": "guard",
+      "name": "Subtasks only",
+      "stepType": "condition",
+      "config": {
+        "expression": "input.task.parentTaskId",
+        "description": "Root tasks have no parent to roll up into."
+      },
+      "nextSteps": {
+        "true": "progress",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "progress",
+      "name": "Check sibling completion",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "subtask_progress",
+          "taskId": "{{input.task._id}}"
+        }
+      },
+      "nextSteps": {
+        "success": "all_closed"
+      }
+    },
+    {
+      "stepSlug": "all_closed",
+      "name": "All siblings closed and parent still open?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.progress.output.data.allClosed == true && steps.progress.output.data.parentArchived == false && steps.progress.output.data.parentStatus != 'done' && steps.progress.output.data.parentStatus != 'cancelled' && steps.progress.output.data.parentStatus != 'in_review'",
+        "description": "Only the run that closes the LAST subtask advances the parent; a parent already at In review (or closed) is left alone."
+      },
+      "nextSteps": {
+        "true": "rollup_comment",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "rollup_comment",
+      "name": "Post the rollup note",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{steps.progress.output.data.parentTaskId}}",
+          "body": "[automated] 📦 All {{steps.progress.output.data.total}} subtasks are closed — moving this task to In review for sign-off."
+        }
+      },
+      "nextSteps": {
+        "success": "parent_to_review"
+      }
+    },
+    {
+      "stepSlug": "parent_to_review",
+      "name": "Move the parent to In review",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{steps.progress.output.data.parentTaskId}}",
+          "status": "in_review"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}

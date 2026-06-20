@@ -1,7 +1,7 @@
 'use client';
 
 import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
+import { SectionHeader } from '@tale/ui/section-header';
 import { useMemo } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
@@ -49,26 +49,25 @@ export function WorkflowMetricsPage({
 
   return (
     <Stack gap={6} className="p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-base font-semibold">{t('metrics.title')}</h1>
-          <Text variant="caption" className="text-muted-foreground text-sm">
-            {t('metrics.description')}
-          </Text>
-        </div>
-        <div className="w-44 shrink-0">
-          <Select
-            options={periodOptions}
-            value={String(periodDays)}
-            onValueChange={(v) => {
-              const next = Number(v);
-              if (next === 7 || next === 30 || next === 90)
-                onChangePeriod(next);
-            }}
-            size="sm"
-          />
-        </div>
-      </div>
+      <SectionHeader
+        title={t('metrics.title')}
+        description={t('metrics.description')}
+        className="items-start"
+        action={
+          <div className="w-44">
+            <Select
+              options={periodOptions}
+              value={String(periodDays)}
+              onValueChange={(v) => {
+                const next = Number(v);
+                if (next === 7 || next === 30 || next === 90)
+                  onChangePeriod(next);
+              }}
+              size="sm"
+            />
+          </div>
+        }
+      />
 
       {summary?.capped ? (
         <div className="border-border bg-muted/40 rounded-md border px-3 py-2 text-xs">

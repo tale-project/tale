@@ -1,10 +1,14 @@
 # Loanword buckets
 
-Three buckets cover every English noun that appears in a non-English Tale string. The bucket determines whether the noun translates, stays English, or matches the shipped UI string verbatim. The bucket assignment lives on each term entry in [`packages/ui/src/i18n/tests/glossary/glossary.json`](../../../packages/ui/src/i18n/tests/glossary/glossary.json) as the `category` field; the tests enforce the bucket rules automatically.
+Three buckets cover every English noun that appears in a non-English Tale string. The bucket decides
+whether the noun translates, stays English, or matches the shipped UI verbatim. The assignment lives on
+each term's `category` field in
+[`packages/ui/src/i18n/tests/glossary/glossary.json`](../../../packages/ui/src/i18n/tests/glossary/glossary.json);
+the tests enforce the rules.
 
 ## Bucket 1 — Always English
 
-Brands, acronyms, and code identifiers. Never translate in any language. These are international tokens; translating them obscures meaning.
+Brands, acronyms, and code identifiers — international tokens that lose meaning when translated.
 
 | Category         | Examples                                                                                                                                 |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -14,18 +18,21 @@ Brands, acronyms, and code identifiers. Never translate in any language. These a
 
 ## Bucket 2 — Established loanwords
 
-Words that are English in industry usage and read natural in German/French as English. Stay English in DE and FR; hyphenate when forming compounds in German (`Webhook-Adresse`, `Workflow-Schritt`).
+English in industry usage, and natural read as English in German/French. Stay English in DE/FR;
+hyphenate when forming a German compound (`Webhook-Adresse`, `Workflow-Schritt`).
 
 | Category    | Examples                                                                                                                                                                       |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `loanword`  | `Workflow`, `Dashboard`, `Cloud`, `Webhook`, `Prompt`, `Token`, `Server`, `Canvas`, `Composer`, `Status`, `Integration`, `Tool`, `Pipeline`, `Branding`, `Open Source`, `Team` |
 | `gitDomain` | `Pull Request`, `Code Review`, `Merge`, `Rebase`, `Branch`, `Commit`, `Push`, `Pull`, `Fork`, `Diff`, `Issue`, `Repository`, `Tag`, `Release`                                  |
 
-The Git-domain split exists because Git vocabulary is a sharper sub-bucket: a German developer who reads `Pull Request` recognises the workflow immediately; rendering it `Ziehanforderung` introduces friction that no native developer asks for.
+The Git-domain split is a sharper sub-bucket: a German developer reading `Pull Request` recognises the
+workflow instantly; `Ziehanforderung` introduces friction no native developer asks for.
 
 ## Bucket 3 — Translate-bucket
 
-English words that have a perfectly natural target-language form and must translate. Caught by the `terminology-loanword` check.
+English words with a perfectly natural target-language form that must translate. Caught by
+`terminology-loanword`.
 
 | EN             | DE                  | FR                    | de-CH (override) |
 | -------------- | ------------------- | --------------------- | ---------------- |
@@ -40,20 +47,28 @@ English words that have a perfectly natural target-language form and must transl
 | Attachment     | Anhang              | Pièce jointe          | (same as DE)     |
 | Self-hosted    | selbst gehostet     | auto-hébergé          | (same as DE)     |
 
-When a term clearly belongs in this bucket but is currently rendered English in the shipped UI, the UI wins — add a glossary entry with `_lintExclude: { <locale>: true }` and a note explaining the deferral. Plan the UI fix as a separate PR.
+When a term belongs here but the shipped UI still renders it English, the UI wins: add a glossary entry
+with `_lintExclude: { <locale>: true }` and a `_note` explaining the deferral; plan the UI fix as a
+separate PR (see [GLOSSARY_GUIDE.md](GLOSSARY_GUIDE.md)).
 
 ## Bucket assignment workflow
 
-1. **Default to translation.** If a target-language reader would expect to see the word in their language (Spreadsheet headers, error names, navigation paths, role names), translate.
-2. **Loanword exceptions are explicit.** A word stays English only when the target-language developer uses the English form in conversation without thinking. The check rejects mid-prose `Pull Request` for DE only if the term is in the translate-bucket; bucket-2 keeps it.
-3. **No half compounds.** A compound translates whole or stays whole. `Knowledge Base` → `Wissensdatenbank` (DE) or `Base de connaissances` (FR); never `Knowledge-Datenbank` or `Base de Knowledge`.
-4. **The UI is authoritative.** If the bucket says "translate" but the UI ships English, the bucket entry gets a `_lintExclude` for that locale and a `_note` describing the deferral.
+1. **Default to translation.** If a target-language reader expects the word in their language
+   (spreadsheet headers, error names, navigation paths, role names), translate.
+2. **Loanword exceptions are explicit.** A word stays English only when the target-language developer
+   uses the English form in conversation without thinking — i.e. it sits in bucket 2.
+3. **No half compounds.** A compound translates whole or stays whole: `Knowledge Base` →
+   `Wissensdatenbank` (DE) or `Base de connaissances` (FR); never `Knowledge-Datenbank`,
+   `Base de Knowledge`.
+4. **The UI is authoritative.** If the bucket says "translate" but the UI ships English, the entry gets
+   a `_lintExclude` for that locale plus a `_note`.
 
 ## Half-compound denylists
 
-Known half-translation patterns the tests reject. Add to the per-locale terminology file when you find new ones: [`packages/ui/src/i18n/tests/locales/<locale>/terminology.ts`](../../../packages/ui/src/i18n/tests/locales/).
+Known half-translation patterns the tests reject. Add new ones to the per-locale terminology file:
+[`packages/ui/src/i18n/tests/locales/<locale>/terminology.ts`](../../../packages/ui/src/i18n/tests/locales/).
 
-**DE half-compounds (Git domain — keep English):**
+**DE — Git domain (keep English):**
 
 | Wrong               | Right        | Why                                |
 | ------------------- | ------------ | ---------------------------------- |
@@ -63,7 +78,7 @@ Known half-translation patterns the tests reject. Add to the per-locale terminol
 | Branch Zweig        | Branch       | Git vocabulary stays English       |
 | Commit Übergabe     | Commit       | Git vocabulary stays English       |
 
-**DE half-compounds (product domain — translate whole):**
+**DE — product domain (translate whole):**
 
 | Wrong               | Right                     |
 | ------------------- | ------------------------- |
@@ -72,7 +87,7 @@ Known half-translation patterns the tests reject. Add to the per-locale terminol
 | Help Zentrum        | Hilfe-Center (matches UI) |
 | Email Anbieter      | E-Mail-Anbieter           |
 
-**FR half-compounds (Git domain — keep English):**
+**FR — Git domain (keep English):**
 
 | Wrong                 | Right        |
 | --------------------- | ------------ |
@@ -81,7 +96,7 @@ Known half-translation patterns the tests reject. Add to the per-locale terminol
 | Code Review-Processus | Code Review  |
 | Branch Branche        | Branch       |
 
-**FR half-compounds (product domain — translate whole):**
+**FR — product domain (translate whole):**
 
 | Wrong          | Right                 |
 | -------------- | --------------------- |

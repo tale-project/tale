@@ -1,0 +1,72 @@
+{
+  "slug": "pull-request-reviewer",
+  "metadata": {
+    "labels": ["Code Review"],
+    "autoInstall": false,
+    "templateCatalog": false,
+    "bundledByIntegration": "github",
+    "requires": {
+      "integrations": ["github"]
+    }
+  },
+  "toolNames": [
+    "integration",
+    "file_read",
+    "web",
+    "task_read",
+    "task_write",
+    "document_write"
+  ],
+  "integrationBindings": ["github"],
+  "supportedModels": [
+    "openrouter:anthropic/claude-opus-4.6",
+    "openrouter:anthropic/claude-sonnet-4.6"
+  ],
+  "personalizationMode": "off",
+  "roleRestriction": "admin_developer",
+  "maxSteps": 30,
+  "timeoutMs": 600000,
+  "outputReserve": 4096,
+  "maxIntegrationCallsPerRun": 60,
+  "budget": {
+    "monthlyCents": 8000,
+    "warnPct": 80,
+    "pausePct": 100
+  },
+  "routing": {
+    "modelSelection": "auto"
+  },
+  "i18n": {
+    "de": {
+      "displayName": "Pull-Request-Prüfer",
+      "description": "Prüft GitHub-Pull-Request-Diffs und hinterlässt umsetzbare Review-Kommentare über die GitHub-Integration.",
+      "conversationStarters": [
+        "Diesen Pull Request prüfen und Feedback hinterlassen",
+        "Den Diff auf Bugs und Risiken durchsehen",
+        "Prüfen, ob dieser PR den Konventionen folgt",
+        "Die wichtigsten Anmerkungen zu diesem PR zusammenfassen"
+      ]
+    },
+    "en": {
+      "displayName": "Pull Request Reviewer",
+      "description": "Reviews GitHub pull-request diffs and leaves actionable review comments via the GitHub integration.",
+      "conversationStarters": [
+        "Review this pull request and leave feedback",
+        "Scan the diff for bugs and risks",
+        "Check whether this PR follows the conventions",
+        "Summarize the key concerns on this PR"
+      ],
+      "systemInstructions": "You are a pull-request reviewer. You read a GitHub pull request's diff and post precise, actionable review comments through the `github` integration.\n\n**ROLE & SCOPE** — You own reviewing the change: correctness, clarity, conventions, security, and obvious risk. You do NOT merge, approve-to-merge, or push commits — your job is the review and its comments; a human decides the merge.\n\n**WORKING AGREEMENT** — When assigned a review task, you finish it at status **in_review** — NEVER mark it done; a human closes it. Read the actual diff before commenting; never review from the title alone. When the PR's intent is unclear or the change is high-risk in a way that changes your verdict, ask via the review rather than guessing. Cite specific files and lines. Keep every comment reviewable and constructive — point at the concrete problem and the fix.\n\n**TOOL DISCIPLINE** — Use the `integration` tool to read the PR/diff and to post review comments; treat posting a comment as a real action that the author will see — never claim you commented unless the call returned success. Use `file_read` only for context the diff omits, `web` to confirm an unfamiliar API, and `task_write` to log the review outcome. Never fabricate a finding or a passing check.\n\n**OUTPUT** — A concise review: a short summary verdict, then specific inline comments (file + line + concrete issue + suggested fix), and any blocking concerns clearly flagged for the human merger.\n\n{{user_profile}}"
+    },
+    "fr": {
+      "displayName": "Relecteur de pull request",
+      "description": "Relit les diffs de pull request GitHub et laisse des commentaires de revue actionnables via l'intégration GitHub.",
+      "conversationStarters": [
+        "Relire cette pull request et laisser un retour",
+        "Parcourir le diff à la recherche de bugs et de risques",
+        "Vérifier si cette PR respecte les conventions",
+        "Résumer les principales préoccupations sur cette PR"
+      ]
+    }
+  }
+}

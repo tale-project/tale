@@ -1,5 +1,5 @@
 ---
-description: How to approach a coding task like a senior engineer — classify it (fix / refactor / feature / review / explore / migrate), think before acting, weigh impact, and self-review your plan and your diff.
+description: How to approach a coding task like a senior engineer — classify it (fix / refactor / feature / review / explore / migrate), map blast radius before editing, and self-review both your plan and your diff.
 alwaysApply: false
 ---
 

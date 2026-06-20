@@ -21,6 +21,7 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { canClaimTask, checkProjectAccess } from './access';
+import { readTaskDiscussionMessages } from './internal_queries';
 import {
   boardViewFiltersValidator,
   boardViewScopeValidator,
@@ -31,7 +32,6 @@ import {
 } from './schema';
 
 const TASK_BOARD_CAP = 2000;
-const TASK_COMMENTS_CAP = 500;
 const TASK_ACTIVITY_CAP = 500;
 
 async function getAuthContext(
@@ -90,6 +90,8 @@ export const taskRowValidator = v.object({
   agentRunCount: v.optional(v.number()),
   lastAgentRunAt: v.optional(v.number()),
   threadId: v.optional(v.string()),
+  discussionThreadId: v.optional(v.string()),
+  sourceDiscussionThreadId: v.optional(v.string()),
   createdBy: v.string(),
   createdByType: taskActorTypeValidator,
   claimedAt: v.optional(v.number()),
@@ -99,23 +101,19 @@ export const taskRowValidator = v.object({
   archivedAt: v.optional(v.number()),
 });
 
-const commentRowValidator = v.object({
-  _id: v.id('taskComments'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  taskId: v.id('tasks'),
-  projectId: v.id('projects'),
+/** A task comment in the unified model: a `task_discussion` message joined
+ *  with its side-car meta. `messageId` is the agent message-store id (string),
+ *  `editedAt`/`mentions` pre-joined so the UI never does a render-time lookup. */
+const taskDiscussionMessageValidator = v.object({
+  messageId: v.string(),
   authorType: taskActorTypeValidator,
   authorId: v.string(),
   body: v.string(),
-  parentCommentId: v.optional(v.id('taskComments')),
+  createdAt: v.number(),
+  editedAt: v.optional(v.number()),
   mentions: v.optional(
     v.array(v.object({ type: taskActorTypeValidator, id: v.string() })),
   ),
-  createdAt: v.number(),
-  updatedAt: v.number(),
-  editedAt: v.optional(v.number()),
-  deletedAt: v.optional(v.number()),
 });
 
 const activityRowValidator = v.object({
@@ -280,20 +278,25 @@ export const listProjectDependencies = query({
   },
 });
 
-/** List a task's comments (oldest first), excluding soft-deleted ones. */
-export const listTaskComments = query({
+/**
+ * A task's comment surface (unified model): the lazily-created
+ * `task_discussion` thread id (null when the task has no comments yet) plus its
+ * messages (oldest first), each pre-joined with author/editedAt/mentions. The
+ * null-thread case is the threadless-task bootstrap the modal renders as an
+ * empty state. Project-access gated like every task read.
+ */
+export const getTaskDiscussion = query({
   args: { taskId: v.id('tasks') },
-  returns: v.array(commentRowValidator),
+  returns: v.object({
+    threadId: v.union(v.string(), v.null()),
+    messages: v.array(taskDiscussionMessageValidator),
+  }),
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.taskId);
-    if (!task) return [];
+    if (!task) return { threadId: null, messages: [] };
     await loadAccessibleProject(ctx, task.projectId);
-    const comments = await ctx.db
-      .query('taskComments')
-      .withIndex('by_task_createdAt', (q) => q.eq('taskId', args.taskId))
-      .order('asc')
-      .take(TASK_COMMENTS_CAP);
-    return comments.filter((c) => !c.deletedAt);
+    const messages = await readTaskDiscussionMessages(ctx, task);
+    return { threadId: task.discussionThreadId ?? null, messages };
   },
 });
 

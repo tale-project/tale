@@ -19,8 +19,8 @@ import {
   type AgentJsonConfig,
   MAX_FILE_SIZE_BYTES,
   parseAgentJson,
-  resolveAgentFilePath,
 } from './file_utils';
+import { resolveAgentPath } from './internal_actions';
 import type { KnowledgeFile } from './schema';
 
 export interface InlineConfigResult {
@@ -37,7 +37,11 @@ export async function resolveAgentConfigInline(
     modelId?: string;
   },
 ): Promise<InlineConfigResult & { orgLocale: string }> {
-  const filePath = resolveAgentFilePath(args.orgSlug, args.agentSlug);
+  // Locate the backing file through the folder-aware index (chat/, workforce/,
+  // github/, …); the flat `<slug>.json` fallback covers system agents and any
+  // file written before the 60s index cache refreshed. Without this, every
+  // foldered agent failed config load with "Agent not found".
+  const filePath = await resolveAgentPath(args.orgSlug, args.agentSlug);
 
   // Parallelize JSON read, binding lookup, and org-locale lookup to preserve
   // the TTFT savings the inlined path was designed for.

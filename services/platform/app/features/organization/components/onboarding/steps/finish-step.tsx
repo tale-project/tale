@@ -1,10 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Bot, KeyRound, Users } from 'lucide-react';
+import { Bot, Check, KeyRound, Users } from 'lucide-react';
 
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 /** Where a finish-step CTA sends the user (after marking onboarding complete). */
 export type FinishTarget = 'providers' | 'agents' | 'members';
@@ -16,15 +17,23 @@ interface FinishStepProps {
    * mark-complete logic. When absent (e.g. a story), CTAs render disabled.
    */
   onFinishTo?: (target: FinishTarget) => void;
+  /**
+   * When true, the "connect a provider" row renders as already-done (a check,
+   * not a CTA) — the user connected one during onboarding, so listing it as a
+   * pending next step would be confusing.
+   */
+  providerConnected?: boolean;
 }
 
 /**
  * Closing step: instead of a static checklist, each "what's next" item is an
  * actionable CTA that marks onboarding complete and lands the user exactly
  * where the task gets done — so a fresh workspace never dead-ends on "now
- * what?". The footer's "Go to dashboard" remains the skip-everything exit.
+ * what?". An item the user already finished (e.g. a connected AI provider)
+ * renders as done instead of a redundant CTA. The footer's "Go to dashboard"
+ * remains the skip-everything exit.
  */
-export function FinishStep({ onFinishTo }: FinishStepProps) {
+export function FinishStep({ onFinishTo, providerConnected }: FinishStepProps) {
   const { t } = useT('onboarding');
 
   const items: {
@@ -32,24 +41,32 @@ export function FinishStep({ onFinishTo }: FinishStepProps) {
     icon: typeof KeyRound;
     text: string;
     cta: string;
+    done: boolean;
+    doneText: string;
   }[] = [
     {
       target: 'providers',
       icon: KeyRound,
       text: t('finish.providerItem'),
       cta: t('finish.providerCta'),
+      done: Boolean(providerConnected),
+      doneText: t('finish.providerConnected'),
     },
     {
       target: 'agents',
       icon: Bot,
       text: t('finish.agentItem'),
       cta: t('finish.agentCta'),
+      done: false,
+      doneText: '',
     },
     {
       target: 'members',
       icon: Users,
       text: t('finish.inviteItem'),
       cta: t('finish.inviteCta'),
+      done: false,
+      doneText: '',
     },
   ];
 
@@ -62,26 +79,41 @@ export function FinishStep({ onFinishTo }: FinishStepProps) {
         role="list"
         className="divide-border border-border divide-y overflow-hidden rounded-lg border"
       >
-        {items.map(({ target, icon: Icon, text, cta }) => (
+        {items.map(({ target, icon: Icon, text, cta, done, doneText }) => (
           <li
             key={target}
             className="flex items-center justify-between gap-3 p-3"
           >
             <span className="flex items-center gap-3">
-              <span className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                <Icon className="size-4" aria-hidden />
+              <span
+                className={cn(
+                  'flex size-8 shrink-0 items-center justify-center rounded-lg',
+                  done
+                    ? 'bg-success/10 text-success'
+                    : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {done ? (
+                  <Check className="size-4" aria-hidden />
+                ) : (
+                  <Icon className="size-4" aria-hidden />
+                )}
               </span>
-              <span className="text-sm">{text}</span>
+              <span className={cn('text-sm', done && 'text-muted-foreground')}>
+                {done ? doneText : text}
+              </span>
             </span>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={!onFinishTo}
-              onClick={() => onFinishTo?.(target)}
-            >
-              {cta}
-            </Button>
+            {done ? null : (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={!onFinishTo}
+                onClick={() => onFinishTo?.(target)}
+              >
+                {cta}
+              </Button>
+            )}
           </li>
         ))}
       </ul>

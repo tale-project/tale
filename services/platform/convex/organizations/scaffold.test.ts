@@ -109,28 +109,31 @@ describe('scaffoldNewOrganization (org-first)', () => {
     ).toBe(true);
   });
 
-  it('seeds flat domains (agents) per-file from the catalog', async () => {
+  it('seeds flat domains (providers) per-file from the catalog', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('agents', 'shipped.json'), '{"displayName":"x"}');
+    await writeText(catSrc('providers', 'shipped.json'), '{"name":"x"}');
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    expect(existsSync(orgDst('acme', 'agents', 'shipped.json'))).toBe(true);
+    expect(existsSync(orgDst('acme', 'providers', 'shipped.json'))).toBe(true);
   });
 
   it('flat domains never recurse into catalog subdirs (defense if the catalog ever ships one)', async () => {
+    // `agents` became a TREE domain (chat/ workforce/ github/ folders) so it
+    // recurses by design — see the workflows recursion test above. This guards
+    // the still-flat domains (providers/prompts/governance) against an
+    // unexpected subdir leaking cross-tenant content.
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('agents', 'shipped.json'), '{"displayName":"x"}');
-    // A subdir inside the agents catalog is unexpected (agents is file-only).
+    await writeText(catSrc('providers', 'shipped.json'), '{"name":"x"}');
     await writeText(
-      catSrc('agents', 'stray', 'nested.json'),
-      '{"displayName":"nested"}',
+      catSrc('providers', 'stray', 'nested.json'),
+      '{"name":"nested"}',
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    expect(existsSync(orgDst('acme', 'agents', 'shipped.json'))).toBe(true);
-    expect(existsSync(orgDst('acme', 'agents', 'stray'))).toBe(false);
+    expect(existsSync(orgDst('acme', 'providers', 'shipped.json'))).toBe(true);
+    expect(existsSync(orgDst('acme', 'providers', 'stray'))).toBe(false);
   });
 
   it('skips symlinks in the catalog rather than following them', async () => {

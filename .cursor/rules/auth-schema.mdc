@@ -1,5 +1,5 @@
 ---
-description: How to regenerate the Better Auth schema for Convex from the auth config.
+description: Regenerate the Better Auth Convex schema from the auth config with the Better Auth CLI.
 globs: services/platform/convex/auth.ts,services/platform/convex/betterAuth/**
 alwaysApply: false
 ---

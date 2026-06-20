@@ -11,8 +11,10 @@
  * `actorType: 'api'` with `metadata.viaAgent` (the audit union has no 'agent').
  */
 
+import { createThread, saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
+import { DEFAULT_DISCUSSION_CATEGORY } from '../../lib/shared/constants/discussions';
 import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
@@ -41,8 +43,13 @@ import {
   TASK_TITLE_MAX,
   TERMINAL_STATUSES,
 } from './helpers';
-import { extractMentions, parseMentionTokens } from './mentions';
 import {
+  extractMentions,
+  parseMentionTokens,
+  type ResolvedMention,
+} from './mentions';
+import {
+  type CommentEventComment,
   taskActorTypeValidator,
   taskPriorityValidator,
   taskStatusValidator,
@@ -620,6 +627,127 @@ export const agentAssignTask = internalMutation({
   },
 });
 
+/**
+ * Get-or-create the task's UNIFIED comment thread: a `kind:'task_discussion'`
+ * chat thread whose messages ARE the task's comments. Atomic within the calling
+ * mutation (a concurrent creator's transaction retries and re-reads
+ * `tasks.discussionThreadId`), mirroring `ensureTaskThread`. DISTINCT from
+ * `ensureTaskThread` (the private agent working/run thread — reusing it would
+ * leak run prompts into the visible discussion). Plain in-txn helper so the
+ * comment writers (which are mutations, not actions) can call it directly.
+ */
+async function ensureTaskDiscussionThread(
+  ctx: MutationCtx,
+  task: Doc<'tasks'>,
+  organizationId: string,
+): Promise<{ threadId: string; isNew: boolean }> {
+  if (task.discussionThreadId) {
+    const existing = await ctx.runQuery(components.agent.threads.getThread, {
+      threadId: task.discussionThreadId,
+    });
+    if (existing?.status === 'active') {
+      return { threadId: task.discussionThreadId, isNew: false };
+    }
+    // Archived/deleted thread — fall through and mint a fresh one.
+  }
+  const project = await ctx.db.get(task.projectId);
+  const identifier =
+    project?.key && task.number !== undefined
+      ? `${project.key}-${task.number}`
+      : String(task._id);
+  const threadId = await createThread(ctx, components.agent, {
+    userId: task.createdBy,
+    title: `task-discussion:${identifier}`,
+    summary: JSON.stringify({
+      kind: 'task_discussion',
+      taskId: String(task._id),
+      organizationId,
+    }),
+  });
+  const now = Date.now();
+  await ctx.db.insert('threadMetadata', {
+    threadId,
+    userId: task.createdBy,
+    chatType: 'general',
+    status: 'active',
+    kind: 'task_discussion',
+    taskId: task._id,
+    projectId: task.projectId,
+    organizationId,
+    title: task.title,
+    discussionStatus: 'open',
+    discussionCategory: DEFAULT_DISCUSSION_CATEGORY,
+    createdAt: now,
+    updatedAt: now,
+    lastReplyAt: now,
+    generationStatus: 'idle',
+    agentReplyDepth: 0,
+  });
+  await ctx.db.patch(task._id, { discussionThreadId: threadId });
+  return { threadId, isNew: true };
+}
+
+/**
+ * THE single write path for a task comment: ensure the task's discussion
+ * thread, persist the comment as a message in the `@convex-dev/agent` store,
+ * and write its side-car meta row in LOCKSTEP (same txn). Humans post as
+ * `role:'user'`; agents AND the workflow actor post as `role:'assistant'`
+ * (so MessageBubble renders them on the agent side, matching discussions).
+ *
+ * ATOMIC INVARIANT: no other code may `saveMessage` into a task_discussion
+ * thread — author/`editedAt`/`mentions` live ONLY in the meta row written here,
+ * so a message without its meta would render unattributed and be uneditable.
+ */
+export async function postTaskDiscussionMessage(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    task: Doc<'tasks'>;
+    project: Doc<'projects'>;
+    actorType: 'user' | 'agent';
+    actorId: string;
+    body: string;
+  },
+): Promise<{
+  messageId: string;
+  threadId: string;
+  mentions: ResolvedMention[];
+}> {
+  const { threadId } = await ensureTaskDiscussionThread(
+    ctx,
+    args.task,
+    args.organizationId,
+  );
+  const directory = await buildMentionDirectory(ctx, {
+    organizationId: args.organizationId,
+    project: args.project,
+  });
+  const mentions = extractMentions(
+    args.body,
+    directory.entries,
+    directory.permissiveAgents,
+  );
+  const { messageId } = await saveMessage(ctx, components.agent, {
+    threadId,
+    message: {
+      role: args.actorType === 'user' ? 'user' : 'assistant',
+      content: args.body,
+    },
+    ...(args.actorType === 'user' ? { userId: args.actorId } : {}),
+  });
+  await ctx.db.insert('taskDiscussionMessageMeta', {
+    organizationId: args.organizationId,
+    threadId,
+    taskId: args.task._id,
+    messageId,
+    authorType: args.actorType,
+    authorId: args.actorId,
+    mentions: mentions.length > 0 ? mentions : undefined,
+    createdAt: Date.now(),
+  });
+  return { messageId, threadId, mentions };
+}
+
 export const agentAddComment = internalMutation({
   args: {
     organizationId: v.string(),
@@ -630,7 +758,7 @@ export const agentAddComment = internalMutation({
   handler: async (
     ctx,
     args,
-  ): Promise<{ commentId: Id<'taskComments'>; mentionCount: number }> => {
+  ): Promise<{ messageId: string; threadId: string; mentionCount: number }> => {
     const task = await loadTaskInOrg(ctx, args.taskId, args.organizationId);
     const project = await loadProjectInOrg(
       ctx,
@@ -641,29 +769,21 @@ export const agentAddComment = internalMutation({
     if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
       throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
     }
-    const directory = await buildMentionDirectory(ctx, {
-      organizationId: args.organizationId,
-      project,
-    });
-    const mentions = extractMentions(
-      body,
-      directory.entries,
-      directory.permissiveAgents,
-    );
 
-    const now = Date.now();
-    const commentId = await ctx.db.insert('taskComments', {
-      organizationId: args.organizationId,
-      taskId: args.taskId,
-      projectId: task.projectId,
-      authorType: 'agent',
-      authorId: args.actorId,
-      body,
-      mentions: mentions.length > 0 ? mentions : undefined,
-      createdAt: now,
-      updatedAt: now,
-    });
-    // Keep the denormalized comment count in step (mirrors addTaskComment).
+    // Unified surface: the comment is a message in the task's discussion
+    // thread, with its author/mentions in the lockstep meta row.
+    const { messageId, threadId, mentions } = await postTaskDiscussionMessage(
+      ctx,
+      {
+        organizationId: args.organizationId,
+        task,
+        project,
+        actorType: 'agent',
+        actorId: args.actorId,
+        body,
+      },
+    );
+    // Denormalized count — CRITICAL for the board comment indicator.
     await ctx.db.patch(args.taskId, {
       commentCount: (task.commentCount ?? 0) + 1,
     });
@@ -678,19 +798,29 @@ export const agentAddComment = internalMutation({
       actorId: args.actorId,
       action: TASK_AUDIT_ACTIONS.commentCreated,
       resourceType: TASK_COMMENT_RESOURCE_TYPE,
-      resourceId: String(commentId),
+      resourceId: messageId,
       resourceName: task.title,
       metadata: { taskId: String(args.taskId), mentionCount: mentions.length },
     });
+    // `postTaskDiscussionMessage` does NOT fan out notifications — keep the
+    // follower/mention notification here (the discussion path lacks it).
     await notifyTaskComment(ctx, {
       task,
-      commentId,
+      commentId: messageId,
       mentions,
       actorType: 'agent',
       actorId: args.actorId,
     });
 
-    const comment = await ctx.db.get(commentId);
+    // No `taskComments` doc exists anymore — RECONSTRUCT the event `comment`
+    // object to the exact shape the task-ops pack reads (`input.comment.body`)
+    // and `comment.*` event filters resolve (`comment.projectId`).
+    const comment: CommentEventComment = {
+      body,
+      projectId: String(task.projectId),
+      taskId: String(args.taskId),
+      mentions,
+    };
     await emitEvent(ctx, {
       organizationId: args.organizationId,
       eventType: 'comment.created',
@@ -714,7 +844,7 @@ export const agentAddComment = internalMutation({
     }
     // `mentionCount` lets callers detect a mention that did NOT resolve
     // against the project directory (the escalation tool's fallback signal).
-    return { commentId, mentionCount: mentions.length };
+    return { messageId, threadId, mentionCount: mentions.length };
   },
 });
 
@@ -736,7 +866,7 @@ export const agentEscalateOnTask = internalMutation({
   },
   returns: v.object({
     ok: v.boolean(),
-    commentId: v.optional(v.id('taskComments')),
+    messageId: v.optional(v.string()),
     mentionResolved: v.boolean(),
   }),
   handler: async (
@@ -744,7 +874,7 @@ export const agentEscalateOnTask = internalMutation({
     args,
   ): Promise<{
     ok: boolean;
-    commentId?: Id<'taskComments'>;
+    messageId?: string;
     mentionResolved: boolean;
   }> => {
     const task = await ctx.db.get(args.taskId);
@@ -755,7 +885,7 @@ export const agentEscalateOnTask = internalMutation({
     const body = args.managerSlug
       ? `@${args.managerSlug} [escalation] ${reason}`
       : `[escalation] ${reason}`;
-    const { commentId, mentionCount } = await ctx.runMutation(
+    const { messageId, mentionCount } = await ctx.runMutation(
       internal.tasks.internal_mutations.agentAddComment,
       {
         organizationId: args.organizationId,
@@ -773,7 +903,7 @@ export const agentEscalateOnTask = internalMutation({
     });
     return {
       ok: true,
-      commentId,
+      messageId,
       mentionResolved: args.managerSlug !== undefined && mentionCount > 0,
     };
   },
@@ -898,11 +1028,12 @@ export const backfillTaskCommentCounts = internalMutation({
         q.eq('organizationId', args.organizationId),
       )) {
       scanned += 1;
+      // Comments are now `task_discussion` messages, 1:1 with their meta rows.
       let count = 0;
-      for await (const comment of ctx.db
-        .query('taskComments')
-        .withIndex('by_task_createdAt', (q) => q.eq('taskId', task._id))) {
-        if (!comment.deletedAt) count += 1;
+      for await (const _meta of ctx.db
+        .query('taskDiscussionMessageMeta')
+        .withIndex('by_task', (q) => q.eq('taskId', task._id))) {
+        count += 1;
       }
       if ((task.commentCount ?? 0) !== count) {
         await ctx.db.patch(task._id, { commentCount: count });

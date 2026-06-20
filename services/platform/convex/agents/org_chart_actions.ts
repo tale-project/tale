@@ -120,7 +120,7 @@ export const getOrgChart = action({
 /**
  * Set the agents `agentSlug` delegates to (its outgoing edges / direct
  * reports). Validation + the file writes live in `writeAgentDelegates`,
- * shared with the `organigram_write` agent tool's path.
+ * shared with the `agent_write` agent tool's path.
  */
 export const setAgentDelegates = action({
   args: {

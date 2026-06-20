@@ -19,6 +19,7 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { excludeNonChatHistoryThreads } from './list_threads';
 
 const THREAD_SCAN_CAP = 40;
 const MESSAGES_PER_THREAD = 30;
@@ -56,7 +57,7 @@ export const searchThreadMessages = query({
           .eq('status', 'active'),
       )
       .filter((q) => {
-        let expr = q.neq(q.field('isBranch'), true);
+        let expr = excludeNonChatHistoryThreads(q);
         if (args.teamId) {
           expr = q.and(expr, q.eq(q.field('teamId'), args.teamId));
         }

@@ -1,5 +1,5 @@
 ---
-description: How to drive the Tale platform in a real browser (Playwright MCP) to RUN the manual test guides in services/platform/tests/manual/.
+description: Drive the Tale platform in a real browser via Playwright MCP to RUN the manual test guides in services/platform/tests/manual/.
 alwaysApply: false
 ---
 

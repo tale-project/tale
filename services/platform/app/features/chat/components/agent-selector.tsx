@@ -18,7 +18,10 @@ import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param'
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDialogSearchParam } from '@/app/hooks/use-dialog-search-param';
 import { useT } from '@/lib/i18n/client';
-import { AUTO_AGENT_SLUG } from '@/lib/shared/constants/agents';
+import {
+  AUTO_AGENT_SLUG,
+  DEFAULT_CHAT_AGENT_SLUG,
+} from '@/lib/shared/constants/agents';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
@@ -87,7 +90,7 @@ export const AgentSelector = memo(function AgentSelector({
           // picker stays scannable when an org has many agents while still
           // letting users get the "what does this one do?" answer on demand.
           description: agent.description,
-          isDefaultChat: agent.name === 'chat-agent',
+          isDefaultChat: agent.name === DEFAULT_CHAT_AGENT_SLUG,
           labelBadge: missingTitle ? (
             <span className="text-muted-foreground text-xs">
               {tComposer('requiresIntegration', { name: missingTitle })}

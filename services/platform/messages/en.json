@@ -352,6 +352,16 @@
   },
   "automations": {
     "title": "Automations",
+    "tabs": {
+      "list": "List",
+      "catalog": "Catalog",
+      "metrics": "Metrics"
+    },
+    "catalog": {
+      "title": "Automation catalog",
+      "subtitle": "Browse and install ready-made automations for your workspace.",
+      "installed": "Automation installed"
+    },
     "aria": {
       "openNamed": "Open {name}",
       "openLoop": "Open loop"
@@ -568,14 +578,14 @@
       "title": "Create automation",
       "tabBlank": "Blank",
       "tabTemplate": "From template",
-      "nameTooltip": "Becomes the automation's id in its URL. Keep it short — you can change the display name later.",
+      "nameTooltip": "Becomes the automation's id in its URL. Add a / to place it in a folder, e.g. marketing/social-posts. You can change the display name later.",
       "namePlaceholder": "e.g., Social media workflow",
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
       "continue": "Continue"
     },
     "uploadDialog": {
-      "menuItem": "Upload from file…",
+      "menuItem": "Upload file",
       "title": "Upload automations",
       "description": "Import workflow JSON files, folders, or .zip archives. Each .json file installs as a separate automation.",
       "toastSuccess": "Automations imported"
@@ -689,7 +699,8 @@
       "createFailed": "Failed to create automation"
     },
     "validation": {
-      "duplicateName": "An automation with this name already exists"
+      "duplicateName": "An automation with this name already exists",
+      "invalidName": "Name must contain at least one letter or number"
     },
     "deleteAutomation": {
       "title": "Delete automation",
@@ -874,7 +885,47 @@
       "updateWorkflowStep": "Workflow step",
       "saveWorkflowDefinition": "Saving workflow",
       "validateWorkflowDefinition": "Validating workflow",
-      "excel": "Excel file"
+      "excel": "Excel file",
+      "customerWrite": "Update customer",
+      "productWrite": "Update product",
+      "websiteRead": "Read website",
+      "websiteWrite": "Update website",
+      "vendorRead": "Read vendor",
+      "vendorWrite": "Update vendor",
+      "conversationRead": "Read conversation",
+      "conversationWrite": "Reply to conversation",
+      "discussionRead": "Read discussion",
+      "discussionWrite": "Post to discussion",
+      "agentRead": "Read agents",
+      "agentWrite": "Manage agents",
+      "metricsRead": "Read metrics",
+      "taskRead": "Read tasks",
+      "taskWrite": "Update task",
+      "projectRead": "Read projects",
+      "projectWrite": "Update project",
+      "fileRead": "Read file",
+      "fileWrite": "Write file",
+      "fileEdit": "Edit file",
+      "fileList": "List files",
+      "fileDelete": "Delete file",
+      "runCode": "Run code",
+      "generateImage": "Generate image",
+      "text": "Text file",
+      "workflowSyntax": "Workflow syntax",
+      "createWorkflow": "Create workflow",
+      "runWorkflow": "Run workflow",
+      "integration": "Integration",
+      "integrationBatch": "Batch integration",
+      "integrationIntrospect": "Inspect integration",
+      "databaseSchema": "Database schema",
+      "documentFind": "Find documents",
+      "documentRetrieve": "Retrieve document",
+      "documentWrite": "Write document",
+      "requestHumanInput": "Ask a human",
+      "requestUserLocation": "Request location",
+      "updateTodos": "To-do list",
+      "proposeMemory": "Propose memory",
+      "secretRead": "Read secret"
     },
     "agentSelector": {
       "label": "Select agent",
@@ -2265,6 +2316,7 @@
       "heading": "You're all set",
       "subtitle": "Here's what you can do next:",
       "providerItem": "Connect an AI provider to power agents and chat.",
+      "providerConnected": "AI provider connected.",
       "agentItem": "Create your first agent.",
       "inviteItem": "Invite teammates to collaborate.",
       "providerCta": "Connect a provider",
@@ -4952,8 +5004,17 @@
     },
     "agents": {
       "title": "Agents",
+      "tabs": {
+        "overview": "Overview",
+        "list": "List",
+        "metrics": "Metrics"
+      },
       "entityLabel": "agents",
       "createAgent": "Create agent",
+      "createMenu": {
+        "blank": "Blank",
+        "fromTemplate": "From template"
+      },
       "searchAgent": "Search agents",
       "columns": {
         "displayName": "Name",
@@ -5014,7 +5075,7 @@
         "noModelsLink": "Add a provider"
       },
       "uploadDialog": {
-        "menuItem": "Upload from file…",
+        "menuItem": "Upload file",
         "title": "Upload agents",
         "description": "Import agent JSON files, folders, or .zip archives. Each .json file installs as a separate agent.",
         "toastSuccess": "Agents imported"
@@ -5073,9 +5134,9 @@
         "sectionAccessDescription": "Control which teams can use this agent",
         "name": "Name",
         "namePlaceholder": "my-agent",
-        "nameHelp": "Unique identifier (lowercase letters, numbers, hyphens, and underscores only)",
-        "nameTooltip": "A unique, URL-safe id used in links and the API. You can't change it later.",
-        "namePatternError": "Must start with a letter or number and contain only lowercase letters, numbers, hyphens, and underscores",
+        "nameHelp": "Unique id — lowercase letters, numbers, hyphens, underscores. Add a / to file it in a folder, e.g. marketing/seo-writer.",
+        "nameTooltip": "A unique, URL-safe id used in links and the API. Add a / to file it in a folder (e.g. marketing/seo-writer). You can't change it later.",
+        "namePatternError": "Each part must start with a letter or number and use only lowercase letters, numbers, hyphens, and underscores. Separate folders with /.",
         "displayName": "Display name",
         "displayNameTooltip": "The friendly name people see in chat. Change it anytime.",
         "displayNamePlaceholder": "My Agent",
@@ -5212,7 +5273,24 @@
         "webModeContextDescription": "Automatically inject relevant web results into every response",
         "webModeBothDescription": "Auto-inject web results and allow on-demand search",
         "webSearchHint": "Web search only searches content from websites added to your organization.",
-        "webSearchHintLink": "Manage websites"
+        "webSearchHintLink": "Manage websites",
+        "categories": {
+          "customers": "Customers",
+          "products": "Products",
+          "vendors": "Vendors",
+          "websites": "Websites",
+          "conversations": "Conversations",
+          "discussions": "Discussions",
+          "knowledge": "Knowledge",
+          "tasksProjects": "Tasks & projects",
+          "agents": "Agents",
+          "workflows": "Workflows",
+          "integrations": "Integrations & data",
+          "analytics": "Analytics",
+          "web": "Web",
+          "files": "Files",
+          "system": "System"
+        }
       },
       "webhook": {
         "title": "Webhooks",
@@ -5254,12 +5332,6 @@
         "exampleFileUploadStream": "File upload with streaming (SSE response)",
         "exampleOpenAICompat": "OpenAI-compatible endpoint (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI client config (e.g. Meetily)"
-      },
-      "organigram": {
-        "menuItem": "Organigram"
-      },
-      "metrics": {
-        "link": "Metrics"
       }
     },
     "skills": {
@@ -6701,7 +6773,6 @@
       "brandingUpdateFailed": "Failed to update branding",
       "addMemberFailed": "Failed to add member",
       "automationDuplicateFailed": "Failed to duplicate automation",
-      "automationRenameFailed": "Failed to rename automation",
       "automationDeleteFailed": "Failed to delete automation",
       "generic": "Something went wrong. Please try again."
     }
@@ -7079,6 +7150,102 @@
       "cancel": "Cancel"
     }
   },
+  "discussions": {
+    "categories": {
+      "general": "General",
+      "qa": "Q&A",
+      "ideas": "Ideas",
+      "decisions": "Decisions",
+      "announcements": "Announcements",
+      "show-and-tell": "Show and tell",
+      "polls": "Polls"
+    },
+    "title": "Discussions",
+    "subtitle": "Threaded conversations for this project — ask questions, make decisions, and @mention an agent to bring it in.",
+    "new": "New discussion",
+    "empty": "No discussions yet. Start one to ask a question or make a decision.",
+    "untitled": "Untitled discussion",
+    "backToList": "Back to discussions",
+    "resolve": "Resolve",
+    "reopen": "Reopen",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "status": {
+      "open": "Open",
+      "resolved": "Resolved",
+      "locked": "Locked",
+      "failed": "Could not update the discussion status"
+    },
+    "spawnTask": {
+      "cta": "Create task",
+      "success": "Task created from discussion",
+      "failed": "Could not create the task",
+      "converted": "Converted to task",
+      "viewTask": "View task",
+      "alreadyConverted": "This discussion is already a task"
+    },
+    "reply": {
+      "placeholder": "Reply… use @ to mention a teammate or agent",
+      "lockedPlaceholder": "This discussion is locked",
+      "hint": "@mention an agent to ask it to respond.",
+      "failed": "Could not post your reply"
+    },
+    "create": {
+      "title": "New discussion",
+      "titleLabel": "Title",
+      "titlePlaceholder": "What's this discussion about?",
+      "titleRequired": "Add a title first",
+      "category": "Category",
+      "bodyPlaceholder": "Start the discussion… use @ to mention a teammate or agent",
+      "hint": "Press send to open the discussion. @mention an agent to involve it.",
+      "cancel": "Cancel",
+      "failed": "Could not create the discussion"
+    },
+    "aria": {
+      "transcript": "Discussion messages"
+    }
+  },
+  "agentCatalog": {
+    "folders": {
+      "workforce": "Workforce",
+      "chat": "Chat",
+      "github": "GitHub",
+      "other": "Other"
+    },
+    "loadError": {
+      "title": "Couldn't load the catalog",
+      "description": "The agent catalog couldn't be loaded. Check your connection and try again.",
+      "retry": "Try again"
+    },
+    "noResults": {
+      "title": "No matching agents",
+      "description": "No agents match your search. Try a different term."
+    },
+    "title": "Agent catalog",
+    "subtitle": "Browse the AI workforce by department and install, enable, or disable agents for your organization.",
+    "menuItem": "Catalog",
+    "searchPlaceholder": "Search agents…",
+    "install": "Install",
+    "enable": "Enable",
+    "disable": "Disable",
+    "uninstall": "Uninstall",
+    "installed": "Agent installed",
+    "enabled": "Agent enabled",
+    "disabled": "Agent disabled",
+    "uninstalled": "Agent uninstalled",
+    "error": "Could not update the agent roster",
+    "installedByIntegration": "Installed by {integration}",
+    "requiresIntegration": "Requires {integration}",
+    "status": {
+      "available": "Available",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "empty": {
+      "title": "No catalog agents",
+      "description": "No installable agents were found for this organization."
+    }
+  },
   "organigram": {
     "title": "Organigram",
     "subtitle": "How your AI workforce delegates work — delegation, epic decomposition, SLA escalation, and budget handoff all follow these edges.",
@@ -7110,7 +7277,6 @@
     "unsavedChanges": "Unsaved changes"
   },
   "workforce": {
-    "title": "Workforce",
     "subtitle": "How your AI workforce performs: outcomes, human intervention, and cost — always together.",
     "period": {
       "label": "Period",

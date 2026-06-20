@@ -40,7 +40,7 @@ import {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-async function readIntegrationConfigFile(
+export async function readIntegrationConfigFile(
   orgSlug: string,
   slug: string,
 ): Promise<IntegrationReadResult> {

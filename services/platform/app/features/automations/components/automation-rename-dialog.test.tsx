@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -83,6 +84,31 @@ describe('AutomationRenameDialog', () => {
     });
 
     // Dialog should NOT have been closed
+    expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it('shows an inline field error (not a toast) when the name already exists', async () => {
+    defaultProps.onRename.mockRejectedValueOnce(
+      new ConvexError({ code: 'DUPLICATE_NAME', message: 'exists' }),
+    );
+
+    const { user } = render(<AutomationRenameDialog {...defaultProps} />);
+
+    const input = screen.getByDisplayValue('My Automation');
+    await user.clear(input);
+    await user.type(input, 'Taken Name');
+
+    const submitButton = screen.getByRole('button', { name: /save/i });
+    await user.click(submitButton);
+
+    // A name collision is surfaced inline on the field…
+    await waitFor(() => {
+      expect(
+        screen.getByText('An automation with this name already exists'),
+      ).toBeInTheDocument();
+    });
+    // …with no destructive toast, and the dialog stays open.
+    expect(mockToast).not.toHaveBeenCalled();
     expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
   });
 

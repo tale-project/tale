@@ -1,0 +1,329 @@
+{
+  "name": "Enforce task SLAs",
+  "description": "Hourly due-date watchdog with a four-level escalation ladder, each level firing AT MOST ONCE per task (levels are stamped atomically in the sweep): (1) due within 24h → inbox warning to the owner; (2) past due → nudge comment on the task; (3) overdue 24h+ with an agent assignee → the assignee's MANAGER agent is run directly against the task (budget-checked, never via mention); (4) overdue 72h+ → inbox escalation to the project creator and org admins. Pushing the due date out resets the ladder. Tune thresholds on the sweep steps or deactivate the schedule in Automations.",
+  "i18n": {
+    "en": {
+      "name": "Enforce task SLAs",
+      "description": "Hourly due-date watchdog with a four-level escalation ladder from owner warnings up to manager runs and admin escalation."
+    },
+    "de": {
+      "name": "Aufgaben-SLAs durchsetzen",
+      "description": "Stündlicher Fälligkeitswächter mit vierstufiger Eskalationsleiter, von Eigentümerwarnungen über Manager-Läufe bis zur Admin-Eskalation."
+    },
+    "fr": {
+      "name": "Appliquer les SLA des tâches",
+      "description": "Surveillance horaire des échéances avec une échelle d'escalade à quatre niveaux, des alertes au propriétaire jusqu'aux exécutions manager et à l'escalade admin."
+    }
+  },
+  "version": "1.0.0",
+  "metadata": {
+    "labels": ["Tasks", "Automation"],
+    "autoInstall": true
+  },
+  "triggers": {
+    "schedules": [
+      {
+        "cron": "15 * * * *",
+        "timezone": "UTC"
+      }
+    ]
+  },
+  "config": {
+    "timeout": 600000,
+    "variables": {
+      "workflowId": "tasks_sla_enforcement"
+    }
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "due_sweep"
+      }
+    },
+    {
+      "stepSlug": "due_sweep",
+      "name": "Find tasks due within 24h (level 1)",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "sweep",
+          "kind": "due_soon",
+          "windowHours": 24,
+          "limit": 50
+        }
+      },
+      "nextSteps": {
+        "success": "has_due"
+      }
+    },
+    {
+      "stepSlug": "has_due",
+      "name": "Anything due soon?",
+      "stepType": "condition",
+      "config": {
+        "expression": "(steps.due_sweep.output.data.tasks | length) > 0"
+      },
+      "nextSteps": {
+        "true": "loop_due",
+        "false": "ladder_sweep"
+      }
+    },
+    {
+      "stepSlug": "loop_due",
+      "name": "Loop over due-soon tasks",
+      "stepType": "loop",
+      "config": {
+        "continueOnError": true,
+        "itemVariable": "dueTask",
+        "items": "{{steps.due_sweep.output.data.tasks}}"
+      },
+      "nextSteps": {
+        "loop": "due_assignee_user",
+        "done": "ladder_sweep"
+      }
+    },
+    {
+      "stepSlug": "due_assignee_user",
+      "name": "Human assignee?",
+      "stepType": "condition",
+      "config": {
+        "expression": "loop.item.assigneeType == 'user'",
+        "description": "Human assignees get the warning directly; agent-assigned or unassigned tasks warn the project creator instead."
+      },
+      "nextSteps": {
+        "true": "warn_assignee",
+        "false": "due_has_creator"
+      }
+    },
+    {
+      "stepSlug": "warn_assignee",
+      "name": "Warn the assignee",
+      "stepType": "action",
+      "config": {
+        "type": "notification",
+        "parameters": {
+          "operation": "notify_users",
+          "audience": "task_assignee",
+          "type": "task_status_changed",
+          "titleKey": "taskDueSoon",
+          "bodyKey": "taskDueSoonBody",
+          "params": {
+            "title": "{{loop.item.title}}"
+          },
+          "taskId": "{{loop.item.taskId}}"
+        }
+      },
+      "nextSteps": {
+        "success": "loop_due"
+      }
+    },
+    {
+      "stepSlug": "due_has_creator",
+      "name": "Project creator known?",
+      "stepType": "condition",
+      "config": {
+        "expression": "loop.item.projectCreatorId"
+      },
+      "nextSteps": {
+        "true": "warn_creator",
+        "false": "loop_due"
+      }
+    },
+    {
+      "stepSlug": "warn_creator",
+      "name": "Warn the project creator",
+      "stepType": "action",
+      "config": {
+        "type": "notification",
+        "parameters": {
+          "operation": "notify_users",
+          "audience": "user_ids",
+          "type": "task_status_changed",
+          "titleKey": "taskDueSoon",
+          "bodyKey": "taskDueSoonBody",
+          "params": {
+            "title": "{{loop.item.title}}"
+          },
+          "taskId": "{{loop.item.taskId}}",
+          "userIds": ["{{loop.item.projectCreatorId}}"]
+        }
+      },
+      "nextSteps": {
+        "success": "loop_due"
+      }
+    },
+    {
+      "stepSlug": "ladder_sweep",
+      "name": "Find overdue tasks (levels 2–4)",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "sweep",
+          "kind": "overdue_ladder",
+          "managerEscalationHours": 24,
+          "adminEscalationHours": 72,
+          "limit": 50
+        }
+      },
+      "nextSteps": {
+        "success": "has_overdue"
+      }
+    },
+    {
+      "stepSlug": "has_overdue",
+      "name": "Anything overdue?",
+      "stepType": "condition",
+      "config": {
+        "expression": "(steps.ladder_sweep.output.data.tasks | length) > 0"
+      },
+      "nextSteps": {
+        "true": "loop_overdue",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "loop_overdue",
+      "name": "Loop over overdue tasks",
+      "stepType": "loop",
+      "config": {
+        "continueOnError": true,
+        "itemVariable": "overdueTask",
+        "items": "{{steps.ladder_sweep.output.data.tasks}}"
+      },
+      "nextSteps": {
+        "loop": "is_level_2",
+        "done": "done"
+      }
+    },
+    {
+      "stepSlug": "is_level_2",
+      "name": "Level 2 (nudge)?",
+      "stepType": "condition",
+      "config": {
+        "expression": "loop.item.newLevel == 2"
+      },
+      "nextSteps": {
+        "true": "nudge_comment",
+        "false": "is_level_3_managed"
+      }
+    },
+    {
+      "stepSlug": "nudge_comment",
+      "name": "Nudge on the task",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{loop.item.taskId}}",
+          "body": "[automated] ⏰ This task is past its due date. Update the due date, reprioritize, or close it."
+        }
+      },
+      "nextSteps": {
+        "success": "loop_overdue"
+      }
+    },
+    {
+      "stepSlug": "is_level_3_managed",
+      "name": "Level 3 with a manager on the chart?",
+      "stepType": "condition",
+      "config": {
+        "expression": "loop.item.newLevel == 3 && loop.item.assigneeManagerSlug",
+        "description": "Level 3 escalates to the agent assignee's manager as a DIRECT budget-checked run — never a mention, so the escalation itself can't start comment chains. Level-3 tasks without a manager fall through to the level-4 human escalation."
+      },
+      "nextSteps": {
+        "true": "escalate_manager",
+        "false": "escalate_has_creator"
+      }
+    },
+    {
+      "stepSlug": "escalate_manager",
+      "name": "Run the assignee's manager",
+      "stepType": "action",
+      "config": {
+        "type": "agent",
+        "parameters": {
+          "operation": "run_on_task",
+          "agentSlug": "{{loop.item.assigneeManagerSlug}}",
+          "taskId": "{{loop.item.taskId}}",
+          "trigger": "sla_escalation",
+          "instructions": "A task assigned to your direct report {{loop.item.assigneeId}} is significantly overdue. Review the task context and recent comments, then act as its manager: unblock it, re-plan it, or reassign it. Post a comment stating your assessment and what you decided. Keep it short and operational."
+        }
+      },
+      "nextSteps": {
+        "success": "loop_overdue"
+      }
+    },
+    {
+      "stepSlug": "escalate_has_creator",
+      "name": "Project creator known?",
+      "stepType": "condition",
+      "config": {
+        "expression": "loop.item.projectCreatorId",
+        "description": "Levels 3 (no manager) and 4 reach humans: the project creator (when known) and the org admins."
+      },
+      "nextSteps": {
+        "true": "escalate_creator",
+        "false": "escalate_admins"
+      }
+    },
+    {
+      "stepSlug": "escalate_creator",
+      "name": "Escalate to the project creator",
+      "stepType": "action",
+      "config": {
+        "type": "notification",
+        "parameters": {
+          "operation": "notify_users",
+          "audience": "user_ids",
+          "type": "agent_escalation",
+          "titleKey": "taskSlaEscalated",
+          "bodyKey": "taskSlaEscalatedBody",
+          "params": {
+            "title": "{{loop.item.title}}"
+          },
+          "taskId": "{{loop.item.taskId}}",
+          "userIds": ["{{loop.item.projectCreatorId}}"]
+        }
+      },
+      "nextSteps": {
+        "success": "escalate_admins"
+      }
+    },
+    {
+      "stepSlug": "escalate_admins",
+      "name": "Escalate to org admins",
+      "stepType": "action",
+      "config": {
+        "type": "notification",
+        "parameters": {
+          "operation": "notify_users",
+          "audience": "org_admins",
+          "type": "agent_escalation",
+          "titleKey": "taskSlaEscalated",
+          "bodyKey": "taskSlaEscalatedBody",
+          "params": {
+            "title": "{{loop.item.title}}"
+          },
+          "taskId": "{{loop.item.taskId}}"
+        }
+      },
+      "nextSteps": {
+        "success": "loop_overdue"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}
