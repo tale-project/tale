@@ -34,7 +34,17 @@ import {
   uninstallAppFiles,
 } from './install_fs';
 
-/** Register one copied workflow: install record + its declared triggers. */
+/**
+ * Register one copied app workflow: install record + its declared schedules.
+ *
+ * App workflows are deliberately NOT given org-global event subscriptions. An app
+ * is an internally-scoped scenario, so its workflow must run only from within the
+ * app's own scope (its view actions / its per-workflow webhook) — never off an
+ * org-wide `task.*`/`*.*` event that other apps and channels also emit, which
+ * would cross-fire this app's workflow on unrelated tasks. (Schedules are
+ * time-based and per-workflow, not org-global fan-out, so they remain.) A declared
+ * event trigger is therefore a misconfiguration we ignore loudly rather than leak.
+ */
 async function registerWorkflow(
   ctx: ActionCtx,
   organizationId: string,
@@ -56,16 +66,10 @@ async function registerWorkflow(
     installedBy,
     contentHash: sha256(content),
   });
-  for (const event of parsed.data.triggers?.events ?? []) {
-    await ctx.runMutation(
-      internal.workflows.provision_defaults_mutations.ensureEventSubscription,
-      {
-        organizationId,
-        workflowSlug,
-        eventType: event.eventType,
-        eventFilter: event.eventFilter,
-        isActive: true,
-      },
+  const declaredEvents = parsed.data.triggers?.events ?? [];
+  if (declaredEvents.length > 0) {
+    console.warn(
+      `[app-install] ignoring ${declaredEvents.length} org-global event trigger(s) declared by app workflow "${workflowSlug}": app workflows are scoped and must not subscribe to org-global events`,
     );
   }
   for (const schedule of parsed.data.triggers?.schedules ?? []) {

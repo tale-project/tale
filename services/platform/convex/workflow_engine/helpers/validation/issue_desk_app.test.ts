@@ -89,8 +89,14 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
   });
 
   it('every function the view binds (across tabs + columns) is allowlisted', () => {
+    const collected = collectViewBindings(view);
     // Sanity: bindings are actually discovered across the tab/column layout.
-    expect(collectViewBindings(view).length).toBeGreaterThan(0);
+    expect(collected.length).toBeGreaterThan(0);
+    // The ExternalList's action-sourced data path (`source`) AND its per-row
+    // materialize action are both collected — not only reactive `query` blocks.
+    const paths = collected.map((b) => b.path);
+    expect(paths).toContain('integrations/public_actions:listGitHubIssues');
+    expect(paths).toContain('tasks/public_actions:createTaskFromExternalIssue');
     const errors = validateViewBindings(view, manifest.capabilities?.functions);
     expect(errors).toEqual([]);
   });
@@ -128,10 +134,16 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
   });
 
   it('quick-create uses a localized task-description template in every locale', () => {
-    // The IssueList block points at a pack `labelKey` for the task description.
-    const issues = blockOfType('IssueList');
-    const key = issues?.props?.taskTemplateKey;
-    expect(typeof key).toBe('string');
+    // The materialize action's `description` arg points at a pack `labelKey` via
+    // the `$label:` binding form; resolve it back to the catalog key.
+    const issues = blockOfType('ExternalList');
+    const actions = issues?.props?.actions as
+      | Array<{ args?: { description?: unknown } }>
+      | undefined;
+    const desc = actions?.[0]?.args?.description;
+    expect(typeof desc).toBe('string');
+    expect((desc as string).startsWith('$label:')).toBe(true);
+    const key = (desc as string).slice('$label:'.length);
     // validatePack only enforces parity for keys a WORKFLOW step references; this
     // one is read at runtime by the view, so guard its cross-locale parity here.
     for (const locale of ['en', 'de', 'fr']) {
@@ -139,10 +151,11 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
         string,
         string
       >;
-      const template = catalog[key as string];
-      expect(template, `${locale} ${String(key)}`).toBeTruthy();
-      // The placeholders the client fills must be present.
-      for (const ph of ['{title}', '{number}', '{url}']) {
+      const template = catalog[key];
+      expect(template, `${locale} ${key}`).toBeTruthy();
+      // The placeholders the resolver fills from the row must be present — note
+      // raw GitHub field names, since `$label:` interpolates over the row.
+      for (const ph of ['{title}', '{number}', '{html_url}']) {
         expect(template, `${locale} ${ph}`).toContain(ph);
       }
     }

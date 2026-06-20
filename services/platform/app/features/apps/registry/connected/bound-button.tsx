@@ -14,6 +14,10 @@ import type { FunctionMode } from '@/lib/shared/platform/function_bindings';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 
 import { useBoundAction } from '../../hooks/use-bound-action';
+import {
+  type ActionEffect,
+  useActionEffect,
+} from '../../runtime/action-effects';
 
 export interface BoundActionSpec {
   /** Literal button label (or use labelKey for the app's Tier-2 catalog). */
@@ -22,12 +26,17 @@ export interface BoundActionSpec {
   /** `<dir>/<file>:<export>` reference path (must be in capabilities.functions). */
   path: string;
   mode: FunctionMode;
-  /** Args with templates: `$orgId`, `$selected`, `$selected.<field>`. */
+  /** Args with templates: whole-string `$orgId` / `$selected` / `$selected.<field>`;
+   *  embedded `$tpl:…{field}…` (row interpolation) / `$label:<key>` (localized
+   *  pack template interpolated over the row). */
   args?: unknown;
   confirm?: boolean;
   /** Availability predicate over the bound item (when_predicate grammar). */
   when?: string;
   variant?: 'primary' | 'secondary' | 'destructive' | 'ghost';
+  /** Declarative "then": an effect to run once the action resolves (e.g. open
+   *  the created resource's detail). Reads the result via `$result.*`. */
+  onSuccess?: ActionEffect;
 }
 
 export function BoundButton({
@@ -41,12 +50,24 @@ export function BoundButton({
 }) {
   const { t } = useT('apps');
   const { dispatch, isPending } = useBoundAction(action.path, action.mode);
+  const applyEffect = useActionEffect();
 
   if (item && action.when && !evaluateWhen(action.when, item)) return null;
 
   const label = action.labelKey
     ? t(action.labelKey, { defaultValue: action.label ?? action.path })
     : (action.label ?? action.path);
+
+  const run = async () => {
+    try {
+      const result = await dispatch(action.args, item);
+      applyEffect(action.onSuccess, result, item);
+    } catch (err) {
+      // The mutation/action layer (useConvexMutation) already toasts + logs the
+      // failure; surface it here too rather than swallowing the rejection.
+      console.error('[app-binding] action failed', action.path, err);
+    }
+  };
 
   return (
     <Button
@@ -61,7 +82,7 @@ export function BoundButton({
         ) {
           return;
         }
-        void dispatch(action.args, item);
+        void run();
       }}
     >
       {label}

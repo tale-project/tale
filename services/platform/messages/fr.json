@@ -33,18 +33,19 @@
       "empty": "Rien à afficher pour le moment.",
       "blocked": "Cette vue n'est pas autorisée à appeler {path}."
     },
+    "detail": {
+      "title": "Détails"
+    },
     "review": {
       "none": "Aucune révision en attente.",
       "awaiting": "En attente d'approbation"
     },
     "issues": {
+      "createTask": "Créer une tâche"
+    },
+    "list": {
       "refresh": "Actualiser",
-      "error": "Impossible de charger les issues : {error}",
-      "none": "Aucune issue ouverte.",
-      "colTitle": "Titre",
-      "colState": "État",
-      "createTask": "Créer une tâche",
-      "created": "Créée",
+      "error": "Impossible de charger les données : {error}",
       "prev": "Précédent",
       "next": "Suivant",
       "page": "Page {page}"
@@ -92,31 +93,7 @@
     },
     "workflow": {
       "none": "Ce workflow n'a aucune étape.",
-      "error": "Impossible de charger le workflow : {error}",
-      "openEditor": "Ouvrir dans l'éditeur"
-    },
-    "process": {
-      "gate": "Décision",
-      "stage": {
-        "intake": "Réception",
-        "work": "Traitement",
-        "verify": "Vérification",
-        "review": "Validation",
-        "deliver": "Livraison",
-        "steps": "Étapes"
-      },
-      "kind": {
-        "status": "Statut",
-        "ingest": "Réception",
-        "transform": "Traitement",
-        "validation": "Contrôles",
-        "reconciliation": "Rapprochement",
-        "diff": "Comparaison",
-        "collection": "Éléments",
-        "artifact": "Résultat",
-        "stream": "Travail de l'agent",
-        "review": "Revue humaine"
-      }
+      "error": "Impossible de charger le workflow : {error}"
     },
     "runs": {
       "none": "Aucune exécution pour le moment.",
@@ -127,8 +104,6 @@
     }
   },
   "operator": {
-    "title": "Opérateur",
-    "tab": { "operator": "Opérateur", "raw": "Journal brut" },
     "gate": "Décision",
     "state": {
       "upcoming": "À venir",
@@ -176,12 +151,7 @@
     "body": {
       "waitingExternal": "En attente d'un événement externe pour continuer.",
       "empty": "Cette étape n'a produit aucune sortie.",
-      "noDetails": "Aucun détail à afficher.",
-      "noJournal": "Aucun journal disponible pour cette exécution."
-    },
-    "error": {
-      "title": "Impossible de charger cette exécution",
-      "notFound": "Cette exécution est introuvable."
+      "noDetails": "Aucun détail à afficher."
     }
   },
   "accessDenied": {

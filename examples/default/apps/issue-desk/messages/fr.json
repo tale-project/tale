@@ -5,5 +5,5 @@
   "issueDesk.review": "Vérifier et corriger",
   "issueDesk.judge": "Décision de merge",
   "issueDesk.openPr": "Ouvrir la pull request",
-  "issueDesk.taskTemplate": "Corrige ce ticket GitHub : {title} (#{number}). Détails : {url}"
+  "issueDesk.taskTemplate": "Corrige ce ticket GitHub : {title} (#{number}). Détails : {html_url}"
 }

@@ -27,26 +27,13 @@ import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundQuery } from '../../hooks/use-bound-query';
 import { useAppRuntime } from '../../runtime/app-runtime';
+import { STATUS_VARIANT } from './data-table';
 import { Section } from './section';
 
 export interface RunListProps {
   title?: string;
   workflowSlug: string;
 }
-
-const STATUS_VARIANT: Record<
-  string,
-  'green' | 'destructive' | 'blue' | 'yellow' | 'slate'
-> = {
-  completed: 'green',
-  failed: 'destructive',
-  running: 'blue',
-  waiting: 'yellow',
-  paused: 'yellow',
-  canceled: 'slate',
-  cancelled: 'slate',
-  pending: 'slate',
-};
 
 function str(rec: Record<string, unknown>, key: string): string {
   const v = rec[key];

@@ -63,6 +63,50 @@ describe('resolveBindingArgs', () => {
       ),
     ).toEqual({ organizationId: 'org_1', input: { task: ctx.selected }, n: 5 });
   });
+  it('substitutes $result and $result.<field> for onSuccess effects', () => {
+    const rctx = { organizationId: 'org_1', result: { taskId: 't9' } };
+    expect(resolveBindingArgs('$result', rctx)).toEqual(rctx.result);
+    expect(resolveBindingArgs('$result.taskId', rctx)).toBe('t9');
+    // An openDetail effect: only the templated id is substituted; the rest stays.
+    expect(
+      resolveBindingArgs(
+        { kind: 'openDetail', subjectType: 'task', id: '$result.taskId' },
+        rctx,
+      ),
+    ).toEqual({ kind: 'openDetail', subjectType: 'task', id: 't9' });
+  });
+  it('leaves $result.<field> untouched when no result is in context', () => {
+    expect(resolveBindingArgs('$result.taskId', ctx)).toBe('$result.taskId');
+  });
+  it('interpolates $tpl: row fields into a string ({field} syntax)', () => {
+    const tctx = {
+      organizationId: 'org_1',
+      selected: { owner: 'acme', repo: 'app', number: 42 },
+    };
+    expect(resolveBindingArgs('$tpl:{owner}/{repo}#{number}', tctx)).toBe(
+      'acme/app#42',
+    );
+    // Unknown fields stay verbatim (fail-visible).
+    expect(resolveBindingArgs('$tpl:{missing}', tctx)).toBe('{missing}');
+  });
+  it('resolves $label: via the pack catalog, then interpolates the row', () => {
+    const lctx = {
+      organizationId: 'org_1',
+      selected: { title: 'Fix bug', number: 7 },
+      labels: { 'app.task': 'Resolve {title} (#{number})' },
+    };
+    expect(resolveBindingArgs('$label:app.task', lctx)).toBe(
+      'Resolve Fix bug (#7)',
+    );
+  });
+  it('falls back to the $label: key itself when no catalog entry exists', () => {
+    expect(
+      resolveBindingArgs('$label:missing.key', {
+        organizationId: 'org_1',
+        selected: {},
+      }),
+    ).toBe('missing.key');
+  });
 });
 
 describe('collectViewBindings + validateViewBindings', () => {
@@ -99,6 +143,37 @@ describe('collectViewBindings + validateViewBindings', () => {
 
   it('passes when every bound path is allowlisted', () => {
     expect(validateViewBindings(view, allowlist)).toEqual([]);
+  });
+
+  it('collects an action-sourced list `source` (mode defaults to action)', () => {
+    const sourced = {
+      data: {
+        content: [
+          {
+            type: 'ExternalList',
+            props: {
+              source: { path: 'integrations/public_actions:listGitHubIssues' },
+              actions: [
+                {
+                  path: 'tasks/public_actions:createTaskFromExternalIssue',
+                  mode: 'action',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    };
+    expect(collectViewBindings(sourced)).toEqual([
+      {
+        path: 'integrations/public_actions:listGitHubIssues',
+        mode: 'action',
+      },
+      {
+        path: 'tasks/public_actions:createTaskFromExternalIssue',
+        mode: 'action',
+      },
+    ]);
   });
 
   it('flags a bound path missing from the allowlist', () => {

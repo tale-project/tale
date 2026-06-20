@@ -33,18 +33,19 @@
       "empty": "Nothing to show yet.",
       "blocked": "This view is not allowed to call {path}."
     },
+    "detail": {
+      "title": "Details"
+    },
     "review": {
       "none": "No pending reviews.",
       "awaiting": "Awaiting approval"
     },
     "issues": {
+      "createTask": "Create task"
+    },
+    "list": {
       "refresh": "Refresh",
-      "error": "Couldn't load issues: {error}",
-      "none": "No open issues.",
-      "colTitle": "Title",
-      "colState": "State",
-      "createTask": "Create task",
-      "created": "Created",
+      "error": "Couldn't load data: {error}",
       "prev": "Previous",
       "next": "Next",
       "page": "Page {page}"
@@ -92,31 +93,7 @@
     },
     "workflow": {
       "none": "This workflow has no steps.",
-      "error": "Couldn't load the workflow: {error}",
-      "openEditor": "Open in editor"
-    },
-    "process": {
-      "gate": "Decision",
-      "stage": {
-        "intake": "Intake",
-        "work": "Work",
-        "verify": "Verify",
-        "review": "Review",
-        "deliver": "Deliver",
-        "steps": "Steps"
-      },
-      "kind": {
-        "status": "Status",
-        "ingest": "Intake",
-        "transform": "Process",
-        "validation": "Checks",
-        "reconciliation": "Reconcile",
-        "diff": "Compare",
-        "collection": "Items",
-        "artifact": "Output",
-        "stream": "Agent work",
-        "review": "Human review"
-      }
+      "error": "Couldn't load the workflow: {error}"
     },
     "runs": {
       "none": "No runs yet.",
@@ -127,8 +104,6 @@
     }
   },
   "operator": {
-    "title": "Operator",
-    "tab": { "operator": "Operator", "raw": "Raw journal" },
     "gate": "Decision",
     "state": {
       "upcoming": "Up next",
@@ -176,12 +151,7 @@
     "body": {
       "waitingExternal": "Waiting for an external event to continue.",
       "empty": "This step produced no output.",
-      "noDetails": "No details to show.",
-      "noJournal": "No journal is available for this run."
-    },
-    "error": {
-      "title": "Could not load this run",
-      "notFound": "This run was not found."
+      "noDetails": "No details to show."
     }
   },
   "accessDenied": {

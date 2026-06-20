@@ -16,6 +16,8 @@
  * an explicit allowlist with no implicit fallback.
  */
 
+import { interpolateTemplate } from '../utils/interpolate';
+
 export const FUNCTION_MODES = ['query', 'mutation', 'action'] as const;
 export type FunctionMode = (typeof FUNCTION_MODES)[number];
 
@@ -67,6 +69,16 @@ function collectFromData(data: unknown, out: CollectedBinding[]): void {
     const props = node.props;
     if (isRec(props.query) && typeof props.query.path === 'string') {
       out.push({ path: props.query.path, mode: 'query' });
+    }
+    // An action-sourced list (`ExternalList`) declares its data fetch under
+    // `source`, not `query`; collect it so it's allowlist-checked like the rest.
+    if (isRec(props.source) && typeof props.source.path === 'string') {
+      const mode =
+        typeof props.source.mode === 'string' &&
+        isFunctionMode(props.source.mode)
+          ? props.source.mode
+          : 'action';
+      out.push({ path: props.source.path, mode });
     }
     if (Array.isArray(props.actions)) {
       for (const a of props.actions) {
@@ -131,18 +143,45 @@ export function validateViewBindings(
 /**
  * Runtime arg-template substitution. A view authors args with sentinels so they
  * stay data; the binding hooks resolve them against the live context before the
- * call. `$orgId` → the current organization id; `$selected.<key>` → a field of
- * the selected master-detail row. Recurses through records + arrays.
+ * call. Recurses through records + arrays. Whole-string sentinels:
+ *  - `$orgId` → the current organization id;
+ *  - `$selected` / `$selected.<key>` → the selected row, or one of its fields;
+ *  - `$result` / `$result.<key>` → the just-resolved action result (used by
+ *    `onSuccess` effects to read e.g. a created id).
+ * Prefix templates (interpolated over the selected row, `{field}` syntax):
+ *  - `$tpl:…{field}…` → the suffix as an `interpolateTemplate` over the row, so
+ *    an arg can embed row fields (e.g. `"$tpl:{owner}/{repo}#{number}"`);
+ *  - `$label:<key>` → the pack label `key` (from `ctx.labels`, else the key
+ *    itself) interpolated over the row — a localized, row-templated string.
  */
 export function resolveBindingArgs(
   args: unknown,
-  ctx: { organizationId: string; selected?: Record<string, unknown> },
+  ctx: {
+    organizationId: string;
+    selected?: Record<string, unknown>;
+    result?: Record<string, unknown>;
+    labels?: Record<string, string>;
+  },
 ): unknown {
   if (typeof args === 'string') {
     if (args === '$orgId') return ctx.organizationId;
     if (args === '$selected') return ctx.selected;
     if (args.startsWith('$selected.') && ctx.selected) {
       return ctx.selected[args.slice('$selected.'.length)];
+    }
+    if (args === '$result') return ctx.result;
+    if (args.startsWith('$result.') && ctx.result) {
+      return ctx.result[args.slice('$result.'.length)];
+    }
+    if (args.startsWith('$tpl:')) {
+      return interpolateTemplate(
+        args.slice('$tpl:'.length),
+        ctx.selected ?? {},
+      );
+    }
+    if (args.startsWith('$label:')) {
+      const key = args.slice('$label:'.length);
+      return interpolateTemplate(ctx.labels?.[key] ?? key, ctx.selected ?? {});
     }
     return args;
   }

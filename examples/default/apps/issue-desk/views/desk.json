@@ -41,14 +41,45 @@
         "zones": {},
         "content": [
           {
-            "type": "IssueList",
+            "type": "ExternalList",
             "props": {
               "id": "issues",
               "title": "GitHub issues",
-              "owner": "tale-project",
-              "repo": "tale",
-              "state": "open",
-              "taskTemplateKey": "issueDesk.taskTemplate"
+              "source": {
+                "path": "integrations/public_actions:listGitHubIssues",
+                "args": {
+                  "organizationId": "$orgId",
+                  "owner": "tale-project",
+                  "repo": "tale",
+                  "state": "open"
+                }
+              },
+              "itemsKey": "data",
+              "rowWhen": "!pull_request",
+              "columns": ["number", "title", "state"],
+              "perPage": 30,
+              "actions": [
+                {
+                  "labelKey": "issues.createTask",
+                  "variant": "primary",
+                  "path": "tasks/public_actions:createTaskFromExternalIssue",
+                  "mode": "action",
+                  "args": {
+                    "organizationId": "$orgId",
+                    "externalSystem": "github",
+                    "externalId": "$tpl:tale-project/tale#{number}",
+                    "title": "$selected.title",
+                    "externalUrl": "$selected.html_url",
+                    "description": "$label:issueDesk.taskTemplate",
+                    "runWorkflowSlug": "issue-desk/desk-process"
+                  },
+                  "onSuccess": {
+                    "kind": "openDetail",
+                    "subjectType": "task",
+                    "id": "$result.taskId"
+                  }
+                }
+              ]
             }
           }
         ]
@@ -89,29 +120,6 @@
                   "mode": "mutation",
                   "when": "status != done",
                   "args": { "taskId": "$selected._id", "status": "done" }
-                },
-                {
-                  "label": "Assign implementer",
-                  "path": "tasks/mutations:assignTask",
-                  "mode": "mutation",
-                  "args": {
-                    "taskId": "$selected._id",
-                    "assigneeType": "agent",
-                    "assigneeId": "issue-desk/desk-implementer"
-                  }
-                },
-                {
-                  "label": "Triage & run",
-                  "variant": "primary",
-                  "path": "workflow_executions/actions:startWorkflowFromFile",
-                  "mode": "action",
-                  "args": {
-                    "organizationId": "$orgId",
-                    "workflowSlug": "issue-desk/desk-process",
-                    "triggeredBy": "user",
-                    "input": { "task": "$selected" },
-                    "subject": { "type": "task", "id": "$selected._id" }
-                  }
                 }
               ]
             }

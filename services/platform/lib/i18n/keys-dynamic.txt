@@ -240,3 +240,9 @@ agentCatalog.folders.other
 navigation.apiRest
 navigation.webdav
 navigation.runtimes
+
+# Connected app blocks: a per-row action's button label is authored in the app's
+# view JSON as `labelKey` and resolved at render via `t(action.labelKey)` in
+# bound-button.tsx — the scanner can't tie the literal `issues.createTask` back
+# to that runtime callsite. (The issue-desk ExternalList "Create task" button.)
+apps.issues.createTask

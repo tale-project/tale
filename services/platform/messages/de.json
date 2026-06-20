@@ -33,18 +33,19 @@
       "empty": "Noch nichts anzuzeigen.",
       "blocked": "Diese Ansicht darf {path} nicht aufrufen."
     },
+    "detail": {
+      "title": "Details"
+    },
     "review": {
       "none": "Keine ausstehenden Prüfungen.",
       "awaiting": "Wartet auf Genehmigung"
     },
     "issues": {
+      "createTask": "Aufgabe erstellen"
+    },
+    "list": {
       "refresh": "Aktualisieren",
-      "error": "Issues konnten nicht geladen werden: {error}",
-      "none": "Keine offenen Issues.",
-      "colTitle": "Titel",
-      "colState": "Status",
-      "createTask": "Aufgabe erstellen",
-      "created": "Erstellt",
+      "error": "Daten konnten nicht geladen werden: {error}",
       "prev": "Zurück",
       "next": "Weiter",
       "page": "Seite {page}"
@@ -92,31 +93,7 @@
     },
     "workflow": {
       "none": "Dieser Workflow hat keine Schritte.",
-      "error": "Workflow konnte nicht geladen werden: {error}",
-      "openEditor": "Im Editor öffnen"
-    },
-    "process": {
-      "gate": "Entscheidung",
-      "stage": {
-        "intake": "Aufnahme",
-        "work": "Bearbeitung",
-        "verify": "Prüfung",
-        "review": "Freigabe",
-        "deliver": "Auslieferung",
-        "steps": "Schritte"
-      },
-      "kind": {
-        "status": "Status",
-        "ingest": "Aufnahme",
-        "transform": "Verarbeitung",
-        "validation": "Prüfungen",
-        "reconciliation": "Abgleich",
-        "diff": "Vergleich",
-        "collection": "Elemente",
-        "artifact": "Ausgabe",
-        "stream": "Agentenarbeit",
-        "review": "Menschliche Prüfung"
-      }
+      "error": "Workflow konnte nicht geladen werden: {error}"
     },
     "runs": {
       "none": "Noch keine Läufe.",
@@ -127,8 +104,6 @@
     }
   },
   "operator": {
-    "title": "Operator",
-    "tab": { "operator": "Operator", "raw": "Rohprotokoll" },
     "gate": "Entscheidung",
     "state": {
       "upcoming": "Als Nächstes",
@@ -176,12 +151,7 @@
     "body": {
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
       "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
-      "noDetails": "Keine Details vorhanden.",
-      "noJournal": "Für diesen Lauf ist kein Protokoll verfügbar."
-    },
-    "error": {
-      "title": "Lauf konnte nicht geladen werden",
-      "notFound": "Dieser Lauf wurde nicht gefunden."
+      "noDetails": "Keine Details vorhanden."
     }
   },
   "accessDenied": {

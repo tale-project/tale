@@ -5,5 +5,5 @@
   "issueDesk.review": "Prüfen & beheben",
   "issueDesk.judge": "Merge-Entscheidung",
   "issueDesk.openPr": "Pull Request öffnen",
-  "issueDesk.taskTemplate": "Behebe dieses GitHub-Issue: {title} (#{number}). Details: {url}"
+  "issueDesk.taskTemplate": "Behebe dieses GitHub-Issue: {title} (#{number}). Details: {html_url}"
 }

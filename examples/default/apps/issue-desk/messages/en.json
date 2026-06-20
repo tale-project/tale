@@ -5,5 +5,5 @@
   "issueDesk.review": "Review & fix",
   "issueDesk.judge": "Merge decision",
   "issueDesk.openPr": "Open pull request",
-  "issueDesk.taskTemplate": "Resolve this GitHub issue: {title} (#{number}). Details: {url}"
+  "issueDesk.taskTemplate": "Resolve this GitHub issue: {title} (#{number}). Details: {html_url}"
 }

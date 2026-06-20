@@ -20,7 +20,10 @@ import { Text } from '@tale/ui/text';
 
 import { AgentList, type AgentListProps } from './connected/agent-list';
 import { Collection, type CollectionProps } from './connected/collection';
-import { IssueList, type IssueListProps } from './connected/issue-list';
+import {
+  ExternalList,
+  type ExternalListProps,
+} from './connected/external-list';
 import { ReviewQueue, type ReviewQueueProps } from './connected/review';
 import { RunList, type RunListProps } from './connected/run-list';
 import { WorkflowDag, type WorkflowDagProps } from './connected/workflow-dag';
@@ -54,7 +57,7 @@ interface TaleComponents {
   // so the editor fields are optional here (the `<Puck>` editor is Phase 2).
   Collection: Partial<CollectionProps>;
   ReviewQueue: Partial<ReviewQueueProps>;
-  IssueList: Partial<IssueListProps>;
+  ExternalList: Partial<ExternalListProps>;
   AgentList: Partial<AgentListProps>;
   WorkflowDag: Partial<WorkflowDagProps>;
   RunList: Partial<RunListProps>;
@@ -196,19 +199,27 @@ export const taleConfig: Config<TaleComponents> = {
           <></>
         ),
     },
-    IssueList: {
-      fields: {
-        title: { type: 'text' },
-        owner: { type: 'text' },
-        repo: { type: 'text' },
-        state: {
-          type: 'select',
-          options: opts(['open', 'closed', 'all'] as const),
-        },
-      },
-      render: ({ title, owner, repo, state }) =>
-        owner && repo ? (
-          <IssueList title={title} owner={owner} repo={repo} state={state} />
+    ExternalList: {
+      fields: { title: { type: 'text' } },
+      render: ({
+        title,
+        source,
+        itemsKey,
+        rowWhen,
+        columns,
+        actions,
+        perPage,
+      }) =>
+        source?.path ? (
+          <ExternalList
+            title={title}
+            source={source}
+            itemsKey={itemsKey}
+            rowWhen={rowWhen}
+            columns={columns}
+            actions={actions}
+            perPage={perPage}
+          />
         ) : (
           <></>
         ),

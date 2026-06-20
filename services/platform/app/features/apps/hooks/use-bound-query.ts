@@ -27,12 +27,15 @@ export interface BoundQueryResult {
 }
 
 export function useBoundQuery(path: string, args: unknown): BoundQueryResult {
-  const { organizationId, allowlist } = useAppRuntime();
+  const { organizationId, allowlist, labels } = useAppRuntime();
   const allowed =
     isValidFunctionPath(path) && isFunctionAllowed(path, allowlist, 'query');
 
   const ref = makeFunctionReference<'query'>(path);
-  const resolvedArgs = resolveBindingArgs(args ?? {}, { organizationId });
+  const resolvedArgs = resolveBindingArgs(args ?? {}, {
+    organizationId,
+    labels,
+  });
   // Hooks run unconditionally; `'skip'` means no subscription when disallowed.
   const q = useConvexQuery(ref, allowed ? resolvedArgs : 'skip');
 

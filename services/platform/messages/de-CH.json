@@ -1,7 +1,5 @@
 {
   "operator": {
-    "title": "Operator",
-    "tab": { "operator": "Operator", "raw": "Rohprotokoll" },
     "state": {
       "loading": "Ausstehend",
       "running": "Läuft",
@@ -35,12 +33,7 @@
     "body": {
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
       "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
-      "noDetails": "Keine Details vorhanden.",
-      "noJournal": "Für diesen Lauf ist kein Protokoll verfügbar."
-    },
-    "error": {
-      "title": "Lauf konnte nicht geladen werden",
-      "notFound": "Dieser Lauf wurde nicht gefunden."
+      "noDetails": "Keine Details vorhanden."
     }
   },
   "auth": {
