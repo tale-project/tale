@@ -138,6 +138,48 @@ describe('CreateAutomationDialog', () => {
         }),
       );
     });
+
+    // A `/` in the name files the automation into a folder: each segment is
+    // slugified and rejoined on `/`, so the saved slug is foldered and the
+    // editor URL param uses the `__` separator (slugToUrlParam).
+    it('files the automation into a folder when the name contains a slash', async () => {
+      navigateSpy.mockClear();
+      const { user } = render(
+        <CreateAutomationDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          organizationId="org-1"
+        />,
+      );
+
+      const nameInput = document.querySelector(
+        'input[name="name"]',
+      ) as HTMLInputElement;
+      await user.type(nameInput, 'Marketing/Social Posts');
+
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+
+      // Foldered slug on disk…
+      expect(saveWorkflowMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowSlug: 'marketing/social-posts',
+          isNew: true,
+        }),
+      );
+      // …and the editor route param encodes `/` as `__`.
+      await waitFor(() =>
+        expect(navigateSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            to: '/dashboard/$id/automations/$amId',
+            params: { id: 'org-1', amId: 'marketing__social-posts' },
+          }),
+        ),
+      );
+    });
   });
 
   // A name that collides with an existing workflow must be rejected inline,

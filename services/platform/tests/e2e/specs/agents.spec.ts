@@ -70,12 +70,13 @@ test('creates a custom agent then deletes it', async ({ page, org }) => {
     timeout: TIMEOUT.FIRST_PAINT,
   });
 
-  // "Create agent" is a dropdown trigger whose menu item opens the dialog.
+  // "Create agent" is a dropdown trigger; its "Blank" item opens the create
+  // dialog (siblings: "From template", "Upload file").
   await page
     .getByRole('button', { name: t('settings.agents.createAgent') })
     .click();
   await page
-    .getByRole('menuitem', { name: t('settings.agents.createAgent') })
+    .getByRole('menuitem', { name: t('settings.agents.createMenu.blank') })
     .click();
 
   // The seeded mock provider supplies a model the dialog pre-selects, so

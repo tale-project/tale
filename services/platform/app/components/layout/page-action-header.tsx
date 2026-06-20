@@ -33,7 +33,7 @@ export function PageActionHeader({
   return (
     <div
       className={cn(
-        'border-border bg-background flex min-h-12 items-center gap-3 border-b px-4',
+        'border-border bg-background flex min-h-13 items-center gap-3 border-b px-4',
         className,
       )}
     >

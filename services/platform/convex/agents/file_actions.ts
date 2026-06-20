@@ -208,10 +208,13 @@ export const listAgents = action({
           return {
             name: slug,
             slug,
-            // Top-level folder (chat/workforce/github) — the catalog's visual
-            // grouping key. Independent of `labels`, which are flat equal tags.
+            // The '/'-joined folder path the agent file lives in (every path
+            // segment except the file itself), so nested folders survive in the
+            // list/catalog — e.g. `marketing/seo` → `marketing/seo`. Seeded
+            // single-level agents (workforce/, github/) are unaffected.
+            // Independent of `labels`, which are flat equal tags.
             folder: relativePath.includes('/')
-              ? relativePath.split('/')[0]
+              ? relativePath.split('/').slice(0, -1).join('/')
               : '',
             labels: config.metadata?.labels,
             displayName: config.displayName,
@@ -240,6 +243,30 @@ export const listAgents = action({
   },
 });
 
+/**
+ * Parse a create name that MAY be foldered (e.g. `marketing/seo-writer`) into
+ * the agent's flat identity slug (the basename — the last segment) and the
+ * '/'-joined relative path the file lives at (no extension). Every segment must
+ * be a valid flat agent name; a leading/trailing/double slash yields an empty
+ * segment and is rejected. A flat name maps to `{ slug: name, relativePath: name }`.
+ */
+function parseAgentNamePath(name: string): {
+  slug: string;
+  relativePath: string;
+} {
+  const segments = name.split('/');
+  if (segments.some((segment) => !validateAgentName(segment))) {
+    throw new ConvexError({
+      code: 'VALIDATION_ERROR',
+      message: `Invalid agent name: ${name}`,
+    });
+  }
+  return {
+    slug: segments[segments.length - 1],
+    relativePath: segments.join('/'),
+  };
+}
+
 export const saveAgent = action({
   args: {
     organizationId: v.string(),
@@ -256,13 +283,17 @@ export const saveAgent = action({
     ctx,
     args,
   ): Promise<{ hash: string; warnings?: string[] }> => {
-    if (!validateAgentName(args.agentName)) {
-      throw new Error(`Invalid agent name: ${args.agentName}`);
-    }
-    if ((RESERVED_AGENT_SLUGS as readonly string[]).includes(args.agentName)) {
+    // A create name may be foldered ("marketing/seo-writer"); edits/renames pass
+    // a flat slug. Parse into the flat identity slug (basename) and the on-disk
+    // relative path. Foldering only applies on create — an edit keeps the agent
+    // wherever its file already lives (resolved through the index below).
+    const { slug: agentSlug, relativePath: agentRelPath } = parseAgentNamePath(
+      args.agentName,
+    );
+    if ((RESERVED_AGENT_SLUGS as readonly string[]).includes(agentSlug)) {
       throw new ConvexError({
         code: 'RESERVED_AGENT_SLUG',
-        message: `"${args.agentName}" is a reserved name and cannot be used for an agent.`,
+        message: `"${agentSlug}" is a reserved name and cannot be used for an agent.`,
       });
     }
 
@@ -301,8 +332,19 @@ export const saveAgent = action({
 
     const prevAgent = await readAgentFile(
       orgSlug,
-      args.oldAgentName ?? args.agentName,
+      args.oldAgentName ?? agentSlug,
     );
+
+    // A new agent must not reuse an existing agent's identity slug — even when
+    // it would land in a different folder (the file-path check below only
+    // catches a same-path collision, so two agents sharing a basename across
+    // folders would otherwise both write and then collide in the slug index).
+    if (args.isNew === true && prevAgent.ok) {
+      throw new ConvexError({
+        code: 'DUPLICATE_NAME',
+        message: `Agent '${agentSlug}' already exists`,
+      });
+    }
 
     // System-managed agents (e.g. the Auto router, `uiConfigurable: false`) are
     // not editable through the UI, and the UI may not mint new ones.
@@ -468,11 +510,11 @@ export const saveAgent = action({
 
     const content = serializeAgentJson(normalized);
     // Existing agents are written back to wherever their file lives (a catalog
-    // agent under workforce/ etc.); a NEW agent is created at the flat
-    // `agents/<slug>.json` path. Writing a foldered agent to the flat path
-    // would orphan the original and create a duplicate slug.
+    // agent under workforce/ etc.). A NEW agent is created at the relative path
+    // its (possibly foldered) name resolves to — `agents/<folder>/<slug>.json`,
+    // or the flat `agents/<slug>.json` for an unfoldered name.
     const filePath = args.isNew
-      ? resolveAgentFilePath(orgSlug, args.agentName)
+      ? resolveAgentFilePathFromRelative(orgSlug, `${agentRelPath}.json`)
       : await resolveAgentPath(orgSlug, args.agentName);
 
     if (args.isNew) {
@@ -522,9 +564,9 @@ export const saveAgent = action({
       ctx,
       writeAuth,
       args.isNew === true ? 'create_agent' : 'update_agent',
-      args.agentName,
+      agentSlug,
       {
-        resourceName: args.agentName,
+        resourceName: agentSlug,
         ...(prevAgent.ok && {
           previousState: captureCapability(prevAgent.config),
         }),

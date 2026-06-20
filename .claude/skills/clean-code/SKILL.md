@@ -44,7 +44,8 @@ function shape, error handling, comments, and the reuse decision.
 - **Prefer immutability and pure functions.** Default to `const`; compute new values rather than
   mutating shared state. Shared mutable state is where race conditions and spooky action live.
 - **Rule of three before abstracting.** A little duplication is cheaper than the wrong abstraction.
-  Extract on the _second_ real use; generalize at the third — see Reuse.
+  Extract a helper on the _second_ real use; generalize at the third. But this grace is for internal
+  helpers only — a user-facing surface or a sibling capability reuses from the _first_; see Reuse.
 - **One concept per file; named exports, no barrels.** Things that change together live together.
   Filenames are **dash-case** (snake_case in Convex); default exports resist renaming and break grep.
 - **Delete dead code.** `knip` flags unused exports — and an unused symbol is usually the _symptom of
@@ -52,24 +53,38 @@ function shape, error handling, comments, and the reuse decision.
 
 ## Reuse and centralization (the canonical procedure)
 
-Architecture drifts when agents write new instead of looking first — three near-identical buttons,
-four date formatters, a feature-local copy of a shared hook. Before creating **any** component, hook,
-util, type, validator, or constant, walk this order and stop at the first hit:
+Architecture drifts when agents write new instead of looking first. The cheap miss is a duplicated
+helper — three near-identical buttons, four date formatters. The expensive one is the **second
+implementation of a whole concept**: two catalog pages that share no code, two list layouts in
+different shapes, agents and workflows driving tasks through two divergent ability sets. Each is a
+defect — a fix in one copy never reaches the others, and users learn two ways to do one thing.
 
-1. **Design system** — [`packages/ui`](../../../packages/ui/) (Button, Input, Badge, Dialog,
+**One concept, one name, one implementation.** Before creating **any** component, hook, util, type,
+validator, constant, route, page, or capability — and before building anything that _resembles_
+something the app already does — walk this order and stop at the first hit:
+
+1. **Name the concept and search for it by vocabulary, not just by symbol.** A grep for `CardGrid`
+   that misses an existing `Catalog` is how duplicates are born. Search the words a user or dev would
+   use (catalog, list, picker, folder tree, ability) and open the closest analogous feature.
+2. **Design system** — [`packages/ui`](../../../packages/ui/) (Button, Input, Badge, Dialog,
    Skeletonize, …). A UI need almost always already has a primitive.
-2. **Shared app/lib code** — top-level [`app/`](../../../services/platform/app/)
+3. **Shared app/lib code** — top-level [`app/`](../../../services/platform/app/)
    (`components`/`hooks`/`lib`) for frontend; [`convex/lib/`](../../../services/platform/convex/lib/)
    and [`lib/shared/`](../../../services/platform/lib/shared/) for backend.
-3. **The feature** — a sibling in the feature's own folder to extend.
-4. Only if nothing fits, **create — in its canonical home, once.**
+4. **The feature** — a sibling to extend, and the analogous feature to mirror.
+5. Only if nothing fits, **create — in its canonical home, once, under a name the next agent will search for.**
 
+- **Reuse or generalize the first; never fork a second.** Building the second catalog, list page, or
+  capability surface? The shared concept _is_ the deliverable — extract or extend the first so both
+  use it. For anything a user sees or a sibling system calls, the second divergent copy is wrong on
+  sight; the rule of three is for internal helpers only, not user-facing surfaces.
 - **Compose or extend, don't clone.** Add a `variant`/prop or compose the primitive; never duplicate
   its role. A clone forks behaviour — a bug fixed in one copy stays alive in the others.
 - **New shared primitive → `packages/ui`, with a Storybook story** (all variants + a11y), never a
   one-off in a feature folder.
-- **One canonical home per concept.** Open 1–2 existing siblings (domain query, route, locale file,
-  util) and match their structure, naming, and wrappers exactly before adding one.
+- **One canonical home per concept; mirror the neighbours exactly.** Open 1–2 existing siblings
+  (domain query, route, locale file, util, page) and match their structure, naming, order, and
+  wrappers before adding one. Diverge only when you can say why.
 
 This is the full guide for [`AGENTS.md`'s Reuse section](../../../AGENTS.md); the **Ripple Map** there
 lists what else a change touches. The [`ui-components`](../ui-components/SKILL.md) guide owns the

@@ -579,14 +579,14 @@
       "title": "Créer une automatisation",
       "tabBlank": "Vierge",
       "tabTemplate": "À partir d'un modèle",
-      "nameTooltip": "Devient l'identifiant de l'automatisation dans son URL. Garde-le court — tu peux changer le nom d'affichage plus tard.",
+      "nameTooltip": "Devient l'identifiant de l'automatisation dans son URL. Ajoute un / pour la classer dans un dossier, ex. marketing/social-posts. Tu peux changer le nom d'affichage plus tard.",
       "namePlaceholder": "ex., Workflow réseaux sociaux",
       "descriptionPlaceholder": "Décris ce que fait cette automatisation...",
       "creating": "Création...",
       "continue": "Continuer"
     },
     "uploadDialog": {
-      "menuItem": "Téléverser depuis un fichier…",
+      "menuItem": "Téléverser un fichier",
       "title": "Téléverser des automatisations",
       "description": "Importe des fichiers JSON de workflow, des dossiers ou des archives .zip. Chaque fichier .json s'installe comme une automatisation distincte.",
       "toastSuccess": "Automatisations importées"
@@ -903,7 +903,30 @@
       "taskRead": "Lire les tâches",
       "taskWrite": "Modifier la tâche",
       "projectRead": "Lire les projets",
-      "projectWrite": "Modifier le projet"
+      "projectWrite": "Modifier le projet",
+      "fileRead": "Lire le fichier",
+      "fileWrite": "Écrire le fichier",
+      "fileEdit": "Modifier le fichier",
+      "fileList": "Lister les fichiers",
+      "fileDelete": "Supprimer le fichier",
+      "runCode": "Exécuter du code",
+      "generateImage": "Générer une image",
+      "text": "Fichier texte",
+      "workflowSyntax": "Syntaxe du workflow",
+      "createWorkflow": "Créer un workflow",
+      "runWorkflow": "Exécuter le workflow",
+      "integration": "Intégration",
+      "integrationBatch": "Intégration par lot",
+      "integrationIntrospect": "Inspecter l'intégration",
+      "databaseSchema": "Schéma de base de données",
+      "documentFind": "Trouver des documents",
+      "documentRetrieve": "Récupérer le document",
+      "documentWrite": "Écrire le document",
+      "requestHumanInput": "Demander à un humain",
+      "requestUserLocation": "Demander la localisation",
+      "updateTodos": "Liste de tâches",
+      "proposeMemory": "Proposer un souvenir",
+      "secretRead": "Lire le secret"
     },
     "agentSelector": {
       "label": "Sélectionner un agent",
@@ -4728,6 +4751,10 @@
       },
       "entityLabel": "agents",
       "createAgent": "Créer un agent",
+      "createMenu": {
+        "blank": "Vierge",
+        "fromTemplate": "À partir d'un modèle"
+      },
       "searchAgent": "Rechercher des agents",
       "columns": {
         "displayName": "Nom",
@@ -4788,7 +4815,7 @@
         "noModelsLink": "Ajouter un fournisseur"
       },
       "uploadDialog": {
-        "menuItem": "Téléverser depuis un fichier…",
+        "menuItem": "Téléverser un fichier",
         "title": "Téléverser des agents",
         "description": "Importe des fichiers JSON d'agent, des dossiers ou des archives .zip. Chaque fichier .json s'installe comme un agent distinct.",
         "toastSuccess": "Agents importés"
@@ -4847,9 +4874,9 @@
         "sectionAccessDescription": "Contrôle quelles équipes peuvent utiliser cet agent",
         "name": "Nom",
         "namePlaceholder": "mon-agent",
-        "nameHelp": "Identifiant unique (lettres minuscules, chiffres, tirets et underscores uniquement)",
-        "nameTooltip": "Un identifiant unique et compatible URL, utilisé dans les liens et l'API. Non modifiable ensuite.",
-        "namePatternError": "Doit commencer par une lettre ou un chiffre et ne contenir que des lettres minuscules, des chiffres, des tirets et des underscores",
+        "nameHelp": "Identifiant unique — lettres minuscules, chiffres, tirets, underscores. Ajoute un / pour le classer dans un dossier, ex. marketing/seo-writer.",
+        "nameTooltip": "Un identifiant unique et compatible URL, utilisé dans les liens et l'API. Ajoute un / pour le classer dans un dossier (ex. marketing/seo-writer). Non modifiable ensuite.",
+        "namePatternError": "Chaque partie doit commencer par une lettre ou un chiffre et ne contenir que des lettres minuscules, des chiffres, des tirets et des underscores. Sépare les dossiers par /.",
         "displayName": "Nom d'affichage",
         "displayNameTooltip": "Le nom convivial que les autres voient dans le chat. Modifiable à tout moment.",
         "displayNamePlaceholder": "Mon Agent",
@@ -4986,7 +5013,24 @@
         "webModeContextDescription": "Injecter automatiquement les résultats web pertinents dans chaque réponse",
         "webModeBothDescription": "Injection automatique des résultats web et recherche à la demande",
         "webSearchHint": "La recherche web ne recherche que le contenu des sites web ajoutés à ton organisation.",
-        "webSearchHintLink": "Gérer les sites web"
+        "webSearchHintLink": "Gérer les sites web",
+        "categories": {
+          "customers": "Clients",
+          "products": "Produits",
+          "vendors": "Fournisseurs",
+          "websites": "Sites web",
+          "conversations": "Conversations",
+          "discussions": "Discussions",
+          "knowledge": "Connaissances",
+          "tasksProjects": "Tâches et projets",
+          "agents": "Agents",
+          "workflows": "Workflows",
+          "integrations": "Intégrations et données",
+          "analytics": "Analytique",
+          "web": "Web",
+          "files": "Fichiers",
+          "system": "Système"
+        }
       },
       "webhook": {
         "title": "Webhooks",

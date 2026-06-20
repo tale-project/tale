@@ -74,14 +74,14 @@ test.describe('agent editor depth', () => {
     });
     const page = await context.newPage();
     try {
-      // The agents table + "Create agent" trigger live on the "All agents" tab;
-      // `/agents` is the organigram Overview landing.
+      // The agents table + "Create agent" trigger live on the "List" tab
+      // (`/agents/all`); the "Blank" menu item opens the create dialog.
       await page.goto(`/dashboard/${workerOrg.organizationId}/agents/all`);
       await page
         .getByRole('button', { name: t('settings.agents.createAgent') })
         .click();
       await page
-        .getByRole('menuitem', { name: t('settings.agents.createAgent') })
+        .getByRole('menuitem', { name: t('settings.agents.createMenu.blank') })
         .click();
 
       await page

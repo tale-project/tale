@@ -186,7 +186,13 @@ export function CreateAgentDialog({
               field: t('agents.form.name'),
             }),
           )
-          .regex(/^[a-z0-9][a-z0-9_-]*$/, t('agents.form.namePatternError')),
+          // `/` files the agent into a folder: each path segment must itself be
+          // a valid flat name (e.g. "marketing/seo-writer"). The last segment is
+          // the agent's id; the leading segments are the folder path.
+          .regex(
+            /^[a-z0-9][a-z0-9_-]*(\/[a-z0-9][a-z0-9_-]*)*$/,
+            t('agents.form.namePatternError'),
+          ),
         displayName: z.string().min(
           1,
           tCommon('validation.required', {
@@ -234,6 +240,10 @@ export function CreateAgentDialog({
           : [];
     if (models.length === 0) return;
 
+    // A foldered name ("marketing/seo-writer") files the agent into a folder;
+    // its identity slug is the last path segment, which is what routes/refs use.
+    const agentSlug = data.name.split('/').pop() ?? data.name;
+
     try {
       await saveAgent({
         organizationId,
@@ -255,11 +265,11 @@ export function CreateAgentDialog({
         variant: 'success',
       });
       if (onCreated) {
-        onCreated(data.name);
+        onCreated(agentSlug);
       } else {
         void navigate({
           to: '/dashboard/$id/agents/$agentId',
-          params: { id: organizationId, agentId: data.name },
+          params: { id: organizationId, agentId: agentSlug },
         });
       }
     } catch (error) {

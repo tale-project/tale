@@ -578,14 +578,14 @@
       "title": "Create automation",
       "tabBlank": "Blank",
       "tabTemplate": "From template",
-      "nameTooltip": "Becomes the automation's id in its URL. Keep it short — you can change the display name later.",
+      "nameTooltip": "Becomes the automation's id in its URL. Add a / to place it in a folder, e.g. marketing/social-posts. You can change the display name later.",
       "namePlaceholder": "e.g., Social media workflow",
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
       "continue": "Continue"
     },
     "uploadDialog": {
-      "menuItem": "Upload from file…",
+      "menuItem": "Upload file",
       "title": "Upload automations",
       "description": "Import workflow JSON files, folders, or .zip archives. Each .json file installs as a separate automation.",
       "toastSuccess": "Automations imported"
@@ -902,7 +902,30 @@
       "taskRead": "Read tasks",
       "taskWrite": "Update task",
       "projectRead": "Read projects",
-      "projectWrite": "Update project"
+      "projectWrite": "Update project",
+      "fileRead": "Read file",
+      "fileWrite": "Write file",
+      "fileEdit": "Edit file",
+      "fileList": "List files",
+      "fileDelete": "Delete file",
+      "runCode": "Run code",
+      "generateImage": "Generate image",
+      "text": "Text file",
+      "workflowSyntax": "Workflow syntax",
+      "createWorkflow": "Create workflow",
+      "runWorkflow": "Run workflow",
+      "integration": "Integration",
+      "integrationBatch": "Batch integration",
+      "integrationIntrospect": "Inspect integration",
+      "databaseSchema": "Database schema",
+      "documentFind": "Find documents",
+      "documentRetrieve": "Retrieve document",
+      "documentWrite": "Write document",
+      "requestHumanInput": "Ask a human",
+      "requestUserLocation": "Request location",
+      "updateTodos": "To-do list",
+      "proposeMemory": "Propose memory",
+      "secretRead": "Read secret"
     },
     "agentSelector": {
       "label": "Select agent",
@@ -4988,6 +5011,10 @@
       },
       "entityLabel": "agents",
       "createAgent": "Create agent",
+      "createMenu": {
+        "blank": "Blank",
+        "fromTemplate": "From template"
+      },
       "searchAgent": "Search agents",
       "columns": {
         "displayName": "Name",
@@ -5048,7 +5075,7 @@
         "noModelsLink": "Add a provider"
       },
       "uploadDialog": {
-        "menuItem": "Upload from file…",
+        "menuItem": "Upload file",
         "title": "Upload agents",
         "description": "Import agent JSON files, folders, or .zip archives. Each .json file installs as a separate agent.",
         "toastSuccess": "Agents imported"
@@ -5107,9 +5134,9 @@
         "sectionAccessDescription": "Control which teams can use this agent",
         "name": "Name",
         "namePlaceholder": "my-agent",
-        "nameHelp": "Unique identifier (lowercase letters, numbers, hyphens, and underscores only)",
-        "nameTooltip": "A unique, URL-safe id used in links and the API. You can't change it later.",
-        "namePatternError": "Must start with a letter or number and contain only lowercase letters, numbers, hyphens, and underscores",
+        "nameHelp": "Unique id — lowercase letters, numbers, hyphens, underscores. Add a / to file it in a folder, e.g. marketing/seo-writer.",
+        "nameTooltip": "A unique, URL-safe id used in links and the API. Add a / to file it in a folder (e.g. marketing/seo-writer). You can't change it later.",
+        "namePatternError": "Each part must start with a letter or number and use only lowercase letters, numbers, hyphens, and underscores. Separate folders with /.",
         "displayName": "Display name",
         "displayNameTooltip": "The friendly name people see in chat. Change it anytime.",
         "displayNamePlaceholder": "My Agent",
@@ -5246,7 +5273,24 @@
         "webModeContextDescription": "Automatically inject relevant web results into every response",
         "webModeBothDescription": "Auto-inject web results and allow on-demand search",
         "webSearchHint": "Web search only searches content from websites added to your organization.",
-        "webSearchHintLink": "Manage websites"
+        "webSearchHintLink": "Manage websites",
+        "categories": {
+          "customers": "Customers",
+          "products": "Products",
+          "vendors": "Vendors",
+          "websites": "Websites",
+          "conversations": "Conversations",
+          "discussions": "Discussions",
+          "knowledge": "Knowledge",
+          "tasksProjects": "Tasks & projects",
+          "agents": "Agents",
+          "workflows": "Workflows",
+          "integrations": "Integrations & data",
+          "analytics": "Analytics",
+          "web": "Web",
+          "files": "Files",
+          "system": "System"
+        }
       },
       "webhook": {
         "title": "Webhooks",

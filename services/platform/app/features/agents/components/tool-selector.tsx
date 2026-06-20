@@ -8,6 +8,7 @@ import { useCallback, useMemo } from 'react';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { toolDisplayName } from '@/app/features/chat/utils/format-tool-detail';
 import type { ToolName } from '@/convex/agent_tools/tool_names';
 import { useT } from '@/lib/i18n/client';
 
@@ -29,18 +30,36 @@ interface ToolSelectorProps {
   disabled?: boolean;
 }
 
+// Tools grouped by the business domain they act on, ordered most- to
+// least-common, with cross-cutting plumbing (files, code, prompts for
+// input/memory) last under "system". Keys map to
+// `settings.agents.tools.categories.*` labels; every tool name in
+// `TOOL_NAMES` lives in exactly one bucket so nothing falls through to the
+// uncategorized "system" tail at runtime. Tool labels themselves come from the
+// shared `toolDisplayName` map.
 const TOOL_CATEGORIES: Record<string, ToolName[]> = {
-  CRM: ['customer_read', 'product_read'],
-  Web: ['web'],
-  Files: ['pdf', 'image', 'docx', 'text', 'excel'],
-  Documents: [
+  customers: ['customer_read', 'customer_write'],
+  products: ['product_read', 'product_write'],
+  vendors: ['vendor_read', 'vendor_write'],
+  websites: ['website_read', 'website_write'],
+  conversations: ['conversation_read', 'conversation_write'],
+  discussions: ['discussion_read', 'discussion_write'],
+  knowledge: [
     'rag_search',
-    'document_retrieve',
-    'document_find',
-    'document_write',
     'knowledge_write',
+    'document_find',
+    'document_retrieve',
+    'document_write',
   ],
-  Workflows: [
+  tasksProjects: [
+    'task_read',
+    'task_write',
+    'project_read',
+    'project_write',
+    'update_todos',
+  ],
+  agents: ['agent_read', 'agent_write'],
+  workflows: [
     'workflow_read',
     'workflow_syntax',
     'update_workflow_step',
@@ -48,9 +67,34 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
     'create_workflow',
     'run_workflow',
   ],
-  Integrations: ['integration', 'integration_batch', 'integration_introspect'],
-  Data: ['database_schema'],
-  Other: ['request_human_input'],
+  integrations: [
+    'integration',
+    'integration_batch',
+    'integration_introspect',
+    'database_schema',
+  ],
+  analytics: ['metrics_read'],
+  web: ['web'],
+  files: [
+    'file_read',
+    'file_write',
+    'file_edit',
+    'file_list',
+    'file_delete',
+    'text',
+    'pdf',
+    'docx',
+    'excel',
+    'image',
+    'generate_image',
+  ],
+  system: [
+    'run_code',
+    'request_human_input',
+    'request_user_location',
+    'propose_memory',
+    'secret_read',
+  ],
 };
 
 function categorizeTools(toolNames: string[]) {
@@ -67,8 +111,8 @@ function categorizeTools(toolNames: string[]) {
 
   const uncategorized = toolNames.filter((t) => !assigned.has(t));
   if (uncategorized.length > 0) {
-    const existing = categorized.get('Other') ?? [];
-    categorized.set('Other', [...existing, ...uncategorized]);
+    const existing = categorized.get('system') ?? [];
+    categorized.set('system', [...existing, ...uncategorized]);
   }
 
   return categorized;
@@ -86,6 +130,9 @@ export function ToolSelector({
   disabled,
 }: ToolSelectorProps) {
   const { t } = useT('settings');
+  // Tool labels live in the shared `chat.tools.*` namespace (one vocabulary for
+  // the chat timeline and this picker); category labels stay in `settings`.
+  const { t: tTools } = useT('chat');
   const { tools, isLoading } = useAvailableTools();
   const { integrations, isLoading: integrationsLoading } =
     useAvailableIntegrations(organizationId);
@@ -179,9 +226,9 @@ export function ToolSelector({
   // `<Skeletonize loading>`. Static category labels stay real text.
   const displayCategories: Array<[string, string[]]> = isLoading
     ? [
-        ['CRM', ['__p_crm_0', '__p_crm_1']],
-        ['Web', ['__p_web_0', '__p_web_1']],
-        ['Files', ['__p_files_0', '__p_files_1']],
+        ['customers', ['__p_customers_0', '__p_customers_1']],
+        ['knowledge', ['__p_knowledge_0', '__p_knowledge_1']],
+        ['workflows', ['__p_workflows_0', '__p_workflows_1']],
       ]
     : Array.from(categorized.entries());
 
@@ -190,30 +237,26 @@ export function ToolSelector({
       <fieldset disabled={disabled}>
         <Stack gap={4}>
           {displayCategories.map(([category, toolNames]) => (
-            <div key={category}>
-              {category === 'Other' && (
-                <div className="mb-4">{bindingsSections}</div>
-              )}
-              <CheckboxGroup
-                label={category}
-                options={toolNames.map((name) => ({
-                  value: name,
-                  label: isLoading ? 'Tool name' : name,
-                  disabled: isLoading,
-                }))}
-                value={
-                  isLoading
-                    ? []
-                    : toolNames.filter((name) => selectedSet.has(name))
-                }
-                onValueChange={(values) =>
-                  handleCategoryChange(toolNames, values)
-                }
-              />
-            </div>
+            <CheckboxGroup
+              key={category}
+              label={t(`agents.tools.categories.${category}`)}
+              options={toolNames.map((name) => ({
+                value: name,
+                label: isLoading ? 'Tool name' : toolDisplayName(tTools, name),
+                disabled: isLoading,
+              }))}
+              value={
+                isLoading
+                  ? []
+                  : toolNames.filter((name) => selectedSet.has(name))
+              }
+              onValueChange={(values) =>
+                handleCategoryChange(toolNames, values)
+              }
+            />
           ))}
 
-          {!isLoading && !categorized.has('Other') && bindingsSections}
+          {!isLoading && bindingsSections}
         </Stack>
       </fieldset>
     </Skeletonize>

@@ -116,6 +116,82 @@ export function truncate(str: string, maxLength: number): string {
   return str.slice(0, maxLength - 1) + '…';
 }
 
+/**
+ * Maps a platform tool name (snake_case, as registered in
+ * `convex/agent_tools/tool_names.ts`) to its `chat`-namespace label key. The
+ * single source of truth for human-facing tool names, shared by the chat
+ * thinking timeline (`formatToolDetail`) and the agent tool picker
+ * (`ToolSelector`). A few entries (`pptx`, `validate_workflow_definition`) are
+ * runtime-only tool names that never appear in the picker but do surface in
+ * chat — kept here so both speak with one voice.
+ */
+const TOOL_LABEL_KEYS: Record<string, string> = {
+  file_read: 'tools.fileRead',
+  file_write: 'tools.fileWrite',
+  file_edit: 'tools.fileEdit',
+  file_list: 'tools.fileList',
+  file_delete: 'tools.fileDelete',
+  run_code: 'tools.runCode',
+  customer_read: 'tools.customerRead',
+  customer_write: 'tools.customerWrite',
+  product_read: 'tools.productRead',
+  product_write: 'tools.productWrite',
+  vendor_read: 'tools.vendorRead',
+  vendor_write: 'tools.vendorWrite',
+  website_read: 'tools.websiteRead',
+  website_write: 'tools.websiteWrite',
+  rag_search: 'tools.ragSearch',
+  knowledge_write: 'tools.knowledgeWrite',
+  document_find: 'tools.documentFind',
+  document_retrieve: 'tools.documentRetrieve',
+  document_write: 'tools.documentWrite',
+  web: 'tools.web',
+  pdf: 'tools.pdf',
+  image: 'tools.image',
+  generate_image: 'tools.generateImage',
+  docx: 'tools.docx',
+  text: 'tools.text',
+  excel: 'tools.excel',
+  pptx: 'tools.pptx',
+  workflow_read: 'tools.workflowRead',
+  workflow_syntax: 'tools.workflowSyntax',
+  update_workflow_step: 'tools.updateWorkflowStep',
+  save_workflow_definition: 'tools.saveWorkflowDefinition',
+  validate_workflow_definition: 'tools.validateWorkflowDefinition',
+  create_workflow: 'tools.createWorkflow',
+  run_workflow: 'tools.runWorkflow',
+  integration: 'tools.integration',
+  integration_batch: 'tools.integrationBatch',
+  integration_introspect: 'tools.integrationIntrospect',
+  database_schema: 'tools.databaseSchema',
+  conversation_read: 'tools.conversationRead',
+  conversation_write: 'tools.conversationWrite',
+  discussion_read: 'tools.discussionRead',
+  discussion_write: 'tools.discussionWrite',
+  agent_read: 'tools.agentRead',
+  agent_write: 'tools.agentWrite',
+  metrics_read: 'tools.metricsRead',
+  task_read: 'tools.taskRead',
+  task_write: 'tools.taskWrite',
+  project_read: 'tools.projectRead',
+  project_write: 'tools.projectWrite',
+  update_todos: 'tools.updateTodos',
+  propose_memory: 'tools.proposeMemory',
+  secret_read: 'tools.secretRead',
+  request_human_input: 'tools.requestHumanInput',
+  request_user_location: 'tools.requestUserLocation',
+};
+
+/**
+ * Human-facing label for a platform tool: the localized name when one is
+ * registered, otherwise the title-cased slug as a safe fallback. Pure — takes
+ * the `chat`-namespace translator so it runs in components, memos, or tests.
+ */
+export function toolDisplayName(t: TFunction, toolName: string): string {
+  const key = TOOL_LABEL_KEYS[toolName];
+  return key ? t(key) : humanizeSeparatedSlug(toolName);
+}
+
 export function formatToolDetail(
   t: TFunction,
   toolName: string,
@@ -155,46 +231,5 @@ export function formatToolDetail(
     };
   }
 
-  const toolDisplayNames: Record<string, string> = {
-    customer_read: t('tools.customerRead'),
-    product_read: t('tools.productRead'),
-    rag_search: t('tools.ragSearch'),
-    knowledge_write: t('tools.knowledgeWrite'),
-    web: t('tools.web'),
-    pdf: t('tools.pdf'),
-    image: t('tools.image'),
-    pptx: t('tools.pptx'),
-    docx: t('tools.docx'),
-    workflow_read: t('tools.workflowRead'),
-    update_workflow_step: t('tools.updateWorkflowStep'),
-    save_workflow_definition: t('tools.saveWorkflowDefinition'),
-    validate_workflow_definition: t('tools.validateWorkflowDefinition'),
-    excel: t('tools.excel'),
-    customer_write: t('tools.customerWrite'),
-    product_write: t('tools.productWrite'),
-    website_read: t('tools.websiteRead'),
-    website_write: t('tools.websiteWrite'),
-    vendor_read: t('tools.vendorRead'),
-    vendor_write: t('tools.vendorWrite'),
-    conversation_read: t('tools.conversationRead'),
-    conversation_write: t('tools.conversationWrite'),
-    discussion_read: t('tools.discussionRead'),
-    discussion_write: t('tools.discussionWrite'),
-    agent_read: t('tools.agentRead'),
-    agent_write: t('tools.agentWrite'),
-    metrics_read: t('tools.metricsRead'),
-    task_read: t('tools.taskRead'),
-    task_write: t('tools.taskWrite'),
-    project_read: t('tools.projectRead'),
-    project_write: t('tools.projectWrite'),
-  };
-
-  const displayText =
-    toolDisplayNames[toolName] ||
-    toolName
-      .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-
-  return { toolName, displayText };
+  return { toolName, displayText: toolDisplayName(t, toolName) };
 }

@@ -48,10 +48,19 @@ interface CreateAutomationDialogProps {
 }
 
 function nameToSlug(name: string): string {
+  // `/` separates folder segments (e.g. "Marketing/Social posts" →
+  // "marketing/social-posts"), so slugify each segment and rejoin on `/`.
+  // Empty segments (leading/trailing/double slashes) are dropped.
   return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
+    .split('/')
+    .map((segment) =>
+      segment
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, ''),
+    )
+    .filter(Boolean)
+    .join('/');
 }
 
 function BlankTabContent({
