@@ -500,6 +500,7 @@
   },
   "automations": {
     "title": "Automatisierungen",
+    "appBadge": "App",
     "tabs": {
       "list": "Liste",
       "catalog": "Katalog",
@@ -4908,6 +4909,7 @@
         "blank": "Leer",
         "fromTemplate": "Aus Vorlage"
       },
+      "appBadge": "App",
       "searchAgent": "Agents suchen",
       "columns": {
         "displayName": "Name",

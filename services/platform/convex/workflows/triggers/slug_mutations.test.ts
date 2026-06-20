@@ -2,7 +2,10 @@ import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
 import schema from '../../schema';
-import { isAppOwnedWorkflowSlug } from './slug_mutations';
+import {
+  appOwnerOfWorkflowSlug,
+  isAppOwnedWorkflowSlug,
+} from './slug_mutations';
 
 // convex-test module map, keyed relative to the convex/ root. This file lives at
 // convex/workflows/triggers/, so the glob reaches the root via ../../ and keys
@@ -23,48 +26,73 @@ for (const [key, loader] of Object.entries(rawModules)) {
   modules[toConvexRootKey(key)] = loader;
 }
 
-// Pure db-level test of the app-ownership guard used by createEventSubscriptionBySlug
-// (the manual/Automations path). Uses t.run only — no auth-gated function calls —
-// so it sidesteps the convex-test betterAuth/org component limitation.
+// Pure db-level test of the app-ownership resolver used by
+// createEventSubscriptionBySlug (the manual/Automations path). Ownership is the
+// RECORDED `appSlug` on the wfInstallations row — not a slug-prefix heuristic —
+// so these tests seed install rows, not appInstallations. Uses t.run only (no
+// auth-gated calls) to sidestep the convex-test betterAuth/org limitation.
 const ORG = 'org_slugguard';
 
-describe('isAppOwnedWorkflowSlug', () => {
-  it('flags an installed app composite slug, but not global/bundle/bare slugs', async () => {
+describe('appOwnerOfWorkflowSlug / isAppOwnedWorkflowSlug', () => {
+  it('reports the recorded owner, never derives it from the slug', async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await ctx.db.insert('appInstallations', {
-        organizationId: ORG,
-        appSlug: 'issue-desk',
-        installedAt: 0,
-        installedBy: 'system',
-        status: 'active',
-        requiredIntegrations: [],
-        resources: [],
-      });
+      const insert = (workflowSlug: string, appSlug?: string) =>
+        ctx.db.insert('wfInstallations', {
+          organizationId: ORG,
+          workflowSlug,
+          installedAt: 0,
+          installedBy: 'system',
+          contentHash: 'h',
+          ...(appSlug !== undefined ? { appSlug } : {}),
+        });
+      // An app workflow — its install row records the owning app.
+      await insert('issue-desk/desk-process', 'issue-desk');
+      // Global/bundle workflows — install rows with NO appSlug.
+      await insert('tasks/unassigned-triage');
+      await insert('standalone');
+      // The reliability case the old slug-prefix heuristic got WRONG: a global
+      // workflow foldered like an app. Recorded ownership says it's NOT app-owned.
+      await insert('issue-desk/legacy-global');
     });
 
     await t.run(async (ctx) => {
-      // App-owned composite slug for an installed app → guarded.
+      // Recorded owner is returned verbatim.
+      expect(
+        await appOwnerOfWorkflowSlug(ctx, ORG, 'issue-desk/desk-process'),
+      ).toBe('issue-desk');
       expect(
         await isAppOwnedWorkflowSlug(ctx, ORG, 'issue-desk/desk-process'),
       ).toBe(true);
-      // Global + integration-bundle workflows have a non-app leading segment.
+
+      // Global workflows: no recorded owner.
       expect(
-        await isAppOwnedWorkflowSlug(ctx, ORG, 'tasks/unassigned-triage'),
+        await appOwnerOfWorkflowSlug(ctx, ORG, 'tasks/unassigned-triage'),
+      ).toBeNull();
+      expect(await appOwnerOfWorkflowSlug(ctx, ORG, 'standalone')).toBeNull();
+
+      // Folder name collides with an app slug, but the row has no appSlug → NOT
+      // owned (the bug the old heuristic had).
+      expect(
+        await appOwnerOfWorkflowSlug(ctx, ORG, 'issue-desk/legacy-global'),
+      ).toBeNull();
+      expect(
+        await isAppOwnedWorkflowSlug(ctx, ORG, 'issue-desk/legacy-global'),
       ).toBe(false);
-      expect(await isAppOwnedWorkflowSlug(ctx, ORG, 'github/sync-issues')).toBe(
-        false,
-      );
-      // A bare (non-composite) slug is never app-owned.
-      expect(await isAppOwnedWorkflowSlug(ctx, ORG, 'standalone')).toBe(false);
-      // The app must be installed IN THIS org — a different org isn't guarded.
+
+      // No install row at all → not owned.
       expect(
-        await isAppOwnedWorkflowSlug(
+        await appOwnerOfWorkflowSlug(ctx, ORG, 'never/installed'),
+      ).toBeNull();
+
+      // Ownership is per-org: another org's lookup sees no row.
+      expect(
+        await appOwnerOfWorkflowSlug(
           ctx,
           'org_other',
           'issue-desk/desk-process',
         ),
-      ).toBe(false);
+      ).toBeNull();
     });
   });
 });

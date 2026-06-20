@@ -29,6 +29,7 @@ const installStateValidator = v.object({
   disabledReason: v.optional(
     v.union(v.literal('integration_disabled'), v.literal('user')),
   ),
+  appSlug: v.optional(v.string()),
 });
 
 type InstallState = {
@@ -37,6 +38,7 @@ type InstallState = {
   installedBy: string;
   bundledBy?: string;
   disabledReason?: 'integration_disabled' | 'user';
+  appSlug?: string;
 };
 
 /** Project a stored row to the wire shape, omitting absent optional fields. */
@@ -49,6 +51,7 @@ function toInstallState(row: Doc<'agentInstallations'>): InstallState {
     ...(row.disabledReason !== undefined
       ? { disabledReason: row.disabledReason }
       : {}),
+    ...(row.appSlug !== undefined ? { appSlug: row.appSlug } : {}),
   };
 }
 
@@ -141,6 +144,8 @@ export const upsertInstallation = internalMutation({
     contentHash: v.string(),
     enabled: v.optional(v.boolean()),
     bundledBy: v.optional(v.string()),
+    // Owning app slug when this is an app agent; omitted for global agents.
+    appSlug: v.optional(v.string()),
   },
   returns: v.id('agentInstallations'),
   handler: async (ctx, args) => {
@@ -157,6 +162,7 @@ export const upsertInstallation = internalMutation({
         contentHash: args.contentHash,
         ...(args.enabled !== undefined ? { enabled: args.enabled } : {}),
         ...(args.bundledBy !== undefined ? { bundledBy: args.bundledBy } : {}),
+        ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
       });
       return existing._id;
     }
@@ -169,6 +175,7 @@ export const upsertInstallation = internalMutation({
       contentHash: args.contentHash,
       enabled: args.enabled ?? true,
       ...(args.bundledBy !== undefined ? { bundledBy: args.bundledBy } : {}),
+      ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
     });
   },
 });
@@ -265,6 +272,20 @@ function assertNotCascadeOwned(
   }
 }
 
+/**
+ * An app-owned row is managed by its app and must not be individually removed
+ * from the global roster — that would orphan the app. Removal happens only via
+ * app uninstall. Hard guard (no force escape). Throws when it trips.
+ */
+function assertNotAppOwned(row: Doc<'agentInstallations'>): void {
+  if (row.appSlug) {
+    throw new ConvexError({
+      code: 'app_owned',
+      message: `This agent belongs to app "${row.appSlug}". Uninstall the app to remove it.`,
+    });
+  }
+}
+
 /** Install (or re-enable) a catalog agent for the org. Admin-gated. */
 export const installCatalogAgent = mutation({
   args: { organizationId: v.string(), agentSlug: v.string() },
@@ -315,7 +336,16 @@ export const setAgentEnabled = mutation({
     );
     if (!existing) return null;
     // Disabling an integration-bundled agent fights the cascade; require force.
-    if (!args.enabled) assertNotCascadeOwned(existing, args.force);
+    // Disabling an app-owned agent silently breaks its app; require force too.
+    if (!args.enabled) {
+      assertNotCascadeOwned(existing, args.force);
+      if (existing.appSlug && !args.force) {
+        throw new ConvexError({
+          code: 'app_owned',
+          message: `This agent belongs to app "${existing.appSlug}"; disabling it would break the app. Pass force to override.`,
+        });
+      }
+    }
     await ctx.db.patch(existing._id, {
       enabled: args.enabled,
       disabledReason: args.enabled ? undefined : 'user',
@@ -341,6 +371,7 @@ export const uninstallAgent = mutation({
     );
     if (!existing) return null;
     assertNotCascadeOwned(existing, args.force);
+    assertNotAppOwned(existing);
     await ctx.db.delete(existing._id);
     return null;
   },

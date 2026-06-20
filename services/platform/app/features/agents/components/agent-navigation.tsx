@@ -155,7 +155,11 @@ export function AgentNavigation({
   // dialog fires on navigation away from the agent editor.
   useRegisterDirtySource(isDirty);
 
-  const basePath = `/dashboard/${organizationId}/agents/${agentId}`;
+  // Encode the agent id: app-owned agents have a composite slug
+  // (`<app>/<name>`), and its `/` must stay a single path segment (`%2F`) so the
+  // nested tab routes (`$agentId/instructions`, …) resolve. Flat global slugs
+  // are unaffected (encodeURIComponent is a no-op for them).
+  const basePath = `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}`;
 
   const navigationItems: TabNavigationItem[] = [
     {

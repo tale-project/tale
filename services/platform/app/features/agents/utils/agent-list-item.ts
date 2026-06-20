@@ -23,6 +23,12 @@ export interface ConfigurableAgentListItem {
   primaryBehavior?: string;
   /** Top-level folder (chat/workforce/github) — the catalog's visual section. */
   folder?: string;
+  /**
+   * Owning app slug when this agent belongs to an installed app (its composite
+   * slug is `<appSlug>/<name>` and `folder` is the app slug). Absent for global
+   * agents. Drives the "App" group marker + the not-deletable affordance.
+   */
+  appSlug?: string;
   i18n?: Record<string, AgentI18nOverrides>;
   metadata?: AgentListItemMetadata;
 }
@@ -81,6 +87,7 @@ export function toConfigurableAgent(
     roleRestriction: asString(raw.roleRestriction),
     primaryBehavior: asString(raw.primaryBehavior),
     folder: asString(raw.folder),
+    appSlug: asString(raw.appSlug),
     // i18n + metadata are free-form trees consumed downstream; pass them as-is
     // when present. `resolveAgentLocale` / `agentLabels` defensively read their
     // own leaves, so we only assert the container is an object here.

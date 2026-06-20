@@ -501,6 +501,7 @@
   },
   "automations": {
     "title": "Automatisations",
+    "appBadge": "App",
     "tabs": {
       "list": "Liste",
       "catalog": "Catalogue",
@@ -4909,6 +4910,7 @@
         "blank": "Vierge",
         "fromTemplate": "À partir d'un modèle"
       },
+      "appBadge": "App",
       "searchAgent": "Rechercher des agents",
       "columns": {
         "displayName": "Nom",

@@ -25,6 +25,7 @@ import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-con
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
+import { listInstalledAppSlugsFromDisk } from '../apps/file_utils';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import {
@@ -187,19 +188,55 @@ export const listAgents = action({
     organizationId: v.string(),
   },
   returns: v.any(),
-  handler: async (ctx, args) => {
+  // oxlint-disable-next-line typescript/no-explicit-any -- listAgents returns heterogeneous shapes; v.any() at API boundary
+  handler: async (ctx, args): Promise<any[]> => {
     const { orgSlug } = await requireOrgMembershipById(
       ctx,
       args.organizationId,
     );
-    // Recursive walk of the global folder tree (chat/, workforce/, github/, …);
-    // identity is the config's explicit `slug` (basename fallback), NOT the
-    // path. App-scoped agents live under org/apps/<app>/ and surface through
-    // `listAppAgents`, not here.
-    const relPaths = await walkAgentRelativePaths(orgSlug);
     const seen = new Set<string>();
 
-    const results = await Promise.all(
+    // Project an agent config to its list row. `appSlug` set ⇒ app-owned: the
+    // global list groups it under (and marks) its app; `folder` is the app slug.
+    const toAgentRow = (
+      slug: string,
+      config: AgentJsonConfig,
+      folder: string,
+      appSlug?: string,
+    ) => ({
+      name: slug,
+      slug,
+      // The '/'-joined folder path the agent file lives in (every path segment
+      // except the file itself), so nested folders survive in the list/catalog —
+      // e.g. `marketing/seo` → `marketing/seo`. Seeded single-level agents
+      // (workforce/, github/) are unaffected. For app agents this is the app
+      // slug. Independent of `labels`, which are flat equal tags.
+      folder,
+      labels: config.metadata?.labels,
+      displayName: config.displayName,
+      description: config.description,
+      visibleInChat: config.visibleInChat,
+      primaryBehavior: config.primaryBehavior,
+      agentKind: config.agentKind,
+      authMode: config.authMode,
+      supportedModels: config.supportedModels,
+      toolNames: config.toolNames,
+      integrationBindings: config.integrationBindings,
+      roleRestriction: config.roleRestriction,
+      conversationStarters: config.conversationStarters,
+      composerMode: config.composerMode,
+      isRouter: config.isRouter,
+      uiConfigurable: config.uiConfigurable,
+      i18n: config.i18n,
+      metadata: config.metadata,
+      ...(appSlug !== undefined ? { appSlug } : {}),
+    });
+
+    // Global agents — recursive walk of the global folder tree (chat/,
+    // workforce/, github/, …); identity is the config's explicit `slug`
+    // (basename fallback), NOT the path.
+    const relPaths = await walkAgentRelativePaths(orgSlug);
+    const globalResults = await Promise.all(
       relPaths.map(async (relativePath) => {
         const read = await readJsonFile<AgentJsonConfig>(
           resolveAgentFilePathFromRelative(orgSlug, relativePath),
@@ -212,42 +249,57 @@ export const listAgents = action({
         if (seen.has(slug)) return null; // duplicate slug — first wins
         seen.add(slug);
         if (read.ok) {
-          const config = read.data;
-          return {
-            name: slug,
-            slug,
-            // The '/'-joined folder path the agent file lives in (every path
-            // segment except the file itself), so nested folders survive in the
-            // list/catalog — e.g. `marketing/seo` → `marketing/seo`. Seeded
-            // single-level agents (workforce/, github/) are unaffected.
-            // Independent of `labels`, which are flat equal tags.
-            folder: relativePath.includes('/')
-              ? relativePath.split('/').slice(0, -1).join('/')
-              : '',
-            labels: config.metadata?.labels,
-            displayName: config.displayName,
-            description: config.description,
-            visibleInChat: config.visibleInChat,
-            primaryBehavior: config.primaryBehavior,
-            agentKind: config.agentKind,
-            authMode: config.authMode,
-            supportedModels: config.supportedModels,
-            toolNames: config.toolNames,
-            integrationBindings: config.integrationBindings,
-            roleRestriction: config.roleRestriction,
-            conversationStarters: config.conversationStarters,
-            composerMode: config.composerMode,
-            isRouter: config.isRouter,
-            uiConfigurable: config.uiConfigurable,
-            i18n: config.i18n,
-            metadata: config.metadata,
-          };
+          const folder = relativePath.includes('/')
+            ? relativePath.split('/').slice(0, -1).join('/')
+            : '';
+          return toAgentRow(slug, read.data, folder);
         }
         return { name: slug, slug, status: read.error, message: read.message };
       }),
     );
 
-    return results.filter(Boolean);
+    // App-owned agents (org/apps/<app>/agents/) — invisible to the global walk
+    // above. Surface them too, grouped under their app (folder = app slug) and
+    // tagged with appSlug so the global agents list can mark the group.
+    const appSlugs = await listInstalledAppSlugsFromDisk(orgSlug);
+    const appResults = (
+      await Promise.all(
+        appSlugs.map(async (app) => {
+          let entries: string[];
+          try {
+            entries = await readdir(resolveAppAgentsDir(orgSlug, app));
+          } catch (err) {
+            handleDirReadError(err, 'agents.listAgents.app');
+            return [];
+          }
+          const jsonFiles = entries.filter(
+            (e) => e.endsWith('.json') && !e.startsWith('.'),
+          );
+          return Promise.all(
+            jsonFiles.map(async (fileName) => {
+              const shortName = agentSlugFromFileName(fileName);
+              const slug = `${app}/${shortName}`;
+              if (!validateAgentName(slug)) return null;
+              if (seen.has(slug)) return null;
+              seen.add(slug);
+              const result = await readAgentFile(orgSlug, slug);
+              if (result.ok) {
+                return toAgentRow(slug, result.config, app, app);
+              }
+              return {
+                name: slug,
+                slug,
+                status: result.error,
+                message: result.message,
+                appSlug: app,
+              };
+            }),
+          );
+        }),
+      )
+    ).flat();
+
+    return [...globalResults, ...appResults].filter(Boolean);
   },
 });
 
@@ -817,6 +869,20 @@ export const deleteAgent = action({
       throw new ConvexError({
         code: 'FORBIDDEN',
         message: 'This agent is system-managed and cannot be deleted.',
+      });
+    }
+
+    // App-owned agents are not individually deletable from the global surface —
+    // removing one would orphan its app. Deletion happens only via app uninstall.
+    // Ownership is the recorded `appSlug` on the install row.
+    const installation = await ctx.runQuery(
+      internal.agents.installations.getInstallationInternal,
+      { organizationId: args.organizationId, agentSlug: args.agentName },
+    );
+    if (installation?.appSlug) {
+      throw new ConvexError({
+        code: 'app_owned',
+        message: `Agent "${args.agentName}" belongs to app "${installation.appSlug}". Uninstall the app to remove it.`,
       });
     }
 

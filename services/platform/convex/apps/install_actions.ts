@@ -19,7 +19,11 @@ import { isValidAppSlug } from '../../lib/shared/schemas/apps';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
 import { type ActionCtx, action } from '../_generated/server';
-import { resolveAgentFilePath } from '../agents/file_utils';
+import {
+  parseAgentJson,
+  resolveAgentFilePath,
+  validateAgentName,
+} from '../agents/file_utils';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { sha256 } from '../lib/file_io';
 import {
@@ -50,6 +54,7 @@ async function registerWorkflow(
   organizationId: string,
   orgSlug: string,
   workflowSlug: string,
+  appSlug: string,
   installedBy: string,
 ): Promise<void> {
   if (!validateWorkflowSlug(workflowSlug)) return;
@@ -65,6 +70,7 @@ async function registerWorkflow(
     workflowSlug,
     installedBy,
     contentHash: sha256(content),
+    appSlug,
   });
   const declaredEvents = parsed.data.triggers?.events ?? [];
   if (declaredEvents.length > 0) {
@@ -87,17 +93,68 @@ async function registerWorkflow(
   }
 }
 
+/**
+ * Register one app agent: an ENABLED install row stamped with the owning app.
+ *
+ * App agents get NO row from the default-agent provisioner (it walks only the
+ * GLOBAL agents tree), so without this an app agent would be REFUSED at run
+ * admission in a fully-provisioned org — `isAgentLiveInternal` admits only
+ * agents with an enabled row once the org has any install rows. The row's slug
+ * is the composite `<app>/<name>` the liveness gate keys on; `appSlug` records
+ * the owner (the global app marker + delete/disable guards read it). Never set
+ * `bundledBy` — that is the integration-cascade key, orthogonal to app ownership.
+ */
+async function registerAgent(
+  ctx: ActionCtx,
+  organizationId: string,
+  orgSlug: string,
+  agentSlug: string,
+  appSlug: string,
+  installedBy: string,
+): Promise<void> {
+  if (!validateAgentName(agentSlug)) return;
+  const content = await readFile(
+    resolveAgentFilePath(orgSlug, agentSlug),
+    'utf-8',
+  );
+  try {
+    parseAgentJson(content);
+  } catch (error) {
+    console.warn(
+      `[app-install] skipping malformed app agent "${agentSlug}": ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return;
+  }
+
+  await ctx.runMutation(internal.agents.installations.upsertInstallation, {
+    organizationId,
+    agentSlug,
+    installedBy,
+    contentHash: sha256(content),
+    enabled: true,
+    appSlug,
+  });
+}
+
 export const installApp = action({
   args: { organizationId: v.string(), appSlug: v.string() },
   returns: v.object({
     ok: v.boolean(),
     workflows: v.number(),
+    agents: v.number(),
     resources: v.number(),
   }),
   handler: async (
     ctx,
     args,
-  ): Promise<{ ok: boolean; workflows: number; resources: number }> => {
+  ): Promise<{
+    ok: boolean;
+    workflows: number;
+    agents: number;
+    resources: number;
+  }> => {
     const { orgSlug, userId, email } = await requireOrgMembershipById(
       ctx,
       args.organizationId,
@@ -130,6 +187,22 @@ export const installApp = action({
         args.organizationId,
         orgSlug,
         slug,
+        args.appSlug,
+        installedBy,
+      );
+    }
+
+    // App agents (bare names in the manifest) get an enabled, app-stamped
+    // install row so they're admitted to run in a fully-provisioned org. The
+    // row identity is the composite `<app>/<name>` (the liveness gate keys on it).
+    const agents = manifest.agents ?? [];
+    for (const name of agents) {
+      await registerAgent(
+        ctx,
+        args.organizationId,
+        orgSlug,
+        `${args.appSlug}/${name}`,
+        args.appSlug,
         installedBy,
       );
     }
@@ -149,6 +222,7 @@ export const installApp = action({
     return {
       ok: true,
       workflows: workflows.length,
+      agents: agents.length,
       resources: resources.length,
     };
   },
@@ -182,6 +256,15 @@ export const uninstallApp = action({
         internal.apps.install_mutations.deregisterWorkflow,
         { organizationId: args.organizationId, workflowSlug: slug },
       );
+    }
+
+    // Mirror for app agents (composite slug `<app>/<name>`) — drop their install
+    // rows so the app's agents stop being live once the app is gone.
+    for (const name of manifest?.agents ?? []) {
+      await ctx.runMutation(internal.agents.installations.deleteInstallation, {
+        organizationId: args.organizationId,
+        agentSlug: `${args.appSlug}/${name}`,
+      });
     }
 
     await uninstallAppFiles(orgSlug, args.appSlug, record.resources);

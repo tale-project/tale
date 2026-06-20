@@ -1,38 +1,8 @@
 {
   "id": "desk",
   "title": "Issue resolution desk",
-  "description": "Pull GitHub issues, turn them into tasks, and let the agent team resolve them — watch each run execute live.",
+  "description": "Pull GitHub issues, turn them into tasks, and let the agent team resolve them.",
   "tabs": [
-    {
-      "id": "overview",
-      "label": "Overview",
-      "data": {
-        "root": { "props": {} },
-        "zones": {},
-        "content": [
-          {
-            "type": "WorkflowDag",
-            "props": {
-              "id": "workflow",
-              "title": "How it works",
-              "workflowSlug": "issue-desk/desk-process",
-              "editable": true
-            }
-          },
-          {
-            "type": "AgentList",
-            "props": {
-              "id": "agents",
-              "title": "Agents",
-              "roles": {
-                "implementer": "issue-desk/desk-implementer",
-                "reviewer": "issue-desk/desk-reviewer"
-              }
-            }
-          }
-        ]
-      }
-    },
     {
       "id": "issues",
       "label": "Issues",
@@ -123,24 +93,6 @@
                   "args": { "taskId": "$selected._id", "status": "done" }
                 }
               ]
-            }
-          }
-        ]
-      }
-    },
-    {
-      "id": "runs",
-      "label": "Runs",
-      "data": {
-        "root": { "props": {} },
-        "zones": {},
-        "content": [
-          {
-            "type": "RunList",
-            "props": {
-              "id": "runs",
-              "title": "Recent runs",
-              "workflowSlug": "issue-desk/desk-process"
             }
           }
         ]

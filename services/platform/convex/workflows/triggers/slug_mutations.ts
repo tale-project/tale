@@ -228,29 +228,37 @@ export const deleteWebhookBySlug = mutation({
 });
 
 /**
- * Whether a workflow slug is owned by an app installed in this org. App workflows
- * use a composite slug `<appSlug>/<name>`; an app is installed iff there is an
- * `appInstallations` row for (org, appSlug). Global/bundle workflows (`tasks/…`,
- * `github/…`) have a non-app leading segment, so no row matches. install-time
- * collision refusal (installApp's shadowsGlobal check) keeps the segment
- * unambiguous. Takes only a db ctx (no auth) so it stays reusable + unit-testable.
+ * The app that owns a workflow slug, or `null` for a global/default-pack workflow.
+ *
+ * Ownership is a RECORDED fact: app install stamps `appSlug` on the workflow's
+ * `wfInstallations` row (`apps/install_actions.ts` registerWorkflow). We read that
+ * field directly — no slug-prefix parsing (so no collision with a same-named
+ * global workflow folder), and no dependence on the `appInstallations` row still
+ * existing. Takes only a db ctx (no auth) so it stays reusable + unit-testable.
  */
+export async function appOwnerOfWorkflowSlug(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: string,
+  workflowSlug: string,
+): Promise<string | null> {
+  const installation = await ctx.db
+    .query('wfInstallations')
+    .withIndex('by_org_slug', (q) =>
+      q.eq('organizationId', organizationId).eq('workflowSlug', workflowSlug),
+    )
+    .first();
+  return installation?.appSlug ?? null;
+}
+
+/** Whether a workflow slug is owned by an app installed in this org. */
 export async function isAppOwnedWorkflowSlug(
   ctx: QueryCtx | MutationCtx,
   organizationId: string,
   workflowSlug: string,
 ): Promise<boolean> {
-  const appSlug = workflowSlug.includes('/')
-    ? workflowSlug.split('/')[0]
-    : undefined;
-  if (!appSlug) return false;
-  const installed = await ctx.db
-    .query('appInstallations')
-    .withIndex('by_org_slug', (q) =>
-      q.eq('organizationId', organizationId).eq('appSlug', appSlug),
-    )
-    .first();
-  return installed !== null;
+  return (
+    (await appOwnerOfWorkflowSlug(ctx, organizationId, workflowSlug)) !== null
+  );
 }
 
 export const createEventSubscriptionBySlug = mutation({

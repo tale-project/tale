@@ -30,6 +30,8 @@ export interface AgentRow {
   description?: string;
   /** '/'-joined folder path the agent lives in (from its `folder` field). */
   folderPath: string;
+  /** Owning app slug when app-owned (folderPath === appSlug); else undefined. */
+  appSlug?: string;
   supportedModels?: string[];
   toolNames?: string[];
   visibleInChat?: boolean;
@@ -45,6 +47,8 @@ export interface AgentFolderItem {
   /** Full '/'-joined path used to drill in. */
   path: string;
   agentCount: number;
+  /** Set when this top-level folder IS an installed app — marks it `[App]`. */
+  appSlug?: string;
 }
 
 export type AgentTableItem = AgentRow | AgentFolderItem;
@@ -85,6 +89,7 @@ export function AgentsTable({
         displayName: resolved.displayName,
         description: resolved.description,
         folderPath: agent.folder ?? '',
+        appSlug: agent.appSlug,
         supportedModels: agent.supportedModels,
         toolNames: agent.toolNames,
         visibleInChat: agent.visibleInChat,
@@ -93,6 +98,19 @@ export function AgentsTable({
     }
     return validAgents;
   }, [rawAgents, locale]);
+
+  // Top-level folders whose name is an installed app — surfaced from the rows
+  // that carry `appSlug` (app agents have folderPath === appSlug). Used to mark
+  // the folder group `[App]` instead of rendering it as an ordinary folder.
+  const appFolderSlugs = useMemo<Set<string>>(
+    () =>
+      new Set(
+        agents
+          .map((a) => a.appSlug)
+          .filter((s): s is string => s !== undefined),
+      ),
+    [agents],
+  );
 
   // Search is global (matches across every folder); otherwise scope to the
   // current folder plus everything nested beneath it.
@@ -128,12 +146,13 @@ export function AgentsTable({
       name: f.name,
       path: f.path,
       agentCount: f.count,
+      appSlug: appFolderSlugs.has(f.path) ? f.path : undefined,
     }));
     const agentItems = [...items].sort((a, b) =>
       a.displayName.localeCompare(b.displayName),
     );
     return [...folderItems, ...agentItems];
-  }, [scopedAgents, isSearching, currentFolder]);
+  }, [scopedAgents, isSearching, currentFolder, appFolderSlugs]);
 
   const { mutateAsync: deleteAgent } = useDeleteAgent();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -252,10 +271,12 @@ export function AgentsTable({
       {...list.tableProps}
       columns={columns}
       stickyLayout={stickyLayout}
-      // Folders aren't selectable, and built-in agents are not deletable — so
-      // the header checkbox + bulk bar only ever target user-created agents.
+      // Folders aren't selectable; built-in agents and app-owned agents are not
+      // deletable — so the header checkbox + bulk bar only ever target
+      // user-created global agents.
       enableRowSelection={(row) =>
         row.original.type === 'agent' &&
+        !row.original.appSlug &&
         !PROTECTED_AGENT_NAMES.some((name) => name === row.original.name)
       }
       rowSelection={rowSelection}

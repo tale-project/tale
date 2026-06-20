@@ -1,0 +1,91 @@
+import { convexTest, type TestConvex } from 'convex-test';
+import { describe, expect, it } from 'vitest';
+
+import { internal } from '../_generated/api';
+import schema from '../schema';
+
+// convex-test module map keyed relative to the convex/ root. This file lives at
+// convex/agents/, so resolve glob keys against that base.
+const TEST_DIR_FROM_CONVEX_ROOT = 'agents';
+function toConvexRootKey(globKey: string): string {
+  const stack: string[] = [];
+  for (const part of `${TEST_DIR_FROM_CONVEX_ROOT}/${globKey}`.split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') stack.pop();
+    else stack.push(part);
+  }
+  return stack.join('/');
+}
+const rawModules = import.meta.glob('../**/*.*s');
+const modules: Record<string, () => Promise<unknown>> = {};
+for (const [key, loader] of Object.entries(rawModules)) {
+  modules[toConvexRootKey(key)] = loader;
+}
+
+const ORG = 'org_appagents';
+type T = TestConvex<typeof schema>;
+
+function rowFor(t: T, agentSlug: string) {
+  return t.run((ctx) =>
+    ctx.db
+      .query('agentInstallations')
+      .withIndex('by_org_slug', (q) =>
+        q.eq('organizationId', ORG).eq('agentSlug', agentSlug),
+      )
+      .first(),
+  );
+}
+
+// App agents are stamped with their owning app at install (the canonical
+// ownership signal used by the global marker + delete/disable guards). Global
+// agents leave `appSlug` unset. Exercises the internal install/delete mutations
+// directly (no auth) — the public, auth-gated roster guards are verified live.
+describe('agent installations — app ownership stamp', () => {
+  it('stamps appSlug + enabled, survives re-install, and is cleared by delete', async () => {
+    const t = convexTest(schema, modules);
+    const SLUG = 'issue-desk/desk-implementer';
+
+    await t.mutation(internal.agents.installations.upsertInstallation, {
+      organizationId: ORG,
+      agentSlug: SLUG,
+      installedBy: 'system',
+      contentHash: 'h1',
+      enabled: true,
+      appSlug: 'issue-desk',
+    });
+    let row = await rowFor(t, SLUG);
+    expect(row?.appSlug).toBe('issue-desk');
+    expect(row?.enabled).toBe(true);
+    // App ownership and the integration-cascade key are orthogonal.
+    expect(row?.bundledBy).toBeUndefined();
+
+    // Re-install (the patch path) re-stamps content but keeps the owner.
+    await t.mutation(internal.agents.installations.upsertInstallation, {
+      organizationId: ORG,
+      agentSlug: SLUG,
+      installedBy: 'system',
+      contentHash: 'h2',
+      enabled: true,
+      appSlug: 'issue-desk',
+    });
+    row = await rowFor(t, SLUG);
+    expect(row?.appSlug).toBe('issue-desk');
+    expect(row?.contentHash).toBe('h2');
+
+    // A global agent install carries no owner.
+    await t.mutation(internal.agents.installations.upsertInstallation, {
+      organizationId: ORG,
+      agentSlug: 'global-helper',
+      installedBy: 'system',
+      contentHash: 'g1',
+    });
+    expect((await rowFor(t, 'global-helper'))?.appSlug).toBeUndefined();
+
+    // App uninstall deregisters the app agent's row.
+    await t.mutation(internal.agents.installations.deleteInstallation, {
+      organizationId: ORG,
+      agentSlug: SLUG,
+    });
+    expect(await rowFor(t, SLUG)).toBeNull();
+  });
+});

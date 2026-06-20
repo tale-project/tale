@@ -52,10 +52,10 @@ export function TopAgentsTable({
           a &&
           typeof a === 'object' &&
           'name' in a &&
-          typeof (a as { name: unknown }).name === 'string' &&
+          typeof a.name === 'string' &&
           !('status' in a)
         ) {
-          const name = (a as { name: string }).name;
+          const name = a.name;
           const resolved = resolveAgentLocale(a, locale);
           map.set(name, resolved.displayName || name);
         }

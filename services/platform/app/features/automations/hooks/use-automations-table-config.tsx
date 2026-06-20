@@ -3,7 +3,7 @@
 import { Badge } from '@tale/ui/badge';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Folder, Workflow } from 'lucide-react';
+import { Folder, Package, Workflow } from 'lucide-react';
 import { useMemo } from 'react';
 
 import {
@@ -46,12 +46,20 @@ export function useAutomationsTableConfig(
         meta: { hasAvatar: false, skeleton: { type: 'icon-text' } },
         cell: ({ row }) => {
           if (row.original.type === 'folder') {
+            const isApp = row.original.appSlug !== undefined;
             return (
               <div className="flex min-h-8 items-center gap-3">
-                <Folder className="text-muted-foreground size-4 shrink-0" />
+                {isApp ? (
+                  <Package className="text-muted-foreground size-4 shrink-0" />
+                ) : (
+                  <Folder className="text-muted-foreground size-4 shrink-0" />
+                )}
                 <Text as="span" variant="label" truncate>
                   {row.original.name}
                 </Text>
+                {isApp && (
+                  <Badge variant="slate">{tAutomations('appBadge')}</Badge>
+                )}
                 <Badge variant="outline">{row.original.workflowCount}</Badge>
               </div>
             );
@@ -122,13 +130,14 @@ export function useAutomationsTableConfig(
                   _id: row.original.slug,
                   name: row.original.name,
                 }}
+                isAppOwned={row.original.appSlug !== undefined}
               />
             </div>
           );
         },
       },
     ],
-    [tTables, organizationId, formatDate, showFolderPath],
+    [tTables, tAutomations, organizationId, formatDate, showFolderPath],
   );
 
   return {

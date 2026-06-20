@@ -19,6 +19,7 @@ export const getInstallationInternal = internalQuery({
       installedAt: v.number(),
       installedBy: v.string(),
       contentHash: v.string(),
+      appSlug: v.optional(v.string()),
     }),
     v.null(),
   ),
@@ -40,6 +41,8 @@ export const upsertInstallation = internalMutation({
     workflowSlug: v.string(),
     installedBy: v.string(),
     contentHash: v.string(),
+    // Owning app slug when this is an app workflow; omitted for global workflows.
+    appSlug: v.optional(v.string()),
   },
   returns: v.id('wfInstallations'),
   handler: async (ctx, args) => {
@@ -57,6 +60,7 @@ export const upsertInstallation = internalMutation({
         installedAt: Date.now(),
         installedBy: args.installedBy,
         contentHash: args.contentHash,
+        ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
       });
       return existing._id;
     }
@@ -67,6 +71,7 @@ export const upsertInstallation = internalMutation({
       installedAt: Date.now(),
       installedBy: args.installedBy,
       contentHash: args.contentHash,
+      ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
     });
   },
 });

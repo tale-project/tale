@@ -34,6 +34,8 @@ export interface WorkflowItem {
   hash: string;
   /** '/'-joined folder path (every slug segment except the last). */
   folderPath: string;
+  /** Owning app slug when app-owned (composite slug `<appSlug>/<name>`). */
+  appSlug?: string;
   createdAtMs?: number;
 }
 
@@ -44,6 +46,8 @@ export interface FolderItem {
   /** Full '/'-joined path used to drill in. */
   path: string;
   workflowCount: number;
+  /** Set when this top-level folder IS an installed app — marks it `[App]`. */
+  appSlug?: string;
 }
 
 export type AutomationTableItem = WorkflowItem | FolderItem;
@@ -62,13 +66,15 @@ function toWorkflowItem(
         stepCount: number;
         hash: string;
         createdAtMs?: number;
+        appSlug?: string;
       }
     | { slug: string; status: string; message: string }
     | null,
 ): WorkflowItem | null {
   if (!w || !('name' in w)) return null;
   // The folder is every slug segment except the last (the workflow id), so
-  // `github/issues/sync` lives in `github/issues` — arbitrarily deep.
+  // `github/issues/sync` lives in `github/issues` — arbitrarily deep. For an app
+  // workflow `issue-desk/desk-process`, that folder is the app slug.
   const folderPath = w.slug.split('/').slice(0, -1).join('/');
   return { ...w, type: 'workflow', folderPath };
 }
@@ -132,6 +138,19 @@ export function AutomationsTable({
     [workflows],
   );
 
+  // Top-level folders whose name is an installed app — surfaced from the rows
+  // that carry `appSlug` (app workflows have folderPath === appSlug). Used to
+  // mark the folder group `[App]` instead of an ordinary folder.
+  const appFolderSlugs = useMemo<Set<string>>(
+    () =>
+      new Set(
+        (validWorkflows ?? [])
+          .map((w) => w.appSlug)
+          .filter((s): s is string => s !== undefined),
+      ),
+    [validWorkflows],
+  );
+
   // The workflows represented by the current view. Search is *global*: a query
   // matches across every folder regardless of which folder you're in, so the
   // behaviour is identical at the root and inside a folder (the flat results
@@ -177,15 +196,19 @@ export function AutomationsTable({
       name: f.name,
       path: f.path,
       workflowCount: f.count,
+      appSlug: appFolderSlugs.has(f.path) ? f.path : undefined,
     }));
     const workflowItems = [...items].sort((a, b) =>
       a.name.localeCompare(b.name),
     );
     return [...folderItems, ...workflowItems];
-  }, [scopedWorkflows, currentFolder, isSearching]);
+  }, [scopedWorkflows, currentFolder, isSearching, appFolderSlugs]);
 
   // folderPath → member workflow slugs (everything nested), and the flat list
   // of every selectable slug in view. Drive the folder/header checkbox state.
+  // App-owned workflows can't be deleted from the global surface (only via app
+  // uninstall), so they're excluded from every selectable slug set — folder
+  // checkboxes and select-all never queue them for BulkDeleteBar.
   const folderMembers = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const item of tableItems) {
@@ -193,7 +216,7 @@ export function AutomationsTable({
       map.set(
         item.path,
         scopedWorkflows
-          .filter((w) => isInFolder(w.folderPath, item.path))
+          .filter((w) => !w.appSlug && isInFolder(w.folderPath, item.path))
           .map((w) => w.slug),
       );
     }
@@ -201,7 +224,7 @@ export function AutomationsTable({
   }, [tableItems, scopedWorkflows]);
 
   const allVisibleSlugs = useMemo(
-    () => scopedWorkflows.map((w) => w.slug),
+    () => scopedWorkflows.filter((w) => !w.appSlug).map((w) => w.slug),
     [scopedWorkflows],
   );
 
@@ -331,7 +354,9 @@ export function AutomationsTable({
         // folder checkboxes expanding to their members). `enableRowSelection`
         // here only governs TanStack's row-highlight: workflow rows highlight
         // when selected; folder aggregates don't.
-        enableRowSelection={(row) => row.original.type === 'workflow'}
+        enableRowSelection={(row) =>
+          row.original.type === 'workflow' && !row.original.appSlug
+        }
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         // Pin row IDs to the workflow slug (mirrors `wfDefinitionId`); folders

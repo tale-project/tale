@@ -136,47 +136,47 @@ function AgentDetailLayout() {
                 [
                   {
                     label: t('agents.navigation.general'),
-                    href: `/dashboard/${organizationId}/agents/${agentId}`,
+                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}`,
                     matchMode: 'exact',
                   },
                   {
                     label: t('agents.navigation.instructionsModel'),
-                    href: `/dashboard/${organizationId}/agents/${agentId}/instructions`,
+                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/instructions`,
                     matchMode: 'exact',
                   },
                   {
                     label: t('agents.navigation.tools'),
-                    href: `/dashboard/${organizationId}/agents/${agentId}/tools`,
+                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/tools`,
                     matchMode: 'exact',
                   },
                   {
                     label: t('agents.navigation.skills'),
-                    href: `/dashboard/${organizationId}/agents/${agentId}/skills`,
+                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/skills`,
                     matchMode: 'exact',
                   },
                   {
                     label: t('agents.navigation.knowledge'),
-                    href: `/dashboard/${organizationId}/agents/${agentId}/knowledge`,
+                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/knowledge`,
                     matchMode: 'exact',
                   },
                   {
                     label: t('agents.navigation.delegation'),
-                    href: `/dashboard/${organizationId}/agents/${agentId}/delegation`,
+                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/delegation`,
                     matchMode: 'exact',
                   },
                   {
                     label: t('agents.navigation.metrics'),
-                    href: `/dashboard/${organizationId}/agents/${agentId}/metrics`,
+                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/metrics`,
                     matchMode: 'exact',
                   },
                   {
                     label: t('agents.navigation.conversationStarters'),
-                    href: `/dashboard/${organizationId}/agents/${agentId}/conversation-starters`,
+                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/conversation-starters`,
                     matchMode: 'exact',
                   },
                   {
                     label: t('agents.navigation.webhook'),
-                    href: `/dashboard/${organizationId}/agents/${agentId}/webhook`,
+                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/webhook`,
                     matchMode: 'exact',
                   },
                 ] satisfies TabNavigationItem[]

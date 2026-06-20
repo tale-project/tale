@@ -6,6 +6,7 @@
  * `app.json` (manifest), `views/*.json`, `messages/`, and `scripts/` (the
  * `pack://<app>/scripts/...` assets a workflow's sandbox step references).
  */
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import { isValidAppSlug } from '../../lib/shared/schemas/apps';
@@ -21,6 +22,30 @@ export function resolveAppsDir(orgSlug: string): string {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
   return path.join(getConfigRoot('apps'), orgSlug, 'apps');
+}
+
+/**
+ * Slugs of the apps installed in this org, by scanning `org/apps/` subdirectories.
+ * The on-disk bundle is the source of truth for which app owns a resource, so the
+ * global agent/workflow lists use this to know which app dirs to also scan and
+ * tag. A missing `org/apps/` root means no installed apps.
+ */
+export async function listInstalledAppSlugsFromDisk(
+  orgSlug: string,
+): Promise<string[]> {
+  try {
+    const entries = await readdir(resolveAppsDir(orgSlug), {
+      withFileTypes: true,
+    });
+    return entries
+      .filter((e) => e.isDirectory() && isValidAppSlug(e.name))
+      .map((e) => e.name);
+  } catch (err) {
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+      return [];
+    }
+    throw err;
+  }
 }
 
 export function resolveAppDir(orgSlug: string, slug: string): string {
