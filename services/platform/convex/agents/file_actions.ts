@@ -49,21 +49,32 @@ import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
   MAX_HISTORY_ENTRIES,
-  agentNameFromFileName,
+  effectiveAgentSlug,
   parseAgentJson,
   resolveAgentFilePath,
-  resolveAgentsDir,
+  resolveAgentFilePathFromRelative,
   resolveAppAgentsDir,
   resolveHistoryDir,
   serializeAgentJson,
   validateAgentName,
+  walkAgentRelativePaths,
 } from './file_utils';
+import {
+  invalidateAgentListCache,
+  listAgentsForOrg,
+  resolveAgentPath,
+} from './internal_actions';
+import { agentSlugFromFileName } from './validators';
 
 async function readAgentFile(
   orgSlug: string,
   agentName: string,
 ): Promise<AgentReadResult> {
-  const filePath = resolveAgentFilePath(orgSlug, agentName);
+  // Folder-aware resolution: the index maps a flat slug to its real relative
+  // path, so foldered global agents (chat/, workforce/, github/) resolve to
+  // their on-disk location; a composite `<app>/<name>` falls through to the
+  // app bundle. A flat global slug with no index hit lands at org/agents/<slug>.
+  const filePath = await resolveAgentPath(orgSlug, agentName);
   const result = await readJsonFile<AgentJsonConfig>(
     filePath,
     MAX_FILE_SIZE_BYTES,
@@ -181,49 +192,58 @@ export const listAgents = action({
       ctx,
       args.organizationId,
     );
-    const dir = resolveAgentsDir(orgSlug);
-    let entries: string[];
-    try {
-      entries = await readdir(dir);
-    } catch (err) {
-      handleDirReadError(err, 'agents.listAgents');
-      return [];
-    }
-
-    const jsonFiles = entries.filter(
-      (e) => e.endsWith('.json') && !e.startsWith('.'),
-    );
+    // Recursive walk of the global folder tree (chat/, workforce/, github/, …);
+    // identity is the config's explicit `slug` (basename fallback), NOT the
+    // path. App-scoped agents live under org/apps/<app>/ and surface through
+    // `listAppAgents`, not here.
+    const relPaths = await walkAgentRelativePaths(orgSlug);
+    const seen = new Set<string>();
 
     const results = await Promise.all(
-      jsonFiles.map(async (fileName) => {
-        const agentName = agentNameFromFileName(fileName);
-        if (!validateAgentName(agentName)) return null;
-        const result = await readAgentFile(orgSlug, agentName);
-        if (result.ok) {
+      relPaths.map(async (relativePath) => {
+        const read = await readJsonFile<AgentJsonConfig>(
+          resolveAgentFilePathFromRelative(orgSlug, relativePath),
+          MAX_FILE_SIZE_BYTES,
+          parseAgentJson,
+        );
+        const slug = read.ok
+          ? effectiveAgentSlug(read.data, relativePath)
+          : agentSlugFromFileName(relativePath);
+        if (seen.has(slug)) return null; // duplicate slug — first wins
+        seen.add(slug);
+        if (read.ok) {
+          const config = read.data;
           return {
-            name: agentName,
-            displayName: result.config.displayName,
-            description: result.config.description,
-            visibleInChat: result.config.visibleInChat,
-            primaryBehavior: result.config.primaryBehavior,
-            agentKind: result.config.agentKind,
-            authMode: result.config.authMode,
-            supportedModels: result.config.supportedModels,
-            toolNames: result.config.toolNames,
-            integrationBindings: result.config.integrationBindings,
-            roleRestriction: result.config.roleRestriction,
-            conversationStarters: result.config.conversationStarters,
-            composerMode: result.config.composerMode,
-            isRouter: result.config.isRouter,
-            uiConfigurable: result.config.uiConfigurable,
-            i18n: result.config.i18n,
+            name: slug,
+            slug,
+            // The '/'-joined folder path the agent file lives in (every path
+            // segment except the file itself), so nested folders survive in the
+            // list/catalog — e.g. `marketing/seo` → `marketing/seo`. Seeded
+            // single-level agents (workforce/, github/) are unaffected.
+            // Independent of `labels`, which are flat equal tags.
+            folder: relativePath.includes('/')
+              ? relativePath.split('/').slice(0, -1).join('/')
+              : '',
+            labels: config.metadata?.labels,
+            displayName: config.displayName,
+            description: config.description,
+            visibleInChat: config.visibleInChat,
+            primaryBehavior: config.primaryBehavior,
+            agentKind: config.agentKind,
+            authMode: config.authMode,
+            supportedModels: config.supportedModels,
+            toolNames: config.toolNames,
+            integrationBindings: config.integrationBindings,
+            roleRestriction: config.roleRestriction,
+            conversationStarters: config.conversationStarters,
+            composerMode: config.composerMode,
+            isRouter: config.isRouter,
+            uiConfigurable: config.uiConfigurable,
+            i18n: config.i18n,
+            metadata: config.metadata,
           };
         }
-        return {
-          name: agentName,
-          status: result.error,
-          message: result.message,
-        };
+        return { name: slug, slug, status: read.error, message: read.message };
       }),
     );
 
@@ -267,7 +287,7 @@ export const listAppAgents = action({
 
     const results = await Promise.all(
       jsonFiles.map(async (fileName) => {
-        const shortName = agentNameFromFileName(fileName);
+        const shortName = agentSlugFromFileName(fileName);
         const slug = `${args.appSlug}/${shortName}`;
         if (!validateAgentName(slug)) return null;
         const result = await readAgentFile(orgSlug, slug);
@@ -532,7 +552,19 @@ export const saveAgent = action({
     }
 
     const content = serializeAgentJson(normalized);
-    const filePath = resolveAgentFilePath(orgSlug, args.agentName);
+    // A new agent (and the destination of a rename) gets a freshly-computed
+    // path — flat under org/agents/, or app-scoped when the name is
+    // `<app>/<name>`. An in-place edit resolves through the folder-aware index
+    // so foldered global agents (chat/, workforce/, github/) are written back
+    // where they actually live, not flattened to org/agents/<slug>.json.
+    const isRename =
+      !args.isNew &&
+      !!args.oldAgentName &&
+      args.oldAgentName !== args.agentName;
+    const filePath =
+      args.isNew || isRename
+        ? resolveAgentFilePath(orgSlug, args.agentName)
+        : await resolveAgentPath(orgSlug, args.agentName);
 
     if (args.isNew) {
       const existing = await readFileSafe(filePath);
@@ -544,11 +576,7 @@ export const saveAgent = action({
       }
     }
 
-    if (
-      !args.isNew &&
-      args.oldAgentName &&
-      args.oldAgentName !== args.agentName
-    ) {
+    if (isRename && args.oldAgentName) {
       const existing = await readFileSafe(filePath);
       if (existing !== null) {
         throw new ConvexError({
@@ -556,7 +584,9 @@ export const saveAgent = action({
           message: `Agent '${args.agentName}' already exists`,
         });
       }
-      const oldFilePath = resolveAgentFilePath(orgSlug, args.oldAgentName);
+      // Resolve the OLD file through the index so a foldered global agent is
+      // removed from its real location (not a flattened org/agents/<slug>.json).
+      const oldFilePath = await resolveAgentPath(orgSlug, args.oldAgentName);
       // ENOENT-tolerant only — silently swallowing EACCES/EBUSY/EIO
       // would leave the OLD file on disk while the NEW file is being
       // written next to it, so `listAgents` would surface the same
@@ -573,6 +603,9 @@ export const saveAgent = action({
     }
 
     await atomicWrite(filePath, content);
+    // The folder-aware index (slug → path, roster) caches per org; refresh it
+    // so the router, @mention resolution, and listAgents see this write.
+    invalidateAgentListCache(orgSlug);
 
     await logAgentAudit(
       ctx,
@@ -606,7 +639,7 @@ export const snapshotToHistory = action({
       ctx,
       args.organizationId,
     );
-    const filePath = resolveAgentFilePath(orgSlug, args.agentName);
+    const filePath = await resolveAgentPath(orgSlug, args.agentName);
     const currentContent = await readFileSafe(filePath);
     if (!currentContent) return null;
 
@@ -642,18 +675,17 @@ export const duplicateAgent = action({
       throw new Error(`Cannot duplicate: ${source.message}`);
     }
 
-    const dir = resolveAgentsDir(orgSlug);
-    let entries: string[];
-    try {
-      entries = await readdir(dir);
-    } catch (err) {
-      handleDirReadError(err, 'agents.duplicateAgent');
-      entries = [];
-    }
+    // Derive existing names from the folder-aware roster so the copy's name
+    // can't collide with a foldered global agent (chat/, workforce/, …) that a
+    // flat readdir of org/agents/ would miss.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listAgentsForOrg returns a v.any() projection; we read only `name` for the duplicate-name guard
+    const roster = (await listAgentsForOrg(orgSlug)) as Array<{
+      name?: string;
+    }>;
     const existingNames = new Set(
-      entries
-        .filter((e) => e.endsWith('.json'))
-        .map((e) => agentNameFromFileName(e)),
+      roster
+        .map((e) => e.name)
+        .filter((n): n is string => typeof n === 'string'),
     );
 
     let newName = `${args.agentName}-copy`;
@@ -725,6 +757,7 @@ export const duplicateAgent = action({
     const content = serializeAgentJson(normalized);
     const filePath = resolveAgentFilePath(orgSlug, newName);
     await atomicWrite(filePath, content);
+    invalidateAgentListCache(orgSlug);
 
     await logAgentAudit(ctx, auth, 'duplicate_agent', newName, {
       resourceName: newName,
@@ -752,7 +785,7 @@ export const deleteAgent = action({
 
     const auth = await requireOrgMembershipById(ctx, args.organizationId);
     const { orgSlug } = auth;
-    const filePath = resolveAgentFilePath(orgSlug, args.agentName);
+    const filePath = await resolveAgentPath(orgSlug, args.agentName);
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
 
     // Capture pre-delete capability snapshot for the audit row — agents
@@ -793,6 +826,7 @@ export const deleteAgent = action({
       }
     });
     await rm(historyDir, { recursive: true, force: true });
+    invalidateAgentListCache(orgSlug);
 
     await ctx.runMutation(internal.agents.mutations.cleanupAgentBinding, {
       organizationId: args.organizationId,
@@ -892,7 +926,7 @@ export const restoreFromHistory = action({
     }
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
     const historyPath = safeJoinWithinDir(historyDir, `${args.timestamp}.json`);
-    const agentPath = resolveAgentFilePath(orgSlug, args.agentName);
+    const agentPath = await resolveAgentPath(orgSlug, args.agentName);
 
     const historyContent = await readFileSafe(historyPath);
     if (!historyContent) throw new Error('History entry not found');
@@ -921,6 +955,7 @@ export const restoreFromHistory = action({
 
     // Write the restored version
     await atomicWrite(agentPath, historyContent);
+    invalidateAgentListCache(orgSlug);
 
     // Snapshot the previous state (best-effort)
     if (currentContent) {
