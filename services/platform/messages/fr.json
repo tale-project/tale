@@ -141,7 +141,11 @@
       "before": "Avant",
       "after": "Après"
     },
-    "check": { "pass": "Réussi", "warn": "Avertissement", "fail": "Échec" },
+    "check": {
+      "pass": "Réussi",
+      "warn": "Avertissement",
+      "fail": "Échec"
+    },
     "review": {
       "gate": "En attente d'approbation",
       "form": "Saisie requise",
@@ -614,7 +618,9 @@
       "validation": {
         "nameRequired": "Le nom est requis",
         "invalidJson": "JSON invalide dans le champ des variables"
-      }
+      },
+      "env": "Environnement et secrets",
+      "envHelp": "Variables injectées dans chaque étape sandbox de cette automatisation. Cochez « Secret » pour chiffrer une valeur ; les secrets sont en écriture seule. Une étape peut les remplacer."
     },
     "triggers": {
       "title": "Déclencheurs",
@@ -824,7 +830,9 @@
       "saving": "Enregistrement...",
       "resizePanel": "Redimensionner le panneau",
       "stepEditor": "Éditeur d'étapes",
-      "fileBasedStepSaveUnsupported": "L'enregistrement d'étapes n'est pas encore disponible pour les workflows basés sur fichiers."
+      "fileBasedStepSaveUnsupported": "L'enregistrement d'étapes n'est pas encore disponible pour les workflows basés sur fichiers.",
+      "env": "Environnement et secrets",
+      "envHelp": "Variables injectées dans la sandbox de cette étape ; elles l'emportent sur les valeurs au niveau de l'automatisation en cas de conflit de nom."
     },
     "nextSteps": {
       "endWorkflow": "Terminer le workflow",
@@ -4960,7 +4968,8 @@
         "responseTuning": "Réglage des réponses",
         "conversationStarters": "Amorces",
         "history": "Historique",
-        "metrics": "Performance"
+        "metrics": "Performance",
+        "environment": "Environnement"
       },
       "history": {
         "empty": "Aucune entrée d'historique",
@@ -5238,6 +5247,10 @@
         "exampleFileUploadStream": "Téléversement de fichier avec streaming (réponse SSE)",
         "exampleOpenAICompat": "Point de terminaison compatible OpenAI (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "Configuration client OpenAI (p. ex. Meetily)"
+      },
+      "env": {
+        "title": "Environnement et secrets",
+        "description": "Variables injectées lorsque cet agent s'exécute dans une sandbox — étapes de workflow et exécutions externes. Cochez « Secret » pour chiffrer une valeur ; les secrets sont en écriture seule."
       }
     },
     "skills": {
@@ -7578,5 +7591,20 @@
       "description": "Les sandboxes démarrent automatiquement lorsqu’un membre discute avec un agent de codage."
     },
     "accessDenied": "Vous avez besoin d’un accès développeur ou admin pour gérer les sandboxes."
+  },
+  "envEditor": {
+    "none": "Aucune variable d'environnement pour l'instant.",
+    "keyPlaceholder": "NOM",
+    "valuePlaceholder": "valeur",
+    "secret": "Secret",
+    "secretKept": "•••••••• (inchangé)",
+    "add": "Ajouter une variable",
+    "remove": "Supprimer",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "saved": "Environnement enregistré",
+    "saveError": "Impossible d'enregistrer l'environnement",
+    "badKey": "« {key} » n'est pas un nom de variable valide (lettres, chiffres, tiret bas ; ne doit pas commencer par un chiffre).",
+    "dupKey": "Nom de variable en double — chaque NOM doit être unique."
   }
 }

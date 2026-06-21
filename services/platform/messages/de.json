@@ -141,7 +141,11 @@
       "before": "Vorher",
       "after": "Nachher"
     },
-    "check": { "pass": "Bestanden", "warn": "Warnung", "fail": "Fehler" },
+    "check": {
+      "pass": "Bestanden",
+      "warn": "Warnung",
+      "fail": "Fehler"
+    },
     "review": {
       "gate": "Warten auf Freigabe",
       "form": "Eingabe erforderlich",
@@ -613,7 +617,9 @@
       "validation": {
         "nameRequired": "Name ist erforderlich",
         "invalidJson": "Ungültiges JSON im Variablen-Feld"
-      }
+      },
+      "env": "Umgebung & Geheimnisse",
+      "envHelp": "Variablen, die in jeden Sandbox-Schritt dieser Automatisierung eingespeist werden. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar. Ein Schritt kann diese überschreiben."
     },
     "triggers": {
       "title": "Trigger",
@@ -823,7 +829,9 @@
       "saving": "Speichern...",
       "resizePanel": "Panel-Größe ändern",
       "stepEditor": "Schritt-Editor",
-      "fileBasedStepSaveUnsupported": "Schritte speichern ist für dateibasierte Workflows noch nicht verfügbar."
+      "fileBasedStepSaveUnsupported": "Schritte speichern ist für dateibasierte Workflows noch nicht verfügbar.",
+      "env": "Umgebung & Geheimnisse",
+      "envHelp": "Variablen, die in die Sandbox dieses Schritts eingespeist werden und bei Namensgleichheit Vorrang vor den Werten auf Automatisierungsebene haben."
     },
     "nextSteps": {
       "endWorkflow": "Workflow beenden",
@@ -4959,7 +4967,8 @@
         "responseTuning": "Antwort-Feinabstimmung",
         "conversationStarters": "Gesprächseinstiege",
         "history": "Verlauf",
-        "metrics": "Leistung"
+        "metrics": "Leistung",
+        "environment": "Umgebung"
       },
       "history": {
         "empty": "Keine Verlaufseinträge",
@@ -5237,6 +5246,10 @@
         "exampleFileUploadStream": "Datei-Upload mit Streaming (SSE-Antwort)",
         "exampleOpenAICompat": "OpenAI-kompatibler Endpunkt (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI-Client-Konfiguration (z. B. Meetily)"
+      },
+      "env": {
+        "title": "Umgebung & Geheimnisse",
+        "description": "Variablen, die eingespeist werden, wenn dieser Agent in einer Sandbox läuft — Workflow-Schritte und externe Ausführungen. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar."
       }
     },
     "skills": {
@@ -7577,5 +7590,20 @@
       "description": "Sandboxes starten automatisch, wenn ein Mitglied mit einem Coding-Agenten chattet."
     },
     "accessDenied": "Sie benötigen Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten."
+  },
+  "envEditor": {
+    "none": "Noch keine Umgebungsvariablen.",
+    "keyPlaceholder": "NAME",
+    "valuePlaceholder": "Wert",
+    "secret": "Geheim",
+    "secretKept": "•••••••• (unverändert)",
+    "add": "Variable hinzufügen",
+    "remove": "Entfernen",
+    "save": "Speichern",
+    "saving": "Wird gespeichert…",
+    "saved": "Umgebung gespeichert",
+    "saveError": "Umgebung konnte nicht gespeichert werden",
+    "badKey": "„{key}“ ist kein gültiger Variablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).",
+    "dupKey": "Doppelter Variablenname — jeder NAME muss eindeutig sein."
   }
 }

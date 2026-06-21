@@ -140,6 +140,7 @@ import {
   wfDefaultProvisionsTable,
   wfExecutionsTable,
   wfInstallationsTable,
+  workflowEnvTable,
   workflowProcessingRecordsTable,
 } from './workflows/schema';
 import {
@@ -280,5 +281,6 @@ export default defineSchema({
   wfSchedules: wfSchedulesTable,
   wfTriggerLogs: wfTriggerLogsTable,
   wfWebhooks: wfWebhooksTable,
+  workflowEnv: workflowEnvTable,
   workflowProcessingRecords: workflowProcessingRecordsTable,
 });

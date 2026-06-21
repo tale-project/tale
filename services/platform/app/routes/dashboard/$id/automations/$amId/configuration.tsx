@@ -15,6 +15,7 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { WorkflowEnvEditor } from '@/app/features/automations/components/workflow-env-editor';
 import { useSaveWorkflow } from '@/app/features/automations/hooks/file-mutations';
 import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';
 import { toast } from '@/app/hooks/use-toast';
@@ -277,6 +278,19 @@ function ConfigurationPage() {
             </Stack>
           </fieldset>
         </form>
+
+        {/* Workflow-level env & secrets, auto-injected into EVERY sandbox step.
+            Lives outside the RHF form: it writes straight to the workflowEnv
+            side-table (encrypt-on-save for secrets), independent of the file
+            save above. */}
+        <FormSection>
+          <Text variant="label">{tAutomations('configuration.env')}</Text>
+          <Text variant="caption">{tAutomations('configuration.envHelp')}</Text>
+          <WorkflowEnvEditor
+            organizationId={organizationId}
+            workflowSlug={workflowSlug}
+          />
+        </FormSection>
       </ContentArea>
     </Skeletonize>
   );

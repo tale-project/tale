@@ -427,6 +427,16 @@ export const deleteWorkflow = action({
       workflowSlug: args.workflowSlug,
     });
 
+    // Drop the workflow's env/secrets (all scopes) so they never outlive the
+    // file — deployment-local config, not part of the workflow definition.
+    await ctx.runMutation(
+      internal.workflows.workflow_env.deleteWorkflowEnvInternal,
+      {
+        organizationId: args.organizationId,
+        workflowSlug: args.workflowSlug,
+      },
+    );
+
     return null;
   },
 });

@@ -8,6 +8,7 @@ import { internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { StepExecutionResult } from '../../../types';
 import type { SandboxNodeConfig } from '../../../types/nodes';
+import { mergeSandboxEnv } from './merge_sandbox_env';
 import { resolveStepEnv } from './resolve_step_env';
 
 export async function executeSandboxNode(
@@ -24,13 +25,30 @@ export async function executeSandboxNode(
   const run = config.run;
   const inputs = config.inputs ?? [];
 
-  // Step-scoped env (literal + `{{...}}`-templated workflow secrets/runtime
-  // values) is resolved here, once, against the live variables. Both run modes
-  // inject it into the step's sandbox: the agent mode merges it into the
-  // session via `sessionEnvPatch`; the deterministic script mode forwards it
-  // through `executeCode` → the spawner, which sanitizes + sets it as the
-  // script process env.
-  const stepEnv = resolveStepEnv(config.env, variables);
+  // Resolve the env this sandbox sees from three layers and merge them (step
+  // beats workflow; operator UI beats the pack file — see `mergeSandboxEnv`):
+  //  1. workflow-level + 3. step-level side-table env/secrets (the UI-managed,
+  //     deployment-local store) — decrypted here, once, per fresh step run;
+  //  2. the step's file `config.env` (literal + `{{...}}`-templated workflow
+  //     secrets/runtime values), resolved against the live variables.
+  // The merged map is injected by BOTH run modes: agent mode patches it into the
+  // session (BELOW per-agent env + broker creds, which still win); script mode
+  // forwards it through `executeCode` → the spawner.
+  const workflowSlug =
+    typeof variables.wfDefinitionId === 'string'
+      ? variables.wfDefinitionId
+      : typeof variables.workflowSlug === 'string'
+        ? variables.workflowSlug
+        : '';
+  const { workflowEnv, stepEnv: stepStoreEnv } =
+    workflowSlug && organizationId
+      ? await ctx.runAction(
+          internal.workflows.workflow_env_actions.resolveSandboxEnvForStep,
+          { organizationId, workflowSlug, stepSlug },
+        )
+      : { workflowEnv: {}, stepEnv: {} };
+  const fileEnv = resolveStepEnv(config.env, variables);
+  const stepEnv = mergeSandboxEnv(workflowEnv, fileEnv, stepStoreEnv);
   const hasStepEnv = Object.keys(stepEnv).length > 0;
 
   const data =

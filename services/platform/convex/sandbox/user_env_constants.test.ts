@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   hasInteriorWhitespace,
+  maskSecretPreview,
   MAX_ENV_KEY_LEN,
   MAX_ENV_VALUE_LEN,
   SECRET_MASK,
@@ -42,6 +43,26 @@ describe('validateEnvValue', () => {
 describe('SECRET_MASK', () => {
   it('is a non-empty fixed mask (never the plaintext)', () => {
     expect(SECRET_MASK.length).toBeGreaterThan(0);
+  });
+});
+
+describe('maskSecretPreview', () => {
+  it('reveals the first/last 3 chars with a fixed-width masked middle', () => {
+    expect(maskSecretPreview('sk-ant-oat01-abcDEFxyz')).toBe('sk-••••xyz');
+    expect(maskSecretPreview('abcDEFGHIJ')).toBe('abc••••HIJ');
+  });
+
+  it('fully masks a secret too short to reveal safely (≥4 stay hidden)', () => {
+    expect(maskSecretPreview('short')).toBe(SECRET_MASK);
+    expect(maskSecretPreview('abcdefghi')).toBe(SECRET_MASK); // len 9 → <10
+    expect(maskSecretPreview('')).toBe(SECRET_MASK);
+  });
+
+  it('never leaks the true length (middle mask is constant width)', () => {
+    const a = maskSecretPreview('abcWWWWWWWWWWWWWWWWWWWWxyz');
+    const b = maskSecretPreview('abcWWxyz0000000');
+    expect(a).toBe('abc••••xyz');
+    expect(b.startsWith('abc••••')).toBe(true);
   });
 });
 

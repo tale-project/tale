@@ -1386,6 +1386,7 @@ import type * as workflow_engine_helpers_nodes_loop_utils_get_input_data from ".
 import type * as workflow_engine_helpers_nodes_loop_utils_get_loop_items from "../workflow_engine/helpers/nodes/loop/utils/get_loop_items.js";
 import type * as workflow_engine_helpers_nodes_loop_utils_is_loop_in_progress from "../workflow_engine/helpers/nodes/loop/utils/is_loop_in_progress.js";
 import type * as workflow_engine_helpers_nodes_sandbox_execute_sandbox_node from "../workflow_engine/helpers/nodes/sandbox/execute_sandbox_node.js";
+import type * as workflow_engine_helpers_nodes_sandbox_merge_sandbox_env from "../workflow_engine/helpers/nodes/sandbox/merge_sandbox_env.js";
 import type * as workflow_engine_helpers_nodes_sandbox_resolve_step_env from "../workflow_engine/helpers/nodes/sandbox/resolve_step_env.js";
 import type * as workflow_engine_helpers_recovery_index from "../workflow_engine/helpers/recovery/index.js";
 import type * as workflow_engine_helpers_recovery_recover_stuck_executions from "../workflow_engine/helpers/recovery/recover_stuck_executions.js";
@@ -1538,6 +1539,8 @@ import type * as workflows_triggers_process_event from "../workflows/triggers/pr
 import type * as workflows_triggers_slug_mutations from "../workflows/triggers/slug_mutations.js";
 import type * as workflows_triggers_slug_queries from "../workflows/triggers/slug_queries.js";
 import type * as workflows_validators from "../workflows/validators.js";
+import type * as workflows_workflow_env from "../workflows/workflow_env.js";
+import type * as workflows_workflow_env_actions from "../workflows/workflow_env_actions.js";
 
 import type {
   ApiFromModules,
@@ -2924,6 +2927,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/nodes/loop/utils/get_loop_items": typeof workflow_engine_helpers_nodes_loop_utils_get_loop_items;
   "workflow_engine/helpers/nodes/loop/utils/is_loop_in_progress": typeof workflow_engine_helpers_nodes_loop_utils_is_loop_in_progress;
   "workflow_engine/helpers/nodes/sandbox/execute_sandbox_node": typeof workflow_engine_helpers_nodes_sandbox_execute_sandbox_node;
+  "workflow_engine/helpers/nodes/sandbox/merge_sandbox_env": typeof workflow_engine_helpers_nodes_sandbox_merge_sandbox_env;
   "workflow_engine/helpers/nodes/sandbox/resolve_step_env": typeof workflow_engine_helpers_nodes_sandbox_resolve_step_env;
   "workflow_engine/helpers/recovery/index": typeof workflow_engine_helpers_recovery_index;
   "workflow_engine/helpers/recovery/recover_stuck_executions": typeof workflow_engine_helpers_recovery_recover_stuck_executions;
@@ -3076,6 +3080,8 @@ declare const fullApi: ApiFromModules<{
   "workflows/triggers/slug_mutations": typeof workflows_triggers_slug_mutations;
   "workflows/triggers/slug_queries": typeof workflows_triggers_slug_queries;
   "workflows/validators": typeof workflows_validators;
+  "workflows/workflow_env": typeof workflows_workflow_env;
+  "workflows/workflow_env_actions": typeof workflows_workflow_env_actions;
 }>;
 
 /**

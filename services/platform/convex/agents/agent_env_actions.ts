@@ -20,6 +20,7 @@ import { encryptString } from '../lib/crypto/encrypt_string';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
 import {
+  maskSecretPreview,
   validateEnvKey,
   validateEnvValue,
 } from '../sandbox/user_env_constants';
@@ -64,6 +65,7 @@ export const setAgentEnvVar = action({
     const encryptedValue = args.isSecret
       ? await encryptString(value)
       : undefined;
+    const maskedPreview = args.isSecret ? maskSecretPreview(value) : undefined;
 
     await ctx.runMutation(internal.agents.agent_env.upsertAgentEnvInternal, {
       organizationId: args.organizationId,
@@ -72,6 +74,7 @@ export const setAgentEnvVar = action({
       isSecret: args.isSecret,
       ...(args.isSecret ? {} : { value }),
       ...(encryptedValue !== undefined && { encryptedValue }),
+      ...(maskedPreview !== undefined && { maskedPreview }),
       updatedBy: authUser.userId,
     });
     return null;

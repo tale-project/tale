@@ -46,6 +46,7 @@ export const upsertAgentEnvInternal = internalMutation({
     isSecret: v.boolean(),
     value: v.optional(v.string()),
     encryptedValue: v.optional(v.string()),
+    maskedPreview: v.optional(v.string()),
     updatedBy: v.string(),
   },
   returns: v.null(),
@@ -64,9 +65,11 @@ export const upsertAgentEnvInternal = internalMutation({
     const fields = {
       isSecret: args.isSecret,
       // Exactly one of value / encryptedValue is set; clear the other so a
-      // secret↔non-secret flip never leaves a stale field.
+      // secret↔non-secret flip never leaves a stale field. The masked preview
+      // exists only for secrets.
       value: args.isSecret ? undefined : args.value,
       encryptedValue: args.isSecret ? args.encryptedValue : undefined,
+      maskedPreview: args.isSecret ? args.maskedPreview : undefined,
       updatedAt: now,
       updatedBy: args.updatedBy,
     };
@@ -177,7 +180,9 @@ export const listAgentEnv = query({
           maskedValue?: string;
           updatedAt: number;
         } = { key: r.key, isSecret: r.isSecret, updatedAt: r.updatedAt };
-        if (r.isSecret) entry.maskedValue = SECRET_MASK;
+        // Secrets show a low-leak edge preview (older rows without one fall
+        // back to the full mask); plaintext vars show their value.
+        if (r.isSecret) entry.maskedValue = r.maskedPreview ?? SECRET_MASK;
         else entry.value = r.value ?? '';
         return entry;
       });

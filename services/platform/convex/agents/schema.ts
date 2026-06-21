@@ -167,6 +167,9 @@ export const agentEnvTable = defineTable({
   value: v.optional(v.string()),
   /** JWE ciphertext for secrets; omitted for non-secret vars. */
   encryptedValue: v.optional(v.string()),
+  /** Low-leak edge preview of a secret (e.g. `sk-••••xyz`) for the editor;
+   *  computed at write time, omitted for non-secret vars. */
+  maskedPreview: v.optional(v.string()),
   updatedAt: v.number(),
   updatedBy: v.string(),
 })

@@ -126,6 +126,46 @@ export const wfDefaultProvisionsTable = defineTable({
   provisionedAt: v.number(),
 }).index('by_org_slug', ['organizationId', 'workflowSlug']);
 
+/**
+ * Per-workflow + per-step env/secrets — one row per
+ * (organizationId, workflowSlug, stepSlug, key). Plain vars carry a plaintext
+ * `value`; secrets carry an `encryptedValue` (JWE) and are write-only (the read
+ * API never returns a secret's plaintext). `stepSlug: ''` is the WORKFLOW-level
+ * scope (auto-injected into every sandbox step); a non-empty `stepSlug` is
+ * STEP-level (that step only, overriding workflow-level on a key clash).
+ * Resolved + injected at sandbox-step execution (decrypt-at-run). Deployment-
+ * local on purpose — never written to the portable workflow file. Mirrors
+ * `agentEnv`; CRUD in `workflows/workflow_env.ts`, encryption in
+ * `workflows/workflow_env_actions.ts`.
+ */
+export const workflowEnvTable = defineTable({
+  organizationId: v.string(),
+  /** File-workflow slug (composite app slug ok, e.g. `issue-desk/desk-process`). */
+  workflowSlug: v.string(),
+  /** '' = workflow-level (all sandbox steps); non-empty = that step only. */
+  stepSlug: v.string(),
+  /** Env var name (validated `^[A-Za-z_][A-Za-z0-9_]*$`). */
+  key: v.string(),
+  isSecret: v.boolean(),
+  /** Plaintext value for non-secret vars; omitted for secrets. */
+  value: v.optional(v.string()),
+  /** JWE ciphertext for secrets; omitted for non-secret vars. */
+  encryptedValue: v.optional(v.string()),
+  /** Low-leak edge preview of a secret (e.g. `sk-••••xyz`) for the editor;
+   *  computed at write time, omitted for non-secret vars. */
+  maskedPreview: v.optional(v.string()),
+  updatedAt: v.number(),
+  updatedBy: v.string(),
+})
+  .index('by_org_workflow', ['organizationId', 'workflowSlug'])
+  .index('by_org_workflow_step', ['organizationId', 'workflowSlug', 'stepSlug'])
+  .index('by_org_workflow_step_key', [
+    'organizationId',
+    'workflowSlug',
+    'stepSlug',
+    'key',
+  ]);
+
 export const workflowProcessingRecordsTable = defineTable({
   organizationId: v.string(),
   tableName: v.string(),

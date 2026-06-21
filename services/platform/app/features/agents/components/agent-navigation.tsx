@@ -86,6 +86,9 @@ const AGENT_TAB_DIRTY_KEYS = {
   responseTuning: ['responseTuning'],
   conversationStarters: ['conversationStarters'],
   webhook: [],
+  // Env/secrets live in the `agentEnv` side-table, not the agent file — so this
+  // tab never lights the config dirty-dot.
+  environment: [],
 } as const;
 
 function computeDirtyKeys(
@@ -215,6 +218,12 @@ export function AgentNavigation({
       href: `${basePath}/webhook`,
       matchMode: 'exact',
       dirtyKeys: AGENT_TAB_DIRTY_KEYS.webhook,
+    },
+    {
+      label: t('agents.navigation.environment'),
+      href: `${basePath}/environment`,
+      matchMode: 'exact',
+      dirtyKeys: AGENT_TAB_DIRTY_KEYS.environment,
     },
   ];
 

@@ -141,7 +141,11 @@
       "before": "Before",
       "after": "After"
     },
-    "check": { "pass": "Pass", "warn": "Warn", "fail": "Fail" },
+    "check": {
+      "pass": "Pass",
+      "warn": "Warn",
+      "fail": "Fail"
+    },
     "review": {
       "gate": "Awaiting approval",
       "form": "Input required",
@@ -613,7 +617,9 @@
       "validation": {
         "nameRequired": "Name is required",
         "invalidJson": "Invalid JSON in variables field"
-      }
+      },
+      "env": "Environment & secrets",
+      "envHelp": "Variables injected into every sandbox step of this automation. Mark a value as a secret to encrypt it; secrets are write-only. A step can override any of these."
     },
     "triggers": {
       "title": "Triggers",
@@ -823,7 +829,9 @@
       "saving": "Saving...",
       "resizePanel": "Resize panel",
       "stepEditor": "Step editor",
-      "fileBasedStepSaveUnsupported": "Step saving isn't wired up for file-based workflows yet."
+      "fileBasedStepSaveUnsupported": "Step saving isn't wired up for file-based workflows yet.",
+      "env": "Environment & secrets",
+      "envHelp": "Variables injected into this step's sandbox, overriding the automation-level values on a name clash."
     },
     "nextSteps": {
       "endWorkflow": "End workflow",
@@ -5220,7 +5228,8 @@
         "responseTuning": "Response tuning",
         "conversationStarters": "Starters",
         "history": "History",
-        "metrics": "Performance"
+        "metrics": "Performance",
+        "environment": "Environment"
       },
       "history": {
         "empty": "No history entries",
@@ -5498,6 +5507,10 @@
         "exampleFileUploadStream": "File upload with streaming (SSE response)",
         "exampleOpenAICompat": "OpenAI-compatible endpoint (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI client config (e.g. Meetily)"
+      },
+      "env": {
+        "title": "Environment & secrets",
+        "description": "Variables injected when this agent runs in a sandbox — workflow steps and external runs. Mark a value as a secret to encrypt it; secrets are write-only."
       }
     },
     "skills": {
@@ -7577,5 +7590,20 @@
       "description": "Sandboxes start automatically when a member chats with a coding agent."
     },
     "accessDenied": "You need developer or admin access to manage sandboxes."
+  },
+  "envEditor": {
+    "none": "No environment variables yet.",
+    "keyPlaceholder": "NAME",
+    "valuePlaceholder": "value",
+    "secret": "Secret",
+    "secretKept": "•••••••• (unchanged)",
+    "add": "Add variable",
+    "remove": "Remove",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Environment saved",
+    "saveError": "Couldn't save environment",
+    "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit).",
+    "dupKey": "Duplicate variable name — each NAME must be unique."
   }
 }

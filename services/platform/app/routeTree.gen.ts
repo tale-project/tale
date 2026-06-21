@@ -121,6 +121,7 @@ import { Route as DashboardIdAgentsAgentIdResponseTuningRouteImport } from './ro
 import { Route as DashboardIdAgentsAgentIdMetricsRouteImport } from './routes/dashboard/$id/agents/$agentId/metrics';
 import { Route as DashboardIdAgentsAgentIdKnowledgeRouteImport } from './routes/dashboard/$id/agents/$agentId/knowledge';
 import { Route as DashboardIdAgentsAgentIdInstructionsRouteImport } from './routes/dashboard/$id/agents/$agentId/instructions';
+import { Route as DashboardIdAgentsAgentIdEnvironmentRouteImport } from './routes/dashboard/$id/agents/$agentId/environment';
 import { Route as DashboardIdAgentsAgentIdDelegationRouteImport } from './routes/dashboard/$id/agents/$agentId/delegation';
 import { Route as DashboardIdAgentsAgentIdConversationStartersRouteImport } from './routes/dashboard/$id/agents/$agentId/conversation-starters';
 import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/route';
@@ -769,6 +770,12 @@ const DashboardIdAgentsAgentIdInstructionsRoute =
     path: '/instructions',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
   } as any);
+const DashboardIdAgentsAgentIdEnvironmentRoute =
+  DashboardIdAgentsAgentIdEnvironmentRouteImport.update({
+    id: '/environment',
+    path: '/environment',
+    getParentRoute: () => DashboardIdAgentsAgentIdRoute,
+  } as any);
 const DashboardIdAgentsAgentIdDelegationRoute =
   DashboardIdAgentsAgentIdDelegationRouteImport.update({
     id: '/delegation',
@@ -891,6 +898,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute;
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
+  '/dashboard/$id/agents/$agentId/environment': typeof DashboardIdAgentsAgentIdEnvironmentRoute;
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
   '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
   '/dashboard/$id/agents/$agentId/metrics': typeof DashboardIdAgentsAgentIdMetricsRoute;
@@ -997,6 +1005,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute;
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
+  '/dashboard/$id/agents/$agentId/environment': typeof DashboardIdAgentsAgentIdEnvironmentRoute;
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
   '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
   '/dashboard/$id/agents/$agentId/metrics': typeof DashboardIdAgentsAgentIdMetricsRoute;
@@ -1120,6 +1129,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute;
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
+  '/dashboard/$id/agents/$agentId/environment': typeof DashboardIdAgentsAgentIdEnvironmentRoute;
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
   '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
   '/dashboard/$id/agents/$agentId/metrics': typeof DashboardIdAgentsAgentIdMetricsRoute;
@@ -1242,6 +1252,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/agents/$agentId/conversation-starters'
     | '/dashboard/$id/agents/$agentId/delegation'
+    | '/dashboard/$id/agents/$agentId/environment'
     | '/dashboard/$id/agents/$agentId/instructions'
     | '/dashboard/$id/agents/$agentId/knowledge'
     | '/dashboard/$id/agents/$agentId/metrics'
@@ -1348,6 +1359,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/agents/$agentId/conversation-starters'
     | '/dashboard/$id/agents/$agentId/delegation'
+    | '/dashboard/$id/agents/$agentId/environment'
     | '/dashboard/$id/agents/$agentId/instructions'
     | '/dashboard/$id/agents/$agentId/knowledge'
     | '/dashboard/$id/agents/$agentId/metrics'
@@ -1470,6 +1482,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/agents/$agentId/conversation-starters'
     | '/dashboard/$id/agents/$agentId/delegation'
+    | '/dashboard/$id/agents/$agentId/environment'
     | '/dashboard/$id/agents/$agentId/instructions'
     | '/dashboard/$id/agents/$agentId/knowledge'
     | '/dashboard/$id/agents/$agentId/metrics'
@@ -2316,6 +2329,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAgentsAgentIdInstructionsRouteImport;
       parentRoute: typeof DashboardIdAgentsAgentIdRoute;
     };
+    '/dashboard/$id/agents/$agentId/environment': {
+      id: '/dashboard/$id/agents/$agentId/environment';
+      path: '/environment';
+      fullPath: '/dashboard/$id/agents/$agentId/environment';
+      preLoaderRoute: typeof DashboardIdAgentsAgentIdEnvironmentRouteImport;
+      parentRoute: typeof DashboardIdAgentsAgentIdRoute;
+    };
     '/dashboard/$id/agents/$agentId/delegation': {
       id: '/dashboard/$id/agents/$agentId/delegation';
       path: '/delegation';
@@ -2414,6 +2434,7 @@ const DashboardIdKnowledgeRouteWithChildren =
 interface DashboardIdAgentsAgentIdRouteChildren {
   DashboardIdAgentsAgentIdConversationStartersRoute: typeof DashboardIdAgentsAgentIdConversationStartersRoute;
   DashboardIdAgentsAgentIdDelegationRoute: typeof DashboardIdAgentsAgentIdDelegationRoute;
+  DashboardIdAgentsAgentIdEnvironmentRoute: typeof DashboardIdAgentsAgentIdEnvironmentRoute;
   DashboardIdAgentsAgentIdInstructionsRoute: typeof DashboardIdAgentsAgentIdInstructionsRoute;
   DashboardIdAgentsAgentIdKnowledgeRoute: typeof DashboardIdAgentsAgentIdKnowledgeRoute;
   DashboardIdAgentsAgentIdMetricsRoute: typeof DashboardIdAgentsAgentIdMetricsRoute;
@@ -2430,6 +2451,8 @@ const DashboardIdAgentsAgentIdRouteChildren: DashboardIdAgentsAgentIdRouteChildr
       DashboardIdAgentsAgentIdConversationStartersRoute,
     DashboardIdAgentsAgentIdDelegationRoute:
       DashboardIdAgentsAgentIdDelegationRoute,
+    DashboardIdAgentsAgentIdEnvironmentRoute:
+      DashboardIdAgentsAgentIdEnvironmentRoute,
     DashboardIdAgentsAgentIdInstructionsRoute:
       DashboardIdAgentsAgentIdInstructionsRoute,
     DashboardIdAgentsAgentIdKnowledgeRoute:

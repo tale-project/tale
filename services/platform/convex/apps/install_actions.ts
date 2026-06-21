@@ -289,6 +289,17 @@ export const uninstallApp = action({
       appSlug: args.appSlug,
     });
 
+    // Same sweep for the app's WORKFLOW env/secrets (keyed by the `<app>/`
+    // workflow-slug namespace) — they're deployment-local and must not outlive
+    // the uninstall or silently reattach on a later reinstall.
+    await ctx.runMutation(
+      internal.workflows.workflow_env.deleteAppWorkflowEnvInternal,
+      {
+        organizationId: args.organizationId,
+        appSlug: args.appSlug,
+      },
+    );
+
     await uninstallAppFiles(orgSlug, args.appSlug, record.resources);
     await ctx.runMutation(
       internal.apps.install_mutations.deleteAppInstallation,

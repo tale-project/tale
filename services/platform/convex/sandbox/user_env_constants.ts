@@ -41,6 +41,22 @@ export function validateEnvValue(value: string): Validation {
 export const SECRET_MASK = '••••••••';
 
 /**
+ * A recognizable, low-leak preview of a secret for the editor: the first and
+ * last few characters with a fixed-width masked middle (e.g. `sk-••••xyz`) — the
+ * same affordance API-key UIs use so an operator can tell *which* secret is set
+ * without it being readable. Deliberately reveals a tiny edge slice; for a
+ * secret too short to reveal safely it falls back to the full mask, and the
+ * masked middle is a constant width so the true length never leaks. Pure.
+ */
+export function maskSecretPreview(plaintext: string): string {
+  const FIRST = 3;
+  const LAST = 3;
+  // Reveal edges only when at least 4 characters stay hidden.
+  if (plaintext.length < FIRST + LAST + 4) return SECRET_MASK;
+  return `${plaintext.slice(0, FIRST)}••••${plaintext.slice(-LAST)}`;
+}
+
+/**
  * True when the value contains whitespace AFTER trimming its ends — i.e. an
  * interior space, tab, or line break. Credentials (tokens / API keys) never
  * contain these; the usual cause is pasting a token that wrapped across lines
