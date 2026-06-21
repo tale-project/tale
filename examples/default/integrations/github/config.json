@@ -201,6 +201,16 @@
             "description": "Repository name",
             "required": true
           },
+          "head": {
+            "type": "string",
+            "description": "Filter by head branch in the form user:ref-name (e.g. octocat:feature-1)",
+            "required": false
+          },
+          "base": {
+            "type": "string",
+            "description": "Filter by base branch name (e.g. main)",
+            "required": false
+          },
           "state": {
             "type": "string",
             "description": "Filter by state: open, closed, or all",

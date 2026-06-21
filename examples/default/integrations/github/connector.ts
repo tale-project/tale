@@ -488,6 +488,8 @@ function listPullRequests(
   const repo = requireParam(params, 'repo', 'list_pull_requests');
 
   const qs = buildQueryString(params, [
+    'head',
+    'base',
     'state',
     'per_page',
     'page',
