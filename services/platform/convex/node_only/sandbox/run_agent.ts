@@ -25,9 +25,11 @@ import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
   buildAssistantContent,
   buildUiPartsFromTimeline,
+  capAccumulatedLiveParts,
   estimateContentBytes,
   MAX_MESSAGE_BYTES,
   type AgentAssistantContent,
+  type UiTimelinePart,
 } from './agent_message_parts';
 import {
   drainSessionExecResilient,
@@ -187,6 +189,13 @@ export interface RunAgentInSessionArgs {
     agentResultSeen?: boolean;
     agentIdle?: boolean;
     pendingTaskIds?: string[];
+    /** The op's cross-segment live transcript SO FAR (prior segments' UI parts),
+     * seeded only on the workflow run path (`captureLiveTimeline`). The per-segment
+     * timeline resets to empty on resume; this carries the accumulated window so a
+     * refresh after a seam — or an idle segment that emits nothing — still shows the
+     * prior work instead of blanking the op. Read from the op (the single store),
+     * not the bounded checkpoint table. */
+    liveTimelineParts?: UiTimelinePart[];
   };
 }
 
@@ -317,6 +326,12 @@ export async function runAgentInSessionImpl(
   // stays folded. Per-segment, like the rest of this progress state.
   let liveText = '';
   const timeline: AgentEvent[] = [];
+  // Prior segments' op transcript (workflow run only). The op accumulates across
+  // the segment seam; this seeds that accumulation so each flush writes
+  // prior + THIS segment, and an idle/empty segment keeps the prior window
+  // rather than blanking it. Empty on a fresh run.
+  const priorTimelineParts: UiTimelinePart[] =
+    args.resumeFrom?.liveTimelineParts ?? [];
   // Reconnect cursor: starts at the handoff seq on resume so the re-attach skips
   // already-consumed events. Updated by the drain as new deltas arrive.
   const cursor: ExecCursor = { lastSeq: args.resumeFrom?.lastSeq ?? 0 };
@@ -916,12 +931,15 @@ export async function runAgentInSessionImpl(
     // A workflow-run step has no chat message, so stamp a bounded UI-part
     // transcript on the op for the run view (chat renders from its message).
     const liveTimeline = args.captureLiveTimeline
-      ? buildUiPartsFromTimeline(
-          timeline,
-          finalText ?? '',
-          toolNames,
-          toolUseParents,
-          liveText,
+      ? capAccumulatedLiveParts(
+          priorTimelineParts,
+          buildUiPartsFromTimeline(
+            timeline,
+            finalText ?? '',
+            toolNames,
+            toolUseParents,
+            liveText,
+          ),
         )
       : undefined;
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {

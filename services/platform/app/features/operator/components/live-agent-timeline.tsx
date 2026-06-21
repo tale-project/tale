@@ -34,20 +34,26 @@ function LiveAgentTimelineImpl({
   const { t } = useT('operator');
   const { segments } = useMemo(() => buildMessageSegments(parts), [parts]);
 
+  // A live header (badge + dots) carries the "working" meaning for a screen
+  // reader — `ThinkingDots` alone is aria-hidden. Shown whenever the step is
+  // active, so an empty timeline (a fresh start, or the gap between a durable
+  // run's segments while the agent idles) still reads as live, never blank.
+  const liveHeader = active ? (
+    <HStack gap={2} className="items-center">
+      <Badge variant="blue" dot>
+        {t('state.live', { defaultValue: 'Live' })}
+      </Badge>
+      <ThinkingDots />
+    </HStack>
+  ) : null;
+
   if (segments.length === 0) {
-    return active ? <ThinkingDots /> : null;
+    return liveHeader;
   }
 
   return (
     <VStack gap={2}>
-      {active && (
-        <HStack gap={2} className="items-center">
-          <Badge variant="blue" dot>
-            {t('state.live', { defaultValue: 'Live' })}
-          </Badge>
-          <ThinkingDots />
-        </HStack>
-      )}
+      {liveHeader}
       {segments.map((segment) => {
         if (segment.kind === 'text') {
           return segment.text.trim() === '' ? null : (

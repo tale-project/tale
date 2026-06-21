@@ -44,13 +44,17 @@ export function StreamPanel({ part }: { part: RenderPart }) {
   const files = part.files;
 
   // The rich LIVE transcript (a running sandbox step) takes over the feed: the
-  // agent's tool/reasoning/text activity, not a flat blob.
+  // agent's tool/reasoning/text activity, not a flat blob. A RUNNING step always
+  // renders here — even with no parts yet (a fresh start, or the gap between a
+  // durable run's segments while the agent idles, e.g. waiting on CI) it shows
+  // the working state (Live badge + thinking), never the raw `{status:'running'}`
+  // output envelope. A terminal step with a captured timeline also renders it.
   const liveParts = part.liveParts;
   const isLive = part.partState === 'running';
-  if (liveParts !== undefined && liveParts.length > 0) {
+  if (isLive || (liveParts !== undefined && liveParts.length > 0)) {
     return (
       <VStack gap={2}>
-        <LiveAgentTimeline parts={liveParts} active={isLive} />
+        <LiveAgentTimeline parts={liveParts ?? []} active={isLive} />
         {files !== undefined && files.length > 0 && <FileLinks files={files} />}
       </VStack>
     );

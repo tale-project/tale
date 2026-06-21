@@ -376,18 +376,37 @@ export type UiTimelinePart =
 const MAX_LIVE_TIMELINE_PARTS = 60;
 const MAX_LIVE_TIMELINE_BYTES = 256_000;
 
-function capLiveParts(parts: UiTimelinePart[]): UiTimelinePart[] {
+// The CROSS-SEGMENT window persisted on the op across a durable run's segment
+// seams. Larger than the per-segment caps (which bound one action window) so a
+// refresh after a handoff still shows prior work, but kept well under Convex's
+// 1 MB doc cap once `progressText` (~8 KB) + scalar fields are added.
+export const MAX_LIVE_TIMELINE_PERSIST_PARTS = 240;
+export const MAX_LIVE_TIMELINE_PERSIST_BYTES = 512_000;
+
+/**
+ * Bound a part list to a recent window, dropping the OLDEST parts to fit both
+ * the count and byte caps and prepending a single "… N hidden" marker when
+ * anything was dropped. Shared by the per-segment window ({@link capLiveParts})
+ * and the cross-segment one ({@link capAccumulatedLiveParts}); the synthetic
+ * marker is an ordinary text part, so a re-cap drops a stale one (it sorts
+ * oldest, at the front) before adding a fresh one — no marker stacking.
+ */
+function capPartsWindow(
+  parts: UiTimelinePart[],
+  maxParts: number,
+  maxBytes: number,
+): UiTimelinePart[] {
   let kept = parts;
   let dropped = 0;
-  if (kept.length > MAX_LIVE_TIMELINE_PARTS) {
-    dropped += kept.length - MAX_LIVE_TIMELINE_PARTS;
-    kept = kept.slice(-MAX_LIVE_TIMELINE_PARTS);
+  if (kept.length > maxParts) {
+    dropped += kept.length - maxParts;
+    kept = kept.slice(-maxParts);
   } else {
     kept = [...kept];
   }
   while (
     kept.length > 1 &&
-    Buffer.byteLength(JSON.stringify(kept), 'utf8') > MAX_LIVE_TIMELINE_BYTES
+    Buffer.byteLength(JSON.stringify(kept), 'utf8') > maxBytes
   ) {
     kept.shift();
     dropped++;
@@ -400,6 +419,36 @@ function capLiveParts(parts: UiTimelinePart[]): UiTimelinePart[] {
     });
   }
   return kept;
+}
+
+function capLiveParts(parts: UiTimelinePart[]): UiTimelinePart[] {
+  return capPartsWindow(
+    parts,
+    MAX_LIVE_TIMELINE_PARTS,
+    MAX_LIVE_TIMELINE_BYTES,
+  );
+}
+
+/**
+ * The op's cross-segment live transcript: the prior segments' parts (already on
+ * the op) followed by THIS segment's window, kept to the most recent ~512 KB.
+ * A durable agent run segments at the Convex action ceiling, and each segment
+ * starts with an EMPTY per-segment timeline — so without accumulating here the
+ * op would hold only the current segment, and a refresh after a seam (or while
+ * the agent idles between segments, e.g. waiting on CI) would show nothing.
+ * `current` is the already-bounded per-segment window, disjoint from `prior`
+ * (the cross-seam carry is the cursor + tool maps, never timeline parts), so the
+ * concatenation never double-counts. An empty `current` returns `prior` intact.
+ */
+export function capAccumulatedLiveParts(
+  prior: readonly UiTimelinePart[],
+  current: readonly UiTimelinePart[],
+): UiTimelinePart[] {
+  return capPartsWindow(
+    [...prior, ...current],
+    MAX_LIVE_TIMELINE_PERSIST_PARTS,
+    MAX_LIVE_TIMELINE_PERSIST_BYTES,
+  );
 }
 
 /**

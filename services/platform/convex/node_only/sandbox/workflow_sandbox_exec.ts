@@ -39,6 +39,7 @@ import {
   sessionIdForWorkflowRun,
   workflowRunOwnerId,
 } from '../../sandbox/session_naming';
+import type { UiTimelinePart } from './agent_message_parts';
 import {
   applyGatewayConfig,
   hashVirtualKey,
@@ -831,6 +832,23 @@ export const runSandboxAgent = internalAction({
         !byo && modelRef && modelRef !== 'default'
           ? resolveGatewayRoutingFromRef(modelRef).gatewayModel
           : undefined;
+      // Seed the resumed segment with the op's accumulated transcript so it
+      // doesn't blank at the seam: the per-segment timeline resets on resume, so
+      // without this an idle/empty segment (e.g. the agent waiting on CI) would
+      // overwrite the op with an empty timeline and the run view would fall to
+      // raw JSON. Read adjacent to the run so no op write intervenes (the op is
+      // the single store; the checkpoint table stays a bounded cursor).
+      const priorTimelineParts: UiTimelinePart[] =
+        checkpoint !== null
+          ? // The op stores UiTimelinePart[] (written by capAccumulatedLiveParts);
+            // the read validator widens `state` to string, so narrow it back at
+            // this trusted-storage boundary.
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+            ((await ctx.runQuery(
+              internal.sandbox.session_queries.loadWorkflowOpLiveTimeline,
+              { sessionId },
+            )) as UiTimelinePart[])
+          : [];
       const result =
         checkpoint !== null
           ? await runAgentInSessionImpl(ctx, {
@@ -855,6 +873,9 @@ export const runSandboxAgent = internalAction({
                 ...(checkpoint.agentIdle === true && { agentIdle: true }),
                 ...(checkpoint.pendingTaskIds !== undefined && {
                   pendingTaskIds: checkpoint.pendingTaskIds,
+                }),
+                ...(priorTimelineParts.length > 0 && {
+                  liveTimelineParts: priorTimelineParts,
                 }),
               },
             })

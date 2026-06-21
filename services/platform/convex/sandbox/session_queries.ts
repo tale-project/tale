@@ -382,6 +382,38 @@ export const loadAgentCheckpoint = internalQuery({
   },
 });
 
+/**
+ * The accumulated cross-segment live transcript on a workflow-run op — the seed
+ * a durable run's NEXT segment carries forward so the op never blanks at a seam.
+ * Read on the resume branch of `runSandboxAgent` (the op, not the bounded
+ * checkpoint table, is the single store for the transcript). Returns the newest
+ * `agent-run` op's `liveTimeline` (the deterministic id can be reused across
+ * incarnations, so order desc + filter on `kind`), or `[]` when there is none.
+ */
+export const loadWorkflowOpLiveTimeline = internalQuery({
+  args: { sessionId: v.string() },
+  returns: v.array(
+    v.object({
+      type: v.string(),
+      text: v.optional(v.string()),
+      state: v.optional(v.string()),
+      toolCallId: v.optional(v.string()),
+      input: v.optional(v.any()),
+      output: v.optional(v.any()),
+      errorText: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const op = await ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))
+      .order('desc')
+      .filter((q) => q.eq(q.field('kind'), 'agent-run'))
+      .first();
+    return op?.liveTimeline ?? [];
+  },
+});
+
 /** The LIVE session row for a spawner session id, or null. The management-page
  * controls fetch it to confirm the session belongs to the caller's org before
  * acting (defense in depth — the public id is org-scoped at the UI). The
