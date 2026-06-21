@@ -125,9 +125,9 @@
           "agent": "issue-desk/desk-reviewer",
           "instructions": "Review the implementer's fix for '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}} on branch `tale/{{input.task._id}}`. Git is authenticated ($GITHUB_TOKEN + helper). Do: (1) derive the repo URL from the issue URL and `git clone <repo> repo && cd repo`; (2) `git fetch origin tale/{{input.task._id}} && git checkout tale/{{input.task._id}}`; (3) review the change for correctness and run the project's OWN tests; (4) confirm the PR's CI is GREEN with `gh pr checks tale/{{input.task._id}}` — red or still-pending CI is a BLOCKING problem you must call out; (5) post your review as comments on the pull request (`gh pr review` / `gh pr comment`, or the GitHub REST API with $GITHUB_TOKEN) — do NOT change or push code, the implementer fixes. MANDATORY: write your findings to /user/output/summary.md (absolute path): state the CI state (which checks passed/failed) and clearly whether the change is ready to merge or what specifically must be fixed.",
           "budget": {
-            "maxCents": 200,
-            "maxWallClockMs": 480000,
-            "maxTurns": 40
+            "maxCents": 500,
+            "maxWallClockMs": 3600000,
+            "maxTurns": 120
           }
         }
       },
