@@ -35,11 +35,9 @@
               "perPage": 30,
               "excludeBy": {
                 "query": {
-                  "path": "tasks/queries:listTasksByOrg",
+                  "path": "tasks/queries:listTasksByProject",
                   "args": {
-                    "organizationId": "$orgId",
-                    "externalSystem": "github",
-                    "limit": 500
+                    "projectId": "$projectId"
                   }
                 },
                 "refField": "externalId",
@@ -54,6 +52,7 @@
                   "mode": "action",
                   "args": {
                     "organizationId": "$orgId",
+                    "projectId": "$projectId",
                     "externalSystem": "github",
                     "externalId": "$tpl:tale-project/tale#{number}",
                     "title": "$selected.title",
@@ -86,10 +85,9 @@
               "id": "tasks",
               "title": "$label:issueDesk.tasksListTitle",
               "query": {
-                "path": "tasks/queries:listTasksByOrg",
+                "path": "tasks/queries:listTasksByProject",
                 "args": {
-                  "organizationId": "$orgId",
-                  "externalSystem": "github"
+                  "projectId": "$projectId"
                 }
               },
               "columns": ["title", "status"],

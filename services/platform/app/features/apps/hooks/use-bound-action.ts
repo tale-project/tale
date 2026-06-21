@@ -31,7 +31,8 @@ export interface BoundAction {
 }
 
 export function useBoundAction(path: string, mode: FunctionMode): BoundAction {
-  const { organizationId, appSlug, allowlist, labels } = useAppRuntime();
+  const { organizationId, projectId, appSlug, allowlist, labels } =
+    useAppRuntime();
   const allowed =
     isValidFunctionPath(path) && isFunctionAllowed(path, allowlist, mode);
 
@@ -45,6 +46,7 @@ export function useBoundAction(path: string, mode: FunctionMode): BoundAction {
       }
       const resolved = resolveBindingArgs(args ?? {}, {
         organizationId,
+        projectId,
         selected,
         labels,
       });
@@ -54,7 +56,17 @@ export function useBoundAction(path: string, mode: FunctionMode): BoundAction {
         ? action.mutateAsync(resolved)
         : mutation.mutateAsync(resolved);
     },
-    [allowed, path, mode, organizationId, appSlug, labels, mutation, action],
+    [
+      allowed,
+      path,
+      mode,
+      organizationId,
+      projectId,
+      appSlug,
+      labels,
+      mutation,
+      action,
+    ],
   );
 
   return { dispatch, isPending: mutation.isPending || action.isPending };

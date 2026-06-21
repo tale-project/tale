@@ -16,6 +16,10 @@ export const upsertAppInstallation = internalMutation({
   args: {
     organizationId: v.string(),
     appSlug: v.string(),
+    /** Bound project for project-scoped apps; absent (and cleared) for org apps. */
+    projectId: v.optional(v.id('projects')),
+    /** Denormalized app display name (from the manifest) for the in-project tab. */
+    appName: v.optional(v.string()),
     installedBy: v.string(),
     status: statusValidator,
     resources: v.array(resourceValidator),
@@ -30,6 +34,9 @@ export const upsertAppInstallation = internalMutation({
       )
       .first();
     const fields = {
+      // Patch with `undefined` clears a prior binding (e.g. reinstalled org-scoped).
+      projectId: args.projectId,
+      appName: args.appName,
       installedAt: Date.now(),
       installedBy: args.installedBy,
       status: args.status,

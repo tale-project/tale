@@ -13,6 +13,19 @@ import { v } from 'convex/values';
 export const appInstallationsTable = defineTable({
   organizationId: v.string(),
   appSlug: v.string(),
+  /**
+   * The project this installation is bound to, for `scope: 'project'` apps. The
+   * app's created data (tasks/runs) and its in-project entry point live under
+   * this project. Absent for org-scoped apps (and legacy rows). One install per
+   * (org, appSlug); installing into a different project re-binds this field.
+   */
+  projectId: v.optional(v.id('projects')),
+  /**
+   * Denormalized app display name (from the manifest at install) — lets the
+   * in-project nav render a labelled tab from a cheap reactive query without an
+   * FS manifest read. Refreshed on reinstall. Absent on legacy rows.
+   */
+  appName: v.optional(v.string()),
   installedAt: v.number(),
   installedBy: v.string(),
   /** 'active' = all copied resources present; 'broken' = a copied file is gone. */
@@ -37,4 +50,5 @@ export const appInstallationsTable = defineTable({
   ),
 })
   .index('by_org', ['organizationId'])
-  .index('by_org_slug', ['organizationId', 'appSlug']);
+  .index('by_org_slug', ['organizationId', 'appSlug'])
+  .index('by_project', ['projectId']);

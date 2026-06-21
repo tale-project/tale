@@ -2,6 +2,7 @@
   "name": "Issue resolution desk",
   "description": "A config-driven, repo-agnostic issue-resolution desk. GitHub issues (bound to tasks by the github sync) flow through a fixed process — an implementer agent resolves the issue in the platform sandbox, tests it, and opens a PR; a reviewer agent re-tests and comments; a toolless LLM judge decides merge-readiness, looping back to the implementer until approved (bounded by a configurable rework limit, after which it escalates to a human), then a human merges. The whole app is data — a workflow + agents + views + a localized catalog — composed on the platform skeleton with no per-vertical system code.",
   "icon": "ticket",
+  "scope": "project",
   "messageNamespace": "issueDesk",
   "workflows": ["issue-desk/desk-process"],
   "agents": ["desk-implementer", "desk-reviewer"],
@@ -13,7 +14,7 @@
     "workflows": ["issue-desk/desk-process"],
     "roles": ["issue-desk/desk-implementer", "issue-desk/desk-reviewer"],
     "functions": [
-      { "path": "tasks/queries:listTasksByOrg", "mode": "query" },
+      { "path": "tasks/queries:listTasksByProject", "mode": "query" },
       { "path": "workflow_executions/queries:listExecutions", "mode": "query" },
       { "path": "agents/file_actions:listAppAgents", "mode": "action" },
       { "path": "agents/file_actions:readAgent", "mode": "action" },

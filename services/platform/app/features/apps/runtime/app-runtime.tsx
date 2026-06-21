@@ -12,6 +12,12 @@ import type { FunctionBinding } from '@/lib/shared/platform/function_bindings';
 
 export interface AppRuntime {
   organizationId: string;
+  /**
+   * Bound project for a `scope: 'project'` app — the project its data and entry
+   * point live under. Undefined for org-scoped apps. Feeds the `$projectId`
+   * binding sentinel in view calls.
+   */
+  projectId?: string;
   appSlug: string;
   /** The app's declared function allowlist (capabilities.functions). */
   allowlist: FunctionBinding[];

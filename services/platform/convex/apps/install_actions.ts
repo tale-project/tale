@@ -15,9 +15,9 @@ import path from 'node:path';
 
 import { v } from 'convex/values';
 
-import { isValidAppSlug } from '../../lib/shared/schemas/apps';
+import { appScope, isValidAppSlug } from '../../lib/shared/schemas/apps';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
-import { internal } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import { type ActionCtx, action } from '../_generated/server';
 import {
   parseAgentJson,
@@ -139,7 +139,16 @@ async function registerAgent(
 }
 
 export const installApp = action({
-  args: { organizationId: v.string(), appSlug: v.string() },
+  args: {
+    organizationId: v.string(),
+    appSlug: v.string(),
+    /**
+     * Target project for a `scope: 'project'` app — required for those, rejected
+     * for org-scoped apps. The install binds to it (one project per install);
+     * re-installing with a different project re-binds.
+     */
+    projectId: v.optional(v.id('projects')),
+  },
   returns: v.object({
     ok: v.boolean(),
     workflows: v.number(),
@@ -182,6 +191,31 @@ export const installApp = action({
     // reinstalling re-syncs files but keeps an org's per-agent env/secrets. Only
     // `uninstallApp` tears those down.
     const manifest = await readAppBundleManifest(args.appSlug);
+
+    // Resolve install scope from the manifest and validate the target project
+    // before copying any files, so a bad scope/project fails fast and clean.
+    const scope = appScope(manifest);
+    if (scope === 'project') {
+      if (!args.projectId) {
+        throw new Error(
+          `App "${args.appSlug}" is project-scoped; a target project is required to install it.`,
+        );
+      }
+      const project = await ctx.runQuery(api.projects.queries.getProject, {
+        projectId: args.projectId,
+      });
+      if (!project || project.organizationId !== args.organizationId) {
+        throw new Error(
+          `Cannot install app "${args.appSlug}": target project not found in this organization.`,
+        );
+      }
+    } else if (args.projectId) {
+      throw new Error(
+        `App "${args.appSlug}" is org-scoped and cannot be bound to a project.`,
+      );
+    }
+    const boundProjectId = scope === 'project' ? args.projectId : undefined;
+
     const { resources } = await installAppFiles(orgSlug, args.appSlug);
 
     const workflows = manifest.workflows ?? [];
@@ -216,6 +250,8 @@ export const installApp = action({
       {
         organizationId: args.organizationId,
         appSlug: args.appSlug,
+        projectId: boundProjectId,
+        appName: manifest.name,
         installedBy,
         status: 'active',
         resources,

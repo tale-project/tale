@@ -55,7 +55,7 @@ function fmt(ts: unknown): string {
 export function RunList({ title, workflowSlug }: RunListProps) {
   const { t } = useT('apps');
   const labelOf = usePackLabelString();
-  const { organizationId, appSlug } = useAppRuntime();
+  const { organizationId, projectId, appSlug } = useAppRuntime();
   const navigate = useNavigate();
   const args = useMemo(
     () => ({
@@ -111,17 +111,31 @@ export function RunList({ title, workflowSlug }: RunListProps) {
                       variant="secondary"
                       disabled={!id}
                       onClick={() =>
-                        void navigate({
-                          to: '/dashboard/$id/apps/$appSlug/runs/$executionId',
-                          params: {
-                            id: organizationId,
-                            appSlug,
-                            executionId: id,
-                          },
-                          // Pass the workflow slug so the run view can load the
-                          // reused global DAG with live per-node status.
-                          search: { wf: workflowSlug },
-                        })
+                        // A project-scoped app watches runs under its project
+                        // route (keeping the project shell + tab); org apps use
+                        // the org-level run route. Pass the workflow slug so the
+                        // run view can load the reused global DAG with live
+                        // per-node status.
+                        void (projectId
+                          ? navigate({
+                              to: '/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId',
+                              params: {
+                                id: organizationId,
+                                projectId,
+                                appSlug,
+                                executionId: id,
+                              },
+                              search: { wf: workflowSlug },
+                            })
+                          : navigate({
+                              to: '/dashboard/$id/apps/$appSlug/runs/$executionId',
+                              params: {
+                                id: organizationId,
+                                appSlug,
+                                executionId: id,
+                              },
+                              search: { wf: workflowSlug },
+                            }))
                       }
                     >
                       {t('runs.watchLive')}

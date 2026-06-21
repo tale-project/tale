@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { api, internal } from '../_generated/api';
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import { type ActionCtx, action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { parseIssueNumber, parseRepoRef } from './issue_ref';
@@ -58,6 +58,12 @@ async function startWorkflowForTask(
 export const createTaskFromExternalIssue = action({
   args: {
     organizationId: v.string(),
+    /**
+     * Project the task belongs to — supplied by a project-scoped app via the
+     * `$projectId` binding. Absent for legacy/org callers, which fall back to
+     * the org-wide project (with a warning) rather than guessing silently.
+     */
+    projectId: v.optional(v.id('projects')),
     externalSystem: v.string(),
     externalId: v.string(),
     title: v.string(),
@@ -82,12 +88,31 @@ export const createTaskFromExternalIssue = action({
   }> => {
     const { userId } = await requireOrgMembershipById(ctx, args.organizationId);
 
-    const projects = await ctx.runQuery(api.projects.queries.listProjects, {
-      organizationId: args.organizationId,
-    });
-    const project = projects.find((p) => p.isOrgWide) ?? projects[0];
-    if (!project) {
-      throw new Error('No project available — create a project first');
+    // Project-scoped apps pass their bound project explicitly; validate it.
+    // Without one (legacy/org caller), fall back to the org-wide project and
+    // warn — never silently guess a user project.
+    let projectId: Id<'projects'>;
+    if (args.projectId) {
+      const project = await ctx.runQuery(api.projects.queries.getProject, {
+        projectId: args.projectId,
+      });
+      if (!project || project.organizationId !== args.organizationId) {
+        throw new Error('Target project not found in this organization');
+      }
+      projectId = args.projectId;
+    } else {
+      const projects = await ctx.runQuery(api.projects.queries.listProjects, {
+        organizationId: args.organizationId,
+      });
+      const fallback = projects.find((p) => p.isOrgWide) ?? projects[0];
+      if (!fallback) {
+        throw new Error('No project available — create a project first');
+      }
+      console.warn(
+        '[create-task] no projectId supplied; falling back to org-wide project',
+        { organizationId: args.organizationId, projectId: fallback._id },
+      );
+      projectId = fallback._id;
     }
 
     const result = await ctx.runMutation(
@@ -95,7 +120,7 @@ export const createTaskFromExternalIssue = action({
       {
         organizationId: args.organizationId,
         actorId: userId,
-        projectId: project._id,
+        projectId,
         externalSystem: args.externalSystem,
         externalId: args.externalId,
         title: args.title,

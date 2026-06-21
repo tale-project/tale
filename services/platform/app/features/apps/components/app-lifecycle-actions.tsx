@@ -26,6 +26,12 @@ interface AppLifecycleActionsProps {
   appSlug: string;
   appName: string;
   organizationId: string;
+  /**
+   * The app's bound project, for a project-scoped install — reused on reinstall
+   * so the binding is preserved (reinstalling without it would fail validation).
+   * Undefined for org-scoped apps.
+   */
+  projectId?: string;
   /** Extra classes for the ⋯ trigger (e.g. card overlay positioning). */
   triggerClassName?: string;
   onReinstalled?: () => void;
@@ -36,6 +42,7 @@ export function AppLifecycleActions({
   appSlug,
   appName,
   organizationId,
+  projectId,
   triggerClassName,
   onReinstalled,
   onUninstalled,
@@ -49,7 +56,7 @@ export function AppLifecycleActions({
     if (busy) return;
     setBusy(true);
     try {
-      await install(appSlug);
+      await install(appSlug, projectId);
       toast({ title: t('install.reinstalled'), variant: 'success' });
       dialogs.setOpen.reinstall(false);
       onReinstalled?.();
@@ -59,7 +66,7 @@ export function AppLifecycleActions({
     } finally {
       setBusy(false);
     }
-  }, [busy, install, appSlug, t, dialogs, onReinstalled]);
+  }, [busy, install, appSlug, projectId, t, dialogs, onReinstalled]);
 
   const handleUninstall = useCallback(async () => {
     if (busy) return;

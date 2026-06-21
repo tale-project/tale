@@ -43,6 +43,8 @@ export type ActionEffect = OpenDetailEffect | NavigateEffect;
 /** The live context an effect's templates resolve against. */
 export interface EffectContext {
   organizationId: string;
+  /** Bound project id for a project-scoped app; undefined for org-scoped apps. */
+  projectId?: string;
   selected?: Record<string, unknown>;
   result?: Record<string, unknown>;
   labels?: Record<string, string>;
@@ -110,12 +112,13 @@ export function useActionEffect(): (
 ) => void {
   const navigate = useNavigate();
   const { open } = useResourceDetail();
-  const { organizationId, labels } = useAppRuntime();
+  const { organizationId, projectId, labels } = useAppRuntime();
 
   return useCallback(
     (effect, result, selected) => {
       const resolved = resolveEffect(effect, {
         organizationId,
+        projectId,
         selected,
         result: isRecord(result) ? result : undefined,
         labels,
@@ -137,6 +140,6 @@ export function useActionEffect(): (
         void go({ to: resolved.to, params: resolved.params });
       }
     },
-    [navigate, open, organizationId, labels],
+    [navigate, open, organizationId, projectId, labels],
   );
 }

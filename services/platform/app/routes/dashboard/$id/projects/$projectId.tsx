@@ -18,6 +18,7 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
+import { useProjectApps } from '@/app/features/apps/hooks/use-install-state';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { api } from '@/convex/_generated/api';
@@ -46,6 +47,9 @@ function ProjectDetailLayout() {
   const { t: tDiscussions } = useT('discussions');
 
   const { project, isLoading } = useProject(asProjectId(projectId));
+  // Apps bound to this project surface as their own nav tab — the in-context
+  // entry point for a project-scoped app (Apps hub installs; the project uses it).
+  const { apps: projectApps } = useProjectApps(asProjectId(projectId));
 
   // Memoize the tabs array — `TabNavigation` feeds it through a chain of
   // memos that bottom out at a `ResizeObserver` effect; a fresh array every
@@ -102,8 +106,17 @@ function ProjectDetailLayout() {
       // U8: Settings tab merged into Overview. Identity edit + Sharing live
       // in the Overview header now; Archive/Delete are in the 3-dot row menu
       // on the projects list page.
+      // Project-scoped apps installed here each get their own tab (active across
+      // the app's sub-routes via `startsWith`).
+      ...projectApps.map(
+        (app): TabNavigationItem => ({
+          label: app.appName,
+          href: `/dashboard/${organizationId}/projects/${projectId}/apps/${app.appSlug}`,
+          matchMode: 'startsWith',
+        }),
+      ),
     ],
-    [t, tTasks, tSecrets, tDiscussions, organizationId, projectId],
+    [t, tTasks, tSecrets, tDiscussions, organizationId, projectId, projectApps],
   );
 
   if (!isLoading && !project) {

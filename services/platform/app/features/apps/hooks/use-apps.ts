@@ -1,6 +1,7 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { api } from '@/convex/_generated/api';
 import type { FunctionBinding } from '@/lib/shared/platform/function_bindings';
+import type { AppScope } from '@/lib/shared/schemas/apps';
 
 /** A navigable area of a view — its content is single-column Puck Data, or a
  *  `columns` array of Puck Data documents laid out side by side. */
@@ -28,6 +29,8 @@ export interface AppSummary {
   slug: string;
   name: string;
   description: string;
+  /** Install/runtime scope declared in the manifest (absent ⇒ 'org'). */
+  scope: AppScope;
   icon?: string;
   messageNamespace?: string;
   workflows: string[];

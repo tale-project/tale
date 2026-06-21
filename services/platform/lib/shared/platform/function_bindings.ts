@@ -168,6 +168,8 @@ export function resolveBindingArgs(
   args: unknown,
   ctx: {
     organizationId: string;
+    /** Bound project id for a project-scoped app; undefined for org-scoped apps. */
+    projectId?: string;
     selected?: Record<string, unknown>;
     result?: Record<string, unknown>;
     labels?: Record<string, string>;
@@ -175,6 +177,12 @@ export function resolveBindingArgs(
 ): unknown {
   if (typeof args === 'string') {
     if (args === '$orgId') return ctx.organizationId;
+    // Undefined when the app isn't project-scoped: fall through so the literal
+    // `$projectId` passes through (a visible failure rather than a silent
+    // `undefined` into a project-gated query).
+    if (args === '$projectId' && ctx.projectId !== undefined) {
+      return ctx.projectId;
+    }
     if (args === '$selected') return ctx.selected;
     if (args.startsWith('$selected.') && ctx.selected) {
       return ctx.selected[args.slice('$selected.'.length)];

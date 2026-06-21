@@ -13,6 +13,7 @@ import { v } from 'convex/values';
 
 import {
   appManifestSchema,
+  appScope,
   isValidAppSlug,
 } from '../../lib/shared/schemas/apps';
 import { action } from '../_generated/server';
@@ -154,6 +155,7 @@ export const listApps = action({
         slug,
         name: manifest.name,
         description: manifest.description ?? '',
+        scope: appScope(manifest),
         ...(manifest.icon !== undefined && { icon: manifest.icon }),
         ...(manifest.messageNamespace !== undefined && {
           messageNamespace: manifest.messageNamespace,

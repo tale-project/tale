@@ -129,7 +129,10 @@ import { Route as DashboardIdProjectsProjectIdTasksIndexRouteImport } from './ro
 import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/$requestId';
 import { Route as DashboardIdProjectsProjectIdTasksListRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/list';
 import { Route as DashboardIdProjectsProjectIdTasksBoardRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/board';
+import { Route as DashboardIdProjectsProjectIdAppsAppSlugRouteImport } from './routes/dashboard/$id/projects/$projectId/apps/$appSlug';
 import { Route as DashboardIdAppsAppSlugRunsExecutionIdRouteImport } from './routes/dashboard/$id/apps/$appSlug/runs/$executionId';
+import { Route as DashboardIdProjectsProjectIdAppsAppSlugIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/apps/$appSlug/index';
+import { Route as DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRouteImport } from './routes/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId';
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -819,11 +822,29 @@ const DashboardIdProjectsProjectIdTasksBoardRoute =
     path: '/tasks/board',
     getParentRoute: () => DashboardIdProjectsProjectIdRoute,
   } as any);
+const DashboardIdProjectsProjectIdAppsAppSlugRoute =
+  DashboardIdProjectsProjectIdAppsAppSlugRouteImport.update({
+    id: '/apps/$appSlug',
+    path: '/apps/$appSlug',
+    getParentRoute: () => DashboardIdProjectsProjectIdRoute,
+  } as any);
 const DashboardIdAppsAppSlugRunsExecutionIdRoute =
   DashboardIdAppsAppSlugRunsExecutionIdRouteImport.update({
     id: '/runs/$executionId',
     path: '/runs/$executionId',
     getParentRoute: () => DashboardIdAppsAppSlugRoute,
+  } as any);
+const DashboardIdProjectsProjectIdAppsAppSlugIndexRoute =
+  DashboardIdProjectsProjectIdAppsAppSlugIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => DashboardIdProjectsProjectIdAppsAppSlugRoute,
+  } as any);
+const DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRoute =
+  DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRouteImport.update({
+    id: '/runs/$executionId',
+    path: '/runs/$executionId',
+    getParentRoute: () => DashboardIdProjectsProjectIdAppsAppSlugRoute,
   } as any);
 
 export interface FileRoutesByFullPath {
@@ -942,10 +963,13 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute;
   '/dashboard/$id/settings/skills/': typeof DashboardIdSettingsSkillsIndexRoute;
   '/dashboard/$id/apps/$appSlug/runs/$executionId': typeof DashboardIdAppsAppSlugRunsExecutionIdRoute;
+  '/dashboard/$id/projects/$projectId/apps/$appSlug': typeof DashboardIdProjectsProjectIdAppsAppSlugRouteWithChildren;
   '/dashboard/$id/projects/$projectId/tasks/board': typeof DashboardIdProjectsProjectIdTasksBoardRoute;
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
   '/dashboard/$id/projects/$projectId/tasks/': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
+  '/dashboard/$id/projects/$projectId/apps/$appSlug/': typeof DashboardIdProjectsProjectIdAppsAppSlugIndexRoute;
+  '/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId': typeof DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
@@ -1053,6 +1077,8 @@ export interface FileRoutesByTo {
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
   '/dashboard/$id/projects/$projectId/tasks': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
+  '/dashboard/$id/projects/$projectId/apps/$appSlug': typeof DashboardIdProjectsProjectIdAppsAppSlugIndexRoute;
+  '/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId': typeof DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -1173,10 +1199,13 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute;
   '/dashboard/$id/settings/skills/': typeof DashboardIdSettingsSkillsIndexRoute;
   '/dashboard/$id/apps/$appSlug/runs/$executionId': typeof DashboardIdAppsAppSlugRunsExecutionIdRoute;
+  '/dashboard/$id/projects/$projectId/apps/$appSlug': typeof DashboardIdProjectsProjectIdAppsAppSlugRouteWithChildren;
   '/dashboard/$id/projects/$projectId/tasks/board': typeof DashboardIdProjectsProjectIdTasksBoardRoute;
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
   '/dashboard/$id/projects/$projectId/tasks/': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
+  '/dashboard/$id/projects/$projectId/apps/$appSlug/': typeof DashboardIdProjectsProjectIdAppsAppSlugIndexRoute;
+  '/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId': typeof DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -1296,10 +1325,13 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/providers/'
     | '/dashboard/$id/settings/skills/'
     | '/dashboard/$id/apps/$appSlug/runs/$executionId'
+    | '/dashboard/$id/projects/$projectId/apps/$appSlug'
     | '/dashboard/$id/projects/$projectId/tasks/board'
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
-    | '/dashboard/$id/projects/$projectId/tasks/';
+    | '/dashboard/$id/projects/$projectId/tasks/'
+    | '/dashboard/$id/projects/$projectId/apps/$appSlug/'
+    | '/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
@@ -1406,7 +1438,9 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/tasks/board'
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
-    | '/dashboard/$id/projects/$projectId/tasks';
+    | '/dashboard/$id/projects/$projectId/tasks'
+    | '/dashboard/$id/projects/$projectId/apps/$appSlug'
+    | '/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId';
   id:
     | '__root__'
     | '/'
@@ -1526,10 +1560,13 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/providers/'
     | '/dashboard/$id/settings/skills/'
     | '/dashboard/$id/apps/$appSlug/runs/$executionId'
+    | '/dashboard/$id/projects/$projectId/apps/$appSlug'
     | '/dashboard/$id/projects/$projectId/tasks/board'
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
-    | '/dashboard/$id/projects/$projectId/tasks/';
+    | '/dashboard/$id/projects/$projectId/tasks/'
+    | '/dashboard/$id/projects/$projectId/apps/$appSlug/'
+    | '/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -2385,12 +2422,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdProjectsProjectIdTasksBoardRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdRoute;
     };
+    '/dashboard/$id/projects/$projectId/apps/$appSlug': {
+      id: '/dashboard/$id/projects/$projectId/apps/$appSlug';
+      path: '/apps/$appSlug';
+      fullPath: '/dashboard/$id/projects/$projectId/apps/$appSlug';
+      preLoaderRoute: typeof DashboardIdProjectsProjectIdAppsAppSlugRouteImport;
+      parentRoute: typeof DashboardIdProjectsProjectIdRoute;
+    };
     '/dashboard/$id/apps/$appSlug/runs/$executionId': {
       id: '/dashboard/$id/apps/$appSlug/runs/$executionId';
       path: '/runs/$executionId';
       fullPath: '/dashboard/$id/apps/$appSlug/runs/$executionId';
       preLoaderRoute: typeof DashboardIdAppsAppSlugRunsExecutionIdRouteImport;
       parentRoute: typeof DashboardIdAppsAppSlugRoute;
+    };
+    '/dashboard/$id/projects/$projectId/apps/$appSlug/': {
+      id: '/dashboard/$id/projects/$projectId/apps/$appSlug/';
+      path: '/';
+      fullPath: '/dashboard/$id/projects/$projectId/apps/$appSlug/';
+      preLoaderRoute: typeof DashboardIdProjectsProjectIdAppsAppSlugIndexRouteImport;
+      parentRoute: typeof DashboardIdProjectsProjectIdAppsAppSlugRoute;
+    };
+    '/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId': {
+      id: '/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId';
+      path: '/runs/$executionId';
+      fullPath: '/dashboard/$id/projects/$projectId/apps/$appSlug/runs/$executionId';
+      preLoaderRoute: typeof DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRouteImport;
+      parentRoute: typeof DashboardIdProjectsProjectIdAppsAppSlugRoute;
     };
   }
 }
@@ -2772,6 +2830,24 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
 const DashboardIdSettingsRouteWithChildren =
   DashboardIdSettingsRoute._addFileChildren(DashboardIdSettingsRouteChildren);
 
+interface DashboardIdProjectsProjectIdAppsAppSlugRouteChildren {
+  DashboardIdProjectsProjectIdAppsAppSlugIndexRoute: typeof DashboardIdProjectsProjectIdAppsAppSlugIndexRoute;
+  DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRoute: typeof DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRoute;
+}
+
+const DashboardIdProjectsProjectIdAppsAppSlugRouteChildren: DashboardIdProjectsProjectIdAppsAppSlugRouteChildren =
+  {
+    DashboardIdProjectsProjectIdAppsAppSlugIndexRoute:
+      DashboardIdProjectsProjectIdAppsAppSlugIndexRoute,
+    DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRoute:
+      DashboardIdProjectsProjectIdAppsAppSlugRunsExecutionIdRoute,
+  };
+
+const DashboardIdProjectsProjectIdAppsAppSlugRouteWithChildren =
+  DashboardIdProjectsProjectIdAppsAppSlugRoute._addFileChildren(
+    DashboardIdProjectsProjectIdAppsAppSlugRouteChildren,
+  );
+
 interface DashboardIdProjectsProjectIdRouteChildren {
   DashboardIdProjectsProjectIdAgentsRoute: typeof DashboardIdProjectsProjectIdAgentsRoute;
   DashboardIdProjectsProjectIdDiscussionsRoute: typeof DashboardIdProjectsProjectIdDiscussionsRoute;
@@ -2782,6 +2858,7 @@ interface DashboardIdProjectsProjectIdRouteChildren {
   DashboardIdProjectsProjectIdSettingsRoute: typeof DashboardIdProjectsProjectIdSettingsRoute;
   DashboardIdProjectsProjectIdThreadsRoute: typeof DashboardIdProjectsProjectIdThreadsRoute;
   DashboardIdProjectsProjectIdIndexRoute: typeof DashboardIdProjectsProjectIdIndexRoute;
+  DashboardIdProjectsProjectIdAppsAppSlugRoute: typeof DashboardIdProjectsProjectIdAppsAppSlugRouteWithChildren;
   DashboardIdProjectsProjectIdTasksBoardRoute: typeof DashboardIdProjectsProjectIdTasksBoardRoute;
   DashboardIdProjectsProjectIdTasksListRoute: typeof DashboardIdProjectsProjectIdTasksListRoute;
   DashboardIdProjectsProjectIdTasksIndexRoute: typeof DashboardIdProjectsProjectIdTasksIndexRoute;
@@ -2807,6 +2884,8 @@ const DashboardIdProjectsProjectIdRouteChildren: DashboardIdProjectsProjectIdRou
       DashboardIdProjectsProjectIdThreadsRoute,
     DashboardIdProjectsProjectIdIndexRoute:
       DashboardIdProjectsProjectIdIndexRoute,
+    DashboardIdProjectsProjectIdAppsAppSlugRoute:
+      DashboardIdProjectsProjectIdAppsAppSlugRouteWithChildren,
     DashboardIdProjectsProjectIdTasksBoardRoute:
       DashboardIdProjectsProjectIdTasksBoardRoute,
     DashboardIdProjectsProjectIdTasksListRoute:

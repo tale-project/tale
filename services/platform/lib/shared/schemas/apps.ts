@@ -20,6 +20,13 @@ export const appManifestSchema = z
     icon: z.string().optional(),
     /** i18n namespace for the app's Tier-2 message catalog. */
     messageNamespace: z.string().optional(),
+    /**
+     * Where the app installs and runs. `org` (default) — an org-level app, used
+     * from the Apps hub. `project` — bound to a single project chosen at install
+     * time; its created data (tasks/runs) and its entry point live inside that
+     * project. Absent ⇒ `org` (back-compat); resolve via {@link appScope}.
+     */
+    scope: z.enum(['org', 'project']).optional(),
     /** Workflow slugs this app owns / drives (referenced, they live in workflows/). */
     workflows: z.array(z.string()).optional(),
     /** Agent slugs this app composes (referenced, they live in agents/). */
@@ -84,6 +91,20 @@ export const appManifestSchema = z
   .passthrough();
 
 export type AppManifest = z.infer<typeof appManifestSchema>;
+
+/** An app's install/runtime scope. */
+export type AppScope = 'org' | 'project';
+
+/**
+ * Resolve an app's effective scope. An unset manifest `scope` means org-level —
+ * the back-compat default for every app authored before scoping existed. Always
+ * read scope through this so the default lives in exactly one place.
+ */
+export function appScope(
+  manifest: { scope?: AppScope } | null | undefined,
+): AppScope {
+  return manifest?.scope ?? 'org';
+}
 
 /** App slug — same alphabet as skills/workflows (kebab segments). */
 const APP_SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;

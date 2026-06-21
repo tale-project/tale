@@ -15,7 +15,7 @@ import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { LayoutGrid } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -28,6 +28,7 @@ import {
 import { AppView } from '../registry/app-view';
 import { AppRuntimeProvider, resolvePackLabel } from '../runtime/app-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
+import { AppInstallDialog } from './app-install-dialog';
 import { AppLifecycleActions } from './app-lifecycle-actions';
 
 function ReadinessChecklist({
@@ -130,12 +131,17 @@ function ViewBody({
 export function AppPage({
   organizationId,
   appSlug,
+  projectId,
 }: {
   organizationId: string;
   appSlug: string;
+  /** Set when rendered under a project route — the app's bound project. */
+  projectId?: string;
 }) {
   const { t } = useT('apps');
   const { locale } = useLocale();
+  const navigate = useNavigate();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const { apps, isLoading } = useApps(organizationId);
   const { bySlug, isLoading: stateLoading } =
     useAppInstallStates(organizationId);
@@ -143,6 +149,23 @@ export function AppPage({
 
   const app = apps.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
+
+  // A project-scoped app is used inside its bound project. When this page is
+  // reached at the org-level route (or under the wrong project), redirect to the
+  // bound project's app route so the URL and the in-project nav stay honest.
+  const boundProjectId =
+    app?.scope === 'project' ? state?.projectId : undefined;
+  const needsRedirect =
+    boundProjectId !== undefined && boundProjectId !== projectId;
+  useEffect(() => {
+    if (needsRedirect && boundProjectId) {
+      void navigate({
+        to: '/dashboard/$id/projects/$projectId/apps/$appSlug',
+        params: { id: organizationId, projectId: boundProjectId, appSlug },
+        replace: true,
+      });
+    }
+  }, [needsRedirect, boundProjectId, organizationId, appSlug, navigate]);
 
   // The app's pack labels for the active locale (shared resolver — the run view
   // resolves `ui.labelKey` against the same catalog via `useAppPackLabels`).
@@ -163,7 +186,9 @@ export function AppPage({
     }
   }, [installed, appSlug, verify]);
 
-  if ((isLoading && !app) || stateLoading) return <SkeletonText lines={6} />;
+  if ((isLoading && !app) || stateLoading || needsRedirect) {
+    return <SkeletonText lines={6} />;
+  }
   if (!app) {
     return (
       <EmptyState
@@ -174,23 +199,51 @@ export function AppPage({
   }
 
   if (!state) {
+    // A project-scoped app reached at the org route (no projectId) must pick a
+    // target project first; with a project in scope (or an org app), install
+    // directly.
+    const needsProjectPick = app.scope === 'project' && !projectId;
     return (
-      <EmptyState
-        icon={LayoutGrid}
-        title={t('install.notInstalledTitle', { defaultValue: app.name })}
-        description={t('install.notInstalledDescription')}
-        action={
-          <Button disabled={isPending} onClick={() => void install(appSlug)}>
-            {t('install.install')}
-          </Button>
-        }
-      />
+      <>
+        <EmptyState
+          icon={LayoutGrid}
+          title={t('install.notInstalledTitle', { defaultValue: app.name })}
+          description={t('install.notInstalledDescription')}
+          action={
+            <Button
+              disabled={isPending}
+              onClick={() =>
+                needsProjectPick
+                  ? setPickerOpen(true)
+                  : void install(appSlug, projectId)
+              }
+            >
+              {t('install.install')}
+            </Button>
+          }
+        />
+        {needsProjectPick && (
+          <AppInstallDialog
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            organizationId={organizationId}
+            appSlug={appSlug}
+            appName={app.name}
+          />
+        )}
+      </>
     );
   }
 
   return (
     <AppRuntimeProvider
-      value={{ organizationId, appSlug, allowlist: app.functions, labels }}
+      value={{
+        organizationId,
+        ...(projectId !== undefined && { projectId }),
+        appSlug,
+        allowlist: app.functions,
+        labels,
+      }}
     >
       <ResourceDetailProvider>
         <VStack gap={6}>
@@ -233,6 +286,7 @@ export function AppPage({
               appSlug={appSlug}
               appName={app.name}
               organizationId={organizationId}
+              projectId={state.projectId}
             />
           </HStack>
         </VStack>

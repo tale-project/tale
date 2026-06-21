@@ -27,13 +27,14 @@ export interface BoundQueryResult {
 }
 
 export function useBoundQuery(path: string, args: unknown): BoundQueryResult {
-  const { organizationId, allowlist, labels } = useAppRuntime();
+  const { organizationId, projectId, allowlist, labels } = useAppRuntime();
   const allowed =
     isValidFunctionPath(path) && isFunctionAllowed(path, allowlist, 'query');
 
   const ref = makeFunctionReference<'query'>(path);
   const resolvedArgs = resolveBindingArgs(args ?? {}, {
     organizationId,
+    projectId,
     labels,
   });
   // Hooks run unconditionally; `'skip'` means no subscription when disallowed.

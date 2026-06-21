@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import type { Id } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -18,6 +19,8 @@ export const getAppInstallState = query({
   returns: v.array(
     v.object({
       appSlug: v.string(),
+      /** Bound project for a project-scoped app's instance (absent for org apps). */
+      projectId: v.optional(v.id('projects')),
       status: v.union(v.literal('active'), v.literal('broken')),
       installedAt: v.number(),
       /** Required integrations that are NOT yet connected (setup steps). */
@@ -41,6 +44,7 @@ export const getAppInstallState = query({
 
     const out: Array<{
       appSlug: string;
+      projectId?: Id<'projects'>;
       status: 'active' | 'broken';
       installedAt: number;
       blockedIntegrations: string[];
@@ -56,9 +60,50 @@ export const getAppInstallState = query({
       }
       out.push({
         appSlug: row.appSlug,
+        ...(row.projectId !== undefined && { projectId: row.projectId }),
         status: row.status,
         installedAt: row.installedAt,
         blockedIntegrations: blocked,
+      });
+    }
+    return out;
+  },
+});
+
+/**
+ * The apps bound to a given project — drives the in-project nav entry for each
+ * project-scoped app installed into it. Cheap + reactive (no FS): the app's
+ * display name is denormalized onto the install row at install time.
+ */
+export const listProjectApps = query({
+  args: { projectId: v.id('projects') },
+  returns: v.array(
+    v.object({
+      appSlug: v.string(),
+      appName: v.string(),
+      status: v.union(v.literal('active'), v.literal('broken')),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return [];
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return [];
+    // Project-inherited access: a member who can read the project can see its apps.
+    await getOrganizationMember(ctx, project.organizationId, authUser);
+
+    const out: Array<{
+      appSlug: string;
+      appName: string;
+      status: 'active' | 'broken';
+    }> = [];
+    for await (const row of ctx.db
+      .query('appInstallations')
+      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))) {
+      out.push({
+        appSlug: row.appSlug,
+        appName: row.appName ?? row.appSlug,
+        status: row.status,
       });
     }
     return out;

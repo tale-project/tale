@@ -40,7 +40,7 @@ export function useBoundActionQuery(
   path: string,
   args: unknown,
 ): BoundActionQueryResult {
-  const { organizationId, allowlist, labels } = useAppRuntime();
+  const { organizationId, projectId, allowlist, labels } = useAppRuntime();
   const { isAuthenticated } = useConvexAuth();
   const allowed =
     isValidFunctionPath(path) && isFunctionAllowed(path, allowlist, 'action');
@@ -50,9 +50,13 @@ export function useBoundActionQuery(
   const argsKey = JSON.stringify(args ?? {});
 
   const query = useQuery({
-    queryKey: ['bound-action-query', path, organizationId, argsKey],
+    // projectId folded in alongside organizationId so two projects never share a
+    // cache entry even though the unresolved args carry the same sentinels.
+    queryKey: ['bound-action-query', path, organizationId, projectId, argsKey],
     queryFn: () =>
-      action(resolveBindingArgs(args ?? {}, { organizationId, labels })),
+      action(
+        resolveBindingArgs(args ?? {}, { organizationId, projectId, labels }),
+      ),
     staleTime: Infinity,
     // ConvexError is deterministic (validation / auth / expected-state) — don't
     // burn ~7s of retry backoff before the UI sees it. Network errors still retry.

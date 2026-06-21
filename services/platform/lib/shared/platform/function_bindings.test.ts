@@ -78,6 +78,19 @@ describe('resolveBindingArgs', () => {
   it('leaves $result.<field> untouched when no result is in context', () => {
     expect(resolveBindingArgs('$result.taskId', ctx)).toBe('$result.taskId');
   });
+  it('substitutes $projectId for project-scoped apps', () => {
+    expect(
+      resolveBindingArgs('$projectId', {
+        organizationId: 'org_1',
+        projectId: 'proj_1',
+      }),
+    ).toBe('proj_1');
+  });
+  it('leaves $projectId as a literal when no project is bound (org-scoped)', () => {
+    // Fail-visible: an org-scoped app that mis-binds $projectId sends the literal,
+    // not a silent `undefined`, into a project-gated call.
+    expect(resolveBindingArgs('$projectId', ctx)).toBe('$projectId');
+  });
   it('interpolates $tpl: row fields into a string ({field} syntax)', () => {
     const tctx = {
       organizationId: 'org_1',

@@ -37,6 +37,12 @@ interface ProjectCreateDialogProps {
    * — e.g. the chat sidebar pre-expands its folder.
    */
   onCreated?: (projectId: Id<'projects'>) => void;
+  /**
+   * Navigate to the new project's detail page after creation (default `true`).
+   * Set `false` when the caller drives its own follow-up navigation — e.g. the
+   * app-install flow creates a project, then routes into the app under it.
+   */
+  navigateOnCreate?: boolean;
 }
 
 export function ProjectCreateDialog({
@@ -44,6 +50,7 @@ export function ProjectCreateDialog({
   onOpenChange,
   organizationId,
   onCreated,
+  navigateOnCreate = true,
 }: ProjectCreateDialogProps) {
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
@@ -120,10 +127,12 @@ export function ProjectCreateDialog({
       });
       onCreated?.(projectId);
       onOpenChange(false);
-      void navigate({
-        to: '/dashboard/$id/projects/$projectId',
-        params: { id: organizationId, projectId: String(projectId) },
-      });
+      if (navigateOnCreate) {
+        void navigate({
+          to: '/dashboard/$id/projects/$projectId',
+          params: { id: organizationId, projectId: String(projectId) },
+        });
+      }
     } catch (error) {
       if (error instanceof ConvexError) {
         const code = error.data?.code;

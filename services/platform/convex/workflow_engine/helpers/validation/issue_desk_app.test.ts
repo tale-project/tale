@@ -55,6 +55,8 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
   it('app.json manifest composes the workflow + agents + functions by reference', () => {
     expect(manifest.name).toBe('Issue resolution desk');
     expect(manifest.messageNamespace).toBe('issueDesk');
+    // The desk binds to one project at install (its tasks/runs live there).
+    expect(manifest.scope).toBe('project');
     expect(manifest.workflows).toContain('issue-desk/desk-process');
     // Agents are referenced BARE in the manifest (their on-disk filename); the
     // app-owned IDENTITY is the COMPOSITE slug `<app>/<name>`, used wherever an
@@ -68,7 +70,7 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
       ]),
     );
     const fnPaths = manifest.capabilities?.functions?.map((f) => f.path) ?? [];
-    expect(fnPaths).toContain('tasks/queries:listTasksByOrg');
+    expect(fnPaths).toContain('tasks/queries:listTasksByProject');
     // App agents are listed via the app-scoped action; the global `listAgents`
     // would never return them.
     expect(fnPaths).toContain('agents/file_actions:listAppAgents');
@@ -117,13 +119,13 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
       | undefined;
     // Cross-references tasks by their externalId, rebuilt from the issue row with
     // the same template the materialize action uses to write it.
-    expect(excludeBy?.query?.path).toBe('tasks/queries:listTasksByOrg');
+    expect(excludeBy?.query?.path).toBe('tasks/queries:listTasksByProject');
     expect(excludeBy?.refField).toBe('externalId');
     expect(excludeBy?.rowKeyTemplate).toBe('tale-project/tale#{number}');
     // The cross-ref query is collected (so publish-time validation covers it)
     // and is in the allowlist.
     const paths = collectViewBindings(view).map((b) => b.path);
-    expect(paths).toContain('tasks/queries:listTasksByOrg');
+    expect(paths).toContain('tasks/queries:listTasksByProject');
     expect(
       validateViewBindings(view, manifest.capabilities?.functions),
     ).toEqual([]);
