@@ -37,14 +37,16 @@ the run stops promptly, but the owning replica then sees its Pod vanish and
 resolves the run as `failed`/`HARVEST_READ_FAILED` rather than `cancelled` (it
 never learns the cancel intent — a known, accepted limitation).
 
-**Resource-limit parity (known delta vs docker):** the runner Pod enforces
-cpu/memory limits and a `sizeLimit` on the `/user` emptyDir
-(`SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`, default `4Gi` — exceeding it evicts the
-Pod). There is **no Kubernetes equivalent** of the docker path's per-process
-ulimits (`pids-limit=128`, `fsize=100MB`, `cpu-time=600s`): a fork-heavy or
-single-giant-file workload behaves differently on the two backends. Operators
-needing those bounds should use gVisor (`SANDBOX_RUNTIME=runsc`) and
-namespace-level quotas.
+**Resource-limit parity with docker:** the runner Pod enforces cpu/memory
+limits and a `sizeLimit` on the `/user` emptyDir (`SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`,
+default `4Gi` — exceeding it evicts the Pod). `RUNNER_WRAPPER` also injects
+`ulimit -u 128 -f 204800 -t 600 -c 0` before launching the entrypoint, which
+sets the same per-process limits as the Docker backend's `--pids-limit=128`,
+`--ulimit fsize=104857600`, `--ulimit cpu=600`, and `--ulimit core=0:0`. The
+busybox sh built-in lowers limits without requiring elevated capabilities, and
+all descendant processes (python/node) inherit them. gVisor (`SANDBOX_RUNTIME=runsc`)
+adds further isolation benefits (syscall filtering, separate kernel) but is no
+longer required solely to obtain these resource bounds.
 
 ## RBAC (namespaced Role — no cluster scope, no `pods/exec`)
 
