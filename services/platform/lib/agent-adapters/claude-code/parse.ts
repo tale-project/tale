@@ -46,6 +46,17 @@ function mapResultStatus(subtype: string | undefined): AgentResultStatus {
   }
 }
 
+// Terminal background-task statuses. A `task_notification` carries
+// completed|failed|stopped; a `task_updated` patch can carry any of these plus
+// `killed` (its enum, verified in the 2.1.173 bundle). The non-terminal
+// pending|running|paused states must NOT settle the ledger entry.
+const TERMINAL_TASK_STATUSES: ReadonlySet<string> = new Set([
+  'completed',
+  'failed',
+  'stopped',
+  'killed',
+]);
+
 export class ClaudeCodeParser implements AgentEventParser {
   private readonly lines = new LineReassembler();
   private readonly seenUsageMsgIds = new Set<string>();
@@ -105,6 +116,20 @@ export class ClaudeCodeParser implements AgentEventParser {
           const status = str(ev.status);
           if (status) out.status = status;
           return [out];
+        }
+      }
+      // A background task can report completion ONLY via task_updated (whose
+      // `patch.status` reached a terminal state) without ever emitting a
+      // task_notification — the Agent SDK documents this explicitly. Without
+      // settling on it, a finished task lingers in the pending ledger forever
+      // and the drain never sends stdin EOF, so the run hangs until its budget.
+      // `patch` is a delta, so `status` is present only when it changed; a
+      // non-terminal change (running/pending/paused) leaves the entry open.
+      if (subtype === 'task_updated') {
+        const taskId = str(ev.task_id);
+        const status = str(obj(ev.patch)?.status);
+        if (taskId && status && TERMINAL_TASK_STATUSES.has(status)) {
+          return [{ type: 'task-settled', taskId, status }];
         }
       }
       // api_retry and other system events: pass through for observability.

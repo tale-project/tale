@@ -40,7 +40,7 @@ import {
   type ExecCursor,
   type SessionExecResult,
 } from './helpers/session_client';
-import { quietIdleDecision } from './quiet_idle';
+import { idleCloseDecision, quietIdleDecision } from './quiet_idle';
 import {
   matchConsumedSteerFiles,
   steerDirFor,
@@ -88,6 +88,18 @@ const STDIN_EOF_GRACE_MS = Number(
 // per-turn result until they settle (verified 2.1.173) — unlike `local_bash`,
 // which lets the result through immediately.
 const QUIET_IDLE_MS = Number(process.env.EXTERNAL_AGENT_QUIET_IDLE_MS ?? 5_000);
+// Idle-close grace (autonomous runs): how long the main loop must stay silent
+// AFTER the per-turn result — model idle, no sub-agent/blocking-read in flight —
+// before the drain closes stdin even though the background ledger still shows
+// pending tasks. A background task can finish without ever emitting a terminal
+// task_notification/task_updated (Claude Code #14049), which would otherwise pin
+// a finished run open until its wall-clock budget. Closing then matches headless
+// `-p` (stdin closes after the final result; the CLI reaps stragglers). Longer
+// than QUIET_IDLE_MS so a genuine background auto-wake (which resets the silence
+// clock) is never cut off.
+const IDLE_EOF_GRACE_MS = Number(
+  process.env.EXTERNAL_AGENT_IDLE_EOF_MS ?? 60_000,
+);
 
 export interface RunAgentInSessionArgs {
   organizationId: string;
@@ -668,7 +680,23 @@ export async function runAgentInSessionImpl(
         // steering; just close once background work drains. An autonomous run
         // still carries a threadId (for the transcript), so the mode check is
         // what gates steering, not just the missing-thread case.
-        if (agentResultSeen && pendingTasks.size === 0) await sendEof();
+        // Close when the ledger is balanced OR — for a finished run whose
+        // background tasks never reported terminal (Claude Code #14049) — once
+        // the model has stayed idle past the grace with no real work in flight.
+        if (
+          agentResultSeen &&
+          (pendingTasks.size === 0 ||
+            idleCloseDecision({
+              agentResultSeen,
+              agentIdle,
+              inflightSubAgents: inflightSubAgents.size,
+              inflightWaitTools: inflightWaitTools.size,
+              lastMainActivityAt,
+              now: Date.now(),
+              idleEofMs: IDLE_EOF_GRACE_MS,
+            }))
+        )
+          await sendEof();
         return;
       }
       const threadId = args.threadId;
