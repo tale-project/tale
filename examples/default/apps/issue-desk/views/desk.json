@@ -28,6 +28,18 @@
               "rowWhen": "!pull_request",
               "columns": ["number", "title", "state"],
               "perPage": 30,
+              "excludeBy": {
+                "query": {
+                  "path": "tasks/queries:listTasksByOrg",
+                  "args": {
+                    "organizationId": "$orgId",
+                    "externalSystem": "github",
+                    "limit": 500
+                  }
+                },
+                "refField": "externalId",
+                "rowKeyTemplate": "tale-project/tale#{number}"
+              },
               "actions": [
                 {
                   "labelKey": "issues.createTask",

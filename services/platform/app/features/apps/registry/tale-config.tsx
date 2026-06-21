@@ -212,6 +212,7 @@ export const taleConfig: Config<TaleComponents> = {
         columns,
         actions,
         perPage,
+        excludeBy,
       }) =>
         source?.path ? (
           <ExternalList
@@ -222,6 +223,7 @@ export const taleConfig: Config<TaleComponents> = {
             columns={columns}
             actions={actions}
             perPage={perPage}
+            excludeBy={excludeBy}
           />
         ) : (
           <></>

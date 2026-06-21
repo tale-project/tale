@@ -15,7 +15,7 @@ interface ActionQueryOptions {
  * fails even though the error IS a ConvexError. Structural shape is what
  * the UI actually consumes, so check that directly.
  */
-function isStructuredConvexError(err: unknown): boolean {
+export function isStructuredConvexError(err: unknown): boolean {
   if (err == null || typeof err !== 'object') return false;
   if (!('data' in err)) return false;
   const data = (err as { data: unknown }).data;

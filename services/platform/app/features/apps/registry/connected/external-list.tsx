@@ -2,28 +2,38 @@
 
 /**
  * Connected `ExternalList` block — the action-sourced sibling of `Collection`.
- * Fetches rows one-shot from any allowlisted action (data that lives outside
- * Convex, e.g. a GitHub repo's issues) with a Refresh affordance and optional
- * pagination, then renders them through the shared `DataTable`. Generic: the
- * action path, its args, the columns, the per-row actions, and any row filter
- * are all view config — the block carries no scenario knowledge.
+ * Fetches rows from any allowlisted action (data that lives outside Convex, e.g.
+ * a GitHub repo's issues) through a CACHED query (`useBoundActionQuery`,
+ * `staleTime: Infinity`) so re-entering the tab/page serves the cache instead of
+ * re-hitting upstream on every mount; an explicit Refresh re-fetches. Renders
+ * through the shared `DataTable`. Generic: the action path, its args, the
+ * columns, the per-row actions, any row filter, and an optional cross-reference
+ * exclusion are all view config — the block carries no scenario knowledge.
  *
  * Pagination is opt-in (set `perPage`); when on, the block sends `page`
  * (1-indexed) + `perPage` to the action and prefers the action's
- * `pagination.hasNextPage` flag, falling back to "a full page came back".
+ * `pagination.hasNextPage` flag, falling back to "a full page came back". Each
+ * page is cached under its own key, so paging back is instant.
+ *
+ * `excludeBy` (optional) hides rows already materialized into a Convex table:
+ * it binds a reactive query and drops any row whose `rowKeyTemplate` matches a
+ * key the query already holds (e.g. an issue whose task already exists). Because
+ * the query is reactive, creating that task hides the row live.
  */
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { CircleDot } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { excludeExisting } from '@/lib/shared/platform/exclude_by';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 import { isRecord } from '@/lib/utils/type-utils';
 
-import { useBoundAction } from '../../hooks/use-bound-action';
+import { useBoundActionQuery } from '../../hooks/use-bound-action-query';
+import { useBoundQuery } from '../../hooks/use-bound-query';
 import { type BoundActionSpec } from './bound-button';
 import { DataTable } from './data-table';
 import { Section } from './section';
@@ -42,6 +52,17 @@ export interface ExternalListProps {
   actions?: BoundActionSpec[];
   /** Page size; when set, the block paginates (`page` + `perPage` args). */
   perPage?: number;
+  /**
+   * Cross-reference exclusion: hide rows already represented in another Convex
+   * collection. `query` is an allowlisted reactive query whose rows hold the
+   * join key in `refField`; a source row is dropped when `rowKeyTemplate`
+   * (a `{field}` template over the row) resolves to one of those keys.
+   */
+  excludeBy?: {
+    query: { path: string; args?: unknown };
+    refField: string;
+    rowKeyTemplate: string;
+  };
 }
 
 /** Extract the rows array + a next-page hint from the action result. */
@@ -72,6 +93,25 @@ function parsePage(
   return { rows, hasNext };
 }
 
+/** Pull the rows array out of a bound-query result (array or common wrapper key). */
+function pickRefRows(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
+  if (isRecord(data)) {
+    for (const key of [
+      'tasks',
+      'items',
+      'rows',
+      'records',
+      'results',
+      'page',
+    ]) {
+      const v = data[key];
+      if (Array.isArray(v)) return v;
+    }
+  }
+  return [];
+}
+
 export function ExternalList({
   title,
   source,
@@ -80,43 +120,27 @@ export function ExternalList({
   columns,
   actions,
   perPage,
+  excludeBy,
 }: ExternalListProps) {
   const { t } = useT('apps');
-  const fetcher = useBoundAction(source.path, source.mode ?? 'action');
-  // dispatch identity is unstable; read the latest via a ref so the fetch effect
-  // depends only on the source params + page.
-  const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
 
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [page, setPage] = useState(1);
-  const [hasNext, setHasNext] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const paginated = perPage !== undefined;
   const sourceArgs = isRecord(source.args) ? source.args : {};
   const argsKey = JSON.stringify(sourceArgs);
 
-  const fetchPage = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetcherRef.current.dispatch({
-        ...sourceArgs,
-        ...(paginated ? { page, perPage } : {}),
-      });
-      const parsed = parsePage(result, itemsKey, perPage);
-      setRows(parsed.rows);
-      setHasNext(parsed.hasNext);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-    // sourceArgs is captured via argsKey to keep the dep list primitive.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source.path, argsKey, itemsKey, page, perPage, paginated]);
+  const query = useBoundActionQuery(source.path, {
+    ...sourceArgs,
+    ...(paginated ? { page, perPage } : {}),
+  });
+
+  const { rows, hasNext } = parsePage(query.data, itemsKey, perPage);
+
+  // Reactive cross-reference source (skips when no `excludeBy` — invalid path).
+  const refQuery = useBoundQuery(
+    excludeBy?.query.path ?? '',
+    excludeBy?.query.args,
+  );
 
   // Reset to page 1 when the query identity changes, so a changed source never
   // starts mid-pagination on a page that may not exist for the new query.
@@ -129,20 +153,25 @@ export function ExternalList({
     }
   }, [queryKey]);
 
-  useEffect(() => {
-    void fetchPage();
-  }, [fetchPage]);
-
-  const visibleRows = rowWhen
-    ? rows.filter((r) => evaluateWhen(rowWhen, r))
-    : rows;
+  const visibleRows = useMemo(() => {
+    const filtered = rowWhen
+      ? rows.filter((r) => evaluateWhen(rowWhen, r))
+      : rows;
+    if (!excludeBy) return filtered;
+    return excludeExisting(
+      filtered,
+      pickRefRows(refQuery.data),
+      excludeBy.refField,
+      excludeBy.rowKeyTemplate,
+    );
+  }, [rows, rowWhen, excludeBy, refQuery.data]);
 
   const refresh = (
     <Button
       size="sm"
       variant="ghost"
-      disabled={loading}
-      onClick={() => void fetchPage()}
+      disabled={query.isFetching}
+      onClick={() => query.refetch()}
     >
       {t('list.refresh')}
     </Button>
@@ -150,10 +179,16 @@ export function ExternalList({
 
   return (
     <Section title={title} icon={CircleDot} action={refresh}>
-      {loading && rows.length === 0 ? (
+      {query.blocked ? (
+        <Text variant="error">
+          {t('binding.blocked', { path: source.path })}
+        </Text>
+      ) : query.isLoading && rows.length === 0 ? (
         <SkeletonText lines={3} />
-      ) : error ? (
-        <Text variant="error">{t('list.error', { error })}</Text>
+      ) : query.error ? (
+        <Text variant="error">
+          {t('list.error', { error: query.error.message })}
+        </Text>
       ) : (
         <>
           {visibleRows.length === 0 ? (
@@ -162,14 +197,15 @@ export function ExternalList({
             <DataTable rows={visibleRows} columns={columns} actions={actions} />
           )}
           {/* Pagination stays available even when this page filtered to zero
-              visible rows (e.g. a whole page of rowWhen-excluded items), so the
-              user can advance to a page that has matches instead of dead-ending. */}
+              visible rows (e.g. a whole page of rowWhen/excludeBy-excluded
+              items), so the user can advance to a page that has matches instead
+              of dead-ending. */}
           {paginated && (
             <HStack gap={3} className="items-center justify-end">
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={loading || page <= 1}
+                disabled={query.isFetching || page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
                 {t('list.prev')}
@@ -180,7 +216,7 @@ export function ExternalList({
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={loading || !hasNext}
+                disabled={query.isFetching || !hasNext}
                 onClick={() => setPage((p) => p + 1)}
               >
                 {t('list.next')}

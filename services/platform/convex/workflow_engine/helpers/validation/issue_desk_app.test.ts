@@ -86,9 +86,7 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
 
   it('view is a tabbed shell with the expected areas', () => {
     const ids = (view.tabs ?? []).map((tab) => tab.id);
-    expect(ids).toEqual(
-      expect.arrayContaining(['overview', 'issues', 'tasks', 'runs']),
-    );
+    expect(ids).toEqual(['issues', 'tasks']);
   });
 
   it('every function the view binds (across tabs + columns) is allowlisted', () => {
@@ -102,6 +100,29 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(paths).toContain('tasks/public_actions:createTaskFromExternalIssue');
     const errors = validateViewBindings(view, manifest.capabilities?.functions);
     expect(errors).toEqual([]);
+  });
+
+  it('the Issues list hides already-created issues via an allowlisted cross-ref', () => {
+    const issues = blockOfType('ExternalList');
+    const excludeBy = issues?.props?.excludeBy as
+      | {
+          query?: { path?: string };
+          refField?: string;
+          rowKeyTemplate?: string;
+        }
+      | undefined;
+    // Cross-references tasks by their externalId, rebuilt from the issue row with
+    // the same template the materialize action uses to write it.
+    expect(excludeBy?.query?.path).toBe('tasks/queries:listTasksByOrg');
+    expect(excludeBy?.refField).toBe('externalId');
+    expect(excludeBy?.rowKeyTemplate).toBe('tale-project/tale#{number}');
+    // The cross-ref query is collected (so publish-time validation covers it)
+    // and is in the allowlist.
+    const paths = collectViewBindings(view).map((b) => b.path);
+    expect(paths).toContain('tasks/queries:listTasksByOrg');
+    expect(
+      validateViewBindings(view, manifest.capabilities?.functions),
+    ).toEqual([]);
   });
 
   it('workflow passes the cross-locale label consistency check (en/de/fr)', () => {

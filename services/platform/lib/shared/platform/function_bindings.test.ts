@@ -176,6 +176,33 @@ describe('collectViewBindings + validateViewBindings', () => {
     ]);
   });
 
+  it('collects an ExternalList `excludeBy` cross-reference query (mode query)', () => {
+    const withExclude = {
+      data: {
+        content: [
+          {
+            type: 'ExternalList',
+            props: {
+              source: { path: 'integrations/public_actions:listGitHubIssues' },
+              excludeBy: {
+                query: { path: 'tasks/queries:listTasksByOrg' },
+                refField: 'externalId',
+                rowKeyTemplate: 'tale-project/tale#{number}',
+              },
+            },
+          },
+        ],
+      },
+    };
+    expect(collectViewBindings(withExclude)).toEqual([
+      { path: 'tasks/queries:listTasksByOrg', mode: 'query' },
+      {
+        path: 'integrations/public_actions:listGitHubIssues',
+        mode: 'action',
+      },
+    ]);
+  });
+
   it('flags a bound path missing from the allowlist', () => {
     const offending = {
       data: {

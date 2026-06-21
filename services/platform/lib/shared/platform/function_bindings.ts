@@ -70,6 +70,16 @@ function collectFromData(data: unknown, out: CollectedBinding[]): void {
     if (isRec(props.query) && typeof props.query.path === 'string') {
       out.push({ path: props.query.path, mode: 'query' });
     }
+    // A list block may cross-reference a second reactive query under `excludeBy`
+    // (hide rows already materialized elsewhere); collect it so the cross-ref
+    // query is allowlist-checked like any other binding.
+    if (
+      isRec(props.excludeBy) &&
+      isRec(props.excludeBy.query) &&
+      typeof props.excludeBy.query.path === 'string'
+    ) {
+      out.push({ path: props.excludeBy.query.path, mode: 'query' });
+    }
     // An action-sourced list (`ExternalList`) declares its data fetch under
     // `source`, not `query`; collect it so it's allowlist-checked like the rest.
     if (isRec(props.source) && typeof props.source.path === 'string') {
