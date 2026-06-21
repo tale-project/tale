@@ -63,3 +63,55 @@ export function usePackLabel(): (
   const rt = useContext(AppRuntimeContext);
   return (labelKey, fallback) => (labelKey && rt?.labels[labelKey]) || fallback;
 }
+
+/**
+ * Resolve a view-authored DISPLAY string against the pack catalog. A view writes
+ * `$label:<key>` (the same marker the arg-template resolver uses) for a localized
+ * string, or a plain literal otherwise — so titles/labels localize while existing
+ * literal-only views keep rendering unchanged. Missing key → the bare key (a
+ * visible "untranslated" signal, never a blank). Pure, so it's unit-testable and
+ * shared by the app shell (which holds `labels` directly) and the connected
+ * blocks (via `usePackLabelString`).
+ */
+export function resolvePackLabel(
+  value: string | undefined,
+  labels: Record<string, string>,
+): string | undefined {
+  if (value === undefined) return undefined;
+  if (!value.startsWith('$label:')) return value;
+  const key = value.slice('$label:'.length);
+  return labels[key] ?? key;
+}
+
+/**
+ * Hook form of `resolvePackLabel` for connected registry blocks (which render
+ * inside `<Render>` and read the catalog from context). Degrades to `{}` outside
+ * a provider — like `usePackLabel`, a block must render its literal rather than
+ * crash.
+ */
+export function usePackLabelString(): (
+  value: string | undefined,
+) => string | undefined {
+  const rt = useContext(AppRuntimeContext);
+  return (value) => resolvePackLabel(value, rt?.labels ?? {});
+}
+
+/**
+ * Resolve a `{ column: label }` map (each label a `$label:` reference or literal)
+ * through a `usePackLabelString` resolver, dropping entries that resolve away.
+ * Pure (the resolver is injected) so list blocks share one rule and it's
+ * unit-testable. Returns `undefined` when there's nothing to resolve, so a block
+ * can pass it straight to `DataTable` (header falls back to the column key).
+ */
+export function resolveColumnLabels(
+  columnLabels: Record<string, string> | undefined,
+  resolve: (value: string | undefined) => string | undefined,
+): Record<string, string> | undefined {
+  if (!columnLabels) return undefined;
+  const out: Record<string, string> = {};
+  for (const [column, label] of Object.entries(columnLabels)) {
+    const resolved = resolve(label);
+    if (resolved !== undefined) out[column] = resolved;
+  }
+  return out;
+}

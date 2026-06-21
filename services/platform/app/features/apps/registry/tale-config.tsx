@@ -151,6 +151,7 @@ export const taleConfig: Config<TaleComponents> = {
         title,
         query,
         columns,
+        columnLabels,
         actions,
         subjectType,
         subjectIdField,
@@ -160,6 +161,7 @@ export const taleConfig: Config<TaleComponents> = {
             title={title}
             query={query}
             columns={columns}
+            columnLabels={columnLabels}
             actions={actions}
             subjectType={subjectType}
             subjectIdField={subjectIdField}
@@ -210,6 +212,7 @@ export const taleConfig: Config<TaleComponents> = {
         itemsKey,
         rowWhen,
         columns,
+        columnLabels,
         actions,
         perPage,
         excludeBy,
@@ -221,6 +224,7 @@ export const taleConfig: Config<TaleComponents> = {
             itemsKey={itemsKey}
             rowWhen={rowWhen}
             columns={columns}
+            columnLabels={columnLabels}
             actions={actions}
             perPage={perPage}
             excludeBy={excludeBy}

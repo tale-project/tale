@@ -245,6 +245,9 @@ navigation.runtimes
 # view JSON as `labelKey` / `doneLabelKey` and resolved at render via
 # `t(action.labelKey)` / `t(action.doneLabelKey)` in bound-button.tsx — the
 # scanner can't tie these literals back to that runtime callsite. (The issue-desk
-# ExternalList "Create task" button, and its post-create "Created" done state.)
+# ExternalList "Create task" button, and its post-create "Created" done state;
+# the Tasks board's "Start" / "Mark done" row actions.)
 apps.issues.createTask
 apps.list.created
+apps.list.start
+apps.list.markDone

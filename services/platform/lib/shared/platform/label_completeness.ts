@@ -44,6 +44,32 @@ export function collectWorkflowLabelKeys(workflow: {
 }
 
 /**
+ * Every Tier-2 pack label key a VIEW doc references via the `$label:<key>` marker
+ * — view/tab titles + descriptions, connected-block titles, `columnLabels`
+ * values, and `$label:` arg templates. The marker can sit at any depth, so this
+ * recurses the whole document (records + arrays). Pure; the caller reads the
+ * catalogs. Sibling to `collectWorkflowLabelKeys` (which covers `ui.labelKey`).
+ */
+export function collectViewLabelKeys(view: unknown): string[] {
+  const keys: string[] = [];
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') {
+      if (node.startsWith('$label:')) keys.push(node.slice('$label:'.length));
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    if (isRecord(node)) {
+      for (const value of Object.values(node)) walk(value);
+    }
+  };
+  walk(view);
+  return keys;
+}
+
+/**
  * Referenced keys that are absent or empty in any base locale's catalog, as
  * human-readable errors (empty result = every key present in every locale).
  */

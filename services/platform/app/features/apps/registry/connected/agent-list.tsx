@@ -24,7 +24,7 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundAction } from '../../hooks/use-bound-action';
-import { useAppRuntime } from '../../runtime/app-runtime';
+import { useAppRuntime, usePackLabelString } from '../../runtime/app-runtime';
 import { AgentEnvDialog } from './agent-env-dialog';
 import { AgentInstructionsDialog } from './agent-instructions-dialog';
 import { Section } from './section';
@@ -95,6 +95,7 @@ function AuthModeToggle({
 
 export function AgentList({ title, agents, roles }: AgentListProps) {
   const { t } = useT('apps');
+  const resolveTitle = usePackLabelString();
   const { appSlug } = useAppRuntime();
   const list = useBoundAction('agents/file_actions:listAppAgents', 'action');
   const listRef = useRef(list);
@@ -197,7 +198,7 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
 
   return (
     <>
-      <Section title={title} icon={Users}>
+      <Section title={resolveTitle(title)} icon={Users}>
         {error ? (
           <Text variant="error">{t('agents.error', { error })}</Text>
         ) : loading && rows.length === 0 ? (

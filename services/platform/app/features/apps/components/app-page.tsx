@@ -26,7 +26,7 @@ import {
   useAppInstallStates,
 } from '../hooks/use-install-state';
 import { AppView } from '../registry/app-view';
-import { AppRuntimeProvider } from '../runtime/app-runtime';
+import { AppRuntimeProvider, resolvePackLabel } from '../runtime/app-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
 import { AppLifecycleActions } from './app-lifecycle-actions';
 
@@ -102,8 +102,15 @@ function TabContent({ tab }: { tab: AppTabDoc }) {
   return <AppView data={tab.data} />;
 }
 
-/** A view body: the tabbed shell (navigated) or a flat Puck Data document. */
-function ViewBody({ view }: { view: AppViewDoc }) {
+/** A view body: the tabbed shell (navigated) or a flat Puck Data document. Tab
+ *  labels are pack-catalog `$label:` references (or literals), resolved here. */
+function ViewBody({
+  view,
+  labels,
+}: {
+  view: AppViewDoc;
+  labels: Record<string, string>;
+}) {
   if (view.tabs && view.tabs.length > 0) {
     return (
       <Tabs
@@ -111,7 +118,7 @@ function ViewBody({ view }: { view: AppViewDoc }) {
         defaultValue={view.tabs[0].id}
         items={view.tabs.map((tab) => ({
           value: tab.id,
-          label: tab.label,
+          label: resolvePackLabel(tab.label, labels) ?? tab.label,
           content: <TabContent tab={tab} />,
         }))}
       />
@@ -199,23 +206,27 @@ export function AppPage({
               description={t('noViews.description')}
             />
           ) : (
-            app.views.map((view) => (
-              <VStack key={view.id} gap={4}>
-                {(view.title || view.description) && (
-                  <VStack gap={1}>
-                    {view.title && (
-                      <Text as="span" className="text-xl font-semibold">
-                        {view.title}
-                      </Text>
-                    )}
-                    {view.description && (
-                      <Text variant="muted">{view.description}</Text>
-                    )}
-                  </VStack>
-                )}
-                <ViewBody view={view} />
-              </VStack>
-            ))
+            app.views.map((view) => {
+              const title = resolvePackLabel(view.title, labels);
+              const description = resolvePackLabel(view.description, labels);
+              return (
+                <VStack key={view.id} gap={4}>
+                  {(title || description) && (
+                    <VStack gap={1}>
+                      {title && (
+                        <Text as="span" className="text-xl font-semibold">
+                          {title}
+                        </Text>
+                      )}
+                      {description && (
+                        <Text variant="muted">{description}</Text>
+                      )}
+                    </VStack>
+                  )}
+                  <ViewBody view={view} labels={labels} />
+                </VStack>
+              );
+            })
           )}
           <HStack gap={2} className="justify-end">
             <AppLifecycleActions

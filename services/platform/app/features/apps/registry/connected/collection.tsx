@@ -19,6 +19,10 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundQuery } from '../../hooks/use-bound-query';
+import {
+  resolveColumnLabels,
+  usePackLabelString,
+} from '../../runtime/app-runtime';
 import { type BoundActionSpec } from './bound-button';
 import { DataTable } from './data-table';
 import { Section } from './section';
@@ -29,6 +33,8 @@ export interface CollectionProps {
   query: { path: string; args?: unknown };
   /** Columns to show; if omitted, inferred from the first row (minus id-like keys). */
   columns?: string[];
+  /** Header text per column key — each a `$label:` pack reference or literal. */
+  columnLabels?: Record<string, string>;
   actions?: BoundActionSpec[];
   /** When set, rows expand to show their workflow run inline (the execution
    *  "about" this subject). Generic — any domain list opts in. */
@@ -59,16 +65,18 @@ export function Collection({
   title,
   query,
   columns,
+  columnLabels,
   actions,
   subjectType,
   subjectIdField = '_id',
 }: CollectionProps) {
   const { t } = useT('apps');
+  const labelOf = usePackLabelString();
   const { data, isLoading, blocked } = useBoundQuery(query.path, query.args);
   const rows = pickArray(data);
 
   return (
-    <Section title={title} icon={ListChecks}>
+    <Section title={labelOf(title)} icon={ListChecks}>
       {blocked ? (
         <Text variant="error">
           {t('binding.blocked', { path: query.path })}
@@ -81,6 +89,7 @@ export function Collection({
         <DataTable
           rows={rows}
           columns={columns}
+          columnLabels={resolveColumnLabels(columnLabels, labelOf)}
           actions={actions}
           expansion={
             subjectType

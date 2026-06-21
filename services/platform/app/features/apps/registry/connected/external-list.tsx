@@ -34,6 +34,10 @@ import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundActionQuery } from '../../hooks/use-bound-action-query';
 import { useBoundQuery } from '../../hooks/use-bound-query';
+import {
+  resolveColumnLabels,
+  usePackLabelString,
+} from '../../runtime/app-runtime';
 import { type BoundActionSpec } from './bound-button';
 import { DataTable } from './data-table';
 import { Section } from './section';
@@ -48,6 +52,8 @@ export interface ExternalListProps {
   rowWhen?: string;
   /** Columns to show; if omitted, inferred from the first row. */
   columns?: string[];
+  /** Header text per column key — each a `$label:` pack reference or literal. */
+  columnLabels?: Record<string, string>;
   /** Per-row actions, bound to the row via `BoundButton`. */
   actions?: BoundActionSpec[];
   /** Page size; when set, the block paginates (`page` + `perPage` args). */
@@ -118,11 +124,13 @@ export function ExternalList({
   itemsKey,
   rowWhen,
   columns,
+  columnLabels,
   actions,
   perPage,
   excludeBy,
 }: ExternalListProps) {
   const { t } = useT('apps');
+  const labelOf = usePackLabelString();
 
   const [page, setPage] = useState(1);
   const paginated = perPage !== undefined;
@@ -178,7 +186,7 @@ export function ExternalList({
   );
 
   return (
-    <Section title={title} icon={CircleDot} action={refresh}>
+    <Section title={labelOf(title)} icon={CircleDot} action={refresh}>
       {query.blocked ? (
         <Text variant="error">
           {t('binding.blocked', { path: source.path })}
@@ -194,7 +202,12 @@ export function ExternalList({
           {visibleRows.length === 0 ? (
             <Text variant="muted">{t('binding.empty')}</Text>
           ) : (
-            <DataTable rows={visibleRows} columns={columns} actions={actions} />
+            <DataTable
+              rows={visibleRows}
+              columns={columns}
+              columnLabels={resolveColumnLabels(columnLabels, labelOf)}
+              actions={actions}
+            />
           )}
           {/* Pagination stays available even when this page filtered to zero
               visible rows (e.g. a whole page of rowWhen/excludeBy-excluded

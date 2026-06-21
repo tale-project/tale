@@ -59,7 +59,9 @@
       "prev": "Zurück",
       "next": "Weiter",
       "page": "Seite {page}",
-      "created": "Erstellt"
+      "created": "Erstellt",
+      "start": "Starten",
+      "markDone": "Als erledigt markieren"
     },
     "agents": {
       "none": "Keine Agenten konfiguriert.",
@@ -7602,7 +7604,6 @@
     "keyPlaceholder": "NAME",
     "valuePlaceholder": "Wert",
     "secret": "Geheim",
-    "secretKept": "•••••••• (unverändert)",
     "add": "Variable hinzufügen",
     "remove": "Entfernen",
     "save": "Speichern",

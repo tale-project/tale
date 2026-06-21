@@ -88,6 +88,9 @@ export interface DataTableProps {
   rows: Record<string, unknown>[];
   /** Columns to show; if omitted, inferred from the first row. */
   columns?: string[];
+  /** Header text per column key (already locale-resolved by the caller); a column
+   *  with no entry falls back to its capitalized key. */
+  columnLabels?: Record<string, string>;
   /** Per-row actions, rendered as `BoundButton`s bound to the row. */
   actions?: BoundActionSpec[];
   /** When set, each row expands to render detail in-context (the `idField` value
@@ -103,6 +106,7 @@ export interface DataTableProps {
 export function DataTable({
   rows,
   columns,
+  columnLabels,
   actions,
   expansion,
   maxRows = 50,
@@ -120,7 +124,7 @@ export function DataTable({
           {expansion && <TableHead className="w-8" />}
           {cols.map((c) => (
             <TableHead key={c} className="capitalize">
-              {c}
+              {columnLabels?.[c] ?? c}
             </TableHead>
           ))}
           {acts.length > 0 && <TableHead />}

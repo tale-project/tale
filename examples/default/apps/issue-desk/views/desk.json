@@ -1,11 +1,11 @@
 {
   "id": "desk",
-  "title": "Issue resolution desk",
-  "description": "Pull GitHub issues, turn them into tasks, and let the agent team resolve them.",
+  "title": "$label:issueDesk.deskTitle",
+  "description": "$label:issueDesk.deskDescription",
   "tabs": [
     {
       "id": "issues",
-      "label": "Issues",
+      "label": "$label:issueDesk.tab.issues",
       "data": {
         "root": { "props": {} },
         "zones": {},
@@ -14,7 +14,7 @@
             "type": "ExternalList",
             "props": {
               "id": "issues",
-              "title": "GitHub issues",
+              "title": "$label:issueDesk.issuesListTitle",
               "source": {
                 "path": "integrations/public_actions:listGitHubIssues",
                 "args": {
@@ -27,6 +27,11 @@
               "itemsKey": "data",
               "rowWhen": "!pull_request",
               "columns": ["number", "title", "state"],
+              "columnLabels": {
+                "number": "$label:issueDesk.col.number",
+                "title": "$label:issueDesk.col.title",
+                "state": "$label:issueDesk.col.state"
+              },
               "perPage": 30,
               "excludeBy": {
                 "query": {
@@ -70,7 +75,7 @@
     },
     {
       "id": "tasks",
-      "label": "Tasks",
+      "label": "$label:issueDesk.tab.tasks",
       "data": {
         "root": { "props": {} },
         "zones": {},
@@ -79,7 +84,7 @@
             "type": "Collection",
             "props": {
               "id": "tasks",
-              "title": "Tasks",
+              "title": "$label:issueDesk.tasksListTitle",
               "query": {
                 "path": "tasks/queries:listTasksByOrg",
                 "args": {
@@ -88,10 +93,14 @@
                 }
               },
               "columns": ["title", "status"],
+              "columnLabels": {
+                "title": "$label:issueDesk.col.title",
+                "status": "$label:issueDesk.col.status"
+              },
               "subjectType": "task",
               "actions": [
                 {
-                  "label": "Start",
+                  "labelKey": "list.start",
                   "path": "tasks/public_actions:startTaskWorkflow",
                   "mode": "action",
                   "when": "status == backlog || status == todo",
@@ -102,7 +111,7 @@
                   }
                 },
                 {
-                  "label": "Mark done",
+                  "labelKey": "list.markDone",
                   "path": "tasks/mutations:updateTaskStatus",
                   "mode": "mutation",
                   "when": "status != done",

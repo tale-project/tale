@@ -26,7 +26,7 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundQuery } from '../../hooks/use-bound-query';
-import { useAppRuntime } from '../../runtime/app-runtime';
+import { useAppRuntime, usePackLabelString } from '../../runtime/app-runtime';
 import { STATUS_VARIANT } from './data-table';
 import { Section } from './section';
 
@@ -54,6 +54,7 @@ function fmt(ts: unknown): string {
 
 export function RunList({ title, workflowSlug }: RunListProps) {
   const { t } = useT('apps');
+  const labelOf = usePackLabelString();
   const { organizationId, appSlug } = useAppRuntime();
   const navigate = useNavigate();
   const args = useMemo(
@@ -70,7 +71,7 @@ export function RunList({ title, workflowSlug }: RunListProps) {
   const runs = pickPage(data);
 
   return (
-    <Section title={title} icon={Activity}>
+    <Section title={labelOf(title)} icon={Activity}>
       {blocked ? (
         <Text variant="error">
           {t('binding.blocked', {

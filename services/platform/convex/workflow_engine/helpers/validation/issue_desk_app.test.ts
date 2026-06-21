@@ -17,6 +17,7 @@ import {
   validateViewBindings,
 } from '../../../../lib/shared/platform/function_bindings';
 import {
+  collectViewLabelKeys,
   collectWorkflowLabelKeys,
   findMissingLabelKeys,
 } from '../../../../lib/shared/platform/label_completeness';
@@ -184,6 +185,51 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
       // raw GitHub field names, since `$label:` interpolates over the row.
       for (const ph of ['{title}', '{number}', '{html_url}']) {
         expect(template, `${locale} ${ph}`).toContain(ph);
+      }
+    }
+  });
+
+  it('every $label: the view authors (title/tabs/list titles/columns) resolves in en/de/fr', () => {
+    const catalogs = {
+      en: readJson('messages/en.json') as Record<string, string>,
+      de: readJson('messages/de.json') as Record<string, string>,
+      fr: readJson('messages/fr.json') as Record<string, string>,
+    };
+    const referenced = collectViewLabelKeys(view);
+    // Sanity: the view now authors its display strings as pack references (the
+    // bug was these being raw English literals that never hit the catalog).
+    expect(referenced).toEqual(
+      expect.arrayContaining([
+        'issueDesk.deskTitle',
+        'issueDesk.deskDescription',
+        'issueDesk.tab.issues',
+        'issueDesk.tab.tasks',
+        'issueDesk.issuesListTitle',
+        'issueDesk.tasksListTitle',
+        'issueDesk.col.number',
+        'issueDesk.col.status',
+      ]),
+    );
+    expect(
+      findMissingLabelKeys(referenced, catalogs, ['en', 'de', 'fr']),
+    ).toEqual([]);
+  });
+
+  it("the Tasks board's row-action labelKeys exist in the platform apps catalog (en/de/fr)", () => {
+    // Start / Mark done resolve via `t(action.labelKey)` against the PLATFORM
+    // `apps` namespace (generic chrome), not the pack catalog — so guard those.
+    const platformMessagesDir = fileURLToPath(
+      new URL('../../../../messages/', import.meta.url),
+    );
+    for (const locale of ['en', 'de', 'fr']) {
+      const msgs = JSON.parse(
+        readFileSync(resolve(platformMessagesDir, `${locale}.json`), 'utf8'),
+      ) as { apps?: { list?: Record<string, string> } };
+      for (const key of ['start', 'markDone']) {
+        expect(
+          msgs.apps?.list?.[key],
+          `${locale} apps.list.${key}`,
+        ).toBeTruthy();
       }
     }
   });

@@ -5,5 +5,15 @@
   "issueDesk.review": "Prüfen & beheben",
   "issueDesk.judge": "Merge-Entscheidung",
   "issueDesk.openPr": "Pull Request öffnen",
-  "issueDesk.taskTemplate": "Behebe dieses GitHub-Issue: {title} (#{number}). Details: {html_url}"
+  "issueDesk.taskTemplate": "Behebe dieses GitHub-Issue: {title} (#{number}). Details: {html_url}",
+  "issueDesk.deskTitle": "Issue-Bearbeitung",
+  "issueDesk.deskDescription": "Hol GitHub-Issues herein, mach Aufgaben daraus und lass das Agenten-Team sie lösen.",
+  "issueDesk.tab.issues": "Issues",
+  "issueDesk.tab.tasks": "Aufgaben",
+  "issueDesk.issuesListTitle": "GitHub-Issues",
+  "issueDesk.tasksListTitle": "Aufgaben",
+  "issueDesk.col.number": "Nummer",
+  "issueDesk.col.title": "Titel",
+  "issueDesk.col.state": "Status",
+  "issueDesk.col.status": "Status"
 }

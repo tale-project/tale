@@ -34,7 +34,7 @@ import { useT } from '@/lib/i18n/client';
 import type { StepType } from '@/lib/shared/schemas/workflows';
 import { isRecord } from '@/lib/utils/type-utils';
 
-import { useAppRuntime } from '../../runtime/app-runtime';
+import { useAppRuntime, usePackLabelString } from '../../runtime/app-runtime';
 import { Section } from './section';
 
 export interface WorkflowDagProps {
@@ -100,6 +100,7 @@ export function WorkflowDag({
   editable,
 }: WorkflowDagProps) {
   const { t } = useT('apps');
+  const labelOf = usePackLabelString();
   const { organizationId } = useAppRuntime();
   const read = useReadWorkflow(organizationId, workflowSlug);
   const config = read.data?.ok ? read.data.config : undefined;
@@ -212,7 +213,7 @@ export function WorkflowDag({
   }
 
   return (
-    <Section title={title} icon={Workflow}>
+    <Section title={labelOf(title)} icon={Workflow}>
       {body}
     </Section>
   );

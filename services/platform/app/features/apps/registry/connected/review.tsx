@@ -14,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundQuery } from '../../hooks/use-bound-query';
+import { usePackLabelString } from '../../runtime/app-runtime';
 import { Section } from './section';
 
 export interface ReviewQueueProps {
@@ -31,11 +32,12 @@ function label(row: Record<string, unknown>): string {
 
 export function ReviewQueue({ title, query }: ReviewQueueProps) {
   const { t } = useT('apps');
+  const labelOf = usePackLabelString();
   const { data, blocked } = useBoundQuery(query.path, query.args);
   const rows = (Array.isArray(data) ? data : []).filter(isRecord);
 
   return (
-    <Section title={title} icon={ClipboardCheck}>
+    <Section title={labelOf(title)} icon={ClipboardCheck}>
       {blocked ? (
         <Text variant="error">
           {t('binding.blocked', { path: query.path })}

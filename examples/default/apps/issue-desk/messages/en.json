@@ -5,5 +5,15 @@
   "issueDesk.review": "Review & fix",
   "issueDesk.judge": "Merge decision",
   "issueDesk.openPr": "Open pull request",
-  "issueDesk.taskTemplate": "Resolve this GitHub issue: {title} (#{number}). Details: {html_url}"
+  "issueDesk.taskTemplate": "Resolve this GitHub issue: {title} (#{number}). Details: {html_url}",
+  "issueDesk.deskTitle": "Issue resolution desk",
+  "issueDesk.deskDescription": "Pull GitHub issues, turn them into tasks, and let the agent team resolve them.",
+  "issueDesk.tab.issues": "Issues",
+  "issueDesk.tab.tasks": "Tasks",
+  "issueDesk.issuesListTitle": "GitHub issues",
+  "issueDesk.tasksListTitle": "Tasks",
+  "issueDesk.col.number": "Number",
+  "issueDesk.col.title": "Title",
+  "issueDesk.col.state": "State",
+  "issueDesk.col.status": "Status"
 }

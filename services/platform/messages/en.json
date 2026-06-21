@@ -59,7 +59,9 @@
       "prev": "Previous",
       "next": "Next",
       "page": "Page {page}",
-      "created": "Created"
+      "created": "Created",
+      "start": "Start",
+      "markDone": "Mark done"
     },
     "agents": {
       "none": "No agents configured.",
@@ -7602,7 +7604,6 @@
     "keyPlaceholder": "NAME",
     "valuePlaceholder": "value",
     "secret": "Secret",
-    "secretKept": "•••••••• (unchanged)",
     "add": "Add variable",
     "remove": "Remove",
     "save": "Save",
