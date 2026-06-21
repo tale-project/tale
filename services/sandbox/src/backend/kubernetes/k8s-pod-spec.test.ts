@@ -264,6 +264,14 @@ describe('buildSandboxPod', () => {
     }
   });
 
+  test('RUNNER_WRAPPER enforces per-process ulimits matching docker-args.ts', () => {
+    const c = runner(buildSandboxPod(cfg, goodInput));
+    const script = c.command?.[2] ?? '';
+    // Parity with --pids-limit=128, --ulimit fsize=104857600 (204800 blocks),
+    // --ulimit cpu=600, --ulimit core=0 from docker-args.ts.
+    expect(script).toContain('ulimit -u 128 -f 204800 -t 600 -c 0');
+  });
+
   test('RUNNER_WRAPPER invariant: a surviving wrapper always exits 0 (echo is last)', () => {
     // The runner-dead short-circuit in k8s-backend.ts depends on this: the
     // wrapper's LAST command is the echo into the exit-code file, so a
