@@ -131,7 +131,6 @@
       "empty": "Aucune sortie"
     },
     "field": {
-      "attempts": "Tentatives",
       "duration": "Durée",
       "count": "Nombre",
       "source": "Source",
@@ -156,8 +155,7 @@
     },
     "action": {
       "open": "Ouvrir",
-      "openFile": "Ouvrir {name}",
-      "confirm": "Êtes-vous sûr ?"
+      "openFile": "Ouvrir {name}"
     },
     "verdict": {
       "yes": "Oui",

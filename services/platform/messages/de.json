@@ -131,7 +131,6 @@
       "empty": "Keine Ausgabe"
     },
     "field": {
-      "attempts": "Versuche",
       "duration": "Dauer",
       "count": "Anzahl",
       "source": "Quelle",
@@ -156,8 +155,7 @@
     },
     "action": {
       "open": "Öffnen",
-      "openFile": "{name} öffnen",
-      "confirm": "Bist du sicher?"
+      "openFile": "{name} öffnen"
     },
     "verdict": {
       "yes": "Ja",

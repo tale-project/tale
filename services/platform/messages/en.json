@@ -131,7 +131,6 @@
       "empty": "No output"
     },
     "field": {
-      "attempts": "Attempts",
       "duration": "Duration",
       "count": "Count",
       "source": "Source",
@@ -156,8 +155,7 @@
     },
     "action": {
       "open": "Open",
-      "openFile": "Open {name}",
-      "confirm": "Are you sure?"
+      "openFile": "Open {name}"
     },
     "verdict": {
       "yes": "Yes",
