@@ -9,6 +9,7 @@ import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { FileText } from 'lucide-react';
 
+import { MarkdownContent } from '@/app/features/chat/components/message-bubble/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -83,11 +84,7 @@ export function StreamPanel({ part }: { part: RenderPart }) {
 
   return (
     <VStack gap={2}>
-      {summary !== undefined && (
-        <Text as="div" className="whitespace-pre-wrap">
-          {summary}
-        </Text>
-      )}
+      {summary !== undefined && <MarkdownContent content={summary} />}
       {files !== undefined && files.length > 0 && <FileLinks files={files} />}
       {entries.slice(0, 100).map((raw, i) => {
         const entry = asRecord(raw);

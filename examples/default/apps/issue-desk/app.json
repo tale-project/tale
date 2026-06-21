@@ -32,6 +32,10 @@
       {
         "path": "tasks/public_actions:createTaskFromExternalIssue",
         "mode": "action"
+      },
+      {
+        "path": "tasks/public_actions:mergeTaskPullRequest",
+        "mode": "action"
       }
     ]
   },

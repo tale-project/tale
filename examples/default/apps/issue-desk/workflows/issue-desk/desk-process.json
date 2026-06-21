@@ -143,7 +143,13 @@
         "stage": "review",
         "render": "status",
         "labelKey": "issueDesk.judge",
-        "params": { "display": "gate" }
+        "params": {
+          "display": "gate",
+          "verdictLabels": {
+            "yes": "issueDesk.verdictReady",
+            "no": "issueDesk.verdictNeedsWork"
+          }
+        }
       },
       "config": {
         "name": "merge-judge",
@@ -171,12 +177,12 @@
     },
     {
       "stepSlug": "to_review",
-      "name": "Park at In review (await human merge)",
+      "name": "Mark as In review",
       "stepType": "action",
       "ui": {
         "stage": "deliver",
         "render": "status",
-        "labelKey": "issueDesk.openPr"
+        "labelKey": "issueDesk.markInReview"
       },
       "config": {
         "type": "task",

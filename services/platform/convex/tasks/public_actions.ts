@@ -4,7 +4,7 @@ import { api, internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { type ActionCtx, action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
-import { parseIssueNumber } from './issue_ref';
+import { parseIssueNumber, parseRepoRef } from './issue_ref';
 
 /**
  * Start a workflow ON an existing task, subject-linked so any UI showing the
@@ -201,5 +201,159 @@ export const startTaskWorkflow = action({
       return { started: false, reason: 'not_started', executionId: null };
     }
     return { started: true, executionId };
+  },
+});
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+interface PullSummary {
+  number: number;
+  state: string;
+  mergedAt: string | null;
+}
+
+/**
+ * Pull requests out of an `executeIntegration` result. The connector return is
+ * nested under `.result` ({ data: [...] }); be defensive about the v.any()
+ * boundary and keep only entries with a numeric `number`. Carries `state` and
+ * `mergedAt` so the caller can tell an open PR (to merge) from one already merged.
+ */
+function pullsFromResult(raw: unknown): PullSummary[] {
+  if (!isObject(raw)) return [];
+  const inner = isObject(raw.result) ? raw.result : raw;
+  if (!Array.isArray(inner.data)) return [];
+  const pulls: PullSummary[] = [];
+  for (const pr of inner.data) {
+    if (isObject(pr) && typeof pr.number === 'number') {
+      pulls.push({
+        number: pr.number,
+        state: typeof pr.state === 'string' ? pr.state : 'open',
+        mergedAt: typeof pr.merged_at === 'string' ? pr.merged_at : null,
+      });
+    }
+  }
+  return pulls;
+}
+
+/**
+ * Merge the pull request a task's issue-desk run produced, then close the task.
+ * The run parks the task at `in_review` (the PR was opened during the implement
+ * step); this powers the human "Merge" affordance on the finished run. The PR
+ * number isn't in structured step output, so derive `owner/repo` from the task's
+ * `externalId` and find the PR by the implementer's deterministic head branch
+ * `tale/<taskId>`.
+ *
+ * Idempotent: an OPEN PR is squash-merged; a PR that is ALREADY merged counts as
+ * success (no-op merge). Either way the task is closed to `done`. The explicit
+ * user click (+ confirm) authorizes the merge, so the integration approval gate
+ * is skipped — `merge_pull_request` stays `requiresApproval` for any
+ * agent/workflow caller.
+ */
+export const mergeTaskPullRequest = action({
+  args: {
+    organizationId: v.string(),
+    taskId: v.id('tasks'),
+    mergeMethod: v.optional(
+      v.union(v.literal('merge'), v.literal('squash'), v.literal('rebase')),
+    ),
+  },
+  returns: v.object({
+    merged: v.boolean(),
+    pullNumber: v.number(),
+    alreadyMerged: v.boolean(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    merged: boolean;
+    pullNumber: number;
+    alreadyMerged: boolean;
+  }> => {
+    await requireOrgMembershipById(ctx, args.organizationId);
+
+    const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
+      taskId: args.taskId,
+    });
+    if (!loaded?.task) {
+      throw new Error('Task not found');
+    }
+    const repoRef = parseRepoRef(loaded.task.externalId);
+    if (!repoRef) {
+      throw new Error(
+        'This task is not linked to a GitHub repository, so its pull request cannot be merged.',
+      );
+    }
+    const { owner, repo } = repoRef;
+    const headBranch = `tale/${args.taskId}`;
+
+    // Find the PR for this deterministic branch (any state) rather than threading
+    // the PR number through the workflow.
+    const listed = await ctx.runAction(
+      internal.agent_tools.integrations.internal_actions.executeIntegration,
+      {
+        organizationId: args.organizationId,
+        integrationName: 'github',
+        operation: 'list_pull_requests',
+        params: {
+          owner,
+          repo,
+          head: `${owner}:${headBranch}`,
+          state: 'all',
+          per_page: 20,
+        },
+        skipApprovalCheck: true,
+      },
+    );
+    const pulls = pullsFromResult(listed);
+    const open = pulls.filter((pr) => pr.state === 'open');
+    if (open.length > 1) {
+      throw new Error(
+        `Found ${open.length} open pull requests for branch ${headBranch}; refusing to merge ambiguously.`,
+      );
+    }
+
+    let pullNumber: number;
+    let alreadyMerged: boolean;
+    if (open.length === 1) {
+      pullNumber = open[0].number;
+      alreadyMerged = false;
+      // The user click + confirm IS the approval — skip the integration queue.
+      await ctx.runAction(
+        internal.agent_tools.integrations.internal_actions.executeIntegration,
+        {
+          organizationId: args.organizationId,
+          integrationName: 'github',
+          operation: 'merge_pull_request',
+          params: {
+            owner,
+            repo,
+            pull_number: open[0].number,
+            merge_method: args.mergeMethod ?? 'squash',
+          },
+          skipApprovalCheck: true,
+        },
+      );
+    } else {
+      // No open PR — treat an already-merged PR as success (idempotent).
+      const merged = pulls.find((pr) => pr.mergedAt !== null);
+      if (!merged) {
+        throw new Error(
+          `No open or merged pull request found for branch ${headBranch}.`,
+        );
+      }
+      pullNumber = merged.number;
+      alreadyMerged = true;
+    }
+
+    // Merged (now or already) — close the task out (it was parked at in_review).
+    await ctx.runMutation(api.tasks.mutations.updateTaskStatus, {
+      taskId: args.taskId,
+      status: 'done',
+    });
+
+    return { merged: true, pullNumber, alreadyMerged };
   },
 });

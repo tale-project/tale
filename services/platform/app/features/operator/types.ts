@@ -20,6 +20,10 @@ export interface StepUiAnnotation {
     mode?: string;
     cardinality?: string;
     fields?: { key: string; labelKey: string; type: string }[];
+    /** For a `gate`-treated step: maps the step's scalar verdict output (e.g.
+     * `"yes"`/`"no"`) to a pack Tier-2 label key, so the panel can render a
+     * clear verdict badge instead of hiding the decision. */
+    verdictLabels?: Record<string, string>;
   };
 }
 

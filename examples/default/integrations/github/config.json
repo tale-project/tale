@@ -255,6 +255,48 @@
       }
     },
     {
+      "name": "merge_pull_request",
+      "title": "Merge Pull Request",
+      "description": "Merge a pull request into its base branch",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Repository owner (user or organization)",
+            "required": true
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "required": true
+          },
+          "pull_number": {
+            "type": "number",
+            "description": "Pull request number",
+            "required": true
+          },
+          "merge_method": {
+            "type": "string",
+            "description": "merge | squash | rebase (defaults to merge)",
+            "required": false
+          },
+          "commit_title": {
+            "type": "string",
+            "description": "Title for the merge commit",
+            "required": false
+          },
+          "commit_message": {
+            "type": "string",
+            "description": "Extra detail appended to the merge commit message",
+            "required": false
+          }
+        }
+      }
+    },
+    {
       "name": "create_pull_request",
       "title": "Create Pull Request",
       "description": "Create a new pull request in a repository",

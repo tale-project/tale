@@ -90,6 +90,24 @@ describe('StreamPanel', () => {
     expect(screen.getByText('Opened PR #42; CI green.')).toBeInTheDocument();
   });
 
+  it('renders the summary as formatted markdown (heading/bold), not literal syntax', () => {
+    render(
+      <StreamPanel
+        part={streamPart({
+          partState: 'output_available',
+          data: { summary: '# Summary\n\nFixed the **ulimit** parity.' },
+        })}
+      />,
+    );
+    // The markdown heading becomes a real heading element, not literal "# Summary".
+    expect(
+      screen.getByRole('heading', { name: 'Summary' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('# Summary')).not.toBeInTheDocument();
+    // Inline emphasis renders as <strong>, not literal asterisks.
+    expect(screen.getByText('ulimit').tagName).toBe('STRONG');
+  });
+
   it('renders a markdown file as an in-place preview trigger and other files as download links', () => {
     render(
       <StreamPanel

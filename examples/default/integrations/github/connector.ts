@@ -91,6 +91,7 @@ const connector = {
     'list_pull_requests',
     'get_pull_request',
     'create_pull_request',
+    'merge_pull_request',
     'get_pull_request_files',
     'get_pull_request_diff',
     'create_pull_request_review',
@@ -170,6 +171,8 @@ const connector = {
       return getPullRequest(http, headers, params);
     if (operation === 'create_pull_request')
       return createPullRequest(http, headers, params);
+    if (operation === 'merge_pull_request')
+      return mergePullRequest(http, headers, params);
     if (operation === 'get_pull_request_files')
       return getPullRequestFiles(http, headers, params);
     if (operation === 'get_pull_request_diff')
@@ -589,6 +592,57 @@ function createPullRequest(
   return {
     success: true,
     operation: 'create_pull_request',
+    data: response.json(),
+    count: 1,
+    timestamp: Date.now(),
+  };
+}
+
+function mergePullRequest(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const owner = requireParam(params, 'owner', 'merge_pull_request');
+  const repo = requireParam(params, 'repo', 'merge_pull_request');
+  const pullNumber = requireParam(params, 'pull_number', 'merge_pull_request');
+
+  const payload: Record<string, unknown> = {};
+  if (params.merge_method) payload.merge_method = params.merge_method;
+  if (params.commit_title) payload.commit_title = params.commit_title;
+  if (params.commit_message) payload.commit_message = params.commit_message;
+  if (params.sha) payload.sha = params.sha;
+
+  const url =
+    API_BASE +
+    '/repos/' +
+    encodeURIComponent(String(owner)) +
+    '/' +
+    encodeURIComponent(String(repo)) +
+    '/pulls/' +
+    encodeURIComponent(String(pullNumber)) +
+    '/merge';
+  console.log('Merging pull request at: ' + url);
+
+  // GitHub returns 405 when the PR is not mergeable (failing/pending checks or a
+  // dirty mergeable_state) and 409 on a merge conflict — both surface through
+  // handleError's generic >= 400 branch with GitHub's own message.
+  const response = http.put(url, {
+    headers: headers,
+    body: JSON.stringify(payload),
+  });
+  if (response.status === 0) {
+    return {
+      success: true,
+      operation: 'merge_pull_request',
+      data: { pending: true },
+    };
+  }
+  handleError(response, 'merge_pull_request');
+
+  return {
+    success: true,
+    operation: 'merge_pull_request',
     data: response.json(),
     count: 1,
     timestamp: Date.now(),

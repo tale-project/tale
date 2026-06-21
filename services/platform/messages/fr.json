@@ -61,7 +61,8 @@
       "page": "Page {page}",
       "created": "Créé",
       "start": "Démarrer",
-      "markDone": "Marquer comme terminé"
+      "markDone": "Marquer comme terminé",
+      "merge": "Merger la pull request"
     },
     "agents": {
       "none": "Aucun agent configuré.",
@@ -155,7 +156,12 @@
     },
     "action": {
       "open": "Ouvrir",
-      "openFile": "Ouvrir {name}"
+      "openFile": "Ouvrir {name}",
+      "confirm": "Êtes-vous sûr ?"
+    },
+    "verdict": {
+      "yes": "Oui",
+      "no": "Non"
     },
     "filePreview": {
       "description": "Aperçu de {name}",

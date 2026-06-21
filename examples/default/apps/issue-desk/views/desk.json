@@ -111,11 +111,16 @@
                   }
                 },
                 {
-                  "labelKey": "list.markDone",
-                  "path": "tasks/mutations:updateTaskStatus",
-                  "mode": "mutation",
-                  "when": "status != done",
-                  "args": { "taskId": "$selected._id", "status": "done" }
+                  "labelKey": "list.merge",
+                  "path": "tasks/public_actions:mergeTaskPullRequest",
+                  "mode": "action",
+                  "variant": "primary",
+                  "confirm": true,
+                  "when": "status == in_review",
+                  "args": {
+                    "organizationId": "$orgId",
+                    "taskId": "$selected._id"
+                  }
                 }
               ]
             }

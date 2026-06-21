@@ -47,6 +47,15 @@ function parseParams(
   if (typeof raw.entryKind === 'string') params.entryKind = raw.entryKind;
   if (typeof raw.mode === 'string') params.mode = raw.mode;
   if (typeof raw.cardinality === 'string') params.cardinality = raw.cardinality;
+  if (isRecord(raw.verdictLabels)) {
+    const verdictLabels: Record<string, string> = {};
+    for (const [key, value] of Object.entries(raw.verdictLabels)) {
+      if (typeof value === 'string') verdictLabels[key] = value;
+    }
+    if (Object.keys(verdictLabels).length > 0) {
+      params.verdictLabels = verdictLabels;
+    }
+  }
   return params;
 }
 

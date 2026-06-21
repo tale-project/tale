@@ -70,6 +70,9 @@ const workflowStepUiSchema = z.object({
           }),
         )
         .optional(),
+      // Maps a `gate` step's scalar verdict (e.g. "yes"/"no") to a pack label
+      // key, so the renderer can surface a clear verdict badge.
+      verdictLabels: z.record(z.string(), z.string()).optional(),
     })
     .optional(),
 });

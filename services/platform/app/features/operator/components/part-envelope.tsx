@@ -5,13 +5,18 @@
  * EVERY render-kind panel — title + stage/role chips + a state badge, then the
  * body gated on the state. Because lifecycle is modeled once here, the would-be
  * error / empty / waiting render-kinds need no dedicated component.
+ *
+ * The header doubles as a per-step disclosure toggle: each step collapses/expands
+ * independently (state lives per envelope instance, keyed by stepSlug upstream),
+ * so a run with several long agent summaries stays scannable.
  */
 import { Badge } from '@tale/ui/badge';
 import { Card } from '@tale/ui/card';
 import { HStack, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
-import type { ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
 
 import { usePackLabel } from '@/app/features/apps/runtime/app-runtime';
 import { useT } from '@/lib/i18n/client';
@@ -57,6 +62,7 @@ export function PartEnvelope({
 }) {
   const { t } = useT('operator');
   const packLabel = usePackLabel();
+  const [collapsed, setCollapsed] = useState(false);
   // Pack-authored Tier-2 label wins; the operator structural i18n key (or the
   // raw step name) is the fallback — parity with the Overview map.
   const title = packLabel(
@@ -66,52 +72,89 @@ export function PartEnvelope({
   const showBody = !BODY_SUPPRESSED.has(part.partState);
   const isGate = part.treatment === 'gate';
 
+  // Is there anything below the header to collapse? Only then show the toggle.
+  const hasBody =
+    showBody ||
+    part.partState === 'loading' ||
+    part.partState === 'waiting_external' ||
+    part.partState === 'empty' ||
+    (part.partState === 'output_error' && part.error !== undefined);
+  const open = !collapsed;
+
+  const titleCluster = (
+    <>
+      <Text
+        as="span"
+        className={cn('font-medium', isGate && 'text-muted-foreground')}
+        truncate
+      >
+        {title}
+      </Text>
+      {isGate && (
+        <Badge variant="outline">
+          {t('gate', { defaultValue: 'Decision' })}
+        </Badge>
+      )}
+      {part.stage && (
+        <Badge variant="slate">
+          {t(`stage.${part.stage}`, { defaultValue: part.stage })}
+        </Badge>
+      )}
+      {part.role && <Badge variant="outline">{part.role}</Badge>}
+    </>
+  );
+
   return (
     <Card className={cn(isGate && 'bg-muted/30')}>
       <VStack gap={3}>
         <HStack gap={2} className="flex-wrap items-center justify-between">
-          <HStack gap={2} className="min-w-0 flex-wrap items-center">
-            <Text
-              as="span"
-              className={cn('font-medium', isGate && 'text-muted-foreground')}
-              truncate
+          {hasBody ? (
+            <button
+              type="button"
+              onClick={() => setCollapsed((c) => !c)}
+              aria-expanded={open}
+              className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-left"
             >
-              {title}
-            </Text>
-            {isGate && (
-              <Badge variant="outline">
-                {t('gate', { defaultValue: 'Decision' })}
-              </Badge>
-            )}
-            {part.stage && (
-              <Badge variant="slate">
-                {t(`stage.${part.stage}`, { defaultValue: part.stage })}
-              </Badge>
-            )}
-            {part.role && <Badge variant="outline">{part.role}</Badge>}
-          </HStack>
+              <ChevronDown
+                className={cn(
+                  'size-4 shrink-0 transition-transform',
+                  !open && '-rotate-90',
+                )}
+                aria-hidden
+              />
+              {titleCluster}
+            </button>
+          ) : (
+            <HStack gap={2} className="min-w-0 flex-wrap items-center">
+              {titleCluster}
+            </HStack>
+          )}
           <Badge variant={STATE_BADGE[part.partState]} dot>
             {t(`state.${part.partState}`)}
           </Badge>
         </HStack>
 
-        {part.partState === 'loading' && <SkeletonText lines={2} />}
+        {open && (
+          <>
+            {part.partState === 'loading' && <SkeletonText lines={2} />}
 
-        {part.partState === 'waiting_external' && (
-          <Text variant="muted">{t('body.waitingExternal')}</Text>
+            {part.partState === 'waiting_external' && (
+              <Text variant="muted">{t('body.waitingExternal')}</Text>
+            )}
+
+            {part.partState === 'empty' && (
+              <Text variant="muted">{t('body.empty')}</Text>
+            )}
+
+            {part.partState === 'output_error' && part.error && (
+              <Text variant="muted" className="text-destructive">
+                {part.error}
+              </Text>
+            )}
+
+            {showBody && children}
+          </>
         )}
-
-        {part.partState === 'empty' && (
-          <Text variant="muted">{t('body.empty')}</Text>
-        )}
-
-        {part.partState === 'output_error' && part.error && (
-          <Text variant="muted" className="text-destructive">
-            {part.error}
-          </Text>
-        )}
-
-        {showBody && children}
       </VStack>
     </Card>
   );

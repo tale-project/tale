@@ -61,7 +61,8 @@
       "page": "Page {page}",
       "created": "Created",
       "start": "Start",
-      "markDone": "Mark done"
+      "markDone": "Mark done",
+      "merge": "Merge pull request"
     },
     "agents": {
       "none": "No agents configured.",
@@ -155,7 +156,12 @@
     },
     "action": {
       "open": "Open",
-      "openFile": "Open {name}"
+      "openFile": "Open {name}",
+      "confirm": "Are you sure?"
+    },
+    "verdict": {
+      "yes": "Yes",
+      "no": "No"
     },
     "filePreview": {
       "description": "Preview of {name}",
