@@ -214,9 +214,13 @@ RUN echo 'agent:100000:65536' >> /etc/subuid \
 COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
 
 # Claude Code managed settings (highest precedence on Linux): disable
-# auto-update + telemetry, and register the steer hook (mid-turn message
-# injection — hooks merge across settings sources, so /user configs
-# can't shadow it). NOT permission rules — those are per-run flags.
+# auto-update + telemetry, suppress Claude commit/PR attribution
+# (includeCoAuthoredBy:false — the byline is appended by the CLI at
+# commit/PR time and a cloned repo's CLAUDE.md can't override a harness
+# default; managed scope so a cloned app repo / BYO user can't re-enable
+# it), and register the steer hook (mid-turn message injection — hooks
+# merge across settings sources, so /user configs can't shadow it). NOT
+# permission rules — those are per-run flags.
 COPY services/sandbox-runtime/managed-settings.json /etc/claude-code/managed-settings.json
 
 # Steer hook: injects platform-queued user messages into a RUNNING Claude
