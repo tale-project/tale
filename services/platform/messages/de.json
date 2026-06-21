@@ -177,6 +177,16 @@
       "started": "Erneute Ausführung gestartet",
       "alreadyRunning": "Es läuft bereits eine Ausführung.",
       "notStarted": "Ausführung konnte nicht gestartet werden – prüfe, ob der Workflow installiert ist."
+    },
+    "stop": {
+      "button": "Stoppen",
+      "stopped": "Ausführung gestoppt",
+      "failed": "Ausführung konnte nicht gestoppt werden.",
+      "confirm": {
+        "title": "Diese Ausführung stoppen?",
+        "description": "Damit wird der Workflow sofort abgebrochen. Laufende Schritte werden verworfen und die Ausführung wird als fehlgeschlagen markiert. Das lässt sich nicht rückgängig machen.",
+        "confirm": "Ausführung stoppen"
+      }
     }
   },
   "accessDenied": {

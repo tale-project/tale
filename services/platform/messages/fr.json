@@ -177,6 +177,16 @@
       "started": "Nouvelle exécution lancée",
       "alreadyRunning": "Une exécution est déjà en cours.",
       "notStarted": "Impossible de lancer l'exécution — vérifiez que le workflow est installé."
+    },
+    "stop": {
+      "button": "Arrêter",
+      "stopped": "Exécution arrêtée",
+      "failed": "Impossible d'arrêter l'exécution.",
+      "confirm": {
+        "title": "Arrêter cette exécution ?",
+        "description": "Le workflow est annulé immédiatement. Les étapes en cours sont abandonnées et l'exécution est marquée comme échouée. Cette action est irréversible.",
+        "confirm": "Arrêter l'exécution"
+      }
     }
   },
   "accessDenied": {

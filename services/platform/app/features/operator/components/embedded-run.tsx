@@ -12,12 +12,19 @@
  * resumed, so this starts a fresh, subject-linked run (copying the original's
  * input). Because the new run carries the same subject, the surrounding
  * `SubjectRun` swaps to it reactively.
+ *
+ * A still-running run offers a **Stop**: a confirmed cancel of the underlying
+ * workflow (abandons in-progress steps, marks the run failed). This is the only
+ * user-facing way to halt a runaway run from where runs are actually viewed.
  */
 import { Button } from '@tale/ui/button';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
+import { useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -29,6 +36,10 @@ import { OperatorView } from './operator-view';
 /** Terminal execution states — a re-run is offered only once a run has settled
  * (a still-running run is left alone; the concurrency guard refuses a second). */
 const TERMINAL_STATUSES = new Set(['completed', 'failed']);
+
+/** In-flight states — a Stop is offered only here, mirroring the backend
+ * `cancelExecution` guard (it rejects any non-running/pending status). */
+const RUNNING_STATUSES = new Set(['running', 'pending']);
 
 function RerunButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
   const { t } = useT('operator');
@@ -68,6 +79,53 @@ function RerunButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
   );
 }
 
+function StopButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
+  const { t } = useT('operator');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const { mutateAsync, isPending } = useConvexMutation(
+    api.workflow_executions.mutations.cancelExecution,
+  );
+
+  const stop = async () => {
+    try {
+      await mutateAsync({ executionId });
+      toast({ title: t('stop.stopped'), variant: 'success' });
+    } catch (err) {
+      // cancelExecution throws if the run already settled (a race) — surface it
+      // rather than swallow.
+      toast({
+        title: err instanceof Error ? err.message : t('stop.failed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setConfirmOpen(false);
+    }
+  };
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="destructive"
+        disabled={isPending}
+        onClick={() => setConfirmOpen(true)}
+      >
+        {t('stop.button')}
+      </Button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        variant="destructive"
+        title={t('stop.confirm.title')}
+        description={t('stop.confirm.description')}
+        confirmText={t('stop.confirm.confirm')}
+        isLoading={isPending}
+        onConfirm={() => void stop()}
+      />
+    </>
+  );
+}
+
 export function EmbeddedRun({
   organizationId,
   executionId,
@@ -82,11 +140,17 @@ export function EmbeddedRun({
 
   if (error) return <Text variant="error">{error.message}</Text>;
   if (!projection) return isLoading ? <SkeletonText lines={4} /> : null;
+  const showRerun = TERMINAL_STATUSES.has(projection.status);
+  const showStop = RUNNING_STATUSES.has(projection.status);
   return (
     <div className="flex flex-col gap-3">
-      {TERMINAL_STATUSES.has(projection.status) && (
+      {(showRerun || showStop) && (
         <div className="flex justify-end">
-          <RerunButton executionId={executionId} />
+          {showRerun ? (
+            <RerunButton executionId={executionId} />
+          ) : (
+            <StopButton executionId={executionId} />
+          )}
         </div>
       )}
       <OperatorView projection={projection} />

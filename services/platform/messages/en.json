@@ -177,6 +177,16 @@
       "started": "Re-run started",
       "alreadyRunning": "A run is already in progress.",
       "notStarted": "Couldn't start the run — check the workflow is installed."
+    },
+    "stop": {
+      "button": "Stop",
+      "stopped": "Run stopped",
+      "failed": "Couldn't stop the run.",
+      "confirm": {
+        "title": "Stop this run?",
+        "description": "This cancels the workflow immediately. Steps in progress are abandoned and the run is marked failed. This can't be undone.",
+        "confirm": "Stop run"
+      }
     }
   },
   "accessDenied": {
