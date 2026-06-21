@@ -159,6 +159,12 @@
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
       "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
       "noDetails": "Keine Details vorhanden."
+    },
+    "rerun": {
+      "button": "Erneut ausführen",
+      "started": "Erneute Ausführung gestartet",
+      "alreadyRunning": "Es läuft bereits eine Ausführung.",
+      "notStarted": "Ausführung konnte nicht gestartet werden – prüfe, ob der Workflow installiert ist."
     }
   },
   "accessDenied": {

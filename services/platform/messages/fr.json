@@ -159,6 +159,12 @@
       "waitingExternal": "En attente d'un événement externe pour continuer.",
       "empty": "Cette étape n'a produit aucune sortie.",
       "noDetails": "Aucun détail à afficher."
+    },
+    "rerun": {
+      "button": "Relancer",
+      "started": "Nouvelle exécution lancée",
+      "alreadyRunning": "Une exécution est déjà en cours.",
+      "notStarted": "Impossible de lancer l'exécution — vérifiez que le workflow est installé."
     }
   },
   "accessDenied": {

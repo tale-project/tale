@@ -159,6 +159,12 @@
       "waitingExternal": "Waiting for an external event to continue.",
       "empty": "This step produced no output.",
       "noDetails": "No details to show."
+    },
+    "rerun": {
+      "button": "Re-run",
+      "started": "Re-run started",
+      "alreadyRunning": "A run is already in progress.",
+      "notStarted": "Couldn't start the run — check the workflow is installed."
     }
   },
   "accessDenied": {

@@ -24,16 +24,13 @@
       { "path": "workflows/file_actions:readWorkflow", "mode": "action" },
       { "path": "tasks/mutations:assignTask", "mode": "mutation" },
       { "path": "tasks/mutations:updateTaskStatus", "mode": "mutation" },
+      { "path": "tasks/public_actions:startTaskWorkflow", "mode": "action" },
       {
         "path": "integrations/public_actions:listGitHubIssues",
         "mode": "action"
       },
       {
         "path": "tasks/public_actions:createTaskFromExternalIssue",
-        "mode": "action"
-      },
-      {
-        "path": "workflow_executions/actions:startWorkflowFromFile",
         "mode": "action"
       }
     ]

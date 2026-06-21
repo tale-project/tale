@@ -3,7 +3,7 @@
 import { v } from 'convex/values';
 
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
-import { internal } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -61,6 +61,110 @@ export const startWorkflowFromFile = action({
         debugMode: args.debugMode,
       },
     );
+  },
+});
+
+/**
+ * Re-run an existing workflow execution as a fresh run — the "re-run" affordance
+ * on a terminal (failed/completed/cancelled) run. A failed run is terminal and
+ * cannot be resumed; instead we start a clean new run by copying the original's
+ * stored input/triggerData/subject, so it re-enters at the start node. The new
+ * run carries the SAME subject, so any UI showing the resource's run (via
+ * getLatestExecutionForSubject) switches to it.
+ *
+ * Guarded against duplicate concurrent runs over the subject's shared resource
+ * (e.g. a task's `tale/<taskId>` git branch + PR): while a run for the subject
+ * is still pending/running, refuses and returns the in-flight executionId.
+ */
+export const rerunExecution = action({
+  args: {
+    executionId: v.id('wfExecutions'),
+  },
+  returns: v.object({
+    started: v.boolean(),
+    executionId: v.union(v.string(), v.null()),
+    reason: v.optional(
+      v.union(v.literal('already_running'), v.literal('not_started')),
+    ),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    started: boolean;
+    executionId: string | null;
+    reason?: 'already_running' | 'not_started';
+  }> => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const execution = await ctx.runQuery(
+      internal.workflow_executions.internal_queries.getRawExecution,
+      { executionId: args.executionId },
+    );
+    if (!execution) {
+      throw new Error('Execution not found');
+    }
+
+    // Closes the cross-tenant IDOR: confirm the caller belongs to the
+    // execution's org before reading/copying any of its data downstream.
+    await ctx.runQuery(
+      internal.approvals.internal_queries.verifyOrganizationMembership,
+      {
+        organizationId: execution.organizationId,
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      },
+    );
+
+    if (!execution.workflowSlug) {
+      throw new Error(
+        'Cannot re-run: this execution has no workflow slug to start from',
+      );
+    }
+
+    const subject =
+      execution.subjectType !== undefined && execution.subjectId !== undefined
+        ? { type: execution.subjectType, id: execution.subjectId }
+        : undefined;
+
+    if (subject) {
+      const active = await ctx.runQuery(
+        internal.workflow_executions.internal_queries
+          .getActiveExecutionForSubject,
+        {
+          organizationId: execution.organizationId,
+          subjectType: subject.type,
+          subjectId: subject.id,
+        },
+      );
+      if (active) {
+        return {
+          started: false,
+          reason: 'already_running',
+          executionId: active.executionId,
+        };
+      }
+    }
+
+    const newExecutionId = await ctx.runAction(
+      api.workflow_executions.actions.startWorkflowFromFile,
+      {
+        organizationId: execution.organizationId,
+        workflowSlug: execution.workflowSlug,
+        triggeredBy: 'user',
+        input: execution.input,
+        triggerData: execution.triggerData,
+        subject,
+      },
+    );
+    if (!newExecutionId) {
+      return { started: false, reason: 'not_started', executionId: null };
+    }
+    return { started: true, executionId: newExecutionId };
   },
 });
 

@@ -92,10 +92,14 @@
               "actions": [
                 {
                   "label": "Start",
-                  "path": "tasks/mutations:updateTaskStatus",
-                  "mode": "mutation",
+                  "path": "tasks/public_actions:startTaskWorkflow",
+                  "mode": "action",
                   "when": "status == backlog || status == todo",
-                  "args": { "taskId": "$selected._id", "status": "in_progress" }
+                  "args": {
+                    "organizationId": "$orgId",
+                    "taskId": "$selected._id",
+                    "workflowSlug": "issue-desk/desk-process"
+                  }
                 },
                 {
                   "label": "Mark done",

@@ -98,6 +98,9 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     const paths = collected.map((b) => b.path);
     expect(paths).toContain('integrations/public_actions:listGitHubIssues');
     expect(paths).toContain('tasks/public_actions:createTaskFromExternalIssue');
+    // The Tasks-board "Start" (re-)triggers the workflow on the task — not a bare
+    // status write — so the run is re-launchable after a failure.
+    expect(paths).toContain('tasks/public_actions:startTaskWorkflow');
     const errors = validateViewBindings(view, manifest.capabilities?.functions);
     expect(errors).toEqual([]);
   });
