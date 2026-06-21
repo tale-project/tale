@@ -42,6 +42,7 @@ import { toId } from '../lib/type_cast_helpers';
 import { wrapUntrusted } from '../lib/untrusted_content';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { taskAgentRunTriggerValidator } from '../task_metrics/schema';
+import { ensureAgentsProvisioned } from './provision_defaults';
 import { buildChartFromRoster, readWorkforceRoster } from './workforce_ops';
 
 const DEFAULT_RUN_TIMEOUT_MS = 8 * 60 * 1000;
@@ -339,6 +340,9 @@ export const runAgentOnTask = internalAction({
           error: `Agent "${args.agentSlug}" is disabled or not installed.`,
         };
       }
+      // Self-heal a never-provisioned org so it leaves the gate's fail-open
+      // (no-op once provisioned). This run is already admitted via the gate.
+      await ensureAgentsProvisioned(ctx, args.organizationId, orgSlug);
       const agentConfig = delegate.agentConfig;
 
       // 3. Advisory guardrail pre-check + verdict-specific side effects.

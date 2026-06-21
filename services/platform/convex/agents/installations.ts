@@ -10,6 +10,7 @@ import {
 } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { hasAnyProvision } from './provision_defaults_mutations';
 
 /**
  * Agent install + enable runtime-state. The agent JSON file is the source of
@@ -84,21 +85,40 @@ async function listInstallStatesForOrg(
   return states;
 }
 
-/** All install states for an org — the gate's single query (one indexed read). */
+/**
+ * The org's install states plus whether it has ever been provisioned — the
+ * roster gate's single query. `provisioned` anchors the fail-open: a
+ * never-provisioned org (no `agentDefaultProvisions` rows) returns the full
+ * catalog; once provisioned, the gate is authoritative. Bundled into one query
+ * so the cached Auto-routing path stays a single indexed read.
+ */
 export const listInstallStatesInternal = internalQuery({
   args: { organizationId: v.string() },
-  returns: v.array(installStateValidator),
-  handler: (ctx, args) => listInstallStatesForOrg(ctx, args.organizationId),
+  returns: v.object({
+    states: v.array(installStateValidator),
+    provisioned: v.boolean(),
+  }),
+  handler: async (ctx, args) => ({
+    states: await listInstallStatesForOrg(ctx, args.organizationId),
+    provisioned: await hasAnyProvision(ctx, args.organizationId),
+  }),
 });
 
 /**
  * Run-admission gate: is this agent allowed to RUN for the org? Mirrors the
- * roster gate's fallback — an org with zero install rows is un-provisioned and
- * everything is live; once any row exists, an agent is live only when it has an
- * enabled row. Called at task/discussion run admission so a disabled or
- * uninstalled agent can never execute, regardless of trigger (assignment,
- * @mention, workflow). The system router is never run on tasks, so it's not
- * special-cased here.
+ * roster gate's fallback — a never-provisioned org (no `agentDefaultProvisions`
+ * rows) is treated as un-gated and everything is live; once the autoInstall
+ * sweep has run, an agent is live only when it has an enabled install row.
+ * Anchoring on the durable provision ledger (not `agentInstallations` count)
+ * means an org that drained its install rows stays authoritative (no
+ * resurrection), and installing an app — which only adds install rows — never
+ * flips a never-provisioned org's fail-open. Called at task/discussion run
+ * admission so a disabled or uninstalled agent can never execute, regardless of
+ * trigger. The system router is never run on tasks, so it's not special-cased.
+ *
+ * Note: the sweep writes rows per agent, so during a first provision there's a
+ * brief window where `hasAnyProvision` is true but not every agent has its row
+ * yet — those agents read as not-live until their row lands (seconds).
  */
 export const isAgentLiveInternal = internalQuery({
   args: { organizationId: v.string(), agentSlug: v.string() },
@@ -110,15 +130,9 @@ export const isAgentLiveInternal = internalQuery({
       args.agentSlug,
     );
     if (row) return row.enabled;
-    // No row for THIS agent → live only if the org has no install rows at all
-    // (un-provisioned legacy org); otherwise it's simply not installed.
-    const anyRow = await ctx.db
-      .query('agentInstallations')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .first();
-    return anyRow === null;
+    // No row for THIS agent → live only if the org has never been provisioned;
+    // once provisioned, an agent without an enabled row is simply not installed.
+    return !(await hasAnyProvision(ctx, args.organizationId));
   },
 });
 
