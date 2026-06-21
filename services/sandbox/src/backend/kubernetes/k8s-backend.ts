@@ -424,9 +424,18 @@ export class KubernetesBackend implements ExecutionBackend {
       // waiting for the harvest container to terminate (its completion signal —
       // harvest owns the user timeout + prints the result line). Every read is a
       // discrete HTTP GET, so there is NO long-lived stream to abort under Bun.
+      //
+      // Canonical stdout is accumulated here from polled deltas (capped at
+      // stdoutMaxBytes), not re-read in a final pass. A final readPodLog after
+      // kubelet log rotation would return a mid-stream window (the current
+      // rotated file) instead of the head of the output — accumulating deltas
+      // incrementally gives deterministic first-N-bytes semantics regardless of
+      // when kubelet rotates the container log.
       let lastLogLen = 0;
       let logShrunk = false;
       let loggedPollError = false;
+      const canonicalChunks: Buffer[] = [];
+      let canonicalByteCount = 0;
       const pollRunnerStdout = async (): Promise<void> => {
         let logs: string;
         try {
@@ -446,12 +455,27 @@ export class KubernetesBackend implements ExecutionBackend {
           return;
         }
         if (logs.length > lastLogLen) {
-          scanner.onStdoutChunk?.(Buffer.from(logs.slice(lastLogLen), 'utf8'));
+          const delta = logs.slice(lastLogLen);
+          scanner.onStdoutChunk?.(Buffer.from(delta, 'utf8'));
+          // Accumulate into the canonical buffer up to the cap.
+          const remaining = cfg.stdoutMaxBytes - canonicalByteCount;
+          if (remaining > 0) {
+            const deltaBuf = Buffer.from(delta, 'utf8');
+            if (deltaBuf.byteLength <= remaining) {
+              canonicalChunks.push(deltaBuf);
+              canonicalByteCount += deltaBuf.byteLength;
+            } else {
+              canonicalChunks.push(deltaBuf.subarray(0, remaining));
+              canonicalByteCount += remaining;
+            }
+          }
           lastLogLen = logs.length;
         } else if (logs.length < lastLogLen) {
-          // The kubelet rotated the container log out from under us — the
-          // canonical head is gone, so the final read is a partial window.
+          // Kubelet rotated the container log. The pre-rotation bytes are
+          // already captured in canonicalChunks. Reset lastLogLen to 0 so
+          // subsequent polls pick up post-rotation content as new deltas.
           logShrunk = true;
+          lastLogLen = 0;
         }
       };
 
@@ -540,21 +564,15 @@ export class KubernetesBackend implements ExecutionBackend {
         await sleep(POLL_INTERVAL_MS, opts.signal);
       }
 
-      // Final stdout read (the runner may have emitted more between the last
-      // poll and exit) → feed the residual to the scanner, then drain it. The
-      // canonical buffer is the full (capped) runner log.
+      // Final poll (the runner may have emitted more between the last poll and
+      // exit) — feeds the residual to the scanner and accumulates the tail into
+      // canonicalChunks, then drain the scanner. The canonical buffer is the
+      // incremental accumulation, immune to kubelet log rotation.
       await pollRunnerStdout();
       scanner.finalize();
-      let stdout = '';
-      try {
-        stdout = await readPodLog(this.client, podName, 'runner', {
-          limitBytes: cfg.stdoutMaxBytes,
-        });
-      } catch (err) {
-        console.warn('[sandbox.k8s] final runner log read failed:', err);
-      }
+      const stdout = Buffer.concat(canonicalChunks).toString('utf8');
       const stdoutStreamTruncated =
-        Buffer.byteLength(stdout, 'utf8') >= cfg.stdoutMaxBytes || logShrunk;
+        canonicalByteCount >= cfg.stdoutMaxBytes || logShrunk;
 
       if (loopOutcome === 'aborted' || opts.signal.aborted) {
         return this.assemble(req, cfg, opts, {
