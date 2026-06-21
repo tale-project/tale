@@ -2,11 +2,20 @@
 // middleware (the only thing standing between a wedged TCP connection and a
 // forever-hung execute()) and withRetry's retryability gate.
 
-import { describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 
-import { HttpMethod, RequestContext } from '@kubernetes/client-node';
+import {
+  HttpMethod,
+  KubeConfig,
+  RequestContext,
+} from '@kubernetes/client-node';
 
-import { apiTimeout, httpStatusCode, withRetry } from './k8s-client.ts';
+import {
+  apiTimeout,
+  httpStatusCode,
+  makeK8sClient,
+  withRetry,
+} from './k8s-client.ts';
 
 /** Await a rejection and hand back the error (typed alternative to .rejects). */
 async function rejectionOf(p: Promise<unknown>): Promise<Error> {
@@ -54,6 +63,80 @@ describe('httpStatusCode', () => {
     expect(httpStatusCode({ code: '404' })).toBeUndefined();
     expect(httpStatusCode(new Error('boom'))).toBeUndefined();
     expect(httpStatusCode(undefined)).toBeUndefined();
+  });
+});
+
+// Captures options passed to KubeConfig.loadFromOptions via a spy.
+describe('makeK8sClient kubeconfig shape', () => {
+  type LoadFromOptionsArg = Parameters<KubeConfig['loadFromOptions']>[0];
+  let capturedOpts: LoadFromOptionsArg | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let spy: ReturnType<typeof spyOn<any, any>>;
+  const savedEnv: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    capturedOpts = undefined;
+    // Capture the original before spyOn replaces it to avoid infinite recursion.
+    const originalFn = KubeConfig.prototype.loadFromOptions;
+    spy = spyOn(KubeConfig.prototype, 'loadFromOptions').mockImplementation(
+      function (this: KubeConfig, opts: LoadFromOptionsArg) {
+        capturedOpts = opts;
+        originalFn.call(this, opts);
+      },
+    );
+    for (const k of [
+      'SANDBOX_K8S_SERVER',
+      'SANDBOX_K8S_TOKEN',
+      'SANDBOX_K8S_CAFILE',
+    ]) {
+      savedEnv[k] = process.env[k];
+    }
+  });
+
+  afterEach(() => {
+    spy.mockRestore();
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+
+  test('skipTLSVerify is never set — it is inert under Bun (Bun 1.3.x ignores rejectUnauthorized on https.Agent)', () => {
+    process.env.SANDBOX_K8S_SERVER = 'https://k8s.example.com';
+    process.env.SANDBOX_K8S_TOKEN = 'test-token';
+    delete process.env.SANDBOX_K8S_CAFILE;
+    makeK8sClient('test-ns');
+    const cluster = capturedOpts?.clusters?.[0];
+    expect(cluster?.skipTLSVerify).toBeUndefined();
+  });
+
+  test('caFile is set from SANDBOX_K8S_CAFILE when provided (non-Bun compat; inert under Bun)', () => {
+    process.env.SANDBOX_K8S_SERVER = 'https://k8s.example.com';
+    process.env.SANDBOX_K8S_TOKEN = 'test-token';
+    process.env.SANDBOX_K8S_CAFILE = '/etc/ssl/k8s-ca.crt';
+    makeK8sClient('test-ns');
+    const cluster = capturedOpts?.clusters?.[0];
+    expect(cluster?.caFile).toBe('/etc/ssl/k8s-ca.crt');
+    expect(cluster?.skipTLSVerify).toBeUndefined();
+  });
+
+  test('caFile is absent when SANDBOX_K8S_CAFILE is unset', () => {
+    process.env.SANDBOX_K8S_SERVER = 'https://k8s.example.com';
+    process.env.SANDBOX_K8S_TOKEN = 'test-token';
+    delete process.env.SANDBOX_K8S_CAFILE;
+    makeK8sClient('test-ns');
+    const cluster = capturedOpts?.clusters?.[0];
+    expect(cluster?.caFile).toBeUndefined();
+    expect(cluster?.skipTLSVerify).toBeUndefined();
+  });
+
+  test('bearer token is placed on the user entry', () => {
+    process.env.SANDBOX_K8S_SERVER = 'https://k8s.example.com';
+    process.env.SANDBOX_K8S_TOKEN = 'my-sa-token';
+    delete process.env.SANDBOX_K8S_CAFILE;
+    makeK8sClient('ns');
+    expect(capturedOpts?.users?.[0]?.token).toBe('my-sa-token');
+    expect(capturedOpts?.clusters?.[0]?.server).toBe('https://k8s.example.com');
   });
 });
 
