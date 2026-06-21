@@ -99,12 +99,15 @@ test.describe.serial('automation editor', () => {
     const newDescription = `Edited by E2E ${suffix}`;
     await descriptionField.fill(newDescription);
 
-    // Editing makes the form dirty, enabling the unified Save cluster (rendered
-    // once here, so the label is unambiguous).
-    const save = page.getByRole('button', {
-      name: t('common.actions.save'),
-      exact: true,
-    });
+    // Editing makes the form dirty, enabling the unified Save cluster in the
+    // automations nav strip. Scope to that nav landmark: the page also renders
+    // the workflow env/secrets editor below the form, which carries its own
+    // "Save" button — an unscoped name match would resolve to two elements.
+    const save = page
+      .getByRole('navigation', {
+        name: t('common.aria.automationsNavigation'),
+      })
+      .getByRole('button', { name: t('common.actions.save'), exact: true });
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await save.click();
 
