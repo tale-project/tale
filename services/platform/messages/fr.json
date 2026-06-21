@@ -157,6 +157,12 @@
       "open": "Ouvrir",
       "openFile": "Ouvrir {name}"
     },
+    "filePreview": {
+      "description": "Aperçu de {name}",
+      "loading": "Chargement de l'aperçu…",
+      "error": "Impossible de charger l'aperçu.",
+      "openInNewTab": "Ouvrir dans un nouvel onglet"
+    },
     "body": {
       "waitingExternal": "En attente d'un événement externe pour continuer.",
       "empty": "Cette étape n'a produit aucune sortie.",

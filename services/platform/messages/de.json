@@ -157,6 +157,12 @@
       "open": "Öffnen",
       "openFile": "{name} öffnen"
     },
+    "filePreview": {
+      "description": "Vorschau von {name}",
+      "loading": "Vorschau wird geladen…",
+      "error": "Die Vorschau konnte nicht geladen werden.",
+      "openInNewTab": "In neuem Tab öffnen"
+    },
     "body": {
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
       "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",

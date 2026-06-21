@@ -157,6 +157,12 @@
       "open": "Open",
       "openFile": "Open {name}"
     },
+    "filePreview": {
+      "description": "Preview of {name}",
+      "loading": "Loading preview…",
+      "error": "Couldn't load the preview.",
+      "openInNewTab": "Open in a new tab"
+    },
     "body": {
       "waitingExternal": "Waiting for an external event to continue.",
       "empty": "This step produced no output.",

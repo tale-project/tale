@@ -20,20 +20,30 @@ import {
 import type { RenderPart } from '../../types';
 import { LiveAgentTimeline } from '../live-agent-timeline';
 import { OutputFallback } from '../output-fallback';
+import { MarkdownFilePreview, isMarkdownFile } from './markdown-file-preview';
 
-/** Openable links to harvested output files (e.g. the mandated `summary.md`). */
+/** Openable harvested output files (e.g. the mandated `summary.md`). Markdown
+ * files open an in-place rendered preview; everything else opens raw in a new
+ * tab. */
 function FileLinks({ files }: { files: NonNullable<RenderPart['files']> }) {
   const { t } = useT('operator');
   return (
     <HStack gap={2} className="flex-wrap">
-      {files.map((file) => (
-        <Button key={file.name} asChild variant="secondary" size="sm">
-          <a href={file.url} target="_blank" rel="noopener noreferrer">
-            <FileText className="size-4" />
-            {t('action.openFile', { name: file.name, defaultValue: file.name })}
-          </a>
-        </Button>
-      ))}
+      {files.map((file) =>
+        isMarkdownFile(file.name) ? (
+          <MarkdownFilePreview key={file.name} file={file} />
+        ) : (
+          <Button key={file.name} asChild variant="secondary" size="sm">
+            <a href={file.url} target="_blank" rel="noopener noreferrer">
+              <FileText className="size-4" />
+              {t('action.openFile', {
+                name: file.name,
+                defaultValue: file.name,
+              })}
+            </a>
+          </Button>
+        ),
+      )}
     </HStack>
   );
 }

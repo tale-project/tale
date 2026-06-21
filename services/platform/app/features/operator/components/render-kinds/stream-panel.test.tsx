@@ -90,6 +90,29 @@ describe('StreamPanel', () => {
     expect(screen.getByText('Opened PR #42; CI green.')).toBeInTheDocument();
   });
 
+  it('renders a markdown file as an in-place preview trigger and other files as download links', () => {
+    render(
+      <StreamPanel
+        part={streamPart({
+          partState: 'output_available',
+          data: { summary: 'done' },
+          files: [
+            { name: 'summary.md', url: 'https://example.test/summary.md' },
+            { name: 'report.pdf', url: 'https://example.test/report.pdf' },
+          ],
+        })}
+      />,
+    );
+    // Markdown → a button that opens the in-place rendered preview (no nav away).
+    expect(
+      screen.getByRole('button', { name: 'Open summary.md' }),
+    ).toBeInTheDocument();
+    // Anything else → a plain new-tab download link.
+    const pdf = screen.getByRole('link', { name: 'Open report.pdf' });
+    expect(pdf).toHaveAttribute('href', 'https://example.test/report.pdf');
+    expect(pdf).toHaveAttribute('target', '_blank');
+  });
+
   describe('accessibility', () => {
     it('passes axe for the running working state', async () => {
       const { container } = render(

@@ -17,6 +17,8 @@ import {
   ReactNode,
   useState,
 } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { Image } from '@/app/components/ui/data-display/image';
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
@@ -347,5 +349,30 @@ export function TypewriterTextWrapper({
       isStreaming={isStreaming}
       onSendFollowUp={onSendFollowUp}
     />
+  );
+}
+
+/**
+ * Renders a markdown string with the shared GFM renderer and wrapper styles, no
+ * layout opinions of its own — the caller owns sizing/scroll. The single home
+ * for the plugin + component-map decision so consumers (chat canvas, workspace
+ * viewer, operator file preview) can't drift apart.
+ */
+export function MarkdownContent({
+  content,
+  className,
+}: {
+  content: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn('text-sm', markdownWrapperStyles, className)}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
   );
 }
