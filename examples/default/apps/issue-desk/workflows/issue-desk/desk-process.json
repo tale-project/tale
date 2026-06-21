@@ -1,7 +1,7 @@
 {
   "name": "Issue resolution desk",
-  "description": "A config-driven, repo-agnostic issue-resolution desk. A GitHub issue (bound to a task by the github sync) is picked up by an implementer Claude Code agent that runs in the platform's own ephemeral sandbox on the user's BYO Claude credentials: it derives the repo from the issue, clones it, fixes the issue on a tale/<id> branch, runs the project's OWN tests to verify, commits, pushes (broker-injected github token + the in-image credential helper, private repos included), opens a pull request, and then WAITS for the project's CI to pass green — fixing failures and re-pushing until it does. The sandbox step is durable: it transparently spans the 10-minute Convex action ceiling (segmenting into re-attached windows), so a 40-50 minute CI run never times the step out, with no separate CI-poll step. A separate reviewer agent fetches the PR, re-runs the tests, confirms CI is green, and posts review comments. A toolless LLM judge then reads the review and decides merge-readiness: if yes, the task parks at In review and the workflow ends (the human merges); if no, it loops back to the implementer with the review feedback, repeating until the judge approves. Cross-step state lives on the git branch + PR; the per-step sandboxes are stateless. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
-  "version": "1.0.0",
+  "description": "A config-driven, repo-agnostic issue-resolution desk. A GitHub issue (bound to a task by the github sync) is picked up by an implementer Claude Code agent that runs in the platform's own ephemeral sandbox on the user's BYO Claude credentials: it derives the repo from the issue, clones it, fixes the issue on a tale/<id> branch, runs the project's OWN tests to verify, commits, pushes (broker-injected github token + the in-image credential helper, private repos included), opens a pull request, and then WAITS for the project's CI to pass green — fixing failures and re-pushing until it does. The sandbox step is durable: it transparently spans the 10-minute Convex action ceiling (segmenting into re-attached windows), so a 40-50 minute CI run never times the step out, with no separate CI-poll step. A separate reviewer agent fetches the PR, re-runs the tests, confirms CI is green, and posts review comments. A toolless LLM judge then reads the review and decides merge-readiness: if yes, the task parks at In review and the workflow ends (the human merges); if no, it loops back to the implementer with the review feedback, repeating until the judge approves — or until the rework loop hits a configurable cap (config.variables.maxReworkLoops, default 3, adjustable per deployment), after which the desk stops looping, comments on the task, and parks it at In review for a human to take over. Cross-step state lives on the git branch + PR (plus a reworkCount loop counter in workflow variables); the per-step sandboxes are stateless. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
+  "version": "1.1.0",
   "metadata": {
     "pack": "issue-desk",
     "autoInstall": false
@@ -10,6 +10,7 @@
     "timeout": 21600000,
     "variables": {
       "workflowId": "issue_desk_process",
+      "maxReworkLoops": 3,
       "roles": {
         "implementer": "issue-desk/desk-implementer",
         "reviewer": "issue-desk/desk-reviewer"
@@ -168,11 +169,59 @@
       "stepType": "condition",
       "config": {
         "expression": "'yes' in steps.judge.output.data",
-        "description": "The judge replies with a bare yes/no (trimmed); jexl `in` does substring, and a 'no' can never contain 'yes', so this never false-approves. If yes, park for human merge; otherwise loop back to the implementer with the review feedback (bounded by the workflow timeout)."
+        "description": "The judge replies with a bare yes/no (trimmed); jexl `in` does substring, and a 'no' can never contain 'yes', so this never false-approves. If yes, park for human merge; otherwise route through the rework counter, which loops back to the implementer with the review feedback until the configurable cap is reached."
       },
       "nextSteps": {
         "true": "to_review",
-        "false": "implement"
+        "false": "bump_rework"
+      }
+    },
+    {
+      "stepSlug": "bump_rework",
+      "name": "Count this rework loop",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "reworkCount",
+              "value": "{{(variables.reworkCount || 0) + 1}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "rework_gate"
+      }
+    },
+    {
+      "stepSlug": "rework_gate",
+      "name": "Rework attempts remaining?",
+      "stepType": "condition",
+      "config": {
+        "expression": "variables.reworkCount <= config.maxReworkLoops",
+        "description": "Bounds the review -> implement rework loop. reworkCount (workflow variables) counts how many times the reviewer has sent the change back; allow up to config.variables.maxReworkLoops reworks (default 3, adjustable per deployment). While within budget, loop back to the implementer with the latest feedback; once exhausted, escalate to a human instead of looping until the workflow timeout."
+      },
+      "nextSteps": {
+        "true": "implement",
+        "false": "loops_exhausted"
+      }
+    },
+    {
+      "stepSlug": "loops_exhausted",
+      "name": "Rework limit reached — escalate to a human",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] The desk reached its rework limit ({{config.maxReworkLoops}} loops) without the reviewer approving the change. The pull request is left open with the latest attempt and the review feedback — a human should take it over from here. Moving to In review."
+        }
+      },
+      "nextSteps": {
+        "success": "to_review"
       }
     },
     {

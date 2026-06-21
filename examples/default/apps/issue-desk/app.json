@@ -1,6 +1,6 @@
 {
   "name": "Issue resolution desk",
-  "description": "A config-driven, repo-agnostic issue-resolution desk. GitHub issues (bound to tasks by the github sync) flow through a fixed process — an implementer agent resolves the issue in the platform sandbox, tests it, and opens a PR; a reviewer agent re-tests and comments; a toolless LLM judge decides merge-readiness, looping back to the implementer until approved, then a human merges. The whole app is data — a workflow + agents + views + a localized catalog — composed on the platform skeleton with no per-vertical system code.",
+  "description": "A config-driven, repo-agnostic issue-resolution desk. GitHub issues (bound to tasks by the github sync) flow through a fixed process — an implementer agent resolves the issue in the platform sandbox, tests it, and opens a PR; a reviewer agent re-tests and comments; a toolless LLM judge decides merge-readiness, looping back to the implementer until approved (bounded by a configurable rework limit, after which it escalates to a human), then a human merges. The whole app is data — a workflow + agents + views + a localized catalog — composed on the platform skeleton with no per-vertical system code.",
   "icon": "ticket",
   "messageNamespace": "issueDesk",
   "workflows": ["issue-desk/desk-process"],

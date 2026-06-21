@@ -271,4 +271,62 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
       | undefined;
     expect(vars?.roles?.implementer).toBe('issue-desk/desk-implementer');
   });
+
+  it('the review->implement rework loop is bounded by a configurable counter', () => {
+    expect(workflow.success).toBe(true);
+    if (!workflow.success) return;
+    const steps = workflow.data.steps as Array<Record<string, unknown>>;
+    const bySlug = (slug: string) => steps.find((s) => s.stepSlug === slug);
+
+    // A tunable default cap lives in config.variables (operators adjust it).
+    const vars = workflow.data.config?.variables as
+      | { maxReworkLoops?: unknown }
+      | undefined;
+    expect(typeof vars?.maxReworkLoops).toBe('number');
+    expect(vars?.maxReworkLoops as number).toBeGreaterThan(0);
+
+    // The judge's "needs work" branch must NOT loop straight back to the
+    // implementer — it routes through the counter so it can't run forever.
+    const judge = bySlug('judge_decision') as {
+      nextSteps?: Record<string, string>;
+    };
+    expect(judge.nextSteps?.false).toBe('bump_rework');
+
+    // bump_rework increments reworkCount via set_variables.
+    const bump = bySlug('bump_rework') as {
+      stepType?: string;
+      config?: {
+        type?: string;
+        parameters?: { variables?: Array<{ name?: string }> };
+      };
+      nextSteps?: Record<string, string>;
+    };
+    expect(bump.stepType).toBe('action');
+    expect(bump.config?.type).toBe('set_variables');
+    expect(bump.config?.parameters?.variables?.[0]?.name).toBe('reworkCount');
+    expect(bump.nextSteps?.success).toBe('rework_gate');
+
+    // rework_gate compares the counter against the cap, then either loops back
+    // to the implementer or escalates — the bound is enforced, not advisory.
+    const gate = bySlug('rework_gate') as {
+      stepType?: string;
+      config?: { expression?: string };
+      nextSteps?: Record<string, string>;
+    };
+    expect(gate.stepType).toBe('condition');
+    expect(gate.config?.expression).toContain('variables.reworkCount');
+    expect(gate.config?.expression).toContain('config.maxReworkLoops');
+    expect(gate.nextSteps?.true).toBe('implement');
+    expect(gate.nextSteps?.false).toBe('loops_exhausted');
+
+    // The escalation path comments on the task, then parks it for a human
+    // (reuses the existing to_review terminal).
+    const exhausted = bySlug('loops_exhausted') as {
+      config?: { type?: string; parameters?: { operation?: string } };
+      nextSteps?: Record<string, string>;
+    };
+    expect(exhausted.config?.type).toBe('task');
+    expect(exhausted.config?.parameters?.operation).toBe('comment');
+    expect(exhausted.nextSteps?.success).toBe('to_review');
+  });
 });
