@@ -12,7 +12,7 @@ export const STEP_MODES = [
   'terminal', // produces the final artifact / output
 ] as const;
 
-export type StepMode = (typeof STEP_MODES)[number];
+type StepMode = (typeof STEP_MODES)[number];
 
 const STEP_MODE_SET = new Set<string>(STEP_MODES);
 

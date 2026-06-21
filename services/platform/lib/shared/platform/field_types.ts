@@ -14,7 +14,7 @@ export const FIELD_TYPES = [
   'ref',
 ] as const;
 
-export type FieldType = (typeof FIELD_TYPES)[number];
+type FieldType = (typeof FIELD_TYPES)[number];
 
 const FIELD_TYPE_SET = new Set<string>(FIELD_TYPES);
 

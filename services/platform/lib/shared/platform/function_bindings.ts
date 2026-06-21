@@ -33,7 +33,7 @@ export interface FunctionBinding {
 
 const PATH_RE = /^[a-zA-Z0-9_]+(\/[a-zA-Z0-9_]+)*:[a-zA-Z0-9_]+$/;
 
-export function isFunctionMode(value: string): value is FunctionMode {
+function isFunctionMode(value: string): value is FunctionMode {
   return (FUNCTION_MODES as readonly string[]).includes(value);
 }
 

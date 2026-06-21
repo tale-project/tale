@@ -48,13 +48,11 @@ export const COLLECTION_LAYOUTS = ['table', 'list', 'cards'] as const;
 export type CollectionLayout = (typeof COLLECTION_LAYOUTS)[number];
 
 export const STREAM_ENTRY_KINDS = ['message', 'tool_call', 'log'] as const;
-export type StreamEntryKind = (typeof STREAM_ENTRY_KINDS)[number];
 
 export const REVIEW_MODES = ['gate', 'form', 'choice'] as const;
 export type ReviewMode = (typeof REVIEW_MODES)[number];
 
 export const REVIEW_CARDINALITIES = ['one', 'many'] as const;
-export type ReviewCardinality = (typeof REVIEW_CARDINALITIES)[number];
 
 export type RenderInteraction = 'read_only' | 'actionable';
 

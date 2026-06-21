@@ -13,7 +13,7 @@ export const STRUCTURAL_ROLES = [
   'self', // the context agent itself
 ] as const;
 
-export type StructuralRole = (typeof STRUCTURAL_ROLES)[number];
+type StructuralRole = (typeof STRUCTURAL_ROLES)[number];
 
 const STRUCTURAL_ROLE_SET = new Set<string>(STRUCTURAL_ROLES);
 

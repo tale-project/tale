@@ -17,9 +17,9 @@
 export type StepTreatment = 'hidden' | 'gate' | 'normal';
 
 /** Step types that are pure structure, never shown. */
-export const STRUCTURAL_TYPES = new Set(['start', 'trigger', 'output']);
+const STRUCTURAL_TYPES = new Set(['start', 'trigger', 'output']);
 
-export interface StepDisplayInput {
+interface StepDisplayInput {
   stepType: string;
   /** Whether the step carries a `ui` annotation (the opt-in to be shown). */
   hasUi: boolean;

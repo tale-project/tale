@@ -36,5 +36,3 @@ export const SLA_ACTIONS = [
   'delegate',
   'reminder',
 ] as const;
-
-export type SlaAction = (typeof SLA_ACTIONS)[number];
