@@ -17,7 +17,10 @@
 import { v } from 'convex/values';
 
 import { buildSteerStdinPayload } from '../../../lib/agent-adapters/claude-code/stdin';
-import type { AgentEvent } from '../../../lib/agent-adapters/events';
+import type {
+  AgentEvent,
+  AgentResultStatus,
+} from '../../../lib/agent-adapters/events';
 import { getAgentAdapter } from '../../../lib/agent-adapters/registry';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
@@ -269,6 +272,13 @@ export interface RunAgentInSessionResult {
   agentResultSeen?: boolean;
   agentIdle?: boolean;
   pendingTaskIds?: string[];
+  /** The agent's OWN self-reported terminal verdict from its stream-json `result`
+   * event (`'error'` = error_during_execution / API-auth/connection failure),
+   * distinct from `status` (the process-exit verdict). `undefined` ⇒ no result
+   * event was ever seen (the run died before reporting). The sandbox-step caller
+   * keys its retryable-execution-error classification on THIS, not the process
+   * exit code — Claude Code can exit 0 while reporting `error` (e.g. a 401). */
+  agentResultStatus?: AgentResultStatus;
 }
 
 /**
@@ -415,7 +425,7 @@ export async function runAgentInSessionImpl(
   const stdinHold = args.agentSlug === 'claude-code';
   const pendingTasks = new Set<string>(args.resumeFrom?.pendingTaskIds ?? []);
   let agentResultSeen = args.resumeFrom?.agentResultSeen === true;
-  let agentResultStatus: string | undefined;
+  let agentResultStatus: AgentResultStatus | undefined;
   // Model idle: the per-turn result arrived, OR quiet-idle — background tasks
   // pending and the main loop has gone silent after a completed text block
   // (a `local_workflow` task gates the result until it settles, so waiting
@@ -1347,6 +1357,7 @@ export async function runAgentInSessionImpl(
     ...(planText !== undefined && { planText }),
     ...(humanControlReason !== undefined && { humanControlReason }),
     ...(usage !== undefined && { usage }),
+    ...(agentResultStatus !== undefined && { agentResultStatus }),
     assistantContent,
   };
 }
@@ -1419,6 +1430,14 @@ export const runAgentInSession = internalAction({
     exitCode: v.union(v.number(), v.null()),
     agentSessionId: v.optional(v.string()),
     finalText: v.optional(v.string()),
+    agentResultStatus: v.optional(
+      v.union(
+        v.literal('completed'),
+        v.literal('error'),
+        v.literal('max-turns'),
+        v.literal('cancelled'),
+      ),
+    ),
   }),
   handler: (ctx, args) => runAgentInSessionImpl(ctx, args),
 });

@@ -3,9 +3,16 @@
 /**
  * Sandbox-step execution backends (node runtime).
  *
- * Two modes behind one contract — both NEVER throw; failures are encoded in the
- * returned `{ ok, status, error }` so the workflow branches via a following
- * condition step (same convention as the `agent` action):
+ * Two modes behind one contract. GENUINE agent/script OUTCOMES (the run produced
+ * a legible verdict) are encoded in the returned `{ ok, status, error }` so the
+ * workflow branches via a following condition step (same convention as the
+ * `agent` action) — these never throw. The agent mode DOES throw for an
+ * INFRASTRUCTURE/EXECUTION error (auth/gateway/connection/crash — the agent
+ * never produced an outcome; see `isRetryableExecutionError`), so the Convex
+ * workflow step retries and, if it keeps failing, fails the workflow at that
+ * step rather than laundering the failure into a synthesized "success" that
+ * marches downstream. (This extends the existing `SessionNotFoundError`
+ * resume-retry seam.)
  *
  *  - runSandboxScript: deterministic frozen-script run. Reuses the existing
  *    `executeCode` spawner path (no hot-path refactor); the workflow
@@ -40,6 +47,7 @@ import {
   workflowRunOwnerId,
 } from '../../sandbox/session_naming';
 import type { UiTimelinePart } from './agent_message_parts';
+import { isRetryableExecutionError } from './agent_run_outcome';
 import {
   applyGatewayConfig,
   hashVirtualKey,
@@ -115,6 +123,19 @@ const ACTION_WINDOW_MS = Number(
 // caps a pathological zero-progress loop. At ~480s/segment this is ~26h —
 // far beyond any legitimate run, so it never bites a healthy long task.
 const MAX_AGENT_CONTINUATIONS = 200;
+
+/**
+ * Thrown by `runSandboxAgent` for an infrastructure/execution failure (the agent
+ * never produced a legible outcome — see `isRetryableExecutionError`). The outer
+ * `catch` re-throws it (like `SessionNotFoundError` on resume) so it escapes to
+ * the Convex workflow step's retry rather than being converted to `{ok:false}`.
+ */
+class SandboxAgentExecutionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SandboxAgentExecutionError';
+  }
+}
 
 /**
  * Opportunistic backstop (plan §3d): reap this org's leaked `workflow_run`
@@ -1028,6 +1049,28 @@ export const runSandboxAgent = internalAction({
         }
       }
 
+      // INFRASTRUCTURE/EXECUTION ERROR (auth/gateway/connection/crash): the agent
+      // errored mechanically and left no handoff. THROW so the step's retry runs
+      // FRESH (the `finally` tears down → new session + re-minted VK) and, if it
+      // keeps failing, the workflow FAILS at this step — instead of returning a
+      // synthesized "success" that the next step (or a rework loop) consumes.
+      // Keys on the agent's OWN reported status, not the process exit code, which
+      // a 401 leaves at `completed`/0. Computed AFTER the summary re-entry above
+      // so `summaryWritten` is final.
+      if (
+        isRetryableExecutionError({
+          agentResultStatus: result.agentResultStatus,
+          terminalStatus,
+          summaryWritten,
+        })
+      ) {
+        throw new SandboxAgentExecutionError(
+          `sandbox agent "${args.agentSlug}" run errored (${result.agentResultStatus ?? terminalStatus}): ${(
+            result.finalText ?? 'no output'
+          ).slice(0, 500)}`,
+        );
+      }
+
       const ok =
         terminalStatus === 'completed' &&
         (result.exitCode === 0 || result.exitCode === null);
@@ -1059,6 +1102,11 @@ export const runSandboxAgent = internalAction({
       // re-creates) — re-cloning + continuing from the already-pushed branch —
       // instead of giving up with ok:false on a checkpoint it can never resume.
       if (resuming && e instanceof SessionNotFoundError) {
+        throw e;
+      }
+      // An infrastructure/execution error: propagate to the workflow step's
+      // retry (re-throw, don't launder into {ok:false} that flows downstream).
+      if (e instanceof SandboxAgentExecutionError) {
         throw e;
       }
       return fail(e instanceof Error ? e.message : String(e));
