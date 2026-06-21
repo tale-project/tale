@@ -96,6 +96,11 @@ export function podNameFor(executionId: string): string {
 // clean phase parsing). $0..$3 come from the Pod `args` trailer below.
 const RUNNER_WRAPPER = [
   `mkdir -p ${TALE_DIR}`,
+  // Per-process resource parity with docker-args.ts: --pids-limit=128,
+  // --ulimit fsize=104857600 (204800 × 512-byte blocks), --ulimit cpu=600,
+  // --ulimit core=0. busybox sh's built-in ulimit only lowers limits, so this
+  // never requires extra capabilities under the hardened securityContext.
+  `ulimit -u 128 -f 204800 -t 600 -c 0`,
   `/entrypoint.sh "$0" "$1" "$2" "$3" 2>${STDERR_PATH}`,
   `echo $? > ${EXIT_CODE_PATH}`,
 ].join('\n');
@@ -143,8 +148,8 @@ export function buildSandboxPod(
     // sizeLimit bounds everything the execution writes (deps installs, temp
     // files, outputs — the entrypoint points HOME/TMPDIR/PIP_TARGET here).
     // Exceeding it evicts the pod; the spawner's runner-dead path classifies
-    // that instead of burning the full timeout. K8s analogue of the docker
-    // path's fsize ulimit (which has no per-process equivalent here).
+    // that instead of burning the full timeout. Complements the per-process
+    // fsize ulimit in RUNNER_WRAPPER (total-workspace vs per-file cap).
     {
       name: 'workspace',
       emptyDir: { sizeLimit: cfg.k8s.workspaceSizeLimit },
