@@ -5,8 +5,10 @@ import { Link } from '@tanstack/react-router';
 import { useCallback, useMemo, useState, useEffect } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -18,6 +20,10 @@ import {
 } from '@/app/features/agents/hooks/mutations';
 import { useAgentBinding } from '@/app/features/agents/hooks/queries';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
+import {
+  nextConfigForBehavior,
+  type AgentPrimaryBehavior,
+} from '@/app/features/agents/utils/next-config-for-behavior';
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
@@ -258,12 +264,124 @@ function GeneralTab() {
     updateConfig({ timeoutMs: clamped * 60_000 });
   }, [timeoutMinutes, updateConfig]);
 
+  // Agent type (primaryBehavior) — Internal (chat, runs the platform tool loop)
+  // vs External agent (Claude Code / OpenCode in a sandbox) vs Image generation.
+  // Switching rewires which config applies, so it goes through a confirm dialog
+  // and a Zod-safe field cleanup (see nextConfigForBehavior).
+  const primaryBehavior: AgentPrimaryBehavior =
+    config.primaryBehavior ?? 'chat';
+  const isExternalAgent = primaryBehavior === 'external-agent';
+  const agentKind = config.agentKind ?? 'claude-code';
+  const [pendingBehavior, setPendingBehavior] =
+    useState<AgentPrimaryBehavior | null>(null);
+
+  const agentTypeOptions = useMemo(
+    () => [
+      {
+        value: 'chat',
+        label: t('agents.form.agentType.internalLabel'),
+        description: t('agents.form.agentType.internalDescription'),
+      },
+      {
+        value: 'external-agent',
+        label: t('agents.form.agentType.externalLabel'),
+        description: t('agents.form.agentType.externalDescription'),
+      },
+      {
+        value: 'image-generation',
+        label: t('agents.form.agentType.imageLabel'),
+        description: t('agents.form.agentType.imageDescription'),
+      },
+    ],
+    [t],
+  );
+
+  const agentKindOptions = useMemo(
+    () => [
+      { value: 'claude-code', label: t('agents.form.agentKind.claudeCode') },
+      { value: 'opencode', label: t('agents.form.agentKind.openCode') },
+    ],
+    [t],
+  );
+
+  const handleTypeSelect = useCallback(
+    (value: string) => {
+      if (
+        value !== 'chat' &&
+        value !== 'external-agent' &&
+        value !== 'image-generation'
+      ) {
+        return;
+      }
+      if (value === primaryBehavior) return;
+      setPendingBehavior(value);
+    },
+    [primaryBehavior],
+  );
+
+  const confirmTypeSwitch = useCallback(() => {
+    if (!pendingBehavior) return;
+    // Functional form so the cleanup reads the latest config (it keeps an
+    // existing agentKind when re-entering External).
+    updateConfig((prev) => nextConfigForBehavior(prev, pendingBehavior));
+    setPendingBehavior(null);
+  }, [pendingBehavior, updateConfig]);
+
+  const handleAgentKindChange = useCallback(
+    (value: string) => {
+      if (value !== 'claude-code' && value !== 'opencode') return;
+      updateConfig({ agentKind: value });
+    },
+    [updateConfig],
+  );
+
+  // Switching INTO a type that requires ≥1 model, from a byo-external agent
+  // that legally has none, would fail the save — warn up front.
+  const switchLeavesNoModel =
+    (pendingBehavior === 'chat' || pendingBehavior === 'image-generation') &&
+    (config.supportedModels ?? []).length === 0;
+
+  const pendingDescription = !pendingBehavior
+    ? null
+    : `${
+        pendingBehavior === 'external-agent'
+          ? t('agents.form.agentType.switchToExternalDescription')
+          : pendingBehavior === 'chat'
+            ? t('agents.form.agentType.switchToChatDescription')
+            : t('agents.form.agentType.switchToImageDescription')
+      }${switchLeavesNoModel ? ` ${t('agents.form.agentType.noModelWarning')}` : ''}`;
+
   return (
     <ContentArea variant="narrow" gap={6}>
       <SectionHeader
         title={t('agents.form.sectionGeneral')}
         description={t('agents.form.sectionGeneralDescription')}
       />
+
+      <PageSection
+        title={t('agents.form.agentType.sectionTitle')}
+        description={t('agents.form.agentType.sectionDescription')}
+        gap={6}
+      >
+        <FormSection>
+          <RadioGroup
+            value={primaryBehavior}
+            onValueChange={handleTypeSelect}
+            options={agentTypeOptions}
+          />
+        </FormSection>
+        {isExternalAgent && (
+          <FormSection>
+            <Select
+              options={agentKindOptions}
+              label={t('agents.form.agentKind.label')}
+              description={t('agents.form.agentKind.description')}
+              value={agentKind}
+              onValueChange={handleAgentKindChange}
+            />
+          </FormSection>
+        )}
+      </PageSection>
 
       <FormSection>
         <Switch
@@ -377,6 +495,17 @@ function GeneralTab() {
           />
         </FormSection>
       </PageSection>
+
+      <ConfirmDialog
+        open={pendingBehavior !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingBehavior(null);
+        }}
+        title={t('agents.form.agentType.switchTitle')}
+        description={pendingDescription ?? undefined}
+        confirmText={t('agents.form.agentType.switchConfirm')}
+        onConfirm={confirmTypeSwitch}
+      />
     </ContentArea>
   );
 }

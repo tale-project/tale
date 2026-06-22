@@ -5329,6 +5329,7 @@
         "sectionModelDescription": "Configure the AI models for this agent. The first model is the primary model used for generation. Additional models serve as ordered fallbacks — if the primary model is unavailable, the agent automatically tries the next model in the list.",
         "sectionTools": "Tools",
         "sectionToolsDescription": "Select which tools this agent can use",
+        "sectionToolsExternalDescription": "External agents run in a sandbox and only use bound integrations. Platform tools and workflows don't apply.",
         "sectionIntegrationBindings": "Bound integrations",
         "sectionIntegrationBindingsDescription": "Bind specific integrations as dedicated tools. The agent won't need to specify the integration name.",
         "noIntegrationsAvailable": "No active integrations available.",
@@ -5402,6 +5403,28 @@
           "modelLabel": "Provider model id",
           "modelPlaceholder": "e.g. claude-opus-4-20250514",
           "modelNote": "BYO routes through your own credentials set in Environment & Secrets — model selection, billing, and usage governance move to your credentials; the platform only provides the runtime."
+        },
+        "agentType": {
+          "sectionTitle": "Agent type",
+          "sectionDescription": "How this agent runs. Internal agents run on the platform tool loop; external agents run a coding agent in a sandbox.",
+          "internalLabel": "Internal agent",
+          "internalDescription": "Runs on the platform with chat tools, knowledge, and workflows.",
+          "externalLabel": "External agent",
+          "externalDescription": "Runs Claude Code or OpenCode in an isolated sandbox, using bound integrations.",
+          "imageLabel": "Image generation",
+          "imageDescription": "Routes the message straight to an image model.",
+          "switchTitle": "Change agent type?",
+          "switchToExternalDescription": "This will switch the agent to run in a sandbox and clear its platform tools and workflows. Bound integrations are kept.",
+          "switchToChatDescription": "This will switch the agent to run on the platform tool loop and clear its external runtime and credential settings.",
+          "switchToImageDescription": "This will switch the agent to image generation and clear its tools, workflows, integrations, and external runtime settings.",
+          "noModelWarning": "This agent has no model set — add one on the Instructions tab before saving, or the save will fail.",
+          "switchConfirm": "Change type"
+        },
+        "agentKind": {
+          "label": "External runtime",
+          "description": "Which coding agent runs this agent's turns in the sandbox.",
+          "claudeCode": "Claude Code",
+          "openCode": "OpenCode"
         }
       },
       "delegation": {

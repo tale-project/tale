@@ -28,6 +28,15 @@ interface ToolSelectorProps {
   organizationId: string;
   hiddenTools?: Set<string>;
   disabled?: boolean;
+  /**
+   * Platform tools (`toolNames`) + Workflows run only in the chat tool loop, so
+   * external agents must not list them (the save schema rejects a non-empty
+   * list). Default `true`; the agent editor passes `false` for both on an
+   * external agent, leaving only the integration bindings — which an external
+   * agent DOES use as its sandbox MCP grant set.
+   */
+  showPlatformTools?: boolean;
+  showWorkflows?: boolean;
 }
 
 // Tools grouped by the business domain they act on, ordered most- to
@@ -128,6 +137,8 @@ export function ToolSelector({
   organizationId,
   hiddenTools,
   disabled,
+  showPlatformTools = true,
+  showWorkflows = true,
 }: ToolSelectorProps) {
   const { t } = useT('settings');
   // Tool labels live in the shared `chat.tools.*` namespace (one vocabulary for
@@ -211,13 +222,15 @@ export function ToolSelector({
         onToggle={toggleIntegrationBinding}
         t={t}
       />
-      <WorkflowBindingsSection
-        workflows={workflows}
-        isLoading={workflowsLoading}
-        selectedBindingsSet={selectedWorkflowBindingsSet}
-        onToggle={toggleWorkflowBinding}
-        t={t}
-      />
+      {showWorkflows && (
+        <WorkflowBindingsSection
+          workflows={workflows}
+          isLoading={workflowsLoading}
+          selectedBindingsSet={selectedWorkflowBindingsSet}
+          onToggle={toggleWorkflowBinding}
+          t={t}
+        />
+      )}
     </Stack>
   );
 
@@ -232,31 +245,41 @@ export function ToolSelector({
       ]
     : Array.from(categorized.entries());
 
+  // External agents hide the platform-tools catalog, so the integration
+  // bindings below shouldn't wait on the tools query they never read.
+  const skeletonLoading = showPlatformTools && isLoading;
+
   return (
-    <Skeletonize loading={isLoading} label={t('agents.form.sectionTools')}>
+    <Skeletonize
+      loading={skeletonLoading}
+      label={t('agents.form.sectionTools')}
+    >
       <fieldset disabled={disabled}>
         <Stack gap={4}>
-          {displayCategories.map(([category, toolNames]) => (
-            <CheckboxGroup
-              key={category}
-              label={t(`agents.tools.categories.${category}`)}
-              options={toolNames.map((name) => ({
-                value: name,
-                label: isLoading ? 'Tool name' : toolDisplayName(tTools, name),
-                disabled: isLoading,
-              }))}
-              value={
-                isLoading
-                  ? []
-                  : toolNames.filter((name) => selectedSet.has(name))
-              }
-              onValueChange={(values) =>
-                handleCategoryChange(toolNames, values)
-              }
-            />
-          ))}
+          {showPlatformTools &&
+            displayCategories.map(([category, toolNames]) => (
+              <CheckboxGroup
+                key={category}
+                label={t(`agents.tools.categories.${category}`)}
+                options={toolNames.map((name) => ({
+                  value: name,
+                  label: isLoading
+                    ? 'Tool name'
+                    : toolDisplayName(tTools, name),
+                  disabled: isLoading,
+                }))}
+                value={
+                  isLoading
+                    ? []
+                    : toolNames.filter((name) => selectedSet.has(name))
+                }
+                onValueChange={(values) =>
+                  handleCategoryChange(toolNames, values)
+                }
+              />
+            ))}
 
-          {!isLoading && bindingsSections}
+          {(!showPlatformTools || !isLoading) && bindingsSections}
         </Stack>
       </fieldset>
     </Skeletonize>

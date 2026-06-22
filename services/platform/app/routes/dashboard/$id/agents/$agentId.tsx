@@ -15,8 +15,12 @@ import {
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
 import { AgentNavigation } from '@/app/features/agents/components/agent-navigation';
-import { useReadAgent } from '@/app/features/agents/hooks/queries';
+import {
+  useListAgents,
+  useReadAgent,
+} from '@/app/features/agents/hooks/queries';
 import { AgentConfigProvider } from '@/app/features/agents/hooks/use-agent-config-context';
+import { toConfigurableAgent } from '@/app/features/agents/utils/agent-list-item';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -69,6 +73,22 @@ function AgentDetailLayout() {
         : '',
     [agentConfig, i18nCtx.language],
   );
+  // The agent's folder (e.g. `workforce`) is metadata on the roster row, NOT
+  // part of the slug — a global agent at `agents/workforce/software-developer`
+  // still has the flat slug `software-developer`. So resolve the folder from the
+  // agent list (already cached from the List view) and break it into clickable
+  // segments: "Agents / Workforce / <Name>" jumps back to the rest of the
+  // folder. No folder (root agent) → [] → breadcrumb unchanged.
+  const { agents: rawAgents } = useListAgents(organizationId);
+  const folderSegments = useMemo(() => {
+    for (const raw of rawAgents ?? []) {
+      const agent = toConfigurableAgent(raw);
+      if (agent?.name === agentId) {
+        return agent.folder ? agent.folder.split('/') : [];
+      }
+    }
+    return [];
+  }, [rawAgents, agentId]);
 
   // Terminal load failure — not a loading state, so no skeleton here.
   if (!isLoading && (loadFailed || !agentConfig)) {
@@ -99,6 +119,20 @@ function AgentDetailLayout() {
         >
           {t('agents.title')}&nbsp;&nbsp;
         </Link>
+        {folderSegments.map((segment, i) => {
+          const path = folderSegments.slice(0, i + 1).join('/');
+          return (
+            <Link
+              key={path}
+              to="/dashboard/$id/agents/all"
+              params={{ id: organizationId }}
+              search={{ folder: path }}
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring hidden cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset md:inline"
+            >
+              /&nbsp;&nbsp;{segment}&nbsp;&nbsp;
+            </Link>
+          );
+        })}
         <span className="text-foreground">
           <span className="hidden md:inline">/&nbsp;&nbsp;</span>
           {/* `contents` so the Skeletonize wrapper adds no block box — its
