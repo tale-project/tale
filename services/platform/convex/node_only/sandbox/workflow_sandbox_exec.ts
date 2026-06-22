@@ -38,6 +38,7 @@ import type { Id } from '../../_generated/dataModel';
 import { type ActionCtx, internalAction } from '../../_generated/server';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
 import { resolveAppAssetPathChecked } from '../../apps/file_utils';
+import { estimateCostCents } from '../../governance/cost_estimation';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
@@ -500,6 +501,12 @@ export const runSandboxAgent = internalAction({
     executionId: v.string(),
     stepSlug: v.string(),
     agentSlug: v.string(),
+    // Task-metrics binding (present only when the workflow execution is about a
+    // task — see execute_sandbox_node). Drives the taskAgentRuns admission gate
+    // (budget/concurrency/circuit-breaker) + usage accrual. Absent ⇒ no metrics.
+    taskId: v.optional(v.id('tasks')),
+    wfExecutionId: v.optional(v.id('wfExecutions')),
+    workflowSlug: v.optional(v.string()),
     instructions: v.optional(v.string()),
     budget: v.object({
       maxCents: v.number(),
@@ -570,6 +577,61 @@ export const runSandboxAgent = internalAction({
     // reaps it even if the platform-side teardown is skipped (hard kill).
     const ttlMs = args.budget.maxWallClockMs + EPHEMERAL_TTL_GRACE_MS;
 
+    // Task-metrics gate (task-bound runs only). A durable agent run is admitted
+    // ONCE on the fresh segment (taskAgentRuns row + budget/concurrency/circuit
+    // guards), and the runId is carried in the checkpoint so resume segments
+    // re-use it — re-admitting would double-count the concurrency slot. Usage is
+    // recorded + the run finalized at the terminal segment. The abandonment leak
+    // (a hard-killed run that never finalizes) self-heals via recoverStuckTaskRuns.
+    const taskId = args.taskId;
+    let taskRunId: Id<'taskAgentRuns'> | null = checkpoint?.taskRunId ?? null;
+    const recordRunUsage = async (
+      usage: { inputTokens: number; outputTokens: number } | undefined,
+    ): Promise<void> => {
+      if (taskRunId === null || usage === undefined) return;
+      // BYO/OAuth bypasses the gateway → no per-token operator cost; record real
+      // tokens but costCents 0 (the maxCents budget simply doesn't bind for byo).
+      const costCents = byo
+        ? 0
+        : estimateCostCents(modelRef, usage.inputTokens, usage.outputTokens);
+      try {
+        await ctx.runMutation(
+          internal.task_metrics.internal_mutations.recordTaskRunUsage,
+          {
+            runId: taskRunId,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            costCents,
+          },
+        );
+      } catch (err) {
+        console.warn('[runSandboxAgent] recordTaskRunUsage failed:', err);
+      }
+    };
+    const finalizeRunMetric = async (
+      status: 'completed' | 'failed' | 'timed_out',
+      outcome: 'output_posted' | 'error',
+      error?: string,
+    ): Promise<void> => {
+      if (taskRunId === null) return;
+      try {
+        await ctx.runMutation(
+          internal.task_metrics.internal_mutations.finalizeTaskAgentRun,
+          {
+            runId: taskRunId,
+            status,
+            outcome,
+            ...(error !== undefined && { error: error.slice(0, 500) }),
+          },
+        );
+      } catch (err) {
+        console.warn(
+          '[runSandboxAgent] finalizeTaskAgentRun failed (stuck-sweep backstop):',
+          err,
+        );
+      }
+    };
+
     // A re-entry that already exceeded the total budget / backstop → force a
     // terminal teardown (harvest whatever exists, return a timeout).
     if (
@@ -584,6 +646,11 @@ export const runSandboxAgent = internalAction({
         undefined,
       );
       await teardownAgentSession(ctx, args.organizationId, sessionId);
+      await finalizeRunMetric(
+        'timed_out',
+        'error',
+        `agent run exceeded its wall-clock budget (${args.budget.maxWallClockMs}ms)`,
+      );
       return {
         mode: 'agent',
         ok: false,
@@ -606,6 +673,38 @@ export const runSandboxAgent = internalAction({
     try {
       if (!resuming) {
         // ===== FRESH segment: full session setup (steps 0–6) =================
+        // 0a. Task-metrics admission FIRST — before any session/VK/compute is
+        // built, so a budget/concurrency/circuit refusal allocates nothing. The
+        // returned runId is carried across segments via the checkpoint.
+        if (taskId !== undefined) {
+          const admission = await ctx.runMutation(
+            internal.task_metrics.internal_mutations.startTaskAgentRun,
+            {
+              organizationId: args.organizationId,
+              taskId,
+              agentSlug: args.agentSlug,
+              trigger: 'manual',
+              ...(args.wfExecutionId !== undefined && {
+                wfExecutionId: args.wfExecutionId,
+              }),
+              ...(args.workflowSlug !== undefined && {
+                workflowSlug: args.workflowSlug,
+              }),
+              guardContext: 'task_run',
+              ...(agentConfig.budget !== undefined && {
+                budget: agentConfig.budget,
+              }),
+              ...(agentConfig.maxConcurrentTasks !== undefined && {
+                maxConcurrentTasks: agentConfig.maxConcurrentTasks,
+              }),
+            },
+          );
+          if (!admission.started || !admission.runId) {
+            return fail(`agent run refused: ${admission.reason ?? 'unknown'}`);
+          }
+          taskRunId = admission.runId;
+        }
+
         // 0. Opportunistic backstop: reap this org's leaked workflow_run
         // sessions (TTL elapsed, finally skipped) before adding our own.
         try {
@@ -949,6 +1048,9 @@ export const runSandboxAgent = internalAction({
                 result.pendingTaskIds.length > 0 && {
                   pendingTaskIds: result.pendingTaskIds,
                 }),
+              // Carry the admitted run across the seam (checkpoint is a full
+              // replace, so re-pass every handoff) → resume re-uses, never re-admits.
+              ...(taskRunId !== null && { taskRunId }),
               startedAt,
               continuationCount: nextCount,
             },
@@ -1074,6 +1176,22 @@ export const runSandboxAgent = internalAction({
       const ok =
         terminalStatus === 'completed' &&
         (result.exitCode === 0 || result.exitCode === null);
+      // Task-metrics: record the run's cumulative usage and finalize exactly once
+      // (idempotent; decrements the concurrency counter, wakes the queue).
+      await recordRunUsage(result.usage);
+      await finalizeRunMetric(
+        ok
+          ? 'completed'
+          : terminalStatus === 'timeout'
+            ? 'timed_out'
+            : 'failed',
+        ok ? 'output_posted' : 'error',
+        ok
+          ? undefined
+          : terminalStatus === 'timeout'
+            ? `agent run exceeded its wall-clock budget (${args.budget.maxWallClockMs}ms)`
+            : `agent run ${terminalStatus}`,
+      );
       return {
         mode: 'agent',
         ok,
@@ -1106,9 +1224,17 @@ export const runSandboxAgent = internalAction({
       }
       // An infrastructure/execution error: propagate to the workflow step's
       // retry (re-throw, don't launder into {ok:false} that flows downstream).
+      // The re-throw paths deliberately do NOT finalize — the orphaned 'running'
+      // row is reclaimed by recoverStuckTaskRuns so the fresh retry re-admits.
       if (e instanceof SandboxAgentExecutionError) {
         throw e;
       }
+      // Non-retryable terminal failure → finalize the run before returning.
+      await finalizeRunMetric(
+        'failed',
+        'error',
+        e instanceof Error ? e.message : String(e),
+      );
       return fail(e instanceof Error ? e.message : String(e));
     } finally {
       // Teardown UNLESS we handed off mid-run (then the session + VK + exec must

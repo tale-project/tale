@@ -435,6 +435,7 @@ export const insertAgentCheckpoint = internalMutation({
     agentResultSeen: v.optional(v.boolean()),
     agentIdle: v.optional(v.boolean()),
     pendingTaskIds: v.optional(v.array(v.string())),
+    taskRunId: v.optional(v.id('taskAgentRuns')),
     startedAt: v.number(),
     continuationCount: v.number(),
   },
@@ -455,6 +456,7 @@ export const insertAgentCheckpoint = internalMutation({
       ...(args.pendingTaskIds !== undefined && {
         pendingTaskIds: args.pendingTaskIds,
       }),
+      ...(args.taskRunId !== undefined && { taskRunId: args.taskRunId }),
       startedAt: args.startedAt,
       continuationCount: args.continuationCount,
       updatedAt: Date.now(),
