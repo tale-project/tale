@@ -34,7 +34,7 @@ export const Filled: Story = {
 };
 
 export const Downward: Story = {
-  args: { data: [...sample].reverse(), color: 'var(--color-chart-failure)' },
+  args: { data: sample.toReversed(), color: 'var(--color-chart-failure)' },
 };
 
 /** A flat series draws a centered horizontal line rather than dividing by zero. */
