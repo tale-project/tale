@@ -1,7 +1,7 @@
 import { createPwaPlugin } from '@tale/ui/pwa/vite-plugin';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, type ProxyOptions } from 'vite';
 
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectEnv } from './vite-plugins/inject-env';
@@ -25,32 +25,59 @@ const CONVEX_SITE_PROXY =
 // Convex routing, shared by the dev server (`vite dev`) and the preview server
 // (`vite preview`, used by the prod-build E2E mode — see scripts/dev.ts). In a
 // real deployment Caddy fronts these same paths; locally Vite stands in for it.
-const convexProxy = {
+// Vite proxies use http-proxy, which emits an 'error' event on a transient
+// upstream socket reset (ECONNRESET) or a client disconnect mid-response
+// (EPIPE). With no handler attached http-proxy rethrows, which tears down the
+// dev / preview server process — on a loaded CI runner that surfaces as a flood
+// of `read ECONNRESET` / `write EPIPE` and every in-flight E2E navigation
+// failing at once (the whole shard dies, not one test). Log and degrade
+// gracefully — 502 for an HTTP response, destroy a raw socket (WS upgrade) — so
+// a blip on one proxied request can't take the entire server down.
+const logConvexProxyErrors: ProxyOptions['configure'] = (proxy) => {
+  proxy.on('error', (err, _req, res) => {
+    console.warn(`[convex-proxy] upstream error: ${err.message}`);
+    if ('writeHead' in res) {
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'text/plain' });
+      }
+      res.end('Convex proxy error');
+    } else {
+      res.destroy();
+    }
+  });
+};
+
+const convexProxy: Record<string, ProxyOptions> = {
   // Proxy Convex API requests to the (possibly remote) convex service.
   '/ws_api': {
     target: CONVEX_BASE,
     changeOrigin: true,
     ws: true,
     rewrite: (p: string) => p.replace(/^\/ws_api/, ''),
+    configure: logConvexProxyErrors,
   },
   '/http_api': {
     target: CONVEX_SITE_PROXY,
     changeOrigin: true,
     rewrite: (p: string) => p.replace(/^\/http_api/, ''),
+    configure: logConvexProxyErrors,
   },
   // Storage and internal action callbacks go to the Convex backend (3210)
   '/api/storage': {
     target: CONVEX_BASE,
     changeOrigin: true,
+    configure: logConvexProxyErrors,
   },
   '/api/actions': {
     target: CONVEX_BASE,
     changeOrigin: true,
+    configure: logConvexProxyErrors,
   },
   // All other /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
   '/api': {
     target: CONVEX_SITE_PROXY,
     changeOrigin: true,
+    configure: logConvexProxyErrors,
   },
 };
 
