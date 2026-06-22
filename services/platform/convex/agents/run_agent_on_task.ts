@@ -316,6 +316,14 @@ export const resolveDurableTaskRunPlan = internalAction({
     ) {
       return { durable: false as const };
     }
+    // Respect the install/enabled gate the inline path enforces — a disabled or
+    // uninstalled agent must NOT run durably. Falling through to the inline path
+    // lets it refuse uniformly (with the correct refusedReason).
+    const live = await ctx.runQuery(
+      internal.agents.installations.isAgentLiveInternal,
+      { organizationId: args.organizationId, agentSlug: args.agentSlug },
+    );
+    if (!live) return { durable: false as const };
     const context = await ctx.runQuery(
       internal.tasks.internal_queries.getTaskContextForAgent,
       { taskId: args.taskId, organizationId: args.organizationId },
