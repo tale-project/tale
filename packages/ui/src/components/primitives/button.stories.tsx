@@ -1,5 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { Mail, Trash2, Check, ArrowRight, Plus } from 'lucide-react';
+import {
+  Mail,
+  Trash2,
+  Check,
+  ArrowRight,
+  Plus,
+  Pencil,
+  Copy,
+} from 'lucide-react';
 import { fn } from 'storybook/test';
 
 import { Button, LinkButton } from './button';
@@ -185,6 +193,36 @@ export const CollapseLabel: Story = {
       description: {
         story:
           'With `collapseLabel`, the text hides below the `sm` breakpoint (icon-only) and reappears from `sm` up — useful in crowded toolbars. The label stays in the accessibility tree, so the button keeps its name on mobile. Resize the preview to see it switch.',
+      },
+    },
+  },
+};
+
+export const IconWithTooltip: Story = {
+  render: () => (
+    <div className="flex items-center gap-4">
+      <Button size="icon" variant="ghost" title="Edit">
+        <Pencil className="size-4" />
+      </Button>
+      <Button size="icon" variant="ghost" title="Copy" tooltipSide="bottom">
+        <Copy className="size-4" />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        title="Delete"
+        tooltip="Delete permanently"
+        tooltipSide="right"
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A plain-string `title` names an icon-only button (it has no visible text) AND shows it as a hover/focus tooltip — one prop for both. Pass `tooltip` for richer tip content that differs from the accessible name, and `tooltipSide` to change where it opens. Focus or hover an icon to see the tip.',
       },
     },
   },

@@ -19,9 +19,9 @@ export function convexErrorCode(err: unknown): string | undefined {
 //
 // Uses `instanceof ConvexError` to match the prior call-site behavior. A more
 // chunk-split-robust duck-typed variant lives in
-// `convex/lib/governance/convex-error-data.ts` (Vite can emit multiple
-// ConvexError class copies, breaking instanceof) — switch to it only if a
-// regression surfaces, since that would be a behavior change.
+// `app/features/settings/governance/convex-error-data.ts` (Vite can emit
+// multiple ConvexError class copies, breaking instanceof) — switch to it only
+// if a regression surfaces, since that would be a behavior change.
 export function convexErrorMessage(err: unknown, fallback: string): string {
   if (!(err instanceof ConvexError)) return fallback;
   const data: unknown = err.data;

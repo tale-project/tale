@@ -21,7 +21,7 @@ OpenRouter is a multi-model gateway. The shipped config picks `deepseek-v4-flash
 
 <!-- MODELS_TABLE:START -->
 
-<!-- Auto-generated from examples/default/providers/openrouter.json by the weekly model-catalog sync. Do not edit by hand. -->
+<!-- Auto-generated from builtin-configs/providers/openrouter.json by the weekly model-catalog sync. Do not edit by hand. -->
 
 | Provider          | Model                                | Capabilities                 | Context | Input ($/M) | Output ($/M) |
 | ----------------- | ------------------------------------ | ---------------------------- | ------- | ----------- | ------------ |

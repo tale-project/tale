@@ -37,7 +37,7 @@ Sous la disposition org-first, les bornes de rétention sont **par org** : édit
 
 Le conteneur plateforme surveille le fichier ; les changements proposent une mise à jour de bornes pour chaque org existante. Les admins voient la proposition dans leur écran **Politique de rétention** et l'appliquent eux-mêmes. L'étape propose-puis-applique est délibérée : resserrer un plancher raccourcit l'historique, ce qui est une action destructive qu'aucun opérateur ne devrait poser silencieusement sur chaque tenant.
 
-Le même `retention.json` contient aussi, sous une clé `policy`, les fenêtres de rétention choisies par l'admin (p. ex. `"policy": { "auditLogEnabled": true, "auditLogRetentionDays": 730 }`). Ce bloc est écrit par **Paramètres > Gouvernance > Politique de rétention** dans l'app, donc les admins ne l'éditent normalement jamais à la main — mais garder les bornes et la politique dans un seul fichier signifie qu'il n'y a qu'un fichier de rétention par org à appréhender.
+Les fenêtres de rétention choisies par l'admin vivent dans un fichier distinct, `retention-policy.json`, à côté des bornes dans le même dossier `governance/`. Il contient des champs plats `<catégorie>Enabled` / `<catégorie>RetentionDays` (p. ex. `"auditLogEnabled": true, "auditLogRetentionDays": 730`), pas les bornes `min`/`max`. Ce fichier est écrit par **Paramètres > Gouvernance > Politique de rétention** dans l'app, donc les admins ne l'éditent normalement jamais à la main — garde-le distinct du fichier de bornes géré par l'opérateur.
 
 ## Le sweep de rétention
 

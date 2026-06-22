@@ -25,6 +25,10 @@ interface FlipSandboxOptions {
   streamLogs: boolean;
   /** env.HEALTH_CHECK_TIMEOUT (seconds). */
   healthTimeout: number;
+  /** Drain poll interval / ceiling. Default to the module constants; exposed
+   *  only so unit tests can run the drain loop fast. */
+  drainPollMs?: number;
+  drainTimeoutMs?: number;
 }
 
 /**
@@ -114,10 +118,25 @@ export async function flipSandboxTier(opts: FlipSandboxOptions): Promise<void> {
   //         sessions) or LINGER it (live sessions keep running on
   //         `sandbox-<old>` until they end or the spawner's max-linger reap).
   if (currentColor) {
-    const status = await drainOldColor(pid, currentColor);
-    if (status && status.sessions > 0) {
+    const outcome = await drainOldColor(pid, currentColor, {
+      pollMs: opts.drainPollMs,
+      timeoutMs: opts.drainTimeoutMs,
+    });
+    if (outcome.kind === 'gone') {
+      // Drain signal never landed — the old colour is already gone or predates
+      // the drain endpoint. Nothing alive to linger; reclaim its containers.
+      await teardownColor(pid, currentColor);
+    } else if (outcome.status && outcome.status.sessions > 0) {
       logger.warn(
-        `sandbox ${currentColor} has ${status.sessions} live session(s) — lingering on sandbox-${currentColor} until they end or its max-linger TTL; not tearing it down. A subsequent flip back to ${currentColor} reclaims it.`,
+        `sandbox ${currentColor} has ${outcome.status.sessions} live session(s) — lingering on sandbox-${currentColor} until they end or its max-linger TTL; not tearing it down. A subsequent flip back to ${currentColor} reclaims it.`,
+      );
+    } else if (outcome.status === null) {
+      // Drain was acknowledged but its session count stayed UNKNOWN to the
+      // deadline (status endpoint unreachable / malformed). Treat unknown as
+      // "may still have sessions" and LINGER — tearing down here could kill a
+      // live agent turn. The spawner's own max-linger reap is the backstop.
+      logger.warn(
+        `sandbox ${currentColor} drained but its session count is unknown — lingering on sandbox-${currentColor} rather than risk tearing down live sessions. Its max-linger TTL (or the next flip back) reclaims it.`,
       );
     } else {
       await teardownColor(pid, currentColor);
@@ -206,15 +225,30 @@ async function readDrainStatus(
 }
 
 /**
- * Tell the old colour to stop accepting new work, wait for its in-flight
- * one-shots to drain, and return its FINAL drain status (so the caller can
- * decide teardown vs. linger on the session count). Returns `null` when there's
- * nothing to drain (old colour gone / lacks the endpoint).
+ * Result of draining a colour:
+ *  - `gone`: the drain signal never landed (old colour already gone / predates
+ *    the endpoint) — there's nothing alive to linger, so teardown is safe.
+ *  - `drained`: the drain was acknowledged. `status` is the FINAL drain status
+ *    (so the caller can decide teardown vs. linger on the session count), or
+ *    `null` when the session count stayed UNKNOWN to the deadline — which the
+ *    caller must treat as "may still have sessions", NOT as zero.
+ */
+type DrainOutcome =
+  | { kind: 'gone' }
+  | { kind: 'drained'; status: DrainStatus | null };
+
+/**
+ * Tell the old colour to stop accepting new work and wait for its in-flight
+ * one-shots to drain. See {@link DrainOutcome} for how the caller reads the
+ * result.
  */
 async function drainOldColor(
   pid: string,
   oldColor: DeploymentColor,
-): Promise<DrainStatus | null> {
+  timing: { pollMs?: number; timeoutMs?: number } = {},
+): Promise<DrainOutcome> {
+  const pollMs = timing.pollMs ?? DRAIN_POLL_MS;
+  const timeoutMs = timing.timeoutMs ?? DRAIN_TIMEOUT_MS;
   const container = `${pid}-sandbox-${oldColor}`;
   logger.step(`Draining sandbox ${oldColor}...`);
 
@@ -232,20 +266,20 @@ async function drainOldColor(
     logger.debug(
       `drain signal to ${container} failed (continuing): ${drain.stderr.trim()}`,
     );
-    return null;
+    return { kind: 'gone' };
   }
 
-  const deadline = Date.now() + DRAIN_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
   for (;;) {
     const status = await readDrainStatus(pid, oldColor);
-    if (status && status.inFlight === 0) return status;
+    if (status && status.inFlight === 0) return { kind: 'drained', status };
     if (Date.now() >= deadline) {
       logger.warn(
-        `sandbox ${oldColor} still draining after ${DRAIN_TIMEOUT_MS / 1000}s — proceeding.`,
+        `sandbox ${oldColor} still draining after ${timeoutMs / 1000}s — proceeding.`,
       );
-      return status;
+      return { kind: 'drained', status };
     }
-    await Bun.sleep(DRAIN_POLL_MS);
+    await Bun.sleep(pollMs);
   }
 }
 

@@ -37,7 +37,7 @@ Unter dem Org-first-Layout sind Retention-Grenzen **pro Org**: editiere `retenti
 
 Der Plattform-Container beobachtet die Datei; Änderungen schlagen ein Grenzen-Update für jede bestehende Org vor. Admins sehen den Vorschlag in ihrem **Retention-Policy**-Bildschirm und wenden ihn selbst an. Der Vorschlagen-dann-anwenden-Schritt ist Absicht: Eine Untergrenze anzuziehen kürzt Historie, was eine destruktive Aktion ist, die kein Operator stillschweigend bei jeder Mandantin landen sollte.
 
-Dieselbe `retention.json` enthält unter einem `policy`-Schlüssel auch die vom Admin gewählten Aufbewahrungsfenster (z. B. `"policy": { "auditLogEnabled": true, "auditLogRetentionDays": 730 }`). Diesen Block schreibt **Einstellungen > Governance > Retention-Policy** in der App, Admins bearbeiten ihn also normalerweise nie von Hand — aber Grenzen und Policy in einer Datei zu halten bedeutet, dass es pro Org nur eine Retention-Datei zu durchdenken gibt.
+Die vom Admin gewählten Aufbewahrungsfenster liegen in einer separaten Datei, `retention-policy.json`, neben den Grenzen im selben `governance/`-Ordner. Sie enthält flache Felder `<Kategorie>Enabled` / `<Kategorie>RetentionDays` (z. B. `"auditLogEnabled": true, "auditLogRetentionDays": 730`), nicht die `min`/`max`-Grenzen. Diese Datei schreibt **Einstellungen > Governance > Retention-Policy** in der App, Admins bearbeiten sie also normalerweise nie von Hand — halte sie getrennt von der vom Operator verwalteten Grenzen-Datei.
 
 ## Der Retention-Sweep
 

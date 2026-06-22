@@ -123,4 +123,30 @@ describe('flipSandboxTier teardown vs linger', () => {
     const warned = loggerWarnMock.mock.calls.map((c) => String(c[0]));
     expect(warned.some((l) => l.includes('lingering'))).toBe(true);
   });
+
+  test('lingers (does not tear down) when the session count stays unknown', async () => {
+    // Drain POST succeeds (default mock) but every drain-status read is
+    // unparseable → the final status is unknown. Tearing down here could kill
+    // live sessions, so the flip must linger instead.
+    arrangeDocker({ drainStatusJson: 'not json at all' });
+
+    await flipSandboxTier({
+      config,
+      deployDir: '/tmp/tale-flip-test',
+      currentColor: 'blue',
+      nextColor: 'green',
+      dryRun: false,
+      streamLogs: false,
+      healthTimeout: 1,
+      // Drive the drain loop to its (unknown) deadline fast.
+      drainPollMs: 1,
+      drainTimeoutMs: 5,
+    });
+
+    expect(oldSpawnerStopped()).toBe(false);
+    const warned = loggerWarnMock.mock.calls.map((c) => String(c[0]));
+    expect(warned.some((l) => l.includes('session count is unknown'))).toBe(
+      true,
+    );
+  });
 });

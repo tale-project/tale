@@ -21,7 +21,7 @@ OpenRouter ist ein Multi-Modell-Gateway. Die ausgelieferte Konfiguration wählt 
 
 <!-- MODELS_TABLE:START -->
 
-<!-- Auto-generated from examples/default/providers/openrouter.json by the weekly model-catalog sync. Do not edit by hand. -->
+<!-- Auto-generated from builtin-configs/providers/openrouter.json by the weekly model-catalog sync. Do not edit by hand. -->
 
 | Anbieter          | Modell                               | Fähigkeiten                  | Kontext | Eingabe ($/M) | Ausgabe ($/M) |
 | ----------------- | ------------------------------------ | ---------------------------- | ------- | ------------- | ------------- |
