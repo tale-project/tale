@@ -28,12 +28,18 @@ export function parseExpiryMs(raw: unknown): number | undefined {
     return raw < 1e12 ? raw * 1000 : raw;
   }
   if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    // A pure-digit string is an epoch (seconds or ms), not an ISO timestamp:
+    // `dayjs.utc("1700000000")` misreads it as the year 1700 and the token gets
+    // silently dropped as long-expired. Route it through the numeric heuristic
+    // so a broker that JSON-encodes expiry as a string epoch still works.
+    if (/^\d+$/.test(trimmed)) return parseExpiryMs(Number(trimmed));
     // `dayjs.utc` parses a timezone-LESS ISO timestamp (e.g. Python's
     // `datetime.utcnow().isoformat()` → "2026-06-22T18:21:33.093441") as UTC
     // rather than the host's local zone — `Date.parse`/`new Date` would treat it
     // as local and skew expiry by the UTC offset (a UTC+8 host falsely expires a
     // still-valid token). An explicit `Z`/offset is respected as-is.
-    const d = dayjs.utc(raw);
+    const d = dayjs.utc(trimmed);
     return d.isValid() ? d.valueOf() : undefined;
   }
   return undefined;

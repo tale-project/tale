@@ -124,6 +124,14 @@ describe('parseExpiryMs', () => {
       Date.parse('2026-06-22T18:21:33+02:00'),
     );
   });
+
+  it('parses an epoch encoded as a STRING (broker JSON-encodes the number)', () => {
+    // A pure-digit string must follow the numeric seconds/ms heuristic, not be
+    // misread by dayjs as a year-1700 date (which would drop the token).
+    expect(parseExpiryMs('1700000000')).toBe(1_700_000_000_000); // seconds → ms
+    expect(parseExpiryMs('1700000000000')).toBe(1_700_000_000_000); // ms as-is
+    expect(parseExpiryMs('  1700000000  ')).toBe(1_700_000_000_000); // trimmed
+  });
 });
 
 describe('pickToken', () => {

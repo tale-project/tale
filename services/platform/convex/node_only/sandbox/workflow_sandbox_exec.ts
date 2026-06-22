@@ -592,6 +592,14 @@ export const runSandboxAgent = internalAction({
     );
     const resuming = checkpoint !== null;
 
+    // The exec that is ACTUALLY running right now. It starts as the canonical
+    // `execId`, but a credential failover re-runs under `${execId}-t<n>` — so a
+    // rotated attempt that itself hands off must checkpoint (and on resume,
+    // re-attach to) the rotated id, NOT the canonical one. On resume we adopt
+    // whatever id the prior segment recorded as live (mirrors the chat path,
+    // which reassigns its `execId` on each rotation).
+    let liveExecId = checkpoint?.execId ?? execId;
+
     // Cumulative budget across ALL segments: `startedAt` is the FIRST segment's
     // start, so `maxWallClockMs` is a hard TOTAL cap independent of any single
     // action window; `continuationCount` carries the runaway backstop.
@@ -1105,7 +1113,7 @@ export const runSandboxAgent = internalAction({
           ? await runAgentInSessionImpl(ctx, {
               organizationId: args.organizationId,
               sessionId,
-              execId,
+              execId: liveExecId,
               agentSlug: agentKind,
               // Unused on resume — we re-attach to the still-running exec.
               prompt: '',
@@ -1161,7 +1169,10 @@ export const runSandboxAgent = internalAction({
           console.warn(
             `[runSandboxAgent] token rotation: attempt ${tokenAttempt}/${MAX_TOKEN_ATTEMPTS} after status=${result.apiErrorStatus ?? result.authAbortStatus} (step ${args.stepSlug})`,
           );
-          result = await runFreshSegment(`${execId}-t${tokenAttempt}`);
+          // Carry the rotated exec id forward so a handoff from THIS attempt
+          // checkpoints/resumes the live exec, not the dead first attempt.
+          liveExecId = `${execId}-t${tokenAttempt}`;
+          result = await runFreshSegment(liveExecId);
         }
       }
 
@@ -1198,7 +1209,7 @@ export const runSandboxAgent = internalAction({
             {
               organizationId: args.organizationId,
               sessionId,
-              execId,
+              execId: liveExecId,
               lastSeq: result.lastSeq ?? 0,
               ...(result.agentSessionId !== undefined && {
                 agentSessionId: result.agentSessionId,

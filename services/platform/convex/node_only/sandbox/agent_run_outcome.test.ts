@@ -93,7 +93,7 @@ describe('isRetryableExecutionError', () => {
 
 describe('isRotatableApiError', () => {
   it('true for rate-limit / overloaded / auth on the terminal result', () => {
-    for (const status of [429, 529, 401]) {
+    for (const status of [429, 529, 401, 403]) {
       expect(
         isRotatableApiError({ isError: true, apiErrorStatus: status }),
       ).toBe(true);
@@ -127,6 +127,22 @@ describe('isRotatableApiError', () => {
         authAbortStatus: 401,
       }),
     ).toBe(true);
+  });
+
+  it('rotates every status that triggers an early auth-abort (401 + 403 in lockstep)', () => {
+    // AUTH_ABORT_STATUSES (run_agent.ts) SIGTERMs these early so a rotation can
+    // swap credentials — so each MUST be rotatable here, else the abort just
+    // degrades to a full-step retry.
+    for (const authAbortStatus of [401, 403]) {
+      expect(
+        isRotatableApiError({
+          isError: undefined,
+          apiErrorStatus: undefined,
+          terminationReason: 'auth-abort',
+          authAbortStatus,
+        }),
+      ).toBe(true);
+    }
   });
 
   it('false on auth-abort carrying a non-rotatable status', () => {

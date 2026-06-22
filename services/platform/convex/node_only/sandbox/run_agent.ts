@@ -132,7 +132,9 @@ const STALLED_AFTER_API_ERROR_MS = Number(
  * SIGTERM the exec early: it fails fast instead of storming for minutes, and a
  * token-source rotation can swap credentials inside the action window. Rate
  * limits (429/529) are NOT early-aborted — they can self-heal on retry and the
- * terminal result already arrives fast. */
+ * terminal result already arrives fast. Keep in lockstep with
+ * `ROTATABLE_API_STATUS` (agent_run_outcome.ts): a status aborted here but not
+ * rotatable there pays the abort cost yet never swaps credentials. */
 const AUTH_ABORT_STATUSES: ReadonlySet<number> = new Set([401, 403]);
 /** Let one transient retry self-heal; abort from the second attempt on. */
 const AUTH_ABORT_MIN_ATTEMPT = 2;

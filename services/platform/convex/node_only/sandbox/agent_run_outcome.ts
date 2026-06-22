@@ -59,13 +59,17 @@ export function isRetryableExecutionError(input: {
 
 /**
  * HTTP statuses that mean "this credential is healthy but throttled, or
- * expired/revoked" — i.e. swapping to a different token may succeed. 429 (rate
- * limit) + 529 (overloaded) + 401 (expired/revoked auth). 502/503/504 are
- * upstream blips that rotating tokens won't fix, so they are intentionally
- * excluded. Local copy (not imported from `providers/errors.ts`) to keep this
- * sandbox classifier decoupled from the gateway-provider module.
+ * forbidden/expired/revoked" — i.e. swapping to a DIFFERENT token may succeed.
+ * 429 (rate limit) + 529 (overloaded) + 401/403 (auth: expired/revoked, or this
+ * specific key forbidden — a sibling token from the pool may not share that
+ * restriction). Must stay in lockstep with `AUTH_ABORT_STATUSES` (run_agent.ts):
+ * every status we SIGTERM early "so a rotation can swap credentials" has to be
+ * rotatable here, else the early-abort just degrades to a full-step retry.
+ * 502/503/504 are upstream blips that rotating tokens won't fix, so they are
+ * intentionally excluded. Local copy (not imported from `providers/errors.ts`)
+ * to keep this sandbox classifier decoupled from the gateway-provider module.
  */
-const ROTATABLE_API_STATUS: ReadonlySet<number> = new Set([401, 429, 529]);
+const ROTATABLE_API_STATUS: ReadonlySet<number> = new Set([401, 403, 429, 529]);
 
 /**
  * True when a finished turn carries a token-rotation-worthy API error — the
