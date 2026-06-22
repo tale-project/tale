@@ -44,10 +44,13 @@ test('runs the seeded test automation to completion', async ({ page, org }) => {
     timeout: TIMEOUT.NAV,
   });
 
-  // The editor toolbar's flask button opens the tester side panel.
-  const openTester = page.getByTitle(
-    t('automations.steps.toolbar.testAutomation'),
-  );
+  // The editor toolbar's flask button opens the tester side panel. The shared
+  // Button suppresses the native `title` attribute (it routes `title` into
+  // aria-label + a tooltip), so locate by role + accessible name, not title.
+  const openTester = page.getByRole('button', {
+    name: t('automations.steps.toolbar.testAutomation'),
+    exact: true,
+  });
   await expect(openTester).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
   await openTester.click();
 
