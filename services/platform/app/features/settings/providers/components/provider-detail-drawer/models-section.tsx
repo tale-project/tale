@@ -776,7 +776,6 @@ export function ModelsSection({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={() => void handleFetchFromProvider()}
               disabled={isFetchingFromProvider}
             >
@@ -791,7 +790,6 @@ export function ModelsSection({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={() => void syncAllFromCatalog()}
                 disabled={syncingAll || isSaving}
               >
@@ -803,12 +801,7 @@ export function ModelsSection({
                 {t('providers.modelCapabilities.syncAll')}
               </Button>
             )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={openAddDialog}
-            >
+            <Button type="button" variant="ghost" onClick={openAddDialog}>
               <Plus className="mr-1 size-3.5" />
               {t('providers.addModelShort')}
             </Button>
@@ -1313,7 +1306,6 @@ export function ModelsSection({
                     <Button
                       type="button"
                       variant="secondary"
-                      size="sm"
                       onClick={fillFromCatalog}
                       disabled={!capsByModelId.has(form.id.trim())}
                     >

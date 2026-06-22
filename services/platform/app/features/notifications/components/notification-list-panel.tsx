@@ -197,7 +197,6 @@ export function NotificationListPanel({
           </div>
           {unreadCount > 0 && (
             <Button
-              size="sm"
               variant="ghost"
               disabled={markAllRead.isPending}
               onClick={handleMarkAllRead}
@@ -328,7 +327,6 @@ export function NotificationListPanel({
         {(canLoadMore || isLoadingMore) && (
           <div className="border-border border-t p-2">
             <Button
-              size="sm"
               variant="ghost"
               className="w-full"
               disabled={!canLoadMore}

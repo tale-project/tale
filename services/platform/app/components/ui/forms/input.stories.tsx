@@ -32,10 +32,11 @@ import { Input } from './input';
     },
   },
   argTypes: {
-    size: {
+    variant: {
       control: 'select',
-      options: ['default', 'sm', 'lg'],
-      description: 'Input size variant',
+      options: ['default', 'unstyled'],
+      description:
+        'Visual variant: `default` (bordered field) or `unstyled` (no chrome, inherits surrounding styles)',
     },
     type: {
       control: 'select',
@@ -187,14 +188,25 @@ export const PasswordWithError: Story = {
   },
 };
 
-export const AllSizes: Story = {
+export const Variants: Story = {
   render: () => (
     <div className="flex flex-col gap-4">
-      <Input size="sm" label="Small" placeholder="Small input" />
-      <Input size="default" label="Default" placeholder="Default input" />
-      <Input size="lg" label="Large" placeholder="Large input" />
+      <Input variant="default" label="Default" placeholder="Bordered field" />
+      <Input
+        variant="unstyled"
+        label="Unstyled"
+        placeholder="No chrome — inherits surrounding styles"
+      />
     </div>
   ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The input renders at a single height (h-9). The only style axis is `variant`: `default` is the standard bordered field; `unstyled` drops the field chrome so the input blends into a custom container.',
+      },
+    },
+  },
 };
 
 export const Disabled: Story = {

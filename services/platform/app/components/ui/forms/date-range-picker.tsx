@@ -409,7 +409,6 @@ function DatePickerWithRangeBase({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={handleClear}
               disabled={disabled || isLoading}
               className="relative top-1 ml-auto block h-min px-2 py-1 text-xs"

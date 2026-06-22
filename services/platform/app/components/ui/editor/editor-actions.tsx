@@ -161,9 +161,9 @@ export function EditorActions({
       {history}
       <Button
         type="button"
+        size="sm"
         onClick={handleDiscard}
         variant="secondary"
-        size="sm"
         icon={Undo2}
         iconClassName="size-3.5"
         collapseLabel
@@ -174,10 +174,10 @@ export function EditorActions({
       </Button>
       <Button
         type={formId ? 'submit' : 'button'}
+        size="sm"
         form={formId}
         onClick={formId ? undefined : () => void runSave()}
         disabled={saveDisabled}
-        size="sm"
         aria-busy={controller.isSaving ? 'true' : undefined}
       >
         {controller.isSaving ? (

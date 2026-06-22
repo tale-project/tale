@@ -172,7 +172,6 @@ export function AgentWebhookSection({
               </code>
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => handleCopyUrl(row.original.token)}
                 aria-label={t('agents.webhook.copyUrl')}
                 className="shrink-0"
@@ -299,7 +298,6 @@ export function AgentWebhookSection({
         action={
           <Button
             variant="secondary"
-            size="sm"
             onClick={handleCreate}
             disabled={isCreating}
           >

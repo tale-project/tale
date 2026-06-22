@@ -244,7 +244,6 @@ function EnvEditor({
             </HStack>
           ))}
           <Button
-            size="sm"
             variant="ghost"
             disabled={saving}
             className="self-start"

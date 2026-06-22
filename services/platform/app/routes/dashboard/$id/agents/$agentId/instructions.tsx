@@ -430,7 +430,6 @@ function InstructionsTab() {
             <Tooltip content={t('agents.form.browsePrompts')} side="top">
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => setPromptLibraryOpen(true)}
                 aria-label={t('agents.form.browsePrompts')}
               >

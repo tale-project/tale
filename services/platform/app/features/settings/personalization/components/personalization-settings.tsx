@@ -665,7 +665,6 @@ function PendingMemoriesSection({
             <li key={m._id} className="flex items-start gap-3 py-2">
               <Text className="flex-1">{m.content}</Text>
               <Button
-                size="sm"
                 variant="primary"
                 onClick={async () => {
                   try {
@@ -682,7 +681,6 @@ function PendingMemoriesSection({
                 {t('card.save')}
               </Button>
               <Button
-                size="sm"
                 variant="ghost"
                 onClick={async () => {
                   try {

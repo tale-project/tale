@@ -248,8 +248,8 @@ export const AgentSelector = memo(function AgentSelector({
           <Button
             type="button"
             className="gap-1.5 sm:min-w-32"
-            size="icon"
             variant="ghost"
+            size="sm"
             aria-label={t('agentSelector.label')}
             disabled={isAgentLoading}
           >
@@ -273,7 +273,6 @@ export const AgentSelector = memo(function AgentSelector({
           canManageAgents ? (
             <Button
               variant="ghost"
-              size="sm"
               className="w-full"
               icon={Plus}
               onClick={handleAddAgentClick}

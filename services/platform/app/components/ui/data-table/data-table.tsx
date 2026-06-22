@@ -495,8 +495,9 @@ export function DataTable<TData, TValue = unknown>({
   }
 
   // The primary "Add X" affordance. The explicit `actionMenu` slot wins (bespoke
-  // header content); otherwise `addAction` renders at a fixed `sm` size and the
-  // standard right-aligned placement so every list's add button looks the same.
+  // header content); otherwise `addAction` renders at the default (h-9) size and
+  // the standard right-aligned placement so every list's add button looks the
+  // same — and lines up with the h-9 search/filter controls in the same toolbar.
   const primaryAction =
     actionMenu ??
     (addAction ? (
@@ -508,22 +509,11 @@ export function DataTable<TData, TValue = unknown>({
         menuItems={addAction.menuItems}
         disabled={addAction.disabled}
         variant={addAction.variant ?? 'primary'}
-        size="sm"
       />
     ) : null);
 
-  // The empty-state CTA is the SAME affordance as the header button: synthesize
-  // it from `addAction` so the create action is declared once and can't drift.
-  // An explicit `emptyState.action` still wins; synthesis needs an `onClick`.
-  const effectiveEmptyAction =
-    emptyState?.action ??
-    (addAction?.onClick
-      ? {
-          label: addAction.label,
-          onClick: addAction.onClick,
-          icon: addAction.icon,
-        }
-      : undefined);
+  // Empty states are intentionally button-less (icon + title + description only):
+  // the create affordance lives in the table header, not the empty body.
 
   // Determine if we should render header
   const hasHeader =
@@ -915,7 +905,6 @@ export function DataTable<TData, TValue = unknown>({
                     icon={emptyState?.icon}
                     title={emptyState?.title ?? ''}
                     description={emptyState?.description}
-                    action={effectiveEmptyAction}
                   />
                 </div>
               </TableCell>

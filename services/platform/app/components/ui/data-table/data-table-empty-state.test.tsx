@@ -1,5 +1,5 @@
-import { Inbox, Plus } from 'lucide-react';
-import { describe, expect, it, vi } from 'vitest';
+import { Inbox } from 'lucide-react';
+import { describe, expect, it } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
@@ -27,24 +27,15 @@ describe('DataTableEmptyState', () => {
     });
   });
 
-  describe('action CTA', () => {
-    it('renders the action button and fires onClick', async () => {
-      const onClick = vi.fn();
-      const { user } = render(
+  describe('button-less', () => {
+    it('never renders a button — table empty states carry no CTA', () => {
+      render(
         <DataTableEmptyState
           icon={Inbox}
           title="No agents yet"
           description="Create your first agent."
-          action={{ label: 'Create agent', icon: Plus, onClick }}
         />,
       );
-      const button = screen.getByRole('button', { name: 'Create agent' });
-      await user.click(button);
-      expect(onClick).toHaveBeenCalledTimes(1);
-    });
-
-    it('renders no button when no action is provided', () => {
-      render(<DataTableEmptyState title="No items" />);
       expect(screen.queryByRole('button')).not.toBeInTheDocument();
     });
   });

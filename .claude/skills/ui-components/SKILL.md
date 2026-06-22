@@ -78,11 +78,14 @@ raw `<div className="flex flex-col gap-4">` on a page is the defect this prevent
   group (label → control → hint), **`4`** within a section (the default), **`6`** loose grouping, **`8`**
   between sections (the settings rhythm). Never a raw `gap-[…]` or `space-y-*` for layout.
 - **Button size by context**
-  ([`button.tsx`](../../../packages/ui/src/components/primitives/button.tsx)): **`default`** page/dialog
-  primary & secondary actions · **`sm`** dense/toolbar/table/card-header/inline · **`lg`**
-  marketing/hero CTAs only · icon-only →
-  [`IconButton`](../../../packages/ui/src/components/primitives/icon-button.tsx) (forces `aria-label`);
-  never a bare `<Button size="icon">`.
+  ([`button.tsx`](../../../packages/ui/src/components/primitives/button.tsx)): one height fits all —
+  **`default`** (`h-9`) for nearly everything (page/dialog/form/CTA actions) · **`sm`** (`h-8`) ONLY
+  for dense bars/toolbars (page-header action bars, table/card-header toolbars, the chat composer,
+  filter bars). There is **no `lg`**. Icon-only buttons are the same two heights, square —
+  **`icon`** (`size-9`) / **`icon-sm`** (`size-8`); prefer
+  [`IconButton`](../../../packages/ui/src/components/primitives/icon-button.tsx) (forces `aria-label`,
+  takes the same `size` axis) over a bare `<Button size="icon">`. A `size="icon"` button must hold a
+  **single icon** — the square clips text, so an icon+label control uses `default`/`sm` instead.
 - **Escape hatch.** Genuinely bespoke layout — chat/canvas, virtualization, geometry-measured
   containers, responsive direction flips (`flex-col sm:flex-row`) — may stay raw with a one-line
   `// raw layout: <reason>` so it reads as deliberate, not an oversight.
@@ -113,12 +116,51 @@ unless noted.
 | Image                   | `Image`                             | Loading                     | `Skeletonize` / `Spinner`  |
 
 ¹ App-level (not `@tale/ui`): `SettingsPage`/`SettingsSection`, `DataTable`, `useListPage` live under
-`services/platform/app/components/` — import from `@/app/...`. ² `Select`, `SearchableSelect`, `Switch`
-currently live in `app/components/ui/forms/` and are being centralized into `@tale/ui`; a `RadioGroup`
-is planned. Import from the app path until promoted.
+`services/platform/app/components/` — import from `@/app/...`. ² `Select`, `SearchableSelect`, `Switch`,
+`RadioGroup` live in `app/components/ui/forms/` (app-level canonical — no `@tale/ui` rival); promote to
+`@tale/ui` only when a non-platform workspace (`web`/`docs`) needs them.
 
 Missing a concept? Extend the closest primitive or add a new one in `packages/ui` (story + a11y +
 skeleton-aware) — never a one-off in a feature folder.
+
+## One implementation per concept — the `@tale/ui` ↔ app layering
+
+There are two component layers, and **the same concept must never be implemented twice.** The split:
+
+- **`@tale/ui` owns the bare, shared primitive** (the control + its styling, once). It is consumed by
+  every workspace — `web` and `docs` included — and those **cannot import** `services/platform` code.
+  So any primitive a non-platform surface needs lives in `@tale/ui`, never in the app.
+- **The platform app composes that primitive; it never re-implements its styling.** The app layer adds
+  platform-only UX (label/description/error, password toggle, skeleton, i18n) _around_ the `@tale/ui`
+  control. Reference pattern:
+  [`app/.../data-display/image.tsx`](../../../services/platform/app/components/ui/data-display/image.tsx)
+  wraps `@tale/ui/image` and only adds the `BASE_PATH` fallback.
+
+**Rule:** before building a control under `app/components/ui/`, find the `@tale/ui` primitive and
+**compose it**. A second, divergent implementation (its own CVA/styling for an input, checkbox,
+tooltip, …) is a defect — it drifts. One canonical per concept.
+
+**Canonical per cross-layer concept** (use these; never fork a rival):
+
+| Concept                          | Canonical (use this)                          | Composes                                                  |
+| -------------------------------- | --------------------------------------------- | --------------------------------------------------------- |
+| Text input / textarea / checkbox | app `forms/{input,textarea,checkbox}`         | `@tale/ui/{input,textarea,checkbox}` (bare control)       |
+| Label                            | app `forms/label` (required/info/error)       | `@tale/ui/label`                                          |
+| Tooltip (simple)                 | app `overlays/tooltip` (`content`+`children`) | `@tale/ui/tooltip` (`TooltipContent`; raw parts for adv.) |
+| Settings section                 | app `SettingsSection`                         | `@tale/ui/page-section`                                   |
+| Image                            | app `data-display/image`                      | `@tale/ui/image`                                          |
+| Pagination                       | `data-table/data-table-pagination`            | — (standalone `navigation/pagination` was dead, removed)  |
+
+**Genuinely distinct — do NOT merge** (similar names, different concepts): `StatCard`/`StatCardGrid`
+(bordered headline-metric strip) vs `StatItem`/`StatGrid` (borderless `<dl>` key/value); `EmptyState`
+(full-height) vs `EmptyPlaceholder` (inline dashed); `@tale/ui/Field` (form wrapper) vs app `Field`
+(read-only display); the `Dialog → ConfirmDialog → DeleteDialog` / `FormDialog` / `ViewDialog`
+composition ladder; `InlineCode` vs `CodeBlock`; `Popover` (interactive) vs `Tooltip` (passive).
+
+**Known styling drift to reconcile** (the app control re-implements the primitive's look instead of
+composing it — route it through the `@tale/ui` primitive, reconcile to one token set, verify visually):
+`forms/input`, `forms/textarea`, `forms/checkbox` (border/focus tokens), `overlays/tooltip` (content
+background). Until reconciled, use the canonical above — don't add a third.
 
 ## When to create a new primitive
 

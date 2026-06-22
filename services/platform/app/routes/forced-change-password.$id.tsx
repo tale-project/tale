@@ -182,7 +182,6 @@ function ForcedChangePasswordPage() {
                     <Input
                       id="new-password"
                       type="password"
-                      size="lg"
                       autoComplete="new-password"
                       label={tAuth('changePassword.newPassword')}
                       placeholder={tAuth('changePassword.placeholder.new')}
@@ -200,7 +199,6 @@ function ForcedChangePasswordPage() {
                   <Input
                     id="confirm-password"
                     type="password"
-                    size="lg"
                     autoComplete="new-password"
                     label={tAuth('changePassword.confirmPassword')}
                     placeholder={tAuth('changePassword.placeholder.confirm')}
@@ -210,7 +208,6 @@ function ForcedChangePasswordPage() {
                   />
                   <Button
                     type="submit"
-                    size="lg"
                     fullWidth
                     disabled={isSubmitting || !isValid}
                   >

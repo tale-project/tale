@@ -174,7 +174,6 @@ function RuleDialog({
               }
             }}
             disabled={cannotManage}
-            size="sm"
           />
 
           {draft.scope === 'role' && (
@@ -184,7 +183,6 @@ function RuleDialog({
               value={draft.scopeId ?? ''}
               onValueChange={(value) => updateDraft({ scopeId: value })}
               disabled={cannotManage}
-              size="sm"
             />
           )}
 
@@ -193,7 +191,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('featureFlags.scopeLabels.user')}
                 placeholder={t('featureFlags.selectUser')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -210,7 +207,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('featureFlags.scopeLabels.team')}
                 placeholder={t('featureFlags.selectTeam')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -258,7 +254,6 @@ function RuleDialog({
                 })
               }
               disabled={cannotManage}
-              size="sm"
               placeholder="e.g. 50000"
               min={0}
             />
@@ -469,12 +464,7 @@ export function FeatureFlagsEditor({
         title={t('featureFlags.title')}
         description={t('featureFlags.description')}
         action={
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={onAddRule}
-            disabled={cannotManage}
-          >
+          <Button variant="primary" onClick={onAddRule} disabled={cannotManage}>
             <Plus className="mr-1.5 size-4" />
             {t('featureFlags.addRule')}
           </Button>

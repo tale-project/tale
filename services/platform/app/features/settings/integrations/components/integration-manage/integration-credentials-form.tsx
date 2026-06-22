@@ -470,7 +470,6 @@ function OAuth2CredentialsEditor({
       {isEditingOAuth2 && (
         <Button
           variant="secondary"
-          size="sm"
           onClick={onCancelEdit}
           disabled={busy}
           className="w-full"

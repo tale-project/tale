@@ -290,7 +290,6 @@ export function OrganigramCanvas({
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
                   icon={Undo2}
                   iconClassName="size-3.5"
                   disabled={isSaving}
@@ -300,7 +299,6 @@ export function OrganigramCanvas({
                 </Button>
                 <Button
                   type="button"
-                  size="sm"
                   disabled={isSaving}
                   aria-busy={isSaving ? 'true' : undefined}
                   onClick={() => void handleSave()}

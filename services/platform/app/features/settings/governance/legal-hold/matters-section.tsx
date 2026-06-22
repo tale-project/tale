@@ -134,7 +134,6 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
           <Button
             type="button"
             variant="primary"
-            size="sm"
             onClick={() => setCreateOpen(true)}
           >
             {t('legalHold.actions.createMatter')}
@@ -144,7 +143,6 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
         <Row gap={2}>
           <Select
             id="matters-status-filter"
-            size="sm"
             value={statusFilter}
             onValueChange={(v) =>
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained

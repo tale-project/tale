@@ -387,29 +387,18 @@ export function DocumentUploadDialog({
         {/* Footer actions */}
         <Row gap={2} justify="end">
           {hasFailures && !isUploading && !hasPendingFiles && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleRetryAll}
-              className="gap-1.5"
-            >
+            <Button type="button" onClick={handleRetryAll} className="gap-1.5">
               <RotateCw className="size-3.5" />
               {tDocuments('upload.retryUpload')}
             </Button>
           )}
           {isUploading && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handleCancel}
-            >
+            <Button type="button" variant="secondary" onClick={handleCancel}>
               {tDocuments('upload.cancelUpload')}
             </Button>
           )}
           <Button
             type="button"
-            size="sm"
             onClick={handleUpload}
             disabled={!hasPendingFiles || isUploading || allCompleted}
           >

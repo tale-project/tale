@@ -22,7 +22,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 
 import { Label } from './label';
-import { selectTriggerClasses, type SelectTriggerSize } from './select';
+import { selectTriggerClasses } from './select';
 
 export interface SearchableSelectOption {
   value: string;
@@ -52,8 +52,6 @@ export interface SearchableSelectProps {
   label?: ReactNode;
   /** Placeholder shown on the default trigger when no value is selected. */
   placeholder?: ReactNode;
-  /** Size of the default trigger — matches the `Select` component's sizes. */
-  size?: SelectTriggerSize;
   /** Marks the default trigger as invalid (adds error ring + aria-invalid). */
   error?: boolean;
   /** Description text rendered below the default trigger. */
@@ -160,7 +158,6 @@ function SearchableSelectBase({
   trigger,
   label,
   placeholder,
-  size = 'default',
   error,
   description,
   required,
@@ -202,7 +199,7 @@ function SearchableSelectBase({
       id={triggerId}
       disabled={disabled}
       aria-describedby={description ? descriptionId : undefined}
-      className={cn(selectTriggerClasses({ size, error }), triggerClassName)}
+      className={cn(selectTriggerClasses({ error }), triggerClassName)}
     >
       <span className={cn(!selectedOption && 'text-muted-foreground')}>
         {selectedOption ? selectedOption.label : placeholder}

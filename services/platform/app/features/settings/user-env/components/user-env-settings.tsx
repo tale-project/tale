@@ -73,7 +73,7 @@ function UserEnvSettingsView({
         title={t('page.title')}
         description={t('page.description')}
         action={
-          <Button size="sm" icon={Plus} onClick={() => setAddOpen(true)}>
+          <Button icon={Plus} onClick={() => setAddOpen(true)}>
             {t('add.button')}
           </Button>
         }

@@ -306,12 +306,7 @@ function ScreencastViewport({
                 defaultValue: 'Stream ended',
               })}
             </Text>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={RefreshCw}
-              onClick={reconnect}
-            >
+            <Button variant="secondary" icon={RefreshCw} onClick={reconnect}>
               {t('liveBrowser.reconnect', { defaultValue: 'Reconnect' })}
             </Button>
           </Stack>
@@ -326,12 +321,7 @@ function ScreencastViewport({
                 defaultValue: 'Couldn’t connect to the live view.',
               })}
             </Text>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={RefreshCw}
-              onClick={reconnect}
-            >
+            <Button variant="secondary" icon={RefreshCw} onClick={reconnect}>
               {t('liveBrowser.retry', { defaultValue: 'Retry' })}
             </Button>
           </Stack>

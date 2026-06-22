@@ -4,6 +4,7 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
+import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { useTranslation } from 'react-i18next';
 
 import { useT } from '@/lib/i18n/client';
@@ -15,6 +16,8 @@ interface FeedbackSummaryCardsProps {
   notHelpful: number;
   /** When true, sentiment cell is greyed out — partial-sample percentages mislead. */
   capped: boolean;
+  /** Prior-window sentiment counts (from the query's `previous`), for deltas. */
+  previous?: { positive: number; negative: number; total: number };
 }
 
 function formatPercent(
@@ -38,6 +41,7 @@ export function FeedbackSummaryCards({
   helpful,
   notHelpful,
   capped,
+  previous,
 }: FeedbackSummaryCardsProps) {
   const { t } = useT('analytics');
   const { i18n } = useTranslation();
@@ -46,6 +50,13 @@ export function FeedbackSummaryCards({
   const positivePct = total === 0 ? 0 : helpful / total;
   const negativePct = total === 0 ? 0 : notHelpful / total;
   const sentimentLabel = formatPercent(helpful, total, i18n.language);
+
+  // Sentiment delta compares the positive share across windows (higher = good).
+  const prevTotal = previous ? previous.positive + previous.negative : 0;
+  const prevPositivePct =
+    previous && prevTotal > 0
+      ? (previous.positive / prevTotal) * 100
+      : undefined;
 
   return (
     <StatCardGrid className="overflow-hidden">
@@ -90,6 +101,12 @@ export function FeedbackSummaryCards({
               })}
             </Text>
           ) : null}
+          {!loading && !capped && total > 0 && prevPositivePct !== undefined ? (
+            <TrendIndicator
+              value={positivePct * 100}
+              previous={prevPositivePct}
+            />
+          ) : null}
         </div>
         {/* The sentiment bar only paints with data — reserve its exact 0.5rem
             height while loading so the sentiment cell doesn't grow on load. */}
@@ -121,12 +138,24 @@ export function FeedbackSummaryCards({
         label={t('feedback.cards.helpful')}
         value={formatNumber(helpful, i18n.language)}
         valueClassName="text-emerald-600 dark:text-emerald-400"
-      />
+      >
+        <div className="mt-0.5">
+          <TrendIndicator value={helpful} previous={previous?.positive} />
+        </div>
+      </StatCard>
       <StatCard
         label={t('feedback.cards.notHelpful')}
         value={formatNumber(notHelpful, i18n.language)}
         valueClassName="text-rose-600 dark:text-rose-400"
-      />
+      >
+        <div className="mt-0.5">
+          <TrendIndicator
+            value={notHelpful}
+            previous={previous?.negative}
+            inverted
+          />
+        </div>
+      </StatCard>
     </StatCardGrid>
   );
 }

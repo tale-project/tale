@@ -160,7 +160,6 @@ export function OnboardingWizard({
           {stepIndex > 0 && (
             <Button
               variant="ghost"
-              size="sm"
               icon={ChevronLeft}
               onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
               className="-ml-2"

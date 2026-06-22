@@ -62,12 +62,7 @@ export function SlackSetupGuide({
       <Stack gap={2}>
         <HStack className="items-center justify-between">
           <Label>{t('integrations.slackSetup.manifest')}</Label>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={copyManifest}
-          >
+          <Button type="button" variant="secondary" onClick={copyManifest}>
             {copied ? (
               <Check className="mr-1.5 size-3.5" />
             ) : (

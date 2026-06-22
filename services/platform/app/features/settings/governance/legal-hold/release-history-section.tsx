@@ -170,7 +170,6 @@ export function ReleaseHistorySection({
       <Row gap={2}>
         <Select
           id="release-history-status-filter"
-          size="sm"
           value={status}
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained to ReleaseStatus
           onValueChange={(v) => setStatus(v as ReleaseStatus)}

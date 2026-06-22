@@ -35,14 +35,13 @@ export function SiteHeader() {
       <Button
         asChild
         variant="secondary"
-        size="sm"
         className="text-fg-muted hover:text-fg-base text-sm"
       >
         <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
           {t('readDocs')}
         </a>
       </Button>
-      <Button asChild size="sm" className="text-sm">
+      <Button asChild className="text-sm">
         <LocalizedLink to="/request-demo">{t('requestDemo')}</LocalizedLink>
       </Button>
     </>

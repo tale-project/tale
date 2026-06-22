@@ -196,7 +196,6 @@ export function SkillDetailPanel({
               <>
                 <Button
                   variant="ghost"
-                  size="sm"
                   icon={RotateCw}
                   onClick={() => setReplaceDialogOpen(true)}
                   disabled={isDuplicating}
@@ -207,7 +206,6 @@ export function SkillDetailPanel({
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
                   icon={Copy}
                   onClick={() => void handleDuplicate()}
                   isLoading={isDuplicating}
@@ -217,7 +215,6 @@ export function SkillDetailPanel({
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
                   icon={Trash2}
                   onClick={() => setDeleteDialogOpen(true)}
                   disabled={isDuplicating}

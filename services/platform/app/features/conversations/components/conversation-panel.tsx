@@ -302,7 +302,6 @@ export function ConversationPanel({
         </div>
         <Button
           variant="secondary"
-          size="sm"
           onClick={() => void refetch()}
           className="mt-1"
         >
@@ -608,7 +607,6 @@ export function ConversationPanel({
                 </span>
                 <Button
                   variant="secondary"
-                  size="sm"
                   disabled={isReopening}
                   className="h-auto px-3 py-1 text-[13px]"
                   onClick={() => {
@@ -656,7 +654,6 @@ export function ConversationPanel({
                 </span>
                 <Button
                   variant="secondary"
-                  size="sm"
                   disabled={isReopening}
                   className="h-auto px-3 py-1 text-[13px]"
                   onClick={() => {
@@ -705,7 +702,6 @@ export function ConversationPanel({
                 <Row gap={2}>
                   <Button
                     variant="secondary"
-                    size="sm"
                     disabled={isReopening || isDeleting}
                     className="h-auto px-3 py-1 text-[13px]"
                     onClick={() => {
@@ -743,7 +739,6 @@ export function ConversationPanel({
                   </Button>
                   <Button
                     variant="destructive"
-                    size="sm"
                     disabled={isDeleting || isReopening}
                     className="h-auto px-3 py-1 text-[13px]"
                     onClick={() => {

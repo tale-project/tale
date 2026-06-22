@@ -425,7 +425,6 @@ function PromptLibraryDialogContent({
                         <Button
                           type="button"
                           variant="secondary"
-                          size="sm"
                           onClick={loadMore}
                           disabled={isLoadingMore}
                         >
@@ -437,7 +436,6 @@ function PromptLibraryDialogContent({
                       <Button
                         type="button"
                         variant="secondary"
-                        size="sm"
                         onClick={clearFilters}
                       >
                         {t('emptyState.clearFilters')}
@@ -480,7 +478,6 @@ function PromptLibraryDialogContent({
                   >
                     <Button
                       variant="ghost"
-                      size="sm"
                       onClick={loadMore}
                       disabled={isLoadingMore}
                     >
@@ -515,7 +512,6 @@ function PromptLibraryDialogContent({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={() => setHistoryPrompt(editingPrompt)}
             >
               <History className="mr-1 size-3" />

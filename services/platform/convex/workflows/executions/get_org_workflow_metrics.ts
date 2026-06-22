@@ -39,8 +39,18 @@ export type OrgWorkflowTopItem = {
   lastExecution: number | null;
 };
 
+/** Prior equal-length window totals — drives the summary-card deltas. */
+export type OrgWorkflowPrevSummary = {
+  total: number;
+  completed: number;
+  failed: number;
+  successRate: number;
+  avgExecutionTimeSeconds: number;
+};
+
 export type OrgWorkflowMetrics = {
   summary: OrgWorkflowSummary;
+  previousSummary: OrgWorkflowPrevSummary;
   series: OrgWorkflowSeriesPoint[];
   topWorkflows: OrgWorkflowTopItem[];
 };
@@ -75,6 +85,8 @@ export async function getOrgWorkflowMetrics(
 ): Promise<OrgWorkflowMetrics> {
   const now = Date.now();
   const windowStart = now - args.periodDays * DAY_MS;
+  // Immediately-preceding equal-length window, for period-over-period deltas.
+  const prevWindowStart = now - args.periodDays * 2 * DAY_MS;
 
   let total = 0;
   let completed = 0;
@@ -83,6 +95,13 @@ export async function getOrgWorkflowMetrics(
   let durationSumMs = 0;
   let durationCount = 0;
   let lastExecution: number | null = null;
+
+  // Prior-window accumulators (totals only — no series/buckets needed).
+  let prevTotal = 0;
+  let prevCompleted = 0;
+  let prevFailed = 0;
+  let prevDurationSumMs = 0;
+  let prevDurationCount = 0;
 
   const seriesMap = new Map<string, OrgWorkflowSeriesPoint>();
   const todayStart = utcDayStart(now);
@@ -105,7 +124,21 @@ export async function getOrgWorkflowMetrics(
       capped = true;
       break;
     }
-    if (e.startedAt < windowStart) continue;
+    if (e.startedAt < prevWindowStart) continue;
+    if (e.startedAt < windowStart) {
+      // Prior window — accumulate totals only.
+      prevTotal++;
+      if (e.status === 'completed') {
+        prevCompleted++;
+        if (e.completedAt) {
+          prevDurationSumMs += e.completedAt - e.startedAt;
+          prevDurationCount++;
+        }
+      } else if (e.status === 'failed') {
+        prevFailed++;
+      }
+      continue;
+    }
 
     total++;
     if (lastExecution === null || e.startedAt > lastExecution) {
@@ -196,6 +229,16 @@ export async function getOrgWorkflowMetrics(
       avgExecutionTimeSeconds,
       lastExecution,
       capped,
+    },
+    previousSummary: {
+      total: prevTotal,
+      completed: prevCompleted,
+      failed: prevFailed,
+      successRate: prevTotal > 0 ? (prevCompleted / prevTotal) * 100 : 0,
+      avgExecutionTimeSeconds:
+        prevDurationCount > 0
+          ? Math.round(prevDurationSumMs / prevDurationCount / 1000)
+          : 0,
     },
     series: [...seriesMap.values()],
     topWorkflows,

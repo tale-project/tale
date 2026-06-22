@@ -67,7 +67,7 @@ export function MembersSettings({
   }, [allMembers, debouncedSearch, sortOrder]);
 
   return (
-    <Stack gap={5}>
+    <Stack gap={4}>
       <ActionRow justify="between">
         <SearchInput
           placeholder={tSettings('organization.searchMember')}

@@ -167,7 +167,6 @@ export function OneDrivePickerStage({
                 wrapperClassName="flex-1"
               />
               <Button
-                size="sm"
                 onClick={onProceedToSettings}
                 disabled={selectedItems.size === 0}
                 className="px-6 whitespace-nowrap"
@@ -236,7 +235,6 @@ export function OneDrivePickerStage({
                     wrapperClassName="flex-1"
                   />
                   <Button
-                    size="sm"
                     onClick={onProceedToSettings}
                     disabled={selectedItems.size === 0}
                     className="px-6 whitespace-nowrap"

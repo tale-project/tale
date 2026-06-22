@@ -80,8 +80,17 @@ export interface UsageSummary {
   capped: boolean;
 }
 
+/** Prior equal-length window totals — drives the summary-card deltas. */
+export interface UsagePrevSummary {
+  totalRequests: number;
+  totalTokens: number;
+  totalCostCents: number;
+  activeUsers: number;
+}
+
 export interface OrgUsageMetrics {
   summary: UsageSummary;
+  previousSummary: UsagePrevSummary;
   series: UsageSeriesPoint[];
   topAgents: UsageTopAgent[];
   topModels: UsageTopModel[];
@@ -117,6 +126,30 @@ export async function getOrgUsageMetrics(
   const now = Date.now();
   const windowKeys = buildWindowKeys(args.granularity, args.periodDays, now);
   const windowStartKey = windowKeys[0] ?? '';
+
+  // Prior equal-length window keys, for period-over-period deltas. We widen the
+  // ledger scan back to this window's start and bucket those rows separately.
+  const prevKeys: string[] = [];
+  {
+    const seen = new Set<string>();
+    for (let i = args.periodDays * 2 - 1; i >= args.periodDays; i--) {
+      const key = buildPeriodKeyFromTimestamp(
+        args.granularity,
+        now - i * DAY_MS,
+      );
+      if (!seen.has(key)) {
+        seen.add(key);
+        prevKeys.push(key);
+      }
+    }
+  }
+  const prevKeySet = new Set(prevKeys);
+  const scanStartKey = prevKeys[0] ?? windowStartKey;
+
+  let prevTotalRequests = 0;
+  let prevTotalTokens = 0;
+  let prevTotalCostCents = 0;
+  const prevActiveUserIds = new Set<string>();
 
   const seriesMap = new Map<string, UsageSeriesPoint>();
   for (const key of windowKeys) {
@@ -162,7 +195,7 @@ export async function getOrgUsageMetrics(
       q
         .eq('organizationId', args.organizationId)
         .eq('granularity', args.granularity)
-        .gte('periodKey', windowStartKey),
+        .gte('periodKey', scanStartKey),
     )) {
     scanned++;
     if (scanned > MAX_SCAN) {
@@ -182,7 +215,16 @@ export async function getOrgUsageMetrics(
     }
 
     const seriesPoint = seriesMap.get(row.periodKey);
-    if (!seriesPoint) continue;
+    if (!seriesPoint) {
+      // Rows outside the current window but inside the prior one feed deltas.
+      if (prevKeySet.has(row.periodKey)) {
+        prevTotalRequests += row.requestCount;
+        prevTotalTokens += row.totalTokens;
+        prevTotalCostCents += row.costEstimate;
+        if (row.requestCount > 0) prevActiveUserIds.add(row.userId);
+      }
+      continue;
+    }
 
     seriesPoint.requests += row.requestCount;
     seriesPoint.inputTokens += row.inputTokens;
@@ -353,6 +395,12 @@ export async function getOrgUsageMetrics(
       totalCostCents,
       activeUsers: activeUserIds.size,
       capped,
+    },
+    previousSummary: {
+      totalRequests: prevTotalRequests,
+      totalTokens: prevTotalTokens,
+      totalCostCents: prevTotalCostCents,
+      activeUsers: prevActiveUserIds.size,
     },
     series: [...seriesMap.values()],
     topAgents,

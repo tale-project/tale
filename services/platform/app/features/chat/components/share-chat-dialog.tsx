@@ -139,7 +139,6 @@ function ShareChatDialogContent({
             <div className="flex gap-1.5">
               <Button
                 variant="secondary"
-                size="sm"
                 onClick={handleCopy}
                 className="gap-1.5"
                 aria-label={t('share.copyLink')}
@@ -153,7 +152,6 @@ function ShareChatDialogContent({
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => {
                   onOpenChange(false);
                   void navigate({

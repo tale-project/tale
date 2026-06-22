@@ -167,17 +167,12 @@ export function TaskComments({
               />
               <Row gap={2} align="stretch">
                 <Button
-                  size="sm"
                   disabled={editDraft.trim().length === 0}
                   onClick={() => void submitEdit(c.messageId)}
                 >
                   {tCommon('actions.save')}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setEditingId(null)}
-                >
+                <Button variant="secondary" onClick={() => setEditingId(null)}>
                   {tCommon('actions.cancel')}
                 </Button>
               </Row>
@@ -267,7 +262,6 @@ export function TaskComments({
             />
             <Row gap={0} align="stretch" justify="end">
               <Button
-                size="sm"
                 disabled={draft.trim().length === 0}
                 onClick={() => void submitNew()}
               >

@@ -527,7 +527,6 @@ function WorkflowCreationApprovalCardComponent({
         <ActionRow gap={2}>
           <Tooltip content={t('approveTooltip')}>
             <Button
-              size="sm"
               variant="primary"
               onClick={handleApprove}
               disabled={isProcessing}
@@ -540,7 +539,6 @@ function WorkflowCreationApprovalCardComponent({
 
           <Tooltip content={t('rejectTooltip')}>
             <Button
-              size="sm"
               variant="secondary"
               onClick={handleReject}
               disabled={isProcessing}

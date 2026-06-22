@@ -383,25 +383,19 @@ function AgentCatalogCard({
       }
       actions={
         !entry.installed ? (
-          <Button size="sm" isLoading={pending} onClick={onInstall}>
+          <Button isLoading={pending} onClick={onInstall}>
             {t('install')}
           </Button>
         ) : (
           <>
             <Button
-              size="sm"
               isLoading={pending}
               variant={entry.enabled ? 'secondary' : 'primary'}
               onClick={onToggleEnabled}
             >
               {entry.enabled ? t('disable') : t('enable')}
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={pending}
-              onClick={onUninstall}
-            >
+            <Button variant="ghost" disabled={pending} onClick={onUninstall}>
               {t('uninstall')}
             </Button>
           </>

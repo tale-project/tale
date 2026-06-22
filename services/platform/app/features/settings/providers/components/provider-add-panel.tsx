@@ -657,7 +657,6 @@ export function ProviderAddPanel({
                     <Button
                       type="button"
                       variant="ghost"
-                      size="sm"
                       onClick={() => void handleFetchModels()}
                       disabled={isFetching}
                     >
@@ -669,12 +668,7 @@ export function ProviderAddPanel({
                       {t('providers.fetchModels')}
                     </Button>
                   )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={openAddDialog}
-                  >
+                  <Button type="button" variant="ghost" onClick={openAddDialog}>
                     <Plus className="mr-1 size-3.5" />
                     {t('providers.addModel')}
                   </Button>

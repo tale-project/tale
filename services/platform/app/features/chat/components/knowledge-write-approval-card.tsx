@@ -208,7 +208,6 @@ function KnowledgeWriteApprovalCardComponent({
             }
           >
             <Button
-              size="sm"
               variant="primary"
               onClick={handleApprove}
               disabled={isProcessing}
@@ -221,7 +220,6 @@ function KnowledgeWriteApprovalCardComponent({
 
           <Tooltip content={t('rejectTooltip')}>
             <Button
-              size="sm"
               variant="secondary"
               onClick={handleReject}
               disabled={isProcessing}

@@ -347,7 +347,6 @@ function PromptFormDialogContent({
           </div>
           <Button
             type="button"
-            size="sm"
             variant={isDirty ? 'destructive' : 'secondary'}
             onClick={handleLoadLatest}
             disabled={!live}

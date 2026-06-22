@@ -453,7 +453,6 @@ function WorkflowRunApprovalCardComponent({
         <ActionRow gap={2}>
           <Tooltip content={t('approveTooltip')}>
             <Button
-              size="sm"
               variant="primary"
               onClick={handleApprove}
               disabled={isProcessing}
@@ -468,7 +467,6 @@ function WorkflowRunApprovalCardComponent({
 
           <Tooltip content={t('rejectTooltip')}>
             <Button
-              size="sm"
               variant="secondary"
               onClick={handleReject}
               disabled={isProcessing}
@@ -691,7 +689,6 @@ function WorkflowHumanInputSection({
           <HStack gap={2}>
             <Button
               variant="secondary"
-              size="sm"
               onClick={() => setShowFeedback(false)}
               disabled={isSubmitting}
               className="flex-1"
@@ -701,7 +698,6 @@ function WorkflowHumanInputSection({
             </Button>
             <Button
               variant="secondary"
-              size="sm"
               onClick={handleSubmitFeedback}
               disabled={isSubmitting}
               className="flex-1"
@@ -726,7 +722,6 @@ function WorkflowHumanInputSection({
           <Button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            size="sm"
             className="w-full"
           >
             {isSubmitting ? (

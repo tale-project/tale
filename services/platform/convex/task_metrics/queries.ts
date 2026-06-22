@@ -62,7 +62,7 @@ export const getWorkforceMetrics = query({
   returns: v.any(),
   handler: async (ctx, args) => {
     await requireMember(ctx, args.organizationId);
-    const { startKey } = windowKeys(args.days ?? 30);
+    const { startKey, prevStartKey } = windowKeys(args.days ?? 30);
 
     const totals = {
       tasksCreated: 0,
@@ -83,6 +83,17 @@ export const getWorkforceMetrics = query({
       leadTimeCount: 0,
       capped: false,
     };
+    // Prior equal-length window — totals only, for the KPI deltas.
+    const prevTotals = {
+      tasksCompleted: 0,
+      agentRunsStarted: 0,
+      reviewsPassed: 0,
+      reviewsChangesRequested: 0,
+      escalations: 0,
+      cycleTimeSumMs: 0,
+      cycleTimeCount: 0,
+      totalCostCents: 0,
+    };
     const byDay = new Map<
       string,
       {
@@ -100,8 +111,22 @@ export const getWorkforceMetrics = query({
     for await (const row of ctx.db
       .query('taskMetricsDaily')
       .withIndex('by_org_date', (q) =>
-        q.eq('organizationId', args.organizationId).gte('dateKey', startKey),
+        q
+          .eq('organizationId', args.organizationId)
+          .gte('dateKey', prevStartKey),
       )) {
+      if (row.dateKey < startKey) {
+        // Prior window — accumulate the delta-relevant totals only.
+        prevTotals.tasksCompleted += row.tasksCompleted;
+        prevTotals.agentRunsStarted += row.agentRunsStarted;
+        prevTotals.reviewsPassed += row.reviewsPassed;
+        prevTotals.reviewsChangesRequested += row.reviewsChangesRequested;
+        prevTotals.escalations += row.escalations;
+        prevTotals.cycleTimeSumMs += row.cycleTimeSumMs;
+        prevTotals.cycleTimeCount += row.cycleTimeCount;
+        prevTotals.totalCostCents += row.totalCostCents;
+        continue;
+      }
       totals.tasksCreated += row.tasksCreated;
       totals.tasksCompleted += row.tasksCompleted;
       totals.tasksCancelled += row.tasksCancelled;
@@ -189,6 +214,7 @@ export const getWorkforceMetrics = query({
 
     return {
       totals,
+      previousTotals: prevTotals,
       trend: [...byDay.values()].sort((a, b) =>
         a.dateKey.localeCompare(b.dateKey),
       ),

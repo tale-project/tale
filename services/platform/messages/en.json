@@ -258,7 +258,7 @@
   },
   "analytics": {
     "usage": {
-      "title": "Usage Analytics",
+      "title": "Usage Metrics",
       "description": "Token consumption, requests, and active users over time.",
       "cappedNotice": "Results are capped because the time range contains too many records. Narrow the range for complete data.",
       "activeUsersTooltip": "Users who made AI requests during this period.",
@@ -347,7 +347,7 @@
       }
     },
     "feedback": {
-      "title": "Feedback Analytics",
+      "title": "Feedback Metrics",
       "description": "User-submitted thumbs up/down and arena verdicts on assistant responses.",
       "commentsOnly": "Comments only",
       "errors": {
@@ -466,7 +466,8 @@
           "arena": "Arena pairing",
           "attribution": "Attribution"
         }
-      }
+      },
+      "sentimentTrend": "Sentiment over time"
     }
   },
   "approvalCommon": {
@@ -610,13 +611,14 @@
     },
     "metrics": {
       "link": "Metrics",
-      "title": "Automation metrics",
+      "title": "Automation Metrics",
       "description": "Usage and performance KPIs across your automations.",
       "cappedNotice": "Showing the most recent 5,000 runs in this window. Older runs in this period are not included in these totals.",
       "period": {
         "last7Days": "Last 7 days",
         "last30Days": "Last 30 days",
-        "last90Days": "Last 90 days"
+        "last90Days": "Last 90 days",
+        "label": "Period"
       },
       "cards": {
         "totalRuns": "Total runs",
@@ -6939,12 +6941,13 @@
     },
     "metrics": {
       "link": "Metrics",
-      "title": "Task metrics",
+      "title": "Task Metrics",
       "description": "Delivery, intervention, and cost KPIs for this project's tasks.",
       "period": {
         "last7Days": "Last 7 days",
         "last30Days": "Last 30 days",
-        "last90Days": "Last 90 days"
+        "last90Days": "Last 90 days",
+        "label": "Period"
       },
       "cappedNotice": "Some days hit the rollup scan cap — totals in this window may undercount.",
       "noData": "No data",
@@ -7589,7 +7592,7 @@
       "none": "Nothing here."
     },
     "scorecard": {
-      "title": "Performance",
+      "title": "Agent Metrics",
       "subtitle": "Last 30 days — outcomes, review quality, and cost for this agent.",
       "tasksCompleted": "Tasks completed",
       "reviewOutcome": "First-pass approval",
@@ -7597,7 +7600,9 @@
       "avgRun": "Avg run time",
       "spend": "Spend",
       "recentRuns": "Recent runs",
-      "noRuns": "No runs yet."
+      "noRuns": "No runs yet.",
+      "runsCompleted": "Completed",
+      "runsFailed": "Failed"
     }
   },
   "runtimes": {
@@ -7607,7 +7612,7 @@
       "cliHint": "First, install the Tale CLI if you haven't already:",
       "description": "Install once per machine: setup asks for this workspace URL, an API key, and the git workspace agents may work in. Then bind an agent to a runtime in its config — its board tasks will run on your machine and report back for review.",
       "privacy": "Local workspace paths never leave your machine — only the workspace keys you choose are advertised here. full_auto permission requires opting in on both the server and the daemon.",
-      "createKey": "Create an API key"
+      "createKey": "Create API key"
     },
     "list": {
       "title": "Connected daemons",

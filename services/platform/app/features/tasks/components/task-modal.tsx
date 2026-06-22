@@ -579,7 +579,6 @@ function EditTaskBody({
                   className="min-h-0"
                 />
                 <Button
-                  size="sm"
                   icon={Plus}
                   variant="secondary"
                   disabled={subtaskTitle.trim().length === 0}
@@ -862,10 +861,8 @@ function EditableDescription({
       />
       {isDirty && (
         <Row gap={2} align="stretch">
-          <Button size="sm" onClick={save}>
-            {tCommon('actions.save')}
-          </Button>
-          <Button size="sm" variant="secondary" onClick={discard}>
+          <Button onClick={save}>{tCommon('actions.save')}</Button>
+          <Button variant="secondary" onClick={discard}>
             {tCommon('actions.discard')}
           </Button>
         </Row>

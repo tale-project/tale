@@ -267,7 +267,6 @@ export function EnvVarListEditor({
       ))}
       <HStack gap={2} className="justify-between">
         <Button
-          size="sm"
           variant="ghost"
           disabled={busy}
           className="self-start"
@@ -276,7 +275,7 @@ export function EnvVarListEditor({
           <Plus className="size-4" />
           {t('add')}
         </Button>
-        <Button size="sm" onClick={() => void onSave()} disabled={busy}>
+        <Button onClick={() => void onSave()} disabled={busy}>
           {saving ? t('saving') : t('save')}
         </Button>
       </HStack>

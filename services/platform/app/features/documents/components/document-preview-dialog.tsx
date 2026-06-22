@@ -290,7 +290,6 @@ export function DocumentPreviewDialog({
             {resolvedUrl && (
               <Button
                 variant="secondary"
-                size="sm"
                 onClick={handleDownload}
                 disabled={isDownloading}
                 aria-label={t('preview.downloadFile')}

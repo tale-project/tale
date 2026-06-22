@@ -225,7 +225,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
             <div className="flex-1" />
             <Button
               variant="ghost"
-              size="sm"
               onClick={() => setIsShareDialogOpen(true)}
               aria-label={tChat('share.button')}
               className="text-muted-foreground gap-1.5"

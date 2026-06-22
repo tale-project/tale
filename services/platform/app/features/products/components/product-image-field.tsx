@@ -100,7 +100,6 @@ export function ProductImageField({
         <Button
           type="button"
           variant="secondary"
-          size="sm"
           disabled={isDisabled}
           onClick={() => inputRef.current?.click()}
           className="gap-1.5"
@@ -116,7 +115,6 @@ export function ProductImageField({
           <Button
             type="button"
             variant="ghost"
-            size="sm"
             disabled={disabled}
             onClick={() => onChange('')}
             aria-label={tProducts('edit.removeImage')}

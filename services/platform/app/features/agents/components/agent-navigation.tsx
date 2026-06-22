@@ -441,7 +441,6 @@ export function AgentNavigation({
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="h-8 text-sm"
                   icon={History}
                   iconClassName="size-3.5"
                   collapseLabel

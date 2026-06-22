@@ -365,7 +365,6 @@ function TodoListFieldInput({
       <Button
         type="button"
         variant="secondary"
-        size="sm"
         onClick={addRow}
         disabled={disabled || items.length >= maxItems}
         className="gap-1 self-start"

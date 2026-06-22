@@ -347,7 +347,6 @@ export function LogInPage() {
                 <Button
                   type="button"
                   variant="link"
-                  size="sm"
                   className="h-auto p-0"
                   onClick={() =>
                     toast({

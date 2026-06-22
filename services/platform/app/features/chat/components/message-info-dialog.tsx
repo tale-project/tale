@@ -245,7 +245,7 @@ function DirectTtftProbe({
           Replay agent tools + system prompt
           {agentSlug ? '' : ' (unavailable — no agent on this message)'}
         </label>
-        <Button size="sm" className="w-fit" isLoading={running} onClick={onRun}>
+        <Button className="w-fit" isLoading={running} onClick={onRun}>
           Measure direct TTFT
         </Button>
         {error && (

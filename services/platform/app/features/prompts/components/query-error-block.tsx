@@ -25,7 +25,7 @@ export function QueryErrorBlock({ message, onRetry }: QueryErrorBlockProps) {
       <Text variant="muted" className="text-sm">
         {message}
       </Text>
-      <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+      <Button type="button" variant="secondary" onClick={onRetry}>
         {t('retry')}
       </Button>
     </Stack>

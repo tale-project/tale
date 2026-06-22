@@ -35,11 +35,12 @@ export interface DataTableActionMenuProps {
   /** Button variant */
   variant?: 'primary' | 'destructive' | 'secondary' | 'ghost' | 'link';
   /**
-   * Button size. Defaults to `sm` — table toolbars are a dense context per the
-   * button-size policy, and this matches the empty-state CTA so a list's add
-   * button is the same size in both places.
+   * Button size. Defaults to `default` (h-9) — the create/add action is a
+   * primary action that aligns with the h-9 search/filter controls beside it in
+   * the table toolbar, and matches the empty-state CTA so a list's add button is
+   * the same size in both places. `sm` stays available for genuinely dense bars.
    */
-  size?: 'default' | 'sm' | 'lg';
+  size?: 'default' | 'sm';
   /** Disable the action. */
   disabled?: boolean;
   /** Menu items for dropdown (renders dropdown menu instead of simple button) */
@@ -66,7 +67,7 @@ export function DataTableActionMenu({
   onClick,
   href,
   variant,
-  size = 'sm',
+  size = 'default',
   disabled,
   menuItems,
   align = 'end',

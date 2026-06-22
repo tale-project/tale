@@ -47,8 +47,21 @@ export interface WorkforceLeaderboardRow {
   escalations: number;
 }
 
+/** Prior equal-length window totals (subset) — drives the KPI deltas. */
+export interface WorkforcePreviousTotals {
+  tasksCompleted: number;
+  agentRunsStarted: number;
+  reviewsPassed: number;
+  reviewsChangesRequested: number;
+  escalations: number;
+  cycleTimeSumMs: number;
+  cycleTimeCount: number;
+  totalCostCents: number;
+}
+
 export interface WorkforceMetricsPayload {
   totals: WorkforceTotals;
+  previousTotals: WorkforcePreviousTotals;
   trend: WorkforceTrendPoint[];
   leaderboard: WorkforceLeaderboardRow[];
 }

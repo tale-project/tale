@@ -240,7 +240,6 @@ export function AutomationNavigation({
       trigger={
         <Button
           variant="secondary"
-          size="sm"
           className="h-8 text-sm"
           icon={History}
           iconClassName="size-3.5"

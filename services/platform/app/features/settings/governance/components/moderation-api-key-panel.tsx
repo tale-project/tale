@@ -63,7 +63,6 @@ export function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
           <Row gap={2} align="stretch">
             <Button
               variant="primary"
-              size="sm"
               disabled={
                 disabled || saveSecret.isPending || draft.trim().length === 0
               }
@@ -73,7 +72,6 @@ export function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
             </Button>
             <Button
               variant="ghost"
-              size="sm"
               disabled={saveSecret.isPending}
               onClick={() => {
                 setEditing(false);
@@ -95,7 +93,6 @@ export function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
           </code>
           <Button
             variant="secondary"
-            size="sm"
             disabled={disabled}
             onClick={() => setEditing(true)}
           >

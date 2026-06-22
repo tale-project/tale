@@ -350,7 +350,6 @@ export function BrandingForm({
             <Button
               type="button"
               variant="secondary"
-              size="sm"
               onClick={() => void handleClearBranding()}
             >
               {tCommon('actions.clearAll')}

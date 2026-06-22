@@ -298,7 +298,6 @@ function PgSection({
           <HStack gap={3} align="center" className="flex-wrap">
             <Button
               variant="secondary"
-              size="sm"
               onClick={onTest}
               disabled={disabled || testing}
             >
@@ -685,7 +684,6 @@ function DeploymentSettingsView({
           />
 
           <SettingsSection
-            className="border-border border-t pt-8"
             title={t('dataResidency.storage.title')}
             description={t('dataResidency.storage.description')}
             action={
@@ -816,7 +814,6 @@ function DeploymentSettingsView({
                 <HStack gap={3} align="center" className="flex-wrap">
                   <Button
                     variant="secondary"
-                    size="sm"
                     onClick={() => void runTest('convexStorage')}
                     disabled={readOnly || testing === 'convexStorage'}
                   >
@@ -846,7 +843,6 @@ function DeploymentSettingsView({
           hidden behind a disclosure so it shares the rhythm of the sections
           above. */}
           <PgSection
-            className="border-border border-t pt-8"
             title={t('dataResidency.appDb.summary')}
             description={t('dataResidency.appDb.description')}
             state={appPg}

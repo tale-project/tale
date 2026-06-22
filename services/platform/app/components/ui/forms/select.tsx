@@ -48,21 +48,15 @@ const selectViewportVariants = cva('p-1', {
   },
 });
 
-export type SelectTriggerSize = 'default' | 'sm' | 'lg';
-
 export function selectTriggerClasses({
-  size = 'default',
   error,
 }: {
-  size?: SelectTriggerSize;
   error?: boolean;
 } = {}) {
   return cn(
-    'flex w-full items-center justify-between whitespace-nowrap rounded-lg border border-transparent bg-input px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 ring-1 ring-border focus-visible:ring-primary transition-[border-color,box-shadow] duration-150',
+    // One height fits all controls (`h-9`) — no size axis.
+    'flex h-9 w-full items-center justify-between whitespace-nowrap rounded-lg border border-transparent bg-input px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 ring-1 ring-border focus-visible:ring-primary transition-[border-color,box-shadow] duration-150',
     error && 'border-destructive focus-visible:ring-destructive',
-    size === 'default' && 'h-10',
-    size === 'sm' && 'h-8',
-    size === 'lg' && 'h-12',
   );
 }
 
@@ -99,8 +93,6 @@ interface SelectProps extends Omit<
   position?: 'popper' | 'item-aligned';
   /** Side offset for popper position */
   sideOffset?: number;
-  /** Size of the select */
-  size?: 'default' | 'sm' | 'lg';
   /** Accessible name forwarded to the combobox trigger button. */
   'aria-label'?: string;
   /** Id of an element labelling the combobox trigger button. */
@@ -120,7 +112,6 @@ const SelectBase = forwardRef<
       placeholder,
       required,
       error,
-      size = 'default',
       description,
       className,
       wrapperClassName,
@@ -160,7 +151,7 @@ const SelectBase = forwardRef<
         <SelectPrimitive.Trigger
           ref={ref}
           id={id}
-          className={cn(selectTriggerClasses({ size, error }), className)}
+          className={cn(selectTriggerClasses({ error }), className)}
           aria-invalid={error}
           aria-label={ariaLabel}
           aria-labelledby={resolvedLabelledBy}

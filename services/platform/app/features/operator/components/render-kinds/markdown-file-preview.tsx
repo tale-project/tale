@@ -79,7 +79,7 @@ export function MarkdownFilePreview({
   return (
     <ResponsiveDialog open={open} onOpenChange={setOpen}>
       <ResponsiveDialogTrigger asChild>
-        <Button variant="secondary" size="sm" icon={FileText}>
+        <Button variant="secondary" icon={FileText}>
           {t('action.openFile', { name: file.name, defaultValue: file.name })}
         </Button>
       </ResponsiveDialogTrigger>
@@ -108,7 +108,7 @@ export function MarkdownFilePreview({
                   defaultValue: "Couldn't load the preview.",
                 })}
               </p>
-              <Button asChild variant="secondary" size="sm">
+              <Button asChild variant="secondary">
                 <a href={file.url} target="_blank" rel="noopener noreferrer">
                   {t('filePreview.openInNewTab', {
                     defaultValue: 'Open in a new tab',

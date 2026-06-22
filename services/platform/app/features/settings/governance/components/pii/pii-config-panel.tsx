@@ -488,7 +488,6 @@ function CustomPatternsSection({
             <Row gap={2} align="stretch">
               <Button
                 type="button"
-                size="sm"
                 disabled={disabled || !canSave}
                 onClick={saveDraft}
               >
@@ -496,7 +495,6 @@ function CustomPatternsSection({
               </Button>
               <Button
                 type="button"
-                size="sm"
                 variant="secondary"
                 onClick={() => setDraft(null)}
               >
@@ -510,7 +508,6 @@ function CustomPatternsSection({
           <Button
             type="button"
             variant="secondary"
-            size="sm"
             icon={Plus}
             disabled={disabled}
             onClick={() => setDraft({ name: '', regex: '', replacement: '' })}

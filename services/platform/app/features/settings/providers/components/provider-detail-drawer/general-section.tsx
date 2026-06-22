@@ -36,7 +36,6 @@ export function GeneralSection({
         </Text>
         <Button
           variant="ghost"
-          size="sm"
           className="ml-auto"
           onClick={() => setPanelOpen(true)}
         >

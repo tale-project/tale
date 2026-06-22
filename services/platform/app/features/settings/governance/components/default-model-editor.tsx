@@ -279,7 +279,6 @@ function RuleDialog({
                 }
               }}
               disabled={cannotManage}
-              size="sm"
             />
           </div>
 
@@ -291,7 +290,6 @@ function RuleDialog({
                 value={draft.scopeId ?? ''}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 disabled={cannotManage}
-                size="sm"
               />
             </div>
           )}
@@ -301,7 +299,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('defaultModels.target')}
                 placeholder={t('defaultModels.selectTeam')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -317,7 +314,6 @@ function RuleDialog({
         <SearchableSelect
           label={t('defaultModels.provider')}
           placeholder={t('defaultModels.selectProvider')}
-          size="sm"
           disabled={cannotManage}
           value={draft.providerName || null}
           onValueChange={(value) => updateDraft({ providerName: value })}
@@ -330,7 +326,6 @@ function RuleDialog({
         <SearchableSelect
           label={t('defaultModels.model')}
           placeholder={t('defaultModels.selectModel')}
-          size="sm"
           disabled={cannotManage || !draft.providerName}
           value={draft.modelId || null}
           onValueChange={(value) => updateDraft({ modelId: value })}
@@ -582,7 +577,6 @@ export function DefaultModelEditor({
         action={
           <Button
             variant="primary"
-            size="sm"
             onClick={openAddDialog}
             disabled={cannotManage}
           >

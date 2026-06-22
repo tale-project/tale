@@ -258,7 +258,7 @@
   },
   "analytics": {
     "usage": {
-      "title": "Nutzungsanalyse",
+      "title": "Nutzungs-Metriken",
       "description": "Tokenverbrauch, Anfragen und aktive Benutzer im Zeitverlauf.",
       "cappedNotice": "Ergebnisse sind begrenzt, weil der Zeitraum zu viele Datensätze enthält. Verringere den Zeitraum für vollständige Daten.",
       "activeUsersTooltip": "Benutzer, die in diesem Zeitraum KI-Anfragen gestellt haben.",
@@ -347,7 +347,7 @@
       }
     },
     "feedback": {
-      "title": "Feedback-Analyse",
+      "title": "Feedback-Metriken",
       "description": "Daumen-Bewertungen und Arena-Urteile zu Assistenten-Antworten.",
       "commentsOnly": "Nur Kommentare",
       "errors": {
@@ -466,7 +466,8 @@
           "arena": "Arena-Paarung",
           "attribution": "Zuordnung"
         }
-      }
+      },
+      "sentimentTrend": "Stimmung im Zeitverlauf"
     }
   },
   "approvalCommon": {
@@ -616,7 +617,8 @@
       "period": {
         "last7Days": "Letzte 7 Tage",
         "last30Days": "Letzte 30 Tage",
-        "last90Days": "Letzte 90 Tage"
+        "last90Days": "Letzte 90 Tage",
+        "label": "Zeitraum"
       },
       "cards": {
         "totalRuns": "Ausführungen gesamt",
@@ -6682,7 +6684,8 @@
       "period": {
         "last7Days": "Letzte 7 Tage",
         "last30Days": "Letzte 30 Tage",
-        "last90Days": "Letzte 90 Tage"
+        "last90Days": "Letzte 90 Tage",
+        "label": "Zeitraum"
       },
       "cappedNotice": "Einige Tage haben das Scan-Limit des Rollups erreicht — die Summen in diesem Zeitraum können zu niedrig ausfallen.",
       "noData": "Keine Daten",
@@ -7589,7 +7592,7 @@
       "none": "Nichts vorhanden."
     },
     "scorecard": {
-      "title": "Leistung",
+      "title": "Agent-Metriken",
       "subtitle": "Letzte 30 Tage — Ergebnisse, Review-Qualität und Kosten dieses Agenten.",
       "tasksCompleted": "Abgeschlossene Aufgaben",
       "reviewOutcome": "Direkt-Freigabequote",
@@ -7597,7 +7600,9 @@
       "avgRun": "Ø Laufzeit",
       "spend": "Ausgaben",
       "recentRuns": "Letzte Läufe",
-      "noRuns": "Noch keine Läufe."
+      "noRuns": "Noch keine Läufe.",
+      "runsCompleted": "Abgeschlossen",
+      "runsFailed": "Fehlgeschlagen"
     }
   },
   "runtimes": {

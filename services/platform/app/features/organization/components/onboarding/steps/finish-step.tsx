@@ -107,7 +107,6 @@ export function FinishStep({ onFinishTo, providerConnected }: FinishStepProps) {
               <Button
                 type="button"
                 variant="secondary"
-                size="sm"
                 disabled={!onFinishTo}
                 onClick={() => onFinishTo?.(target)}
               >

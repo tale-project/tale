@@ -231,11 +231,6 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
           icon: Folder,
           title: t('list.emptyTitle'),
           description: t('list.emptyDescription'),
-          action: {
-            label: t('list.createButton'),
-            icon: Plus,
-            onClick: () => setCreateOpen(true),
-          },
         }}
         footer={
           <BulkDeleteBar

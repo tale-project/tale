@@ -111,7 +111,6 @@ export function ModelCatalogCard({
         </Text>
         <Button
           variant="secondary"
-          size="sm"
           onClick={onRefresh}
           disabled={sync.isPending}
           icon={RefreshCw}

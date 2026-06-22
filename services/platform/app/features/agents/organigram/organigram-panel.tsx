@@ -161,7 +161,7 @@ export function OrganigramPanel({
         {t('panel.delegationHint')}
       </Text>
 
-      <Button asChild size="sm" variant="secondary" icon={ExternalLink}>
+      <Button asChild variant="secondary" icon={ExternalLink}>
         <Link
           to="/dashboard/$id/agents/$agentId"
           params={{ id: organizationId, agentId: node.slug }}

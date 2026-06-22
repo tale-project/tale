@@ -69,6 +69,9 @@ export const getMessageFeedback = query({
 
 export interface FeedbackStatsResult extends FeedbackStats {
   hasAnyFeedback: boolean;
+  /** Prior equal-length window sentiment counts — drives the card deltas.
+   *  Absent for the all-time view (no comparable prior window). */
+  previous?: { positive: number; negative: number; total: number };
 }
 
 export const getFeedbackStats = query({
@@ -94,6 +97,13 @@ export const getFeedbackStats = query({
 
     const now = Date.now();
     const cutoffMs = periodCutoffMs(args.periodDays, now);
+    // Prior equal-length window for period-over-period deltas. Day-aligned like
+    // `cutoffMs`. Absent for the all-time view (no comparable prior window).
+    const prevCutoffMs =
+      cutoffMs !== null && args.periodDays !== undefined
+        ? cutoffMs - args.periodDays * DAY_MS
+        : null;
+    const scanCutoffMs = prevCutoffMs ?? cutoffMs;
 
     // hasAnyFeedback is a single org-scoped existence probe, used by the UI
     // to distinguish "org has never collected feedback" from "no feedback
@@ -111,16 +121,23 @@ export const getFeedbackStats = query({
       .query('messageFeedback')
       .withIndex('by_org_createdAt', (q) => {
         const eq = q.eq('organizationId', args.organizationId);
-        return cutoffMs !== null ? eq.gte('createdAt', cutoffMs) : eq;
+        // Widen to the prior window's start when computing deltas.
+        return scanCutoffMs !== null ? eq.gte('createdAt', scanCutoffMs) : eq;
       })
       .order('desc');
 
-    const rows: Awaited<ReturnType<typeof baseQuery.collect>> = [];
+    // Split into the current window vs the immediately-preceding one so we can
+    // run the (pure) reducer over each. With a period bound both windows are
+    // index-bounded; only the all-time view (no prev) pulls a capped slab.
+    type FeedbackRow = Awaited<ReturnType<typeof baseQuery.collect>>[number];
+    const rows: FeedbackRow[] = [];
+    const prevRows: FeedbackRow[] = [];
     for await (const row of baseQuery) {
-      rows.push(row);
-      // The reducer applies its own MAX_SCAN cap; this loop is bounded by
-      // the index range when cutoffMs is set. For all-time we still pull
-      // a full slab into memory — tighten if it ever bites.
+      if (cutoffMs === null || row.createdAt >= cutoffMs) {
+        rows.push(row);
+      } else {
+        prevRows.push(row);
+      }
       if (cutoffMs === null && rows.length > MAX_SCAN_ALL_TIME) break;
     }
 
@@ -132,7 +149,23 @@ export const getFeedbackStats = query({
       maxScan: cutoffMs === null ? MAX_SCAN_ALL_TIME : Number.POSITIVE_INFINITY,
     });
 
-    return { ...stats, hasAnyFeedback };
+    let previous: FeedbackStatsResult['previous'];
+    if (prevCutoffMs !== null) {
+      const prevStats = computeFeedbackStats(prevRows, {
+        cutoffMs: prevCutoffMs,
+        agentSlug: args.agentSlug,
+        model: args.model,
+        provider: args.provider,
+        maxScan: Number.POSITIVE_INFINITY,
+      });
+      previous = {
+        positive: prevStats.message.byRating.positive,
+        negative: prevStats.message.byRating.negative,
+        total: prevStats.message.total,
+      };
+    }
+
+    return { ...stats, hasAnyFeedback, previous };
   },
 });
 

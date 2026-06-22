@@ -286,7 +286,6 @@ export function ProviderOptionsEditor({
           </Text>
           <Button
             variant="ghost"
-            size="sm"
             className="ml-auto"
             onClick={() => setOpen(true)}
           >
@@ -451,7 +450,6 @@ function ProviderOptionsEditorSheet({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={onClose}
               disabled={inFlight}
             >
@@ -459,7 +457,6 @@ function ProviderOptionsEditorSheet({
             </Button>
             <Button
               type="button"
-              size="sm"
               onClick={onSave}
               disabled={inFlight || !isDirty || !validation.ok}
             >

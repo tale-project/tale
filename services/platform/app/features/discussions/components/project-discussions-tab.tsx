@@ -65,9 +65,7 @@ export function ProjectDiscussionsTab({
           title={t('title')}
           description={t('subtitle')}
           action={
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              {t('new')}
-            </Button>
+            <Button onClick={() => setCreateOpen(true)}>{t('new')}</Button>
           }
         />
 

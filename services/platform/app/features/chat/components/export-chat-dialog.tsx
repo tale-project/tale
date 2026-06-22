@@ -249,7 +249,6 @@ function ExportChatDialogContent({
         <Row gap={2} align="stretch">
           <Button
             variant="secondary"
-            size="sm"
             onClick={handleExportMarkdown}
             disabled={noneSelected}
             className="gap-1.5"
@@ -259,7 +258,6 @@ function ExportChatDialogContent({
           </Button>
           <Button
             variant="primary"
-            size="sm"
             onClick={handleExportPdf}
             disabled={noneSelected}
             className="gap-1.5"
@@ -278,12 +276,7 @@ function ExportChatDialogContent({
               total: messages.length,
             })}
           </Text>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleAll}
-            className="text-xs"
-          >
+          <Button variant="ghost" onClick={handleToggleAll} className="text-xs">
             {allSelected ? t('export.deselectAll') : t('export.selectAll')}
           </Button>
         </Row>

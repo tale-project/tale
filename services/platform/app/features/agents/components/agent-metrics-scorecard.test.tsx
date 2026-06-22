@@ -7,7 +7,7 @@ import { render, screen } from '@/tests/utils/render';
 // (render-only, no run data)". A freshly-created agent has no runs, so the
 // scorecard route renders its KPI grid with zeroed values plus the "no runs"
 // empty state. The E2E only asserted the section's primary heading
-// (workforce.scorecard.title => "Performance") and the empty-state copy
+// (workforce.scorecard.title => "Agent Metrics") and the empty-state copy
 // (workforce.scorecard.noRuns => "No runs yet.") — i.e. pure prop/empty-state
 // render driven by the (empty) getAgentScorecard payload, not a backend
 // round-trip. The single Convex query is mocked to the no-data shape and the
@@ -63,10 +63,10 @@ describe('AgentMetricsTab scorecard (render-only, no run data)', () => {
 
     const { container } = render(<AgentMetricsTab />);
 
-    // workforce.scorecard.title — SectionHeader defaults to an <h2>, matching the
-    // E2E's getByRole('heading', { name, level: 2 }).
+    // workforce.scorecard.title — MetricsLayout renders the title as an <h2>,
+    // matching the E2E's getByRole('heading', { name, level: 2 }).
     expect(
-      screen.getByRole('heading', { name: 'Performance', level: 2 }),
+      screen.getByRole('heading', { name: 'Agent Metrics', level: 2 }),
     ).toBeInTheDocument();
 
     // workforce.scorecard.noRuns — the empty-state copy for an agent with no runs.

@@ -171,7 +171,6 @@ export function SessionIdleTimeoutEditor({
                   <Input
                     label={t('sessionIdleTimeout.minutes')}
                     type="number"
-                    size="sm"
                     min={SESSION_IDLE_TIMEOUT_MIN_MINUTES}
                     max={SESSION_IDLE_TIMEOUT_MAX_MINUTES}
                     step={1}

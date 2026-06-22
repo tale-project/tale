@@ -115,7 +115,6 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
             ) : (
               <div className="absolute bottom-3 left-3 z-10">
                 <Button
-                  size="sm"
                   disabled={isPending}
                   onClick={() =>
                     app.scope === 'project' ||

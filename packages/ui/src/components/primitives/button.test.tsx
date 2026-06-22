@@ -64,7 +64,7 @@ describe('Button', () => {
   });
 
   describe('sizes', () => {
-    it.each(['default', 'sm', 'lg', 'icon'] as const)(
+    it.each(['default', 'sm', 'icon', 'icon-sm'] as const)(
       'renders %s size',
       (size) => {
         // `title` names the icon size (the type requires icon buttons to be

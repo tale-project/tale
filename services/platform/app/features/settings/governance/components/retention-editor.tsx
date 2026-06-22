@@ -82,7 +82,6 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
         action={
           <Button
             variant="secondary"
-            size="sm"
             icon={Pencil}
             disabled={cannotManage}
             onClick={() => setDrawerOpen(true)}

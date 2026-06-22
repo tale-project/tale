@@ -85,7 +85,6 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
           />
           <Row gap={2} justify="end">
             <Button
-              size="sm"
               variant="ghost"
               onClick={() => setRequestingChanges(false)}
               disabled={respond.isPending}
@@ -93,7 +92,6 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
               {tCommon('actions.cancel')}
             </Button>
             <Button
-              size="sm"
               variant="secondary"
               onClick={() => void submit('request_changes')}
               disabled={respond.isPending || feedback.trim().length === 0}
@@ -105,7 +103,6 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
       ) : (
         <Row gap={2}>
           <Button
-            size="sm"
             icon={CheckCircle2}
             onClick={() => void submit('approve')}
             disabled={respond.isPending}
@@ -113,7 +110,6 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
             {t('review.approve')}
           </Button>
           <Button
-            size="sm"
             variant="secondary"
             onClick={() => setRequestingChanges(true)}
             disabled={respond.isPending}

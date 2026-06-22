@@ -180,7 +180,6 @@ function DependencyGroup({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 icon={Plus}
                 className="text-muted-foreground -mr-1 h-auto px-1.5 py-0.5"
               >

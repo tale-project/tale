@@ -930,7 +930,6 @@ export const ChatMessages = memo(function ChatMessages({
       <Row gap={0} align="stretch" justify="center" className="py-2">
         <Button
           variant="ghost"
-          size="sm"
           onClick={() => loadMore(50)}
           disabled={isLoadingMore}
           className="text-muted-foreground hover:text-foreground"

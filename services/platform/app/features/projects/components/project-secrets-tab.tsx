@@ -157,7 +157,7 @@ export function ProjectSecretsTab({
         title={t('title')}
         description={t('description')}
         action={
-          <Button size="sm" icon={KeyRound} onClick={() => setDialogOpen(true)}>
+          <Button icon={KeyRound} onClick={() => setDialogOpen(true)}>
             {t('addButton')}
           </Button>
         }

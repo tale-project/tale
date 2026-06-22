@@ -193,7 +193,6 @@ export function TwoFactorPolicyEditor({
                   if (e.key === 'Enter') e.currentTarget.blur();
                 }}
                 disabled={!canEdit || !enforced || isSaving}
-                size="sm"
                 min={0}
                 max={30}
                 step={1}

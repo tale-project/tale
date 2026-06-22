@@ -224,7 +224,6 @@ function RuleDialog({
               }
             }}
             disabled={cannotManage}
-            size="sm"
           />
 
           {draft.scope === 'role' && (
@@ -234,7 +233,6 @@ function RuleDialog({
               value={draft.scopeId ?? ''}
               onValueChange={(value) => updateDraft({ scopeId: value })}
               disabled={cannotManage}
-              size="sm"
             />
           )}
 
@@ -243,7 +241,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('modelAccess.user')}
                 placeholder={t('modelAccess.selectUser')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -260,7 +257,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('modelAccess.team')}
                 placeholder={t('modelAccess.selectTeam')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -617,14 +613,12 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                     value={mode}
                     onValueChange={handleModeChange}
                     disabled={cannotManage || isPending}
-                    size="sm"
                     aria-label={t('modelAccess.mode')}
                   />
                 </div>
               </HStack>
               <Button
                 variant="primary"
-                size="sm"
                 onClick={openAddDialog}
                 disabled={cannotManage}
               >

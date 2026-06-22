@@ -258,14 +258,12 @@ export function UploadPolicyEditor({
                     <Input
                       label={t('uploadPolicy.allowedExtensions')}
                       placeholder={t('uploadPolicy.extensionPlaceholder')}
-                      size="sm"
                       errorMessage={errors.allowedExtensions?.message}
                       {...register('allowedExtensions')}
                     />
                     <Input
                       label={t('uploadPolicy.blockedExtensions')}
                       placeholder={t('uploadPolicy.extensionPlaceholder')}
-                      size="sm"
                       errorMessage={errors.blockedExtensions?.message}
                       {...register('blockedExtensions')}
                     />
@@ -274,7 +272,6 @@ export function UploadPolicyEditor({
                   <Input
                     label={t('uploadPolicy.allowedMimeTypes')}
                     placeholder={t('uploadPolicy.mimeTypePlaceholder')}
-                    size="sm"
                     errorMessage={errors.allowedMimeTypes?.message}
                     {...register('allowedMimeTypes')}
                   />
@@ -283,7 +280,6 @@ export function UploadPolicyEditor({
                     <Input
                       label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
                       type="number"
-                      size="sm"
                       min={0}
                       step={1}
                       errorMessage={errors.maxFileSizeMB?.message}
@@ -292,7 +288,6 @@ export function UploadPolicyEditor({
                     <Input
                       label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
                       type="number"
-                      size="sm"
                       min={0}
                       step={0.1}
                       errorMessage={errors.maxVolumeGB?.message}

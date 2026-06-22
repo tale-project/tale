@@ -76,7 +76,6 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
         {editing ? (
           <>
             <Button
-              size="sm"
               variant="ghost"
               onClick={() => {
                 setEditing(false);
@@ -86,7 +85,6 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
               {t('card.discard')}
             </Button>
             <Button
-              size="sm"
               variant="primary"
               disabled={!draft.trim() || draft === memory.content}
               onClick={() => handleApprove(draft)}
@@ -96,17 +94,13 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
           </>
         ) : (
           <>
-            <Button size="sm" variant="ghost" onClick={handleDismiss}>
+            <Button variant="ghost" onClick={handleDismiss}>
               {t('card.discard')}
             </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setEditing(true)}
-            >
+            <Button variant="secondary" onClick={() => setEditing(true)}>
               {t('card.edit')}
             </Button>
-            <Button size="sm" variant="primary" onClick={() => handleApprove()}>
+            <Button variant="primary" onClick={() => handleApprove()}>
               {t('card.save')}
             </Button>
           </>

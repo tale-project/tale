@@ -142,7 +142,6 @@ export function EndpointEditDialog({
                 />
                 <Button
                   variant="ghost"
-                  size="sm"
                   aria-label={t('moderationProvider.removeHeaderAria')}
                   onClick={() => removeHeader(index)}
                 >
@@ -150,12 +149,7 @@ export function EndpointEditDialog({
                 </Button>
               </Row>
             ))}
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Plus}
-              onClick={addHeader}
-            >
+            <Button variant="secondary" icon={Plus} onClick={addHeader}>
               {t('moderationProvider.addHeader')}
             </Button>
           </Stack>

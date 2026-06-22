@@ -168,7 +168,6 @@ export function MessageFeedback({
           <Row gap={2} align="stretch">
             <Button
               variant="secondary"
-              size="sm"
               onClick={handleSubmitComment}
               disabled={isSubmitting || !comment.trim()}
             >
@@ -176,7 +175,6 @@ export function MessageFeedback({
             </Button>
             <Button
               variant="ghost"
-              size="sm"
               onClick={() => {
                 setShowCommentBox(false);
                 setComment('');

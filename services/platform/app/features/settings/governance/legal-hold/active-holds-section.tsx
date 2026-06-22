@@ -160,7 +160,6 @@ export function ActiveHoldsSection({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={(e) => {
                 e.stopPropagation();
                 setReleaseHoldId(row.original._id);
@@ -185,7 +184,6 @@ export function ActiveHoldsSection({
           <Button
             type="button"
             variant="primary"
-            size="sm"
             onClick={() => setPlaceOpen(true)}
           >
             <Lock className="mr-1.5 size-4" aria-hidden />
@@ -196,7 +194,6 @@ export function ActiveHoldsSection({
         <Row gap={2}>
           <Select
             id="active-holds-targettype-filter"
-            size="sm"
             value={targetTypeFilter}
             onValueChange={(v) =>
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained to FilterTargetType | 'all'

@@ -3,7 +3,7 @@
 import { buttonVariants } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import type { RowSelectionState } from '@tanstack/react-table';
-import { BookOpen, Key, Plus } from 'lucide-react';
+import { BookOpen, Key } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -98,11 +98,6 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
               <ApiDocsLink />
             </>
           ),
-          action: {
-            label: tSettings('apiKeys.createKey'),
-            icon: Plus,
-            onClick: () => setCreateOpen(true),
-          },
         }}
         footer={
           <BulkDeleteBar

@@ -57,6 +57,16 @@ export interface FeedbackStatsMatchupBucket {
   total: number;
 }
 
+/** One day of message sentiment for the sentiment-over-time trend. A type
+ *  alias (not an interface) so it carries an implicit index signature and is
+ *  assignable to the charts' `ChartRow` row type. */
+export type FeedbackDailyPoint = {
+  /** UTC `YYYY-MM-DD`. */
+  dateKey: string;
+  positive: number;
+  negative: number;
+};
+
 export interface FeedbackStats {
   message: {
     byRating: { positive: number; negative: number };
@@ -66,6 +76,8 @@ export interface FeedbackStats {
     byVerdict: Record<ArenaVerdict, number>;
     total: number;
   };
+  /** Message sentiment bucketed by UTC day (days with feedback only), ascending. */
+  series: FeedbackDailyPoint[];
   topAgents: FeedbackStatsAgentBucket[];
   topModels: FeedbackStatsModelBucket[];
   topMatchups: FeedbackStatsMatchupBucket[];
@@ -75,6 +87,14 @@ export interface FeedbackStats {
 }
 
 const TOP_N = 10;
+
+function utcDayKey(ms: number): string {
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function isArenaRow(row: Doc<'messageFeedback'>): boolean {
   return row.metadata?.arenaVerdict !== undefined;
@@ -116,6 +136,7 @@ export function computeFeedbackStats(
   const agentBuckets = new Map<string, FeedbackStatsAgentBucket>();
   const modelBuckets = new Map<string, FeedbackStatsModelBucket>();
   const matchupBuckets = new Map<string, FeedbackStatsMatchupBucket>();
+  const byDay = new Map<string, { positive: number; negative: number }>();
 
   let scanned = 0;
   let capped = false;
@@ -188,8 +209,16 @@ export function computeFeedbackStats(
       }
     } else {
       messageTotal++;
-      if (row.rating === 'positive') messageByRating.positive++;
+      const isPositive = row.rating === 'positive';
+      if (isPositive) messageByRating.positive++;
       else messageByRating.negative++;
+
+      // Bucket by UTC day for the sentiment-over-time trend.
+      const dayKey = utcDayKey(row.createdAt);
+      const dayBucket = byDay.get(dayKey) ?? { positive: 0, negative: 0 };
+      if (isPositive) dayBucket.positive++;
+      else dayBucket.negative++;
+      byDay.set(dayKey, dayBucket);
 
       // topAgents / topModels are message-level only. Arena rows have no
       // single agent owner; folding them in would double-count and produce
@@ -255,9 +284,18 @@ export function computeFeedbackStats(
     )
     .slice(0, TOP_N);
 
+  const series: FeedbackDailyPoint[] = [...byDay.entries()]
+    .map(([dateKey, v]) => ({
+      dateKey,
+      positive: v.positive,
+      negative: v.negative,
+    }))
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+
   return {
     message: { byRating: messageByRating, total: messageTotal },
     arena: { byVerdict: arenaByVerdict, total: arenaTotal },
+    series,
     topAgents,
     topModels,
     topMatchups,

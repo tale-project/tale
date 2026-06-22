@@ -400,7 +400,6 @@ function PendingChangeBanner({
         <Button
           type="button"
           variant="destructive"
-          size="sm"
           icon={Ban}
           onClick={onCancel}
           disabled={cancelDisabled}

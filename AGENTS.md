@@ -235,6 +235,10 @@ component. **Build pages by composing components; never hand-roll layout HTML.**
 - **One way per surface** — lists/tables → `useListPage` + `DataTable` (one add-item affordance, one
   empty path); forms → `useFormEditor` + `Form`/`Field`; settings → `SettingsPage` + `SettingsSection`
   (no page title — the rail names it).
+- **One implementation per concept across layers** — `@tale/ui` owns the bare shared primitive (also
+  used by `web`/`docs`, which can't import platform code); the platform app **composes** it and adds
+  UX (label/error/skeleton) — it never re-implements a primitive's styling. A second divergent
+  control (its own input/checkbox/tooltip) is a defect; find the `@tale/ui` primitive and wrap it.
 
 → Full catalog + how-to: [`ui-components`](.claude/skills/ui-components/SKILL.md)
 

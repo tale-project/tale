@@ -157,7 +157,6 @@ export function AuditLogsPage({
                 <>
                   <Button
                     variant="secondary"
-                    size="sm"
                     icon={Download}
                     onClick={() => handleExport('csv')}
                     disabled={exportAction.isPending}
@@ -169,7 +168,6 @@ export function AuditLogsPage({
                   </Button>
                   <Button
                     variant="secondary"
-                    size="sm"
                     icon={Download}
                     onClick={() => handleExport('json')}
                     disabled={exportAction.isPending}

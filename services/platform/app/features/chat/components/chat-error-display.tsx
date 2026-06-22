@@ -55,7 +55,6 @@ export function ChatErrorDisplay({ error, onRetry }: ChatErrorDisplayProps) {
       {onRetry && (
         <Button
           variant="secondary"
-          size="sm"
           className="text-foreground w-fit gap-1.5 rounded-lg border-[#E5E7EB] bg-transparent px-3 py-1.5 text-[13px] font-medium"
           onClick={onRetry}
         >

@@ -258,7 +258,7 @@
   },
   "analytics": {
     "usage": {
-      "title": "Analyse d'utilisation",
+      "title": "Métriques d'utilisation",
       "description": "Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.",
       "cappedNotice": "Les résultats sont limités car la plage temporelle contient trop d'enregistrements. Réduis la plage pour obtenir des données complètes.",
       "activeUsersTooltip": "Utilisateurs ayant effectué des requêtes IA durant cette période.",
@@ -348,7 +348,7 @@
       }
     },
     "feedback": {
-      "title": "Analyse des retours",
+      "title": "Métriques des retours",
       "description": "Évaluations pouce levé/baissé et verdicts d'arène sur les réponses de l'assistant.",
       "commentsOnly": "Commentaires uniquement",
       "errors": {
@@ -467,7 +467,8 @@
           "arena": "Pairing d'arène",
           "attribution": "Attribution"
         }
-      }
+      },
+      "sentimentTrend": "Sentiment au fil du temps"
     }
   },
   "approvalCommon": {
@@ -617,7 +618,8 @@
       "period": {
         "last7Days": "7 derniers jours",
         "last30Days": "30 derniers jours",
-        "last90Days": "90 derniers jours"
+        "last90Days": "90 derniers jours",
+        "label": "Période"
       },
       "cards": {
         "totalRuns": "Exécutions totales",
@@ -6683,7 +6685,8 @@
       "period": {
         "last7Days": "7 derniers jours",
         "last30Days": "30 derniers jours",
-        "last90Days": "90 derniers jours"
+        "last90Days": "90 derniers jours",
+        "label": "Période"
       },
       "cappedNotice": "Certains jours ont atteint la limite de scan du rollup — les totaux de cette période peuvent être sous-estimés.",
       "noData": "Aucune donnée",
@@ -7590,7 +7593,7 @@
       "none": "Rien ici."
     },
     "scorecard": {
-      "title": "Performance",
+      "title": "Métriques de l'agent",
       "subtitle": "Les 30 derniers jours — résultats, qualité des revues et coûts de cet agent.",
       "tasksCompleted": "Tâches terminées",
       "reviewOutcome": "Approbation du premier coup",
@@ -7598,7 +7601,9 @@
       "avgRun": "Durée moyenne d'exécution",
       "spend": "Dépenses",
       "recentRuns": "Exécutions récentes",
-      "noRuns": "Pas encore d'exécutions."
+      "noRuns": "Pas encore d'exécutions.",
+      "runsCompleted": "Terminées",
+      "runsFailed": "Échouées"
     }
   },
   "runtimes": {

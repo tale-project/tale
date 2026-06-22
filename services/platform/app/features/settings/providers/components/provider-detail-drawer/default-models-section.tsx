@@ -52,7 +52,6 @@ export function DefaultModelsSection({
           </Stack>
           <Button
             variant="ghost"
-            size="sm"
             className="ml-auto"
             onClick={() => setPanelOpen(true)}
           >

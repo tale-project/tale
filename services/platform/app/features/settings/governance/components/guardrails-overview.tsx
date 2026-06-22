@@ -312,7 +312,6 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
         </Stack>
         <Row gap={2} align="stretch">
           <Select
-            size="sm"
             aria-label={t('guardrailsOverview.recentEvents.columnFilter')}
             value={filterName}
             onValueChange={(v) => {
@@ -345,7 +344,6 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
             ]}
           />
           <Select
-            size="sm"
             aria-label={t('guardrailsOverview.recentEvents.columnKind')}
             value={kind}
             onValueChange={(v) => {

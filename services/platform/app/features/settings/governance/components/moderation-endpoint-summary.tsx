@@ -59,7 +59,6 @@ export function EndpointSummary({
       </dl>
       <Button
         variant="secondary"
-        size="sm"
         icon={Pencil}
         disabled={disabled}
         onClick={onEdit}

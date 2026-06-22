@@ -151,7 +151,6 @@ function RuleDialog({
               }
             }}
             disabled={cannotManage}
-            size="sm"
           />
 
           {draft.scope === 'role' && (
@@ -161,7 +160,6 @@ function RuleDialog({
               value={draft.scopeId ?? ''}
               onValueChange={(value) => updateDraft({ scopeId: value })}
               disabled={cannotManage}
-              size="sm"
             />
           )}
 
@@ -170,7 +168,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('budgets.user')}
                 placeholder={t('budgets.selectUser')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -187,7 +184,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('budgets.team')}
                 placeholder={t('budgets.selectTeam')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -209,7 +205,6 @@ function RuleDialog({
               }
             }}
             disabled={cannotManage}
-            size="sm"
           />
         </Row>
 
@@ -227,7 +222,6 @@ function RuleDialog({
                 })
               }
               disabled={cannotManage}
-              size="sm"
               placeholder="e.g. 1000000"
               min={0}
             />
@@ -249,7 +243,6 @@ function RuleDialog({
                 })
               }
               disabled={cannotManage}
-              size="sm"
               placeholder="e.g. 50.00"
               min={0}
               step={0.01}
@@ -272,7 +265,6 @@ function RuleDialog({
                 })
               }
               disabled={cannotManage}
-              size="sm"
               placeholder="e.g. 500"
               min={0}
             />
@@ -294,7 +286,6 @@ function RuleDialog({
                 })
               }
               disabled={cannotManage}
-              size="sm"
               placeholder="e.g. 80"
               min={0}
               max={100}
@@ -493,12 +484,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         title={t('budgets.title')}
         description={t('budgets.description')}
         action={
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={onAddRule}
-            disabled={cannotManage}
-          >
+          <Button variant="primary" onClick={onAddRule} disabled={cannotManage}>
             <Plus className="mr-1.5 size-4" />
             {t('budgets.addRule')}
           </Button>

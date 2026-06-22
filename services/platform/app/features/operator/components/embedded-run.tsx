@@ -69,12 +69,7 @@ function RerunButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
   };
 
   return (
-    <Button
-      size="sm"
-      variant="secondary"
-      disabled={isPending}
-      onClick={() => void run()}
-    >
+    <Button variant="secondary" disabled={isPending} onClick={() => void run()}>
       {t('rerun.button')}
     </Button>
   );
@@ -106,7 +101,6 @@ function StopButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
   return (
     <>
       <Button
-        size="sm"
         variant="destructive"
         disabled={isPending}
         onClick={() => setConfirmOpen(true)}

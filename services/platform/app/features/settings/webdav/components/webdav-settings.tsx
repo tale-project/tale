@@ -51,7 +51,7 @@ export function WebdavSettings(props: WebdavSettingsProps) {
   const url = `${props.siteOrigin}/dav/${props.orgSlug}/documents/`;
 
   return (
-    <Stack gap={8}>
+    <>
       <SettingsSection
         title={t('connectionDetails.title')}
         description={t('description')}
@@ -76,11 +76,10 @@ export function WebdavSettings(props: WebdavSettingsProps) {
       </SettingsSection>
 
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('list.title')}
         description={t('create.description')}
         action={
-          <Button size="sm" icon={KeyRound} onClick={() => setCreateOpen(true)}>
+          <Button icon={KeyRound} onClick={() => setCreateOpen(true)}>
             {t('create.submit')}
           </Button>
         }
@@ -98,7 +97,7 @@ export function WebdavSettings(props: WebdavSettingsProps) {
         revealed={revealed}
         onClose={() => setRevealed(null)}
       />
-    </Stack>
+    </>
   );
 }
 

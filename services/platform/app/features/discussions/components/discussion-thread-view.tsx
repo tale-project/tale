@@ -202,12 +202,12 @@ export function DiscussionThreadView({
         </HStack>
         <HStack gap={2}>
           {linkedTaskId ? (
-            <Button variant="secondary" size="sm" onClick={goToTask}>
+            <Button variant="secondary" onClick={goToTask}>
               <ListChecks className="mr-1 size-4" />
               {t('spawnTask.viewTask')}
             </Button>
           ) : (
-            <Button variant="secondary" size="sm" onClick={handleSpawnTask}>
+            <Button variant="secondary" onClick={handleSpawnTask}>
               <ListPlus className="mr-1 size-4" />
               {t('spawnTask.cta')}
             </Button>
@@ -215,7 +215,6 @@ export function DiscussionThreadView({
           {status !== 'resolved' ? (
             <Button
               variant="secondary"
-              size="sm"
               onClick={() => void handleSetStatus('resolved')}
             >
               <CheckCircle2 className="mr-1 size-4" />
@@ -224,7 +223,6 @@ export function DiscussionThreadView({
           ) : (
             <Button
               variant="secondary"
-              size="sm"
               onClick={() => void handleSetStatus('open')}
             >
               <RotateCcw className="mr-1 size-4" />
@@ -233,7 +231,6 @@ export function DiscussionThreadView({
           )}
           <Button
             variant="secondary"
-            size="sm"
             onClick={() => void handleSetStatus(isLocked ? 'open' : 'locked')}
           >
             <Lock className="mr-1 size-4" />

@@ -485,7 +485,6 @@ export function ViewWebsiteDialog({
               <Row gap={0} align="stretch" justify="center" className="pt-2">
                 <Button
                   variant="secondary"
-                  size="sm"
                   onClick={loadMore}
                   disabled={isPending}
                 >

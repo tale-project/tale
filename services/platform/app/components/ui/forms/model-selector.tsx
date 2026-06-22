@@ -146,7 +146,7 @@ function ModelSelectorBase({
         emptyText={t('agents.form.noModelsFound')}
         aria-label={t('agents.form.addModel')}
         trigger={
-          <Button type="button" variant="link" size="sm" icon={Plus}>
+          <Button type="button" variant="link" icon={Plus}>
             {t('agents.form.addModel')}
           </Button>
         }

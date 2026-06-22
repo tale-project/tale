@@ -81,7 +81,6 @@ export function MappingList({
                 <TableCell className="text-right">
                   <Button
                     variant="ghost"
-                    size="sm"
                     icon={Pencil}
                     disabled={disabled}
                     onClick={() => onEdit(index)}
@@ -97,7 +96,6 @@ export function MappingList({
       <div>
         <Button
           variant="secondary"
-          size="sm"
           icon={Plus}
           disabled={disabled}
           onClick={onAdd}

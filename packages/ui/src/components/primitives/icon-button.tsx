@@ -35,6 +35,11 @@ interface IconButtonProps
   icon: LucideIcon;
   /** Additional className for the icon element */
   iconClassName?: string;
+  /**
+   * Control height: `'default'` is the standard h-9 square button; `'sm'` is
+   * the h-8 square for dense bars/toolbars. Mirrors the Button size axis.
+   */
+  size?: 'default' | 'sm';
   /** Accessible label for the button (required for accessibility) */
   'aria-label': string;
   /**
@@ -58,6 +63,7 @@ export const IconButton = forwardRef<
       iconSize,
       iconClassName,
       variant = 'ghost',
+      size = 'default',
       className,
       'aria-label': ariaLabel,
       tooltip,
@@ -67,6 +73,8 @@ export const IconButton = forwardRef<
     },
     ref,
   ) => {
+    // Map the IconButton's two heights onto the Button's square icon sizes.
+    const buttonSize = size === 'sm' ? 'icon-sm' : 'icon';
     // An icon button always has an accessible name (`aria-label`), so show it
     // as a tooltip for free unless the caller supplies richer `tooltip`
     // content. Skipped for the `asChild` (Slot) path below.
@@ -97,7 +105,7 @@ export const IconButton = forwardRef<
           ref={ref}
           asChild
           variant={variant}
-          size="icon"
+          size={buttonSize}
           aria-label={ariaLabel}
           className={cn(focusOverride, className)}
           {...props}
@@ -111,7 +119,7 @@ export const IconButton = forwardRef<
       <Button
         ref={ref}
         variant={variant}
-        size="icon"
+        size={buttonSize}
         aria-label={ariaLabel}
         tooltip={resolvedTooltip}
         className={cn(focusOverride, className)}

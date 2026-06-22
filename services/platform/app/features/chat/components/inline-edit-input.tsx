@@ -81,7 +81,6 @@ export function InlineEditInput({
       <Row gap={2} justify="end">
         <Button
           variant="secondary"
-          size="sm"
           onClick={onCancel}
           disabled={isSubmitting}
           className="rounded-full"
@@ -90,7 +89,6 @@ export function InlineEditInput({
         </Button>
         <Button
           variant="primary"
-          size="sm"
           onClick={() => void handleSubmit()}
           disabled={!canSubmit || isSubmitting}
           className="rounded-full"

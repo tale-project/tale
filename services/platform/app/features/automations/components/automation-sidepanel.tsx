@@ -195,7 +195,6 @@ const StepEditorContent = memo(function StepEditorContent({
         <Button
           onClick={onSave}
           disabled={isSaving || !isValid || !isDirty}
-          size="sm"
           className="flex-1"
         >
           <Save className="mr-1 size-4" />

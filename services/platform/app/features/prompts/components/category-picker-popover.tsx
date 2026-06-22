@@ -315,7 +315,6 @@ export function CategoryPickerPopover({
                   {isRenaming ? (
                     <Row gap={1} className="flex-1 px-2 py-1">
                       <Input
-                        size="sm"
                         value={renameValue}
                         autoFocus
                         onChange={(e) => setRenameValue(e.target.value)}
@@ -390,7 +389,6 @@ export function CategoryPickerPopover({
                 <Row gap={2} className="px-2 py-1.5">
                   <Input
                     ref={createInputRef}
-                    size="sm"
                     value={createValue}
                     onChange={(e) => setCreateValue(e.target.value)}
                     placeholder={t('addCategory.inputPlaceholder')}
@@ -407,7 +405,6 @@ export function CategoryPickerPopover({
                   />
                   <Button
                     type="button"
-                    size="sm"
                     onClick={() => void handleCreate()}
                     disabled={!createValue.trim() || createCategory.isPending}
                   >

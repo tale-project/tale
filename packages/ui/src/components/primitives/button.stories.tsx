@@ -59,7 +59,7 @@ import { Button } from '@/app/components/ui/primitives';
     },
     size: {
       control: 'select',
-      options: ['default', 'sm', 'lg', 'icon'],
+      options: ['default', 'sm', 'icon', 'icon-sm'],
       description: 'Size variant',
       table: {
         type: { summary: 'string' },
@@ -113,14 +113,24 @@ export const AllVariants: Story = {
 export const AllSizes: Story = {
   render: () => (
     <div className="flex items-center gap-4">
-      <Button size="sm">Small</Button>
       <Button size="default">Default</Button>
-      <Button size="lg">Large</Button>
+      <Button size="sm">Small</Button>
       <Button size="icon" title="Add">
+        <Plus className="size-4" />
+      </Button>
+      <Button size="icon-sm" title="Add (small)">
         <Plus className="size-4" />
       </Button>
     </div>
   ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The full size set: `default` (h-9) and `sm` (h-8, for dense bars) for text buttons, plus the square `icon` (size-9) and `icon-sm` (size-8) for icon-only buttons. There is no `lg` size — page CTAs use the default height.',
+      },
+    },
+  },
 };
 
 export const WithIcon: Story = {
@@ -229,7 +239,7 @@ export const IconWithTooltip: Story = {
 };
 
 export const PressAnimation: Story = {
-  args: { variant: 'primary', size: 'lg', children: 'Press me' },
+  args: { variant: 'primary', size: 'default', children: 'Press me' },
   render: (args) => (
     <div className="flex flex-col items-center gap-4">
       <p className="text-muted-foreground text-sm">

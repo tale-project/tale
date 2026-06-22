@@ -278,7 +278,6 @@ function DocumentWriteApprovalCardComponent({
             content={isBatch ? t('approveTooltipBatch') : t('approveTooltip')}
           >
             <Button
-              size="sm"
               variant="primary"
               onClick={handleApprove}
               disabled={isProcessing}
@@ -293,7 +292,6 @@ function DocumentWriteApprovalCardComponent({
             content={isBatch ? t('rejectTooltipBatch') : t('rejectTooltip')}
           >
             <Button
-              size="sm"
               variant="secondary"
               onClick={handleReject}
               disabled={isProcessing}

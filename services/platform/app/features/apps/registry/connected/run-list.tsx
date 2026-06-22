@@ -107,7 +107,6 @@ export function RunList({ title, workflowSlug }: RunListProps) {
                   <TableCell>{fmt(run.startedAt)}</TableCell>
                   <TableCell>
                     <Button
-                      size="sm"
                       variant="secondary"
                       disabled={!id}
                       onClick={() =>

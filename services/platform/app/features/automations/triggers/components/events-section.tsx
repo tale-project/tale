@@ -259,11 +259,7 @@ export function EventsSection({
           description: t('triggers.events.emptyDescription'),
         }}
         actionMenu={
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setIsCreateOpen(true)}
-          >
+          <Button variant="secondary" onClick={() => setIsCreateOpen(true)}>
             <Plus className="mr-2 size-4" />
             {t('triggers.events.createButton')}
           </Button>

@@ -143,12 +143,7 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
       </Row>
 
       <Row gap={2} align="stretch" wrap className="ml-7">
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={handleApply}
-          disabled={inFlight}
-        >
+        <Button variant="primary" onClick={handleApply} disabled={inFlight}>
           {apply.isPending ? (
             <>
               <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -161,7 +156,6 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
         {!firstApply && (
           <Button
             variant="secondary"
-            size="sm"
             onClick={handleReject}
             disabled={inFlight}
           >
@@ -181,7 +175,6 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
         {hasDetails && (
           <Button
             variant="ghost"
-            size="sm"
             onClick={() => setDrawerOpen(true)}
             disabled={inFlight}
           >

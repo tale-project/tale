@@ -131,7 +131,6 @@ function HumanControlCardComponent({
           <ActionRow gap={2} className="mt-1">
             {controlling ? (
               <Button
-                size="sm"
                 variant="primary"
                 onClick={handleReturn}
                 disabled={isReturning}
@@ -146,7 +145,6 @@ function HumanControlCardComponent({
               </Button>
             ) : (
               <Button
-                size="sm"
                 variant="primary"
                 onClick={handleTakeControl}
                 className="flex-1"

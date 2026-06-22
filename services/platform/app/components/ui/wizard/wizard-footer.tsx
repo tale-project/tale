@@ -77,7 +77,6 @@ export function WizardFooter({
         {showSkip && (
           <Button
             variant="ghost"
-            size="sm"
             onClick={skip}
             disabled={submitting}
             className="mx-auto"

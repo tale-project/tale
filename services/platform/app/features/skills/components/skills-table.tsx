@@ -204,7 +204,7 @@ export function SkillsTable({
   ) : null;
 
   return (
-    <Stack gap={2}>
+    <Stack gap={4}>
       {atCapReason}
       {bindingCaption}
       <DataTable

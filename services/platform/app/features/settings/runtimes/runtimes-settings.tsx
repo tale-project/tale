@@ -65,14 +65,13 @@ export function RuntimesSettings({
   }, [data]);
 
   return (
-    <Stack gap={8}>
+    <>
       <SettingsSection
         title={t('install.title')}
         description={t('description')}
         action={
           <LinkButton
-            size="sm"
-            variant="secondary"
+            variant="primary"
             icon={KeyRound}
             href="/dashboard/$id/settings/api/rest"
             params={{ id: organizationId }}
@@ -96,10 +95,7 @@ export function RuntimesSettings({
         </Text>
       </SettingsSection>
 
-      <SettingsSection
-        className="border-border border-t pt-8"
-        title={t('list.title')}
-      >
+      <SettingsSection title={t('list.title')}>
         {daemons.length === 0 ? (
           <EmptyState
             icon={Cpu}
@@ -172,6 +168,6 @@ export function RuntimesSettings({
           </Stack>
         )}
       </SettingsSection>
-    </Stack>
+    </>
   );
 }

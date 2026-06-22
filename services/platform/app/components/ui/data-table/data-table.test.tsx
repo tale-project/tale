@@ -310,7 +310,7 @@ describe('DataTable loading states', () => {
 });
 
 describe('DataTable addAction contract', () => {
-  it('renders the add button in the header at the fixed sm size', () => {
+  it('renders the add button in the header at the default (h-9) size', () => {
     render(
       <DataTable
         columns={columns}
@@ -322,11 +322,13 @@ describe('DataTable addAction contract', () => {
 
     const btn = screen.getByRole('button', { name: 'New customer' });
     expect(btn).toBeInTheDocument();
-    // Fixed `sm` size so every list's add button looks the same.
-    expect(btn).toHaveClass('text-xs');
+    // Default (h-9) size: the create action aligns with the h-9 search/filter
+    // controls in the toolbar and matches the empty-state CTA — never `sm`.
+    expect(btn).toHaveClass('h-9');
+    expect(btn).not.toHaveClass('text-xs');
   });
 
-  it('synthesizes the empty-state CTA from the same addAction', () => {
+  it('keeps the empty state button-less — only the header create button renders', () => {
     render(
       <DataTable
         columns={columns}
@@ -337,10 +339,10 @@ describe('DataTable addAction contract', () => {
       />,
     );
 
-    // The one addAction drives both the header button and the empty-state CTA.
+    // The create affordance lives ONLY in the header; the empty body has no CTA.
     expect(
-      screen.getAllByRole('button', { name: 'New customer' }).length,
-    ).toBeGreaterThanOrEqual(1);
+      screen.getAllByRole('button', { name: 'New customer' }),
+    ).toHaveLength(1);
     expect(screen.getByText('No customers')).toBeInTheDocument();
   });
 
@@ -359,24 +361,5 @@ describe('DataTable addAction contract', () => {
     expect(
       screen.queryByRole('button', { name: 'New customer' }),
     ).not.toBeInTheDocument();
-  });
-
-  it('prefers an explicit emptyState.action over the synthesized CTA', () => {
-    render(
-      <DataTable
-        columns={columns}
-        data={[]}
-        approxRowCount={0}
-        emptyState={{
-          title: 'No customers',
-          action: { label: 'Import customers', onClick: vi.fn() },
-        }}
-        addAction={{ label: 'New customer', onClick: vi.fn() }}
-      />,
-    );
-
-    expect(
-      screen.getByRole('button', { name: 'Import customers' }),
-    ).toBeInTheDocument();
   });
 });

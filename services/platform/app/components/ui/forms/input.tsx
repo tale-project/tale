@@ -21,7 +21,8 @@ import { cn } from '@/lib/utils/cn';
 import { Label } from './label';
 
 const inputVariants = cva(
-  'flex w-full text-base file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-[border-color,box-shadow] duration-150',
+  // One height fits all controls (`h-9`) — no size axis.
+  'flex h-9 w-full text-base file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-[border-color,box-shadow] duration-150',
   {
     variants: {
       variant: {
@@ -29,15 +30,9 @@ const inputVariants = cva(
           'rounded-lg border border-transparent bg-input px-3 py-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-1 ring-[color:var(--color-border-input)] focus-visible:ring-primary',
         unstyled: 'bg-transparent border-0 ring-0 ring-offset-0',
       },
-      size: {
-        default: 'h-10',
-        sm: 'h-8',
-        lg: 'h-12',
-      },
     },
     defaultVariants: {
       variant: 'default',
-      size: 'default',
     },
   },
 );
@@ -73,7 +68,6 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
       sensitive,
       autoComplete,
       variant,
-      size,
       errorMessage,
       isInvalid,
       label,
@@ -190,7 +184,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
               type={inputType}
               {...sensitiveAttrs}
               className={cn(
-                inputVariants({ variant, size }),
+                inputVariants({ variant }),
                 showInvalid &&
                   'border-destructive focus-visible:ring-destructive',
                 showShake && 'animate-shake',
@@ -260,7 +254,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
           type={inputType}
           {...sensitiveAttrs}
           className={cn(
-            inputVariants({ variant, size }),
+            inputVariants({ variant }),
             showInvalid && 'border-destructive focus-visible:ring-destructive',
             showShake && 'animate-shake',
             className,

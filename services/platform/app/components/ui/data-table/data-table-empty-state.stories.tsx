@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { Package, Users, FileText, Plus } from 'lucide-react';
+import { Package, Users, FileText } from 'lucide-react';
 
 import { DataTableEmptyState } from './data-table-empty-state';
 
@@ -110,35 +110,6 @@ export const TitleOnly: Story = {
     docs: {
       description: {
         story: 'Minimal empty state with only icon and title.',
-      },
-    },
-  },
-};
-
-export const WithAction: Story = {
-  args: {
-    icon: Users,
-    title: 'No agents yet',
-    description: 'Create your first agent to start automating work.',
-    action: {
-      label: 'Create agent',
-      icon: Plus,
-      onClick: () => {},
-    },
-  },
-  decorators: [
-    (Story) => (
-      <div className="h-[300px]">
-        <Story />
-      </div>
-    ),
-  ],
-  parameters: {
-    docs: {
-      description: {
-        story:
-          'An empty list should point at one obvious next step. The optional ' +
-          '`action` renders a single primary CTA below the copy.',
       },
     },
   },

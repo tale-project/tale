@@ -180,7 +180,6 @@ function DocumentTeamDialogContent({
             <Button
               type="button"
               variant="secondary"
-              size="sm"
               onClick={handleGoToSettings}
             >
               <Settings className="size-3.5" aria-hidden="true" />

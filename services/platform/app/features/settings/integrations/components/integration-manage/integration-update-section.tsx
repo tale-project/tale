@@ -148,7 +148,6 @@ export function IntegrationUpdateSection({
                   <Button
                     onClick={onApplyUpdate}
                     disabled={busy}
-                    size="sm"
                     className="flex-1"
                   >
                     {isApplyingUpdate ? (
@@ -162,7 +161,6 @@ export function IntegrationUpdateSection({
                   </Button>
                   <Button
                     variant="secondary"
-                    size="sm"
                     onClick={onClearUpdate}
                     disabled={busy}
                   >

@@ -147,7 +147,6 @@ export function RoleMappingSection({
         <Button
           type="button"
           variant="secondary"
-          size="sm"
           onClick={onAdd}
           disabled={disabled}
         >

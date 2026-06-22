@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
-import { Bot, Plus } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -323,11 +323,6 @@ export function AgentsTable({
         icon: Bot,
         title: tEmpty('agents.title'),
         description: tEmpty('agents.description'),
-        action: {
-          label: tSettings('agents.createAgent'),
-          icon: Plus,
-          onClick: () => setCreateOpen(true),
-        },
       }}
       footer={
         <BulkDeleteBar

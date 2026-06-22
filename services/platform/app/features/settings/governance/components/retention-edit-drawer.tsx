@@ -219,7 +219,6 @@ function RetentionEditFormBody({
                 }))
               }
               disabled={inputDisabled}
-              size="sm"
               min={0}
               max={90}
               description={t(
@@ -234,19 +233,17 @@ function RetentionEditFormBody({
       <Row gap={2} justify="between" className="shrink-0 border-t pt-4">
         <Button
           variant="secondary"
-          size="sm"
           disabled={inputDisabled}
           onClick={handleResetToDefaults}
         >
           {t('retentionPolicy.reset', 'Reset to defaults')}
         </Button>
         <Row gap={2} align="stretch">
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" onClick={onClose}>
             {tCommon('actions.cancel')}
           </Button>
           <Button
             variant="primary"
-            size="sm"
             disabled={!dirty || inputDisabled}
             onClick={() => setConfirmOpen(true)}
           >

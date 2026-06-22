@@ -330,7 +330,6 @@ function ConversationStartersTab() {
           <Button
             type="button"
             variant="secondary"
-            size="sm"
             onClick={handleAdd}
             className="self-start"
           >

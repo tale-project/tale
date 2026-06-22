@@ -340,7 +340,6 @@ export function TrashPage({ organizationId }: Props) {
                           <TableCell className="text-right">
                             <Button
                               variant="secondary"
-                              size="sm"
                               icon={Undo2}
                               onClick={() =>
                                 onRequestRestore({
@@ -380,7 +379,6 @@ export function TrashPage({ organizationId }: Props) {
                   ) : (
                     <Button
                       variant="ghost"
-                      size="sm"
                       disabled={isLoadingMore}
                       onClick={onLoadMore}
                     >

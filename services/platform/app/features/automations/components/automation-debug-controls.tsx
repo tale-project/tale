@@ -79,7 +79,6 @@ export function AutomationDebugControls({
 
         <HStack gap={2} wrap>
           <Button
-            size="sm"
             onClick={() => resumeDebugStep({ executionId, action: 'step' })}
             disabled={isBusy}
           >
@@ -87,7 +86,6 @@ export function AutomationDebugControls({
             {t('tester.debug.step')}
           </Button>
           <Button
-            size="sm"
             variant="secondary"
             onClick={() => resumeDebugStep({ executionId, action: 'continue' })}
             disabled={isBusy}
@@ -96,7 +94,6 @@ export function AutomationDebugControls({
             {t('tester.debug.continue')}
           </Button>
           <Button
-            size="sm"
             variant="destructive"
             onClick={() => cancelExecution({ executionId })}
             disabled={isBusy}

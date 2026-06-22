@@ -32,7 +32,6 @@ export function ArchivedBanner({
       </span>
       <Button
         variant="secondary"
-        size="sm"
         disabled={isUnarchiving}
         onClick={onUnarchive}
       >

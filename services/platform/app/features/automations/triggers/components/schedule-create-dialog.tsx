@@ -319,7 +319,6 @@ export function ScheduleCreateDialog({
                 <Button
                   type="button"
                   variant="primary"
-                  size="sm"
                   onClick={handleGenerate}
                   disabled={!naturalLanguage.trim() || isGenerating}
                   isLoading={isGenerating}

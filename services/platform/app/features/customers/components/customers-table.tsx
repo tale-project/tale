@@ -2,12 +2,11 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
-import { Plus, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
-import { useAbility } from '@/app/hooks/use-ability';
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -159,9 +158,6 @@ export function CustomersTable({
 
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const ability = useAbility();
-  const canWrite = ability.can('write', 'knowledgeWrite');
-  // Lifted so the action menu and the empty-state CTA share one dialog.
   const [createOpen, setCreateOpen] = useState(false);
   const deleteCustomer = useDeleteCustomer();
 
@@ -224,13 +220,6 @@ export function CustomersTable({
           icon: Users,
           title: tEmpty('customers.title'),
           description: tEmpty('customers.description'),
-          action: canWrite
-            ? {
-                label: tCustomers('addButton'),
-                icon: Plus,
-                onClick: () => setCreateOpen(true),
-              }
-            : undefined,
         }}
         footer={
           <BulkDeleteBar

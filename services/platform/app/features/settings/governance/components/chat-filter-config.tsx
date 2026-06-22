@@ -731,7 +731,6 @@ function CategoryList({
       <div>
         <Button
           variant="secondary"
-          size="sm"
           icon={Plus}
           disabled={disabled}
           onClick={onAdd}

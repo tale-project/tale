@@ -342,7 +342,6 @@ export function PromptHistoryDialog({
                           <Button
                             type="button"
                             variant="ghost"
-                            size="sm"
                             onClick={() => setComparingVersion(entry)}
                             aria-label={t('history.compareVersionAria', {
                               version: String(entry.version),
@@ -353,7 +352,6 @@ export function PromptHistoryDialog({
                           <Button
                             type="button"
                             variant="ghost"
-                            size="sm"
                             onClick={() => startRestore(entry)}
                             aria-label={t('history.restoreVersionAria', {
                               version: String(entry.version),

@@ -140,7 +140,7 @@ function DrawerErrorState({ onRetry }: { onRetry: () => void }) {
       <Text variant="muted" className="text-sm">
         {t('dataSubjectRequests.drawer.errorState.description')}
       </Text>
-      <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+      <Button type="button" variant="secondary" onClick={onRetry}>
         {t('dataSubjectRequests.drawer.errorState.retry')}
       </Button>
     </Stack>
@@ -409,7 +409,6 @@ function DrawerBody({
           <Button
             type="button"
             variant="secondary"
-            size="sm"
             icon={Clock}
             onClick={onExtend}
           >
@@ -420,7 +419,6 @@ function DrawerBody({
           <Button
             type="button"
             variant="secondary"
-            size="sm"
             icon={RefreshCcw}
             onClick={onRetry}
           >
@@ -467,7 +465,6 @@ function CoolingOffBanner({
         <Button
           type="button"
           variant="destructive"
-          size="sm"
           icon={Ban}
           onClick={onCancel}
         >

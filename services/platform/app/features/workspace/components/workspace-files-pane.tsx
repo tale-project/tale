@@ -439,7 +439,6 @@ function DirChildren({
           </Text>
           <Button
             variant="ghost"
-            size="sm"
             icon={RefreshCw}
             onClick={() => onRetry(dirPath)}
           >

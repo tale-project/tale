@@ -141,7 +141,6 @@ function ActivityLogViewInner({
             options={periodOptions}
             value={String(periodDays)}
             onValueChange={onPeriod}
-            size="sm"
             aria-label={t('logs.activity.period.label')}
           />
         </div>

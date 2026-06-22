@@ -67,7 +67,6 @@ export function RetentionPendingBanner({ organizationId }: Props) {
       </Stack>
       <Button
         variant="ghost"
-        size="sm"
         onClick={async () => {
           try {
             await cancel({

@@ -2,7 +2,6 @@
 
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute } from '@tanstack/react-router';
 import { CheckCircle2, XCircle } from 'lucide-react';
@@ -12,6 +11,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
@@ -200,16 +200,12 @@ function RunCodePolicyRoute() {
 
   return (
     <SettingsPage>
-      <PageSection
-        title={t('runCodePolicy.title')}
-        description={t('runCodePolicy.description')}
-      />
       <Skeletonize
         loading={isLoading}
         label={t('runCodePolicy.title')}
-        className="flex flex-col gap-6"
+        className="flex flex-col gap-8"
       >
-        <PageSection
+        <SettingsSection
           title={t('runCodePolicy.modeSectionTitle')}
           description={t('runCodePolicy.modeSectionDescription')}
         >
@@ -235,9 +231,9 @@ function RunCodePolicyRoute() {
               },
             ]}
           />
-        </PageSection>
+        </SettingsSection>
 
-        <PageSection
+        <SettingsSection
           title={t('runCodePolicy.pythonSectionTitle')}
           description={t('runCodePolicy.listsHint')}
         >
@@ -261,9 +257,9 @@ function RunCodePolicyRoute() {
               rows={4}
             />
           </Stack>
-        </PageSection>
+        </SettingsSection>
 
-        <PageSection
+        <SettingsSection
           title={t('runCodePolicy.nodeSectionTitle')}
           description={t('runCodePolicy.listsHint')}
         >
@@ -287,12 +283,11 @@ function RunCodePolicyRoute() {
               rows={4}
             />
           </Stack>
-        </PageSection>
+        </SettingsSection>
 
         <Button
           onClick={handleSave}
           disabled={cannotManage || upsertMutation.isPending}
-          size="sm"
           className="self-start"
         >
           {upsertMutation.isPending
@@ -300,7 +295,7 @@ function RunCodePolicyRoute() {
             : t('runCodePolicy.save')}
         </Button>
 
-        <PageSection
+        <SettingsSection
           title={t('runCodePolicy.testerTitle')}
           description={t('runCodePolicy.testerDescription')}
         >
@@ -328,12 +323,10 @@ function RunCodePolicyRoute() {
               }
               value={testInput}
               onChange={(e) => setTestInput(e.target.value)}
-              size="sm"
             />
             <Button
               type="button"
               variant="secondary"
-              size="sm"
               onClick={handleRunTest}
               className="self-start"
               disabled={testInput.trim().length === 0}
@@ -390,7 +383,7 @@ function RunCodePolicyRoute() {
               </Stack>
             )}
           </Stack>
-        </PageSection>
+        </SettingsSection>
       </Skeletonize>
     </SettingsPage>
   );

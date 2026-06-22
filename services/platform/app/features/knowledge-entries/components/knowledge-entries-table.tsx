@@ -1,12 +1,11 @@
 'use client';
 
 import type { Row, RowSelectionState } from '@tanstack/react-table';
-import { BookOpen, Plus } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
-import { useAbility } from '@/app/hooks/use-ability';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
@@ -30,9 +29,6 @@ export function KnowledgeEntriesTable({
 }: KnowledgeEntriesTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { t } = useT('knowledgeEntries');
-  const ability = useAbility();
-  const canWrite = ability.can('write', 'knowledgeWrite');
-  // Lifted so the action menu and the empty-state CTA share one dialog.
   const [createOpen, setCreateOpen] = useState(false);
 
   const { data: count } = useApproxKnowledgeEntryCount(organizationId);
@@ -109,13 +105,6 @@ export function KnowledgeEntriesTable({
           icon: BookOpen,
           title: tEmpty('knowledgeEntries.title'),
           description: tEmpty('knowledgeEntries.description'),
-          action: canWrite
-            ? {
-                label: t('addButton'),
-                icon: Plus,
-                onClick: () => setCreateOpen(true),
-              }
-            : undefined,
         }}
         footer={
           <BulkDeleteBar

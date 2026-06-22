@@ -103,7 +103,6 @@ function ReadinessChecklist({
               {t('readiness.connect', { integration: slug })}
             </Text>
             <Button
-              size="sm"
               variant="secondary"
               onClick={() => onConnect(slug)}
             >

@@ -191,7 +191,6 @@ export function PasswordPolicyEditor({
                   <Input
                     label={t('passwordPolicy.minLength')}
                     type="number"
-                    size="sm"
                     min={6}
                     max={128}
                     step={1}
@@ -247,7 +246,6 @@ export function PasswordPolicyEditor({
                     <Input
                       label={t('passwordPolicy.rotationDays')}
                       type="number"
-                      size="sm"
                       min={1}
                       max={3650}
                       step={1}

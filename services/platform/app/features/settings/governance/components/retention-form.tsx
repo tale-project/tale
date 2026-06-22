@@ -167,7 +167,6 @@ function CategoryRow({
               } as RetentionPolicyConfig)
             }
             disabled={inputDisabled}
-            size="sm"
             errorMessage={error}
             isInvalid={Boolean(error)}
             description={helper && helper.trim() !== '' ? helper : undefined}

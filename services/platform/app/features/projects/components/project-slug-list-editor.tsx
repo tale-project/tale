@@ -261,11 +261,7 @@ export function ProjectSlugListEditor({
           />
         ) : (
           <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPickerOpen(true)}
-            >
+            <Button variant="ghost" onClick={() => setPickerOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
               {addLabel}
             </Button>

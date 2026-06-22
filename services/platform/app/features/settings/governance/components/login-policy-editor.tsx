@@ -219,7 +219,6 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
                     <Input
                       label={t('loginPolicy.maxAttempts')}
                       type="number"
-                      size="sm"
                       min={1}
                       max={50}
                       step={1}
@@ -235,7 +234,6 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
                     <Input
                       label={t('loginPolicy.backoffSchedule')}
                       placeholder="1, 10, 60, 600"
-                      size="sm"
                       errorMessage={errors.scheduleSeconds?.message}
                       {...register('scheduleSeconds')}
                     />
@@ -248,7 +246,6 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
                     <Input
                       label={t('loginPolicy.trustedProxies')}
                       placeholder="loopback, uniquelocal, 10.0.0.0/8"
-                      size="sm"
                       errorMessage={errors.trustedProxies?.message}
                       {...register('trustedProxies')}
                     />

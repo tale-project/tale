@@ -140,7 +140,6 @@ function PlanApprovalCardComponent({
       </div>
       {collapsible && (
         <Button
-          size="sm"
           variant="ghost"
           className="mb-2 px-2 text-xs"
           onClick={() => setExpanded((v) => !v)}
@@ -171,7 +170,6 @@ function PlanApprovalCardComponent({
               }
             >
               <Button
-                size="sm"
                 variant="primary"
                 onClick={handleApprove}
                 disabled={isProcessing || isGenerating}
@@ -185,7 +183,6 @@ function PlanApprovalCardComponent({
             </Tooltip>
             <Tooltip content={t('rejectTooltip')}>
               <Button
-                size="sm"
                 variant="secondary"
                 onClick={handleReject}
                 disabled={isProcessing || isGenerating}

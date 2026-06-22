@@ -187,7 +187,6 @@ export function RequestsListSection({
           <Button
             type="button"
             variant="primary"
-            size="sm"
             onClick={() => setFileOpen(true)}
           >
             {/* H9-5: FileText conveys "file an erasure request" — the

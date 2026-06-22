@@ -60,7 +60,6 @@ export function TestConnectionPanel({
         <div>
           <Button
             variant="secondary"
-            size="sm"
             onClick={() => void runTest()}
             disabled={
               disabled || testMutation.isPending || text.trim().length === 0
