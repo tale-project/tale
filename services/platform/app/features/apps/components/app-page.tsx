@@ -178,12 +178,11 @@ export function AppPage({
   const app = apps.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
 
-  // Bundled-agent readiness — only meaningful once the app is installed.
-  const { agents: agentReadiness } = useAppAgentReadiness(
-    organizationId,
-    appSlug,
-    state !== undefined,
-  );
+  // Bundled-agent readiness — only meaningful once the app is installed. It's an
+  // action query (not a live Convex query like the integration state), so it must
+  // be refetched after the setup wizard closes for the checklist to clear.
+  const { agents: agentReadiness, refetch: refetchAgentReadiness } =
+    useAppAgentReadiness(organizationId, appSlug, state !== undefined);
   const blockedAgents = useMemo(
     () =>
       agentReadiness
@@ -322,7 +321,12 @@ export function AppPage({
             <AppInstallWizard
               open
               onOpenChange={(o) => {
-                if (!o) setAgentSetupOpen(false);
+                if (!o) {
+                  setAgentSetupOpen(false);
+                  // Action-query readiness isn't reactive — refetch so the
+                  // checklist reflects the secrets/mode just configured.
+                  refetchAgentReadiness();
+                }
               }}
               organizationId={organizationId}
               appSlug={appSlug}
@@ -335,41 +339,57 @@ export function AppPage({
             />
           )}
           {app.views.length === 0 ? (
-            <EmptyState
-              title={t('noViews.title')}
-              description={t('noViews.description')}
-            />
+            <VStack gap={4}>
+              {/* Manage menu rides the header even when the app has no views. */}
+              <HStack className="justify-end">
+                <AppLifecycleActions
+                  appSlug={appSlug}
+                  appName={app.name}
+                  organizationId={organizationId}
+                  projectId={state.projectId}
+                />
+              </HStack>
+              <EmptyState
+                title={t('noViews.title')}
+                description={t('noViews.description')}
+              />
+            </VStack>
           ) : (
-            app.views.map((view) => {
+            app.views.map((view, index) => {
               const title = resolvePackLabel(view.title, labels);
               const description = resolvePackLabel(view.description, labels);
+              // The app-level manage menu (⋯) rides the first view's title row
+              // — a proper header, not its own empty strip.
+              const isFirst = index === 0;
               return (
                 <VStack key={view.id} gap={4}>
-                  {(title || description) && (
-                    <VStack gap={1}>
-                      {title && (
-                        <Text as="span" className="text-xl font-semibold">
-                          {title}
-                        </Text>
+                  {(title || description || isFirst) && (
+                    <HStack className="items-start justify-between gap-3">
+                      <VStack gap={1} className="min-w-0">
+                        {title && (
+                          <Text as="span" className="text-xl font-semibold">
+                            {title}
+                          </Text>
+                        )}
+                        {description && (
+                          <Text variant="muted">{description}</Text>
+                        )}
+                      </VStack>
+                      {isFirst && (
+                        <AppLifecycleActions
+                          appSlug={appSlug}
+                          appName={app.name}
+                          organizationId={organizationId}
+                          projectId={state.projectId}
+                        />
                       )}
-                      {description && (
-                        <Text variant="muted">{description}</Text>
-                      )}
-                    </VStack>
+                    </HStack>
                   )}
                   <ViewBody view={view} labels={labels} />
                 </VStack>
               );
             })
           )}
-          <HStack gap={2} className="justify-end">
-            <AppLifecycleActions
-              appSlug={appSlug}
-              appName={app.name}
-              organizationId={organizationId}
-              projectId={state.projectId}
-            />
-          </HStack>
         </VStack>
       </ResourceDetailProvider>
     </AppRuntimeProvider>
