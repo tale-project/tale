@@ -3,7 +3,7 @@ import { Bot, User } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import type { TaskActorType } from '../lib/display';
+import type { TaskCreatorType } from '../lib/display';
 
 /** Two-letter initials from a display name (or the local part of an email). */
 function initialsOf(name: string): string {
@@ -27,7 +27,7 @@ export function AssigneeAvatar({
   size = 'sm',
   className,
 }: {
-  assigneeType?: TaskActorType;
+  assigneeType?: TaskCreatorType;
   assigneeId?: string;
   /** Resolved display name; enables initials + a human-readable tooltip. */
   name?: string;

@@ -6,10 +6,10 @@ import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
-import type { TaskActorType } from '../lib/display';
+import type { TaskActorType, TaskCreatorType } from '../lib/display';
 
 export interface ResolvedActor {
-  type: TaskActorType;
+  type: TaskCreatorType;
   id: string;
   /** Human-readable display name. Falls back to the raw id when unresolved. */
   name: string;
@@ -79,7 +79,12 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
 
   const resolveActor = useMemo(
     () =>
-      (type: TaskActorType, id: string): ResolvedActor => {
+      (type: TaskCreatorType, id: string): ResolvedActor => {
+        if (type === 'app') {
+          // App-provisioned (createdBy = app slug). No app directory in this
+          // hook — show the slug; not an agent/member.
+          return { type, id, name: id, isAgent: false };
+        }
         if (type === 'agent') {
           const agent = agentMap.get(id);
           return { type, id, name: agent?.name ?? id, isAgent: true };

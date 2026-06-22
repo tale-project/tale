@@ -51,6 +51,22 @@ export const taskActorTypeValidator = v.union(
   v.literal('agent'),
 );
 
+/**
+ * Creator attribution type for a task. Superset of `taskActorTypeValidator`:
+ * besides a human (`user`) or an AI agent (`agent`), a task can be provisioned
+ * by an installed `app` (e.g. the issue-desk app turning a GitHub issue into a
+ * task) — in which case `createdBy` holds the app slug. This is the ownership
+ * signal generic task automation arbitrates on: a task with `createdByType:
+ * 'app'` is driven by that app's own workflow, so the generic loops bail. Kept
+ * SEPARATE from `taskActorTypeValidator` because `assigneeType` must stay
+ * user|agent (a task cannot be assigned to an app). Write-once at creation.
+ */
+export const taskCreatorTypeValidator = v.union(
+  v.literal('user'),
+  v.literal('agent'),
+  v.literal('app'),
+);
+
 export const tasksTable = defineTable({
   organizationId: v.string(),
   projectId: v.id('projects'),
@@ -141,7 +157,7 @@ export const tasksTable = defineTable({
 
   // Authorship + lifecycle
   createdBy: v.string(),
-  createdByType: taskActorTypeValidator,
+  createdByType: taskCreatorTypeValidator,
   claimedAt: v.optional(v.number()),
   completedAt: v.optional(v.number()),
   createdAt: v.number(),

@@ -26,6 +26,7 @@ import {
   notifyTaskStatusChanged,
 } from '../collab/notify';
 import { emitEvent } from '../workflows/triggers/emit_event';
+import { appOwnerOfWorkflowSlug } from '../workflows/triggers/slug_mutations';
 import { canClaimTask, normalizeAssignee } from './access';
 import {
   TASK_AUDIT_ACTIONS,
@@ -300,6 +301,11 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     labels: v.optional(v.array(v.string())),
     priority: v.optional(taskPriorityValidator),
     externalState: v.optional(v.union(v.literal('open'), v.literal('closed'))),
+    /** The workflow this create launches (e.g. the app's desk-process). When it
+     *  belongs to an installed app, the new task is attributed to that app
+     *  (`createdByType:'app'`, `createdBy:<appSlug>`) — the ownership signal the
+     *  generic task loops arbitrate on. */
+    runWorkflowSlug: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -394,6 +400,17 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       args.externalState === 'closed' ? 'done' : SYNC_OPEN_STATUS;
     const rank = await computeEndRank(ctx, args.projectId, status);
     const number = await nextTaskNumber(ctx, project);
+    // A create launched by an installed app's workflow is OWNED by that app:
+    // attribute it to the app (createdByType:'app', createdBy:<appSlug>) so the
+    // generic task loops defer to the app's own workflow. Otherwise it's an
+    // agent-authored task as before.
+    const ownerApp = args.runWorkflowSlug
+      ? await appOwnerOfWorkflowSlug(
+          ctx,
+          args.organizationId,
+          args.runWorkflowSlug,
+        )
+      : null;
     const taskId = await ctx.db.insert('tasks', {
       organizationId: args.organizationId,
       projectId: args.projectId,
@@ -408,8 +425,8 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       externalId: args.externalId,
       externalUrl: args.externalUrl,
       completedAt: status === 'done' ? now : undefined,
-      createdBy: args.actorId,
-      createdByType: 'agent',
+      createdBy: ownerApp ?? args.actorId,
+      createdByType: ownerApp ? 'app' : 'agent',
       createdAt: now,
       updatedAt: now,
       statusChangedAt: now,
@@ -1150,6 +1167,8 @@ export const sweepStaleTasks = internalMutation({
       )) {
       if (task.archivedAt) continue;
       if (task.assigneeType !== 'agent') continue;
+      // App-owned tasks are driven by their app's own workflow — never sweep.
+      if (task.createdByType === 'app') continue;
       const lastMovement = task.statusChangedAt ?? task.updatedAt;
       if (lastMovement >= cutoff) continue;
       stale.push({
@@ -1232,6 +1251,7 @@ export const sweepDueSoonTasks = internalMutation({
           .lte('dueDate', windowEnd),
       )) {
       if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
+      if (task.createdByType === 'app') continue;
       if ((task.slaLevel ?? 0) >= 1) continue;
       if (task.dueDate === undefined) continue;
       await ctx.db.patch(task._id, { slaLevel: 1, slaLevelAt: now });
@@ -1293,6 +1313,7 @@ export const sweepOverdueLadder = internalMutation({
           .lte('dueDate', now),
       )) {
       if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
+      if (task.createdByType === 'app') continue;
       if (task.dueDate === undefined) continue;
       const overdueMs = now - task.dueDate;
       const targetLevel =
@@ -1340,6 +1361,7 @@ export const sweepArchivableTasks = internalMutation({
           q.eq('organizationId', args.organizationId).eq('status', status),
         )) {
         if (task.archivedAt) continue;
+        if (task.createdByType === 'app') continue;
         const closedAt =
           task.completedAt ?? task.statusChangedAt ?? task.updatedAt;
         if (closedAt >= cutoff) continue;

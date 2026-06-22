@@ -9,6 +9,10 @@ export type TaskStatus = Doc<'tasks'>['status'];
 export type TaskPriority = NonNullable<Doc<'tasks'>['priority']>;
 /** Polymorphic actor type shared by assignees, comment authors, and activity. */
 export type TaskActorType = NonNullable<Doc<'tasks'>['assigneeType']>;
+/** Creator attribution type — superset of {@link TaskActorType} that also
+ *  includes `'app'` (a task provisioned by an installed app; `createdBy` is the
+ *  app slug). A task can't be ASSIGNED to an app, so this is distinct. */
+export type TaskCreatorType = NonNullable<Doc<'tasks'>['createdByType']>;
 
 /** Board column order (left → right). */
 export const TASK_STATUS_ORDER: TaskStatus[] = [

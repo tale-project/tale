@@ -28,6 +28,7 @@ import {
   boardViewScopeValidator,
   boardViewTypeValidator,
   taskActorTypeValidator,
+  taskCreatorTypeValidator,
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
@@ -94,7 +95,7 @@ export const taskRowValidator = v.object({
   discussionThreadId: v.optional(v.string()),
   sourceDiscussionThreadId: v.optional(v.string()),
   createdBy: v.string(),
-  createdByType: taskActorTypeValidator,
+  createdByType: taskCreatorTypeValidator,
   claimedAt: v.optional(v.number()),
   completedAt: v.optional(v.number()),
   createdAt: v.number(),

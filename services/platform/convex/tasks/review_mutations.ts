@@ -59,7 +59,7 @@ function readResponse(
 
 /**
  * Resolve who should review: the task creator when human, else the project
- * creator (agent-created tasks must still land on a human desk).
+ * creator (agent- and app-created tasks must still land on a human desk).
  */
 async function resolveReviewer(
   ctx: MutationCtx,
