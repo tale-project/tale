@@ -245,6 +245,48 @@ export function deriveStepStatuses(
         };
   }
 
+  // A SETTLED execution has no live step. Two ways a step is stranded mid-run
+  // when the run is stopped (a user Stop → status 'failed' + errorCode
+  // 'canceled') or hard-fails:
+  //   1. cancelling the component workflow never writes a terminal runResult
+  //      to the in-progress entry, so the node reads `running` forever; and
+  //   2. once the component workflow's journal is GC'd (cleanupComponentWorkflow,
+  //      ~10s later) the entry is gone, so the current step has no node at all.
+  // Either way the run view would otherwise keep flashing a "Running"/"Live"
+  // (case 1) or a pending skeleton (case 2) for a step the run has abandoned.
+  // Settle the step status against the terminal outcome.
+  if (execution.status === 'completed' || execution.status === 'failed') {
+    const settled: ExecutionNodeStatus =
+      execution.status === 'completed' ? 'success' : 'canceled';
+    // A user Stop sets a run-level reason that genuinely describes the
+    // abandoned step; a generic failure's reason belongs to the step that
+    // actually failed, not its stranded siblings, so don't borrow it.
+    const settledError =
+      execution.errorCode === 'canceled' ? execution.error : undefined;
+    for (const node of Object.values(nodes)) {
+      if (
+        node.status === 'running' ||
+        node.status === 'waiting' ||
+        node.status === 'paused'
+      ) {
+        node.status = settled;
+        if (settledError !== undefined && node.error === undefined) {
+          node.error = settledError;
+        }
+      }
+    }
+    // (case 2) The current step's journal entry may already be GC'd —
+    // synthesize a settled node so it doesn't fall back to a loading skeleton.
+    if (execution.currentStepSlug && !nodes[execution.currentStepSlug]) {
+      nodes[execution.currentStepSlug] = {
+        status: settled,
+        stepName: execution.currentStepName,
+        attempts: 0,
+        ...(settledError !== undefined && { error: settledError }),
+      };
+    }
+  }
+
   const { outputs, unavailable } = readStepOutputs(execution);
   for (const [slug, node] of Object.entries(nodes)) {
     if (unavailable) {

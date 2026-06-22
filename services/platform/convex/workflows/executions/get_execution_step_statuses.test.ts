@@ -293,6 +293,110 @@ describe('deriveStepStatuses', () => {
     expect(result.execution.waitingFor).toBe('debug:2:send-email');
   });
 
+  it('settles a still-running step to canceled once the run was stopped (stale inProgress entry)', () => {
+    // User Stop → cancelExecution flips the row to 'failed'/'canceled' but never
+    // writes a terminal runResult to the abandoned step's journal entry, which
+    // stays inProgress. Without reconciliation the node would read `running`
+    // forever and the run view would keep flashing the "Running"/"Live" badge.
+    const result = deriveStepStatuses(
+      [
+        executeStepEntry('implement', {
+          args: {
+            stepSlug: 'implement',
+            stepType: 'sandbox',
+            stepName: 'Implement the fix',
+          },
+          inProgress: true,
+          completedAt: undefined,
+        }),
+      ],
+      execution({
+        status: 'failed',
+        errorCode: 'canceled',
+        error: 'Cancelled by user',
+        currentStepSlug: 'implement',
+      }),
+    );
+
+    expect(result.nodes.implement).toMatchObject({
+      status: 'canceled',
+      error: 'Cancelled by user',
+    });
+  });
+
+  it('settles a durable-sandbox handoff (port:running) step to canceled when the run was stopped', () => {
+    // The durable sandbox step crosses each action boundary on the internal
+    // `running` port; a Stop in that window leaves a success/port:running entry
+    // that would otherwise still read `running`.
+    const result = deriveStepStatuses(
+      [
+        executeStepEntry('implement', {
+          args: {
+            stepSlug: 'implement',
+            stepType: 'sandbox',
+            stepName: 'Implement the fix',
+          },
+          runResult: { kind: 'success', returnValue: { port: 'running' } },
+        }),
+      ],
+      execution({
+        status: 'failed',
+        errorCode: 'canceled',
+        error: 'Cancelled by user',
+        currentStepSlug: 'implement',
+      }),
+    );
+
+    expect(result.nodes.implement.status).toBe('canceled');
+  });
+
+  it("synthesizes a settled current-step node when its journal entry was GC'd after a stop", () => {
+    // ~10s after the stop the component workflow journal is cleaned up, so the
+    // journal is empty. The current step must still settle to canceled rather
+    // than fall back to a loading skeleton.
+    const result = deriveStepStatuses(
+      [],
+      execution({
+        status: 'failed',
+        errorCode: 'canceled',
+        error: 'Cancelled by user',
+        currentStepSlug: 'implement',
+        currentStepName: 'Implement the fix',
+      }),
+    );
+
+    expect(result.nodes.implement).toMatchObject({
+      status: 'canceled',
+      stepName: 'Implement the fix',
+      error: 'Cancelled by user',
+      attempts: 0,
+    });
+  });
+
+  it('does not borrow a generic failure reason onto stranded sibling steps', () => {
+    // A non-cancel hard failure: the failing step keeps its own error; a sibling
+    // still in progress settles to canceled WITHOUT inheriting the run error.
+    const result = deriveStepStatuses(
+      [
+        executeStepEntry('send', {
+          runResult: { kind: 'failed', error: 'SMTP unreachable' },
+        }),
+        executeStepEntry('notify', {
+          inProgress: true,
+          completedAt: undefined,
+        }),
+      ],
+      execution({ status: 'failed', error: 'SMTP unreachable' }),
+    );
+
+    expect(result.nodes.send).toMatchObject({
+      status: 'failed',
+      error: 'SMTP unreachable',
+    });
+    expect(result.nodes.notify.status).toBe('canceled');
+    expect(result.nodes.notify.error).toBeUndefined();
+  });
+
   it('flags outputs as unavailable when variables were offloaded to storage', () => {
     const result = deriveStepStatuses(
       [
