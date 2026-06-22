@@ -48,6 +48,23 @@
         }
       },
       "nextSteps": {
+        "success": "assign_implementer"
+      }
+    },
+    {
+      "stepSlug": "assign_implementer",
+      "name": "Assign to the implementer",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "assign",
+          "taskId": "{{input.task._id}}",
+          "assigneeType": "agent",
+          "assigneeId": "issue-desk/desk-implementer"
+        }
+      },
+      "nextSteps": {
         "success": "implement"
       }
     },
@@ -88,8 +105,24 @@
         "description": "A sandbox step always returns the success port; the real verdict is in output.data.ok. Stop if the implementer failed to push a verified fix + PR."
       },
       "nextSteps": {
-        "true": "review",
+        "true": "impl_success_comment",
         "false": "impl_failed"
+      }
+    },
+    {
+      "stepSlug": "impl_success_comment",
+      "name": "Log the fix + PR on the task",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] ✅ Implemented — PR opened and CI green; handing to review.\n\n{{steps.implement.output.data.summary}}"
+        }
+      },
+      "nextSteps": {
+        "success": "review"
       }
     },
     {
@@ -172,8 +205,24 @@
         "description": "The judge replies with a bare yes/no (trimmed); jexl `in` does substring, and a 'no' can never contain 'yes', so this never false-approves. If yes, park for human merge; otherwise route through the rework counter, which loops back to the implementer with the review feedback until the configurable cap is reached."
       },
       "nextSteps": {
-        "true": "to_review",
+        "true": "approved_comment",
         "false": "bump_rework"
+      }
+    },
+    {
+      "stepSlug": "approved_comment",
+      "name": "Log the merge-ready verdict on the task",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] 🎯 The desk reviewed and approved this change — the pull request is ready for a human to merge."
+        }
+      },
+      "nextSteps": {
+        "success": "to_review"
       }
     },
     {

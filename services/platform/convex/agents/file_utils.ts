@@ -150,6 +150,10 @@ export interface AgentJsonConfig {
   /** Max concurrent task runs; falls back to the org `agent_workforce`
    *  policy default. Mirrors `agentJsonSchema.maxConcurrentTasks`. */
   maxConcurrentTasks?: number;
+  /** Opt-in: run task runs as a durable sandbox step (container, not the
+   *  inline LLM loop). Mutually exclusive with `runtime`. Mirrors
+   *  `agentJsonSchema.preferDurableStepForTasks`. */
+  preferDurableStepForTasks?: boolean;
   /** External runtime binding (tale-daemon dispatch for task runs).
    *  Mirrors `agentJsonSchema.runtime`. */
   runtime?: {

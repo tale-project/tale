@@ -17,7 +17,7 @@ import { v } from 'convex/values';
 
 import { appScope, isValidAppSlug } from '../../lib/shared/schemas/apps';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import { type ActionCtx, action } from '../_generated/server';
 import {
   parseAgentJson,
@@ -138,14 +138,120 @@ async function registerAgent(
   });
 }
 
+interface InstallContext {
+  orgSlug: string;
+  installedBy: string;
+  manifest: Awaited<ReturnType<typeof readAppBundleManifest>>;
+}
+
+/**
+ * Shared install/reinstall preamble: membership + slug validation, the
+ * global-workflow shadowing guard, and the manifest read. Throws on any failure
+ * so a bad install fails fast before any file is copied.
+ */
+async function prepareInstall(
+  ctx: ActionCtx,
+  organizationId: string,
+  appSlug: string,
+): Promise<InstallContext> {
+  const { orgSlug, userId, email } = await requireOrgMembershipById(
+    ctx,
+    organizationId,
+  );
+  if (!isValidAppSlug(appSlug)) {
+    throw new Error(`Invalid app slug: ${appSlug}`);
+  }
+  // An app slug must not collide with an existing GLOBAL workflow folder of the
+  // same name: the workflow resolver prefers the app dir, so a collision would
+  // silently shadow those global workflows. Refuse instead — this keeps the
+  // app-vs-global workflow dispatch unambiguous.
+  const globalFolder = path.join(resolveWorkflowsDir(orgSlug), appSlug);
+  const shadowsGlobal = await stat(globalFolder)
+    .then((s) => s.isDirectory())
+    .catch(() => false);
+  if (shadowsGlobal) {
+    throw new Error(
+      `Cannot install app "${appSlug}": a global workflow folder of the same name exists and would be shadowed.`,
+    );
+  }
+  const installedBy = email !== '' ? email : userId;
+  const manifest = await readAppBundleManifest(appSlug);
+  return { orgSlug, installedBy, manifest };
+}
+
+/**
+ * Copy the app's bundle files into the org, (re)register its org-singleton
+ * agents/workflows, and upsert the ORG-LEVEL install row. Idempotent — safe to
+ * re-run on reinstall and on every add-to-project; it deliberately never touches
+ * `agentEnv` (env/secrets) or project bindings.
+ */
+async function ensureOrgResources(
+  ctx: ActionCtx,
+  organizationId: string,
+  appSlug: string,
+  install: InstallContext,
+): Promise<{ workflows: number; agents: number; resources: number }> {
+  const { orgSlug, installedBy, manifest } = install;
+  const { resources } = await installAppFiles(orgSlug, appSlug);
+
+  const workflows = manifest.workflows ?? [];
+  for (const slug of workflows) {
+    await registerWorkflow(
+      ctx,
+      organizationId,
+      orgSlug,
+      slug,
+      appSlug,
+      installedBy,
+    );
+  }
+
+  // App agents (bare names in the manifest) get an enabled, app-stamped install
+  // row so they're admitted to run in a fully-provisioned org. The row identity
+  // is the composite `<app>/<name>` (the liveness gate keys on it).
+  const agents = manifest.agents ?? [];
+  for (const name of agents) {
+    await registerAgent(
+      ctx,
+      organizationId,
+      orgSlug,
+      `${appSlug}/${name}`,
+      appSlug,
+      installedBy,
+    );
+  }
+
+  await ctx.runMutation(internal.apps.install_mutations.upsertAppInstallation, {
+    organizationId,
+    appSlug,
+    appName: manifest.name,
+    installedBy,
+    status: 'active',
+    resources,
+    requiredIntegrations: manifest.requires?.integrations ?? [],
+  });
+
+  return {
+    workflows: workflows.length,
+    agents: agents.length,
+    resources: resources.length,
+  };
+}
+
+/**
+ * Install an app, or add an already-installed project-scoped app to another
+ * project. Ensures the org-level resources once (shared across every bound
+ * project), then for a `scope: 'project'` app adds the project binding
+ * (idempotent; the project is validated in-transaction by `bindAppToProject`).
+ */
 export const installApp = action({
   args: {
     organizationId: v.string(),
     appSlug: v.string(),
     /**
      * Target project for a `scope: 'project'` app — required for those, rejected
-     * for org-scoped apps. The install binds to it (one project per install);
-     * re-installing with a different project re-binds.
+     * for org-scoped apps. Adds a project binding (idempotent); installing the
+     * same app into another project ADDS a binding rather than re-binding.
      */
     projectId: v.optional(v.id('projects')),
   },
@@ -164,49 +270,16 @@ export const installApp = action({
     agents: number;
     resources: number;
   }> => {
-    const { orgSlug, userId, email } = await requireOrgMembershipById(
+    const install = await prepareInstall(
       ctx,
       args.organizationId,
+      args.appSlug,
     );
-    if (!isValidAppSlug(args.appSlug)) {
-      throw new Error(`Invalid app slug: ${args.appSlug}`);
-    }
-    // An app slug must not collide with an existing GLOBAL workflow folder of the
-    // same name: the workflow resolver prefers the app dir, so a collision would
-    // silently shadow those global workflows. Refuse the install instead — this
-    // keeps the app-vs-global workflow dispatch unambiguous.
-    const globalFolder = path.join(resolveWorkflowsDir(orgSlug), args.appSlug);
-    const shadowsGlobal = await stat(globalFolder)
-      .then((s) => s.isDirectory())
-      .catch(() => false);
-    if (shadowsGlobal) {
-      throw new Error(
-        `Cannot install app "${args.appSlug}": a global workflow folder of the same name exists and would be shadowed.`,
-      );
-    }
-    const installedBy = email !== '' ? email : userId;
-
-    // Idempotent on a reinstall: re-copies the latest template files and upserts
-    // the install rows. It deliberately never touches `agentEnv` (env/secrets) —
-    // reinstalling re-syncs files but keeps an org's per-agent env/secrets. Only
-    // `uninstallApp` tears those down.
-    const manifest = await readAppBundleManifest(args.appSlug);
-
-    // Resolve install scope from the manifest and validate the target project
-    // before copying any files, so a bad scope/project fails fast and clean.
-    const scope = appScope(manifest);
+    const scope = appScope(install.manifest);
     if (scope === 'project') {
       if (!args.projectId) {
         throw new Error(
           `App "${args.appSlug}" is project-scoped; a target project is required to install it.`,
-        );
-      }
-      const project = await ctx.runQuery(api.projects.queries.getProject, {
-        projectId: args.projectId,
-      });
-      if (!project || project.organizationId !== args.organizationId) {
-        throw new Error(
-          `Cannot install app "${args.appSlug}": target project not found in this organization.`,
         );
       }
     } else if (args.projectId) {
@@ -214,57 +287,61 @@ export const installApp = action({
         `App "${args.appSlug}" is org-scoped and cannot be bound to a project.`,
       );
     }
-    const boundProjectId = scope === 'project' ? args.projectId : undefined;
 
-    const { resources } = await installAppFiles(orgSlug, args.appSlug);
-
-    const workflows = manifest.workflows ?? [];
-    for (const slug of workflows) {
-      await registerWorkflow(
-        ctx,
-        args.organizationId,
-        orgSlug,
-        slug,
-        args.appSlug,
-        installedBy,
-      );
-    }
-
-    // App agents (bare names in the manifest) get an enabled, app-stamped
-    // install row so they're admitted to run in a fully-provisioned org. The
-    // row identity is the composite `<app>/<name>` (the liveness gate keys on it).
-    const agents = manifest.agents ?? [];
-    for (const name of agents) {
-      await registerAgent(
-        ctx,
-        args.organizationId,
-        orgSlug,
-        `${args.appSlug}/${name}`,
-        args.appSlug,
-        installedBy,
-      );
-    }
-
-    await ctx.runMutation(
-      internal.apps.install_mutations.upsertAppInstallation,
-      {
-        organizationId: args.organizationId,
-        appSlug: args.appSlug,
-        projectId: boundProjectId,
-        appName: manifest.name,
-        installedBy,
-        status: 'active',
-        resources,
-        requiredIntegrations: manifest.requires?.integrations ?? [],
-      },
+    const counts = await ensureOrgResources(
+      ctx,
+      args.organizationId,
+      args.appSlug,
+      install,
     );
 
-    return {
-      ok: true,
-      workflows: workflows.length,
-      agents: agents.length,
-      resources: resources.length,
-    };
+    if (scope === 'project' && args.projectId) {
+      await ctx.runMutation(internal.apps.install_mutations.bindAppToProject, {
+        organizationId: args.organizationId,
+        appSlug: args.appSlug,
+        projectId: args.projectId,
+        boundBy: install.installedBy,
+      });
+    }
+
+    return { ok: true, ...counts };
+  },
+});
+
+/**
+ * Re-sync an installed app's org resources from the latest template — the
+ * "reinstall" verb. Project-agnostic (never takes or touches a project binding)
+ * and non-destructive to env/secrets; only `uninstallApp` tears those down.
+ */
+export const reinstallApp = action({
+  args: { organizationId: v.string(), appSlug: v.string() },
+  returns: v.object({
+    ok: v.boolean(),
+    workflows: v.number(),
+    agents: v.number(),
+    resources: v.number(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    ok: boolean;
+    workflows: number;
+    agents: number;
+    resources: number;
+  }> => {
+    const install = await prepareInstall(
+      ctx,
+      args.organizationId,
+      args.appSlug,
+    );
+    const counts = await ensureOrgResources(
+      ctx,
+      args.organizationId,
+      args.appSlug,
+      install,
+    );
+    return { ok: true, ...counts };
   },
 });
 
@@ -285,6 +362,17 @@ export const uninstallApp = action({
       { organizationId: args.organizationId, appSlug: args.appSlug },
     );
     if (!record) return { ok: true };
+
+    // Guard + lock (I1/I7): refuse with APP_HAS_BOUND_PROJECTS (naming the
+    // projects) while any project still has the app — a project still using it
+    // must never have its shared resources torn out. At 0 bindings this sets the
+    // `uninstalling` lock so a racing add-to-project is refused, and the
+    // filesystem teardown below proceeds.
+    const begin = await ctx.runMutation(
+      internal.apps.install_mutations.beginUninstall,
+      { organizationId: args.organizationId, appSlug: args.appSlug },
+    );
+    if (!begin.ok) return { ok: true };
 
     // Deregister workflows (read the manifest to know which; tolerate a missing
     // bundle by falling back to nothing — the file removal still proceeds).
@@ -342,6 +430,36 @@ export const uninstallApp = action({
       {
         organizationId: args.organizationId,
         appSlug: args.appSlug,
+      },
+    );
+    return { ok: true };
+  },
+});
+
+/**
+ * "Remove from this project" — drop a single project binding. A
+ * project-membership action, distinct from `uninstallApp`: it deletes ONLY the
+ * one binding and never touches the shared org resources (I3). Org-scoped apps
+ * have no bindings, so this is a no-op for them.
+ */
+export const removeAppFromProject = action({
+  args: {
+    organizationId: v.string(),
+    appSlug: v.string(),
+    projectId: v.id('projects'),
+  },
+  returns: v.object({ ok: v.boolean() }),
+  handler: async (ctx, args): Promise<{ ok: boolean }> => {
+    await requireOrgMembershipById(ctx, args.organizationId);
+    if (!isValidAppSlug(args.appSlug)) {
+      throw new Error(`Invalid app slug: ${args.appSlug}`);
+    }
+    await ctx.runMutation(
+      internal.apps.install_mutations.unbindAppFromProject,
+      {
+        organizationId: args.organizationId,
+        appSlug: args.appSlug,
+        projectId: args.projectId,
       },
     );
     return { ok: true };

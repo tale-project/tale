@@ -1,10 +1,12 @@
 'use client';
 
 /**
- * App install lifecycle on the client: a reactive read of per-app install state
- * (`getAppInstallState`) + the install / uninstall / verify actions. The hub
- * uses the state for Install/Installed/Reinstall badges; the app page uses it
- * for the non-blocking readiness checklist.
+ * App install lifecycle on the client: a reactive read of per-app ORG-LEVEL
+ * install state (`getAppInstallState`) + the install / add-to-project /
+ * remove-from-project / reinstall / uninstall / verify actions. The hub uses the
+ * state for Install/Installed/Reinstall badges; the org app page uses it for the
+ * readiness checklist; `useAppBindings` / `useProjectApps` cover project
+ * membership.
  */
 import { useCallback, useMemo } from 'react';
 
@@ -17,15 +19,13 @@ import { asProjectId } from '../../projects/hooks/use-project-id-param';
 
 export interface AppInstallState {
   appSlug: string;
-  /** Bound project for a project-scoped app (absent for org-scoped apps). */
-  projectId?: string;
   status: 'active' | 'broken';
   installedAt: number;
   blockedIntegrations: string[];
 }
 
 export function useAppInstallStates(organizationId: string): {
-  /** appSlug -> install state (absent = not installed). */
+  /** appSlug -> ORG-LEVEL install state (absent = not installed). */
   bySlug: Map<string, AppInstallState>;
   isLoading: boolean;
 } {
@@ -34,8 +34,9 @@ export function useAppInstallStates(organizationId: string): {
   });
   const bySlug = useMemo(() => {
     const m = new Map<string, AppInstallState>();
-    const rows = (q.data as AppInstallState[] | undefined) ?? [];
-    for (const row of rows) m.set(row.appSlug, row);
+    for (const row of (q.data as AppInstallState[] | undefined) ?? []) {
+      m.set(row.appSlug, row);
+    }
     return m;
   }, [q.data]);
   return { bySlug, isLoading: q.isLoading };
@@ -62,30 +63,50 @@ export function useProjectApps(projectId: Id<'projects'>): {
   };
 }
 
+/** A project a (project-scoped) app is bound to — drives the membership hub. */
+export interface AppBinding {
+  projectId: string;
+  projectName: string;
+}
+
+/** The projects a project-scoped app is bound to (the org app page's hub). */
+export function useAppBindings(
+  organizationId: string,
+  appSlug: string,
+): { bindings: AppBinding[]; isLoading: boolean } {
+  const q = useConvexQuery(api.apps.install_queries.listAppBindings, {
+    organizationId,
+    appSlug,
+  });
+  return {
+    bindings: (q.data as AppBinding[] | undefined) ?? [],
+    isLoading: q.isLoading,
+  };
+}
+
 export function useAppInstallActions(organizationId: string): {
-  /** `projectId` is required for project-scoped apps, rejected for org-scoped. */
+  /**
+   * Install an app, or add an already-installed project-scoped app to another
+   * project. `projectId` is required for project-scoped apps, rejected for
+   * org-scoped.
+   */
   install: (appSlug: string, projectId?: string) => Promise<void>;
+  /** Remove ONE project binding (project-membership action; never tears down). */
+  removeFromProject: (appSlug: string, projectId: string) => Promise<void>;
+  /** Re-sync org resources (project-agnostic). */
+  reinstall: (appSlug: string) => Promise<void>;
+  /** Org-wide teardown — refused server-side while any project is still bound. */
   uninstall: (appSlug: string) => Promise<void>;
   verify: (appSlug: string) => Promise<void>;
   isPending: boolean;
 } {
   const install = useConvexAction(api.apps.install_actions.installApp);
+  const reinstall = useConvexAction(api.apps.install_actions.reinstallApp);
+  const removeFromProject = useConvexAction(
+    api.apps.install_actions.removeAppFromProject,
+  );
   const uninstall = useConvexAction(api.apps.install_actions.uninstallApp);
   const verify = useConvexAction(api.apps.install_actions.verifyAppIntegrity);
-
-  const run = useCallback(
-    (
-      mut: {
-        mutateAsync: (a: {
-          organizationId: string;
-          appSlug: string;
-        }) => Promise<unknown>;
-      },
-      appSlug: string,
-    ): Promise<void> =>
-      mut.mutateAsync({ organizationId, appSlug }).then(() => undefined),
-    [organizationId],
-  );
 
   return {
     install: useCallback(
@@ -101,8 +122,43 @@ export function useAppInstallActions(organizationId: string): {
           .then(() => undefined),
       [install, organizationId],
     ),
-    uninstall: useCallback((s: string) => run(uninstall, s), [run, uninstall]),
-    verify: useCallback((s: string) => run(verify, s), [run, verify]),
-    isPending: install.isPending || uninstall.isPending || verify.isPending,
+    removeFromProject: useCallback(
+      (s: string, projectId: string) =>
+        removeFromProject
+          .mutateAsync({
+            organizationId,
+            appSlug: s,
+            projectId: asProjectId(projectId),
+          })
+          .then(() => undefined),
+      [removeFromProject, organizationId],
+    ),
+    reinstall: useCallback(
+      (s: string) =>
+        reinstall
+          .mutateAsync({ organizationId, appSlug: s })
+          .then(() => undefined),
+      [reinstall, organizationId],
+    ),
+    uninstall: useCallback(
+      (s: string) =>
+        uninstall
+          .mutateAsync({ organizationId, appSlug: s })
+          .then(() => undefined),
+      [uninstall, organizationId],
+    ),
+    verify: useCallback(
+      (s: string) =>
+        verify
+          .mutateAsync({ organizationId, appSlug: s })
+          .then(() => undefined),
+      [verify, organizationId],
+    ),
+    isPending:
+      install.isPending ||
+      removeFromProject.isPending ||
+      reinstall.isPending ||
+      uninstall.isPending ||
+      verify.isPending,
   };
 }

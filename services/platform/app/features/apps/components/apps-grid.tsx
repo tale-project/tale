@@ -23,8 +23,8 @@ import {
   useAppInstallActions,
   useAppInstallStates,
 } from '../hooks/use-install-state';
-import { AppInstallDialog } from './app-install-dialog';
 import { AppLifecycleActions } from './app-lifecycle-actions';
+import { AppInstallWizard } from './install-wizard/app-install-wizard';
 
 function InstallBadge({ state }: { state: AppInstallState }) {
   const { t } = useT('apps');
@@ -42,8 +42,10 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
   const { apps, isLoading } = useApps(organizationId);
   const { bySlug } = useAppInstallStates(organizationId);
   const { install, isPending } = useAppInstallActions(organizationId);
-  // The project-scoped app awaiting an install target (opens the picker dialog).
-  const [pickProjectFor, setPickProjectFor] = useState<AppSummary | null>(null);
+  // The app whose install wizard is open. Project-scoped apps (need a target
+  // project) and apps with required integrations (need a connect step) route
+  // through the wizard; org-scoped apps with no requirements install in one click.
+  const [wizardApp, setWizardApp] = useState<AppSummary | null>(null);
 
   if (isLoading && apps.length === 0) return <SkeletonText lines={4} />;
   if (apps.length === 0) {
@@ -60,22 +62,14 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
     <Grid className="grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {apps.map((app) => {
         const state = bySlug.get(app.slug);
-        // A project-scoped installed app opens inside its bound project; org apps
-        // (and not-yet-installed apps) use the org-level app page.
-        const cardLink =
-          state?.projectId !== undefined
-            ? ({
-                to: '/dashboard/$id/projects/$projectId/apps/$appSlug',
-                params: {
-                  id: organizationId,
-                  projectId: state.projectId,
-                  appSlug: app.slug,
-                },
-              } as const)
-            : ({
-                to: '/dashboard/$id/apps/$appSlug',
-                params: { id: organizationId, appSlug: app.slug },
-              } as const);
+        // Every card opens the org-level app page. For a project-scoped app that
+        // page is its membership hub (the list of bound projects + Add); we never
+        // deep-link a single project from the hub, so the card behaves identically
+        // whether the app is in 0, 1, or N projects.
+        const cardLink = {
+          to: '/dashboard/$id/apps/$appSlug',
+          params: { id: organizationId, appSlug: app.slug },
+        } as const;
         return (
           <div key={app.slug} className="relative h-full">
             <Link {...cardLink} aria-label={app.name} className="block h-full">
@@ -111,7 +105,7 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
                   appSlug={app.slug}
                   appName={app.name}
                   organizationId={organizationId}
-                  projectId={state.projectId}
+                  context="org"
                 />
               </div>
             ) : (
@@ -120,8 +114,9 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
                   size="sm"
                   disabled={isPending}
                   onClick={() =>
-                    app.scope === 'project'
-                      ? setPickProjectFor(app)
+                    app.scope === 'project' ||
+                    app.requiredIntegrations.length > 0
+                      ? setWizardApp(app)
                       : void install(app.slug)
                   }
                 >
@@ -132,15 +127,17 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
           </div>
         );
       })}
-      {pickProjectFor && (
-        <AppInstallDialog
+      {wizardApp && (
+        <AppInstallWizard
           open
           onOpenChange={(o) => {
-            if (!o) setPickProjectFor(null);
+            if (!o) setWizardApp(null);
           }}
           organizationId={organizationId}
-          appSlug={pickProjectFor.slug}
-          appName={pickProjectFor.name}
+          appSlug={wizardApp.slug}
+          appName={wizardApp.name}
+          scope={wizardApp.scope}
+          requiredIntegrations={wizardApp.requiredIntegrations}
         />
       )}
     </Grid>

@@ -218,6 +218,7 @@ import type * as approvals_plan_mutations from "../approvals/plan_mutations.js";
 import type * as approvals_queries from "../approvals/queries.js";
 import type * as approvals_types from "../approvals/types.js";
 import type * as approvals_validators from "../approvals/validators.js";
+import type * as apps_agent_readiness from "../apps/agent_readiness.js";
 import type * as apps_file_actions from "../apps/file_actions.js";
 import type * as apps_file_utils from "../apps/file_utils.js";
 import type * as apps_install_actions from "../apps/install_actions.js";
@@ -1761,6 +1762,7 @@ declare const fullApi: ApiFromModules<{
   "approvals/queries": typeof approvals_queries;
   "approvals/types": typeof approvals_types;
   "approvals/validators": typeof approvals_validators;
+  "apps/agent_readiness": typeof apps_agent_readiness;
   "apps/file_actions": typeof apps_file_actions;
   "apps/file_utils": typeof apps_file_utils;
   "apps/install_actions": typeof apps_install_actions;

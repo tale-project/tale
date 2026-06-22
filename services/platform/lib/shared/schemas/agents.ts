@@ -168,6 +168,9 @@ const AGENT_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
  *                        folder so system agents keep stable flat slugs.
  *  - `requires.integrations` — HARD dependency: the agent is cascade-disabled
  *                        when any listed integration is not connected.
+ *  - `requires.env`          — env/secret keys the agent needs set (chiefly a
+ *                        BYO external agent's own credential); drives the app
+ *                        install wizard's secrets step + readiness checklist.
  *  - `bundledByIntegration`  — the integration whose connection installs this
  *                        agent (provenance also tracked on the install row).
  */
@@ -176,7 +179,22 @@ const agentMetadataSchema = z.object({
   templateCatalog: z.boolean().optional(),
   labels: z.array(z.string().min(1).max(80)).max(12).optional(),
   requires: z
-    .object({ integrations: z.array(z.string().min(1)).optional() })
+    .object({
+      integrations: z.array(z.string().min(1)).optional(),
+      // Env / secret keys the agent needs set before it can run — chiefly a BYO
+      // external agent bringing its own credential. Declared so the app-install
+      // wizard can collect them and the readiness checklist can flag missing
+      // ones (the values live in the per-agent `agentEnv` store, never here).
+      env: z
+        .array(
+          z.object({
+            key: z.string().min(1).max(128),
+            secret: z.boolean().optional(),
+            description: z.string().max(300).optional(),
+          }),
+        )
+        .optional(),
+    })
     .optional(),
   bundledByIntegration: z.string().min(1).max(80).optional(),
 });
@@ -349,6 +367,15 @@ export const agentJsonSchema = z
       })
       .optional(),
     /**
+     * Opt-in: run this agent's task runs (`run_on_task`) as a DURABLE sandbox
+     * step instead of the inline LLM loop — the agent runs Claude Code in a
+     * container (bash/files, `output/summary.md` handoff) and the run spans the
+     * action ceiling via the durable-step re-entry. Mutually exclusive with
+     * `runtime` (external daemon dispatch); the superRefine below enforces it.
+     * For code/file task agents (e.g. an issue-desk implementer).
+     */
+    preferDurableStepForTasks: z.boolean().optional(),
+    /**
      * Per-agent personalization toggle. 'off' suppresses user memory and
      * customInstructions injection AND strips the propose_memory tool.
      * Use 'off' for agents whose outputs have legal/significant effects
@@ -472,6 +499,18 @@ export const agentJsonSchema = z
         path: ['authMode'],
         message:
           'authMode is only valid when primaryBehavior is "external-agent".',
+      });
+    }
+
+    // `preferDurableStepForTasks` (durable sandbox dispatch) and `runtime`
+    // (external daemon dispatch) are two different task-run dispatch paths —
+    // an agent picks at most one.
+    if (data.preferDurableStepForTasks === true && data.runtime !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['preferDurableStepForTasks'],
+        message:
+          'preferDurableStepForTasks cannot be combined with runtime — they are two different task-run dispatch paths; choose one.',
       });
     }
 

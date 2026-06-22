@@ -10,5 +10,17 @@
     "openrouter:anthropic/claude-opus-4.6"
   ],
   "delegates": [],
-  "metadata": { "role": "implementer", "pack": "issue-desk" }
+  "metadata": {
+    "role": "implementer",
+    "pack": "issue-desk",
+    "requires": {
+      "env": [
+        {
+          "key": "ANTHROPIC_AUTH_TOKEN",
+          "secret": true,
+          "description": "The BYO credential Claude Code authenticates with (your Anthropic or Anthropic-compatible API key)."
+        }
+      ]
+    }
+  }
 }

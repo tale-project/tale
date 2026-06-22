@@ -21,7 +21,6 @@
       "uninstall": "Uninstall",
       "notInstalledTitle": "Not installed yet",
       "notInstalledDescription": "Install this app to add its agents and workflows to your organization.",
-      "chooseProjectTitle": "Install {name}",
       "chooseProjectDescription": "This app runs inside a project. Choose where its tasks and pages live.",
       "projectLabel": "Project",
       "projectPlaceholder": "Select a project",
@@ -37,13 +36,49 @@
       "uninstallDescription": "This removes the app and everything it installed from your organization.",
       "uninstallWarning": "Its agents, workflows, pages, and their environment variables and secrets are deleted. Connected integrations stay.",
       "uninstalled": "App uninstalled",
-      "uninstallFailed": "Couldn't uninstall the app"
+      "uninstallFailed": "Couldn't uninstall the app",
+      "removeFromProject": "Remove from project",
+      "removedFromProject": "Removed from project",
+      "removeFromProjectFailed": "Couldn't remove the app from this project",
+      "removeFromProjectTitle": "Remove from this project?",
+      "removeFromProjectDescription": "{name} will no longer appear in this project. Its agents, workflows, and any other projects are unaffected — you can add it back anytime.",
+      "uninstallBlocked": "Still in use by: {projects}. Remove the app from those projects before uninstalling.",
+      "uninstallBlockedCount": "Remove the app from its {count} project(s) before uninstalling."
     },
     "readiness": {
       "title": "Finish setup",
       "broken": "Some installed files are missing. Reinstall to restore them.",
       "connect": "Connect {integration} to use this app.",
-      "connectButton": "Connect"
+      "connectButton": "Connect",
+      "agentNeedsSetup": "{agent} needs setup to run.",
+      "setupButton": "Set up"
+    },
+    "installWizard": {
+      "title": "Set up {name}",
+      "progress": "{label} · step {current} of {total}",
+      "stepsAriaLabel": "Setup steps",
+      "projectStepLabel": "Project",
+      "installStepLabel": "Install",
+      "installReady": "Ready to install {name}.",
+      "installNeeds": "It uses these integrations: {integrations}.",
+      "doneStepLabel": "Done",
+      "doneTitle": "{name} is ready",
+      "doneAllConnected": "Everything it needs is connected.",
+      "doneSomeSkipped": "You skipped some steps — finish them anytime from the app's setup checklist.",
+      "finish": "Finish",
+      "skipForNow": "I'll do this later",
+      "installFailed": "Couldn't install the app",
+      "integrationUnavailable": "{integration} isn't available in this organization yet. Connect it from Settings → Integrations.",
+      "oauthPopupBlocked": "Allow pop-ups for this site to connect, then try again.",
+      "authModeStepLabel": "Agent mode",
+      "authModeDescription": "Each automation agent can use the platform's managed model access, or bring its own credentials.",
+      "authModeManaged": "Managed",
+      "authModeByo": "Bring your own key",
+      "providerKeyLabel": "{provider} API key",
+      "connectProvider": "Connect {provider}",
+      "providerConnectFailed": "Couldn't connect the provider",
+      "agentNeedsKeys": "{name} needs these credentials to run.",
+      "saveSecrets": "Save"
     },
     "confirm": "Are you sure?",
     "binding": {
@@ -122,6 +157,15 @@
       "colStatus": "Status",
       "colStarted": "Started",
       "watchLive": "Watch live"
+    },
+    "membership": {
+      "title": "Projects",
+      "addProject": "Add to a project",
+      "emptyTitle": "Not in any project yet",
+      "emptyDescription": "Add this app to a project to start using it there.",
+      "notInProjectTitle": "Not added to this project",
+      "notInProjectDescription": "Add this app to this project to use it here.",
+      "addToThisProject": "Add to this project"
     }
   },
   "operator": {

@@ -130,6 +130,10 @@ export interface SerializableAgentConfig {
   };
   /** Max concurrent task runs (mirrors `agentJsonSchema.maxConcurrentTasks`). */
   maxConcurrentTasks?: number;
+  /** Opt-in: run task runs as a durable sandbox step instead of the inline LLM
+   *  loop (mirrors `agentJsonSchema.preferDurableStepForTasks`; mutually
+   *  exclusive with `runtime`). Read at the run_on_task dispatch seam. */
+  preferDurableStepForTasks?: boolean;
 }
 
 /**

@@ -5,7 +5,9 @@
  * `output.data.{ok,status,error}` so callers branch via a following condition.
  */
 import { internal } from '../../../../_generated/api';
+import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
+import { toId } from '../../../../lib/type_cast_helpers';
 import type { StepExecutionResult } from '../../../types';
 import type { SandboxNodeConfig } from '../../../types/nodes';
 import { mergeSandboxEnv } from './merge_sandbox_env';
@@ -51,6 +53,35 @@ export async function executeSandboxNode(
   const stepEnv = mergeSandboxEnv(workflowEnv, fileEnv, stepStoreEnv);
   const hasStepEnv = Object.keys(stepEnv).length > 0;
 
+  // A sandbox AGENT step that belongs to a task-bound workflow execution feeds
+  // the durable run through the taskAgentRuns metrics gate (budget/concurrency/
+  // usage). Only an execution ABOUT a task carries the binding; script steps and
+  // non-task workflows pass nothing and skip metrics. The execution row is the
+  // source of the subject (the step env path doesn't carry it).
+  let taskBinding:
+    | {
+        taskId: Id<'tasks'>;
+        wfExecutionId: Id<'wfExecutions'>;
+        workflowSlug?: string;
+      }
+    | undefined;
+  if ('agent' in run && executionId) {
+    const exec = await ctx.runQuery(
+      internal.workflow_executions.internal_queries.getRawExecution,
+      {
+        executionId: toId<'wfExecutions'>(executionId),
+        callerOrgId: organizationId,
+      },
+    );
+    if (exec?.subjectType === 'task' && typeof exec.subjectId === 'string') {
+      taskBinding = {
+        taskId: toId<'tasks'>(exec.subjectId),
+        wfExecutionId: toId<'wfExecutions'>(executionId),
+        ...(workflowSlug && { workflowSlug }),
+      };
+    }
+  }
+
   const data =
     'agent' in run
       ? await ctx.runAction(
@@ -60,6 +91,13 @@ export async function executeSandboxNode(
             executionId,
             stepSlug,
             agentSlug: run.agent,
+            ...(taskBinding && {
+              taskId: taskBinding.taskId,
+              wfExecutionId: taskBinding.wfExecutionId,
+              ...(taskBinding.workflowSlug !== undefined && {
+                workflowSlug: taskBinding.workflowSlug,
+              }),
+            }),
             ...(run.instructions !== undefined && {
               instructions: run.instructions,
             }),

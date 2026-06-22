@@ -113,8 +113,18 @@ export async function executeActionNode(
       ? result
       : sanitizeActionResultForOutput(result);
 
+  // A durable action (e.g. an agent run_on_task routed to a durable sandbox
+  // step) hands off mid-run with status 'running'; surface it on the 'running'
+  // port so the engine re-enters the SAME step for the next segment (the same
+  // durable contract the sandbox node uses). Everything else stays 'success'
+  // (terminal ok/error lives in output.data for a following condition).
+  const port =
+    isRecord(dataForOutput) && dataForOutput.status === 'running'
+      ? 'running'
+      : 'success';
+
   return {
-    port: 'success',
+    port,
     ...(resultVariables ? { variables: resultVariables } : {}),
     output: {
       type: 'action',

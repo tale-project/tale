@@ -26,6 +26,7 @@ import {
   notifyTaskStatusChanged,
 } from '../collab/notify';
 import { emitEvent } from '../workflows/triggers/emit_event';
+import { appOwnerOfWorkflowSlug } from '../workflows/triggers/slug_mutations';
 import { canClaimTask, normalizeAssignee } from './access';
 import {
   TASK_AUDIT_ACTIONS,
@@ -300,6 +301,11 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     labels: v.optional(v.array(v.string())),
     priority: v.optional(taskPriorityValidator),
     externalState: v.optional(v.union(v.literal('open'), v.literal('closed'))),
+    /** The workflow this create launches (e.g. the app's desk-process). When it
+     *  belongs to an installed app, the new task is attributed to that app
+     *  (`createdByType:'app'`, `createdBy:<appSlug>`) — the ownership signal the
+     *  generic task loops arbitrate on. */
+    runWorkflowSlug: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -394,6 +400,17 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       args.externalState === 'closed' ? 'done' : SYNC_OPEN_STATUS;
     const rank = await computeEndRank(ctx, args.projectId, status);
     const number = await nextTaskNumber(ctx, project);
+    // A create launched by an installed app's workflow is OWNED by that app:
+    // attribute it to the app (createdByType:'app', createdBy:<appSlug>) so the
+    // generic task loops defer to the app's own workflow. Otherwise it's an
+    // agent-authored task as before.
+    const ownerApp = args.runWorkflowSlug
+      ? await appOwnerOfWorkflowSlug(
+          ctx,
+          args.organizationId,
+          args.runWorkflowSlug,
+        )
+      : null;
     const taskId = await ctx.db.insert('tasks', {
       organizationId: args.organizationId,
       projectId: args.projectId,
@@ -408,8 +425,8 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       externalId: args.externalId,
       externalUrl: args.externalUrl,
       completedAt: status === 'done' ? now : undefined,
-      createdBy: args.actorId,
-      createdByType: 'agent',
+      createdBy: ownerApp ?? args.actorId,
+      createdByType: ownerApp ? 'app' : 'agent',
       createdAt: now,
       updatedAt: now,
       statusChangedAt: now,
@@ -1115,6 +1132,33 @@ export const ensureTaskThread = internalMutation({
 // ---------------------------------------------------------------------------
 
 /**
+ * Memoized per-app install check for the sweeps (one fetch per app slug per
+ * sweep). App-owned tasks are normally driven by their app's own workflow and so
+ * are skipped by the generic sweeps; but once the app is UNINSTALLED nothing
+ * drives them, so they must fall through to the sweeps like any other task — no
+ * app-owned task outlives its app with no driver and no sweep (I10).
+ */
+function makeAppInstalledCache(
+  ctx: MutationCtx,
+  organizationId: string,
+): (appSlug: string) => Promise<boolean> {
+  const cache = new Map<string, boolean>();
+  return async (appSlug: string): Promise<boolean> => {
+    const cached = cache.get(appSlug);
+    if (cached !== undefined) return cached;
+    const row = await ctx.db
+      .query('appInstallations')
+      .withIndex('by_org_slug', (q) =>
+        q.eq('organizationId', organizationId).eq('appSlug', appSlug),
+      )
+      .first();
+    const installed = row !== null;
+    cache.set(appSlug, installed);
+    return installed;
+  };
+}
+
+/**
  * Stale-work sweep: agent-assigned tasks sitting in `in_progress` with no
  * status movement for `staleAfterHours`. One-shot by construction — the
  * pack workflow's rollback to `todo` changes `statusChangedAt`, so a task
@@ -1137,6 +1181,7 @@ export const sweepStaleTasks = internalMutation({
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
     const cutoff = Date.now() - args.staleAfterHours * 60 * 60 * 1000;
+    const isAppInstalled = makeAppInstalledCache(ctx, args.organizationId);
     const stale: Array<{
       taskId: Id<'tasks'>;
       title: string;
@@ -1150,6 +1195,15 @@ export const sweepStaleTasks = internalMutation({
       )) {
       if (task.archivedAt) continue;
       if (task.assigneeType !== 'agent') continue;
+      // App-owned tasks are driven by their app's own workflow — skip them while
+      // the app is still installed; sweep them once it has been uninstalled (I10).
+      if (
+        task.createdByType === 'app' &&
+        task.createdBy &&
+        (await isAppInstalled(task.createdBy))
+      ) {
+        continue;
+      }
       const lastMovement = task.statusChangedAt ?? task.updatedAt;
       if (lastMovement >= cutoff) continue;
       stale.push({
@@ -1213,6 +1267,7 @@ export const sweepDueSoonTasks = internalMutation({
     const now = Date.now();
     const windowEnd = now + args.windowHours * 60 * 60 * 1000;
     const creatorOf = await projectCreatorLookup(ctx);
+    const isAppInstalled = makeAppInstalledCache(ctx, args.organizationId);
 
     const rows: Array<{
       taskId: Id<'tasks'>;
@@ -1232,6 +1287,13 @@ export const sweepDueSoonTasks = internalMutation({
           .lte('dueDate', windowEnd),
       )) {
       if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
+      if (
+        task.createdByType === 'app' &&
+        task.createdBy &&
+        (await isAppInstalled(task.createdBy))
+      ) {
+        continue;
+      }
       if ((task.slaLevel ?? 0) >= 1) continue;
       if (task.dueDate === undefined) continue;
       await ctx.db.patch(task._id, { slaLevel: 1, slaLevelAt: now });
@@ -1273,6 +1335,7 @@ export const sweepOverdueLadder = internalMutation({
     const managerMs = args.managerEscalationHours * 60 * 60 * 1000;
     const adminMs = args.adminEscalationHours * 60 * 60 * 1000;
     const creatorOf = await projectCreatorLookup(ctx);
+    const isAppInstalled = makeAppInstalledCache(ctx, args.organizationId);
 
     const rows: Array<{
       taskId: Id<'tasks'>;
@@ -1293,6 +1356,13 @@ export const sweepOverdueLadder = internalMutation({
           .lte('dueDate', now),
       )) {
       if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
+      if (
+        task.createdByType === 'app' &&
+        task.createdBy &&
+        (await isAppInstalled(task.createdBy))
+      ) {
+        continue;
+      }
       if (task.dueDate === undefined) continue;
       const overdueMs = now - task.dueDate;
       const targetLevel =
@@ -1332,6 +1402,7 @@ export const sweepArchivableTasks = internalMutation({
   handler: async (ctx, args) => {
     const limit = clampSweepLimit(args.limit);
     const cutoff = Date.now() - args.olderThanDays * 24 * 60 * 60 * 1000;
+    const isAppInstalled = makeAppInstalledCache(ctx, args.organizationId);
     const rows: Array<{ taskId: Id<'tasks'>; title: string }> = [];
     for (const status of ['done', 'cancelled'] as const) {
       for await (const task of ctx.db
@@ -1340,6 +1411,13 @@ export const sweepArchivableTasks = internalMutation({
           q.eq('organizationId', args.organizationId).eq('status', status),
         )) {
         if (task.archivedAt) continue;
+        if (
+          task.createdByType === 'app' &&
+          task.createdBy &&
+          (await isAppInstalled(task.createdBy))
+        ) {
+          continue;
+        }
         const closedAt =
           task.completedAt ?? task.statusChangedAt ?? task.updatedAt;
         if (closedAt >= cutoff) continue;

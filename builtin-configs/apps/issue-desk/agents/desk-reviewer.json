@@ -9,6 +9,15 @@
   "supportedModels": ["openrouter:anthropic/claude-sonnet-4.6"],
   "metadata": {
     "role": "reviewer",
-    "pack": "issue-desk"
+    "pack": "issue-desk",
+    "requires": {
+      "env": [
+        {
+          "key": "ANTHROPIC_AUTH_TOKEN",
+          "secret": true,
+          "description": "The BYO credential Claude Code authenticates with (your Anthropic or Anthropic-compatible API key)."
+        }
+      ]
+    }
   }
 }

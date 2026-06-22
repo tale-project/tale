@@ -90,6 +90,42 @@ describe('agentJsonSchema carries the new optional blocks', () => {
   });
 });
 
+describe('agentJsonSchema — preferDurableStepForTasks', () => {
+  it('accepts the flag on its own', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        ...baseAgent,
+        preferDurableStepForTasks: true,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects the flag combined with runtime (mutually exclusive)', () => {
+    const r = agentJsonSchema.safeParse({
+      ...baseAgent,
+      preferDurableStepForTasks: true,
+      runtime: { adapterType: 'tale_daemon' },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('allows runtime alone (flag absent/false)', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        ...baseAgent,
+        runtime: { adapterType: 'tale_daemon' },
+      }).success,
+    ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...baseAgent,
+        preferDurableStepForTasks: false,
+        runtime: { adapterType: 'tale_daemon' },
+      }).success,
+    ).toBe(true);
+  });
+});
+
 describe('agentJsonSchema — external-agent primaryBehavior', () => {
   const externalBase = {
     displayName: 'Coding Agent',

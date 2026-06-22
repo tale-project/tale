@@ -9,7 +9,6 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { getTemplateIconUrl } from '@/app/features/settings/integrations/components/integration-upload/constants/integration-templates';
 import {
   type IntegrationListItem,
   Integrations,
@@ -19,12 +18,12 @@ import {
   useIntegrations,
   useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
+import { mergeIntegrationListItem } from '@/app/features/settings/integrations/lib/merge-integration';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
-import { isRecord } from '@/lib/utils/type-utils';
 
 const searchSchema = z.object({
   section: z.enum(['apps', 'mcp-servers']).optional(),
@@ -135,46 +134,13 @@ function IntegrationsPage() {
       'slug' in item,
   );
 
-  const mergeConfig = (fileVal: unknown, credVal: unknown): unknown => {
-    if (isRecord(credVal) && isRecord(fileVal)) {
-      return { ...fileVal, ...credVal };
-    }
-    return credVal ?? fileVal;
-  };
-
-  // oxlint-disable-next-line oxc/no-map-spread, typescript/no-unsafe-type-assertion -- immutable update, type verified by filter
-  const allIntegrations: IntegrationListItem[] = validIntegrations.map(
-    (item) => {
-      const slug = String(item.slug);
-      const cred = credentialsBySlug.get(slug);
-      return {
-        ...item,
-        _id: cred?._id ?? slug,
-        name: slug,
-        organizationId,
-        isActive: cred?.isActive ?? false,
-        status: cred?.status ?? 'inactive',
-        authMethod: cred?.authMethod ?? item.authMethod,
-        oauth2Config: mergeConfig(item.oauth2Config, cred?.oauth2Config),
-        basicAuth: cred?.basicAuth ?? item.basicAuth,
-        apiKeyAuth: cred?.apiKeyAuth ?? item.apiKeyAuth,
-        oauth2Auth: cred?.oauth2Auth ?? item.oauth2Auth,
-        connectionConfig: mergeConfig(
-          item.connectionConfig,
-          cred?.connectionConfig,
-        ),
-        sqlConnectionConfig: mergeConfig(
-          item.sqlConnectionConfig,
-          cred?.sqlConnectionConfig,
-        ),
-        iconUrl:
-          typeof item.iconUrl === 'string'
-            ? item.iconUrl
-            : getTemplateIconUrl(slug),
-      };
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- merging file + DB data into IntegrationListItem shape
-    },
-  ) as unknown as IntegrationListItem[];
+  const allIntegrations: IntegrationListItem[] = validIntegrations.map((item) =>
+    mergeIntegrationListItem(
+      item,
+      credentialsBySlug.get(String(item.slug)),
+      organizationId,
+    ),
+  );
 
   const handleTabChange = (tab: string) => {
     void navigate({

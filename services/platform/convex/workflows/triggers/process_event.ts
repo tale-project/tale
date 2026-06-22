@@ -51,6 +51,23 @@ function isSelfTrigger(
   return sourceSlug === subscriptionWorkflowSlug;
 }
 
+/**
+ * Ownership arbitration: a task created by an app (`createdByType === 'app'`,
+ * `createdBy` = the app slug) is driven by that app's OWN workflow, so a generic
+ * subscription — or another app's — must not also act on it. A subscription is
+ * identified by its workflow's owning app slug (`wfInstallations.appSlug`, null
+ * for a global/generic workflow). Non-app tasks are open to every subscription.
+ * Pure (no ctx) so it is unit-tested directly.
+ */
+export function isSubscriptionAllowedForTask(
+  taskCreatedByType: unknown,
+  taskCreatedBy: unknown,
+  subscriptionAppSlug: string | null | undefined,
+): boolean {
+  if (taskCreatedByType !== 'app') return true;
+  return subscriptionAppSlug === taskCreatedBy;
+}
+
 interface ProcessEventArgs {
   organizationId: string;
   eventType: string;
@@ -91,6 +108,18 @@ export async function processEventHandler(
       )
       .first();
     if (!installation) continue;
+
+    // Ownership arbitration: skip this subscription if the event's task is owned
+    // by a different app (or by an app while this is a generic workflow).
+    if (
+      !isSubscriptionAllowedForTask(
+        getNestedValue(eventData ?? {}, 'task.createdByType'),
+        getNestedValue(eventData ?? {}, 'task.createdBy'),
+        installation.appSlug,
+      )
+    ) {
+      continue;
+    }
 
     if (cachedOrgSlug === null) {
       cachedOrgSlug = await resolveOrgSlug(ctx, args.organizationId);

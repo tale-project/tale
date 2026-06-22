@@ -28,6 +28,7 @@ import {
   boardViewScopeValidator,
   boardViewTypeValidator,
   taskActorTypeValidator,
+  taskCreatorTypeValidator,
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
@@ -94,7 +95,7 @@ export const taskRowValidator = v.object({
   discussionThreadId: v.optional(v.string()),
   sourceDiscussionThreadId: v.optional(v.string()),
   createdBy: v.string(),
-  createdByType: taskActorTypeValidator,
+  createdByType: taskCreatorTypeValidator,
   claimedAt: v.optional(v.number()),
   completedAt: v.optional(v.number()),
   createdAt: v.number(),
@@ -142,6 +143,10 @@ export const listTasksByProject = query({
     includeArchived: v.optional(v.boolean()),
     status: v.optional(taskStatusValidator),
     assigneeId: v.optional(v.string()),
+    // Scope to tasks linked to an external system (e.g. 'github') — lets an
+    // app surface (the issue-desk Tasks tab) show only the tasks IT derived
+    // from issues, not the whole project board. Omitted ⇒ all tasks.
+    externalSystem: v.optional(v.string()),
   },
   returns: v.object({
     tasks: v.array(taskRowValidator),
@@ -158,6 +163,8 @@ export const listTasksByProject = query({
       if (!args.includeArchived && task.archivedAt) continue;
       if (args.status && task.status !== args.status) continue;
       if (args.assigneeId && task.assigneeId !== args.assigneeId) continue;
+      if (args.externalSystem && task.externalSystem !== args.externalSystem)
+        continue;
       rows.push(task);
       if (rows.length >= TASK_BOARD_CAP) {
         truncated = true;

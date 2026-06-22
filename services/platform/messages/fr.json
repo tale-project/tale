@@ -21,7 +21,6 @@
       "uninstall": "Désinstaller",
       "notInstalledTitle": "Pas encore installé",
       "notInstalledDescription": "Installez cette application pour ajouter ses agents et workflows à votre organisation.",
-      "chooseProjectTitle": "Installer {name}",
       "chooseProjectDescription": "Cette application fonctionne au sein d'un projet. Choisissez où vivront ses tâches et ses pages.",
       "projectLabel": "Projet",
       "projectPlaceholder": "Sélectionner un projet",
@@ -37,13 +36,49 @@
       "uninstallDescription": "Cette action supprime l'application et tout ce qu'elle a installé de votre organisation.",
       "uninstallWarning": "Ses agents, workflows, pages ainsi que leurs variables d'environnement et secrets sont supprimés. Les intégrations connectées sont conservées.",
       "uninstalled": "Application désinstallée",
-      "uninstallFailed": "Impossible de désinstaller l'application"
+      "uninstallFailed": "Impossible de désinstaller l'application",
+      "removeFromProject": "Retirer du projet",
+      "removedFromProject": "Retirée du projet",
+      "removeFromProjectFailed": "Impossible de retirer l'application de ce projet",
+      "removeFromProjectTitle": "Retirer de ce projet ?",
+      "removeFromProjectDescription": "{name} n'apparaîtra plus dans ce projet. Ses agents, workflows et les autres projets ne sont pas affectés — vous pouvez la rajouter à tout moment.",
+      "uninstallBlocked": "Encore utilisée par : {projects}. Retirez l’application de ces projets avant de la désinstaller.",
+      "uninstallBlockedCount": "Retirez l'application de ses {count} projet(s) avant de la désinstaller."
     },
     "readiness": {
       "title": "Terminer la configuration",
       "broken": "Certains fichiers installés sont manquants. Réinstallez pour les restaurer.",
       "connect": "Connectez {integration} pour utiliser cette application.",
-      "connectButton": "Connecter"
+      "connectButton": "Connecter",
+      "agentNeedsSetup": "{agent} doit être configuré pour fonctionner.",
+      "setupButton": "Configurer"
+    },
+    "installWizard": {
+      "title": "Configurer {name}",
+      "progress": "{label} · étape {current} sur {total}",
+      "stepsAriaLabel": "Étapes de configuration",
+      "projectStepLabel": "Projet",
+      "installStepLabel": "Installer",
+      "installReady": "Prêt à installer {name}.",
+      "installNeeds": "Cette application utilise ces intégrations : {integrations}.",
+      "doneStepLabel": "Terminé",
+      "doneTitle": "{name} est prête",
+      "doneAllConnected": "Tout ce dont elle a besoin est connecté.",
+      "doneSomeSkipped": "Vous avez ignoré certaines étapes — terminez-les à tout moment depuis la liste de configuration de l'application.",
+      "finish": "Terminer",
+      "skipForNow": "Je le ferai plus tard",
+      "installFailed": "Impossible d'installer l'application",
+      "integrationUnavailable": "{integration} n'est pas encore disponible dans cette organisation. Connectez-la depuis Paramètres → Intégrations.",
+      "oauthPopupBlocked": "Autorisez les fenêtres pop-up pour ce site afin de vous connecter, puis réessayez.",
+      "authModeStepLabel": "Mode de l'agent",
+      "authModeDescription": "Chaque agent d'automatisation peut utiliser l'accès aux modèles géré par la plateforme ou fournir ses propres identifiants.",
+      "authModeManaged": "Géré",
+      "authModeByo": "Votre propre clé",
+      "providerKeyLabel": "Clé API {provider}",
+      "connectProvider": "Connecter {provider}",
+      "providerConnectFailed": "Impossible de connecter le fournisseur",
+      "agentNeedsKeys": "{name} a besoin de ces identifiants pour fonctionner.",
+      "saveSecrets": "Enregistrer"
     },
     "confirm": "Êtes-vous sûr ?",
     "binding": {
@@ -122,6 +157,15 @@
       "colStatus": "Statut",
       "colStarted": "Démarré",
       "watchLive": "Voir en direct"
+    },
+    "membership": {
+      "title": "Projets",
+      "addProject": "Ajouter à un projet",
+      "emptyTitle": "Dans aucun projet pour l'instant",
+      "emptyDescription": "Ajoutez cette application à un projet pour l'utiliser.",
+      "notInProjectTitle": "Pas ajoutée à ce projet",
+      "notInProjectDescription": "Ajoutez cette application à ce projet pour l'utiliser ici.",
+      "addToThisProject": "Ajouter à ce projet"
     }
   },
   "operator": {

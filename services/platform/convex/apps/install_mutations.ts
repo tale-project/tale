@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import { internalMutation, internalQuery } from '../_generated/server';
@@ -11,13 +11,16 @@ const resourceValidator = v.object({
 
 const statusValidator = v.union(v.literal('active'), v.literal('broken'));
 
-/** Upsert the install record + copied-file ledger (idempotent on reinstall). */
+/**
+ * Ensure the ORG-LEVEL install record + copied-file ledger (idempotent on
+ * reinstall / add-to-project). Read-then-insert/patch in one mutation → at most
+ * one row per (org, appSlug). Project membership is NOT stored here — it lives in
+ * `appProjectBindings` (see `bindAppToProject`).
+ */
 export const upsertAppInstallation = internalMutation({
   args: {
     organizationId: v.string(),
     appSlug: v.string(),
-    /** Bound project for project-scoped apps; absent (and cleared) for org apps. */
-    projectId: v.optional(v.id('projects')),
     /** Denormalized app display name (from the manifest) for the in-project tab. */
     appName: v.optional(v.string()),
     installedBy: v.string(),
@@ -34,14 +37,14 @@ export const upsertAppInstallation = internalMutation({
       )
       .first();
     const fields = {
-      // Patch with `undefined` clears a prior binding (e.g. reinstalled org-scoped).
-      projectId: args.projectId,
       appName: args.appName,
       installedAt: Date.now(),
       installedBy: args.installedBy,
       status: args.status,
       resources: args.resources,
       requiredIntegrations: args.requiredIntegrations,
+      // A reinstall lands here; clear any stale teardown lock so the row is live.
+      uninstalling: undefined,
     };
     if (existing) {
       await ctx.db.patch(existing._id, fields);
@@ -52,6 +55,134 @@ export const upsertAppInstallation = internalMutation({
       appSlug: args.appSlug,
       ...fields,
     });
+  },
+});
+
+/**
+ * Bind a `scope: 'project'` app to a project — idempotent, single-transaction
+ * (the OCC serialization unit), enforcing every cross-row guarantee here rather
+ * than in the calling action:
+ *  - I8: the project exists and belongs to the org;
+ *  - I7: the org install row exists and is not mid-uninstall;
+ *  - I6: one row per (org, appSlug, project) — a re-add is a no-op.
+ */
+export const bindAppToProject = internalMutation({
+  args: {
+    organizationId: v.string(),
+    appSlug: v.string(),
+    projectId: v.id('projects'),
+    boundBy: v.string(),
+  },
+  returns: v.id('appProjectBindings'),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.organizationId !== args.organizationId) {
+      throw new Error(
+        `Cannot bind app "${args.appSlug}": target project not found in this organization.`,
+      );
+    }
+    const org = await ctx.db
+      .query('appInstallations')
+      .withIndex('by_org_slug', (q) =>
+        q.eq('organizationId', args.organizationId).eq('appSlug', args.appSlug),
+      )
+      .first();
+    if (!org) {
+      throw new Error(
+        `Cannot bind app "${args.appSlug}": it is not installed in this organization.`,
+      );
+    }
+    if (org.uninstalling === true) {
+      throw new Error(
+        `Cannot bind app "${args.appSlug}": it is being uninstalled.`,
+      );
+    }
+    const existing = await ctx.db
+      .query('appProjectBindings')
+      .withIndex('by_org_slug_project', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('appSlug', args.appSlug)
+          .eq('projectId', args.projectId),
+      )
+      .first();
+    if (existing) return existing._id;
+    return await ctx.db.insert('appProjectBindings', {
+      organizationId: args.organizationId,
+      appSlug: args.appSlug,
+      projectId: args.projectId,
+      boundAt: Date.now(),
+      boundBy: args.boundBy,
+    });
+  },
+});
+
+/**
+ * Remove a single project binding — the "Remove from this project" verb. Deletes
+ * ONLY this junction row; never inspects the remaining count and never tears down
+ * shared org resources (I3). Idempotent.
+ */
+export const unbindAppFromProject = internalMutation({
+  args: {
+    organizationId: v.string(),
+    appSlug: v.string(),
+    projectId: v.id('projects'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const existing = await ctx.db
+      .query('appProjectBindings')
+      .withIndex('by_org_slug_project', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('appSlug', args.appSlug)
+          .eq('projectId', args.projectId),
+      )
+      .first();
+    if (existing) await ctx.db.delete(existing._id);
+    return null;
+  },
+});
+
+/**
+ * Guard + lock for full uninstall (I1/I7). Refuses with `APP_HAS_BOUND_PROJECTS`
+ * (naming the projects) while any binding remains — the mirror of the
+ * project-delete guard — so a project still using the app never has its shared
+ * resources removed. At 0 bindings it sets the `uninstalling` lock so a racing
+ * `bindAppToProject` is refused, then the action runs the filesystem teardown and
+ * finally deletes the row (clearing the lock).
+ */
+export const beginUninstall = internalMutation({
+  args: { organizationId: v.string(), appSlug: v.string() },
+  returns: v.union(
+    v.object({ ok: v.literal(true) }),
+    v.object({ ok: v.literal(false), notInstalled: v.literal(true) }),
+  ),
+  handler: async (ctx, args) => {
+    const org = await ctx.db
+      .query('appInstallations')
+      .withIndex('by_org_slug', (q) =>
+        q.eq('organizationId', args.organizationId).eq('appSlug', args.appSlug),
+      )
+      .first();
+    if (!org) return { ok: false as const, notInstalled: true as const };
+    const boundProjectNames: string[] = [];
+    for await (const binding of ctx.db
+      .query('appProjectBindings')
+      .withIndex('by_org_slug_project', (q) =>
+        q.eq('organizationId', args.organizationId).eq('appSlug', args.appSlug),
+      )) {
+      const project = await ctx.db.get(binding.projectId);
+      boundProjectNames.push(project?.name ?? String(binding.projectId));
+    }
+    if (boundProjectNames.length > 0) {
+      throw new ConvexError({
+        code: 'APP_HAS_BOUND_PROJECTS',
+        projects: boundProjectNames,
+      });
+    }
+    await ctx.db.patch(org._id, { uninstalling: true });
+    return { ok: true as const };
   },
 });
 

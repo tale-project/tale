@@ -128,6 +128,9 @@ export const createTaskFromExternalIssue = action({
         description: args.description,
         labels: args.labels,
         externalState: 'open',
+        // Attributes the task to the owning app (createdByType:'app') so generic
+        // task automation defers to the app's workflow — see the upsert mutation.
+        runWorkflowSlug: args.runWorkflowSlug,
       },
     );
 

@@ -254,6 +254,11 @@ export const sandboxAgentCheckpointsTable = defineTable({
   agentResultSeen: v.optional(v.boolean()),
   agentIdle: v.optional(v.boolean()),
   pendingTaskIds: v.optional(v.array(v.string())),
+  /** The admitted `taskAgentRuns` row for a task-bound durable agent run.
+   * Admission happens ONCE on the fresh segment; the runId is carried here so
+   * resume segments re-use it and never re-admit (which would double-count the
+   * concurrency counter). Absent for non-task sandbox steps. */
+  taskRunId: v.optional(v.id('taskAgentRuns')),
   /** Cumulative-budget tracking ACROSS segments: the step's `maxWallClockMs` is
    * a hard total cap, independent of any single action window. */
   startedAt: v.number(),

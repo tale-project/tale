@@ -185,6 +185,63 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
 
     switch (params.operation) {
       case 'run_on_task': {
+        // Opt-in durable path: an agent flagged `preferDurableStepForTasks`
+        // runs its task as a DURABLE sandbox step (container) that spans the
+        // action ceiling via the 'running' re-entry, instead of the inline LLM
+        // loop. Requires a workflow execution context (the deterministic
+        // checkpoint session is keyed by executionId+stepSlug); without it, or
+        // when the agent isn't flagged, fall through to the inline path.
+        if (
+          extras?.executionId !== undefined &&
+          extras?.stepSlug !== undefined
+        ) {
+          const plan = await ctx.runAction(
+            internal.agents.run_agent_on_task.resolveDurableTaskRunPlan,
+            {
+              organizationId,
+              agentSlug: params.agentSlug,
+              taskId: toId<'tasks'>(params.taskId),
+              trigger: params.trigger,
+              instructions: params.instructions,
+              ...(params.promptContext !== undefined && {
+                promptContext: params.promptContext,
+              }),
+            },
+          );
+          if (plan.durable) {
+            // Run the durable segment DIRECTLY from here so the long runAction
+            // is a V8→node hop (the proven-safe sandbox-step depth), never
+            // node→node (which would brush the ~5-min inter-node RPC cap).
+            const sandbox = await ctx.runAction(
+              internal.node_only.sandbox.workflow_sandbox_exec.runSandboxAgent,
+              {
+                organizationId,
+                executionId: extras.executionId,
+                stepSlug: extras.stepSlug,
+                agentSlug: params.agentSlug,
+                taskId: toId<'tasks'>(params.taskId),
+                wfExecutionId: toId<'wfExecutions'>(extras.executionId),
+                ...(workflowSlug !== undefined && { workflowSlug }),
+                instructions: plan.prompt,
+                budget: plan.budget,
+                inputs: [],
+              },
+            );
+            return {
+              operation: 'run_on_task',
+              ok: sandbox.ok,
+              // 'running' rides through so executeActionNode maps it to the
+              // 'running' port → the engine re-enters this step (next segment).
+              status: sandbox.status,
+              external: false,
+              ...(sandbox.summary !== undefined && { text: sandbox.summary }),
+              ...(sandbox.error !== undefined && { error: sandbox.error }),
+              ...(sandbox.refusedReason !== undefined && {
+                refusedReason: sandbox.refusedReason,
+              }),
+            };
+          }
+        }
         const result = await ctx.runAction(
           internal.agents.run_agent_on_task.runAgentOnTask,
           {

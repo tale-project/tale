@@ -131,6 +131,8 @@ export function toSerializableConfig(
     // External runtime binding rides along so the task-run dispatch seam
     // (run_agent_on_task) can branch without a second file read.
     runtime: config.runtime,
+    // Durable-sandbox task-run opt-in rides along for the same dispatch seam.
+    preferDurableStepForTasks: config.preferDurableStepForTasks,
     structuredResponsesEnabled: config.structuredResponsesEnabled ?? false,
     timeoutMs: config.timeoutMs,
     outputReserve: config.outputReserve,

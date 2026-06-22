@@ -812,25 +812,40 @@ export function useIntegrationManage(
     t,
   ]);
 
+  // Ensure the credential stub exists, then build the provider authorization
+  // URL — WITHOUT navigating. The settings page redirects the whole tab to it
+  // (`handleReauthorize`); the install wizard opens it in a popup so the inline
+  // multi-step flow isn't torn down. One source of truth for the URL.
+  const prepareOAuth2Url = useCallback(async (): Promise<string | null> => {
+    // If no credential record exists yet (uninstalled integration), install first
+    let credentialId = integration._id;
+    const slug = integration.name ?? '';
+    if (credentialId === slug && slug && integration.organizationId) {
+      const installResult = await installFn({
+        slug,
+        organizationId,
+      });
+      credentialId = installResult.credentialId;
+    }
+
+    return generateOAuth2Url({
+      credentialId: toId<'integrationCredentials'>(credentialId),
+      organizationId: integration.organizationId ?? '',
+    });
+  }, [
+    integration._id,
+    integration.name,
+    integration.organizationId,
+    organizationId,
+    generateOAuth2Url,
+    installFn,
+  ]);
+
   const handleReauthorize = useCallback(async () => {
     setIsSavingOAuth2(true);
     try {
-      // If no credential record exists yet (uninstalled integration), install first
-      let credentialId = integration._id;
-      const slug = integration.name ?? '';
-      if (credentialId === slug && slug && integration.organizationId) {
-        const installResult = await installFn({
-          slug,
-          organizationId,
-        });
-        credentialId = installResult.credentialId;
-      }
-
-      const authUrl = await generateOAuth2Url({
-        credentialId: toId<'integrationCredentials'>(credentialId),
-        organizationId: integration.organizationId ?? '',
-      });
-      window.location.href = authUrl;
+      const authUrl = await prepareOAuth2Url();
+      if (authUrl) window.location.href = authUrl;
     } catch (error) {
       toast({
         title: t('integrations.manageDialog.oauth2AuthorizationFailed'),
@@ -839,15 +854,7 @@ export function useIntegrationManage(
       });
       setIsSavingOAuth2(false);
     }
-  }, [
-    integration._id,
-    integration.name,
-    integration.organizationId,
-    organizationId,
-    generateOAuth2Url,
-    installFn,
-    t,
-  ]);
+  }, [prepareOAuth2Url, t]);
 
   const oauth2FieldsComplete =
     oauth2Fields.clientId.trim().length > 0 &&
@@ -909,6 +916,7 @@ export function useIntegrationManage(
     handleTestConnection,
     handleDisconnect,
     handleReauthorize,
+    prepareOAuth2Url,
 
     hasOAuth2Config,
     hasOAuth2Credentials,

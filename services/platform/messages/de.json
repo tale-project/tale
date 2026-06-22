@@ -21,7 +21,6 @@
       "uninstall": "Deinstallieren",
       "notInstalledTitle": "Noch nicht installiert",
       "notInstalledDescription": "Installiere diese App, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen.",
-      "chooseProjectTitle": "{name} installieren",
       "chooseProjectDescription": "Diese App läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben.",
       "projectLabel": "Projekt",
       "projectPlaceholder": "Projekt auswählen",
@@ -37,13 +36,49 @@
       "uninstallDescription": "Dadurch werden die App und alles, was sie installiert hat, aus deiner Organisation entfernt.",
       "uninstallWarning": "Ihre Agenten, Workflows, Seiten sowie deren Umgebungsvariablen und Secrets werden gelöscht. Verbundene Integrationen bleiben erhalten.",
       "uninstalled": "App deinstalliert",
-      "uninstallFailed": "App konnte nicht deinstalliert werden"
+      "uninstallFailed": "App konnte nicht deinstalliert werden",
+      "removeFromProject": "Aus Projekt entfernen",
+      "removedFromProject": "Aus dem Projekt entfernt",
+      "removeFromProjectFailed": "Die App konnte nicht aus diesem Projekt entfernt werden",
+      "removeFromProjectTitle": "Aus diesem Projekt entfernen?",
+      "removeFromProjectDescription": "{name} wird in diesem Projekt nicht mehr angezeigt. Die Agenten, Workflows und andere Projekte bleiben unberührt – du kannst die App jederzeit wieder hinzufügen.",
+      "uninstallBlocked": "Noch in Verwendung von: {projects}. Entferne die App aus diesen Projekten, bevor du sie deinstallierst.",
+      "uninstallBlockedCount": "Entferne die App aus ihren {count} Projekten, bevor du sie deinstallierst."
     },
     "readiness": {
       "title": "Einrichtung abschließen",
       "broken": "Einige installierte Dateien fehlen. Installiere neu, um sie wiederherzustellen.",
       "connect": "Verbinde {integration}, um diese App zu nutzen.",
-      "connectButton": "Verbinden"
+      "connectButton": "Verbinden",
+      "agentNeedsSetup": "{agent} muss noch eingerichtet werden.",
+      "setupButton": "Einrichten"
+    },
+    "installWizard": {
+      "title": "{name} einrichten",
+      "progress": "{label} · Schritt {current} von {total}",
+      "stepsAriaLabel": "Einrichtungsschritte",
+      "projectStepLabel": "Projekt",
+      "installStepLabel": "Installieren",
+      "installReady": "Bereit, {name} zu installieren.",
+      "installNeeds": "Diese App nutzt folgende Integrationen: {integrations}.",
+      "doneStepLabel": "Fertig",
+      "doneTitle": "{name} ist bereit",
+      "doneAllConnected": "Alles, was sie braucht, ist verbunden.",
+      "doneSomeSkipped": "Du hast einige Schritte übersprungen – du kannst sie jederzeit über die Einrichtungs-Checkliste der App abschließen.",
+      "finish": "Fertigstellen",
+      "skipForNow": "Später erledigen",
+      "installFailed": "App konnte nicht installiert werden",
+      "integrationUnavailable": "{integration} ist in dieser Organisation noch nicht verfügbar. Verbinde sie unter Einstellungen → Integrationen.",
+      "oauthPopupBlocked": "Erlaube Pop-ups für diese Seite, um zu verbinden, und versuche es erneut.",
+      "authModeStepLabel": "Agent-Modus",
+      "authModeDescription": "Jeder Automatisierungs-Agent kann den verwalteten Modellzugang der Plattform nutzen oder eigene Zugangsdaten mitbringen.",
+      "authModeManaged": "Verwaltet",
+      "authModeByo": "Eigener Schlüssel",
+      "providerKeyLabel": "{provider}-API-Schlüssel",
+      "connectProvider": "{provider} verbinden",
+      "providerConnectFailed": "Anbieter konnte nicht verbunden werden",
+      "agentNeedsKeys": "{name} braucht diese Zugangsdaten zum Ausführen.",
+      "saveSecrets": "Speichern"
     },
     "confirm": "Bist du sicher?",
     "binding": {
@@ -122,6 +157,15 @@
       "colStatus": "Status",
       "colStarted": "Gestartet",
       "watchLive": "Live ansehen"
+    },
+    "membership": {
+      "title": "Projekte",
+      "addProject": "Zu einem Projekt hinzufügen",
+      "emptyTitle": "Noch in keinem Projekt",
+      "emptyDescription": "Füge diese App zu einem Projekt hinzu, um sie dort zu nutzen.",
+      "notInProjectTitle": "Nicht zu diesem Projekt hinzugefügt",
+      "notInProjectDescription": "Füge diese App zu diesem Projekt hinzu, um sie hier zu nutzen.",
+      "addToThisProject": "Zu diesem Projekt hinzufügen"
     }
   },
   "operator": {
