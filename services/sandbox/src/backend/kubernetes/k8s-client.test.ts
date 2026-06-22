@@ -2,11 +2,16 @@
 // middleware (the only thing standing between a wedged TCP connection and a
 // forever-hung execute()) and withRetry's retryability gate.
 
-import { describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import { HttpMethod, RequestContext } from '@kubernetes/client-node';
 
-import { apiTimeout, httpStatusCode, withRetry } from './k8s-client.ts';
+import {
+  apiTimeout,
+  httpStatusCode,
+  makeK8sConfig,
+  withRetry,
+} from './k8s-client.ts';
 
 /** Await a rejection and hand back the error (typed alternative to .rejects). */
 async function rejectionOf(p: Promise<unknown>): Promise<Error> {
@@ -108,5 +113,66 @@ describe('withRetry', () => {
     // Backoff is 200ms + 400ms between attempts; a post-final 600ms sleep
     // would push this past ~1.2s.
     expect(Date.now() - start).toBeLessThan(1_000);
+  });
+});
+
+// Snapshot the env vars touched by makeK8sConfig so tests don't pollute each
+// other or the runner's environment.
+const K8S_ENV_KEYS = [
+  'SANDBOX_K8S_SERVER',
+  'SANDBOX_K8S_TOKEN',
+  'SANDBOX_K8S_CAFILE',
+] as const;
+
+let savedEnv: Record<string, string | undefined>;
+
+beforeEach(() => {
+  savedEnv = {};
+  for (const k of K8S_ENV_KEYS) {
+    savedEnv[k] = process.env[k];
+    delete process.env[k];
+  }
+});
+
+afterEach(() => {
+  for (const k of K8S_ENV_KEYS) {
+    if (savedEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedEnv[k];
+  }
+});
+
+describe('makeK8sConfig — explicit bearer-token path (SANDBOX_K8S_SERVER + TOKEN)', () => {
+  // Empirically verified under Bun 1.3.14 (issue #1849): @kubernetes/client-node
+  // uses node-fetch → https.request(), which Bun honours. skipTLSVerify and
+  // caFile both take effect; neither is dead code.
+
+  test('sets caFile when SANDBOX_K8S_CAFILE is provided', () => {
+    process.env.SANDBOX_K8S_SERVER = 'https://k8s.example.com:6443';
+    process.env.SANDBOX_K8S_TOKEN = 'test-token';
+    process.env.SANDBOX_K8S_CAFILE = '/etc/k8s/ca.crt';
+
+    const kc = makeK8sConfig();
+    const cluster = kc.clusters[0]!;
+    expect(cluster.caFile).toBe('/etc/k8s/ca.crt');
+    expect(cluster.skipTLSVerify).toBeFalsy();
+  });
+
+  test('sets skipTLSVerify when SANDBOX_K8S_CAFILE is absent', () => {
+    process.env.SANDBOX_K8S_SERVER = 'https://k8s.example.com:6443';
+    process.env.SANDBOX_K8S_TOKEN = 'test-token';
+
+    const kc = makeK8sConfig();
+    const cluster = kc.clusters[0]!;
+    expect(cluster.skipTLSVerify).toBe(true);
+    expect(cluster.caFile).toBeUndefined();
+  });
+
+  test('sets the server URL and SA token', () => {
+    process.env.SANDBOX_K8S_SERVER = 'https://apiserver.internal:6443';
+    process.env.SANDBOX_K8S_TOKEN = 'my-sa-token';
+
+    const kc = makeK8sConfig();
+    expect(kc.clusters[0]!.server).toBe('https://apiserver.internal:6443');
+    expect(kc.users[0]!.token).toBe('my-sa-token');
   });
 });

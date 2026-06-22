@@ -6,13 +6,20 @@
 // createNamespacedPod / readNamespacedPodLog / deleteNamespacedPod + presigned-
 // URL I/O done inside the Pod — every primitive below is plain HTTP.
 //
-// AUTH NOTE (Bun): Bun's fetch does NOT apply a kubeconfig's client cert or
-// custom CA, so a client-cert cluster (e.g. kind's default kubeconfig) auths
-// as system:anonymous. The real in-cluster path uses a ServiceAccount BEARER
-// TOKEN (an Authorization header Bun sends fine) + the cluster CA — for Bun to
-// trust that CA, the container must set NODE_EXTRA_CA_CERTS to the SA ca.crt
-// (/var/run/secrets/kubernetes.io/serviceaccount/ca.crt). Local dev needs a
-// token-based kubeconfig, not kind's client-cert one.
+// TLS NOTE (Bun): Bun's *native* fetch() ignores the `agent` option, so TLS
+// settings passed via an https.Agent are dropped for global-fetch calls.
+// @kubernetes/client-node@1.4.0 uses *node-fetch* internally, which routes
+// through https.request() — Bun does honour agent options there. Empirically
+// verified under Bun 1.3.14 (issue #1849):
+//   • skipTLSVerify: true → rejectUnauthorized: false takes effect (not dead code)
+//   • caFile           → agent.ca is trusted; no NODE_EXTRA_CA_CERTS required for
+//                        k8s API calls made through this library
+//   • client certs     → sent correctly via agent.cert/key
+// NODE_EXTRA_CA_CERTS is therefore defence-in-depth for k8s API calls, not a
+// hard requirement; it is still valuable for global-fetch paths (presigned-URL
+// I/O) and as belt-and-suspenders. Local dev still needs a token-based
+// kubeconfig (SANDBOX_K8S_SERVER + SANDBOX_K8S_TOKEN) rather than kind's
+// client-cert kubeconfig; kind client-cert auth was not re-verified post-#1849.
 
 import {
   type ConfigurationOptions,
@@ -69,14 +76,17 @@ export function httpStatusCode(err: unknown): number | undefined {
 /** Definitive 4xx responses that a retry can never fix. */
 const NON_RETRYABLE_STATUS = new Set([400, 401, 403, 404, 409, 422]);
 
-export function makeK8sClient(namespace: string): K8sClient {
+/**
+ * Builds the KubeConfig for the current environment. Exported for unit tests;
+ * callers should use makeK8sClient() instead.
+ */
+export function makeK8sConfig(): KubeConfig {
   const kc = new KubeConfig();
   const server = process.env.SANDBOX_K8S_SERVER;
   const token = process.env.SANDBOX_K8S_TOKEN;
   if (server && token) {
-    // Explicit bearer-token config (dev / Bun-friendly). Bun can't use a
-    // client-cert kubeconfig, so point at the apiserver with an SA token; CA
-    // trust via SANDBOX_K8S_CAFILE + NODE_EXTRA_CA_CERTS, or skipTLSVerify.
+    // Explicit bearer-token config (dev). skipTLSVerify and caFile both take
+    // effect under Bun via node-fetch → https.request (see TLS NOTE above).
     kc.loadFromOptions({
       clusters: [
         {
@@ -93,7 +103,8 @@ export function makeK8sClient(namespace: string): K8sClient {
     });
   } else {
     try {
-      // In-cluster: SA token + ca.crt from the projected volume.
+      // In-cluster: SA token + ca.crt from the projected volume. The caFile
+      // set by loadFromCluster() is trusted via the https.Agent — see TLS NOTE.
       kc.loadFromCluster();
     } catch (err) {
       console.warn(
@@ -103,6 +114,11 @@ export function makeK8sClient(namespace: string): K8sClient {
       kc.loadFromDefault();
     }
   }
+  return kc;
+}
+
+export function makeK8sClient(namespace: string): K8sClient {
+  const kc = makeK8sConfig();
   return {
     core: kc.makeApiClient(CoreV1Api),
     namespace,
