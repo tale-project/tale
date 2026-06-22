@@ -102,10 +102,7 @@ function ReadinessChecklist({
             <Text variant="muted" className="text-sm">
               {t('readiness.connect', { integration: slug })}
             </Text>
-            <Button
-              variant="secondary"
-              onClick={() => onConnect(slug)}
-            >
+            <Button variant="secondary" onClick={() => onConnect(slug)}>
               {t('readiness.connectButton')}
             </Button>
           </HStack>

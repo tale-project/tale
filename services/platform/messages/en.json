@@ -291,7 +291,6 @@
         "activeUsers": "Active Users"
       },
       "chart": {
-        "ariaLabel": "{metric} over time",
         "inputTokens": "Input",
         "outputTokens": "Output"
       },
@@ -1935,7 +1934,6 @@
       "validationStatus": "{message}: {status}",
       "skipToContent": "Skip to main content",
       "mainNavigation": "Main navigation",
-      "pageNavigation": "Page navigation",
       "projectsNavigation": "Projects navigation"
     },
     "pagination": {
@@ -2192,7 +2190,6 @@
     },
     "editCustomer": "Edit customer",
     "deleteCustomer": "Delete customer",
-    "addButton": "Add customer",
     "importMenu": {
       "importCustomers": "Import customers",
       "fromDevice": "From your device",
@@ -7180,7 +7177,6 @@
     },
     "editVendor": "Edit vendor",
     "deleteVendor": "Delete vendor",
-    "addButton": "Add vendor",
     "importMenu": {
       "importVendors": "Import vendors",
       "fromDevice": "From your device",

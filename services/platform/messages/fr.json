@@ -292,7 +292,6 @@
         "tokens": {}
       },
       "chart": {
-        "ariaLabel": "{metric} au fil du temps",
         "inputTokens": "Entrée",
         "outputTokens": "Sortie"
       },
@@ -1936,7 +1935,6 @@
       "validationStatus": "{message} : {status}",
       "skipToContent": "Aller au contenu principal",
       "mainNavigation": "Navigation principale",
-      "pageNavigation": "Navigation de page",
       "projectsNavigation": "Navigation des projets"
     },
     "pagination": {
@@ -2193,7 +2191,6 @@
     },
     "editCustomer": "Modifier le client",
     "deleteCustomer": "Supprimer le client",
-    "addButton": "Ajouter un client",
     "importMenu": {
       "importCustomers": "Importer des clients",
       "fromDevice": "Depuis ton appareil",
@@ -6919,7 +6916,6 @@
     },
     "editVendor": "Modifier le fournisseur",
     "deleteVendor": "Supprimer le fournisseur",
-    "addButton": "Ajouter un fournisseur",
     "importMenu": {
       "importVendors": "Importer des fournisseurs",
       "fromDevice": "Depuis ton appareil",
