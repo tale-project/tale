@@ -25,6 +25,7 @@ import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
+import { isRotatableApiError } from '../../node_only/sandbox/agent_run_outcome';
 import {
   applyGatewayConfig,
   hashVirtualKey,
@@ -47,6 +48,11 @@ import {
   stageIntegrationSkills,
 } from '../../node_only/sandbox/integration_skills';
 import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
+import {
+  pickToken,
+  type TokenSelection,
+} from '../../node_only/sandbox/token_pool_select';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
 import {
   sessionIdForThread,
@@ -128,6 +134,11 @@ const EXEC_DEADLINE_MS = Number(
 const ACTION_WINDOW_MS = Number(
   process.env.EXTERNAL_AGENT_ACTION_WINDOW_MS ?? String(480 * 1000),
 );
+// Token-source rotation: max credential attempts per turn (initial pick + up to
+// 2 failovers) before the turn fails; and the window floor below which a new
+// attempt is not started (an auth retry-storm must fit before the seam).
+const MAX_TOKEN_ATTEMPTS = 3;
+const TOKEN_ROTATION_MIN_WINDOW_MS = 90 * 1000;
 // Live browser view (read-only mirror), operator-gated and default OFF. When
 // '1', the adapter attaches Playwright MCP to the session's externally-launched
 // HEADED Chromium over CDP (instead of self-launching headless) so the browser
@@ -445,11 +456,44 @@ export const runExternalAgentTurn = internalAction({
         }
       }
 
+      // 2a-mid. Inject the AGENT's own env/secrets (the per-agent Environment-tab
+      // store), so a chat run gets them too — mirroring the workflow/task path.
+      // Injected BEFORE the user's box env (2a-bis) so a user's own same-named
+      // var wins on collision (user > agent). Token-source BINDING rows are
+      // carried out separately (resolved as a rotating pool in 2a-ter).
+      let agentTokenBindings: { key: string; tokenSourceSlug: string }[] = [];
+      if (args.agentSlug !== undefined) {
+        try {
+          const agentEnv = await ctx.runAction(
+            internal.agents.agent_env_actions.resolveAgentEnv,
+            { organizationId: args.organizationId, agentSlug: args.agentSlug },
+          );
+          agentTokenBindings = agentEnv.tokenBindings;
+          if (Object.keys(agentEnv.env).length > 0) {
+            const denied = await sessionEnvPatch(sessionId, {
+              set: agentEnv.env,
+            });
+            if (denied.length > 0) {
+              console.warn(
+                '[runExternalAgentTurn] agent env names denied by runnerd:',
+                denied,
+              );
+            }
+          }
+        } catch (agentEnvErr) {
+          console.warn(
+            '[runExternalAgentTurn] agent env injection failed (continuing):',
+            agentEnvErr,
+          );
+        }
+      }
+
       // 2a-bis. Inject the user's own env vars + secrets (MANAGED and BYO). This
       // is the user's box environment, auto-attached to all their sandboxes; for
       // a byo agent it carries the credential the agent authenticates with. In
       // managed mode the platform VK still wins for LLM auth (the adapter sets it
-      // at exec scope, above Claude Code's credential precedence).
+      // at exec scope, above Claude Code's credential precedence). After agent
+      // env so a user's same-named var wins (user > agent).
       if (args.userId) {
         try {
           const userEnv = await ctx.runAction(
@@ -476,6 +520,55 @@ export const runExternalAgentTurn = internalAction({
             '[runExternalAgentTurn] user env injection failed (continuing):',
             userEnvErr,
           );
+        }
+      }
+
+      // 2a-ter. Token-source rotation (BYO + an Environment-tab row binds a
+      // token source): fetch the broker pool, pick one at random, and inject it
+      // under the BINDING's env var — AFTER user env so the rotated credential
+      // wins for LLM auth. The run loop below fails over to a different token on
+      // a rate-limit/auth error. v1 honors the first binding (warns if more).
+      // Fail-fast: resolveTokenPool throws on an unreachable/empty/malformed
+      // broker → the catch marks the turn failed.
+      let tokenPool: {
+        tokens: string[];
+        targetEnvVar: string;
+        selection: TokenSelection;
+      } | null = null;
+      const triedTokens = new Set<string>();
+      if (byo && agentTokenBindings.length > 0) {
+        if (agentTokenBindings.length > 1) {
+          console.warn(
+            `[runExternalAgentTurn] ${agentTokenBindings.length} token-source bindings — v1 honors only the first (${agentTokenBindings[0].key}).`,
+          );
+        }
+        const binding = agentTokenBindings[0];
+        const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+        const pool = await ctx.runAction(
+          internal.node_only.sandbox.token_source_pool.resolveTokenPool,
+          {
+            organizationId: args.organizationId,
+            orgSlug,
+            sessionId,
+            slug: binding.tokenSourceSlug,
+          },
+        );
+        // The binding's env var name wins over the source's default targetEnvVar.
+        tokenPool = {
+          tokens: pool.tokens,
+          targetEnvVar: binding.key,
+          selection: pool.selection,
+        };
+        const first = pickToken(
+          tokenPool.tokens,
+          triedTokens,
+          tokenPool.selection,
+        );
+        if (first !== null) {
+          triedTokens.add(first);
+          await sessionEnvPatch(sessionId, {
+            set: { [tokenPool.targetEnvVar]: first },
+          });
         }
       }
 
@@ -735,6 +828,71 @@ export const runExternalAgentTurn = internalAction({
         });
 
       let result = await runAttempt(execId);
+
+      // Token-source failover: on a rate-limit (429/529) or auth (401/403, raised
+      // early as an auth-abort) terminal result, swap to a different token and
+      // re-run — up to MAX_TOKEN_ATTEMPTS total, while enough window remains.
+      // Reuses the empty-turn retry's exec-row turnover fence (stamp B → claim+
+      // park A). A `running` handoff is not a failure and never rotates.
+      let tokenAttempt = 1;
+      if (tokenPool !== null) {
+        const pool = tokenPool;
+        while (
+          result.status !== 'running' &&
+          tokenAttempt < MAX_TOKEN_ATTEMPTS &&
+          actionDeadlineMs - Date.now() > TOKEN_ROTATION_MIN_WINDOW_MS &&
+          isRotatableApiError({
+            isError: result.isError,
+            apiErrorStatus: result.apiErrorStatus,
+            terminationReason: result.terminationReason,
+            authAbortStatus: result.authAbortStatus,
+          })
+        ) {
+          const nextToken = pickToken(pool.tokens, triedTokens, pool.selection);
+          if (nextToken === null) break; // no distinct token left → fail below
+          triedTokens.add(nextToken);
+          tokenAttempt += 1;
+          await sessionEnvPatch(sessionId, {
+            set: { [pool.targetEnvVar]: nextToken },
+          });
+          const prevExecId = execId;
+          const retryExecId = `exec-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+          await stampTurnOpRow(retryExecId);
+          execId = retryExecId;
+          // Mutate the field (not `{ ...turn }`) — spreading the accumulator in
+          // a loop is the no-accumulating-spread offense; turn is the same ctx.
+          turn.execId = retryExecId;
+          try {
+            await ctx.runMutation(
+              internal.sandbox.session_mutations.claimSessionOpFinalize,
+              { sessionId, execId: prevExecId },
+            );
+            await ctx.runMutation(
+              internal.sandbox.session_mutations.upsertSessionOp,
+              {
+                organizationId: args.organizationId,
+                sessionId,
+                threadId: args.threadId,
+                execId: prevExecId,
+                kind: 'agent-run',
+                status: 'completed',
+                ...(result.exitCode !== null && { exitCode: result.exitCode }),
+              },
+            );
+          } catch (fenceErr) {
+            console.warn(
+              '[runExternalAgentTurn] token-rotation fence failed — stopping rotation:',
+              fenceErr,
+            );
+            break;
+          }
+          console.warn(
+            `[runExternalAgentTurn] token rotation: attempt ${tokenAttempt}/${MAX_TOKEN_ATTEMPTS} after status=${result.apiErrorStatus ?? result.authAbortStatus}`,
+            { threadId: args.threadId },
+          );
+          result = await runAttempt(retryExecId);
+        }
+      }
 
       // One-shot automatic retry for a zero-output completion (empty-but-200
       // model response: the CLI exits 0 having produced nothing). Gated so it

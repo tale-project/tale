@@ -254,6 +254,14 @@ export class ClaudeCodeParser implements AgentEventParser {
       if (sid) out.agentSessionId = sid;
       const finalText = str(ev.result);
       if (finalText) out.finalText = finalText;
+      // Claude Code reports a turn-terminating API error via `is_error` +
+      // `api_error_status`, while leaving `subtype:'success'` — surface both so
+      // a caller can classify (e.g. rotate the token on a 429/401). The status
+      // code is absent (null) for mid-stream failures.
+      if (typeof ev.is_error === 'boolean') out.isError = ev.is_error;
+      if (typeof ev.api_error_status === 'number') {
+        out.apiErrorStatus = ev.api_error_status;
+      }
       if (typeof ev.duration_ms === 'number') out.durationMs = ev.duration_ms;
       if (typeof ev.total_cost_usd === 'number') {
         out.usageTotals = {

@@ -5357,7 +5357,13 @@
       },
       "env": {
         "title": "Environnement et secrets",
-        "description": "Variables injectées lorsque cet agent s'exécute dans une sandbox — étapes de workflow et exécutions externes. Cochez « Secret » pour chiffrer une valeur ; les secrets sont en écriture seule."
+        "description": "Variables injectées lorsque cet agent s'exécute dans une sandbox — étapes de workflow et exécutions externes. Cochez « Secret » pour chiffrer une valeur ; les secrets sont en écriture seule.",
+        "tokenSource": {
+          "title": "Source de jetons",
+          "description": "Utilise les identifiants LLM de cet agent depuis un pool rotatif récupéré auprès d'un broker externe plutôt qu'un secret statique unique. Un jeton est choisi à chaque exécution et permuté en cas de limitation de débit ou d'expiration. S'applique aux agents qui fournissent leur propre clé (BYO).",
+          "none": "Aucune — utiliser les variables ci-dessus",
+          "empty": "Aucune source de jetons n'est encore configurée pour cette organisation."
+        }
       }
     },
     "skills": {
@@ -7705,6 +7711,9 @@
     "keyPlaceholder": "NOM",
     "valuePlaceholder": "valeur",
     "secret": "Secret",
+    "valueType": "Type",
+    "typeValue": "Valeur",
+    "typeTokenSource": "Source de jetons",
     "add": "Ajouter une variable",
     "remove": "Supprimer",
     "save": "Enregistrer",

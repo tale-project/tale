@@ -170,6 +170,12 @@ export const agentEnvTable = defineTable({
   /** Low-leak edge preview of a secret (e.g. `sk-••••xyz`) for the editor;
    *  computed at write time, omitted for non-secret vars. */
   maskedPreview: v.optional(v.string()),
+  /** When set, this row is a TOKEN-SOURCE BINDING, not a literal value: `key` is
+   *  the env var the rotation engine injects a broker-fetched token under, and
+   *  this is the `token-sources` config slug to draw from. value/encryptedValue/
+   *  maskedPreview are omitted for such rows; isSecret is true (the injected
+   *  token is a secret). */
+  tokenSourceSlug: v.optional(v.string()),
   updatedAt: v.number(),
   updatedBy: v.string(),
 })

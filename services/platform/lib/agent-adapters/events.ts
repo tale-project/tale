@@ -72,6 +72,16 @@ export type AgentEvent =
         AgentUsage,
         'inputTokens' | 'outputTokens' | 'costEstimateUsd'
       >;
+      /** The agent reported a turn-terminating API error (Claude Code's
+       * `result.is_error`). `status` may still read `completed` because the CLI
+       * leaves `subtype:'success'` on an errored result — classify on this, not
+       * `status`. */
+      isError?: boolean;
+      /** Numeric HTTP status from the API error (Claude Code's
+       * `result.api_error_status`), e.g. 429/401. `null`→`undefined` (e.g. a
+       * mid-stream error surfaces as a malformed-200 with no status). Lets a
+       * caller decide whether to rotate credentials / retry. */
+      apiErrorStatus?: number;
     }
   | { type: 'error'; message: string; raw?: unknown }
   /** A queued user message was injected into the RUNNING turn by the

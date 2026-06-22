@@ -19,6 +19,7 @@ import { Text } from '@tale/ui/text';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -34,6 +35,14 @@ export interface LoadedEnvVar {
   isSecret: boolean;
   value?: string;
   maskedValue?: string;
+  /** Set ⇒ this row is a token-source binding (the value is a rotating pool). */
+  tokenSourceSlug?: string;
+}
+
+/** A selectable token source for the per-row binding dropdown. */
+export interface TokenSourceOption {
+  slug: string;
+  displayName: string;
 }
 
 interface Row {
@@ -49,6 +58,8 @@ interface Row {
   masked: boolean;
   /** The stored secret's mask preview, restored on blur. */
   maskedDisplay: string;
+  /** Set ⇒ this row binds a token source; value/secret are ignored on save. */
+  tokenSourceSlug?: string;
 }
 
 export interface EnvVarListEditorProps {
@@ -56,15 +67,34 @@ export interface EnvVarListEditorProps {
   isLoading: boolean;
   /** Disable while a parent operation is in flight. */
   disabled?: boolean;
+  /** When provided, each row gains a token-source dropdown — picking one turns
+   *  the row into a binding (its env var is filled from a rotating broker pool).
+   *  Omitted on surfaces that don't support token sources (no behavior change). */
+  tokenSources?: readonly TokenSourceOption[];
   onSet: (args: {
     key: string;
     value: string;
     isSecret: boolean;
+    tokenSourceSlug?: string;
   }) => Promise<void>;
   onDelete: (key: string) => Promise<void>;
 }
 
 function toRow(r: LoadedEnvVar): Row {
+  // A token-source binding carries no literal value — the dropdown shows the
+  // bound source; the value field is suppressed.
+  if (r.tokenSourceSlug !== undefined) {
+    return {
+      key: r.key,
+      value: '',
+      isSecret: true,
+      existingKey: r.key,
+      secretDirty: false,
+      masked: false,
+      maskedDisplay: '',
+      tokenSourceSlug: r.tokenSourceSlug,
+    };
+  }
   // A stored secret shows its mask preview as the field value so a configured
   // secret reads as "set", not empty. Plain vars show their plaintext.
   if (r.isSecret) {
@@ -94,6 +124,7 @@ export function EnvVarListEditor({
   rows,
   isLoading,
   disabled = false,
+  tokenSources,
   onSet,
   onDelete,
 }: EnvVarListEditorProps) {
@@ -167,6 +198,17 @@ export function EnvVarListEditor({
       // name (its ciphertext + preview stay untouched).
       for (const r of active) {
         const key = r.key.trim();
+        // A token-source binding: re-save whenever the bound slug changed (or
+        // it's new); value/secret are ignored server-side for a binding.
+        if (r.tokenSourceSlug !== undefined) {
+          await onSet({
+            key,
+            value: '',
+            isSecret: true,
+            tokenSourceSlug: r.tokenSourceSlug,
+          });
+          continue;
+        }
         if (r.isSecret && !r.secretDirty && r.existingKey === key) continue;
         await onSet({ key, value: r.value, isSecret: r.isSecret });
       }
@@ -199,72 +241,147 @@ export function EnvVarListEditor({
           {t('none')}
         </Text>
       )}
-      {localRows.map((r, i) => (
-        <HStack key={i} gap={2} className="items-center">
-          <Input
-            placeholder={t('keyPlaceholder')}
-            value={r.key}
-            disabled={busy}
-            className="font-mono"
-            onChange={(e) => patch(i, { key: e.target.value })}
-          />
-          <Input
-            type={r.isSecret && !r.masked ? 'password' : 'text'}
-            placeholder={t('valuePlaceholder')}
-            value={r.value}
-            disabled={busy}
-            className="font-mono"
-            onFocus={() => {
-              // Clear the displayed preview so the user types a new secret value
-              // on a clean field (the stored secret stays put until they save).
-              if (r.masked) patch(i, { value: '', masked: false });
-            }}
-            onChange={(e) =>
+      {localRows.map((r, i) => {
+        const isBinding = r.tokenSourceSlug !== undefined;
+        // When the surface supports token sources, a single per-row "type"
+        // chooser (Value / Secret / a source) replaces the Secret checkbox —
+        // the user picks ONE: type a value, or draw from a rotating pool. The
+        // value field shows only for Value/Secret. Surfaces without sources keep
+        // the plain value + Secret-checkbox layout.
+        const hasSources =
+          tokenSources !== undefined && tokenSources.length > 0;
+        const rowType = isBinding
+          ? 'token-source'
+          : r.isSecret
+            ? 'secret'
+            : 'value';
+        const onTypeChange = (v: string): void => {
+          if (!v) return; // ignore Radix's spurious '' during flux
+          if (v === 'value') {
+            patch(i, {
+              isSecret: false,
+              tokenSourceSlug: undefined,
+              masked: false,
+              ...(r.isSecret && { secretDirty: true, value: '' }),
+            });
+          } else if (v === 'secret') {
+            patch(i, {
+              isSecret: true,
+              secretDirty: true,
+              tokenSourceSlug: undefined,
+              ...(r.masked && { value: '', masked: false }),
+            });
+          } else if (v === 'token-source') {
+            // Default to the first source; the second dropdown lets the user
+            // change it. (Only reachable when hasSources, so [0] exists.)
+            const firstSlug = tokenSources?.[0]?.slug;
+            if (firstSlug !== undefined) {
               patch(i, {
-                value: e.target.value,
+                tokenSourceSlug: firstSlug,
+                isSecret: true,
+                value: '',
                 masked: false,
-                ...(r.isSecret && { secretDirty: true }),
-              })
+                secretDirty: false,
+              });
             }
-            onBlur={() => {
-              // Left an untouched stored secret — restore its preview.
-              if (
-                r.isSecret &&
-                r.existingKey !== null &&
-                !r.secretDirty &&
-                r.value === ''
-              ) {
-                patch(i, { value: r.maskedDisplay, masked: true });
-              }
-            }}
-          />
-          <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
-            <Checkbox
-              checked={r.isSecret}
+          }
+        };
+        return (
+          <HStack key={i} gap={2} className="items-center">
+            <Input
+              placeholder={t('keyPlaceholder')}
+              value={r.key}
               disabled={busy}
-              onCheckedChange={(c) =>
-                patch(i, {
-                  isSecret: c === true,
-                  secretDirty: true,
-                  // Drop the preview when toggling so its mask never becomes a
-                  // plaintext value.
-                  ...(r.masked && { value: '', masked: false }),
-                })
-              }
+              className="font-mono"
+              onChange={(e) => patch(i, { key: e.target.value })}
             />
-            {t('secret')}
-          </label>
-          <Button
-            size="icon"
-            variant="ghost"
-            disabled={busy}
-            aria-label={t('remove')}
-            onClick={() => removeRow(i)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </HStack>
-      ))}
+            {hasSources && (
+              <Select
+                aria-label={t('valueType')}
+                className="w-40 shrink-0"
+                disabled={busy}
+                value={rowType}
+                options={[
+                  { value: 'value', label: t('typeValue') },
+                  { value: 'secret', label: t('secret') },
+                  { value: 'token-source', label: t('typeTokenSource') },
+                ]}
+                onValueChange={onTypeChange}
+              />
+            )}
+            {isBinding ? (
+              // Second dropdown: WHICH token source (shown only once the type is
+              // "Token source"). Keeps sources out of the type list.
+              <Select
+                aria-label={t('typeTokenSource')}
+                className="flex-1"
+                disabled={busy}
+                value={r.tokenSourceSlug ?? ''}
+                options={(tokenSources ?? []).map((s) => ({
+                  value: s.slug,
+                  label: s.displayName,
+                }))}
+                onValueChange={(v) => {
+                  if (v) patch(i, { tokenSourceSlug: v });
+                }}
+              />
+            ) : (
+              <Input
+                type={r.isSecret && !r.masked ? 'password' : 'text'}
+                placeholder={t('valuePlaceholder')}
+                value={r.value}
+                disabled={busy}
+                className="font-mono"
+                onFocus={() => {
+                  if (r.masked) patch(i, { value: '', masked: false });
+                }}
+                onChange={(e) =>
+                  patch(i, {
+                    value: e.target.value,
+                    masked: false,
+                    ...(r.isSecret && { secretDirty: true }),
+                  })
+                }
+                onBlur={() => {
+                  if (
+                    r.isSecret &&
+                    r.existingKey !== null &&
+                    !r.secretDirty &&
+                    r.value === ''
+                  ) {
+                    patch(i, { value: r.maskedDisplay, masked: true });
+                  }
+                }}
+              />
+            )}
+            {!hasSources && (
+              <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
+                <Checkbox
+                  checked={r.isSecret}
+                  disabled={busy}
+                  onCheckedChange={(c) =>
+                    patch(i, {
+                      isSecret: c === true,
+                      secretDirty: true,
+                      ...(r.masked && { value: '', masked: false }),
+                    })
+                  }
+                />
+                {t('secret')}
+              </label>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              disabled={busy}
+              aria-label={t('remove')}
+              onClick={() => removeRow(i)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </HStack>
+        );
+      })}
       <HStack gap={2} className="justify-between">
         <Button
           size="sm"

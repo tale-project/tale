@@ -182,6 +182,22 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
       slugFromRest: (rest) => rest[0],
     },
   },
+  // External token-pool sources: each `<slug>.json` declares a broker endpoint
+  // + a response mapping; the rotation engine fetches the pool at run time
+  // (node-direct, read in the sandbox action). No cross-domain seed dependency.
+  {
+    name: 'token-sources',
+    layout: 'flat',
+    readContext: 'node-direct',
+    dataModel: 'config',
+    scaffoldKind: 'flat',
+    // <org>/token-sources/<slug>.json
+    watcher: {
+      eventType: 'token-sources',
+      emitsFor: JSON_ONLY,
+      slugFromRest: (rest) => stripJson(rest[0]),
+    },
+  },
   // Workflow DEFINITION is the file (source of truth); `wfInstallations` +
   // trigger rows are per-org runtime state, not config.
   {

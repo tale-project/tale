@@ -5356,7 +5356,13 @@
       },
       "env": {
         "title": "Umgebung & Geheimnisse",
-        "description": "Variablen, die eingespeist werden, wenn dieser Agent in einer Sandbox läuft — Workflow-Schritte und externe Ausführungen. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar."
+        "description": "Variablen, die eingespeist werden, wenn dieser Agent in einer Sandbox läuft — Workflow-Schritte und externe Ausführungen. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar.",
+        "tokenSource": {
+          "title": "Token-Quelle",
+          "description": "Bezieht die LLM-Anmeldedaten dieses Agenten aus einem rotierenden Pool, der von einem externen Broker abgerufen wird, statt aus einem einzelnen statischen Geheimnis. Pro Lauf wird ein Token gewählt und bei Ratenbegrenzung oder Ablauf rotiert. Gilt für Agenten mit eigenem Schlüssel (BYO).",
+          "none": "Keine — die Variablen oben verwenden",
+          "empty": "Für diese Organisation sind noch keine Token-Quellen konfiguriert."
+        }
       }
     },
     "skills": {
@@ -7704,6 +7710,9 @@
     "keyPlaceholder": "NAME",
     "valuePlaceholder": "Wert",
     "secret": "Geheim",
+    "valueType": "Typ",
+    "typeValue": "Wert",
+    "typeTokenSource": "Token-Quelle",
     "add": "Variable hinzufügen",
     "remove": "Entfernen",
     "save": "Speichern",

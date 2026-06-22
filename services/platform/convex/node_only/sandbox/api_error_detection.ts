@@ -46,3 +46,33 @@ export function errorTextFromEvent(e: AgentEvent): string | undefined {
   }
   return undefined;
 }
+
+/**
+ * The inverse of the `api_retry` discard above: read the numeric HTTP status +
+ * attempt from a live `{type:'system',subtype:'api_retry',error_status,attempt}`
+ * event. Claude Code emits these DURING its internal retry loop (max_retries=10
+ * with growing backoff), so an expired token (401) or a hard rate limit (429)
+ * shows up here SECONDS before the terminal result — letting the rotation loop
+ * abort early instead of waiting tens of seconds for the storm to exhaust.
+ *
+ * Returns `undefined` for any non-`api_retry` event. Extracts only numbers (no
+ * free text) so a token can never leak into a log/error built from this.
+ */
+export function authRetryFromEvent(
+  e: AgentEvent,
+): { errorStatus: number; attempt: number } | undefined {
+  if (e.type !== 'raw') return undefined;
+  const p = e.payload;
+  if (typeof p !== 'object' || p === null || !('subtype' in p))
+    return undefined;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const ev = p as {
+    subtype?: unknown;
+    error_status?: unknown;
+    attempt?: unknown;
+  };
+  if (ev.subtype !== 'api_retry') return undefined;
+  if (typeof ev.error_status !== 'number') return undefined;
+  const attempt = typeof ev.attempt === 'number' ? ev.attempt : 0;
+  return { errorStatus: ev.error_status, attempt };
+}

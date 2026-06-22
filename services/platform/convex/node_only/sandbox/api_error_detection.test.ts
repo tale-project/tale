@@ -1,7 +1,63 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentEvent } from '../../../lib/agent-adapters/events';
-import { errorTextFromEvent, looksLikeApiError } from './api_error_detection';
+import {
+  authRetryFromEvent,
+  errorTextFromEvent,
+  looksLikeApiError,
+} from './api_error_detection';
+
+const rawRetry = (error_status: number, attempt: number): AgentEvent => ({
+  type: 'raw',
+  agent: 'claude-code',
+  payload: {
+    type: 'system',
+    subtype: 'api_retry',
+    error_status,
+    attempt,
+    max_retries: 10,
+  },
+});
+
+describe('authRetryFromEvent', () => {
+  it('reads error_status + attempt off an api_retry event', () => {
+    expect(authRetryFromEvent(rawRetry(401, 3))).toEqual({
+      errorStatus: 401,
+      attempt: 3,
+    });
+  });
+
+  it('defaults attempt to 0 when absent', () => {
+    expect(
+      authRetryFromEvent({
+        type: 'raw',
+        agent: 'claude-code',
+        payload: { subtype: 'api_retry', error_status: 429 },
+      }),
+    ).toEqual({ errorStatus: 429, attempt: 0 });
+  });
+
+  it('ignores non-api_retry raw events and non-raw events', () => {
+    expect(
+      authRetryFromEvent({
+        type: 'raw',
+        agent: 'claude-code',
+        payload: { subtype: 'init' },
+      }),
+    ).toBeUndefined();
+    expect(authRetryFromEvent({ type: 'text', text: 'hi' })).toBeUndefined();
+  });
+
+  it('returns undefined when error_status is missing/non-numeric', () => {
+    expect(
+      authRetryFromEvent({
+        type: 'raw',
+        agent: 'claude-code',
+        payload: { subtype: 'api_retry', attempt: 2 },
+      }),
+    ).toBeUndefined();
+  });
+});
 
 describe('looksLikeApiError', () => {
   it('matches the gateway stream-idle abort surfaced by the CLI', () => {
