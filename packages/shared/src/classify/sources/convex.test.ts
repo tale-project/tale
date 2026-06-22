@@ -22,6 +22,20 @@ describe('classifyConvex', () => {
     expect(c('Error: nope').kind).toBe('error');
   });
 
+  it('flags a push-failure header as a block error (with or without the glyph)', () => {
+    const withGlyph = c('✖ Hit an error while pushing:');
+    expect(withGlyph.kind).toBe('error');
+    expect(withGlyph.errorBlock).toBe(true);
+    expect(withGlyph.text).toBe('Hit an error while pushing:');
+    // Non-TTY CI may strip the leading glyph — still recognised by text.
+    const noGlyph = c('Hit an error while pushing to local deployment');
+    expect(noGlyph.kind).toBe('error');
+    expect(noGlyph.errorBlock).toBe(true);
+    expect(c('Hit an error while running local deployment.').errorBlock).toBe(
+      true,
+    );
+  });
+
   it('surfaces schema/index/provision milestones as info', () => {
     expect(c('✔ Schema validation complete').text).toBe(
       'Schema validation complete',

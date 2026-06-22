@@ -65,6 +65,21 @@ describe('createStreamClassifier (sticky multi-line errors)', () => {
     expect(s('    at handler (chat.ts:42)').kind).toBe('error');
   });
 
+  it('keeps a Convex push error body surfaced even when left-aligned (block error)', () => {
+    const s = createStreamClassifier(classifyConvex);
+    // The header flags a block error; the server message underneath is plain,
+    // left-aligned prose that does NOT look like a stack continuation — it must
+    // still be surfaced (the regression: this body was being dropped as noise).
+    expect(s('✖ Hit an error while pushing:').kind).toBe('error');
+    expect(s('InternalServerError: function timed out').kind).toBe('error');
+    expect(s('Some additional server detail on its own line').kind).toBe(
+      'error',
+    );
+    // A genuine milestone (a retry's progress / functions-ready) ends the block.
+    expect(s('Preparing Convex functions...').kind).toBe('progress');
+    expect(s('Watching for file changes...').kind).toBe('noise');
+  });
+
   it('treats a blank line inside a trace as a continuation (stays sticky)', () => {
     const s = createStreamClassifier(classifyVite);
     s('X [ERROR] boom');

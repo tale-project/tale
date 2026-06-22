@@ -27,6 +27,16 @@ export interface ProgressStatus {
 
 export interface ClassifiedLine {
   kind: LineKind;
+  /**
+   * Set on an `error` line whose body is NOT an indented stack trace — a
+   * multi-line tool error printed as left-aligned prose (e.g. a Convex "Hit an
+   * error while pushing:" server message). The stream classifier keeps every
+   * following line surfaced as error until the next real milestone
+   * (`info`/`progress`), instead of dropping the body as noise on the first
+   * non-indented line. Without it those detail lines — the actual cause — are
+   * silently swallowed.
+   */
+  errorBlock?: boolean;
   /** Cleaned display text; omit to hide the line entirely. */
   text?: string;
   status?: ProgressStatus;

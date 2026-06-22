@@ -44,11 +44,27 @@ function looksLikeContinuation(raw: string): boolean {
  */
 export function createStreamClassifier(base: Classifier): Classifier {
   let inError = false;
+  // A "block" error (e.g. a Convex push failure) whose body is left-aligned
+  // prose, not an indented stack: stay surfaced through ANY line until a real
+  // milestone, since the body won't satisfy `looksLikeContinuation`.
+  let inBlock = false;
   return (line) => {
     const result = base(line);
     if (result.kind === 'error') {
       inError = true;
+      if (result.errorBlock) inBlock = true;
       return result;
+    }
+    if (inBlock) {
+      // Only a genuine new milestone (a push retry's progress, "N functions
+      // ready", a schema/index line) ends the block; everything else is the
+      // error body and must stay visible.
+      if (result.kind === 'info' || result.kind === 'progress') {
+        inError = false;
+        inBlock = false;
+        return result;
+      }
+      return { ...result, kind: 'error', text: result.text ?? result.raw };
     }
     if (inError) {
       if (looksLikeContinuation(result.raw)) {
