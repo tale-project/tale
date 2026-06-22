@@ -87,7 +87,8 @@
               "query": {
                 "path": "tasks/queries:listTasksByProject",
                 "args": {
-                  "projectId": "$projectId"
+                  "projectId": "$projectId",
+                  "externalSystem": "github"
                 }
               },
               "columns": ["title", "status"],

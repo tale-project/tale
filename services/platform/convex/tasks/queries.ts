@@ -142,6 +142,10 @@ export const listTasksByProject = query({
     includeArchived: v.optional(v.boolean()),
     status: v.optional(taskStatusValidator),
     assigneeId: v.optional(v.string()),
+    // Scope to tasks linked to an external system (e.g. 'github') — lets an
+    // app surface (the issue-desk Tasks tab) show only the tasks IT derived
+    // from issues, not the whole project board. Omitted ⇒ all tasks.
+    externalSystem: v.optional(v.string()),
   },
   returns: v.object({
     tasks: v.array(taskRowValidator),
@@ -158,6 +162,8 @@ export const listTasksByProject = query({
       if (!args.includeArchived && task.archivedAt) continue;
       if (args.status && task.status !== args.status) continue;
       if (args.assigneeId && task.assigneeId !== args.assigneeId) continue;
+      if (args.externalSystem && task.externalSystem !== args.externalSystem)
+        continue;
       rows.push(task);
       if (rows.length >= TASK_BOARD_CAP) {
         truncated = true;
