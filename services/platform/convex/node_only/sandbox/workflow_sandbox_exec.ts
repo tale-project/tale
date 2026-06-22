@@ -343,6 +343,11 @@ export const sandboxRunResultValidator = v.object({
   stderrPreview: v.optional(v.string()),
   durationMs: v.optional(v.number()),
   error: v.optional(v.string()),
+  /** Structured refusal reason when the task-metrics admission gate rejected
+   * the run (budget/concurrency/circuit) — normalized to the task-workflow
+   * vocabulary so a generic loop's `check_refused` can route it to a quiet
+   * rollback instead of a noisy failure comment. */
+  refusedReason: v.optional(v.string()),
 });
 
 // Explicit handler return type — breaks the circular `internal` type inference
@@ -700,7 +705,25 @@ export const runSandboxAgent = internalAction({
             },
           );
           if (!admission.started || !admission.runId) {
-            return fail(`agent run refused: ${admission.reason ?? 'unknown'}`);
+            const reason = admission.reason ?? 'unknown';
+            // Normalize to the task-workflow refusal vocabulary so a generic
+            // loop's check_refused routes a concurrency/budget refusal to a
+            // quiet rollback (not a noisy failure comment).
+            const refusedReason =
+              reason === 'agent_concurrency' || reason === 'org_concurrency'
+                ? 'queued'
+                : reason === 'budget_paused' ||
+                    reason === 'task_circuit_breaker'
+                  ? reason
+                  : undefined;
+            return {
+              mode: 'agent',
+              ok: false,
+              status: 'failed',
+              outputFileIds: [],
+              error: `agent run refused: ${reason}`,
+              ...(refusedReason !== undefined && { refusedReason }),
+            };
           }
           taskRunId = admission.runId;
         }
