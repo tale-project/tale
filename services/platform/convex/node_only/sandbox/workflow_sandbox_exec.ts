@@ -1017,6 +1017,7 @@ export const runSandboxAgent = internalAction({
                 ...(checkpoint.pendingTaskIds !== undefined && {
                   pendingTaskIds: checkpoint.pendingTaskIds,
                 }),
+                ...(checkpoint.apiErrorSeen === true && { apiErrorSeen: true }),
                 ...(priorTimelineParts.length > 0 && {
                   liveTimelineParts: priorTimelineParts,
                 }),
@@ -1071,6 +1072,7 @@ export const runSandboxAgent = internalAction({
                 result.pendingTaskIds.length > 0 && {
                   pendingTaskIds: result.pendingTaskIds,
                 }),
+              ...(result.apiErrorSeen === true && { apiErrorSeen: true }),
               // Carry the admitted run across the seam (checkpoint is a full
               // replace, so re-pass every handoff) → resume re-uses, never re-admits.
               ...(taskRunId !== null && { taskRunId }),

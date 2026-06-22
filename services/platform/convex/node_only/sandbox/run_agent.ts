@@ -34,6 +34,7 @@ import {
   type AgentAssistantContent,
   type UiTimelinePart,
 } from './agent_message_parts';
+import { errorTextFromEvent, looksLikeApiError } from './api_error_detection';
 import {
   drainSessionExecResilient,
   sessionCancelExec,
@@ -102,6 +103,21 @@ const QUIET_IDLE_MS = Number(process.env.EXTERNAL_AGENT_QUIET_IDLE_MS ?? 5_000);
 // clock) is never cut off.
 const IDLE_EOF_GRACE_MS = Number(
   process.env.EXTERNAL_AGENT_IDLE_EOF_MS ?? 60_000,
+);
+// Stalled-turn watchdog (claude-code stdin-hold). A mid-stream API failure — the
+// gateway injecting an error into the open SSE (e.g. Bifrost's stream-idle abort),
+// a connection drop, an upstream 5xx — surfaces in the CLI's stream as an
+// "API Error" and ends the turn WITHOUT a terminal `result` and WITHOUT exiting
+// (the CLI keeps its held-open stdin, waiting for the next message; Claude Code
+// does not auto-retry a mid-stream failure). The linger loop's EOF is gated on the
+// result, so nothing closes the wedged process — it would loop empty handoffs for
+// the whole wall-clock budget, then mis-report a timeout. When the stream has
+// surfaced such an error AND no result has arrived AND nothing is in flight (no
+// background tasks / sub-agents / blocking reads / main tools — so this never
+// fires while a long tool runs), wait this grace for a recovery that can't come,
+// then force-close and report a mechanical error so the step's retry runs fresh.
+const STALLED_AFTER_API_ERROR_MS = Number(
+  process.env.EXTERNAL_AGENT_STALLED_AFTER_API_ERROR_MS ?? 20_000,
 );
 
 export interface RunAgentInSessionArgs {
@@ -204,6 +220,10 @@ export interface RunAgentInSessionArgs {
     agentResultSeen?: boolean;
     agentIdle?: boolean;
     pendingTaskIds?: string[];
+    /** Whether an earlier segment's stream surfaced a terminal API/stream error
+     * (stalled-turn watchdog) — seeded so a wedge that straddles the seam is
+     * still force-closed on resume rather than looping empty handoffs. */
+    apiErrorSeen?: boolean;
     /** The op's cross-segment live transcript SO FAR (prior segments' UI parts),
      * seeded only on the workflow run path (`captureLiveTimeline`). The per-segment
      * timeline resets to empty on resume; this carries the accumulated window so a
@@ -272,6 +292,10 @@ export interface RunAgentInSessionResult {
   agentResultSeen?: boolean;
   agentIdle?: boolean;
   pendingTaskIds?: string[];
+  /** status==='running' only: an earlier segment's stream surfaced a terminal
+   * API/stream error (stalled-turn watchdog), checkpointed so a wedge that
+   * straddles the seam is still force-closed on resume. */
+  apiErrorSeen?: boolean;
   /** The agent's OWN self-reported terminal verdict from its stream-json `result`
    * event (`'error'` = error_during_execution / API-auth/connection failure),
    * distinct from `status` (the process-exit verdict). `undefined` ⇒ no result
@@ -426,6 +450,15 @@ export async function runAgentInSessionImpl(
   const pendingTasks = new Set<string>(args.resumeFrom?.pendingTaskIds ?? []);
   let agentResultSeen = args.resumeFrom?.agentResultSeen === true;
   let agentResultStatus: AgentResultStatus | undefined;
+  // Stalled-turn watchdog (see STALLED_AFTER_API_ERROR_MS). apiErrorSeen is seeded
+  // from the checkpoint so an error surfaced in an earlier segment that then wedged
+  // across the seam is still caught on resume. apiErrorText carries the surfaced
+  // message into the thrown step error so the failure is diagnosable. segmentStartedAt
+  // anchors the grace on resume, when lastEventAt has no value yet.
+  let apiErrorSeen = args.resumeFrom?.apiErrorSeen === true;
+  let apiErrorText: string | undefined;
+  let turnStalled = false;
+  const segmentStartedAt = Date.now();
   // Model idle: the per-turn result arrived, OR quiet-idle — background tasks
   // pending and the main loop has gone silent after a completed text block
   // (a `local_workflow` task gates the result until it settles, so waiting
@@ -647,6 +680,30 @@ export async function runAgentInSessionImpl(
    * wait for the next tick. */
   const lingerTick = async (): Promise<void> => {
     if (!stdinHold || !drainActive || handoff || eofSent || lingerBusy) return;
+    // Stalled-turn watchdog: the stream surfaced a terminal API/stream error, no
+    // result has arrived, and NOTHING is in flight (no background tasks / sub-agents
+    // / blocking reads / main tools — `inflightToolUses` is the superset, so a
+    // long-running tool never trips this). The CLI is wedged on its held-open stdin
+    // waiting for a recovery that won't come (a mid-stream failure isn't auto-retried).
+    // Past the grace, force-close and mark a mechanical error so the step retries
+    // fresh instead of looping empty handoffs to the wall-clock budget. lastEventAt is
+    // undefined on a fresh resume, so anchor the grace on the segment start then.
+    if (
+      apiErrorSeen &&
+      !agentResultSeen &&
+      pendingTasks.size === 0 &&
+      inflightToolUses.size === 0 &&
+      Date.now() - (lastEventAt ?? segmentStartedAt) >
+        STALLED_AFTER_API_ERROR_MS
+    ) {
+      turnStalled = true;
+      agentResultStatus = 'error';
+      console.warn(
+        `[run_agent] turn stalled after API error, no result — force-closing exec ${args.execId}: ${apiErrorText ?? '(no detail)'}`,
+      );
+      await sendEof();
+      return;
+    }
     if (
       !agentResultSeen &&
       pendingTasks.size === 0 &&
@@ -787,6 +844,16 @@ export async function runAgentInSessionImpl(
     if (events.length > 0) lastEventAt = Date.now();
     const injectedIds: string[] = [];
     for (const e of events) {
+      // Stalled-turn watchdog input: arm on a surfaced terminal API/stream error
+      // so the linger loop can force-close a turn the CLI left wedged without a
+      // result (see STALLED_AFTER_API_ERROR_MS).
+      if (!apiErrorSeen) {
+        const errText = errorTextFromEvent(e);
+        if (errText && looksLikeApiError(errText)) {
+          apiErrorSeen = true;
+          apiErrorText = errText.slice(0, 500);
+        }
+      }
       // stdin-hold lifecycle: any MAIN-loop activity ends the idle state; a
       // result (re-)enters it (quiet-idle re-enters it from the linger loop).
       // Background task_* chatter must not look like activity — during a
@@ -1280,6 +1347,7 @@ export async function runAgentInSessionImpl(
         ...(agentResultSeen ? { agentResultSeen: true } : {}),
         ...(agentIdle ? { agentIdle: true } : {}),
         ...(pendingTasks.size > 0 && { pendingTaskIds: [...pendingTasks] }),
+        ...(apiErrorSeen ? { apiErrorSeen: true } : {}),
       };
     }
     throw err;
@@ -1346,6 +1414,11 @@ export async function runAgentInSessionImpl(
     // already cleared it), so terminal content is byte-identical to before.
     liveText,
   );
+  // Stalled-turn force-close emits no `result`, so finalText is unset; surface the
+  // captured API/stream error so the sandbox step's thrown error names the cause
+  // (the timeline already renders it, so this isn't fed into assistantContent).
+  const terminalFinalText =
+    finalText ?? (turnStalled ? apiErrorText : undefined);
 
   return {
     status: result.status,
@@ -1353,7 +1426,7 @@ export async function runAgentInSessionImpl(
     ...(capturedSessionId !== undefined && {
       agentSessionId: capturedSessionId,
     }),
-    ...(finalText !== undefined && { finalText }),
+    ...(terminalFinalText !== undefined && { finalText: terminalFinalText }),
     ...(planText !== undefined && { planText }),
     ...(humanControlReason !== undefined && { humanControlReason }),
     ...(usage !== undefined && { usage }),

@@ -254,6 +254,11 @@ export const sandboxAgentCheckpointsTable = defineTable({
   agentResultSeen: v.optional(v.boolean()),
   agentIdle: v.optional(v.boolean()),
   pendingTaskIds: v.optional(v.array(v.string())),
+  /** Stalled-turn watchdog: an earlier segment's stream surfaced a terminal
+   * API/stream error. Carried so a wedge that straddles the seam (the CLI printed
+   * the error then sat on its held-open stdin with no result and no exit) is still
+   * force-closed on resume instead of looping empty handoffs to the budget. */
+  apiErrorSeen: v.optional(v.boolean()),
   /** The admitted `taskAgentRuns` row for a task-bound durable agent run.
    * Admission happens ONCE on the fresh segment; the runId is carried here so
    * resume segments re-use it and never re-admit (which would double-count the

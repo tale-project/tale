@@ -45,12 +45,17 @@ const STATE_BADGE: Record<PartState, BadgeVariant> = {
 };
 
 // States whose own affordance replaces the panel body (nothing useful to show).
-// `upcoming` is a quiet preview row (no skeleton); `loading` is the imminent step.
+// `upcoming` is a quiet preview row (no skeleton); `loading` is the imminent step;
+// `output_error` shows its error message instead — a failed/canceled step has no
+// meaningful result, and rendering the body would dump the abandoned step's raw
+// output (e.g. a stopped sandbox step's `{status:'running'}` handoff envelope) as
+// JSON, which must never surface.
 const BODY_SUPPRESSED = new Set<PartState>([
   'upcoming',
   'loading',
   'waiting_external',
   'empty',
+  'output_error',
 ]);
 
 export function PartEnvelope({

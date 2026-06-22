@@ -46,6 +46,24 @@ function adminPassword(): string {
   return process.env.BIFROST_ADMIN_PASSWORD ?? '';
 }
 
+/** Total per-request timeout pushed to every provider's `network_config`. */
+const REQUEST_TIMEOUT_SECONDS = 600;
+/** Per-stream IDLE timeout (Bifrost `stream_idle_timeout_in_seconds`): how long
+ * Bifrost waits for ANY byte from the upstream mid-stream before it aborts with
+ * `ErrStreamIdleTimeout` ("stream idle timeout: no data received within
+ * configured window"). Bifrost defaults this to 60s. That 60s is fine for a
+ * native Anthropic upstream (it pings every ~15-30s), but a CUSTOM
+ * OpenAI-compatible upstream (e.g. an Anthropic↔OpenAI translation gateway) sends
+ * NO keepalive during a long prefill or a silent reasoning gap — so a large-context
+ * turn trips the 60s idle window and the agent's stream dies mid-run with no retry
+ * (Claude Code does not auto-retry a mid-stream failure). Default it to the full
+ * request budget so a silent gap is bounded only by the total timeout, never a
+ * premature idle abort. Operator-tunable. */
+const STREAM_IDLE_TIMEOUT_SECONDS = Number(
+  process.env.BIFROST_STREAM_IDLE_TIMEOUT_SECONDS ??
+    String(REQUEST_TIMEOUT_SECONDS),
+);
+
 function managementHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     'content-type': 'application/json',
@@ -541,7 +559,10 @@ async function ensureProviderConfig(
       : undefined;
   const body = {
     network_config: {
-      default_request_timeout_in_seconds: 600,
+      default_request_timeout_in_seconds: REQUEST_TIMEOUT_SECONDS,
+      // Don't let a custom OpenAI-compatible upstream's silent prefill / reasoning
+      // gap trip Bifrost's 60s default idle abort mid-stream (see the constant).
+      stream_idle_timeout_in_seconds: STREAM_IDLE_TIMEOUT_SECONDS,
       ...(baseUrl ? { base_url: baseUrl } : {}),
       ...(Object.keys(attribution).length > 0
         ? { extra_headers: attribution }

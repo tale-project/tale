@@ -350,6 +350,7 @@ export const loadAgentCheckpoint = internalQuery({
       agentResultSeen: v.optional(v.boolean()),
       agentIdle: v.optional(v.boolean()),
       pendingTaskIds: v.optional(v.array(v.string())),
+      apiErrorSeen: v.optional(v.boolean()),
       taskRunId: v.optional(v.id('taskAgentRuns')),
       startedAt: v.number(),
       continuationCount: v.number(),
@@ -374,6 +375,9 @@ export const loadAgentCheckpoint = internalQuery({
         ...(row.agentIdle !== undefined && { agentIdle: row.agentIdle }),
         ...(row.pendingTaskIds !== undefined && {
           pendingTaskIds: row.pendingTaskIds,
+        }),
+        ...(row.apiErrorSeen !== undefined && {
+          apiErrorSeen: row.apiErrorSeen,
         }),
         ...(row.taskRunId !== undefined && { taskRunId: row.taskRunId }),
         startedAt: row.startedAt,

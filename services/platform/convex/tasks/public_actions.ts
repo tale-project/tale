@@ -46,8 +46,11 @@ async function startWorkflowForTask(
  * (`externalSystem`/`externalId`/`externalUrl`). The upsert that carries the
  * external ref is internal-only and needs an actor, so this thin action supplies
  * the authenticated user as the actor and defaults the destination project to
- * the org's project. Idempotent on (org, system, externalId) — picking the same
- * issue twice updates rather than duplicates. The created task is reactive, so
+ * the org's project. Idempotent within the materialization scope: an explicit
+ * `projectId` (a project-scoped app) dedups PER PROJECT, so the same issue picked
+ * in two projects yields two independent tasks; the org-wide fallback (an
+ * org-scoped/legacy caller) dedups per org. Picking the same issue twice in the
+ * same scope updates rather than duplicates. The created task is reactive, so
  * the rest of the view (the tasks Collection) reflects it live.
  *
  * When `runWorkflowSlug` is set, a NEWLY created task also kicks off that workflow
@@ -131,6 +134,9 @@ export const createTaskFromExternalIssue = action({
         // Attributes the task to the owning app (createdByType:'app') so generic
         // task automation defers to the app's workflow — see the upsert mutation.
         runWorkflowSlug: args.runWorkflowSlug,
+        // An explicit project (a project-scoped app) dedups per project so two
+        // projects each get their own task; the org-wide fallback dedups per org.
+        dedupeScope: args.projectId ? 'project' : 'org',
       },
     );
 

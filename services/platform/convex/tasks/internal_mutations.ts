@@ -263,9 +263,17 @@ export const agentCreateTask = internalMutation({
 const SYNC_OPEN_STATUS = 'backlog' as const;
 
 /**
- * Upsert a task from an external system, keyed by the
- * `(organizationId, externalSystem, externalId)` natural key. Idempotent: a
- * re-sync of the same external item patches the existing task instead of
+ * Upsert a task from an external system, keyed by an external natural key whose
+ * SCOPE the caller chooses via `dedupeScope` (mirrors the read split between
+ * `listTasksByOrg` and `listTasksByProject`):
+ *  - `'org'` (default): `(organizationId, externalSystem, externalId)` — one task
+ *    per issue per org. The org-wide sync workflows and any org-scoped app use
+ *    this (their home is the org-wide project).
+ *  - `'project'`: `(projectId, externalSystem, externalId)` — one task per issue
+ *    per PROJECT, so a project-scoped app (issue-desk) bound to two projects
+ *    materializes the same issue into two INDEPENDENT tasks (each with its own
+ *    workflow run), instead of the second project silently retargeting the first.
+ * Idempotent within its scope: a re-pick patches the existing task instead of
  * creating a duplicate (mirrors the `documents.externalItemId` upsert).
  *
  * Status policy keeps local triage authoritative while letting the external
@@ -306,6 +314,10 @@ export const agentUpsertTaskByExternalRef = internalMutation({
      *  (`createdByType:'app'`, `createdBy:<appSlug>`) — the ownership signal the
      *  generic task loops arbitrate on. */
     runWorkflowSlug: v.optional(v.string()),
+    /** Dedup scope for the external natural key (see the doc comment):
+     *  `'project'` keys on the project (one task per issue per project);
+     *  `'org'` (default) keys on the org (one task per issue per org). */
+    dedupeScope: v.optional(v.union(v.literal('org'), v.literal('project'))),
   },
   handler: async (
     ctx,
@@ -320,15 +332,29 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     const description = args.description?.trim() || undefined;
     const now = Date.now();
 
-    const existing = await ctx.db
-      .query('tasks')
-      .withIndex('by_org_external', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('externalSystem', args.externalSystem)
-          .eq('externalId', args.externalId),
-      )
-      .first();
+    // Dedup within the chosen scope: project-scoped apps look up by project so the
+    // same issue in another project is treated as absent (→ a new task); the
+    // default org scope keeps the one-task-per-issue-per-org sync behavior.
+    const existing =
+      args.dedupeScope === 'project'
+        ? await ctx.db
+            .query('tasks')
+            .withIndex('by_project_external', (q) =>
+              q
+                .eq('projectId', args.projectId)
+                .eq('externalSystem', args.externalSystem)
+                .eq('externalId', args.externalId),
+            )
+            .first()
+        : await ctx.db
+            .query('tasks')
+            .withIndex('by_org_external', (q) =>
+              q
+                .eq('organizationId', args.organizationId)
+                .eq('externalSystem', args.externalSystem)
+                .eq('externalId', args.externalId),
+            )
+            .first();
 
     if (existing) {
       // Preserve a non-empty existing description when asked (re-sync), so a
