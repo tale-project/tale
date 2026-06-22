@@ -42,6 +42,14 @@ export const wfExecutionsTable = defineTable({
   stepsConfigStorageId: v.optional(v.id('_storage')),
   triggeredBy: v.optional(v.string()),
   triggerData: v.optional(jsonValueValidator),
+  // Generic, polymorphic "what domain resource this run is about" — so any UI
+  // component (a task now; a deal/ticket later) can show its run inline by
+  // querying executions for its (subjectType, subjectId), without a per-component
+  // schema field. Open string set (mirrors the sandbox `ownerType`/`ownerId`
+  // doctrine) so new subject kinds never need a migration. Set at start from a
+  // generic `subject` the view supplies.
+  subjectType: v.optional(v.string()),
+  subjectId: v.optional(v.string()),
   error: v.optional(v.string()),
   // Coarse failure classification (see ExecutionErrorCode in executions/types.ts).
   // Kept a plain string in the schema so adding codes never needs a migration.
@@ -85,7 +93,10 @@ export const wfExecutionsTable = defineTable({
   // Subject-scoped scan for GDPR Art 17 erasure (`eraseSubjectWfExecutions`).
   // Walks rows where the subject was the executing user. Combined with
   // `by_org_triggeredBy` for the trigger-author scope.
-  .index('by_org_user', ['organizationId', 'userId']);
+  .index('by_org_user', ['organizationId', 'userId'])
+  // "Runs about this domain resource" — drives inline execution display in any
+  // UI component (e.g. a task showing its latest run).
+  .index('by_org_subject', ['organizationId', 'subjectType', 'subjectId']);
 
 export const wfInstallationsTable = defineTable({
   organizationId: v.string(),
@@ -93,6 +104,11 @@ export const wfInstallationsTable = defineTable({
   installedAt: v.number(),
   installedBy: v.string(),
   contentHash: v.string(),
+  // Set iff this workflow belongs to an installed app (composite slug
+  // `<appSlug>/<name>`). The recorded, authoritative owner — stamped at app
+  // install — used by the event-subscription gate, the global app marker, and
+  // the delete guard. Absent for global/default-pack workflows.
+  appSlug: v.optional(v.string()),
 })
   .index('by_org', ['organizationId'])
   .index('by_org_slug', ['organizationId', 'workflowSlug']);
@@ -109,6 +125,46 @@ export const wfDefaultProvisionsTable = defineTable({
   contentHash: v.string(),
   provisionedAt: v.number(),
 }).index('by_org_slug', ['organizationId', 'workflowSlug']);
+
+/**
+ * Per-workflow + per-step env/secrets — one row per
+ * (organizationId, workflowSlug, stepSlug, key). Plain vars carry a plaintext
+ * `value`; secrets carry an `encryptedValue` (JWE) and are write-only (the read
+ * API never returns a secret's plaintext). `stepSlug: ''` is the WORKFLOW-level
+ * scope (auto-injected into every sandbox step); a non-empty `stepSlug` is
+ * STEP-level (that step only, overriding workflow-level on a key clash).
+ * Resolved + injected at sandbox-step execution (decrypt-at-run). Deployment-
+ * local on purpose — never written to the portable workflow file. Mirrors
+ * `agentEnv`; CRUD in `workflows/workflow_env.ts`, encryption in
+ * `workflows/workflow_env_actions.ts`.
+ */
+export const workflowEnvTable = defineTable({
+  organizationId: v.string(),
+  /** File-workflow slug (composite app slug ok, e.g. `issue-desk/desk-process`). */
+  workflowSlug: v.string(),
+  /** '' = workflow-level (all sandbox steps); non-empty = that step only. */
+  stepSlug: v.string(),
+  /** Env var name (validated `^[A-Za-z_][A-Za-z0-9_]*$`). */
+  key: v.string(),
+  isSecret: v.boolean(),
+  /** Plaintext value for non-secret vars; omitted for secrets. */
+  value: v.optional(v.string()),
+  /** JWE ciphertext for secrets; omitted for non-secret vars. */
+  encryptedValue: v.optional(v.string()),
+  /** Low-leak edge preview of a secret (e.g. `sk-••••xyz`) for the editor;
+   *  computed at write time, omitted for non-secret vars. */
+  maskedPreview: v.optional(v.string()),
+  updatedAt: v.number(),
+  updatedBy: v.string(),
+})
+  .index('by_org_workflow', ['organizationId', 'workflowSlug'])
+  .index('by_org_workflow_step', ['organizationId', 'workflowSlug', 'stepSlug'])
+  .index('by_org_workflow_step_key', [
+    'organizationId',
+    'workflowSlug',
+    'stepSlug',
+    'key',
+  ]);
 
 export const workflowProcessingRecordsTable = defineTable({
   organizationId: v.string(),

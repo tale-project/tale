@@ -10,6 +10,7 @@ import {
 } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { hasAnyProvision } from './provision_defaults_mutations';
 
 /**
  * Agent install + enable runtime-state. The agent JSON file is the source of
@@ -29,6 +30,7 @@ const installStateValidator = v.object({
   disabledReason: v.optional(
     v.union(v.literal('integration_disabled'), v.literal('user')),
   ),
+  appSlug: v.optional(v.string()),
 });
 
 type InstallState = {
@@ -37,6 +39,7 @@ type InstallState = {
   installedBy: string;
   bundledBy?: string;
   disabledReason?: 'integration_disabled' | 'user';
+  appSlug?: string;
 };
 
 /** Project a stored row to the wire shape, omitting absent optional fields. */
@@ -49,6 +52,7 @@ function toInstallState(row: Doc<'agentInstallations'>): InstallState {
     ...(row.disabledReason !== undefined
       ? { disabledReason: row.disabledReason }
       : {}),
+    ...(row.appSlug !== undefined ? { appSlug: row.appSlug } : {}),
   };
 }
 
@@ -81,21 +85,35 @@ async function listInstallStatesForOrg(
   return states;
 }
 
-/** All install states for an org — the gate's single query (one indexed read). */
+/**
+ * The org's install states plus whether it has ever been provisioned — the
+ * roster gate's single query. `provisioned` anchors the fail-open: a
+ * never-provisioned org (no `agentDefaultProvisions` rows) returns the full
+ * catalog; once provisioned, the gate is authoritative. Bundled into one query
+ * so the cached Auto-routing path stays a single indexed read.
+ */
 export const listInstallStatesInternal = internalQuery({
   args: { organizationId: v.string() },
-  returns: v.array(installStateValidator),
-  handler: (ctx, args) => listInstallStatesForOrg(ctx, args.organizationId),
+  returns: v.object({
+    states: v.array(installStateValidator),
+    provisioned: v.boolean(),
+  }),
+  handler: async (ctx, args) => ({
+    states: await listInstallStatesForOrg(ctx, args.organizationId),
+    provisioned: await hasAnyProvision(ctx, args.organizationId),
+  }),
 });
 
 /**
- * Run-admission gate: is this agent allowed to RUN for the org? Mirrors the
- * roster gate's fallback — an org with zero install rows is un-provisioned and
- * everything is live; once any row exists, an agent is live only when it has an
- * enabled row. Called at task/discussion run admission so a disabled or
- * uninstalled agent can never execute, regardless of trigger (assignment,
- * @mention, workflow). The system router is never run on tasks, so it's not
- * special-cased here.
+ * Run-admission gate: is this agent allowed to RUN for the org? An agent is
+ * live IFF it has an enabled `agentInstallations` row — no fallback. An agent
+ * with no row (or a disabled row) is simply not installed for this org. Every
+ * org is provisioned at create (the autoInstall sweep installs the default
+ * agents), so there is no "never-provisioned → everything live" fail-open: a
+ * row-less org has no live agents until something is installed. Called at
+ * task/discussion run admission so a disabled or uninstalled agent can never
+ * execute. The system router is read from disk on the classify path (never
+ * gated here), so it needs no install row.
  */
 export const isAgentLiveInternal = internalQuery({
   args: { organizationId: v.string(), agentSlug: v.string() },
@@ -106,16 +124,7 @@ export const isAgentLiveInternal = internalQuery({
       args.organizationId,
       args.agentSlug,
     );
-    if (row) return row.enabled;
-    // No row for THIS agent → live only if the org has no install rows at all
-    // (un-provisioned legacy org); otherwise it's simply not installed.
-    const anyRow = await ctx.db
-      .query('agentInstallations')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .first();
-    return anyRow === null;
+    return row?.enabled ?? false;
   },
 });
 
@@ -141,6 +150,8 @@ export const upsertInstallation = internalMutation({
     contentHash: v.string(),
     enabled: v.optional(v.boolean()),
     bundledBy: v.optional(v.string()),
+    // Owning app slug when this is an app agent; omitted for global agents.
+    appSlug: v.optional(v.string()),
   },
   returns: v.id('agentInstallations'),
   handler: async (ctx, args) => {
@@ -157,6 +168,7 @@ export const upsertInstallation = internalMutation({
         contentHash: args.contentHash,
         ...(args.enabled !== undefined ? { enabled: args.enabled } : {}),
         ...(args.bundledBy !== undefined ? { bundledBy: args.bundledBy } : {}),
+        ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
       });
       return existing._id;
     }
@@ -169,6 +181,7 @@ export const upsertInstallation = internalMutation({
       contentHash: args.contentHash,
       enabled: args.enabled ?? true,
       ...(args.bundledBy !== undefined ? { bundledBy: args.bundledBy } : {}),
+      ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
     });
   },
 });
@@ -265,6 +278,20 @@ function assertNotCascadeOwned(
   }
 }
 
+/**
+ * An app-owned row is managed by its app and must not be individually removed
+ * from the global roster — that would orphan the app. Removal happens only via
+ * app uninstall. Hard guard (no force escape). Throws when it trips.
+ */
+function assertNotAppOwned(row: Doc<'agentInstallations'>): void {
+  if (row.appSlug) {
+    throw new ConvexError({
+      code: 'app_owned',
+      message: `This agent belongs to app "${row.appSlug}". Uninstall the app to remove it.`,
+    });
+  }
+}
+
 /** Install (or re-enable) a catalog agent for the org. Admin-gated. */
 export const installCatalogAgent = mutation({
   args: { organizationId: v.string(), agentSlug: v.string() },
@@ -315,7 +342,16 @@ export const setAgentEnabled = mutation({
     );
     if (!existing) return null;
     // Disabling an integration-bundled agent fights the cascade; require force.
-    if (!args.enabled) assertNotCascadeOwned(existing, args.force);
+    // Disabling an app-owned agent silently breaks its app; require force too.
+    if (!args.enabled) {
+      assertNotCascadeOwned(existing, args.force);
+      if (existing.appSlug && !args.force) {
+        throw new ConvexError({
+          code: 'app_owned',
+          message: `This agent belongs to app "${existing.appSlug}"; disabling it would break the app. Pass force to override.`,
+        });
+      }
+    }
     await ctx.db.patch(existing._id, {
       enabled: args.enabled,
       disabledReason: args.enabled ? undefined : 'user',
@@ -341,6 +377,7 @@ export const uninstallAgent = mutation({
     );
     if (!existing) return null;
     assertNotCascadeOwned(existing, args.force);
+    assertNotAppOwned(existing);
     await ctx.db.delete(existing._id);
     return null;
   },

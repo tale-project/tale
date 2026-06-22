@@ -17,6 +17,8 @@
  * markup intact.
  */
 
+import { interpolateTemplate } from '../../lib/shared/utils/interpolate';
+
 export const SUPPORTED_NOTIFICATION_LOCALES = ['en', 'de', 'fr'] as const;
 export type NotificationLocale =
   (typeof SUPPORTED_NOTIFICATION_LOCALES)[number];
@@ -237,17 +239,8 @@ export function renderNotificationMessage(
     console.warn(`[notification_messages] no string for key "${key}"`);
     return key;
   }
-  return template.replace(/\{(\w+)\}/g, (_, name: string) => {
-    const value = params?.[name];
-    if (value === undefined) return `{${name}}`;
-    // Interpolation values are primitives in practice; stringify safely so an
-    // unexpected object never renders as '[object Object]'.
-    const str =
-      typeof value === 'string'
-        ? value
-        : typeof value === 'number' || typeof value === 'boolean'
-          ? String(value)
-          : JSON.stringify(value);
-    return escapeSlackText(str);
-  });
+  // Interpolated values are Slack-escaped (so a user-controlled email/error can't
+  // inject mrkdwn); the template's own markup is preserved. Shares the one
+  // interpolator with the rest of the platform.
+  return interpolateTemplate(template, params, escapeSlackText);
 }

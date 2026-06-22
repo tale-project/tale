@@ -44,6 +44,12 @@ export type DynamicWorkflowArgs = {
   debugMode?: boolean;
 };
 
+// Default retry for DURABLE sandbox steps (see the call site): a long run is a
+// sequence of segments across action boundaries, and a single transient hard-kill
+// on any one would otherwise be fatal. The retry resumes from the checkpoint, so
+// these attempts re-attach rather than restart the agent's work.
+const DEFAULT_SANDBOX_RETRY_POLICY = { maxRetries: 4, backoffMs: 3000 };
+
 function buildRetryBehaviorFromPolicy(policy?: {
   maxRetries: number;
   backoffMs: number;
@@ -193,8 +199,20 @@ export async function handleDynamicWorkflow(
                 : 0,
           }
         : null;
+    // A DURABLE `sandbox` step crosses many <10-min action boundaries (one per
+    // segment); a single transient platform hard-kill on ANY segment would
+    // otherwise fail the whole long run. Default it to retry — the retry re-runs
+    // executeStep, which loads the segment checkpoint and RESUMES (re-attaches to
+    // the still-running exec, or cleanly restarts if the container is gone). A
+    // clean {ok:false} is NOT a throw, so genuine agent failures still flow to
+    // the following condition rather than being retried. Explicit step- or
+    // workflow-level policy still wins.
     const effectiveRetryPolicy =
-      stepRetryPolicy ?? workflowRetryPolicy ?? undefined;
+      stepRetryPolicy ??
+      workflowRetryPolicy ??
+      (stepDef.stepType === 'sandbox'
+        ? DEFAULT_SANDBOX_RETRY_POLICY
+        : undefined);
     const retryBehavior = buildRetryBehaviorFromPolicy(effectiveRetryPolicy);
 
     let stepResult;
@@ -269,6 +287,33 @@ export async function handleDynamicWorkflow(
       } else if (stepResult.port === 'done' && top === stepDef.stepSlug) {
         activeLoopStack.pop();
       }
+    }
+
+    // A DURABLE sandbox-step agent run that handed off mid-run (its per-action
+    // window elapsed; the sandbox exec keeps running). Re-enter the SAME step —
+    // a fresh durable `step.runAction` segment that re-attaches and resumes —
+    // WITHOUT advancing `currentStepSlug`, transparently spanning the 10-min
+    // action ceiling. This is an INTERNAL control port (the author never maps
+    // it), so it MUST be handled before the nextSteps resolution below (which
+    // would otherwise throw "No next step for port 'running'"). The per-segment
+    // cursor lives in the sandbox checkpoint; the step's own `maxWallClockMs` +
+    // a continuation backstop in `runSandboxAgent` bound the loop and eventually
+    // return a terminal status on the 'success' port.
+    if (stepResult.port === 'running') {
+      debugLog('dynamicWorkflow Re-entering durable sandbox step (handoff)', {
+        executionId,
+        stepSlug: stepDef.stepSlug,
+      });
+      await step.runMutation(
+        internal.workflow_executions.internal_mutations.updateExecutionStatus,
+        {
+          executionId,
+          status: 'running',
+          currentStepSlug: stepDef.stepSlug,
+          currentStepName: stepDef.name,
+        },
+      );
+      continue;
     }
 
     let nextStepSlug: string | null = null;

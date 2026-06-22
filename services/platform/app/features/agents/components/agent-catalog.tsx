@@ -133,6 +133,9 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
       // Drops read-error rows + system agents (the Auto router etc.).
       const agent = toConfigurableAgent(raw);
       if (!agent) continue;
+      // App-owned agents are managed via their app (install/uninstall together),
+      // never individually installable from the catalog — hide them here.
+      if (agent.appSlug) continue;
       // Catalog hides agents explicitly flagged out of the template catalog,
       // unless they're already installed (e.g. github-bundled).
       if (

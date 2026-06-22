@@ -1,4 +1,201 @@
 {
+  "apps": {
+    "title": "Apps",
+    "empty": {
+      "title": "Noch keine Apps",
+      "description": "Installierte Packs erscheinen hier als Apps."
+    },
+    "notFound": {
+      "title": "App nicht gefunden",
+      "description": "Dieses Pack ist nicht installiert."
+    },
+    "noViews": {
+      "title": "Noch nichts anzuzeigen",
+      "description": "Für dieses Pack sind keine Seiten konfiguriert."
+    },
+    "install": {
+      "install": "Installieren",
+      "installed": "Installiert",
+      "reinstall": "Neu installieren",
+      "setup": "Einrichtung abschließen",
+      "uninstall": "Deinstallieren",
+      "notInstalledTitle": "Noch nicht installiert",
+      "notInstalledDescription": "Installiere diese App, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen.",
+      "chooseProjectTitle": "{name} installieren",
+      "chooseProjectDescription": "Diese App läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben.",
+      "projectLabel": "Projekt",
+      "projectPlaceholder": "Projekt auswählen",
+      "projectSearchPlaceholder": "Projekte suchen …",
+      "noProjects": "Keine Projekte gefunden.",
+      "createProject": "Neues Projekt erstellen",
+      "menuLabel": "{name} verwalten",
+      "reinstallTitle": "App neu installieren",
+      "reinstallDescription": "Aktualisiert die Dateien dieser App aus der neuesten Vorlage. Deine Umgebungsvariablen und Secrets bleiben erhalten; eigene Änderungen an den Dateien werden ersetzt.",
+      "reinstalled": "App neu installiert",
+      "reinstallFailed": "App konnte nicht neu installiert werden",
+      "uninstallTitle": "App deinstallieren",
+      "uninstallDescription": "Dadurch werden die App und alles, was sie installiert hat, aus deiner Organisation entfernt.",
+      "uninstallWarning": "Ihre Agenten, Workflows, Seiten sowie deren Umgebungsvariablen und Secrets werden gelöscht. Verbundene Integrationen bleiben erhalten.",
+      "uninstalled": "App deinstalliert",
+      "uninstallFailed": "App konnte nicht deinstalliert werden"
+    },
+    "readiness": {
+      "title": "Einrichtung abschließen",
+      "broken": "Einige installierte Dateien fehlen. Installiere neu, um sie wiederherzustellen.",
+      "connect": "Verbinde {integration}, um diese App zu nutzen.",
+      "connectButton": "Verbinden"
+    },
+    "confirm": "Bist du sicher?",
+    "binding": {
+      "empty": "Noch nichts anzuzeigen.",
+      "blocked": "Diese Ansicht darf {path} nicht aufrufen."
+    },
+    "detail": {
+      "title": "Details"
+    },
+    "review": {
+      "none": "Keine ausstehenden Prüfungen.",
+      "awaiting": "Wartet auf Genehmigung"
+    },
+    "issues": {
+      "createTask": "Aufgabe erstellen"
+    },
+    "list": {
+      "refresh": "Aktualisieren",
+      "error": "Daten konnten nicht geladen werden: {error}",
+      "prev": "Zurück",
+      "next": "Weiter",
+      "page": "Seite {page}",
+      "created": "Erstellt",
+      "start": "Starten",
+      "markDone": "Als erledigt markieren",
+      "merge": "Pull Request mergen"
+    },
+    "agents": {
+      "none": "Keine Agenten konfiguriert.",
+      "error": "Agenten konnten nicht geladen werden: {error}",
+      "editInstructions": "Anweisungen bearbeiten",
+      "envSecrets": "Env & Secrets",
+      "authMode": {
+        "label": "Auth",
+        "byo": "BYO",
+        "managed": "Verwaltet",
+        "error": "Auth-Modus des Agenten konnte nicht gewechselt werden"
+      },
+      "instructions": {
+        "title": "Anweisungen bearbeiten — {name}",
+        "description": "Der System-Prompt, der diesen Agenten steuert. Änderungen gelten ab dem nächsten Lauf.",
+        "placeholder": "Beschreiben Sie, wie sich dieser Agent verhalten soll…",
+        "save": "Speichern",
+        "saving": "Wird gespeichert…",
+        "cancel": "Abbrechen",
+        "saved": "Anweisungen gespeichert",
+        "saveError": "Anweisungen konnten nicht gespeichert werden",
+        "loadError": "Dieser Agent konnte nicht geladen werden."
+      },
+      "env": {
+        "title": "Umgebung & Secrets — {name}",
+        "description": "Umgebungsvariablen und Secrets für die Läufe dieses Agenten. Secrets werden verschlüsselt gespeichert, maskiert angezeigt und erst zur Laufzeit entschlüsselt.",
+        "none": "Noch keine Umgebungsvariablen.",
+        "keyPlaceholder": "NAME",
+        "valuePlaceholder": "Wert",
+        "secret": "Secret",
+        "secretKept": "•••••••• (unverändert)",
+        "add": "Variable hinzufügen",
+        "remove": "Entfernen",
+        "save": "Speichern",
+        "saving": "Wird gespeichert…",
+        "cancel": "Abbrechen",
+        "saved": "Umgebung gespeichert",
+        "saveError": "Umgebung konnte nicht gespeichert werden",
+        "badKey": "„{key}“ ist kein gültiger Umgebungsvariablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).",
+        "dupKey": "Doppelter Variablenname — jeder NAME muss eindeutig sein."
+      }
+    },
+    "workflow": {
+      "none": "Dieser Workflow hat keine Schritte.",
+      "error": "Workflow konnte nicht geladen werden: {error}"
+    },
+    "runs": {
+      "none": "Noch keine Läufe.",
+      "colRun": "Lauf",
+      "colStatus": "Status",
+      "colStarted": "Gestartet",
+      "watchLive": "Live ansehen"
+    }
+  },
+  "operator": {
+    "gate": "Entscheidung",
+    "state": {
+      "upcoming": "Als Nächstes",
+      "live": "Live",
+      "loading": "Ausstehend",
+      "running": "Läuft",
+      "output_available": "Fertig",
+      "output_error": "Fehler",
+      "waiting_human": "Aktion nötig",
+      "waiting_external": "Wartet",
+      "empty": "Keine Ausgabe"
+    },
+    "field": {
+      "duration": "Dauer",
+      "count": "Anzahl",
+      "source": "Quelle",
+      "rowsIn": "Zeilen ein",
+      "rowsOut": "Zeilen aus",
+      "fields": "Felder",
+      "check": "Prüfung",
+      "matched": "Abgeglichen",
+      "unmatched": "Nicht abgeglichen",
+      "before": "Vorher",
+      "after": "Nachher"
+    },
+    "check": {
+      "pass": "Bestanden",
+      "warn": "Warnung",
+      "fail": "Fehler"
+    },
+    "review": {
+      "gate": "Warten auf Freigabe",
+      "form": "Eingabe erforderlich",
+      "choice": "Option wählen"
+    },
+    "action": {
+      "open": "Öffnen",
+      "openFile": "{name} öffnen"
+    },
+    "verdict": {
+      "yes": "Ja",
+      "no": "Nein"
+    },
+    "filePreview": {
+      "description": "Vorschau von {name}",
+      "loading": "Vorschau wird geladen…",
+      "error": "Die Vorschau konnte nicht geladen werden.",
+      "openInNewTab": "In neuem Tab öffnen"
+    },
+    "body": {
+      "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
+      "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
+      "noDetails": "Keine Details vorhanden."
+    },
+    "rerun": {
+      "button": "Erneut ausführen",
+      "started": "Erneute Ausführung gestartet",
+      "alreadyRunning": "Es läuft bereits eine Ausführung.",
+      "notStarted": "Ausführung konnte nicht gestartet werden – prüfe, ob der Workflow installiert ist."
+    },
+    "stop": {
+      "button": "Stoppen",
+      "stopped": "Ausführung gestoppt",
+      "failed": "Ausführung konnte nicht gestoppt werden.",
+      "confirm": {
+        "title": "Diese Ausführung stoppen?",
+        "description": "Damit wird der Workflow sofort abgebrochen. Laufende Schritte werden verworfen und die Ausführung wird als fehlgeschlagen markiert. Das lässt sich nicht rückgängig machen.",
+        "confirm": "Ausführung stoppen"
+      }
+    }
+  },
   "accessDenied": {
     "title": "Zugriff verweigert",
     "automations": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf Automatisierungen zuzugreifen.",
@@ -352,6 +549,7 @@
   },
   "automations": {
     "title": "Automatisierungen",
+    "appBadge": "App",
     "tabs": {
       "list": "Liste",
       "catalog": "Katalog",
@@ -454,7 +652,9 @@
       "validation": {
         "nameRequired": "Name ist erforderlich",
         "invalidJson": "Ungültiges JSON im Variablen-Feld"
-      }
+      },
+      "env": "Umgebung & Geheimnisse",
+      "envHelp": "Variablen, die in jeden Sandbox-Schritt dieser Automatisierung eingespeist werden. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar. Ein Schritt kann diese überschreiben."
     },
     "triggers": {
       "title": "Trigger",
@@ -582,7 +782,9 @@
       "namePlaceholder": "z. B. Social-Media-Workflow",
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
       "creating": "Erstelle...",
-      "continue": "Weiter"
+      "continue": "Weiter",
+      "installAll": "Alle installieren",
+      "installingAll": "Alle werden installiert..."
     },
     "uploadDialog": {
       "menuItem": "Datei hochladen",
@@ -662,7 +864,9 @@
       "saving": "Speichern...",
       "resizePanel": "Panel-Größe ändern",
       "stepEditor": "Schritt-Editor",
-      "fileBasedStepSaveUnsupported": "Schritte speichern ist für dateibasierte Workflows noch nicht verfügbar."
+      "fileBasedStepSaveUnsupported": "Schritte speichern ist für dateibasierte Workflows noch nicht verfügbar.",
+      "env": "Umgebung & Geheimnisse",
+      "envHelp": "Variablen, die in die Sandbox dieses Schritts eingespeist werden und bei Namensgleichheit Vorrang vor den Werten auf Automatisierungsebene haben."
     },
     "nextSteps": {
       "endWorkflow": "Workflow beenden",
@@ -696,7 +900,10 @@
     },
     "toast": {
       "created": "Automatisierung erstellt",
-      "createFailed": "Automatisierung konnte nicht erstellt werden"
+      "createFailed": "Automatisierung konnte nicht erstellt werden",
+      "installedAll": "{count} Automatisierungen installiert",
+      "installedAllNone": "Alle Vorlagen sind bereits installiert",
+      "installAllPartial": "{count} Vorlagen konnten nicht installiert werden"
     },
     "validation": {
       "duplicateName": "Eine Automatisierung mit diesem Namen existiert bereits",
@@ -4002,6 +4209,7 @@
   },
   "navigation": {
     "chatWithAI": "Chat",
+    "apps": "Apps",
     "conversations": "Konversationen",
     "knowledge": "Wissen",
     "automations": "Automatisierungen",
@@ -4759,6 +4967,7 @@
         "blank": "Leer",
         "fromTemplate": "Aus Vorlage"
       },
+      "appBadge": "App",
       "searchAgent": "Agents suchen",
       "columns": {
         "displayName": "Name",
@@ -4798,7 +5007,8 @@
         "responseTuning": "Antwort-Feinabstimmung",
         "conversationStarters": "Gesprächseinstiege",
         "history": "Verlauf",
-        "metrics": "Leistung"
+        "metrics": "Leistung",
+        "environment": "Umgebung"
       },
       "history": {
         "empty": "Keine Verlaufseinträge",
@@ -5076,6 +5286,10 @@
         "exampleFileUploadStream": "Datei-Upload mit Streaming (SSE-Antwort)",
         "exampleOpenAICompat": "OpenAI-kompatibler Endpunkt (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI-Client-Konfiguration (z. B. Meetily)"
+      },
+      "env": {
+        "title": "Umgebung & Geheimnisse",
+        "description": "Variablen, die eingespeist werden, wenn dieser Agent in einer Sandbox läuft — Workflow-Schritte und externe Ausführungen. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar."
       }
     },
     "skills": {
@@ -7075,6 +7289,7 @@
     "errors": {
       "PROJECT_FORBIDDEN": "Du hast keinen Zugriff auf dieses Projekt.",
       "PROJECT_NOT_FOUND": "Wir konnten dieses Projekt nicht finden. Es wurde möglicherweise gelöscht.",
+      "PROJECT_HAS_BOUND_APPS": "Deinstalliere zuerst die Apps, die dieses Projekt nutzen, dann lösche es.",
       "PROJECT_MISMATCH": "Dieser Chat liegt in einem anderen Projekt. Wechsle den Kontext, um fortzufahren.",
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} ist in diesem Projekt nicht verfügbar. Wähle einen anderen Agenten.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} ist in diesem Projekt nicht verfügbar. Wähle ein anderes Modell.",
@@ -7416,5 +7631,19 @@
       "description": "Sandboxes starten automatisch, wenn ein Mitglied mit einem Coding-Agenten chattet."
     },
     "accessDenied": "Sie benötigen Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten."
+  },
+  "envEditor": {
+    "none": "Noch keine Umgebungsvariablen.",
+    "keyPlaceholder": "NAME",
+    "valuePlaceholder": "Wert",
+    "secret": "Geheim",
+    "add": "Variable hinzufügen",
+    "remove": "Entfernen",
+    "save": "Speichern",
+    "saving": "Wird gespeichert…",
+    "saved": "Umgebung gespeichert",
+    "saveError": "Umgebung konnte nicht gespeichert werden",
+    "badKey": "„{key}“ ist kein gültiger Variablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).",
+    "dupKey": "Doppelter Variablenname — jeder NAME muss eindeutig sein."
   }
 }

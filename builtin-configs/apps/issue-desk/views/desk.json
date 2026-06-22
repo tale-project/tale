@@ -1,0 +1,130 @@
+{
+  "id": "desk",
+  "title": "$label:issueDesk.deskTitle",
+  "description": "$label:issueDesk.deskDescription",
+  "tabs": [
+    {
+      "id": "issues",
+      "label": "$label:issueDesk.tab.issues",
+      "data": {
+        "root": { "props": {} },
+        "zones": {},
+        "content": [
+          {
+            "type": "ExternalList",
+            "props": {
+              "id": "issues",
+              "title": "$label:issueDesk.issuesListTitle",
+              "source": {
+                "path": "integrations/public_actions:listGitHubIssues",
+                "args": {
+                  "organizationId": "$orgId",
+                  "owner": "tale-project",
+                  "repo": "tale",
+                  "state": "open"
+                }
+              },
+              "itemsKey": "data",
+              "rowWhen": "!pull_request",
+              "columns": ["number", "title", "state"],
+              "columnLabels": {
+                "number": "$label:issueDesk.col.number",
+                "title": "$label:issueDesk.col.title",
+                "state": "$label:issueDesk.col.state"
+              },
+              "perPage": 30,
+              "excludeBy": {
+                "query": {
+                  "path": "tasks/queries:listTasksByProject",
+                  "args": {
+                    "projectId": "$projectId"
+                  }
+                },
+                "refField": "externalId",
+                "rowKeyTemplate": "tale-project/tale#{number}"
+              },
+              "actions": [
+                {
+                  "labelKey": "issues.createTask",
+                  "doneLabelKey": "list.created",
+                  "variant": "primary",
+                  "path": "tasks/public_actions:createTaskFromExternalIssue",
+                  "mode": "action",
+                  "args": {
+                    "organizationId": "$orgId",
+                    "projectId": "$projectId",
+                    "externalSystem": "github",
+                    "externalId": "$tpl:tale-project/tale#{number}",
+                    "title": "$selected.title",
+                    "externalUrl": "$selected.html_url",
+                    "description": "$label:issueDesk.taskTemplate",
+                    "runWorkflowSlug": "issue-desk/desk-process"
+                  },
+                  "onSuccess": {
+                    "kind": "openDetail",
+                    "subjectType": "task",
+                    "id": "$result.taskId"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tasks",
+      "label": "$label:issueDesk.tab.tasks",
+      "data": {
+        "root": { "props": {} },
+        "zones": {},
+        "content": [
+          {
+            "type": "Collection",
+            "props": {
+              "id": "tasks",
+              "title": "$label:issueDesk.tasksListTitle",
+              "query": {
+                "path": "tasks/queries:listTasksByProject",
+                "args": {
+                  "projectId": "$projectId"
+                }
+              },
+              "columns": ["title", "status"],
+              "columnLabels": {
+                "title": "$label:issueDesk.col.title",
+                "status": "$label:issueDesk.col.status"
+              },
+              "subjectType": "task",
+              "actions": [
+                {
+                  "labelKey": "list.start",
+                  "path": "tasks/public_actions:startTaskWorkflow",
+                  "mode": "action",
+                  "when": "status == backlog || status == todo",
+                  "args": {
+                    "organizationId": "$orgId",
+                    "taskId": "$selected._id",
+                    "workflowSlug": "issue-desk/desk-process"
+                  }
+                },
+                {
+                  "labelKey": "list.merge",
+                  "path": "tasks/public_actions:mergeTaskPullRequest",
+                  "mode": "action",
+                  "variant": "primary",
+                  "confirm": true,
+                  "when": "status == in_review",
+                  "args": {
+                    "organizationId": "$orgId",
+                    "taskId": "$selected._id"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

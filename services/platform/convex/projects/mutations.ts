@@ -1243,6 +1243,21 @@ export const deleteProject = mutation({
     assertReadable(project, auth);
     assertAdmin(auth);
 
+    // A project-scoped app bound here would be orphaned (its tasks/runs + nav
+    // entry point reference this project). Block the delete and name the app(s)
+    // so the operator uninstalls or re-binds first. appInstallations has no
+    // delete cascade, so this must be an explicit guard.
+    const boundApps = await ctx.db
+      .query('appInstallations')
+      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+      .collect();
+    if (boundApps.length > 0) {
+      throw new ConvexError({
+        code: 'PROJECT_HAS_BOUND_APPS',
+        apps: boundApps.map((a) => a.appName ?? a.appSlug),
+      });
+    }
+
     if (args.mode === 'cascade') {
       // H1: case-insensitive compare so "Q2 Sales" vs stored "Q2 sales"
       // doesn't reject right before a destructive op.

@@ -1,9 +1,9 @@
 export default {
   ignore: [
-    'examples/**',
+    'builtin-configs/**',
     // The e2e fixtures' `default/integrations` is a symlink to the shipped
-    // `examples/default/integrations` catalog (sucrase-transpiled runtime
-    // connectors, never imported) — ignore like examples/.
+    // `builtin-configs/integrations` catalog (sucrase-transpiled runtime
+    // connectors, never imported) — ignore like builtin-configs/.
     'services/platform/tests/e2e/fixtures/config/**',
     'tools/plop/templates/**',
     // Maintenance script run by hand (`bun tools/opengrep/vendor-rules.ts`) to

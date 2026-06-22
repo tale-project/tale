@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { integrationJsonSchema } from './integrations';
 
 /**
- * Every integration `config.json` in `examples/default/integrations/` ships as
+ * Every integration `config.json` in `builtin-configs/integrations/` ships as
  * part of the product — new orgs seed their integration catalog by copying these
  * files, and a connected credential drives the bundle-provision + disconnect
  * cascade off this exact shape. If an example drifts into an invalid shape, or a
@@ -18,9 +18,9 @@ import { integrationJsonSchema } from './integrations';
  */
 
 const REPO_ROOT = path.resolve(__dirname, '../../../../..');
-const INTEGRATIONS_DIR = path.join(REPO_ROOT, 'examples/default/integrations');
-const AGENTS_DIR = path.join(REPO_ROOT, 'examples/default/agents');
-const WORKFLOWS_DIR = path.join(REPO_ROOT, 'examples/default/workflows');
+const INTEGRATIONS_DIR = path.join(REPO_ROOT, 'builtin-configs/integrations');
+const AGENTS_DIR = path.join(REPO_ROOT, 'builtin-configs/agents');
+const WORKFLOWS_DIR = path.join(REPO_ROOT, 'builtin-configs/workflows');
 
 /** Directories holding an integration (those with a `config.json`). */
 function integrationSlugs(): string[] {
@@ -86,7 +86,7 @@ function resolvableWorkflowSlugs(): Set<string> {
   );
 }
 
-describe('examples/default/integrations/*/config.json invariants', () => {
+describe('builtin-configs/integrations/*/config.json invariants', () => {
   const slugs = integrationSlugs();
 
   it('discovered at least one default integration', () => {

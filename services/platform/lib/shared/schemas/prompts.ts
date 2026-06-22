@@ -12,7 +12,7 @@ import {
  * Schema for the prompt-library JSON file format.
  *
  * This is the canonical on-disk shape for the default prompt catalog
- * (`examples/default/prompts/*.json`), mirroring the agent/workflow config
+ * (`builtin-configs/prompts/*.json`), mirroring the agent/workflow config
  * pattern (Zod for file I/O; Convex validators back the DB layer). Each file
  * with `metadata.autoInstall: true` is seeded as a `global`-scope prompt into
  * every organization on creation — see

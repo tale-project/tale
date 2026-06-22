@@ -14,7 +14,10 @@ vi.mock('../_generated/server', async (importOriginal) => {
   };
 });
 
-import { latestAgentSessionId } from './session_queries';
+import {
+  latestAgentSessionId,
+  listStaleWorkflowRunSessions,
+} from './session_queries';
 
 interface QueryHandler<TArgs, TReturn> {
   handler: (ctx: unknown, args: TArgs) => Promise<TReturn> | TReturn;
@@ -119,5 +122,143 @@ describe('latestAgentSessionId', () => {
       { threadId: T, startedAt: 1, agentSessionId: 'ancient' },
     ]);
     expect(await q.handler(ctx, { threadId: T })).toBe('ancient');
+  });
+});
+
+interface SessionRow {
+  organizationId: string;
+  status: string;
+  ownerType: string;
+  sessionId: string;
+  expiresAt: number;
+  pinned?: boolean;
+}
+
+// Mock ctx for the org+status indexed scan: tracks both eq() fields and yields
+// the rows matching the (organizationId, status) the handler is iterating.
+function createSessionMockCtx(rows: SessionRow[]) {
+  function makeBuilder() {
+    let org: string | undefined;
+    let status: string | undefined;
+    const builder: Record<string | symbol, unknown> = {};
+    builder.withIndex = vi.fn((_name: string, cb: (q: unknown) => unknown) => {
+      const query = {
+        eq: (field: string, value: unknown) => {
+          if (field === 'organizationId') org = value as string;
+          if (field === 'status') status = value as string;
+          return query;
+        },
+      };
+      cb(query);
+      return builder;
+    });
+    builder[Symbol.asyncIterator] = function () {
+      return asyncIter(
+        rows.filter((r) => r.organizationId === org && r.status === status),
+      )[Symbol.asyncIterator]();
+    };
+    return builder;
+  }
+  return { db: { query: vi.fn(() => makeBuilder()) } };
+}
+
+const stale = listStaleWorkflowRunSessions as unknown as QueryHandler<
+  { organizationId: string; limit?: number },
+  Array<{ sessionId: string }>
+>;
+
+describe('listStaleWorkflowRunSessions', () => {
+  const ORG = 'org-1';
+  const PAST = 1; // far in the past → expired
+  const FUTURE = 8.64e15; // far future → not yet expired
+
+  it('returns only expired, non-pinned workflow_run rows of the org', async () => {
+    const ctx = createSessionMockCtx([
+      // expired workflow_run rows across the scanned statuses → reaped
+      {
+        organizationId: ORG,
+        status: 'active',
+        ownerType: 'workflow_run',
+        sessionId: 'wf-a',
+        expiresAt: PAST,
+      },
+      {
+        organizationId: ORG,
+        status: 'stopped',
+        ownerType: 'workflow_run',
+        sessionId: 'wf-s',
+        expiresAt: PAST,
+      },
+      // not expired yet → skipped
+      {
+        organizationId: ORG,
+        status: 'active',
+        ownerType: 'workflow_run',
+        sessionId: 'wf-live',
+        expiresAt: FUTURE,
+      },
+      // pinned → skipped
+      {
+        organizationId: ORG,
+        status: 'active',
+        ownerType: 'workflow_run',
+        sessionId: 'wf-pin',
+        expiresAt: PAST,
+        pinned: true,
+      },
+      // other owner types → never reaped by this sweep
+      {
+        organizationId: ORG,
+        status: 'active',
+        ownerType: 'user',
+        sessionId: 'usr-x',
+        expiresAt: PAST,
+      },
+      {
+        organizationId: ORG,
+        status: 'active',
+        ownerType: 'thread',
+        sessionId: 'thr-x',
+        expiresAt: PAST,
+      },
+      // another org → out of scope
+      {
+        organizationId: 'org-2',
+        status: 'active',
+        ownerType: 'workflow_run',
+        sessionId: 'wf-other',
+        expiresAt: PAST,
+      },
+    ]);
+    const out = await stale.handler(ctx, { organizationId: ORG });
+    expect(out.map((r) => r.sessionId).sort()).toEqual(['wf-a', 'wf-s']);
+  });
+
+  it('honors the limit', async () => {
+    const ctx = createSessionMockCtx([
+      {
+        organizationId: ORG,
+        status: 'active',
+        ownerType: 'workflow_run',
+        sessionId: 'wf-1',
+        expiresAt: PAST,
+      },
+      {
+        organizationId: ORG,
+        status: 'active',
+        ownerType: 'workflow_run',
+        sessionId: 'wf-2',
+        expiresAt: PAST,
+      },
+      {
+        organizationId: ORG,
+        status: 'active',
+        ownerType: 'workflow_run',
+        sessionId: 'wf-3',
+        expiresAt: PAST,
+      },
+    ]);
+    const out = await stale.handler(ctx, { organizationId: ORG, limit: 2 });
+    expect(out).toHaveLength(2);
   });
 });

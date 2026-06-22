@@ -13,6 +13,7 @@
  */
 
 import { resolveAgentsDir } from '../../agents/file_utils';
+import { resolveAppsDir } from '../../apps/file_utils';
 import { resolveBrandingDir } from '../../branding/file_utils';
 import { resolveGovernanceDir } from '../../governance/file_utils';
 import { resolveIntegrationsDir } from '../../integrations/file_utils';
@@ -33,6 +34,7 @@ export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
   skills: resolveSkillsDir,
   branding: resolveBrandingDir,
   governance: resolveGovernanceDir,
+  apps: resolveAppsDir,
 };
 
 /** Resolve a domain's dir for an org, throwing if the domain has no resolver. */

@@ -21,11 +21,18 @@ import { AutomationRenameDialog } from './automation-rename-dialog';
 interface AutomationRowActionsProps {
   organizationId: string;
   automation: { _id: string; name: string };
+  /**
+   * App-owned workflows can't be removed or re-slugged from the global surface
+   * (that would orphan the app) — they change only via app uninstall. Delete +
+   * rename are hidden; the workflow definition is still editable in the editor.
+   */
+  isAppOwned?: boolean;
 }
 
 export function AutomationRowActions({
   organizationId,
   automation,
+  isAppOwned = false,
 }: AutomationRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
@@ -114,6 +121,7 @@ export function AutomationRowActions({
         label: tCommon('actions.rename'),
         icon: Pencil,
         onClick: dialogs.open.rename,
+        visible: !isAppOwned,
       },
       {
         key: 'delete',
@@ -121,9 +129,10 @@ export function AutomationRowActions({
         icon: Trash2,
         onClick: dialogs.open.delete,
         destructive: true,
+        visible: !isAppOwned,
       },
     ],
-    [tCommon, handleDuplicate, dialogs.open],
+    [tCommon, handleDuplicate, dialogs.open, isAppOwned],
   );
 
   return (

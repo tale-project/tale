@@ -47,6 +47,45 @@ export const getRawExecution = internalQuery({
   },
 });
 
+/**
+ * The in-flight run (if any) "about" a domain resource — the concurrency guard
+ * for re-triggering a subject-linked workflow. Returns the latest execution for
+ * (org, subjectType, subjectId) ONLY when it is still active (pending/running),
+ * else null. Unlike `getLatestExecutionForSubject` (status-agnostic, drives the
+ * inline run display), this exists to STOP a second run from racing the first
+ * over the same shared resource (e.g. the `tale/<taskId>` git branch + PR).
+ */
+export const getActiveExecutionForSubject = internalQuery({
+  args: {
+    organizationId: v.string(),
+    subjectType: v.string(),
+    subjectId: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      executionId: v.id('wfExecutions'),
+      status: v.string(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('wfExecutions')
+      .withIndex('by_org_subject', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('subjectType', args.subjectType)
+          .eq('subjectId', args.subjectId),
+      )
+      .order('desc')
+      .first();
+    if (!row || (row.status !== 'pending' && row.status !== 'running')) {
+      return null;
+    }
+    return { executionId: row._id, status: row.status };
+  },
+});
+
 export const listExecutionsCursorInternal = internalQuery({
   args: {
     wfDefinitionId: v.string(),

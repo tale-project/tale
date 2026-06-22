@@ -108,7 +108,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && mkdir -p /home/app && chown app:app /home/app && chmod 755 /home/app \
     && mkdir -p /app/data/convex /app/data/default \
                 /dashboard \
-                /app/builtin/default \
+                /app/builtin \
     && chown -R app:app /app/data /dashboard /app/builtin \
     # Strip system bloat from Convex backend base (~155 MB)
     && ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')" \
@@ -172,9 +172,10 @@ COPY --from=convex-dashboard --chown=app:app /app /dashboard
 
 # ----------------------------------------------------------------------------
 # Builtin seed assets (one-time copy on fresh volume; .history/ preserves user edits).
-# Sources come from repo-root examples/ (same as platform Dockerfile).
+# Sources come from the repo-root builtin-configs/ catalog (generic — its
+# children ARE the domains, no org level); seeder reads $TALE_CONFIG_BUILTIN_DIR/<domain>.
 # ----------------------------------------------------------------------------
-COPY --chown=app:app examples/default/ /app/builtin/default/
+COPY --chown=app:app builtin-configs/ /app/builtin/
 
 # ----------------------------------------------------------------------------
 # Entrypoint scripts

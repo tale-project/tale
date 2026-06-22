@@ -842,8 +842,8 @@ export const runExternalAgentTurn = internalAction({
       }
 
       // 6. Dispatch: TERMINAL → finalize the message + VK revoke + usage ledger;
-      // 'continued' → checkpoint to _storage + schedule the continuation action
-      // (the >30min handoff; no finalize, the turn keeps going).
+      // 'running' (non-terminal handoff) → checkpoint to _storage + schedule the
+      // continuation action (the >30min handoff; no finalize, the turn keeps going).
       await handleTurnOutcome(ctx, turn, result);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -871,7 +871,7 @@ export const runExternalAgentTurn = internalAction({
       // (save next message / checkpoint / schedule continuation). If one of
       // those throws we land here, but the segment is already a legitimate
       // success — overwriting it with 'failed' would corrupt a completed turn,
-      // and finalizing would revoke the VK of a continued turn whose exec is
+      // and finalizing would revoke the VK of a handed-off turn whose exec is
       // still running. Re-read the status (mirrors cancel_generation.ts:70) and,
       // when it's already 'success', leave the row for the recovery watchdog.
       let alreadySucceeded = false;

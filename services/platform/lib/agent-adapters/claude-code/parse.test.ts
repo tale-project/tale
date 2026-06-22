@@ -202,6 +202,60 @@ describe('ClaudeCodeParser', () => {
     ]);
   });
 
+  it('settles a task that reports terminal only via task_updated (shape from CLI 2.1.173)', () => {
+    // A background task can finish without ever emitting task_notification —
+    // its completion arrives only as a task_updated whose `patch.status` is
+    // terminal. Without settling on it the pending ledger never drains and the
+    // run hangs (Claude Code #14049). `patch` is a delta: status is present
+    // only when it changed.
+    const parser = new ClaudeCodeParser();
+    const completed = JSON.stringify({
+      type: 'system',
+      subtype: 'task_updated',
+      task_id: 'bdjd2kq6p',
+      patch: { status: 'completed', end_time: 123 },
+      session_id: 's-1',
+    });
+    const killed = JSON.stringify({
+      type: 'system',
+      subtype: 'task_updated',
+      task_id: 'b99bvamh9',
+      patch: { status: 'killed' },
+      session_id: 's-1',
+    });
+    expect(parser.feed(`${completed}\n`)).toEqual([
+      { type: 'task-settled', taskId: 'bdjd2kq6p', status: 'completed' },
+    ]);
+    expect(parser.feed(`${killed}\n`)).toEqual([
+      { type: 'task-settled', taskId: 'b99bvamh9', status: 'killed' },
+    ]);
+  });
+
+  it('does NOT settle on a non-terminal task_updated (running/no status → raw)', () => {
+    const parser = new ClaudeCodeParser();
+    const running = JSON.stringify({
+      type: 'system',
+      subtype: 'task_updated',
+      task_id: 'b30iiqn5g',
+      patch: { status: 'running' },
+      session_id: 's-1',
+    });
+    // A patch with no status change at all (e.g. only end_time/description).
+    const descOnly = JSON.stringify({
+      type: 'system',
+      subtype: 'task_updated',
+      task_id: 'b30iiqn5g',
+      patch: { description: 'still going' },
+      session_id: 's-1',
+    });
+    for (const raw of [running, descOnly]) {
+      const events = parser.feed(`${raw}\n`);
+      expect(events).toHaveLength(1);
+      expect(events[0].type).toBe('raw');
+      expect(events.some((e) => e.type === 'task-settled')).toBe(false);
+    }
+  });
+
   it('surfaces a main-level TaskOutput as a named tool-use with no parent (steering invariant)', () => {
     // The quiet-idle 'waittool' posture keys on a main-level TaskOutput
     // (block=true) being in flight: it must parse as a tool-use named exactly

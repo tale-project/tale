@@ -10,6 +10,7 @@ import * as ActionNodeHelpers from './helpers/nodes/action/execute_action_node';
 import * as ConditionNodeHelpers from './helpers/nodes/condition/execute_condition_node';
 import * as LLMNodeHelpers from './helpers/nodes/llm/execute_llm_node';
 import * as LoopNodeHelpers from './helpers/nodes/loop/execute_loop_node';
+import * as SandboxNodeHelpers from './helpers/nodes/sandbox/execute_sandbox_node';
 import * as SchedulerHelpers from './helpers/scheduler';
 import { recordStepFailure } from './helpers/step_execution/record_step_failure';
 import type { LLMNodeConfig } from './types';
@@ -18,6 +19,7 @@ import {
   actionNodeConfigValidator,
   conditionNodeConfigValidator,
   loopNodeConfigValidator,
+  sandboxNodeConfigValidator,
 } from './types/nodes';
 
 type LLMStepConfig = Infer<typeof llmStepConfigValidator>;
@@ -55,6 +57,7 @@ export const executeStep = internalAction({
       v.literal('action'),
       v.literal('loop'),
       v.literal('output'),
+      v.literal('sandbox'),
     ),
     stepName: v.optional(v.string()),
     threadId: v.optional(v.string()),
@@ -122,6 +125,30 @@ export const executeActionNode = internalAction({
       args.stepDef.config,
       args.variables ?? {},
       args.executionId,
+      args.stepDef.stepSlug,
+    );
+    return result as Infer<typeof stepExecutionResultValidator>;
+  },
+});
+
+export const executeSandboxNode = internalAction({
+  args: {
+    stepDef: v.object({
+      stepSlug: v.string(),
+      stepType: v.literal('sandbox'),
+      config: sandboxNodeConfigValidator,
+    }),
+    variables: v.any(),
+    executionId: v.union(v.string(), v.id('wfExecutions')),
+    threadId: v.optional(v.string()),
+  },
+  returns: stepExecutionResultValidator,
+  handler: async (ctx, args) => {
+    const result = await SandboxNodeHelpers.executeSandboxNode(
+      ctx,
+      args.stepDef.config,
+      args.variables ?? {},
+      String(args.executionId),
       args.stepDef.stepSlug,
     );
     return result as Infer<typeof stepExecutionResultValidator>;

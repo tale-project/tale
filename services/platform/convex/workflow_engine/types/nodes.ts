@@ -378,6 +378,69 @@ export const llmStepConfigValidator = v.union(
   v.object({ llmNode: llmNodeConfigValidator }),
 );
 
+// =============================================================================
+// SANDBOX NODE TYPES
+// =============================================================================
+
+/**
+ * A sandbox step stages inputs (by fileId / folderId / inline content) and runs
+ * either a named agent (ephemeral Claude-Code sandbox) or a frozen script
+ * (deterministic). Big data stays as file references; only a small structured
+ * `result` crosses workflow context. See node_only/sandbox/workflow_sandbox_exec.
+ */
+const sandboxInputValidator = v.object({
+  as: v.string(),
+  from: v.union(
+    v.object({ fileId: v.string() }),
+    v.object({ folderId: v.string() }),
+    v.object({ content: v.string() }),
+  ),
+});
+
+const sandboxRunValidator = v.union(
+  // ephemeral agent run
+  v.object({
+    agent: v.string(),
+    instructions: v.optional(v.string()),
+    budget: v.object({
+      maxCents: v.number(),
+      maxWallClockMs: v.number(),
+      maxTurns: v.optional(v.number()),
+    }),
+    model: v.optional(v.string()),
+  }),
+  // deterministic script run
+  v.object({
+    script: v.string(),
+    language: v.union(
+      v.literal('python'),
+      v.literal('node'),
+      v.literal('bash'),
+    ),
+    params: v.optional(jsonRecordValidator),
+  }),
+);
+
+export const sandboxNodeConfigValidator = v.object({
+  inputs: v.optional(v.array(sandboxInputValidator)),
+  run: sandboxRunValidator,
+  // Step-scoped env auto-injected into this step's sandbox. Values support
+  // `{{...}}` templating against the execution variables, so a value can pull a
+  // decrypted workflow secret (`{{secrets.MY_KEY}}`) or a runtime value
+  // (`{{input.task._id}}`) — one field covering both plain env and secret
+  // injection, reusing the workflow's existing secret-resolution + templating.
+  env: v.optional(v.record(v.string(), v.string())),
+  output: v.optional(
+    v.object({
+      collectDir: v.optional(v.string()),
+      resultFile: v.optional(v.string()),
+    }),
+  ),
+  timeoutMs: v.optional(v.number()),
+});
+
+export type SandboxNodeConfig = Infer<typeof sandboxNodeConfigValidator>;
+
 // Unified step-config validator used in schema/API
 export const stepConfigValidator = v.union(
   startNodeConfigValidator,
@@ -387,6 +450,7 @@ export const stepConfigValidator = v.union(
   actionNodeConfigValidator,
   loopNodeConfigValidator,
   outputNodeConfigValidator,
+  sandboxNodeConfigValidator,
 );
 
 /** Inferred type from stepConfigValidator */

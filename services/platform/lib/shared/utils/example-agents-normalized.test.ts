@@ -7,7 +7,7 @@ import type { AgentJsonConfig } from '../../../convex/agents/file_utils';
 import { isNormalized, normalizeAgentConfig } from './normalize-agent-config';
 
 /**
- * Every agent JSON in `examples/default/agents/` is treated as part of the
+ * Every agent JSON in `builtin-configs/agents/` is treated as part of the
  * shipped product — new orgs scaffold their agent directory by copying these
  * files via `scaffoldNewOrganization`, which goes around the
  * `normalizeAgentConfig` write boundary. If an example ever drifts into a
@@ -20,10 +20,10 @@ import { isNormalized, normalizeAgentConfig } from './normalize-agent-config';
 
 const EXAMPLES_DIR = path.resolve(
   __dirname,
-  '../../../../../examples/default/agents',
+  '../../../../../builtin-configs/agents',
 );
 
-describe('examples/default/agents/*.json invariants', () => {
+describe('builtin-configs/agents/*.json invariants', () => {
   const files = readdirSync(EXAMPLES_DIR).filter((f) => f.endsWith('.json'));
 
   it('discovered at least one example agent', () => {

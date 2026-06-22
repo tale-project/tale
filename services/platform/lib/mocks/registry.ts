@@ -23,7 +23,7 @@ const SPECS_DIR = path.join(
 interface MockSpec {
   /**
    * Stable key. For integrations this matches the directory name under
-   * `examples/default/integrations/<name>`.
+   * `builtin-configs/integrations/<name>`.
    */
   readonly name: string;
   /** Human label for logs. */
@@ -74,7 +74,7 @@ const PROVIDER_SPECS: readonly MockSpec[] = [
 
 /**
  * Third-party integration specs, trimmed to the operations our shipped
- * connectors (`examples/default/integrations/<name>/connector.ts`) actually call.
+ * connectors (`builtin-configs/integrations/<name>/connector.ts`) actually call.
  */
 const INTEGRATION_SPECS: readonly MockSpec[] = [
   {

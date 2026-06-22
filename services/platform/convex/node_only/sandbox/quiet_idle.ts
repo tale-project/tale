@@ -71,3 +71,46 @@ export function quietIdleDecision(s: QuietIdleInputs): QuietIdlePosture {
   }
   return 'none';
 }
+
+export interface IdleCloseInputs {
+  /** Per-turn result already arrived — the agent reached a deliverable. */
+  agentResultSeen: boolean;
+  /** Model currently idle (post-result, or quiet-idle parked). */
+  agentIdle: boolean;
+  /** Inflight main-level Task sub-agent spawns. */
+  inflightSubAgents: number;
+  /** Inflight main-level blocking task reads (TaskOutput). */
+  inflightWaitTools: number;
+  /** When the main loop last produced non-background, non-subagent output. */
+  lastMainActivityAt: number;
+  now: number;
+  /** Grace after which a result-done, idle, quiet run is closed regardless of
+   * a still-pending background ledger. */
+  idleEofMs: number;
+}
+
+/**
+ * Whether to send stdin EOF (cleanly end the held-open session) on a run that is
+ * DONE but whose background-task ledger never drained. This is the documented
+ * safety net for the autonomous case: a background task can finish without ever
+ * emitting a terminal task_notification/task_updated (Claude Code #14049), so
+ * the official tooling does not wait on the ledger — it closes stdin after the
+ * final result and lets the CLI reap stragglers within its own grace window.
+ *
+ * Fires only once the turn produced a result, the model is idle, NO real work
+ * is in flight (a sub-agent or a blocking task-read runs with the main loop
+ * "quiet", so closing then would cut off live work), and the main loop has been
+ * silent past `idleEofMs`. A genuine background auto-wake produces main activity
+ * that resets `lastMainActivityAt`, so an actively-working run never trips this.
+ * Caller still closes IMMEDIATELY when the ledger is empty — this is the
+ * stuck-ledger fallback, not the primary path.
+ */
+export function idleCloseDecision(s: IdleCloseInputs): boolean {
+  return (
+    s.agentResultSeen &&
+    s.agentIdle &&
+    s.inflightSubAgents === 0 &&
+    s.inflightWaitTools === 0 &&
+    s.now - s.lastMainActivityAt >= s.idleEofMs
+  );
+}

@@ -9,7 +9,7 @@ import { executeIntegrationImpl } from './execute_integration_impl';
 const connectorTs = fs.readFileSync(
   path.resolve(
     __dirname,
-    '../../../../../examples/default/integrations/gmail/connector.ts',
+    '../../../../../builtin-configs/integrations/gmail/connector.ts',
   ),
   'utf-8',
 );

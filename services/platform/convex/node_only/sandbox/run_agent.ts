@@ -17,16 +17,22 @@
 import { v } from 'convex/values';
 
 import { buildSteerStdinPayload } from '../../../lib/agent-adapters/claude-code/stdin';
-import type { AgentEvent } from '../../../lib/agent-adapters/events';
+import type {
+  AgentEvent,
+  AgentResultStatus,
+} from '../../../lib/agent-adapters/events';
 import { getAgentAdapter } from '../../../lib/agent-adapters/registry';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
   buildAssistantContent,
+  buildUiPartsFromTimeline,
+  capAccumulatedLiveParts,
   estimateContentBytes,
   MAX_MESSAGE_BYTES,
   type AgentAssistantContent,
+  type UiTimelinePart,
 } from './agent_message_parts';
 import {
   drainSessionExecResilient,
@@ -37,7 +43,7 @@ import {
   type ExecCursor,
   type SessionExecResult,
 } from './helpers/session_client';
-import { quietIdleDecision } from './quiet_idle';
+import { idleCloseDecision, quietIdleDecision } from './quiet_idle';
 import {
   matchConsumedSteerFiles,
   steerDirFor,
@@ -58,6 +64,14 @@ const STEER_POLL_INTERVAL_MS = 2_000;
 // Liveness heartbeat cadence (independent of output) — the recovery watchdog's
 // staleness threshold must be a comfortable multiple of this.
 const HEARTBEAT_INTERVAL_MS = 20_000;
+// Hard-deadline grace past `budgetDeadlineMs`: the budget guard's AbortSignal is
+// best-effort (the SSE read / reconnect backoff may not unblock promptly), so a
+// watchdog races the drain against `budgetDeadlineMs + this` and FORCES the
+// handoff if the drain wedges — guaranteeing the action returns + checkpoints
+// before the platform's wall-clock cap hard-kills it (a hard kill bypasses
+// teardown + leaks the session). Sized above the worst-case clean abort-settle
+// (a flushProgress's ~30s sessionListFiles) so it never fires on a healthy drain.
+const HANDOFF_HARD_GRACE_MS = 45_000;
 // Linger-loop cadence (claude-code stdin-hold): after the per-turn agent
 // result, the process stays alive on its held-open stdin. The loop delivers
 // queued steer messages via stdin (the CLI processes idle-state stdin
@@ -77,6 +91,18 @@ const STDIN_EOF_GRACE_MS = Number(
 // per-turn result until they settle (verified 2.1.173) — unlike `local_bash`,
 // which lets the result through immediately.
 const QUIET_IDLE_MS = Number(process.env.EXTERNAL_AGENT_QUIET_IDLE_MS ?? 5_000);
+// Idle-close grace (autonomous runs): how long the main loop must stay silent
+// AFTER the per-turn result — model idle, no sub-agent/blocking-read in flight —
+// before the drain closes stdin even though the background ledger still shows
+// pending tasks. A background task can finish without ever emitting a terminal
+// task_notification/task_updated (Claude Code #14049), which would otherwise pin
+// a finished run open until its wall-clock budget. Closing then matches headless
+// `-p` (stdin closes after the final result; the CLI reaps stragglers). Longer
+// than QUIET_IDLE_MS so a genuine background auto-wake (which resets the silence
+// clock) is never cut off.
+const IDLE_EOF_GRACE_MS = Number(
+  process.env.EXTERNAL_AGENT_IDLE_EOF_MS ?? 60_000,
+);
 
 export interface RunAgentInSessionArgs {
   organizationId: string;
@@ -134,6 +160,11 @@ export interface RunAgentInSessionArgs {
    * buffer). Best-effort; failures are swallowed (the op flush is the fallback).
    */
   onTimeline?: (content: AgentAssistantContent) => Promise<void>;
+  /** Workflow-run steps have no chat message to render their live timeline from,
+   * so when set the throttled flush also stamps a bounded UI-part transcript onto
+   * the op (`liveTimeline`) for the run view to read. The chat path leaves this
+   * off (it renders from the persisted message via `onTimeline`). */
+  captureLiveTimeline?: boolean;
   /** Fired the MOMENT the agent calls request_human_control (mid-stream), so
    * the handoff card can appear immediately — the turn itself may then linger
    * (I/O-conduit) and not reach the terminal path for a while. Fired at most
@@ -141,8 +172,9 @@ export interface RunAgentInSessionArgs {
   onHumanControlRequest?: (reason: string) => Promise<void>;
   /** Absolute time (ms) by which THIS action must hand off (it runs under the
    * Convex action ceiling). Reached without a terminal result → the run returns
-   * status 'continued' + a checkpoint instead of finishing, and the caller
-   * schedules a continuation action that resumes via `resumeFrom`. */
+   * status 'running' (a non-terminal handoff) + a checkpoint instead of
+   * finishing, and the caller schedules a continuation action that resumes via
+   * `resumeFrom` by re-attaching to the still-running exec. */
   budgetDeadlineMs?: number;
   /** Resume a turn a prior action handed off: re-attach at `lastSeq` — no new
    * exec is started (the same exec keeps running under the detach-grace). The
@@ -172,13 +204,21 @@ export interface RunAgentInSessionArgs {
     agentResultSeen?: boolean;
     agentIdle?: boolean;
     pendingTaskIds?: string[];
+    /** The op's cross-segment live transcript SO FAR (prior segments' UI parts),
+     * seeded only on the workflow run path (`captureLiveTimeline`). The per-segment
+     * timeline resets to empty on resume; this carries the accumulated window so a
+     * refresh after a seam — or an idle segment that emits nothing — still shows the
+     * prior work instead of blanking the op. Read from the op (the single store),
+     * not the bounded checkpoint table. */
+    liveTimelineParts?: UiTimelinePart[];
   };
 }
 
 export interface RunAgentInSessionResult {
-  /** 'completed' | 'failed' | 'cancelled' (terminal) or 'continued' (the action
-   * budget elapsed mid-turn → hand off to a continuation action). */
-  status: 'completed' | 'failed' | 'cancelled' | 'continued';
+  /** 'completed' | 'failed' | 'cancelled' (terminal) or 'running' (a non-terminal
+   * handoff: the action budget elapsed mid-turn, the exec keeps running, and a
+   * continuation action re-attaches to it). */
+  status: 'completed' | 'failed' | 'cancelled' | 'running';
   exitCode: number | null;
   agentSessionId?: string;
   finalText?: string;
@@ -195,19 +235,19 @@ export interface RunAgentInSessionResult {
    * completed turn's tool calls survive (not just the live, capped op buffer).
    * A plain string when the turn had no timeline. */
   assistantContent?: AgentAssistantContent;
-  /** Handoff cursor (status==='continued' only): the seq the continuation
+  /** Handoff cursor (status==='running' only): the seq the continuation
    * action re-attaches from. The timeline is NOT carried — each segment renders
    * into its own message (S4). */
   lastSeq?: number;
-  /** status==='continued' only: toolUseId → toolName for every tool-use this
+  /** status==='running' only: toolUseId → toolName for every tool-use this
    * turn has seen so far, checkpointed so a continuation segment can name the
    * orphan results of pre-seam tool calls. */
   toolNames?: Record<string, string>;
-  /** status==='continued' only: childToolUseId → immediate parentToolUseId for
+  /** status==='running' only: childToolUseId → immediate parentToolUseId for
    * every sub-agent tool-use this turn has seen, checkpointed so a continuation
    * segment can fold a pre-seam sub-agent's later result under its Task. */
   toolUseParents?: Record<string, string>;
-  /** status==='continued' only: this seam was tripped by an OBSERVED steer
+  /** status==='running' only: this seam was tripped by an OBSERVED steer
    * injection — the in-sandbox hook delivered queued user message(s) into the
    * running turn (Stop-hook stream sentinel, or consumed.* markers found by
    * the dir poll). The next segment must open a FRESH message (even if this
@@ -226,12 +266,19 @@ export interface RunAgentInSessionResult {
    * external_agent_human_control approval that parks the turn until a human
    * takes + returns browser control. */
   humanControlReason?: string;
-  /** status==='continued' only — stdin-hold lifecycle for the checkpoint (see
+  /** status==='running' only — stdin-hold lifecycle for the checkpoint (see
    * resumeFrom): result-seen flag, idle flag, and the unbalanced background-
    * task ledger at the seam. */
   agentResultSeen?: boolean;
   agentIdle?: boolean;
   pendingTaskIds?: string[];
+  /** The agent's OWN self-reported terminal verdict from its stream-json `result`
+   * event (`'error'` = error_during_execution / API-auth/connection failure),
+   * distinct from `status` (the process-exit verdict). `undefined` ⇒ no result
+   * event was ever seen (the run died before reporting). The sandbox-step caller
+   * keys its retryable-execution-error classification on THIS, not the process
+   * exit code — Claude Code can exit 0 while reporting `error` (e.g. a 401). */
+  agentResultStatus?: AgentResultStatus;
 }
 
 /**
@@ -301,6 +348,12 @@ export async function runAgentInSessionImpl(
   // stays folded. Per-segment, like the rest of this progress state.
   let liveText = '';
   const timeline: AgentEvent[] = [];
+  // Prior segments' op transcript (workflow run only). The op accumulates across
+  // the segment seam; this seeds that accumulation so each flush writes
+  // prior + THIS segment, and an idle/empty segment keeps the prior window
+  // rather than blanking it. Empty on a fresh run.
+  const priorTimelineParts: UiTimelinePart[] =
+    args.resumeFrom?.liveTimelineParts ?? [];
   // Reconnect cursor: starts at the handoff seq on resume so the re-attach skips
   // already-consumed events. Updated by the drain as new deltas arrive.
   const cursor: ExecCursor = { lastSeq: args.resumeFrom?.lastSeq ?? 0 };
@@ -338,7 +391,7 @@ export async function runAgentInSessionImpl(
     Object.entries(args.resumeFrom?.toolUseParents ?? {}),
   );
   // Handoff control (hoisted so flushProgress can trip it): the budget deadline
-  // OR the per-message byte budget aborts the drain → the run returns 'continued'
+  // OR the per-message byte budget aborts the drain → the run returns 'running'
   // and the caller segments (finalizes this message, opens a fresh one).
   const controller = new AbortController();
   let handoff = false;
@@ -372,7 +425,7 @@ export async function runAgentInSessionImpl(
   const stdinHold = args.agentSlug === 'claude-code';
   const pendingTasks = new Set<string>(args.resumeFrom?.pendingTaskIds ?? []);
   let agentResultSeen = args.resumeFrom?.agentResultSeen === true;
-  let agentResultStatus: string | undefined;
+  let agentResultStatus: AgentResultStatus | undefined;
   // Model idle: the per-turn result arrived, OR quiet-idle — background tasks
   // pending and the main loop has gone silent after a completed text block
   // (a `local_workflow` task gates the result until it settles, so waiting
@@ -637,7 +690,23 @@ export async function runAgentInSessionImpl(
         // steering; just close once background work drains. An autonomous run
         // still carries a threadId (for the transcript), so the mode check is
         // what gates steering, not just the missing-thread case.
-        if (agentResultSeen && pendingTasks.size === 0) await sendEof();
+        // Close when the ledger is balanced OR — for a finished run whose
+        // background tasks never reported terminal (Claude Code #14049) — once
+        // the model has stayed idle past the grace with no real work in flight.
+        if (
+          agentResultSeen &&
+          (pendingTasks.size === 0 ||
+            idleCloseDecision({
+              agentResultSeen,
+              agentIdle,
+              inflightSubAgents: inflightSubAgents.size,
+              inflightWaitTools: inflightWaitTools.size,
+              lastMainActivityAt,
+              now: Date.now(),
+              idleEofMs: IDLE_EOF_GRACE_MS,
+            }))
+        )
+          await sendEof();
         return;
       }
       const threadId = args.threadId;
@@ -897,6 +966,20 @@ export async function runAgentInSessionImpl(
     // simply retried by the next flush carrying the same value).
     const sendIdle = agentIdleDirty;
     agentIdleDirty = false;
+    // A workflow-run step has no chat message, so stamp a bounded UI-part
+    // transcript on the op for the run view (chat renders from its message).
+    const liveTimeline = args.captureLiveTimeline
+      ? capAccumulatedLiveParts(
+          priorTimelineParts,
+          buildUiPartsFromTimeline(
+            timeline,
+            finalText ?? '',
+            toolNames,
+            toolUseParents,
+            liveText,
+          ),
+        )
+      : undefined;
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
@@ -905,6 +988,7 @@ export async function runAgentInSessionImpl(
       kind: 'agent-run',
       status: 'running',
       progressText: progressText.slice(-8_000),
+      ...(liveTimeline !== undefined && { liveTimeline }),
       // Heartbeat + resume cursor so the recovery watchdog can tell a live
       // draining action from a dead one, and a continuation knows where to
       // re-attach.
@@ -937,7 +1021,7 @@ export async function runAgentInSessionImpl(
     // Per-message byte budget (S4 segmentation): a long task accumulates an
     // unbounded number of tool-call parts. Before this segment's serialized
     // content nears Convex's 1 MB doc cap, trip the SAME handoff the budget
-    // deadline uses → the drain aborts, the run returns 'continued', and the
+    // deadline uses → the drain aborts, the run returns 'running', and the
     // caller finalizes this message and opens a fresh one for the next segment.
     // The agent's exec keeps running (detach-grace) and `--resume` keeps the
     // conversation continuous; only the rendered message is segmented.
@@ -1105,18 +1189,52 @@ export async function runAgentInSessionImpl(
   // terminal result. An explicit Stop yields a terminal 'cancelled' result, so
   // it returns rather than looping. On resume the first attempt is an attach.
   let result: SessionExecResult;
+  // Hard-deadline watchdog (see HANDOFF_HARD_GRACE_MS): the AbortSignal handed to
+  // the drain is best-effort, so RACE the drain against `budgetDeadlineMs + grace`.
+  // If the drain wedges past the soft abort, the watchdog forces the handoff and
+  // rejects INTO the existing handoff-return path below — guaranteeing this action
+  // returns + checkpoints before the platform hard-kills it. The abandoned drain
+  // is harmless: the next segment re-attaches from cursor.lastSeq.
+  const drainPromise = drainSessionExecResilient(
+    args.sessionId,
+    body,
+    controller.signal,
+    callbacks,
+    {
+      cursor,
+      ...(resuming && { resumeSinceSeq: args.resumeFrom?.lastSeq ?? 0 }),
+    },
+  );
+  let hardDeadlineTimer: ReturnType<typeof setTimeout> | undefined;
+  let guardedDrain: Promise<SessionExecResult>;
+  if (args.budgetDeadlineMs === undefined) {
+    guardedDrain = drainPromise;
+  } else {
+    const hardDeadlineAtMs = args.budgetDeadlineMs + HANDOFF_HARD_GRACE_MS;
+    // Swallow a LATE drain rejection (settling after the deadline already won the
+    // race) so an abandoned drain never surfaces as an unhandledRejection.
+    void drainPromise.catch(() => {});
+    const deadline = new Promise<never>((_resolve, reject) => {
+      hardDeadlineTimer = setTimeout(
+        () => {
+          if (!handoff) {
+            handoff = true;
+            controller.abort();
+          }
+          console.warn(
+            `[run_agent] hard-deadline watchdog forced handoff — drain did not honor the abort in time (execId=${args.execId})`,
+          );
+          reject(new Error('hard-deadline-handoff'));
+        },
+        Math.max(0, hardDeadlineAtMs - Date.now()),
+      );
+    });
+    guardedDrain = Promise.race([drainPromise, deadline]);
+  }
   try {
-    result = await drainSessionExecResilient(
-      args.sessionId,
-      body,
-      controller.signal,
-      callbacks,
-      {
-        cursor,
-        ...(resuming && { resumeSinceSeq: args.resumeFrom?.lastSeq ?? 0 }),
-      },
-    );
+    result = await guardedDrain;
   } catch (err) {
+    if (hardDeadlineTimer) clearTimeout(hardDeadlineTimer);
     drainActive = false;
     if (budgetTimer) clearTimeout(budgetTimer);
     if (lingerTimer) clearInterval(lingerTimer);
@@ -1137,7 +1255,7 @@ export async function runAgentInSessionImpl(
         );
       }
       return {
-        status: 'continued',
+        status: 'running',
         exitCode: null,
         ...(capturedSessionId !== undefined && {
           agentSessionId: capturedSessionId,
@@ -1166,6 +1284,7 @@ export async function runAgentInSessionImpl(
     }
     throw err;
   }
+  if (hardDeadlineTimer) clearTimeout(hardDeadlineTimer);
   drainActive = false;
   if (budgetTimer) clearTimeout(budgetTimer);
   if (lingerTimer) clearInterval(lingerTimer);
@@ -1238,6 +1357,7 @@ export async function runAgentInSessionImpl(
     ...(planText !== undefined && { planText }),
     ...(humanControlReason !== undefined && { humanControlReason }),
     ...(usage !== undefined && { usage }),
+    ...(agentResultStatus !== undefined && { agentResultStatus }),
     assistantContent,
   };
 }
@@ -1305,11 +1425,19 @@ export const runAgentInSession = internalAction({
       v.literal('completed'),
       v.literal('failed'),
       v.literal('cancelled'),
-      v.literal('continued'),
+      v.literal('running'),
     ),
     exitCode: v.union(v.number(), v.null()),
     agentSessionId: v.optional(v.string()),
     finalText: v.optional(v.string()),
+    agentResultStatus: v.optional(
+      v.union(
+        v.literal('completed'),
+        v.literal('error'),
+        v.literal('max-turns'),
+        v.literal('cancelled'),
+      ),
+    ),
   }),
   handler: (ctx, args) => runAgentInSessionImpl(ctx, args),
 });

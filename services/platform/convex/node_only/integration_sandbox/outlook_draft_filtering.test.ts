@@ -9,7 +9,7 @@ import { executeIntegrationImpl } from './execute_integration_impl';
 const connectorTs = fs.readFileSync(
   path.resolve(
     __dirname,
-    '../../../../../examples/default/integrations/outlook/connector.ts',
+    '../../../../../builtin-configs/integrations/outlook/connector.ts',
   ),
   'utf-8',
 );

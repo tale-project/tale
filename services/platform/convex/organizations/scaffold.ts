@@ -3,15 +3,22 @@
 /**
  * Scaffold + cleanup per-org filesystem config under the uniform org-first
  * layout (`$TALE_CONFIG_DIR/<orgSlug>/<domain>/...` for every org incl.
- * `default`). Source of seed data is the immutable builtin catalog baked
- * into the convex image at `$TALE_CONFIG_BUILTIN_DIR/default/<domain>/`
- * (set in services/platform/Dockerfile, propagated via the entrypoint's
- * `convex env set` loop). Falls back to the default org's writable dir
- * when the env is unset, so local `bun dev` (no catalog) still works.
+ * `default`). Source of seed data is the GENERIC builtin catalog baked into
+ * the convex image at `$TALE_CONFIG_BUILTIN_DIR/<domain>/` — its children ARE
+ * the domains, with no org level and no `default` join (set in
+ * services/platform/Dockerfile, propagated via the entrypoint's
+ * `convex env set` loop). There is NO fallback: scaffold refuses to proceed
+ * when `$TALE_CONFIG_BUILTIN_DIR` is unset (dev-engine/prod/E2E all set it).
  *
  * `scaffoldNewOrganization`:
- *   - org-create path (`override:false`, default): idempotent per-domain
- *     skip if the target dir already has files.
+ *   - org-create path (`cleanFirst:true`, scheduled from
+ *     `auth.afterCreateOrganization`): purge any leftover `<orgSlug>/` subtree
+ *     first — the slug is provably new at that hook, so anything there is an
+ *     orphan from a deleted org or a dev wipe — then seed every domain into the
+ *     now-empty dir. The result is a faithful, complete copy of the catalog
+ *     with no stale/renamed orphans and no cross-tenant secret inheritance.
+ *   - bare org-create / retry (`override:false`, default, no `cleanFirst`):
+ *     idempotent per-domain skip if the target dir already has files.
  *   - reseed path (`override:true`, called by `reseedAllOrgsFromBuiltin`):
  *     overwrites builtin-named files in place while always preserving
  *     `*.secrets.json` and `.history/` trails. Per-domain semantics —
@@ -66,10 +73,10 @@ export type DomainResult = {
 
 // The set of domains to seed comes from the single config-domain registry
 // (`lib/shared/config/registry.ts`); their on-disk dirs are resolved via the
-// `'use node'` Layer-B resolver map (`lib/config_store/resolvers.ts`). `default`
-// is the canonical template org in the catalog; the catalog tree at
-// `$TALE_CONFIG_BUILTIN_DIR/default/<domain>/` is the source for every org
-// including default itself. Copy semantics per `domain.scaffoldKind`:
+// `'use node'` Layer-B resolver map (`lib/config_store/resolvers.ts`). The
+// generic catalog tree at `$TALE_CONFIG_BUILTIN_DIR/<domain>/` (no org level)
+// is the source for every org including `default`. Copy semantics per
+// `domain.scaffoldKind`:
 //   - 'flat'   = one file per item, no subdirs (providers/prompts/
 //     governance). override:true overwrites per-file via atomicWrite; user-added
 //     files survive, secrets + .history at the dir level survive. (Governance
@@ -123,7 +130,7 @@ async function dirHasFiles(dir: string): Promise<boolean> {
  * sides; treat ENOENT on either side as "not yet a symlink concern"
  * and fall back to `path.resolve`.
  */
-async function pathsOverlap(a: string, b: string): Promise<boolean> {
+export async function pathsOverlap(a: string, b: string): Promise<boolean> {
   const resolveReal = async (p: string): Promise<string> => {
     try {
       return await realpath(p);
@@ -142,7 +149,10 @@ async function pathsOverlap(a: string, b: string): Promise<boolean> {
   return false;
 }
 
-async function writeFileFromCatalog(src: string, dst: string): Promise<void> {
+export async function writeFileFromCatalog(
+  src: string,
+  dst: string,
+): Promise<void> {
   const buf = await readFile(src);
   const name = path.basename(src);
   if (
@@ -167,7 +177,7 @@ async function writeFileFromCatalog(src: string, dst: string): Promise<void> {
  * subdirs, so a subdir indicates a fallback workspace with leaked
  * cross-tenant content — skip with a warning rather than recurse.
  */
-async function copyTree(
+export async function copyTree(
   sourceDir: string,
   targetDir: string,
   allowSubdirs = true,
@@ -221,9 +231,10 @@ async function copyTree(
 }
 
 /**
- * Seed a single domain for an org. Source is `<catalogRoot>/default/<domain>`
- * (canonical template) when `TALE_CONFIG_BUILTIN_DIR` is set, falling back
- * to `resolve('default')` for local dev.
+ * Seed a single domain for an org. Source is `<catalogRoot>/<domain>` — the
+ * generic built-in catalog (`TALE_CONFIG_BUILTIN_DIR`), whose children ARE the
+ * domains. There is deliberately no `default`/org level and no fallback to any
+ * org's live dir: every org is seeded only from the built-in catalog.
  *
  * Returns `{ok:true}` on success (including the legitimate
  * "already scaffolded, skipped" case) and `{ok:false, error}` on
@@ -232,39 +243,36 @@ async function copyTree(
  */
 async function seedDomain(
   domain: ConfigDomain,
-  catalogRoot: string | undefined,
+  catalogRoot: string,
   orgSlug: string,
   override: boolean,
 ): Promise<DomainResult> {
-  const sourceDir = catalogRoot
-    ? path.join(catalogRoot, 'default', domain.name)
-    : resolveDomainDir(domain.name, 'default');
+  const sourceDir = path.join(catalogRoot, domain.name);
   const targetDir = resolveDomainDir(domain.name, orgSlug);
 
-  if (catalogRoot) {
-    // Operator-set catalog path must exist; missing = deploy misconfig
-    // (platform/convex image version skew). Surface in logs AND return
-    // an error so reseed-all-orgs can fail loudly.
-    let statErr: unknown;
-    const sourceExists = await stat(sourceDir)
-      .then(() => true)
-      .catch((err) => {
-        statErr = err;
-        return false;
-      });
-    if (!sourceExists) {
-      const msg =
-        errnoCode(statErr) === 'ENOENT'
-          ? `${BUILTIN_ENV}=${catalogRoot} is set but ${sourceDir} does not exist`
-          : `stat ${sourceDir} failed: ${statErr instanceof Error ? statErr.message : String(statErr)}`;
-      console.error(`[scaffold] ${domain.name}: ${msg}`);
-      return { domain: domain.name, ok: false, error: msg };
-    }
+  // The built-in catalog's domain dir must exist; missing = deploy misconfig
+  // (platform/convex image version skew). Surface in logs AND return an error
+  // so reseed-all-orgs can fail loudly.
+  let statErr: unknown;
+  const sourceExists = await stat(sourceDir)
+    .then(() => true)
+    .catch((err) => {
+      statErr = err;
+      return false;
+    });
+  if (!sourceExists) {
+    const msg =
+      errnoCode(statErr) === 'ENOENT'
+        ? `${BUILTIN_ENV}=${catalogRoot} is set but ${sourceDir} does not exist`
+        : `stat ${sourceDir} failed: ${statErr instanceof Error ? statErr.message : String(statErr)}`;
+    console.error(`[scaffold] ${domain.name}: ${msg}`);
+    return { domain: domain.name, ok: false, error: msg };
   }
 
-  // copy-onto-self guard: realpath-aware. Fires for default-org reseed
-  // in the fallback case (catalog env unset, source = target) and for
-  // any symlinked overlap between catalog and data trees.
+  // copy-onto-self guard: realpath-aware. The catalog and the org data tree
+  // are normally distinct dirs, so this only fires on a symlinked/bind-mount
+  // overlap between the catalog and data trees (defense against wiping live
+  // data via `rm -rf <bundle>` then copy-from-self).
   if (await pathsOverlap(sourceDir, targetDir)) {
     console.warn(
       `[scaffold] ${domain.name}: source and target overlap (${sourceDir} ↔ ${targetDir}); skipping`,
@@ -479,6 +487,104 @@ async function sweepStaleCondemnedDirs(root: string): Promise<void> {
 }
 
 /**
+ * Guarded removal of one org's entire `<orgSlug>/` subtree under `root`.
+ * Extracted so both org-delete (`cleanupOrgFilesystem`) and the exact-mirror
+ * org-create path (`scaffoldNewOrganization({cleanFirst:true})`) share a single
+ * audited deletion. Safety — all preserved from the former inline cleanup body:
+ * - refuses the literal `default` slug (the historical shared template name).
+ * - validates slug shape via `validateOrgSlug` (a NULL / `..` / cased slug from
+ *   a misbehaving caller can't slip through).
+ * - refuses `orgDir === root`.
+ * - `verifyPathWithinBase` enforces strict descendant-of-root containment.
+ * - `lstat`-refuses a symlink at the org dir itself: `verifyPathWithinBase`
+ *   only realpath's the dirname, so a pre-placed symlink at `<root>/<orgSlug>`
+ *   would otherwise be followed by `rm -rf` to arbitrary locations.
+ * - two-phase rename-then-delete: rename to a `.deleted-<slug>-<ts>` sibling
+ *   (atomic) then `rm -rf`, so concurrent writers fail ENOENT instead of racing.
+ * - drops `{ force: true }` so EACCES/EBUSY surface instead of being masked.
+ *
+ * ENOENT at the org dir is an idempotent no-op (nothing to remove). All
+ * failures log and are non-fatal: the caller decides what happens next
+ * (cleanup returns regardless; cleanFirst proceeds to seed, where the
+ * `override:false` per-domain skip is the safe fallback if removal was refused).
+ */
+async function removeOrgSubtree(root: string, orgSlug: string): Promise<void> {
+  if (orgSlug === 'default') {
+    console.warn(
+      '[removeOrgSubtree] refusing to delete the default org filesystem',
+    );
+    return;
+  }
+
+  if (!validateOrgSlug(orgSlug)) {
+    console.warn(`[removeOrgSubtree] refusing invalid slug "${orgSlug}"`);
+    return;
+  }
+
+  const orgDir = path.join(root, orgSlug);
+  if (path.resolve(orgDir) === path.resolve(root)) {
+    console.warn('[removeOrgSubtree] computed orgDir equals root, refusing');
+    return;
+  }
+
+  try {
+    await verifyPathWithinBase(orgDir, root);
+  } catch (err) {
+    console.warn(
+      `[removeOrgSubtree] path traversal guard tripped for "${orgSlug}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return;
+  }
+
+  // Symlink hijack defense: verifyPathWithinBase leaves the basename
+  // unresolved. If <root>/<orgSlug> is itself a symlink, rm -rf would follow
+  // it and delete arbitrary filesystem locations. Refuse explicitly here.
+  const info = await lstat(orgDir).catch((err) => {
+    if (errnoCode(err) === 'ENOENT') return null;
+    console.warn(
+      `[removeOrgSubtree] lstat failed for "${orgDir}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  });
+  if (!info) return;
+  if (info.isSymbolicLink()) {
+    console.error(
+      `[removeOrgSubtree] refusing to delete symlinked org dir at "${orgDir}"`,
+    );
+    return;
+  }
+
+  // Two-phase rename-then-delete. The rename is atomic within a filesystem;
+  // any concurrent writer of the original path fails with ENOENT instead of
+  // racing the recursive delete. UUID suffix avoids collisions.
+  const condemned = path.join(
+    root,
+    `.deleted-${orgSlug}-${Date.now()}-${randomUUID().slice(0, 8)}`,
+  );
+  try {
+    await rename(orgDir, condemned);
+  } catch (err) {
+    if (errnoCode(err) === 'ENOENT') return;
+    console.error(
+      `[removeOrgSubtree] rename failed for "${orgDir}" → "${condemned}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return;
+  }
+
+  try {
+    await rm(condemned, { recursive: true });
+  } catch (err) {
+    console.error(
+      `[removeOrgSubtree] rm failed for "${condemned}" (org dir was renamed but not fully removed; manual cleanup required):`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
+/**
  * Remove a deleted org's entire `<orgSlug>/` subtree under
  * `${TALE_CONFIG_DIR}`. Safety:
  * - TALE_CONFIG_DIR must be set + absolute.
@@ -518,85 +624,10 @@ export const cleanupOrgFilesystem = internalAction({
       console.warn('[cleanupOrgFilesystem] janitor sweep failed:', err);
     });
 
-    if (args.orgSlug === 'default') {
-      console.warn(
-        '[cleanupOrgFilesystem] refusing to delete the default org filesystem',
-      );
-      return null;
-    }
-
-    if (!validateOrgSlug(args.orgSlug)) {
-      console.warn(
-        `[cleanupOrgFilesystem] refusing invalid slug "${args.orgSlug}"`,
-      );
-      return null;
-    }
-
-    const orgDir = path.join(root, args.orgSlug);
-    if (path.resolve(orgDir) === path.resolve(root)) {
-      console.warn(
-        `[cleanupOrgFilesystem] computed orgDir equals root, refusing`,
-      );
-      return null;
-    }
-
-    try {
-      await verifyPathWithinBase(orgDir, root);
-    } catch (err) {
-      console.warn(
-        `[cleanupOrgFilesystem] path traversal guard tripped for "${args.orgSlug}":`,
-        err instanceof Error ? err.message : err,
-      );
-      return null;
-    }
-
-    // Symlink hijack defense: verifyPathWithinBase leaves the basename
-    // unresolved. If <root>/<orgSlug> is itself a symlink (placed by an
-    // attacker or a misconfigured operator), rm -rf would follow it and
-    // delete arbitrary filesystem locations. Refuse explicitly here.
-    const info = await lstat(orgDir).catch((err) => {
-      if (errnoCode(err) === 'ENOENT') return null;
-      console.warn(
-        `[cleanupOrgFilesystem] lstat failed for "${orgDir}":`,
-        err instanceof Error ? err.message : err,
-      );
-      return null;
-    });
-    if (!info) return null;
-    if (info.isSymbolicLink()) {
-      console.error(
-        `[cleanupOrgFilesystem] refusing to delete symlinked org dir at "${orgDir}"`,
-      );
-      return null;
-    }
-
-    // Two-phase rename-then-delete. The rename is atomic within a
-    // filesystem; any concurrent writer of the original path fails with
-    // ENOENT instead of racing the recursive delete. UUID suffix avoids
-    // collisions if two cleanups land in the same millisecond.
-    const condemned = path.join(
-      root,
-      `.deleted-${args.orgSlug}-${Date.now()}-${randomUUID().slice(0, 8)}`,
-    );
-    try {
-      await rename(orgDir, condemned);
-    } catch (err) {
-      if (errnoCode(err) === 'ENOENT') return null;
-      console.error(
-        `[cleanupOrgFilesystem] rename failed for "${orgDir}" → "${condemned}":`,
-        err instanceof Error ? err.message : err,
-      );
-      return null;
-    }
-
-    try {
-      await rm(condemned, { recursive: true });
-    } catch (err) {
-      console.error(
-        `[cleanupOrgFilesystem] rm failed for "${condemned}" (org dir was renamed but not fully removed; manual cleanup required):`,
-        err instanceof Error ? err.message : err,
-      );
-    }
+    // Guarded two-phase removal. The slug / path-containment / symlink
+    // defenses live in the shared helper that org-create's cleanFirst path
+    // also uses, so both deletion entry points stay in lockstep.
+    await removeOrgSubtree(root, args.orgSlug);
 
     return null;
   },
@@ -623,6 +654,19 @@ export const scaffoldNewOrganization = internalAction({
      * UX.
      */
     strict: v.optional(v.boolean()),
+    /**
+     * When true (the org-create path), remove any leftover `<orgSlug>/`
+     * subtree before seeding so the result is a faithful copy of the catalog
+     * with no stale/renamed orphans. Safe because Better Auth's
+     * `afterCreateOrganization` fires only for a genuinely new slug — anything
+     * already on disk is an orphan from a deleted org or a dev wipe, and would
+     * otherwise trip the per-domain `override:false` skip (stranding e.g. a
+     * renamed agent permanently missing). It also prevents a new org from
+     * inheriting a prior tenant's `*.secrets.json` if delete-time cleanup never
+     * ran. NOT set by `reseedAllOrgsFromBuiltin`, which reseeds LIVE orgs and
+     * must preserve their secrets/customizations (that path uses `override`).
+     */
+    cleanFirst: v.optional(v.boolean()),
   },
   returns: v.object({
     ok: v.boolean(),
@@ -667,8 +711,26 @@ export const scaffoldNewOrganization = internalAction({
       console.warn('[scaffoldNewOrganization] janitor sweep failed:', err);
     });
 
+    // The built-in catalog is required — there is no fallback to any org's live
+    // dir. Dev (dev-engine), prod (Dockerfile), and E2E (playwright) all set it.
     const catalogRoot = process.env[BUILTIN_ENV];
+    if (!catalogRoot || !path.isAbsolute(catalogRoot)) {
+      const msg = `[scaffoldNewOrganization] ${BUILTIN_ENV} is unset or not absolute; refusing to proceed`;
+      console.error(msg);
+      if (args.strict) {
+        throw new Error(msg);
+      }
+      return { ok: false, skipped: true, results: [] };
+    }
     const override = args.override ?? false;
+
+    // Exact-mirror org-create: purge any leftover subtree for this (new) slug
+    // before seeding, so renamed/removed catalog files don't survive as
+    // orphans and the per-domain `override:false` skip can't strand a domain a
+    // prior org left files in. Guarded + idempotent (a no-op when absent).
+    if (args.cleanFirst) {
+      await removeOrgSubtree(configRoot, args.orgSlug);
+    }
 
     const results: DomainResult[] = [];
     for (const domain of CONFIG_DOMAINS) {

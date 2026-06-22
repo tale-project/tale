@@ -52,11 +52,11 @@ Call this before agent_write so edits start from the real current structure.`,
       }
 
       if (args.operation === 'list_roster') {
-        const roster = await ctx.runQuery(
+        const { states } = await ctx.runQuery(
           internal.agents.installations.listInstallStatesInternal,
           { organizationId },
         );
-        return { operation: 'list_roster', roster };
+        return { operation: 'list_roster', roster: states };
       }
 
       // operation === 'get_role'

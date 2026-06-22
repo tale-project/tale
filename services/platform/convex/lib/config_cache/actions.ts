@@ -5,10 +5,10 @@
  *
  * The source of truth is the per-org JSON tree at
  * `$TALE_CONFIG_DIR/<orgSlug>/<domain>/`. V8 code can't read the filesystem, so
- * this `'use node'` action reads the effective config for every key of a domain
- * (org file → `default` org fallback) and mirrors it into the non-authoritative
- * `configCache` table that queries/mutations read. Driven by the registry
- * `V8SyncSpec` (Layer A) + the domain dir resolvers (Layer B).
+ * this `'use node'` action reads each domain key from the org's OWN files (no
+ * cross-org fallback) and mirrors it into the non-authoritative `configCache`
+ * table that queries/mutations read. Driven by the registry `V8SyncSpec`
+ * (Layer A) + the domain dir resolvers (Layer B).
  */
 
 import { v } from 'convex/values';
@@ -26,15 +26,12 @@ import { orgSlugFromId } from '../helpers/org_slug';
 
 const MAX_FILE_SIZE_BYTES = 256 * 1024;
 
-/** Platform template org; every org falls back to its config files. */
-const DEFAULT_ORG_SLUG = 'default';
-
 /**
- * Read a config file for `(domain, key)` under `orgSlug`, falling back to the
- * `default` org's file when the org has none of its own (matching every other
- * file-based domain). Returns the schema-normalized config record, or `null`
- * when neither file exists — a genuine cache miss the reader resolves via its
- * schema default.
+ * Read a config file for `(domain, key)` under `orgSlug` — the org's OWN file
+ * only, no cross-org fallback (every org is fully seeded from the built-in
+ * catalog at create). Returns the schema-normalized config record, or `null`
+ * when the org has no such file — a genuine cache miss the reader resolves via
+ * its schema default (a code baseline, never another org's config).
  */
 async function readEffectiveConfig(
   domain: string,
@@ -44,37 +41,30 @@ async function readEffectiveConfig(
 ): Promise<Record<string, unknown> | null> {
   const schema = spec.schemaFor(key);
   const fileBase = spec.fileBaseFor(key);
-  for (const slug of orgSlug === DEFAULT_ORG_SLUG
-    ? [DEFAULT_ORG_SLUG]
-    : [orgSlug, DEFAULT_ORG_SLUG]) {
-    const filePath = safeJoinWithinDir(
-      resolveDomainDir(domain, slug),
-      `${fileBase}.json`,
+  const filePath = safeJoinWithinDir(
+    resolveDomainDir(domain, orgSlug),
+    `${fileBase}.json`,
+  );
+  const result = await readJsonFile(
+    filePath,
+    MAX_FILE_SIZE_BYTES,
+    (content) => {
+      const parsed: unknown = JSON.parse(content);
+      const r = schema.safeParse(parsed);
+      if (!r.success) {
+        throw new Error(`Invalid ${domain}/${key} config: ${r.error.message}`);
+      }
+      return r.data;
+    },
+  );
+  if (result.ok) {
+    return isRecord(result.data) ? result.data : null;
+  }
+  if (result.error !== 'not_found') {
+    // Corrupt/oversized file: a genuine cache miss (reader uses schema default).
+    console.error(
+      `[config_cache] failed to read ${orgSlug}/${domain}/${fileBase}: ${result.message}`,
     );
-    const result = await readJsonFile(
-      filePath,
-      MAX_FILE_SIZE_BYTES,
-      (content) => {
-        const parsed: unknown = JSON.parse(content);
-        const r = schema.safeParse(parsed);
-        if (!r.success) {
-          throw new Error(
-            `Invalid ${domain}/${key} config: ${r.error.message}`,
-          );
-        }
-        return r.data;
-      },
-    );
-    if (result.ok) {
-      return isRecord(result.data) ? result.data : null;
-    }
-    if (result.error !== 'not_found') {
-      console.error(
-        `[config_cache] failed to read ${slug}/${domain}/${fileBase}: ${result.message}`,
-      );
-      // Corrupt/oversized file: skip this slug, try the fallback rather than
-      // poisoning the cache with a stale or partial value.
-    }
   }
   return null;
 }

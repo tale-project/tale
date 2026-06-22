@@ -220,3 +220,72 @@ describe('handleDynamicWorkflow debug gate', () => {
     expect(executedStepSlugs(ctx)).toEqual(['step-1', 'step-2']);
   });
 });
+
+// --- Durable sandbox handoff: re-enter the SAME step on port 'running' -------
+
+describe('handleDynamicWorkflow durable sandbox handoff', () => {
+  it('re-enters the same step on port "running" until it returns terminal', async () => {
+    // step-2 (sandbox) hands off TWICE (its action window elapsed; the exec is
+    // still running) then completes — proving one durable step spans many
+    // segments without advancing the workflow.
+    let step2Calls = 0;
+    const ctx: MockStepCtx = {
+      runAction: vi.fn((_ref: unknown, args: Record<string, unknown>) => {
+        if (!args || !('stepSlug' in args)) return Promise.resolve(null);
+        const slug = String(args.stepSlug);
+        if (slug === 'step-2') {
+          step2Calls += 1;
+          return Promise.resolve({
+            port: step2Calls < 3 ? 'running' : 'success',
+          });
+        }
+        return Promise.resolve({ port: 'success' });
+      }),
+      runMutation: vi.fn(() => Promise.resolve(null)),
+      awaitEvent: vi.fn(() => Promise.resolve({ action: 'step' })),
+    };
+
+    await handleDynamicWorkflow(
+      asWorkflowCtx(ctx),
+      createWorkflowArgs({
+        steps: [
+          {
+            stepSlug: 'step-1',
+            stepType: 'start',
+            name: 'Start',
+            organizationId: 'org-1',
+            nextSteps: { success: 'step-2' },
+            config: {},
+          },
+          {
+            stepSlug: 'step-2',
+            stepType: 'sandbox',
+            name: 'Implement',
+            organizationId: 'org-1',
+            nextSteps: {},
+            config: {},
+          },
+        ],
+      }),
+    );
+
+    // step-2 ran THREE times (handoff, handoff, terminal); the 'running' port
+    // never tried to resolve a nextStep (no throw on the empty nextSteps map)
+    // and never advanced past step-2.
+    expect(executedStepSlugs(ctx)).toEqual([
+      'step-1',
+      'step-2',
+      'step-2',
+      'step-2',
+    ]);
+    // Each handoff stamps the in-progress step on the execution row.
+    const reentryMarks = ctx.runMutation.mock.calls.filter(
+      (c: unknown[]) =>
+        c[1] !== null &&
+        typeof c[1] === 'object' &&
+        (c[1] as Record<string, unknown>).currentStepSlug === 'step-2' &&
+        (c[1] as Record<string, unknown>).status === 'running',
+    );
+    expect(reentryMarks).toHaveLength(2);
+  });
+});

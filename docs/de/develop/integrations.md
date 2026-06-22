@@ -51,7 +51,7 @@ Für einen OAuth2-Connector (`"auth": { "type": "oauth2", … }`) registriere Ta
 | MCP-Server    | Die Brücke muss ein langlebiger Prozess sein — lokale Dateien, eine eigene CLI, ein System, das aus dem Netz von Tale unerreichbar ist. |
 | Connector-TS  | Das REST-Manifest deckt 80 % der API ab, aber eine Operation braucht Response-Formung, die das Manifest nicht deklarieren kann.         |
 
-Die ausgelieferten Integrations unter [Platform > Integrations](/de/platform/integrations/overview) sind der Katalog der REST-Manifeste, die Tale ausliefert — lies ihre Configs in `examples/default/integrations/` für die Muster, die du kopierst.
+Die ausgelieferten Integrations unter [Platform > Integrations](/de/platform/integrations/overview) sind der Katalog der REST-Manifeste, die Tale ausliefert — lies ihre Configs in `builtin-configs/integrations/` für die Muster, die du kopierst.
 
 ## SQL-Adapter
 

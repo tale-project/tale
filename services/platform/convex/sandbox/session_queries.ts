@@ -304,6 +304,116 @@ export const listReconcilableSessionsForOrg = internalQuery({
   },
 });
 
+/** Ephemeral `workflow_run` sessions whose bounded TTL has elapsed (`now >
+ * expiresAt`) and that aren't pinned — the opportunistic backstop the next
+ * `sandbox`-step run reaps before creating its own. The happy path tears these
+ * down in its `finally`; this catches the rare hard-kill that skipped it.
+ * Scans active/degraded/stopped (a stopped row still holds a workspace + a live
+ * VK), ordered by the org+status index, bounded by `limit`. */
+export const listStaleWorkflowRunSessions = internalQuery({
+  args: { organizationId: v.string(), limit: v.optional(v.number()) },
+  returns: v.array(v.object({ sessionId: v.string() })),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const limit = args.limit ?? 10;
+    const out: { sessionId: string }[] = [];
+    for (const status of ['active', 'degraded', 'stopped'] as const) {
+      for await (const row of ctx.db
+        .query('sandboxSessions')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', status),
+        )) {
+        if (row.ownerType !== 'workflow_run') continue;
+        if (row.pinned === true) continue;
+        if (now <= row.expiresAt) continue;
+        out.push({ sessionId: row.sessionId });
+        if (out.length >= limit) return out;
+      }
+    }
+    return out;
+  },
+});
+
+/** The durable resume checkpoint for a workflow `sandbox`-step session, or null.
+ * `runSandboxAgent` reads this on entry: present ⇒ a prior segment handed off,
+ * so RE-ATTACH from this cursor (skip session create / cred injection / mint);
+ * absent ⇒ a fresh run. One row per deterministic session. */
+export const loadAgentCheckpoint = internalQuery({
+  args: { sessionId: v.string() },
+  returns: v.union(
+    v.object({
+      organizationId: v.string(),
+      sessionId: v.string(),
+      execId: v.string(),
+      lastSeq: v.number(),
+      agentSessionId: v.optional(v.string()),
+      agentResultSeen: v.optional(v.boolean()),
+      agentIdle: v.optional(v.boolean()),
+      pendingTaskIds: v.optional(v.array(v.string())),
+      startedAt: v.number(),
+      continuationCount: v.number(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    for await (const row of ctx.db
+      .query('sandboxAgentCheckpoints')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      return {
+        organizationId: row.organizationId,
+        sessionId: row.sessionId,
+        execId: row.execId,
+        lastSeq: row.lastSeq,
+        ...(row.agentSessionId !== undefined && {
+          agentSessionId: row.agentSessionId,
+        }),
+        ...(row.agentResultSeen !== undefined && {
+          agentResultSeen: row.agentResultSeen,
+        }),
+        ...(row.agentIdle !== undefined && { agentIdle: row.agentIdle }),
+        ...(row.pendingTaskIds !== undefined && {
+          pendingTaskIds: row.pendingTaskIds,
+        }),
+        startedAt: row.startedAt,
+        continuationCount: row.continuationCount,
+      };
+    }
+    return null;
+  },
+});
+
+/**
+ * The accumulated cross-segment live transcript on a workflow-run op — the seed
+ * a durable run's NEXT segment carries forward so the op never blanks at a seam.
+ * Read on the resume branch of `runSandboxAgent` (the op, not the bounded
+ * checkpoint table, is the single store for the transcript). Returns the newest
+ * `agent-run` op's `liveTimeline` (the deterministic id can be reused across
+ * incarnations, so order desc + filter on `kind`), or `[]` when there is none.
+ */
+export const loadWorkflowOpLiveTimeline = internalQuery({
+  args: { sessionId: v.string() },
+  returns: v.array(
+    v.object({
+      type: v.string(),
+      text: v.optional(v.string()),
+      state: v.optional(v.string()),
+      toolCallId: v.optional(v.string()),
+      input: v.optional(v.any()),
+      output: v.optional(v.any()),
+      errorText: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const op = await ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))
+      .order('desc')
+      .filter((q) => q.eq(q.field('kind'), 'agent-run'))
+      .first();
+    return op?.liveTimeline ?? [];
+  },
+});
+
 /** The LIVE session row for a spawner session id, or null. The management-page
  * controls fetch it to confirm the session belongs to the caller's org before
  * acting (defense in depth — the public id is org-scoped at the UI). The

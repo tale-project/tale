@@ -21,6 +21,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { structuralEqual } from '@/lib/utils/structural-equal';
+import { urlParamToSlug } from '@/lib/utils/workflow-slug';
 
 import {
   getStepIcon,
@@ -30,6 +31,7 @@ import {
 } from '../utils/step-icons';
 import { AutomationTester } from './automation-tester';
 import { NextStepsEditor } from './next-steps-editor';
+import { WorkflowEnvEditor } from './workflow-env-editor';
 
 interface AutomationSidePanelProps {
   step: StepDef | null;
@@ -125,6 +127,8 @@ interface StepEditorContentProps {
     stepType?: StepType;
     actionType?: string;
   }>;
+  organizationId?: string;
+  workflowSlug?: string;
 }
 
 const StepEditorContent = memo(function StepEditorContent({
@@ -139,6 +143,8 @@ const StepEditorContent = memo(function StepEditorContent({
   errors,
   warnings,
   stepOptions,
+  organizationId,
+  workflowSlug,
 }: StepEditorContentProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
@@ -167,6 +173,22 @@ const StepEditorContent = memo(function StepEditorContent({
           errorLabel={t('sidePanel.validationErrors')}
           warningLabel={t('sidePanel.validationWarnings')}
         />
+
+        {/* Step-level env & secrets — only sandbox steps consume env. Injected
+            into THIS step's sandbox, overriding workflow-level on a key clash.
+            Writes straight to the workflowEnv side-table, independent of the
+            step-config save below. */}
+        {step.stepType === 'sandbox' && organizationId && workflowSlug && (
+          <VStack gap={2}>
+            <Text variant="label">{t('sidePanel.env')}</Text>
+            <Text variant="caption">{t('sidePanel.envHelp')}</Text>
+            <WorkflowEnvEditor
+              organizationId={organizationId}
+              workflowSlug={workflowSlug}
+              stepSlug={step.stepSlug}
+            />
+          </VStack>
+        )}
       </VStack>
 
       <HStack className="bg-background shrink-0 border-t p-3">
@@ -369,6 +391,8 @@ export function AutomationSidePanel({
           errors={errors}
           warnings={warnings}
           stepOptions={stepOptions}
+          organizationId={organizationId}
+          workflowSlug={automationId ? urlParamToSlug(automationId) : undefined}
         />
       ) : null}
     </aside>

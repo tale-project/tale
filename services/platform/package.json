@@ -59,6 +59,7 @@
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.2.2",
     "@hookform/resolvers": "5.2.2",
+    "@measured/puck": "^0.20.2",
     "@microlink/react-json-view": "1.31.18",
     "@milkdown/crepe": "7.20.0",
     "@milkdown/react": "7.20.0",

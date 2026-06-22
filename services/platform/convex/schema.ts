@@ -8,6 +8,7 @@ import {
 import {
   agentBindingsTable,
   agentDefaultProvisionsTable,
+  agentEnvTable,
   agentInstallationsTable,
   autoRouteCacheTable,
 } from './agents/schema';
@@ -16,6 +17,7 @@ import {
   agentWebhookUserThreadsTable,
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
+import { appInstallationsTable } from './apps/schema';
 import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
@@ -94,6 +96,7 @@ import {
 import { reasoningProfilesTable } from './reasoning_profiles/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
 import {
+  sandboxAgentCheckpointsTable,
   sandboxCredentialAccessTable,
   sandboxSessionOpsTable,
   sandboxSessionsTable,
@@ -137,6 +140,7 @@ import {
   wfDefaultProvisionsTable,
   wfExecutionsTable,
   wfInstallationsTable,
+  workflowEnvTable,
   workflowProcessingRecordsTable,
 } from './workflows/schema';
 import {
@@ -148,6 +152,7 @@ import {
 } from './workflows/triggers/schema';
 
 export default defineSchema({
+  appInstallations: appInstallationsTable,
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
@@ -196,6 +201,7 @@ export default defineSchema({
   agentBindings: agentBindingsTable,
   agentInstallations: agentInstallationsTable,
   agentDefaultProvisions: agentDefaultProvisionsTable,
+  agentEnv: agentEnvTable,
   autoRouteCache: autoRouteCacheTable,
   agentWebhooks: agentWebhooksTable,
   agentWebhookUserThreads: agentWebhookUserThreadsTable,
@@ -257,6 +263,7 @@ export default defineSchema({
   sandboxSessions: sandboxSessionsTable,
   sandboxSessionTokens: sandboxSessionTokensTable,
   sandboxSessionOps: sandboxSessionOpsTable,
+  sandboxAgentCheckpoints: sandboxAgentCheckpointsTable,
   sandboxCredentialAccess: sandboxCredentialAccessTable,
   sandboxIntegrationCalls: sandboxIntegrationCallsTable,
   sandboxUserEnv: sandboxUserEnvTable,
@@ -274,5 +281,6 @@ export default defineSchema({
   wfSchedules: wfSchedulesTable,
   wfTriggerLogs: wfTriggerLogsTable,
   wfWebhooks: wfWebhooksTable,
+  workflowEnv: workflowEnvTable,
   workflowProcessingRecords: workflowProcessingRecordsTable,
 });

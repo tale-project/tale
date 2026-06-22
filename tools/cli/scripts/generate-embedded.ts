@@ -16,7 +16,7 @@ const REPO_ROOT = resolve(CLI_ROOT, '../..');
 const REFERENCE_DIRS: [string, string][] = [
   ['services/platform/convex', 'convex'],
   ['services/platform/lib', 'lib'],
-  ['examples', 'examples'],
+  ['builtin-configs', 'builtin-configs'],
 ];
 
 const SKIP_DIRS = new Set(['.history', '_generated', 'node_modules']);
@@ -72,7 +72,7 @@ async function collectFiles(
 }
 
 async function main() {
-  if (!existsSync(join(REPO_ROOT, 'examples'))) {
+  if (!existsSync(join(REPO_ROOT, 'builtin-configs'))) {
     console.error('Could not find monorepo root at', REPO_ROOT);
     process.exit(1);
   }
@@ -97,7 +97,7 @@ async function main() {
   const exampleFiles = new Map<string, string>();
 
   for (const [path, content] of files) {
-    if (path.startsWith('examples/')) {
+    if (path.startsWith('builtin-configs/')) {
       exampleFiles.set(path, content);
     } else {
       referenceFiles.set(path, content);

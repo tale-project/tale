@@ -12,7 +12,7 @@ const connectorCode = transform(
   fs.readFileSync(
     path.resolve(
       __dirname,
-      '../../../../../examples/default/integrations/confluence/connector.ts',
+      '../../../../../builtin-configs/integrations/confluence/connector.ts',
     ),
     'utf-8',
   ),

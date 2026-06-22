@@ -43,12 +43,12 @@ jobs:
           MODEL_SYNC_BODY_PATH="${RUNNER_TEMP}/pr-body.md" \
             bun run services/platform/scripts/update-model-catalog.ts
           # Match repo formatting so the diff is clean.
-          bunx oxfmt examples/default/providers/*.json || true
+          bunx oxfmt builtin-configs/providers/*.json || true
 
       - name: Detect changes
         id: diff
         run: |
-          if [ -n "$(git status --porcelain examples/default/providers)" ]; then
+          if [ -n "$(git status --porcelain builtin-configs/providers)" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -69,7 +69,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
-          git add examples/default/providers
+          git add builtin-configs/providers
           # --no-verify: skip any husky hooks `bun install` may have registered.
           git commit --no-verify -m "$TITLE"
           # Bot-owned branch, recreated from HEAD each run → a plain force push is

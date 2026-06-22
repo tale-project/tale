@@ -39,7 +39,43 @@ const stepTypeSchema = z.enum([
   'action',
   'loop',
   'output',
+  'sandbox',
 ]);
+
+/**
+ * Optional, declarative UI annotation on a step. Holds KEYS only (no literal
+ * text — i18n labels resolve from platform/pack catalogs). `render`/`params`
+ * are kept as lenient strings here so a workflow file always parses and
+ * round-trips as the closed render-kind vocabulary evolves; known-ness is
+ * enforced by `validateWorkflowDefinition` (publish-time) and the renderer
+ * (graceful degradation at runtime). See lib/shared/platform/render_kinds.
+ */
+const workflowStepUiSchema = z.object({
+  stage: z.string().optional(),
+  render: z.string().min(1),
+  labelKey: z.string().optional(),
+  params: z
+    .object({
+      display: z.string().optional(),
+      layout: z.string().optional(),
+      entryKind: z.string().optional(),
+      mode: z.string().optional(),
+      cardinality: z.string().optional(),
+      fields: z
+        .array(
+          z.object({
+            key: z.string().min(1),
+            labelKey: z.string().min(1),
+            type: z.string().min(1),
+          }),
+        )
+        .optional(),
+      // Maps a `gate` step's scalar verdict (e.g. "yes"/"no") to a pack label
+      // key, so the renderer can surface a clear verdict badge.
+      verdictLabels: z.record(z.string(), z.string()).optional(),
+    })
+    .optional(),
+});
 
 const workflowStepSchema = z.object({
   stepSlug: z.string().min(1).regex(stepSlugRegex),
@@ -49,6 +85,10 @@ const workflowStepSchema = z.object({
   order: z.number().int().min(0).optional(),
   config: z.record(z.string(), z.unknown()).default({}),
   nextSteps: z.record(z.string(), z.string()).default({}),
+  // Metadata-driven operator UI + role-bound steps (engine ignores both; the UI
+  // renderer reads `ui` from the definition file, joined to live execution state).
+  ui: workflowStepUiSchema.optional(),
+  role: z.string().optional(),
 });
 
 const integrationDependencySchema = z.object({

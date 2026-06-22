@@ -1,7 +1,11 @@
 import { v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
-import { mutation, type MutationCtx } from '../../_generated/server';
+import {
+  mutation,
+  type MutationCtx,
+  type QueryCtx,
+} from '../../_generated/server';
 import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../../lib/rls/organization/get_organization_member';
 import { jsonRecordValidator } from '../../lib/validators/json';
@@ -223,6 +227,40 @@ export const deleteWebhookBySlug = mutation({
   },
 });
 
+/**
+ * The app that owns a workflow slug, or `null` for a global/default-pack workflow.
+ *
+ * Ownership is a RECORDED fact: app install stamps `appSlug` on the workflow's
+ * `wfInstallations` row (`apps/install_actions.ts` registerWorkflow). We read that
+ * field directly — no slug-prefix parsing (so no collision with a same-named
+ * global workflow folder), and no dependence on the `appInstallations` row still
+ * existing. Takes only a db ctx (no auth) so it stays reusable + unit-testable.
+ */
+export async function appOwnerOfWorkflowSlug(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: string,
+  workflowSlug: string,
+): Promise<string | null> {
+  const installation = await ctx.db
+    .query('wfInstallations')
+    .withIndex('by_org_slug', (q) =>
+      q.eq('organizationId', organizationId).eq('workflowSlug', workflowSlug),
+    )
+    .first();
+  return installation?.appSlug ?? null;
+}
+
+/** Whether a workflow slug is owned by an app installed in this org. */
+export async function isAppOwnedWorkflowSlug(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: string,
+  workflowSlug: string,
+): Promise<boolean> {
+  return (
+    (await appOwnerOfWorkflowSlug(ctx, organizationId, workflowSlug)) !== null
+  );
+}
+
 export const createEventSubscriptionBySlug = mutation({
   args: {
     organizationId: v.string(),
@@ -240,6 +278,19 @@ export const createEventSubscriptionBySlug = mutation({
     }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
+
+    // An app is an internally-scoped scenario: its workflow runs only from within
+    // the app (its create action / per-workflow webhook), never off an org-global
+    // event that other apps/channels also emit. The auto path already skips event
+    // registration on app install (apps/install_actions.ts registerWorkflow); this
+    // is the manual/Automations path's equivalent guard.
+    if (
+      await isAppOwnedWorkflowSlug(ctx, args.organizationId, args.workflowSlug)
+    ) {
+      throw new Error(
+        `Workflow "${args.workflowSlug}" belongs to an app; app workflows are internally scoped and cannot subscribe to org-global events.`,
+      );
+    }
 
     if (!isValidEventType(args.eventType)) {
       throw new Error(`Invalid event type: ${String(args.eventType)}`);

@@ -23,7 +23,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
-import { useSaveAgent } from '../hooks/mutations';
+import { useInstallCatalogAgent, useSaveAgent } from '../hooks/mutations';
 
 type FormData = {
   name: string;
@@ -54,6 +54,7 @@ export function CreateAgentDialog({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const { mutateAsync: saveAgent } = useSaveAgent();
+  const { mutateAsync: installAgent } = useInstallCatalogAgent();
   const { providers, isLoading: providersLoading } =
     useListProviders(organizationId);
   const { locale } = useLocale();
@@ -260,6 +261,18 @@ export function CreateAgentDialog({
           visibleInChat: true,
         },
       });
+      // Install (enable) the new agent so it appears in the installed-only
+      // Agents list and is usable right away — the config file is the source,
+      // the install record makes it live. A failure here (e.g. non-admin)
+      // leaves the file in place to install later from the Catalog.
+      try {
+        await installAgent({ organizationId, agentSlug });
+      } catch (installErr) {
+        console.warn(
+          '[CreateAgentDialog] agent created but auto-install failed',
+          installErr,
+        );
+      }
       toast({
         title: t('agents.agentCreated'),
         variant: 'success',

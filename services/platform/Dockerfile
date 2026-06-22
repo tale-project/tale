@@ -243,9 +243,9 @@ ENV NODE_ENV=production \
     # actions only see env vars that this container pushes to Convex's
     # deployment env via the entrypoint's `convex env set` loop — even
     # though the path points at files inside the *convex* container.
-    # Per-org catalogs live at $TALE_CONFIG_BUILTIN_DIR/<orgSlug>/<domain>/;
-    # `default` is the canonical template. See
-    # services/platform/convex/organizations/scaffold.ts.
+    # Generic catalog — its children ARE the domains
+    # ($TALE_CONFIG_BUILTIN_DIR/<domain>/), with no org level and no fallback.
+    # Every org is seeded from it. See convex/organizations/scaffold.ts.
     TALE_CONFIG_BUILTIN_DIR=/app/builtin
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist

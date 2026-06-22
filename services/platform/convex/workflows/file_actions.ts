@@ -18,6 +18,7 @@ import type { WorkflowJsonConfig } from '../../lib/shared/schemas/workflows';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
+import { listInstalledAppSlugsFromDisk } from '../apps/file_utils';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
@@ -37,6 +38,7 @@ import {
   MAX_FILE_SIZE_BYTES,
   MAX_HISTORY_ENTRIES,
   parseWorkflowJson,
+  resolveAppWorkflowsDir,
   resolveHistoryDir,
   resolveWorkflowFilePath,
   resolveWorkflowsDir,
@@ -196,32 +198,6 @@ export const listWorkflows = action({
       args.organizationId,
     );
     const filterMode = args.filter ?? 'all';
-    const dir = resolveWorkflowsDir(orgSlug);
-    let entries: { name: string; parentPath: string; isDirectory: boolean }[];
-    try {
-      const raw = await readdir(dir, { recursive: true, withFileTypes: true });
-      entries = raw.map((e) => ({
-        name: e.name,
-        parentPath: e.parentPath ?? '',
-        isDirectory: e.isDirectory(),
-      }));
-    } catch (err) {
-      if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-        return [];
-      }
-      throw new Error(
-        `Workflows directory inaccessible: ${err instanceof Error ? err.message : String(err)}`,
-        { cause: err },
-      );
-    }
-
-    const jsonFiles = entries.filter(
-      (e) =>
-        !e.isDirectory &&
-        e.name.endsWith('.json') &&
-        !e.name.startsWith('.') &&
-        !e.parentPath.includes('.history'),
-    );
 
     const installedRaw: string[] = await ctx.runQuery(
       internal.workflows.installations.listInstalledSlugs,
@@ -229,46 +205,105 @@ export const listWorkflows = action({
     );
     const installedSlugs = new Set<string>(installedRaw);
 
-    const results = await Promise.all(
-      jsonFiles.map(async (entry) => {
-        const relativePath = path
-          .relative(dir, path.join(entry.parentPath, entry.name))
-          .replace(/\\/g, '/');
-        const slug = workflowSlugFromRelativePath(relativePath);
-
-        if (!validateWorkflowSlug(slug)) return null;
-
-        const result = await readWorkflowFile(orgSlug, slug);
-        if (result.ok) {
-          const installed = installedSlugs.has(slug);
-          if (filterMode === 'installed' && !installed) return null;
-          if (filterMode === 'templates' && installed) return null;
-
-          const filePath = resolveWorkflowFilePath(orgSlug, slug);
-          const createdAtMs = await resolveCreatedAtMs(orgSlug, slug, filePath);
-          const integrations = extractWorkflowIntegrations(slug, result.config);
-
-          return {
-            slug,
-            name: result.config.name,
-            description: result.config.description,
-            installed,
-            version: result.config.version,
-            stepCount: result.config.steps.length,
-            integrations,
-            hash: result.hash,
-            createdAtMs,
-          };
+    // Relative paths of *.json workflow files under a base dir (recursive,
+    // skipping dotfiles + .history). ENOENT → []; other errors surface.
+    const listJsonRelPaths = async (baseDir: string): Promise<string[]> => {
+      try {
+        const raw = await readdir(baseDir, {
+          recursive: true,
+          withFileTypes: true,
+        });
+        return raw
+          .filter(
+            (e) =>
+              !e.isDirectory() &&
+              e.name.endsWith('.json') &&
+              !e.name.startsWith('.') &&
+              !(e.parentPath ?? '').includes('.history'),
+          )
+          .map((e) =>
+            path
+              .relative(baseDir, path.join(e.parentPath ?? '', e.name))
+              .replace(/\\/g, '/'),
+          );
+      } catch (err) {
+        if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+          return [];
         }
+        throw new Error(
+          `Workflows directory inaccessible: ${err instanceof Error ? err.message : String(err)}`,
+          { cause: err },
+        );
+      }
+    };
+
+    // Project one workflow file (by slug) to its list item, applying the filter.
+    // `appSlug` set ⇒ app-owned: the global list groups + marks it; null ⇒ global.
+    const projectWorkflow = async (slug: string, appSlug?: string) => {
+      if (!validateWorkflowSlug(slug)) return null;
+      const ownerTag = appSlug !== undefined ? { appSlug } : {};
+      const result = await readWorkflowFile(orgSlug, slug);
+      if (!result.ok) {
         return {
           slug,
           status: result.error,
           message: result.message,
+          ...ownerTag,
         };
-      }),
+      }
+      const installed = installedSlugs.has(slug);
+      if (filterMode === 'installed' && !installed) return null;
+      if (filterMode === 'templates' && installed) return null;
+
+      const filePath = resolveWorkflowFilePath(orgSlug, slug);
+      const createdAtMs = await resolveCreatedAtMs(orgSlug, slug, filePath);
+      const integrations = extractWorkflowIntegrations(slug, result.config);
+      return {
+        slug,
+        name: result.config.name,
+        description: result.config.description,
+        installed,
+        version: result.config.version,
+        stepCount: result.config.steps.length,
+        integrations,
+        hash: result.hash,
+        createdAtMs,
+        ...ownerTag,
+      };
+    };
+
+    // Global workflows (org/workflows/).
+    const globalDir = resolveWorkflowsDir(orgSlug);
+    const globalRel = await listJsonRelPaths(globalDir);
+    const globalResults = await Promise.all(
+      globalRel.map((rel) =>
+        projectWorkflow(workflowSlugFromRelativePath(rel)),
+      ),
     );
 
-    return results.filter(Boolean);
+    // App-owned workflows (org/apps/<app>/workflows/) — invisible to the global
+    // scan above. Surface them too, tagged with the owning app, so the global
+    // automations list can group + mark them.
+    const appSlugs = await listInstalledAppSlugsFromDisk(orgSlug);
+    const appResults = (
+      await Promise.all(
+        appSlugs.map(async (app) => {
+          const appRel = await listJsonRelPaths(
+            resolveAppWorkflowsDir(orgSlug, app),
+          );
+          // App workflows are stored under the app dir at their FULL composite
+          // slug path (`<app>/<name>.json`) — see resolveWorkflowFilePath — so
+          // the relative path already IS the slug; don't re-prefix the app.
+          return Promise.all(
+            appRel.map((rel) =>
+              projectWorkflow(workflowSlugFromRelativePath(rel), app),
+            ),
+          );
+        }),
+      )
+    ).flat();
+
+    return [...globalResults, ...appResults].filter(Boolean);
   },
 });
 
@@ -359,6 +394,24 @@ export const deleteWorkflow = action({
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
+    // App-owned workflows are not individually deletable from the global surface
+    // — removing one would orphan its app. Deletion happens only via app
+    // uninstall (which deregisters + removes the bundle). Ownership is the
+    // recorded `appSlug` on the install row.
+    const installation = await ctx.runQuery(
+      internal.workflows.installations.getInstallationInternal,
+      {
+        organizationId: args.organizationId,
+        workflowSlug: args.workflowSlug,
+      },
+    );
+    if (installation?.appSlug) {
+      throw new ConvexError({
+        code: 'app_owned',
+        message: `Workflow "${args.workflowSlug}" belongs to app "${installation.appSlug}". Uninstall the app to remove it.`,
+      });
+    }
+
     const filePath = resolveWorkflowFilePath(orgSlug, args.workflowSlug);
     const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
 
@@ -373,6 +426,16 @@ export const deleteWorkflow = action({
       organizationId: args.organizationId,
       workflowSlug: args.workflowSlug,
     });
+
+    // Drop the workflow's env/secrets (all scopes) so they never outlive the
+    // file — deployment-local config, not part of the workflow definition.
+    await ctx.runMutation(
+      internal.workflows.workflow_env.deleteWorkflowEnvInternal,
+      {
+        organizationId: args.organizationId,
+        workflowSlug: args.workflowSlug,
+      },
+    );
 
     return null;
   },
@@ -407,6 +470,115 @@ export const installWorkflow = action({
     });
 
     return { hash: result.hash };
+  },
+});
+
+/**
+ * Bulk-install every available (uninstalled) workflow template in one call —
+ * the "install all" entry. Optionally scoped to a `folder` (a top-level subdir
+ * of the org's workflows tree, e.g. `issue-desk`), so a pack's workflows can be
+ * installed as a group. Idempotent: already-installed slugs are skipped, and a
+ * single malformed file is reported (not fatal) so one bad template can't block
+ * the rest. Reuses the same recursive scan + slug derivation as listWorkflows.
+ */
+export const installAllWorkflows = action({
+  args: {
+    organizationId: v.string(),
+    // Restrict to slugs equal to / under this top-level folder (no slash).
+    folder: v.optional(v.string()),
+  },
+  returns: v.object({
+    installed: v.array(v.string()),
+    alreadyInstalled: v.array(v.string()),
+    failed: v.array(v.object({ slug: v.string(), message: v.string() })),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    installed: string[];
+    alreadyInstalled: string[];
+    failed: { slug: string; message: string }[];
+  }> => {
+    const { orgSlug, userId, email } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
+    const installedBy = email !== '' ? email : userId;
+
+    if (args.folder !== undefined && !validateWorkflowSlug(args.folder)) {
+      throw new Error(`Invalid folder: ${args.folder}`);
+    }
+    const inFolder = (slug: string): boolean =>
+      args.folder === undefined ||
+      slug === args.folder ||
+      slug.startsWith(`${args.folder}/`);
+
+    const dir = resolveWorkflowsDir(orgSlug);
+    let entries: { name: string; parentPath: string; isDirectory: boolean }[];
+    try {
+      const raw = await readdir(dir, { recursive: true, withFileTypes: true });
+      entries = raw.map((e) => ({
+        name: e.name,
+        parentPath: e.parentPath ?? '',
+        isDirectory: e.isDirectory(),
+      }));
+    } catch (err) {
+      if (errnoCode(err) === 'ENOENT') {
+        return { installed: [], alreadyInstalled: [], failed: [] };
+      }
+      throw new Error(
+        `Workflows directory inaccessible: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
+      );
+    }
+
+    const jsonFiles = entries.filter(
+      (e) =>
+        !e.isDirectory &&
+        e.name.endsWith('.json') &&
+        !e.name.startsWith('.') &&
+        !e.parentPath.includes('.history'),
+    );
+
+    const installedRaw: string[] = await ctx.runQuery(
+      internal.workflows.installations.listInstalledSlugs,
+      { organizationId: args.organizationId },
+    );
+    const installedSlugs = new Set<string>(installedRaw);
+
+    const installed: string[] = [];
+    const alreadyInstalled: string[] = [];
+    const failed: { slug: string; message: string }[] = [];
+
+    for (const entry of jsonFiles) {
+      const relativePath = path
+        .relative(dir, path.join(entry.parentPath, entry.name))
+        .replace(/\\/g, '/');
+      const slug = workflowSlugFromRelativePath(relativePath);
+      if (!validateWorkflowSlug(slug) || !inFolder(slug)) continue;
+      if (installedSlugs.has(slug)) {
+        alreadyInstalled.push(slug);
+        continue;
+      }
+      const result = await readWorkflowFile(orgSlug, slug);
+      if (!result.ok) {
+        failed.push({ slug, message: result.message });
+        continue;
+      }
+      await ctx.runMutation(
+        internal.workflows.installations.upsertInstallation,
+        {
+          organizationId: args.organizationId,
+          workflowSlug: slug,
+          installedBy,
+          contentHash: result.hash,
+        },
+      );
+      installed.push(slug);
+    }
+
+    return { installed, alreadyInstalled, failed };
   },
 });
 

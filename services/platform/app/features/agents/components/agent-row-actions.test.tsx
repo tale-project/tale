@@ -35,6 +35,9 @@ vi.mock('@/lib/shared/constants/agents', () => ({
 
 vi.mock('../hooks/mutations', () => ({
   useDuplicateAgent: () => ({ mutateAsync: h.duplicateMock }),
+  useInstallCatalogAgent: () => ({
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+  }),
   useDeleteAgent: () => ({ mutateAsync: vi.fn() }),
 }));
 

@@ -40,7 +40,7 @@ cd services/platform && \
 with that file and `tests/e2e/fixtures/config/default/providers/e2e-mock.json`.
 `TALE_MOCK_INTEGRATIONS_BASE` redirects integration connectors' outbound HTTP to
 the gateway so you can connect/test integrations offline. The integration catalog
-in the fixtures is a symlink to the real `examples/default/integrations`.)
+in the fixtures is a symlink to the real `builtin-configs/integrations`.)
 
 ### B. Full local dev (real provider, full feature set)
 

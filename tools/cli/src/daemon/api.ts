@@ -21,6 +21,9 @@ export interface ClaimedWork {
   resumeSessionRef?: string;
   prompt: string;
   timeoutMs: number;
+  /** Plain (non-secret) env the agent declared — merged into the spawned
+   *  agent process (the adapter's own env wins on a name collision). */
+  env?: Record<string, string>;
 }
 
 export class TaleApi {

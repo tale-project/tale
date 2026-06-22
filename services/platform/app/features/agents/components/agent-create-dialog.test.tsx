@@ -35,6 +35,9 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 const saveAgentMock = vi.fn();
 vi.mock('../hooks/mutations', () => ({
   useSaveAgent: () => ({ mutateAsync: saveAgentMock }),
+  useInstallCatalogAgent: () => ({
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 vi.mock('@/app/features/settings/providers/hooks/queries', () => ({

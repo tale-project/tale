@@ -154,6 +154,8 @@ import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_
 import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/workflows/workflow_read_tool.js";
 import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
 import type * as agents_access from "../agents/access.js";
+import type * as agents_agent_env from "../agents/agent_env.js";
+import type * as agents_agent_env_actions from "../agents/agent_env_actions.js";
 import type * as agents_arena_chat from "../agents/arena_chat.js";
 import type * as agents_audit_mutations from "../agents/audit_mutations.js";
 import type * as agents_auto_route from "../agents/auto_route.js";
@@ -189,6 +191,7 @@ import type * as agents_provision_defaults from "../agents/provision_defaults.js
 import type * as agents_provision_defaults_mutations from "../agents/provision_defaults_mutations.js";
 import type * as agents_queries from "../agents/queries.js";
 import type * as agents_resolve_agent_config from "../agents/resolve_agent_config.js";
+import type * as agents_resolve_role_to_agent from "../agents/resolve_role_to_agent.js";
 import type * as agents_rest_api from "../agents/rest_api.js";
 import type * as agents_run_agent_on_discussion from "../agents/run_agent_on_discussion.js";
 import type * as agents_run_agent_on_task from "../agents/run_agent_on_task.js";
@@ -215,6 +218,12 @@ import type * as approvals_plan_mutations from "../approvals/plan_mutations.js";
 import type * as approvals_queries from "../approvals/queries.js";
 import type * as approvals_types from "../approvals/types.js";
 import type * as approvals_validators from "../approvals/validators.js";
+import type * as apps_file_actions from "../apps/file_actions.js";
+import type * as apps_file_utils from "../apps/file_utils.js";
+import type * as apps_install_actions from "../apps/install_actions.js";
+import type * as apps_install_fs from "../apps/install_fs.js";
+import type * as apps_install_mutations from "../apps/install_mutations.js";
+import type * as apps_install_queries from "../apps/install_queries.js";
 import type * as audit_logs_actions from "../audit_logs/actions.js";
 import type * as audit_logs_export_audit_logs from "../audit_logs/export_audit_logs.js";
 import type * as audit_logs_helpers from "../audit_logs/helpers.js";
@@ -491,6 +500,7 @@ import type * as integrations_helpers from "../integrations/helpers.js";
 import type * as integrations_load_integration from "../integrations/load_integration.js";
 import type * as integrations_oauth2_callback from "../integrations/oauth2_callback.js";
 import type * as integrations_oauth2_token_exchange from "../integrations/oauth2_token_exchange.js";
+import type * as integrations_public_actions from "../integrations/public_actions.js";
 import type * as integrations_run_health_check from "../integrations/run_health_check.js";
 import type * as integrations_save_oauth2_client_credentials from "../integrations/save_oauth2_client_credentials.js";
 import type * as integrations_shared_types from "../integrations/shared_types.js";
@@ -893,6 +903,7 @@ import type * as node_only_integration_sandbox_helpers_validate_host from "../no
 import type * as node_only_integration_sandbox_internal_actions from "../node_only/integration_sandbox/internal_actions.js";
 import type * as node_only_integration_sandbox_types from "../node_only/integration_sandbox/types.js";
 import type * as node_only_sandbox_agent_message_parts from "../node_only/sandbox/agent_message_parts.js";
+import type * as node_only_sandbox_agent_run_outcome from "../node_only/sandbox/agent_run_outcome.js";
 import type * as node_only_sandbox_bifrost_admin from "../node_only/sandbox/bifrost_admin.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_helpers_spawner_client from "../node_only/sandbox/helpers/spawner_client.js";
@@ -905,6 +916,8 @@ import type * as node_only_sandbox_session_credentials from "../node_only/sandbo
 import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
 import type * as node_only_sandbox_steer_delivery from "../node_only/sandbox/steer_delivery.js";
 import type * as node_only_sandbox_steer_files from "../node_only/sandbox/steer_files.js";
+import type * as node_only_sandbox_summary_reentry from "../node_only/sandbox/summary_reentry.js";
+import type * as node_only_sandbox_workflow_sandbox_exec from "../node_only/sandbox/workflow_sandbox_exec.js";
 import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
 import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
@@ -1117,8 +1130,10 @@ import type * as tasks_directory from "../tasks/directory.js";
 import type * as tasks_helpers from "../tasks/helpers.js";
 import type * as tasks_internal_mutations from "../tasks/internal_mutations.js";
 import type * as tasks_internal_queries from "../tasks/internal_queries.js";
+import type * as tasks_issue_ref from "../tasks/issue_ref.js";
 import type * as tasks_mentions from "../tasks/mentions.js";
 import type * as tasks_mutations from "../tasks/mutations.js";
+import type * as tasks_public_actions from "../tasks/public_actions.js";
 import type * as tasks_queries from "../tasks/queries.js";
 import type * as tasks_rank from "../tasks/rank.js";
 import type * as tasks_review_mutations from "../tasks/review_mutations.js";
@@ -1372,6 +1387,9 @@ import type * as workflow_engine_helpers_nodes_loop_utils_create_loop_state from
 import type * as workflow_engine_helpers_nodes_loop_utils_get_input_data from "../workflow_engine/helpers/nodes/loop/utils/get_input_data.js";
 import type * as workflow_engine_helpers_nodes_loop_utils_get_loop_items from "../workflow_engine/helpers/nodes/loop/utils/get_loop_items.js";
 import type * as workflow_engine_helpers_nodes_loop_utils_is_loop_in_progress from "../workflow_engine/helpers/nodes/loop/utils/is_loop_in_progress.js";
+import type * as workflow_engine_helpers_nodes_sandbox_execute_sandbox_node from "../workflow_engine/helpers/nodes/sandbox/execute_sandbox_node.js";
+import type * as workflow_engine_helpers_nodes_sandbox_merge_sandbox_env from "../workflow_engine/helpers/nodes/sandbox/merge_sandbox_env.js";
+import type * as workflow_engine_helpers_nodes_sandbox_resolve_step_env from "../workflow_engine/helpers/nodes/sandbox/resolve_step_env.js";
 import type * as workflow_engine_helpers_recovery_index from "../workflow_engine/helpers/recovery/index.js";
 import type * as workflow_engine_helpers_recovery_recover_stuck_executions from "../workflow_engine/helpers/recovery/recover_stuck_executions.js";
 import type * as workflow_engine_helpers_scheduler_get_last_execution_time from "../workflow_engine/helpers/scheduler/get_last_execution_time.js";
@@ -1408,10 +1426,12 @@ import type * as workflow_engine_helpers_validation_steps_index from "../workflo
 import type * as workflow_engine_helpers_validation_steps_llm from "../workflow_engine/helpers/validation/steps/llm.js";
 import type * as workflow_engine_helpers_validation_steps_loop from "../workflow_engine/helpers/validation/steps/loop.js";
 import type * as workflow_engine_helpers_validation_steps_output from "../workflow_engine/helpers/validation/steps/output.js";
+import type * as workflow_engine_helpers_validation_steps_sandbox from "../workflow_engine/helpers/validation/steps/sandbox.js";
 import type * as workflow_engine_helpers_validation_steps_start from "../workflow_engine/helpers/validation/steps/start.js";
 import type * as workflow_engine_helpers_validation_types from "../workflow_engine/helpers/validation/types.js";
 import type * as workflow_engine_helpers_validation_validate_action_parameters from "../workflow_engine/helpers/validation/validate_action_parameters.js";
 import type * as workflow_engine_helpers_validation_validate_next_steps_ports from "../workflow_engine/helpers/validation/validate_next_steps_ports.js";
+import type * as workflow_engine_helpers_validation_validate_step_annotations from "../workflow_engine/helpers/validation/validate_step_annotations.js";
 import type * as workflow_engine_helpers_validation_validate_step_config from "../workflow_engine/helpers/validation/validate_step_config.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_definition from "../workflow_engine/helpers/validation/validate_workflow_definition.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_dependencies from "../workflow_engine/helpers/validation/validate_workflow_dependencies.js";
@@ -1521,6 +1541,8 @@ import type * as workflows_triggers_process_event from "../workflows/triggers/pr
 import type * as workflows_triggers_slug_mutations from "../workflows/triggers/slug_mutations.js";
 import type * as workflows_triggers_slug_queries from "../workflows/triggers/slug_queries.js";
 import type * as workflows_validators from "../workflows/validators.js";
+import type * as workflows_workflow_env from "../workflows/workflow_env.js";
+import type * as workflows_workflow_env_actions from "../workflows/workflow_env_actions.js";
 
 import type {
   ApiFromModules,
@@ -1675,6 +1697,8 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/workflow_read_tool": typeof agent_tools_workflows_workflow_read_tool;
   "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;
   "agents/access": typeof agents_access;
+  "agents/agent_env": typeof agents_agent_env;
+  "agents/agent_env_actions": typeof agents_agent_env_actions;
   "agents/arena_chat": typeof agents_arena_chat;
   "agents/audit_mutations": typeof agents_audit_mutations;
   "agents/auto_route": typeof agents_auto_route;
@@ -1710,6 +1734,7 @@ declare const fullApi: ApiFromModules<{
   "agents/provision_defaults_mutations": typeof agents_provision_defaults_mutations;
   "agents/queries": typeof agents_queries;
   "agents/resolve_agent_config": typeof agents_resolve_agent_config;
+  "agents/resolve_role_to_agent": typeof agents_resolve_role_to_agent;
   "agents/rest_api": typeof agents_rest_api;
   "agents/run_agent_on_discussion": typeof agents_run_agent_on_discussion;
   "agents/run_agent_on_task": typeof agents_run_agent_on_task;
@@ -1736,6 +1761,12 @@ declare const fullApi: ApiFromModules<{
   "approvals/queries": typeof approvals_queries;
   "approvals/types": typeof approvals_types;
   "approvals/validators": typeof approvals_validators;
+  "apps/file_actions": typeof apps_file_actions;
+  "apps/file_utils": typeof apps_file_utils;
+  "apps/install_actions": typeof apps_install_actions;
+  "apps/install_fs": typeof apps_install_fs;
+  "apps/install_mutations": typeof apps_install_mutations;
+  "apps/install_queries": typeof apps_install_queries;
   "audit_logs/actions": typeof audit_logs_actions;
   "audit_logs/export_audit_logs": typeof audit_logs_export_audit_logs;
   "audit_logs/helpers": typeof audit_logs_helpers;
@@ -2012,6 +2043,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/load_integration": typeof integrations_load_integration;
   "integrations/oauth2_callback": typeof integrations_oauth2_callback;
   "integrations/oauth2_token_exchange": typeof integrations_oauth2_token_exchange;
+  "integrations/public_actions": typeof integrations_public_actions;
   "integrations/run_health_check": typeof integrations_run_health_check;
   "integrations/save_oauth2_client_credentials": typeof integrations_save_oauth2_client_credentials;
   "integrations/shared_types": typeof integrations_shared_types;
@@ -2414,6 +2446,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/integration_sandbox/internal_actions": typeof node_only_integration_sandbox_internal_actions;
   "node_only/integration_sandbox/types": typeof node_only_integration_sandbox_types;
   "node_only/sandbox/agent_message_parts": typeof node_only_sandbox_agent_message_parts;
+  "node_only/sandbox/agent_run_outcome": typeof node_only_sandbox_agent_run_outcome;
   "node_only/sandbox/bifrost_admin": typeof node_only_sandbox_bifrost_admin;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/helpers/spawner_client": typeof node_only_sandbox_helpers_spawner_client;
@@ -2426,6 +2459,8 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
   "node_only/sandbox/steer_delivery": typeof node_only_sandbox_steer_delivery;
   "node_only/sandbox/steer_files": typeof node_only_sandbox_steer_files;
+  "node_only/sandbox/summary_reentry": typeof node_only_sandbox_summary_reentry;
+  "node_only/sandbox/workflow_sandbox_exec": typeof node_only_sandbox_workflow_sandbox_exec;
   "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
   "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
@@ -2638,8 +2673,10 @@ declare const fullApi: ApiFromModules<{
   "tasks/helpers": typeof tasks_helpers;
   "tasks/internal_mutations": typeof tasks_internal_mutations;
   "tasks/internal_queries": typeof tasks_internal_queries;
+  "tasks/issue_ref": typeof tasks_issue_ref;
   "tasks/mentions": typeof tasks_mentions;
   "tasks/mutations": typeof tasks_mutations;
+  "tasks/public_actions": typeof tasks_public_actions;
   "tasks/queries": typeof tasks_queries;
   "tasks/rank": typeof tasks_rank;
   "tasks/review_mutations": typeof tasks_review_mutations;
@@ -2893,6 +2930,9 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/nodes/loop/utils/get_input_data": typeof workflow_engine_helpers_nodes_loop_utils_get_input_data;
   "workflow_engine/helpers/nodes/loop/utils/get_loop_items": typeof workflow_engine_helpers_nodes_loop_utils_get_loop_items;
   "workflow_engine/helpers/nodes/loop/utils/is_loop_in_progress": typeof workflow_engine_helpers_nodes_loop_utils_is_loop_in_progress;
+  "workflow_engine/helpers/nodes/sandbox/execute_sandbox_node": typeof workflow_engine_helpers_nodes_sandbox_execute_sandbox_node;
+  "workflow_engine/helpers/nodes/sandbox/merge_sandbox_env": typeof workflow_engine_helpers_nodes_sandbox_merge_sandbox_env;
+  "workflow_engine/helpers/nodes/sandbox/resolve_step_env": typeof workflow_engine_helpers_nodes_sandbox_resolve_step_env;
   "workflow_engine/helpers/recovery/index": typeof workflow_engine_helpers_recovery_index;
   "workflow_engine/helpers/recovery/recover_stuck_executions": typeof workflow_engine_helpers_recovery_recover_stuck_executions;
   "workflow_engine/helpers/scheduler/get_last_execution_time": typeof workflow_engine_helpers_scheduler_get_last_execution_time;
@@ -2929,10 +2969,12 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/steps/llm": typeof workflow_engine_helpers_validation_steps_llm;
   "workflow_engine/helpers/validation/steps/loop": typeof workflow_engine_helpers_validation_steps_loop;
   "workflow_engine/helpers/validation/steps/output": typeof workflow_engine_helpers_validation_steps_output;
+  "workflow_engine/helpers/validation/steps/sandbox": typeof workflow_engine_helpers_validation_steps_sandbox;
   "workflow_engine/helpers/validation/steps/start": typeof workflow_engine_helpers_validation_steps_start;
   "workflow_engine/helpers/validation/types": typeof workflow_engine_helpers_validation_types;
   "workflow_engine/helpers/validation/validate_action_parameters": typeof workflow_engine_helpers_validation_validate_action_parameters;
   "workflow_engine/helpers/validation/validate_next_steps_ports": typeof workflow_engine_helpers_validation_validate_next_steps_ports;
+  "workflow_engine/helpers/validation/validate_step_annotations": typeof workflow_engine_helpers_validation_validate_step_annotations;
   "workflow_engine/helpers/validation/validate_step_config": typeof workflow_engine_helpers_validation_validate_step_config;
   "workflow_engine/helpers/validation/validate_workflow_definition": typeof workflow_engine_helpers_validation_validate_workflow_definition;
   "workflow_engine/helpers/validation/validate_workflow_dependencies": typeof workflow_engine_helpers_validation_validate_workflow_dependencies;
@@ -3042,6 +3084,8 @@ declare const fullApi: ApiFromModules<{
   "workflows/triggers/slug_mutations": typeof workflows_triggers_slug_mutations;
   "workflows/triggers/slug_queries": typeof workflows_triggers_slug_queries;
   "workflows/validators": typeof workflows_validators;
+  "workflows/workflow_env": typeof workflows_workflow_env;
+  "workflows/workflow_env_actions": typeof workflows_workflow_env_actions;
 }>;
 
 /**

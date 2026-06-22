@@ -342,3 +342,187 @@ export function buildAssistantContent(
   }
   return parts;
 }
+
+// --- live workflow-run transcript --------------------------------------------
+// A WORKFLOW sandbox step has no chat message to render its live timeline from
+// (the chat path renders from the persisted assistant message). So we project
+// the SAME folded timeline into the AI-SDK UI-PART shape `buildMessageSegments`
+// reads (text / `tool-<name>` parts, sub-agents folded onto the Task's output),
+// store a bounded tail on the live op, and the run view renders it with the
+// shared `thought-timeline` rows — no second renderer, no message doc.
+
+/** A UI part the live run-view timeline reads: a text run or a merged tool part
+ *  (`type: 'tool-<name>'`). Mirrors what `toUIMessages` yields on the chat path,
+ *  built directly here since a workflow run has no message to merge from. */
+export type UiTimelinePart =
+  | { type: 'text'; text: string; state: 'streaming' | 'done' }
+  | {
+      /** `tool-<toolName>`. */
+      type: string;
+      state:
+        | 'input-streaming'
+        | 'input-available'
+        | 'output-available'
+        | 'output-error';
+      toolCallId: string;
+      input?: unknown;
+      output?: unknown;
+      errorText?: string;
+    };
+
+// The op can't segment like a chat message (it's one row, capped near 1 MB), so
+// the live transcript keeps only a recent window. Generous enough to read the
+// flow, bounded so a 100-turn run never blows the doc.
+const MAX_LIVE_TIMELINE_PARTS = 60;
+const MAX_LIVE_TIMELINE_BYTES = 256_000;
+
+// The CROSS-SEGMENT window persisted on the op across a durable run's segment
+// seams. Larger than the per-segment caps (which bound one action window) so a
+// refresh after a handoff still shows prior work, but kept well under Convex's
+// 1 MB doc cap once `progressText` (~8 KB) + scalar fields are added.
+export const MAX_LIVE_TIMELINE_PERSIST_PARTS = 240;
+export const MAX_LIVE_TIMELINE_PERSIST_BYTES = 512_000;
+
+/**
+ * Bound a part list to a recent window, dropping the OLDEST parts to fit both
+ * the count and byte caps and prepending a single "… N hidden" marker when
+ * anything was dropped. Shared by the per-segment window ({@link capLiveParts})
+ * and the cross-segment one ({@link capAccumulatedLiveParts}); the synthetic
+ * marker is an ordinary text part, so a re-cap drops a stale one (it sorts
+ * oldest, at the front) before adding a fresh one — no marker stacking.
+ */
+function capPartsWindow(
+  parts: UiTimelinePart[],
+  maxParts: number,
+  maxBytes: number,
+): UiTimelinePart[] {
+  let kept = parts;
+  let dropped = 0;
+  if (kept.length > maxParts) {
+    dropped += kept.length - maxParts;
+    kept = kept.slice(-maxParts);
+  } else {
+    kept = [...kept];
+  }
+  while (
+    kept.length > 1 &&
+    Buffer.byteLength(JSON.stringify(kept), 'utf8') > maxBytes
+  ) {
+    kept.shift();
+    dropped++;
+  }
+  if (dropped > 0) {
+    kept.unshift({
+      type: 'text',
+      text: `… (${dropped} earlier step${dropped === 1 ? '' : 's'} hidden)`,
+      state: 'done',
+    });
+  }
+  return kept;
+}
+
+function capLiveParts(parts: UiTimelinePart[]): UiTimelinePart[] {
+  return capPartsWindow(
+    parts,
+    MAX_LIVE_TIMELINE_PARTS,
+    MAX_LIVE_TIMELINE_BYTES,
+  );
+}
+
+/**
+ * The op's cross-segment live transcript: the prior segments' parts (already on
+ * the op) followed by THIS segment's window, kept to the most recent ~512 KB.
+ * A durable agent run segments at the Convex action ceiling, and each segment
+ * starts with an EMPTY per-segment timeline — so without accumulating here the
+ * op would hold only the current segment, and a refresh after a seam (or while
+ * the agent idles between segments, e.g. waiting on CI) would show nothing.
+ * `current` is the already-bounded per-segment window, disjoint from `prior`
+ * (the cross-seam carry is the cursor + tool maps, never timeline parts), so the
+ * concatenation never double-counts. An empty `current` returns `prior` intact.
+ */
+export function capAccumulatedLiveParts(
+  prior: readonly UiTimelinePart[],
+  current: readonly UiTimelinePart[],
+): UiTimelinePart[] {
+  return capPartsWindow(
+    [...prior, ...current],
+    MAX_LIVE_TIMELINE_PERSIST_PARTS,
+    MAX_LIVE_TIMELINE_PERSIST_BYTES,
+  );
+}
+
+/**
+ * Project a turn's timeline into a bounded list of live UI parts for the run
+ * view. Reuses {@link buildAssistantContent} for ALL the folding/clamping, then
+ * merges its tool-call+tool-result pairs into the single `tool-<name>` UI parts
+ * the segment builder expects (a tool with no result yet stays `input-available`,
+ * so it renders as in-flight). Same args as `buildAssistantContent`.
+ */
+export function buildUiPartsFromTimeline(
+  events: readonly AgentEvent[],
+  finalText: string,
+  knownToolNames?: ReadonlyMap<string, string>,
+  knownToolParents?: ReadonlyMap<string, string>,
+  liveText: string = '',
+): UiTimelinePart[] {
+  const content = buildAssistantContent(
+    events,
+    finalText,
+    knownToolNames,
+    knownToolParents,
+    liveText,
+  );
+  if (typeof content === 'string') {
+    if (content.trim() === '') return [];
+    return [
+      {
+        type: 'text',
+        text: content,
+        // The open trailing block is still streaming while liveText is set.
+        state: liveText.trim() !== '' ? 'streaming' : 'done',
+      },
+    ];
+  }
+
+  const parts: UiTimelinePart[] = [];
+  const toolIndex = new Map<string, number>(); // toolCallId → index in `parts`
+  for (const part of content) {
+    if (part.type === 'text') {
+      parts.push({ type: 'text', text: part.text, state: 'done' });
+    } else if (part.type === 'tool-call') {
+      toolIndex.set(part.toolCallId, parts.length);
+      parts.push({
+        type: `tool-${part.toolName}`,
+        state: 'input-available',
+        toolCallId: part.toolCallId,
+        input: part.input,
+      });
+    } else if (part.type === 'tool-result') {
+      const out = part.output;
+      // buildAssistantContent wraps outputs as {type:'text'|'error-text'|'json', value}.
+      const isError =
+        part.isError === true ||
+        (out !== null && typeof out === 'object' && out.type === 'error-text');
+      const value =
+        out !== null && typeof out === 'object' && 'value' in out
+          ? out.value
+          : out;
+      const idx = toolIndex.get(part.toolCallId);
+      // Carry the input forward from the matching tool-call part (if any).
+      const callPart = idx !== undefined ? parts[idx] : undefined;
+      const input =
+        callPart && 'toolCallId' in callPart ? callPart.input : undefined;
+      const merged: UiTimelinePart = {
+        type: `tool-${part.toolName}`,
+        state: isError ? 'output-error' : 'output-available',
+        toolCallId: part.toolCallId,
+        output: value,
+        ...(input !== undefined && { input }),
+        ...(isError && typeof value === 'string' && { errorText: value }),
+      };
+      if (idx !== undefined) parts[idx] = merged;
+      else parts.push(merged);
+    }
+  }
+  return capLiveParts(parts);
+}

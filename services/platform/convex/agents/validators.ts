@@ -4,16 +4,12 @@
  * Runtime-agnostic — safe to import from both Node.js and edge runtimes.
  */
 
-/**
- * Canonical agent slug: a flat, file-location-independent identity. Because the
- * slug lives in the config (`slug` field) rather than the path, slugs stay flat
- * (single segment, no `/`) and routes need no URL-encoding. `validateAgentName`
- * and `validateAgentSlug` are the same shape — both names are kept for caller
- * clarity (name = a single segment anywhere, slug = the canonical identity).
- */
+import { isValidAppSlug } from '../../lib/shared/schemas/apps';
+
 const AGENT_NAME_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
 
-export function validateAgentName(name: string): boolean {
+/** A single (flat) agent-name segment — the global namespace alphabet. */
+export function validateAgentSegment(name: string): boolean {
   return AGENT_NAME_REGEX.test(name);
 }
 
@@ -32,4 +28,20 @@ export function agentSlugFromFileName(relativePath: string): string {
   const base =
     relativePath.replace(/\\/g, '/').split('/').pop() ?? relativePath;
   return base.replace(/\.json$/, '');
+}
+
+/**
+ * An agent identity. Either a flat GLOBAL name (`coder`) or an app-owned
+ * COMPOSITE `<appSlug>/<name>` (`issue-desk/desk-coordinator`). The composite
+ * carries its owning app so the slug stays a globally-unique, self-describing
+ * identity; app-owned agents live under the app's bundle, invisible to the
+ * global agent surfaces. At most one `/`, each segment validated independently
+ * (so `..`/absolute paths can never slip through into a resolved path).
+ */
+export function validateAgentName(name: string): boolean {
+  const slash = name.indexOf('/');
+  if (slash === -1) return AGENT_NAME_REGEX.test(name);
+  const appSlug = name.slice(0, slash);
+  const rest = name.slice(slash + 1);
+  return isValidAppSlug(appSlug) && AGENT_NAME_REGEX.test(rest);
 }

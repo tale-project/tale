@@ -53,6 +53,13 @@ interface SandboxPodInput {
   startedAtMs: number;
   /** Per-org cache PVC names; only consumed when cfg.k8s.cacheMode === 'pvc'. */
   cache?: CacheStores;
+  /**
+   * Sanitized step-scoped env (reserved names already dropped upstream by
+   * validate-request). Injected into the RUNNER container only — never the
+   * stage/harvest helpers (which hold the exec-spec Secret). Skips any name
+   * that collides with the infrastructure baseline (proxy / cache / HOME).
+   */
+  userEnv?: Record<string, string>;
 }
 
 const RUNTIME_UID = 65534;
@@ -69,6 +76,22 @@ const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const ENTRY_PATH_RE =
   /^(?:\/user\/(?:code|\.runtime\/tale)\/(?!.*\.\.)[A-Za-z0-9_./-]{1,256}|(?!.*\.\.)[A-Za-z0-9_-][A-Za-z0-9_./-]{0,255})$/;
+// Mirror docker-args.ts: a user step env var must never shadow the runner's
+// infrastructure baseline, and must be a valid env identifier.
+const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+// Uppercase; the collision check normalizes the candidate so a lowercase
+// variant can't slip past. Covers the canonical reserved names + proxy/cache.
+const BASELINE_ENV_NAMES = new Set([
+  'HTTPS_PROXY',
+  'HTTP_PROXY',
+  'NO_PROXY',
+  'PIP_CACHE_DIR',
+  'UV_CACHE_DIR',
+  'NPM_CONFIG_CACHE',
+  'HOME',
+  'PATH',
+  'TMPDIR',
+]);
 
 function assertSafe(name: string, value: string, re: RegExp): void {
   if (!re.test(value)) {
@@ -138,6 +161,20 @@ export function buildSandboxPod(
       { name: 'UV_CACHE_DIR', value: '/cache/pip' },
       { name: 'NPM_CONFIG_CACHE', value: '/cache/npm' },
     );
+  }
+  // Step-scoped env (sanitized upstream) — appended AFTER the baseline and
+  // only into the RUNNER container. Collisions with the infrastructure
+  // baseline are skipped so a user var can never shadow proxy/cache/HOME.
+  if (inp.userEnv) {
+    for (const [name, value] of Object.entries(inp.userEnv)) {
+      if (
+        !ENV_NAME_RE.test(name) ||
+        BASELINE_ENV_NAMES.has(name.toUpperCase())
+      ) {
+        continue;
+      }
+      runnerEnv.push({ name, value });
+    }
   }
 
   const runnerMounts: V1VolumeMount[] = [

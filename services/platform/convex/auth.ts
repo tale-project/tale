@@ -766,7 +766,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                 await runCtx.scheduler.runAfter(
                   0,
                   internal.organizations.scaffold.scaffoldNewOrganization,
-                  { orgSlug: slug },
+                  { orgSlug: slug, cleanFirst: true },
                 );
                 // Mirror the scaffolded governance files into `configCache` so
                 // V8 readers (password/2FA/feature enforcement) see this org's

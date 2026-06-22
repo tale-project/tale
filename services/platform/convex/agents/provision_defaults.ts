@@ -20,8 +20,9 @@
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import { internalAction } from '../_generated/server';
+import { type ActionCtx, internalAction } from '../_generated/server';
 import { readJsonFile } from '../lib/file_io';
+import { rateLimiter } from '../lib/rate_limiter';
 import {
   MAX_FILE_SIZE_BYTES,
   effectiveAgentSlug,
@@ -33,6 +34,53 @@ import {
 
 const RETRY_DELAY_MS = 30_000;
 const MAX_ATTEMPTS = 3;
+
+/**
+ * Opportunistically heal a never-provisioned org: if the autoInstall sweep has
+ * never run for it, schedule one (rate-limited per org). Called fire-and-forget
+ * from run admission — the current run is still admitted via the liveness gate's
+ * fail-open; this just ensures the org gets provisioned and leaves fail-open
+ * promptly, instead of relying solely on the org-creation hook / deploy runner.
+ *
+ * Early-returns when the org is already provisioned, so it never resurrects a
+ * deliberately-emptied org (those retain their provision rows). Safe to call on
+ * every admission: the `hasAnyProvision` check short-circuits provisioned orgs,
+ * and the rate limiter + the sweep's own per-agent idempotency collapse
+ * concurrent calls to a single provision.
+ */
+export async function ensureAgentsProvisioned(
+  ctx: ActionCtx,
+  organizationId: string,
+  orgSlug: string,
+): Promise<void> {
+  const provisioned = await ctx.runQuery(
+    internal.agents.provision_defaults_mutations.hasAnyProvisionQuery,
+    { organizationId },
+  );
+  if (provisioned) return;
+
+  // Tolerate the rate-limiter component being absent (convexTest doesn't
+  // register it) — skip the heal rather than throw on the run-admission path.
+  try {
+    const { ok } = await rateLimiter.limit(ctx, 'provision:autoheal', {
+      key: organizationId,
+      throws: false,
+    });
+    if (!ok) return;
+  } catch (err) {
+    console.warn(
+      '[AgentProvision] autoheal rate-limit check failed; skipping',
+      err,
+    );
+    return;
+  }
+
+  await ctx.scheduler.runAfter(
+    0,
+    internal.agents.provision_defaults.syncDefaultAgentInstallations,
+    { organizationId, orgSlug },
+  );
+}
 
 export const syncDefaultAgentInstallations = internalAction({
   args: {
@@ -117,6 +165,20 @@ export const syncDefaultAgentInstallations = internalAction({
         });
       }
     }
+
+    // Sweep sentinel: record a reserved provision row so an org whose catalog
+    // has ZERO autoInstall agents still flips `hasAnyProvision` true and leaves
+    // the liveness gate's fail-open — without it the gate would re-schedule this
+    // no-op sweep on every run admission. `__sweep__` can never be a real agent
+    // slug (the `__` separator is reserved), so nothing reads it as an agent.
+    await ctx.runMutation(
+      internal.agents.provision_defaults_mutations.recordProvision,
+      {
+        organizationId: args.organizationId,
+        agentSlug: '__sweep__',
+        contentHash: 'sweep',
+      },
+    );
 
     console.log('[AgentProvision] run', {
       org: args.organizationId,

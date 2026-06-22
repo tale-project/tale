@@ -18,6 +18,7 @@ import { convexErrorCode } from '@/lib/utils/convex-error';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import {
+  useInstallAllWorkflows,
   useInstallWorkflow,
   useInvalidateWorkflows,
   useSaveWorkflow,
@@ -217,6 +218,9 @@ function TemplateTabContent({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
+  const { mutateAsync: installAll, isPending: isInstallingAll } =
+    useInstallAllWorkflows();
+  const invalidateWorkflows = useInvalidateWorkflows();
 
   const handleTemplateInstalled = useCallback(
     (slug: string) => {
@@ -233,6 +237,31 @@ function TemplateTabContent({
     [organizationId, t, navigate],
   );
 
+  const handleInstallAll = useCallback(async () => {
+    try {
+      const result = await installAll({ organizationId });
+      await invalidateWorkflows(organizationId);
+      window.dispatchEvent(new Event('workflow-updated'));
+      const count = result.installed.length;
+      toast({
+        title:
+          count > 0
+            ? t('toast.installedAll', { count })
+            : t('toast.installedAllNone'),
+        variant: 'success',
+      });
+      if (result.failed.length > 0) {
+        toast({
+          title: t('toast.installAllPartial', { count: result.failed.length }),
+          variant: 'destructive',
+        });
+      }
+      onOpenChange(false);
+    } catch {
+      toast({ title: t('toast.createFailed'), variant: 'destructive' });
+    }
+  }, [installAll, invalidateWorkflows, organizationId, t, onOpenChange]);
+
   return (
     <Stack gap={4}>
       <WorkflowTemplateGrid
@@ -240,11 +269,21 @@ function TemplateTabContent({
         integrationName={integrationName}
         onTemplateInstalled={handleTemplateInstalled}
       />
-      <div className="flex justify-end pt-2">
+      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
+        <Button
+          type="button"
+          onClick={handleInstallAll}
+          disabled={isInstallingAll}
+        >
+          {isInstallingAll
+            ? t('createDialog.installingAll')
+            : t('createDialog.installAll')}
+        </Button>
         <Button
           type="button"
           variant="secondary"
           onClick={() => onOpenChange(false)}
+          disabled={isInstallingAll}
         >
           {tCommon('actions.cancel')}
         </Button>

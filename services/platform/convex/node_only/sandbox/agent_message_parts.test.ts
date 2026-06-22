@@ -3,8 +3,13 @@ import { describe, it, expect } from 'vitest';
 import type { AgentEvent } from '../../../lib/agent-adapters/events';
 import {
   buildAssistantContent,
+  buildUiPartsFromTimeline,
+  capAccumulatedLiveParts,
   estimateContentBytes,
+  MAX_LIVE_TIMELINE_PERSIST_BYTES,
+  MAX_LIVE_TIMELINE_PERSIST_PARTS,
   MAX_MESSAGE_BYTES,
+  type UiTimelinePart,
 } from './agent_message_parts';
 
 describe('buildAssistantContent', () => {
@@ -531,5 +536,172 @@ describe('buildAssistantContent — live in-progress text (incremental reveal)',
     expect(buildAssistantContent(events, '', undefined, undefined, '')).toBe(
       '',
     );
+  });
+});
+
+describe('buildUiPartsFromTimeline (live workflow-run transcript)', () => {
+  it('returns a single text part for a tool-less turn', () => {
+    const parts = buildUiPartsFromTimeline([], 'the answer');
+    expect(parts).toEqual([
+      { type: 'text', text: 'the answer', state: 'done' },
+    ]);
+  });
+
+  it('marks the trailing text as streaming while liveText is open', () => {
+    const parts = buildUiPartsFromTimeline(
+      [],
+      '',
+      undefined,
+      undefined,
+      'partial…',
+    );
+    expect(parts).toEqual([
+      { type: 'text', text: 'partial…', state: 'streaming' },
+    ]);
+  });
+
+  it('merges tool-use + tool-result into one tool-<name> part with input+output', () => {
+    const events: AgentEvent[] = [
+      { type: 'text', text: 'Running it.' },
+      {
+        type: 'tool-use',
+        toolUseId: 't1',
+        toolName: 'Bash',
+        input: { command: 'echo hi' },
+      },
+      { type: 'tool-result', toolUseId: 't1', output: 'hi', isError: false },
+    ];
+    const parts = buildUiPartsFromTimeline(events, '') as Array<
+      Record<string, unknown>
+    >;
+    expect(parts[0]).toEqual({
+      type: 'text',
+      text: 'Running it.',
+      state: 'done',
+    });
+    expect(parts[1]).toMatchObject({
+      type: 'tool-Bash',
+      toolCallId: 't1',
+      state: 'output-available',
+      input: { command: 'echo hi' },
+      output: 'hi',
+    });
+  });
+
+  it('leaves an in-flight tool (no result yet) as input-available', () => {
+    const events: AgentEvent[] = [
+      { type: 'tool-use', toolUseId: 't1', toolName: 'Bash', input: {} },
+    ];
+    const parts = buildUiPartsFromTimeline(events, '') as Array<
+      Record<string, unknown>
+    >;
+    expect(parts[0]).toMatchObject({
+      type: 'tool-Bash',
+      state: 'input-available',
+    });
+  });
+
+  it('marks an errored tool result as output-error with errorText', () => {
+    const events: AgentEvent[] = [
+      { type: 'tool-use', toolUseId: 't1', toolName: 'Bash', input: {} },
+      { type: 'tool-result', toolUseId: 't1', output: 'boom', isError: true },
+    ];
+    const parts = buildUiPartsFromTimeline(events, '') as Array<
+      Record<string, unknown>
+    >;
+    expect(parts[0]).toMatchObject({
+      type: 'tool-Bash',
+      state: 'output-error',
+      errorText: 'boom',
+    });
+  });
+
+  it('caps a runaway timeline to a bounded tail with a dropped-head marker', () => {
+    const events: AgentEvent[] = [];
+    for (let i = 0; i < 500; i++) {
+      events.push({
+        type: 'tool-use',
+        toolUseId: `t${i}`,
+        toolName: 'Bash',
+        input: { command: `cmd ${i}` },
+      });
+      events.push({
+        type: 'tool-result',
+        toolUseId: `t${i}`,
+        output: `out ${i}`,
+        isError: false,
+      });
+    }
+    const parts = buildUiPartsFromTimeline(events, 'done');
+    // Bounded well under any doc-cap concern…
+    expect(parts.length).toBeLessThanOrEqual(61);
+    // …and the head-drop is signalled rather than silently truncated.
+    expect(parts[0]).toMatchObject({ type: 'text' });
+    expect((parts[0] as { text: string }).text).toContain('hidden');
+  });
+});
+
+describe('capAccumulatedLiveParts (cross-segment op transcript)', () => {
+  const text = (t: string): UiTimelinePart => ({
+    type: 'text',
+    text: t,
+    state: 'done',
+  });
+  const tool = (id: string, out: string): UiTimelinePart => ({
+    type: 'tool-Bash',
+    state: 'output-available',
+    toolCallId: id,
+    output: out,
+  });
+
+  it('appends THIS segment after the prior window, order preserved', () => {
+    const prior = [text('seg1-a'), tool('t1', 'out1')];
+    const current = [text('seg2-a'), tool('t2', 'out2')];
+    expect(capAccumulatedLiveParts(prior, current)).toEqual([
+      text('seg1-a'),
+      tool('t1', 'out1'),
+      text('seg2-a'),
+      tool('t2', 'out2'),
+    ]);
+  });
+
+  it('returns the prior window UNCHANGED when the segment is empty (the idle-seam regression)', () => {
+    // The exact failure: a resumed segment that emits nothing (agent waiting on
+    // CI) must NOT blank the op — it keeps the prior transcript.
+    const prior = [text('clone'), tool('t1', 'pushed PR'), text('waiting…')];
+    expect(capAccumulatedLiveParts(prior, [])).toEqual(prior);
+  });
+
+  it('an empty prior just yields the current window', () => {
+    const current = [text('first'), tool('t1', 'ok')];
+    expect(capAccumulatedLiveParts([], current)).toEqual(current);
+  });
+
+  it('drops the OLDEST parts past the byte cap, keeping the newest + a marker', () => {
+    // ~60 KB each → ~12 parts blow the 512 KB cap; the tail (newest) survives.
+    const fat = (i: number): UiTimelinePart =>
+      text(`p${i}:${'x'.repeat(60_000)}`);
+    const prior = Array.from({ length: 12 }, (_, i) => fat(i));
+    const current = [text('NEWEST')];
+
+    const kept = capAccumulatedLiveParts(prior, current);
+    const bytes = Buffer.byteLength(JSON.stringify(kept), 'utf8');
+    expect(bytes).toBeLessThanOrEqual(MAX_LIVE_TIMELINE_PERSIST_BYTES);
+    // Newest segment part is retained at the tail…
+    expect(kept[kept.length - 1]).toEqual(current[0]);
+    // …the oldest are gone, and the drop is signalled (not silent truncation).
+    expect(kept[0]).toMatchObject({ type: 'text' });
+    expect((kept[0] as { text: string }).text).toContain('hidden');
+    expect(kept).not.toContainEqual(fat(0));
+  });
+
+  it('caps the part COUNT, keeping the most recent', () => {
+    const prior = Array.from({ length: 300 }, (_, i) => text(`p${i}`));
+    const kept = capAccumulatedLiveParts(prior, [text('LAST')]);
+    expect(kept.length).toBeLessThanOrEqual(
+      MAX_LIVE_TIMELINE_PERSIST_PARTS + 1,
+    );
+    expect(kept[kept.length - 1]).toEqual(text('LAST'));
+    expect((kept[0] as { text: string }).text).toContain('hidden');
   });
 });

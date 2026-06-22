@@ -44,6 +44,7 @@ import { loadDelegateAgents } from '../agent_tools/delegation/load_delegation_ag
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { wrapUntrusted } from '../lib/untrusted_content';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
+import { ensureAgentsProvisioned } from './provision_defaults';
 
 const DEFAULT_RUN_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_RUN_TIMEOUT_MS = 9 * 60 * 1000;
@@ -202,6 +203,10 @@ export const runAgentOnDiscussion = internalAction({
           `Agent "${args.agentSlug}" is disabled or not installed.`,
         );
       }
+      // Best-effort: ensure the org's default agents are provisioned (no-op
+      // once provisioned, which every org is at create). This run is already
+      // admitted via the gate above.
+      await ensureAgentsProvisioned(ctx, args.organizationId, orgSlug);
       const agentConfig = delegate.agentConfig;
 
       // 3. Budget guard (monthly cap). chat_turn shaped: no per-task breaker.

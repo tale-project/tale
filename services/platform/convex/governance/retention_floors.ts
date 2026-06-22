@@ -13,8 +13,8 @@
  *      callers (the editor's V8 action wrapper) call `ctx.runAction(
  *      internal.lib.config_store.actions.readConfigArea,
  *      { area: 'retention', orgSlug })`.
- *      If the org's own file is missing, the wrapper falls back to the
- *      `default` org's file. If both are missing, throws
+ *      The org's OWN file only — no cross-org fallback (every org is seeded
+ *      from the built-in catalog at create). If it is missing, throws
  *      `RetentionConfigMissingError`.
  *   2. **Env-var operator overrides** declared explicitly via the file's
  *      root `_metadata.envNames` — a 1:1 map from env-name suffix to the
@@ -318,7 +318,7 @@ export class RetentionConfigMissingError extends Error {
   readonly hint: string;
   constructor(category: RetentionCategory) {
     const hint =
-      'Copy examples/default/governance/retention.json to $TALE_CONFIG_DIR/default/governance/retention.json';
+      'Copy builtin-configs/governance/retention.json to $TALE_CONFIG_DIR/<orgSlug>/governance/retention.json';
     super(`Retention config missing for category=${category}. ${hint}`);
     this.category = category;
     this.hint = hint;

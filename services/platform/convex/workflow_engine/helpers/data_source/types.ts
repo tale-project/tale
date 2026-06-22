@@ -14,7 +14,8 @@ export type StepType =
   | 'condition'
   | 'action'
   | 'loop'
-  | 'output';
+  | 'output'
+  | 'sandbox';
 
 /**
  * Abstract interface for workflow data sources

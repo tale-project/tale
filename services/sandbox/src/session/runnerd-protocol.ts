@@ -46,9 +46,14 @@ export const RUNNERD_ENV_DENY_PREFIXES = ['TALE_RUNNERD_'] as const;
 export const RUNNERD_ENV_DENY_PROXY_RE = /^(https?|no)_proxy$/i;
 
 export function isDeniedEnvName(name: string): boolean {
-  if ((RUNNERD_ENV_DENYLIST as readonly string[]).includes(name)) return true;
+  // Case-insensitive: these names carry sandbox plumbing regardless of case,
+  // so a lowercase variant (`home`, `tale_runnerd_token`) must not slip a
+  // reserved name past the deny-list. The reserved constants are uppercase, so
+  // normalize the candidate to compare. (The proxy regex is already `/i`.)
+  const upper = name.toUpperCase();
+  if ((RUNNERD_ENV_DENYLIST as readonly string[]).includes(upper)) return true;
   if (RUNNERD_ENV_DENY_PROXY_RE.test(name)) return true;
-  return RUNNERD_ENV_DENY_PREFIXES.some((p) => name.startsWith(p));
+  return RUNNERD_ENV_DENY_PREFIXES.some((p) => upper.startsWith(p));
 }
 
 // --- GET /healthz ----------------------------------------------------------

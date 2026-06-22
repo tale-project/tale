@@ -3,9 +3,9 @@ title: Models out of the box
 description: Which providers and models a fresh Tale instance ships with — OpenRouter covers chat, vision, embeddings, voice, and image generation through a single key.
 ---
 
-A fresh Tale instance ships with one provider configured: **OpenRouter**, covering chat, vision, embeddings, speech-to-text, text-to-speech, and image generation. The default agents in `examples/default/agents/` reach for OpenRouter models, and most teams stay on the defaults for weeks before swapping anything. One key, one rate limit, one bill — and you can still add a direct vendor (OpenAI, a local Ollama/vLLM server, a Bedrock proxy) whenever a workload needs it. This page lists what is shipped and links to the full catalogue.
+A fresh Tale instance ships with one provider configured: **OpenRouter**, covering chat, vision, embeddings, speech-to-text, text-to-speech, and image generation. The default agents in `builtin-configs/agents/` reach for OpenRouter models, and most teams stay on the defaults for weeks before swapping anything. One key, one rate limit, one bill — and you can still add a direct vendor (OpenAI, a local Ollama/vLLM server, a Bedrock proxy) whenever a workload needs it. This page lists what is shipped and links to the full catalogue.
 
-Models drift faster than docs. The lists below are correct at the time `examples/default/providers/openrouter.json` was written; the canonical truth is the JSON file, and the canonical "what is reachable today" is what the **Settings > Providers** page shows on your instance.
+Models drift faster than docs. The lists below are correct at the time `builtin-configs/providers/openrouter.json` was written; the canonical truth is the JSON file, and the canonical "what is reachable today" is what the **Settings > Providers** page shows on your instance.
 
 ## The default provider
 

@@ -33,6 +33,7 @@ const TRANSITION_KEYS_BY_TYPE: Record<StepType, string[]> = {
   action: ['success', 'failure'],
   loop: ['loop', 'done'],
   output: [],
+  sandbox: ['success'],
 };
 
 export function NextStepsEditor({

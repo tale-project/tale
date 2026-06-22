@@ -1,0 +1,21 @@
+{
+  "issueDesk.assign": "Sichten & zuweisen",
+  "issueDesk.implement": "Fehler beheben",
+  "issueDesk.verify": "Tests ausführen",
+  "issueDesk.review": "Prüfen & beheben",
+  "issueDesk.judge": "Merge-Entscheidung",
+  "issueDesk.markInReview": "Als in Prüfung markieren",
+  "issueDesk.verdictReady": "Bereit zum Mergen",
+  "issueDesk.verdictNeedsWork": "Nacharbeit nötig",
+  "issueDesk.taskTemplate": "Behebe dieses GitHub-Issue: {title} (#{number}). Details: {html_url}",
+  "issueDesk.deskTitle": "Issue-Bearbeitung",
+  "issueDesk.deskDescription": "Hol GitHub-Issues herein, mach Aufgaben daraus und lass das Agenten-Team sie lösen.",
+  "issueDesk.tab.issues": "Issues",
+  "issueDesk.tab.tasks": "Aufgaben",
+  "issueDesk.issuesListTitle": "GitHub-Issues",
+  "issueDesk.tasksListTitle": "Aufgaben",
+  "issueDesk.col.number": "Nummer",
+  "issueDesk.col.title": "Titel",
+  "issueDesk.col.state": "Status",
+  "issueDesk.col.status": "Status"
+}

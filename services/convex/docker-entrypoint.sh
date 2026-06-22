@@ -317,21 +317,23 @@ fi
 # Builtin seed (version + layout-marker gated) — org-first layout
 # ----------------------------------------------------------------------------
 # Layout: `<data_dir>/default/<domain>/...` (the canonical default org's
-# subtree); source: `/app/builtin/default/<domain>/...` (org-agnostic
+# subtree); source: `/app/builtin/<domain>/...` (org-agnostic
 # template baked into the convex image).
 #
-# Marker: /app/data/.seeded-${TALE_VERSION}-orgfirst
-# - Fresh volume or new version (or pre-orgfirst marker) → run seed loops
+# Marker: /app/data/.seeded-${TALE_VERSION}-builtin-configs
+# - Fresh volume or new version (or older marker token) → run seed loops
 # - Same version restart → skip (already seeded)
 # - FORCE_SEED=true → re-run regardless (overwrites builtin-named files
 #   in place; user-added files at the same dir and `.history/` siblings
 #   survive; encrypted *.secrets.json files are never written)
 #
-# The `-orgfirst` token in the marker name signals the layout transition:
-# an older binary that doesn't recognize this marker re-seeds (idempotently)
-# into its expected old paths on a hypothetical downgrade.
+# The `-builtin-configs` token signals the catalog-layout transition (the
+# built-in catalog flattened from `<builtin>/default/<domain>` to
+# `<builtin>/<domain>`, and `apps` + the full `governance` domain became
+# seeded). Bumping the token re-seeds (idempotently, non-destructive) on an
+# in-place upgrade so existing same-version volumes pick up the new domains.
 # ----------------------------------------------------------------------------
-seed_marker="$data_dir/.seeded-${TALE_VERSION:-dev}-orgfirst"
+seed_marker="$data_dir/.seeded-${TALE_VERSION:-dev}-builtin-configs"
 # `data_dir` already set above (single source of truth); no re-assign.
 
 # Crash-safe file copy: write to a sibling tmp file then rename to dest.
@@ -385,7 +387,7 @@ run_seed() {
 
   # --- Agents (flat) ---
   local agents_dir="${data_dir}/default/agents"
-  local agents_builtin="/app/builtin/default/agents"
+  local agents_builtin="/app/builtin/agents"
   mkdir -p "$agents_dir"
   if [ -d "$agents_builtin" ] && [ "$(ls -A "$agents_builtin" 2>/dev/null)" ]; then
     for src in "$agents_builtin"/*.json; do
@@ -408,7 +410,7 @@ run_seed() {
 
   # --- Prompts (flat) ---
   local prompts_dir="${data_dir}/default/prompts"
-  local prompts_builtin="/app/builtin/default/prompts"
+  local prompts_builtin="/app/builtin/prompts"
   mkdir -p "$prompts_dir"
   if [ -d "$prompts_builtin" ] && [ "$(ls -A "$prompts_builtin" 2>/dev/null)" ]; then
     for src in "$prompts_builtin"/*.json; do
@@ -431,7 +433,7 @@ run_seed() {
 
   # --- Workflows (nested folder/name.json) ---
   local workflows_dir="${data_dir}/default/workflows"
-  local workflows_builtin="/app/builtin/default/workflows"
+  local workflows_builtin="/app/builtin/workflows"
   mkdir -p "$workflows_dir"
   if [ -d "$workflows_builtin" ] && [ "$(ls -A "$workflows_builtin" 2>/dev/null)" ]; then
     # Aggregate per-file failure count. Previously the seed loop ran
@@ -482,7 +484,7 @@ run_seed() {
 
   # --- Integrations (directory bundles) ---
   local integrations_dir="${data_dir}/default/integrations"
-  local integrations_builtin="/app/builtin/default/integrations"
+  local integrations_builtin="/app/builtin/integrations"
   mkdir -p "$integrations_dir"
   if [ -d "$integrations_builtin" ] && [ "$(ls -A "$integrations_builtin" 2>/dev/null)" ]; then
     for src_dir in "$integrations_builtin"/*/; do
@@ -502,7 +504,7 @@ run_seed() {
 
   # --- Skills (directory bundles: SKILL.md + scripts/ + references/ + assets/) ---
   local skills_dir="${data_dir}/default/skills"
-  local skills_builtin="/app/builtin/default/skills"
+  local skills_builtin="/app/builtin/skills"
   mkdir -p "$skills_dir"
   if [ -d "$skills_builtin" ] && [ "$(ls -A "$skills_builtin" 2>/dev/null)" ]; then
     for src_dir in "$skills_builtin"/*/; do
@@ -519,7 +521,7 @@ run_seed() {
 
   # --- Providers (skip encrypted .secrets.json) ---
   local providers_dir="${data_dir}/default/providers"
-  local providers_builtin="/app/builtin/default/providers"
+  local providers_builtin="/app/builtin/providers"
   mkdir -p "$providers_dir"
   if [ -d "$providers_builtin" ] && [ "$(ls -A "$providers_builtin" 2>/dev/null)" ]; then
     for src in "$providers_builtin"/*.json; do
@@ -547,7 +549,7 @@ run_seed() {
   # path. With org-first the default org needs the same treatment as any
   # other org for consistency (uniform model).
   local branding_dir="${data_dir}/default/branding"
-  local branding_src="/app/builtin/default/branding/branding.json"
+  local branding_src="/app/builtin/branding/branding.json"
   mkdir -p "$branding_dir"
   if [ -f "$branding_src" ]; then
     local dest="$branding_dir/branding.json"
@@ -563,24 +565,54 @@ run_seed() {
     fi
   fi
 
-  # --- Retention (single file at default/retention.json) ---
-  # Retention is one JSON object per org under the uniform org-first layout
-  # (`$TALE_CONFIG_DIR/<orgSlug>/retention.json`). The catalog ships only
-  # the default org's retention config; non-default orgs are seeded by the
-  # Convex scaffold action.
-  local retention_src="/app/builtin/default/retention.json"
-  if [ -f "$retention_src" ]; then
-    local dest="${data_dir}/default/retention.json"
-    local history_dir="${data_dir}/default/.history/retention"
-    if [ "$FORCE_SEED" = "true" ]; then
-      atomic_cp "$retention_src" "$dest"; echo "   - Seeded retention (forced)"
-    elif [ -f "$dest" ]; then
-      echo "   ⏭ Skipping retention (already exists)"
-    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-      echo "   ⏭ Skipping retention (user has modifications in .history)"
-    else
-      atomic_cp "$retention_src" "$dest"; echo "   - Seeded retention"
-    fi
+  # --- Governance (flat; skip encrypted .secrets.json) ---
+  # The full governance domain — policies (login/password/2FA/model-access/...)
+  # PLUS the retention.json bounds catalog — all live under <org>/governance/.
+  # Mirrors the Convex scaffold's flat-domain copy. The `sso/` subdir and
+  # `*.secrets.json` sidecars are intentionally not seeded here (matching
+  # scaffold.ts flat-mode, which skips subdirs/secrets).
+  local governance_dir="${data_dir}/default/governance"
+  local governance_builtin="/app/builtin/governance"
+  mkdir -p "$governance_dir"
+  if [ -d "$governance_builtin" ] && [ "$(ls -A "$governance_builtin" 2>/dev/null)" ]; then
+    for src in "$governance_builtin"/*.json; do
+      [ -f "$src" ] || continue
+      local name="$(basename "$src")"
+      [[ "$name" == *.secrets.json ]] && continue
+      local slug="$(basename "$src" .json)"
+      local dest="$governance_dir/$name"
+      local history_dir="$governance_dir/.history/$slug"
+      if [ "$FORCE_SEED" = "true" ]; then
+        atomic_cp "$src" "$dest"; echo "   - Seeded governance $name (forced)"
+      elif [ -f "$dest" ]; then
+        echo "   ⏭ Skipping governance $name (already exists)"
+      elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+        echo "   ⏭ Skipping governance $name (user has modifications in .history)"
+      else
+        atomic_cp "$src" "$dest"; echo "   - Seeded governance $name"
+      fi
+    done
+  fi
+
+  # --- Apps (directory bundles: app.json + views/ + messages/ + scripts/ +
+  # the app's own app-scoped agents/ + workflows/) ---
+  # Apps are a first-class seeded config domain (uniform with skills/integrations):
+  # the bundle is the install SOURCE; the DB `appInstallations` row is what marks
+  # an app installed. Mirrors the Convex scaffold's bundle-domain copy.
+  local apps_dir="${data_dir}/default/apps"
+  local apps_builtin="/app/builtin/apps"
+  mkdir -p "$apps_dir"
+  if [ -d "$apps_builtin" ] && [ "$(ls -A "$apps_builtin" 2>/dev/null)" ]; then
+    for src_dir in "$apps_builtin"/*/; do
+      [ -d "$src_dir" ] || continue
+      local name="$(basename "$src_dir")"
+      local dest_dir="$apps_dir/$name"
+      if [ "$FORCE_SEED" = "true" ]; then
+        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded app $name (forced)"; continue
+      fi
+      if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping app $name (already exists)"; continue; fi
+      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded app $name"
+    done
   fi
 
   touch "$seed_marker"

@@ -1,0 +1,21 @@
+{
+  "issueDesk.assign": "Tri et affectation",
+  "issueDesk.implement": "Implémenter le correctif",
+  "issueDesk.verify": "Lancer les tests",
+  "issueDesk.review": "Vérifier et corriger",
+  "issueDesk.judge": "Décision de merge",
+  "issueDesk.markInReview": "Marquer comme en revue",
+  "issueDesk.verdictReady": "Prêt à merger",
+  "issueDesk.verdictNeedsWork": "À retravailler",
+  "issueDesk.taskTemplate": "Corrige ce ticket GitHub : {title} (#{number}). Détails : {html_url}",
+  "issueDesk.deskTitle": "Résolution des Issues",
+  "issueDesk.deskDescription": "Récupère les Issues GitHub, transforme-les en tâches et laisse l'équipe d'agents les résoudre.",
+  "issueDesk.tab.issues": "Issues",
+  "issueDesk.tab.tasks": "Tâches",
+  "issueDesk.issuesListTitle": "Issues GitHub",
+  "issueDesk.tasksListTitle": "Tâches",
+  "issueDesk.col.number": "Numéro",
+  "issueDesk.col.title": "Titre",
+  "issueDesk.col.state": "État",
+  "issueDesk.col.status": "Statut"
+}

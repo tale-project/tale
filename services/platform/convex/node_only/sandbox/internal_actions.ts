@@ -176,6 +176,12 @@ export const executeCode = internalAction({
       }),
     ),
     timeoutMs: v.optional(v.number()),
+    /**
+     * Step-scoped env injected into the runtime process. Only the workflow
+     * `sandbox` script path sets this (resolved/templated upstream); the
+     * run_code LLM tool leaves it undefined. The spawner sanitizes it.
+     */
+    env: v.optional(v.record(v.string(), v.string())),
     purpose: v.string(),
     /** Optional skill provenance — recorded on the audit row only. */
     sourceCitationSkillSlug: v.optional(v.string()),
@@ -374,6 +380,8 @@ export const executeCode = internalAction({
           ...(args.packagesByLang !== undefined && {
             packagesByLang: args.packagesByLang,
           }),
+          ...(args.env !== undefined &&
+            Object.keys(args.env).length > 0 && { env: args.env }),
           outputUploadSlots: preAllocSlots,
           outputUrlEndpoint,
           reportUploadedEndpoint,

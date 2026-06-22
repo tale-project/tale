@@ -41,6 +41,10 @@ export interface ExecutionNodeState {
 export interface ExecutionStepStatuses {
   execution: {
     status: Doc<'wfExecutions'>['status'];
+    /** Workflow slug + org so a UI can read the matching DEFINITION (steps +
+     * `ui`/`role` annotations) from one reactive payload, no extra fetch. */
+    workflowSlug?: string;
+    organizationId: string;
     currentStepSlug?: string;
     currentStepName?: string;
     waitingFor?: string;
@@ -112,14 +116,23 @@ function deriveEntryStatus(
   }
   if (kind === 'canceled') return { status: 'canceled' };
   if (kind === 'success') {
-    // executeStep returns `{ port, error? }`; a step that routed through its
-    // error port failed even though the action resolved successfully.
+    // executeStep returns `{ port, error? }`. The action resolving `success`
+    // does NOT mean the step settled — its routing port carries that.
     const returnValue = runResult?.returnValue;
-    if (isRecord(returnValue) && getString(returnValue, 'port') === 'error') {
-      return {
-        status: 'failed',
-        error: getString(returnValue, 'error'),
-      };
+    if (isRecord(returnValue)) {
+      const port = getString(returnValue, 'port');
+      // A step that routed through its error port failed even though the
+      // action itself resolved successfully.
+      if (port === 'error') {
+        return { status: 'failed', error: getString(returnValue, 'error') };
+      }
+      // A DURABLE sandbox step crosses each <10-min action boundary by
+      // returning on the INTERNAL `running` control port (the handler re-enters
+      // the SAME step — see dynamic_workflow_handler). The STEP is still
+      // running, so it must read `running` — otherwise the run view sees a
+      // momentary terminal node, drops the live transcript, and flashes the
+      // `{status:'running'}` handoff envelope as raw JSON each seam.
+      if (port === 'running') return { status: 'running' };
     }
     return { status: 'success' };
   }
@@ -246,6 +259,10 @@ export function deriveStepStatuses(
   return {
     execution: {
       status: execution.status,
+      ...(execution.workflowSlug !== undefined && {
+        workflowSlug: execution.workflowSlug,
+      }),
+      organizationId: execution.organizationId,
       currentStepSlug: execution.currentStepSlug,
       currentStepName: execution.currentStepName,
       waitingFor: execution.waitingFor,

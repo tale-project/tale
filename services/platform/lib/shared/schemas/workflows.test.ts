@@ -79,4 +79,54 @@ describe('workflowJsonSchema', () => {
       expect(result.data.requires).toBeUndefined();
     }
   });
+
+  it('parses and round-trips a step with ui + role annotations', () => {
+    const input = {
+      name: 'Annotated',
+      steps: [
+        {
+          stepSlug: 'review',
+          name: 'Review',
+          stepType: 'action',
+          role: 'reviewer',
+          ui: {
+            stage: 'review',
+            render: 'review',
+            labelKey: 'pack.issueDesk.review',
+            params: { mode: 'gate', cardinality: 'one' },
+          },
+        },
+      ],
+    };
+    const result = workflowJsonSchema.safeParse(input);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const step = result.data.steps[0];
+      expect(step?.role).toBe('reviewer');
+      expect(step?.ui?.render).toBe('review');
+      expect(step?.ui?.params?.mode).toBe('gate');
+      // round-trip: re-parsing the serialized output is stable
+      const reparsed = workflowJsonSchema.safeParse(
+        JSON.parse(JSON.stringify(result.data)),
+      );
+      expect(reparsed.success).toBe(true);
+    }
+  });
+
+  it('keeps an unknown render value parseable (known-ness is a validator concern)', () => {
+    // The file schema is lenient so files never become unloadable as the
+    // vocabulary evolves; validateWorkflowDefinition flags unknown kinds.
+    const result = workflowJsonSchema.safeParse({
+      name: 'Lenient',
+      steps: [
+        {
+          stepSlug: 's',
+          name: 'S',
+          stepType: 'action',
+          ui: { render: 'not_a_real_kind' },
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
 });

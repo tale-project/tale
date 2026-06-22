@@ -4,7 +4,7 @@ import { Badge } from '@tale/ui/badge';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Bot, Folder } from 'lucide-react';
+import { Bot, Folder, Package } from 'lucide-react';
 import { useMemo } from 'react';
 
 import {
@@ -59,12 +59,18 @@ export function useAgentsTableConfig({
         size: 250,
         cell: ({ row }) => {
           if (row.original.type === 'folder') {
+            const isApp = row.original.appSlug !== undefined;
             return (
               <div className="flex min-h-8 items-center gap-3">
-                <Folder className="text-muted-foreground size-4 shrink-0" />
+                {isApp ? (
+                  <Package className="text-muted-foreground size-4 shrink-0" />
+                ) : (
+                  <Folder className="text-muted-foreground size-4 shrink-0" />
+                )}
                 <Text as="span" variant="label" truncate>
                   {row.original.name}
                 </Text>
+                {isApp && <Badge variant="slate">{t('agents.appBadge')}</Badge>}
                 <Badge variant="outline">{row.original.agentCount}</Badge>
               </div>
             );
@@ -136,6 +142,7 @@ export function useAgentsTableConfig({
                 organizationId={organizationId}
                 onDuplicated={onDuplicated}
                 onDeleted={onDeleted}
+                isAppOwned={row.original.appSlug !== undefined}
               />
             </HStack>
           );

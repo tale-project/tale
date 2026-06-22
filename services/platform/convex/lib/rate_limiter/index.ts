@@ -519,6 +519,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
     capacity: 1,
   },
+  // Per-org opportunistic self-heal: the agent-liveness gate schedules the
+  // autoInstall sweep when it finds a never-provisioned org at run admission.
+  // Caps it to one schedule per org per few minutes so concurrent admissions in
+  // a fresh org collapse to a single provision. Token-bucket (not fixed-window)
+  // for the same minute-boundary reason as the cleanup tiers above.
+  'provision:autoheal': {
+    kind: 'token bucket',
+    rate: 1,
+    period: 5 * MINUTE,
+    capacity: 1,
+  },
   // Lazy cleanup of expired slackEventDedup rows. Gated from claimSlackEvent so
   // a busy workspace sweeps at most once per hour. Token-bucket (not
   // fixed-window) for the same minute-boundary reason as cleanup:tts.

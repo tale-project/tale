@@ -168,8 +168,19 @@ export const claimRun = withRestAuth('runtime:claim', async (rc, request) => {
       adapterTypes,
     },
   );
+  // Resolve + inject the agent's env/secrets at claim time (decrypt-at-run):
+  // ciphertext stays at rest in `agentEnv`; the decrypted values ride only this
+  // authenticated claim response, and the daemon merges them into the process.
+  let claimedRun = run;
+  if (isRecord(run) && typeof run.agentSlug === 'string') {
+    const { env } = await rc.ctx.runAction(
+      internal.agents.agent_env_actions.resolveAgentEnv,
+      { organizationId: rc.org.organizationId, agentSlug: run.agentSlug },
+    );
+    if (Object.keys(env).length > 0) claimedRun = { ...run, env };
+  }
   return jsonOk({
-    run,
+    run: claimedRun,
     retryAfterMs: run ? RETRY_AFTER_HOT_MS : RETRY_AFTER_IDLE_MS,
   });
 });

@@ -118,6 +118,24 @@ export const sandboxSessionOpsTable = defineTable({
    *  parallel op buffer. Kept optional so legacy rows still pass the read
    *  validator. */
   recentEvents: v.optional(v.array(v.string())),
+  /** Live tool/reasoning transcript for a WORKFLOW-RUN step, in the AI-SDK
+   *  UI-part shape `buildMessageSegments` reads. The chat path renders this from
+   *  the persisted assistant message, but a workflow run has no message — so its
+   *  run view reads a bounded tail (recent N parts) from here. Written only for
+   *  threadId-less workflow ops; dies with the op at teardown. */
+  liveTimeline: v.optional(
+    v.array(
+      v.object({
+        type: v.string(),
+        text: v.optional(v.string()),
+        state: v.optional(v.string()),
+        toolCallId: v.optional(v.string()),
+        input: v.optional(v.any()),
+        output: v.optional(v.any()),
+        errorText: v.optional(v.string()),
+      }),
+    ),
+  ),
   /** Captured agent session id so the next turn can --resume / -s. */
   agentSessionId: v.optional(v.string()),
   exitCode: v.optional(v.number()),
@@ -207,6 +225,41 @@ export const sandboxSessionOpsTable = defineTable({
   // order('desc') on startedAt → O(1) most-recent, replacing an
   // O(ops-in-thread) scan that re-ran on every reactive tick.
   .index('by_threadId_kind_and_startedAt', ['threadId', 'kind', 'startedAt']);
+
+/**
+ * Resume checkpoint for a DURABLE workflow `sandbox`-step agent run. A single
+ * `sandbox` step can outlast the 10-min Convex action ceiling: each action runs
+ * one attach-window over the continuously-running exec, hands off with status
+ * 'running', and the durable workflow handler re-enters the SAME step — the next
+ * action re-attaches from this cursor. (The exec never stops; only the
+ * platform's attach is segmented.)
+ *
+ * Unlike the chat path (whose checkpoint is a `_storage` timeline blob, needed
+ * to RENDER the message across segments), a workflow sandbox run renders no
+ * timeline — it only needs the tiny, bounded re-attach cursor. So it lives
+ * INLINE here. One row per session (deterministic `sessionIdForWorkflowRun`):
+ * written on each handoff, read by the next segment, deleted on the terminal
+ * segment (and by the stale-session reaper).
+ */
+export const sandboxAgentCheckpointsTable = defineTable({
+  organizationId: v.string(),
+  sessionId: v.string(),
+  execId: v.string(),
+  /** Re-attach cursor → `runAgentInSessionImpl` `resumeFrom`. */
+  lastSeq: v.number(),
+  agentSessionId: v.optional(v.string()),
+  /** stdin-hold lifecycle carried across the seam (claude-code linger loop):
+   * without these the next segment could EOF a process whose pending background
+   * tasks it never saw start (the re-attach replays only events after lastSeq). */
+  agentResultSeen: v.optional(v.boolean()),
+  agentIdle: v.optional(v.boolean()),
+  pendingTaskIds: v.optional(v.array(v.string())),
+  /** Cumulative-budget tracking ACROSS segments: the step's `maxWallClockMs` is
+   * a hard total cap, independent of any single action window. */
+  startedAt: v.number(),
+  continuationCount: v.number(),
+  updatedAt: v.number(),
+}).index('by_sessionId', ['sessionId']);
 
 /**
  * Audit row for every Tier-2 credential fetch (the integration-credential

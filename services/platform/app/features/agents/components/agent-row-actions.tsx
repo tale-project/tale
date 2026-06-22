@@ -12,7 +12,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { PROTECTED_AGENT_NAMES } from '@/lib/shared/constants/agents';
 
-import { useDuplicateAgent } from '../hooks/mutations';
+import { useDuplicateAgent, useInstallCatalogAgent } from '../hooks/mutations';
 import { AgentDeleteDialog } from './agent-delete-dialog';
 
 interface AgentRowActionsProps {
@@ -20,6 +20,11 @@ interface AgentRowActionsProps {
   organizationId: string;
   onDuplicated?: (newAgentName: string) => void;
   onDeleted?: () => void;
+  /**
+   * App-owned agents can't be individually deleted from the global roster — they
+   * go away only with their app's uninstall — so the delete action is hidden.
+   */
+  isAppOwned?: boolean;
 }
 
 export function AgentRowActions({
@@ -27,12 +32,14 @@ export function AgentRowActions({
   organizationId,
   onDuplicated,
   onDeleted,
+  isAppOwned = false,
 }: AgentRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t } = useT('settings');
   const navigate = useNavigate();
   const dialogs = useEntityRowDialogs(['delete']);
   const { mutateAsync: duplicateAgent } = useDuplicateAgent();
+  const { mutateAsync: installAgent } = useInstallCatalogAgent();
   const [isDuplicating, setIsDuplicating] = useState(false);
 
   // U1: Rename navigates to the agent's general settings page where the
@@ -54,6 +61,17 @@ export function AgentRowActions({
         organizationId,
         agentName,
       });
+      // Install (enable) the copy so it shows in the installed-only list, like
+      // the original. Non-fatal: the file exists and can be installed from the
+      // Catalog if this fails (e.g. non-admin).
+      try {
+        await installAgent({ organizationId, agentSlug: newAgentName });
+      } catch (installErr) {
+        console.warn(
+          '[AgentRowActions] agent duplicated but auto-install failed',
+          installErr,
+        );
+      }
       toast({
         title: t('agents.agentDuplicated'),
         variant: 'success',
@@ -71,6 +89,7 @@ export function AgentRowActions({
   }, [
     isDuplicating,
     duplicateAgent,
+    installAgent,
     agentName,
     organizationId,
     t,
@@ -98,7 +117,7 @@ export function AgentRowActions({
       label: tCommon('actions.delete'),
       icon: Trash2,
       destructive: true,
-      visible: !isProtected,
+      visible: !isProtected && !isAppOwned,
       onClick: () => dialogs.open.delete(),
     },
   ];

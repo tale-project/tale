@@ -4,6 +4,7 @@ import {
   MessageCircle,
   Inbox,
   BrainIcon,
+  LayoutGrid,
   Network,
   Bot,
   Folder,
@@ -58,6 +59,13 @@ export function useNavigationItems(businessId: string): NavigationItems {
           params: { id: businessId },
           href: `/dashboard/${businessId}/chat`,
           icon: MessageCircle,
+        },
+        {
+          label: tNav('apps'),
+          to: '/dashboard/$id/apps',
+          params: { id: businessId },
+          href: `/dashboard/${businessId}/apps`,
+          icon: LayoutGrid,
         },
         {
           label: tProjects('title'),

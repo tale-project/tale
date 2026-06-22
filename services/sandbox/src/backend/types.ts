@@ -68,6 +68,12 @@ export interface LaunchSpec {
   startedAtMs: number;
   /** Absolute path the runtime entrypoint will exec (see docker-args.ts). */
   entryPath: string;
+  /**
+   * Sanitized step-scoped env (reserved names already dropped by
+   * validate-request). Merged into the runtime process env WITHOUT
+   * overriding the infrastructure baseline (proxy / cache / HOME).
+   */
+  userEnv?: Record<string, string>;
   workspace: Workspace;
 }
 

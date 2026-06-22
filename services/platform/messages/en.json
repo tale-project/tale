@@ -1,4 +1,201 @@
 {
+  "apps": {
+    "title": "Apps",
+    "empty": {
+      "title": "No apps yet",
+      "description": "Installed packs appear here as apps."
+    },
+    "notFound": {
+      "title": "App not found",
+      "description": "This pack is not installed."
+    },
+    "noViews": {
+      "title": "Nothing to show yet",
+      "description": "This pack has no pages configured."
+    },
+    "install": {
+      "install": "Install",
+      "installed": "Installed",
+      "reinstall": "Reinstall",
+      "setup": "Finish setup",
+      "uninstall": "Uninstall",
+      "notInstalledTitle": "Not installed yet",
+      "notInstalledDescription": "Install this app to add its agents and workflows to your organization.",
+      "chooseProjectTitle": "Install {name}",
+      "chooseProjectDescription": "This app runs inside a project. Choose where its tasks and pages live.",
+      "projectLabel": "Project",
+      "projectPlaceholder": "Select a project",
+      "projectSearchPlaceholder": "Search projects…",
+      "noProjects": "No projects found.",
+      "createProject": "Create new project",
+      "menuLabel": "Manage {name}",
+      "reinstallTitle": "Reinstall app",
+      "reinstallDescription": "Refreshes this app's files from the latest template. Your environment variables and secrets are kept; any changes you made to its files are replaced.",
+      "reinstalled": "App reinstalled",
+      "reinstallFailed": "Couldn't reinstall the app",
+      "uninstallTitle": "Uninstall app",
+      "uninstallDescription": "This removes the app and everything it installed from your organization.",
+      "uninstallWarning": "Its agents, workflows, pages, and their environment variables and secrets are deleted. Connected integrations stay.",
+      "uninstalled": "App uninstalled",
+      "uninstallFailed": "Couldn't uninstall the app"
+    },
+    "readiness": {
+      "title": "Finish setup",
+      "broken": "Some installed files are missing. Reinstall to restore them.",
+      "connect": "Connect {integration} to use this app.",
+      "connectButton": "Connect"
+    },
+    "confirm": "Are you sure?",
+    "binding": {
+      "empty": "Nothing to show yet.",
+      "blocked": "This view is not allowed to call {path}."
+    },
+    "detail": {
+      "title": "Details"
+    },
+    "review": {
+      "none": "No pending reviews.",
+      "awaiting": "Awaiting approval"
+    },
+    "issues": {
+      "createTask": "Create task"
+    },
+    "list": {
+      "refresh": "Refresh",
+      "error": "Couldn't load data: {error}",
+      "prev": "Previous",
+      "next": "Next",
+      "page": "Page {page}",
+      "created": "Created",
+      "start": "Start",
+      "markDone": "Mark done",
+      "merge": "Merge pull request"
+    },
+    "agents": {
+      "none": "No agents configured.",
+      "error": "Couldn't load agents: {error}",
+      "editInstructions": "Edit instructions",
+      "envSecrets": "Env & secrets",
+      "authMode": {
+        "label": "Auth",
+        "byo": "BYO",
+        "managed": "Managed",
+        "error": "Couldn't switch the agent's auth mode"
+      },
+      "instructions": {
+        "title": "Edit instructions — {name}",
+        "description": "The system prompt that steers this agent. Changes apply to the next run.",
+        "placeholder": "Describe how this agent should behave…",
+        "save": "Save",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "saved": "Instructions saved",
+        "saveError": "Couldn't save instructions",
+        "loadError": "Couldn't load this agent."
+      },
+      "env": {
+        "title": "Environment & secrets — {name}",
+        "description": "Env vars and secrets injected into this agent's runs. Secrets are encrypted at rest, shown masked, and decrypted only at run time.",
+        "none": "No environment variables yet.",
+        "keyPlaceholder": "NAME",
+        "valuePlaceholder": "value",
+        "secret": "Secret",
+        "secretKept": "•••••••• (unchanged)",
+        "add": "Add variable",
+        "remove": "Remove",
+        "save": "Save",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "saved": "Environment saved",
+        "saveError": "Couldn't save environment",
+        "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit).",
+        "dupKey": "Duplicate variable name — each NAME must be unique."
+      }
+    },
+    "workflow": {
+      "none": "This workflow has no steps.",
+      "error": "Couldn't load the workflow: {error}"
+    },
+    "runs": {
+      "none": "No runs yet.",
+      "colRun": "Run",
+      "colStatus": "Status",
+      "colStarted": "Started",
+      "watchLive": "Watch live"
+    }
+  },
+  "operator": {
+    "gate": "Decision",
+    "state": {
+      "upcoming": "Up next",
+      "live": "Live",
+      "loading": "Pending",
+      "running": "Running",
+      "output_available": "Done",
+      "output_error": "Error",
+      "waiting_human": "Needs you",
+      "waiting_external": "Waiting",
+      "empty": "No output"
+    },
+    "field": {
+      "duration": "Duration",
+      "count": "Count",
+      "source": "Source",
+      "rowsIn": "Rows in",
+      "rowsOut": "Rows out",
+      "fields": "Fields",
+      "check": "Check",
+      "matched": "Matched",
+      "unmatched": "Unmatched",
+      "before": "Before",
+      "after": "After"
+    },
+    "check": {
+      "pass": "Pass",
+      "warn": "Warn",
+      "fail": "Fail"
+    },
+    "review": {
+      "gate": "Awaiting approval",
+      "form": "Input required",
+      "choice": "Choose an option"
+    },
+    "action": {
+      "open": "Open",
+      "openFile": "Open {name}"
+    },
+    "verdict": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "filePreview": {
+      "description": "Preview of {name}",
+      "loading": "Loading preview…",
+      "error": "Couldn't load the preview.",
+      "openInNewTab": "Open in a new tab"
+    },
+    "body": {
+      "waitingExternal": "Waiting for an external event to continue.",
+      "empty": "This step produced no output.",
+      "noDetails": "No details to show."
+    },
+    "rerun": {
+      "button": "Re-run",
+      "started": "Re-run started",
+      "alreadyRunning": "A run is already in progress.",
+      "notStarted": "Couldn't start the run — check the workflow is installed."
+    },
+    "stop": {
+      "button": "Stop",
+      "stopped": "Run stopped",
+      "failed": "Couldn't stop the run.",
+      "confirm": {
+        "title": "Stop this run?",
+        "description": "This cancels the workflow immediately. Steps in progress are abandoned and the run is marked failed. This can't be undone.",
+        "confirm": "Stop run"
+      }
+    }
+  },
   "accessDenied": {
     "title": "Access denied",
     "automations": "You need Admin or Developer permissions to access automations.",
@@ -352,6 +549,7 @@
   },
   "automations": {
     "title": "Automations",
+    "appBadge": "App",
     "tabs": {
       "list": "List",
       "catalog": "Catalog",
@@ -454,7 +652,9 @@
       "validation": {
         "nameRequired": "Name is required",
         "invalidJson": "Invalid JSON in variables field"
-      }
+      },
+      "env": "Environment & secrets",
+      "envHelp": "Variables injected into every sandbox step of this automation. Mark a value as a secret to encrypt it; secrets are write-only. A step can override any of these."
     },
     "triggers": {
       "title": "Triggers",
@@ -582,7 +782,9 @@
       "namePlaceholder": "e.g., Social media workflow",
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
-      "continue": "Continue"
+      "continue": "Continue",
+      "installAll": "Install all",
+      "installingAll": "Installing all..."
     },
     "uploadDialog": {
       "menuItem": "Upload file",
@@ -662,7 +864,9 @@
       "saving": "Saving...",
       "resizePanel": "Resize panel",
       "stepEditor": "Step editor",
-      "fileBasedStepSaveUnsupported": "Step saving isn't wired up for file-based workflows yet."
+      "fileBasedStepSaveUnsupported": "Step saving isn't wired up for file-based workflows yet.",
+      "env": "Environment & secrets",
+      "envHelp": "Variables injected into this step's sandbox, overriding the automation-level values on a name clash."
     },
     "nextSteps": {
       "endWorkflow": "End workflow",
@@ -696,7 +900,10 @@
     },
     "toast": {
       "created": "Automation created successfully",
-      "createFailed": "Failed to create automation"
+      "createFailed": "Failed to create automation",
+      "installedAll": "{count} automations installed",
+      "installedAllNone": "All templates are already installed",
+      "installAllPartial": "{count} templates could not be installed"
     },
     "validation": {
       "duplicateName": "An automation with this name already exists",
@@ -4002,6 +4209,7 @@
   },
   "navigation": {
     "chatWithAI": "Chat",
+    "apps": "Apps",
     "conversations": "Conversations",
     "knowledge": "Knowledge",
     "automations": "Automations",
@@ -4795,6 +5003,7 @@
     "errors": {
       "PROJECT_FORBIDDEN": "You don't have access to this project.",
       "PROJECT_NOT_FOUND": "We couldn't find that project. It may have been deleted.",
+      "PROJECT_HAS_BOUND_APPS": "Uninstall the apps using this project first, then delete it.",
       "PROJECT_MISMATCH": "This chat is in a different project. Switch context to continue.",
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} isn't available in this project. Pick another agent.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} isn't available in this project. Pick another model.",
@@ -5020,6 +5229,7 @@
         "blank": "Blank",
         "fromTemplate": "From template"
       },
+      "appBadge": "App",
       "searchAgent": "Search agents",
       "columns": {
         "displayName": "Name",
@@ -5059,7 +5269,8 @@
         "responseTuning": "Response tuning",
         "conversationStarters": "Starters",
         "history": "History",
-        "metrics": "Performance"
+        "metrics": "Performance",
+        "environment": "Environment"
       },
       "history": {
         "empty": "No history entries",
@@ -5337,6 +5548,10 @@
         "exampleFileUploadStream": "File upload with streaming (SSE response)",
         "exampleOpenAICompat": "OpenAI-compatible endpoint (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "OpenAI client config (e.g. Meetily)"
+      },
+      "env": {
+        "title": "Environment & secrets",
+        "description": "Variables injected when this agent runs in a sandbox — workflow steps and external runs. Mark a value as a secret to encrypt it; secrets are write-only."
       }
     },
     "skills": {
@@ -7416,5 +7631,19 @@
       "description": "Sandboxes start automatically when a member chats with a coding agent."
     },
     "accessDenied": "You need developer or admin access to manage sandboxes."
+  },
+  "envEditor": {
+    "none": "No environment variables yet.",
+    "keyPlaceholder": "NAME",
+    "valuePlaceholder": "value",
+    "secret": "Secret",
+    "add": "Add variable",
+    "remove": "Remove",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Environment saved",
+    "saveError": "Couldn't save environment",
+    "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit).",
+    "dupKey": "Duplicate variable name — each NAME must be unique."
   }
 }

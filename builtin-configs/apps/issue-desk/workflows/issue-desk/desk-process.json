@@ -1,0 +1,274 @@
+{
+  "name": "Issue resolution desk",
+  "description": "A config-driven, repo-agnostic issue-resolution desk. A GitHub issue (bound to a task by the github sync) is picked up by an implementer Claude Code agent that runs in the platform's own ephemeral sandbox on the user's BYO Claude credentials: it derives the repo from the issue, clones it, fixes the issue on a tale/<id> branch, runs the project's OWN tests to verify, commits, pushes (broker-injected github token + the in-image credential helper, private repos included), opens a pull request, and then WAITS for the project's CI to pass green — fixing failures and re-pushing until it does. The sandbox step is durable: it transparently spans the 10-minute Convex action ceiling (segmenting into re-attached windows), so a 40-50 minute CI run never times the step out, with no separate CI-poll step. A separate reviewer agent fetches the PR, re-runs the tests, confirms CI is green, and posts review comments. A toolless LLM judge then reads the review and decides merge-readiness: if yes, the task parks at In review and the workflow ends (the human merges); if no, it loops back to the implementer with the review feedback, repeating until the judge approves — or until the rework loop hits a configurable cap (config.variables.maxReworkLoops, default 3, adjustable per deployment), after which the desk stops looping, comments on the task, and parks it at In review for a human to take over. Cross-step state lives on the git branch + PR (plus a reworkCount loop counter in workflow variables); the per-step sandboxes are stateless. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
+  "version": "1.1.0",
+  "metadata": {
+    "pack": "issue-desk",
+    "autoInstall": false
+  },
+  "config": {
+    "timeout": 21600000,
+    "variables": {
+      "workflowId": "issue_desk_process",
+      "maxReworkLoops": 3,
+      "roles": {
+        "implementer": "issue-desk/desk-implementer",
+        "reviewer": "issue-desk/desk-reviewer"
+      }
+    }
+  },
+  "requires": {
+    "integrations": [
+      {
+        "name": "github",
+        "operations": ["get_issue", "create_pull_request"]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": {
+        "success": "ack"
+      }
+    },
+    {
+      "stepSlug": "ack",
+      "name": "Acknowledge (In progress)",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "in_progress"
+        }
+      },
+      "nextSteps": {
+        "success": "implement"
+      }
+    },
+    {
+      "stepSlug": "implement",
+      "name": "Implementer resolves the issue & opens/updates the PR",
+      "stepType": "sandbox",
+      "role": "implementer",
+      "ui": {
+        "stage": "work",
+        "render": "stream",
+        "labelKey": "issueDesk.implement",
+        "params": {
+          "entryKind": "message"
+        }
+      },
+      "config": {
+        "run": {
+          "agent": "issue-desk/desk-implementer",
+          "instructions": "Resolve this GitHub issue: '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}}\n{{input.task.description}}\n\nGit is already authenticated for https (broker $GITHUB_TOKEN + credential helper), so clone/commit/push work, private repos included. Do: (1) derive the repo URL from the issue URL and `cd /user/workspace && git clone <repo> repo && cd repo`; (2) checkout branch `tale/{{input.task._id}}` (create it if new, else `git fetch origin tale/{{input.task._id}} && git checkout` it); (3) if a pull request already exists for this branch, this is a RE-WORK pass: the reviewer records what must change as comments on the PR, so read its feedback and address every blocking point. Earlier rounds' comments were already handled by earlier commits, so act ONLY on feedback NEWER than the branch's current HEAD commit — get HEAD's timestamp with `git log -1 --format=%cI`, then fetch the PR's review summaries, inline review comments, and issue comments (e.g. `gh pr view tale/{{input.task._id}} --json reviews,comments` plus `gh api repos/{owner}/{repo}/pulls/{number}/comments`) and treat only those whose submitted/created time is AFTER that HEAD timestamp as your to-do list; ignore older comments that predate HEAD, since prior commits already addressed them; (4) implement or refine the fix; (5) VERIFY IT YOURSELF — find the project's test/build command from its own config and run it until green; (6) commit with a message that follows the repo's convention — default to Conventional Commits so a repo with commit-lint accepts it: `git add -A && git commit -m \"fix: {{input.task.title}} (#{{input.issueNumber}})\"` (lowercase type, no trailing period), then `git push -u origin tale/{{input.task._id}}`; (7) if no pull request exists for this branch yet, open one to the repo's default branch (`gh pr create` or the GitHub REST API with $GITHUB_TOKEN) — otherwise your push already updated it; (8) WAIT FOR CI: once the PR exists, watch its checks with `gh pr checks tale/{{input.task._id}} --watch` (or poll `gh pr checks tale/{{input.task._id}}`) until they ALL finish. If any check FAILS, read its logs (`gh run view --log-failed`, or open the failing run), fix the cause, commit, push (the PR + checks re-run), and watch again — repeat until every required check is green. If the FAILING check is a commit-message / commit-lint check, the fix is NOT a new commit — AMEND the message to the repo's required convention (e.g. Conventional Commits: `git commit --amend -m \"fix: ...\"`) and force-push with `git push --force-with-lease origin tale/{{input.task._id}}`. Do NOT finish with red or still-pending CI. CI can take 40+ minutes; that is expected — keep waiting, this step is durable and will not time out mid-watch. MANDATORY: write a summary of what you changed, the checks/tests you ran, the FINAL CI state (which checks passed), and the PR URL to /user/output/summary.md (absolute path).",
+          "budget": {
+            "maxCents": 500,
+            "maxWallClockMs": 5400000,
+            "maxTurns": 120
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "impl_check"
+      }
+    },
+    {
+      "stepSlug": "impl_check",
+      "name": "Did the implementer succeed?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.implement.output.data.ok == true",
+        "description": "A sandbox step always returns the success port; the real verdict is in output.data.ok. Stop if the implementer failed to push a verified fix + PR."
+      },
+      "nextSteps": {
+        "true": "review",
+        "false": "impl_failed"
+      }
+    },
+    {
+      "stepSlug": "impl_failed",
+      "name": "Explain the implementer failure",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] The implementer could not resolve this issue: {{steps.implement.output.data.error || steps.implement.output.data.summary || 'no output'}} — returned to To do."
+        }
+      },
+      "nextSteps": {
+        "success": "rollback"
+      }
+    },
+    {
+      "stepSlug": "review",
+      "name": "Reviewer re-tests & comments on the PR",
+      "stepType": "sandbox",
+      "role": "reviewer",
+      "ui": {
+        "stage": "review",
+        "render": "stream",
+        "labelKey": "issueDesk.review",
+        "params": {
+          "entryKind": "message"
+        }
+      },
+      "config": {
+        "run": {
+          "agent": "issue-desk/desk-reviewer",
+          "instructions": "Review the implementer's fix for '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}} on branch `tale/{{input.task._id}}`. Git is authenticated ($GITHUB_TOKEN + helper). SET UP ONCE: (1) derive the repo URL from the issue URL and `cd /user/workspace && git clone <repo> repo && cd repo`; (2) `git fetch origin tale/{{input.task._id}} && git checkout tale/{{input.task._id}}`; (3) run the project's OWN tests a single time here, so your review subagents don't each re-run the suite. THEN REVIEW BY YOUR FULL METHOD — do NOT collapse this into one linear sweep: run ROUND 1 (breadth) by dispatching the parallel per-dimension review subagents your system instructions define, then ROUND 2 (confirmation) independently re-verifying every finding you would block the merge on. As part of the bar, confirm the PR's CI with `gh pr checks tale/{{input.task._id}}` — red OR still-pending CI is a BLOCKING problem you must call out. REPORT: post your review as comments on the pull request (`gh pr review` / `gh pr comment`, or the GitHub REST API with $GITHUB_TOKEN) — do NOT change or push code, the implementer fixes. MANDATORY: write your findings to /user/output/summary.md (absolute path): state the CI state (which checks passed/failed) and clearly whether the change is ready to merge or what specifically must be fixed.",
+          "budget": {
+            "maxCents": 500,
+            "maxWallClockMs": 3600000,
+            "maxTurns": 120
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "judge"
+      }
+    },
+    {
+      "stepSlug": "judge",
+      "name": "Merge gate (LLM decides mergeability)",
+      "stepType": "llm",
+      "ui": {
+        "stage": "review",
+        "render": "status",
+        "labelKey": "issueDesk.judge",
+        "params": {
+          "display": "gate",
+          "verdictLabels": {
+            "yes": "issueDesk.verdictReady",
+            "no": "issueDesk.verdictNeedsWork"
+          }
+        }
+      },
+      "config": {
+        "name": "merge-judge",
+        "systemPrompt": "You are a strict merge gate for a code-review desk. You are given ONLY the reviewer's written summary of a proposed fix. Decide whether it is ready to merge: approve only when the reviewer reports no blocking problems and the tests pass. You have no tools and must judge solely from the summary. Reply with EXACTLY one lowercase word and nothing else: yes (ready to merge) or no (needs more work).",
+        "userPrompt": "Reviewer summary for issue #{{input.issueNumber}} ('{{input.task.title}}'):\n\n{{steps.review.output.data.summary}}\n\nReady to merge? Answer yes or no.",
+        "outputFormat": "text",
+        "tools": []
+      },
+      "nextSteps": {
+        "success": "judge_decision"
+      }
+    },
+    {
+      "stepSlug": "judge_decision",
+      "name": "Mergeable?",
+      "stepType": "condition",
+      "config": {
+        "expression": "'yes' in steps.judge.output.data",
+        "description": "The judge replies with a bare yes/no (trimmed); jexl `in` does substring, and a 'no' can never contain 'yes', so this never false-approves. If yes, park for human merge; otherwise route through the rework counter, which loops back to the implementer with the review feedback until the configurable cap is reached."
+      },
+      "nextSteps": {
+        "true": "to_review",
+        "false": "bump_rework"
+      }
+    },
+    {
+      "stepSlug": "bump_rework",
+      "name": "Count this rework loop",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "reworkCount",
+              "value": "{{(variables.reworkCount || 0) + 1}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "rework_gate"
+      }
+    },
+    {
+      "stepSlug": "rework_gate",
+      "name": "Rework attempts remaining?",
+      "stepType": "condition",
+      "config": {
+        "expression": "variables.reworkCount <= config.maxReworkLoops",
+        "description": "Bounds the review -> implement rework loop. reworkCount (workflow variables) counts how many times the reviewer has sent the change back; allow up to config.variables.maxReworkLoops reworks (default 3, adjustable per deployment). While within budget, loop back to the implementer with the latest feedback; once exhausted, escalate to a human instead of looping until the workflow timeout."
+      },
+      "nextSteps": {
+        "true": "implement",
+        "false": "loops_exhausted"
+      }
+    },
+    {
+      "stepSlug": "loops_exhausted",
+      "name": "Rework limit reached — escalate to a human",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] The desk reached its rework limit ({{config.maxReworkLoops}} loops) without the reviewer approving the change. The pull request is left open with the latest attempt and the review feedback — a human should take it over from here. Moving to In review."
+        }
+      },
+      "nextSteps": {
+        "success": "to_review"
+      }
+    },
+    {
+      "stepSlug": "to_review",
+      "name": "Mark as In review",
+      "stepType": "action",
+      "ui": {
+        "stage": "deliver",
+        "render": "status",
+        "labelKey": "issueDesk.markInReview"
+      },
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "in_review"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "rollback",
+      "name": "Roll back to To do",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "todo"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "done",
+      "stepType": "output",
+      "config": {
+        "mapping": {}
+      },
+      "nextSteps": {}
+    }
+  ]
+}

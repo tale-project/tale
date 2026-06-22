@@ -126,6 +126,45 @@ describe('deriveStepStatuses', () => {
     });
   });
 
+  it('treats a success runResult on the internal running port as still running (durable sandbox handoff)', () => {
+    // A durable sandbox step hands off across each <10-min action boundary by
+    // returning on the internal `running` control port. The action resolves
+    // `success`, but the STEP is still executing — it must read `running` so
+    // the run view keeps the live transcript instead of flashing the
+    // `{status:'running'}` handoff envelope as raw JSON.
+    const result = deriveStepStatuses(
+      [
+        executeStepEntry('implement', {
+          args: {
+            stepSlug: 'implement',
+            stepType: 'sandbox',
+            stepName: 'implement',
+          },
+          runResult: {
+            kind: 'success',
+            returnValue: { port: 'running' },
+          },
+        }),
+      ],
+      execution({
+        currentStepSlug: 'implement',
+        variables: JSON.stringify({
+          steps: {
+            implement: {
+              stepType: 'sandbox',
+              output: {
+                type: 'sandbox',
+                data: { mode: 'agent', ok: false, status: 'running' },
+              },
+            },
+          },
+        }),
+      }),
+    );
+
+    expect(result.nodes.implement).toMatchObject({ status: 'running' });
+  });
+
   it('maps a canceled runResult to canceled', () => {
     const result = deriveStepStatuses(
       [executeStepEntry('fetch', { runResult: { kind: 'canceled' } })],
@@ -306,6 +345,8 @@ describe('deriveStepStatuses', () => {
 
     expect(result.execution).toEqual({
       status: 'failed',
+      organizationId: 'org_1',
+      workflowSlug: 'nightly-sync',
       currentStepSlug: 'send',
       currentStepName: 'Send',
       waitingFor: undefined,

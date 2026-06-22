@@ -189,7 +189,9 @@ async function executeRun(
       argv: invocation.args,
       cwd: workspace.cwd,
       timeoutMs: resolveTimeoutMs(work.timeoutMs),
-      env: invocation.env,
+      // Agent-declared env first, then the adapter's own env (which wins on a
+      // name collision — never let user config clobber the adapter's wiring).
+      env: { ...work.env, ...invocation.env },
       onCancelCheck: (kill) => {
         stopRequested = kill;
         return () => {

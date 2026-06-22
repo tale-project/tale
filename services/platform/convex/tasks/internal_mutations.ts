@@ -274,7 +274,7 @@ const SYNC_OPEN_STATUS = 'backlog' as const;
  *  - existing + `open`: reopen to {@link SYNC_OPEN_STATUS} only if currently terminal
  *  - otherwise the local status is left untouched
  *
- * Drives the GitHub issue-sync automation (examples/default/workflows/github/)
+ * Drives the GitHub issue-sync automation (builtin-configs/workflows/github/)
  * through the generic `task` workflow action — there is no GitHub-specific
  * backend code.
  */
@@ -288,6 +288,15 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     title: v.string(),
     externalUrl: v.optional(v.string()),
     description: v.optional(v.string()),
+    /** How to treat `description` on an UPDATE to an existing bound task:
+     *  - `'set'` (default): overwrite — an explicit human action (quick-create)
+     *    (re)generates the description.
+     *  - `'preserve'`: keep a non-empty existing description — a background
+     *    re-sync must not clobber a task's clean/localized description (it's a
+     *    stable pointer; the agent reads live issue details via `externalUrl`). */
+    descriptionMode: v.optional(
+      v.union(v.literal('set'), v.literal('preserve')),
+    ),
     labels: v.optional(v.array(v.string())),
     priority: v.optional(taskPriorityValidator),
     externalState: v.optional(v.union(v.literal('open'), v.literal('closed'))),
@@ -316,9 +325,15 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       .first();
 
     if (existing) {
+      // Preserve a non-empty existing description when asked (re-sync), so a
+      // background pass never clobbers a clean/localized description.
+      const preserveDescription =
+        args.descriptionMode === 'preserve' &&
+        existing.description !== undefined &&
+        existing.description.trim() !== '';
       const patch: Partial<Doc<'tasks'>> = {
         title,
-        description,
+        ...(preserveDescription ? {} : { description }),
         labels: args.labels,
         externalUrl: args.externalUrl,
         updatedAt: now,

@@ -1,4 +1,40 @@
 {
+  "operator": {
+    "state": {
+      "loading": "Ausstehend",
+      "running": "Läuft",
+      "output_available": "Fertig",
+      "output_error": "Fehler",
+      "waiting_human": "Aktion nötig",
+      "waiting_external": "Wartet",
+      "empty": "Keine Ausgabe"
+    },
+    "field": {
+      "duration": "Dauer",
+      "count": "Anzahl",
+      "source": "Quelle",
+      "rowsIn": "Zeilen ein",
+      "rowsOut": "Zeilen aus",
+      "fields": "Felder",
+      "check": "Prüfung",
+      "matched": "Abgeglichen",
+      "unmatched": "Nicht abgeglichen",
+      "before": "Vorher",
+      "after": "Nachher"
+    },
+    "check": { "pass": "Bestanden", "warn": "Warnung", "fail": "Fehler" },
+    "review": {
+      "gate": "Warten auf Freigabe",
+      "form": "Eingabe erforderlich",
+      "choice": "Option wählen"
+    },
+    "action": { "open": "Öffnen" },
+    "body": {
+      "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
+      "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
+      "noDetails": "Keine Details vorhanden."
+    }
+  },
   "auth": {
     "validation": {
       "passwordUppercase": "Passwort muss einen Grossbuchstaben enthalten"

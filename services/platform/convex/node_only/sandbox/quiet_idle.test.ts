@@ -4,7 +4,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { type QuietIdleInputs, quietIdleDecision } from './quiet_idle';
+import {
+  type IdleCloseInputs,
+  idleCloseDecision,
+  type QuietIdleInputs,
+  quietIdleDecision,
+} from './quiet_idle';
 
 const QUIET = 5_000;
 
@@ -133,5 +138,56 @@ describe('quietIdleDecision', () => {
         inflightWaitTools: 1,
       }),
     ).toBe('none');
+  });
+});
+
+const EOF_GRACE = 60_000;
+
+// Finished-and-idle baseline: the per-turn result arrived, the model is idle,
+// no real work is in flight, and the main loop has been silent past the grace.
+// Each test overrides only the field that should keep the run open.
+const doneIdle: IdleCloseInputs = {
+  agentResultSeen: true,
+  agentIdle: true,
+  inflightSubAgents: 0,
+  inflightWaitTools: 0,
+  lastMainActivityAt: 0,
+  now: EOF_GRACE + 1,
+  idleEofMs: EOF_GRACE,
+};
+
+describe('idleCloseDecision', () => {
+  it('closes a finished, idle, quiet run whose background ledger never drained', () => {
+    // The stuck-run case: result seen, idle, no inflight work, silent past the
+    // grace — even though a background task is still (wrongly) marked pending.
+    expect(idleCloseDecision(doneIdle)).toBe(true);
+  });
+
+  it('does NOT close before the result arrives', () => {
+    expect(idleCloseDecision({ ...doneIdle, agentResultSeen: false })).toBe(
+      false,
+    );
+  });
+
+  it('does NOT close while the model is not idle', () => {
+    expect(idleCloseDecision({ ...doneIdle, agentIdle: false })).toBe(false);
+  });
+
+  it('does NOT close before the silence grace elapses', () => {
+    expect(idleCloseDecision({ ...doneIdle, now: EOF_GRACE - 1 })).toBe(false);
+  });
+
+  it('does NOT close while a sub-agent is in flight (main loop quiet but busy)', () => {
+    // A Task sub-agent runs with the main loop silent (sub-agent traffic is
+    // excluded from lastMainActivityAt) — closing then would cut off live work.
+    expect(idleCloseDecision({ ...doneIdle, inflightSubAgents: 1 })).toBe(
+      false,
+    );
+  });
+
+  it('does NOT close while a blocking task read is in flight', () => {
+    expect(idleCloseDecision({ ...doneIdle, inflightWaitTools: 1 })).toBe(
+      false,
+    );
   });
 });
