@@ -23,6 +23,11 @@ function ToolsTab() {
   const { t } = useT('settings');
   const { config, updateConfig } = useAgentConfig();
 
+  // Only chat agents run the platform tool loop. External agents keep just
+  // their integration bindings (the sandbox MCP grant set); the platform-tool,
+  // workflow, and web-search controls are no-ops for them, so hide them.
+  const isChat = (config.primaryBehavior ?? 'chat') === 'chat';
+
   const webSearchMode =
     config.webSearchMode ??
     (config.toolNames?.includes('web') ? 'tool' : 'off');
@@ -60,37 +65,43 @@ function ToolsTab() {
     <ContentArea variant="narrow" gap={6}>
       <SectionHeader
         title={t('agents.form.sectionTools')}
-        description={t('agents.form.sectionToolsDescription')}
+        description={
+          isChat
+            ? t('agents.form.sectionToolsDescription')
+            : t('agents.form.sectionToolsExternalDescription')
+        }
       />
 
-      <PageSection
-        gap={3}
-        title={t('agents.tools.webSearchMode')}
-        description={
-          <>
-            {t('agents.tools.webSearchModeDescription')}
-            {'. '}
-            {t('agents.tools.webSearchHint')}{' '}
-            <Link
-              to="/dashboard/$id/websites"
-              params={{ id: organizationId }}
-              className="text-primary hover:underline"
-            >
-              {t('agents.tools.webSearchHintLink')}
-            </Link>
-          </>
-        }
-      >
-        <RadioGroup
-          value={webSearchMode}
-          onValueChange={(value) => {
-            if (isRetrievalMode(value)) {
-              updateConfig({ webSearchMode: value });
-            }
-          }}
-          options={webModeOptions}
-        />
-      </PageSection>
+      {isChat && (
+        <PageSection
+          gap={3}
+          title={t('agents.tools.webSearchMode')}
+          description={
+            <>
+              {t('agents.tools.webSearchModeDescription')}
+              {'. '}
+              {t('agents.tools.webSearchHint')}{' '}
+              <Link
+                to="/dashboard/$id/websites"
+                params={{ id: organizationId }}
+                className="text-primary hover:underline"
+              >
+                {t('agents.tools.webSearchHintLink')}
+              </Link>
+            </>
+          }
+        >
+          <RadioGroup
+            value={webSearchMode}
+            onValueChange={(value) => {
+              if (isRetrievalMode(value)) {
+                updateConfig({ webSearchMode: value });
+              }
+            }}
+            options={webModeOptions}
+          />
+        </PageSection>
+      )}
 
       <ToolSelector
         value={config.toolNames ?? []}
@@ -103,6 +114,8 @@ function ToolsTab() {
         onWorkflowBindingsChange={(workflows) => updateConfig({ workflows })}
         organizationId={organizationId}
         hiddenTools={hiddenTools}
+        showPlatformTools={isChat}
+        showWorkflows={isChat}
       />
     </ContentArea>
   );

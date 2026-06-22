@@ -378,6 +378,7 @@ function InstructionsTab() {
   // bypasses it and uses the user's own sandbox credentials with a raw model
   // passthrough.
   const isExternalAgent = config.primaryBehavior === 'external-agent';
+  const isChat = (config.primaryBehavior ?? 'chat') === 'chat';
   const authMode = config.authMode ?? 'managed';
   const isByo = isExternalAgent && authMode === 'byo';
 
@@ -526,28 +527,30 @@ function InstructionsTab() {
         )}
       </PageSection>
 
-      <PageSection
-        title={t('agents.form.sectionStructuredResponses')}
-        description={t('agents.form.sectionStructuredResponsesDescription')}
-      >
-        <Switch
-          checked={structuredResponsesEnabled}
-          onCheckedChange={(checked) =>
-            updateConfig({ structuredResponsesEnabled: checked })
-          }
-          label={t('agents.form.structuredResponsesEnabled')}
-          description={t('agents.form.structuredResponsesEnabledHelp')}
-        />
-        {structuredResponsesEnabled && (
-          <CodeBlock
-            label={t('agents.form.structuredResponsesInjectedPrompt')}
-            copyValue={STRUCTURED_RESPONSE_INSTRUCTIONS}
-            copyLabel={t('agents.form.copyPrompt')}
-          >
-            {STRUCTURED_RESPONSE_INSTRUCTIONS}
-          </CodeBlock>
-        )}
-      </PageSection>
+      {isChat && (
+        <PageSection
+          title={t('agents.form.sectionStructuredResponses')}
+          description={t('agents.form.sectionStructuredResponsesDescription')}
+        >
+          <Switch
+            checked={structuredResponsesEnabled}
+            onCheckedChange={(checked) =>
+              updateConfig({ structuredResponsesEnabled: checked })
+            }
+            label={t('agents.form.structuredResponsesEnabled')}
+            description={t('agents.form.structuredResponsesEnabledHelp')}
+          />
+          {structuredResponsesEnabled && (
+            <CodeBlock
+              label={t('agents.form.structuredResponsesInjectedPrompt')}
+              copyValue={STRUCTURED_RESPONSE_INSTRUCTIONS}
+              copyLabel={t('agents.form.copyPrompt')}
+            >
+              {STRUCTURED_RESPONSE_INSTRUCTIONS}
+            </CodeBlock>
+          )}
+        </PageSection>
+      )}
 
       <PromptLibraryDialog
         open={promptLibraryOpen}

@@ -52,6 +52,7 @@ const AGENT_TAB_DIRTY_KEYS = {
     'description',
     'avatarUrl',
     'primaryBehavior',
+    'agentKind',
     'visibleInChat',
     'roleRestriction',
     'composerMode',
@@ -164,6 +165,14 @@ export function AgentNavigation({
   // are unaffected (encodeURIComponent is a no-op for them).
   const basePath = `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}`;
 
+  // Only chat agents run the platform tool loop, so the loop-only tabs (Skills,
+  // Knowledge, Response Tuning) are no-ops for the other types and are hidden.
+  // The Tools tab stays for external agents (it carries their integration
+  // bindings — the sandbox MCP grant set) but image-generation has nothing
+  // there, so it drops too.
+  const isChat = (config.primaryBehavior ?? 'chat') === 'chat';
+  const isExternalAgent = config.primaryBehavior === 'external-agent';
+
   const navigationItems: TabNavigationItem[] = [
     {
       label: t('agents.navigation.general'),
@@ -177,36 +186,48 @@ export function AgentNavigation({
       matchMode: 'exact',
       dirtyKeys: AGENT_TAB_DIRTY_KEYS.instructions,
     },
-    {
-      label: t('agents.navigation.tools'),
-      href: `${basePath}/tools`,
-      matchMode: 'exact',
-      dirtyKeys: AGENT_TAB_DIRTY_KEYS.tools,
-    },
-    {
-      label: t('agents.navigation.skills'),
-      href: `${basePath}/skills`,
-      matchMode: 'exact',
-      dirtyKeys: AGENT_TAB_DIRTY_KEYS.skills,
-    },
-    {
-      label: t('agents.navigation.knowledge'),
-      href: `${basePath}/knowledge`,
-      matchMode: 'exact',
-      dirtyKeys: AGENT_TAB_DIRTY_KEYS.knowledge,
-    },
+    ...(isChat || isExternalAgent
+      ? [
+          {
+            label: t('agents.navigation.tools'),
+            href: `${basePath}/tools`,
+            matchMode: 'exact' as const,
+            dirtyKeys: AGENT_TAB_DIRTY_KEYS.tools,
+          },
+        ]
+      : []),
+    ...(isChat
+      ? [
+          {
+            label: t('agents.navigation.skills'),
+            href: `${basePath}/skills`,
+            matchMode: 'exact' as const,
+            dirtyKeys: AGENT_TAB_DIRTY_KEYS.skills,
+          },
+          {
+            label: t('agents.navigation.knowledge'),
+            href: `${basePath}/knowledge`,
+            matchMode: 'exact' as const,
+            dirtyKeys: AGENT_TAB_DIRTY_KEYS.knowledge,
+          },
+        ]
+      : []),
     {
       label: t('agents.navigation.delegation'),
       href: `${basePath}/delegation`,
       matchMode: 'exact',
       dirtyKeys: AGENT_TAB_DIRTY_KEYS.delegation,
     },
-    {
-      label: t('agents.navigation.responseTuning'),
-      href: `${basePath}/response-tuning`,
-      matchMode: 'exact',
-      dirtyKeys: AGENT_TAB_DIRTY_KEYS.responseTuning,
-    },
+    ...(isChat
+      ? [
+          {
+            label: t('agents.navigation.responseTuning'),
+            href: `${basePath}/response-tuning`,
+            matchMode: 'exact' as const,
+            dirtyKeys: AGENT_TAB_DIRTY_KEYS.responseTuning,
+          },
+        ]
+      : []),
     {
       label: t('agents.navigation.conversationStarters'),
       href: `${basePath}/conversation-starters`,

@@ -5067,6 +5067,7 @@
         "sectionModelDescription": "Konfiguriere die KI-Modelle für diesen Agent. Das erste Modell ist das primäre Modell für die Generierung. Zusätzliche Modelle dienen als geordnete Fallbacks — wenn das primäre Modell nicht verfügbar ist, versucht der Agent automatisch das nächste Modell in der Liste.",
         "sectionTools": "Tools",
         "sectionToolsDescription": "Auswählen, welche Tools dieser Agent verwenden kann",
+        "sectionToolsExternalDescription": "Externe Agenten laufen in einer Sandbox und nutzen nur gebundene Integrationen. Plattform-Tools und Workflows gelten hier nicht.",
         "sectionIntegrationBindings": "Gebundene Integrationen",
         "sectionIntegrationBindingsDescription": "Bestimmte Integrationen als dedizierte Tools binden. Der Agent muss den Integrationsnamen nicht angeben.",
         "noIntegrationsAvailable": "Keine aktiven Integrationen verfügbar.",
@@ -5140,6 +5141,28 @@
           "modelLabel": "Anbieter-Modell-ID",
           "modelPlaceholder": "z. B. claude-opus-4-20250514",
           "modelNote": "BYO leitet über deine eigenen Anmeldedaten unter Umgebung & Geheimnisse — Modellauswahl, Abrechnung und Nutzungssteuerung gehen auf deine Anmeldedaten über; die Plattform stellt nur die Laufzeitumgebung bereit."
+        },
+        "agentType": {
+          "sectionTitle": "Agententyp",
+          "sectionDescription": "Wie dieser Agent läuft. Interne Agenten laufen über die Tool-Schleife der Plattform; externe Agenten führen einen Coding-Agenten in einer Sandbox aus.",
+          "internalLabel": "Interner Agent",
+          "internalDescription": "Läuft auf der Plattform mit Chat-Tools, Wissen und Workflows.",
+          "externalLabel": "Externer Agent",
+          "externalDescription": "Führt Claude Code oder OpenCode in einer isolierten Sandbox aus und nutzt gebundene Integrationen.",
+          "imageLabel": "Bildgenerierung",
+          "imageDescription": "Leitet die Nachricht direkt an ein Bildmodell weiter.",
+          "switchTitle": "Agententyp ändern?",
+          "switchToExternalDescription": "Dadurch läuft der Agent künftig in einer Sandbox; seine Plattform-Tools und Workflows werden entfernt. Gebundene Integrationen bleiben erhalten.",
+          "switchToChatDescription": "Dadurch läuft der Agent künftig über die Tool-Schleife der Plattform; seine externe Laufzeit- und Anmeldedaten-Einstellungen werden entfernt.",
+          "switchToImageDescription": "Dadurch wird der Agent auf Bildgenerierung umgestellt; seine Tools, Workflows, Integrationen und externen Laufzeiteinstellungen werden entfernt.",
+          "noModelWarning": "Dieser Agent hat kein Modell — füge vor dem Speichern eines auf dem Tab Anweisungen hinzu, sonst schlägt das Speichern fehl.",
+          "switchConfirm": "Typ ändern"
+        },
+        "agentKind": {
+          "label": "Externe Laufzeit",
+          "description": "Welcher Coding-Agent die Turns dieses Agenten in der Sandbox ausführt.",
+          "claudeCode": "Claude Code",
+          "openCode": "OpenCode"
         }
       },
       "delegation": {
