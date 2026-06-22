@@ -175,9 +175,11 @@ export async function update(options: UpdateOptions): Promise<void> {
         newChecksumFiles[relPath] = newHash;
         summary.updated.push(relPath);
       } else {
-        // Modified — skip
+        // Modified — skip. The embedded reference tree is the generic
+        // `builtin-configs/<domain>/...` catalog (no org level), so map the
+        // project-layout relPath (`default/<domain>/...`) back onto it.
         logger.warn(
-          `${prefix}Skipped ${relPath} (locally modified). New version at .tale/reference/examples/${relPath}`,
+          `${prefix}Skipped ${relPath} (locally modified). New version at .tale/reference/${relPath.replace(/^default\//, 'builtin-configs/')}`,
         );
         newChecksumFiles[relPath] = oldHash;
         summary.skipped.push(relPath);
@@ -213,7 +215,7 @@ export async function update(options: UpdateOptions): Promise<void> {
   if (summary.skipped.length > 0) {
     logger.blank();
     logger.info(
-      'Skipped files can be compared against .tale/reference/examples/ to merge changes.',
+      'Skipped files can be compared against .tale/reference/builtin-configs/ to merge changes.',
     );
   }
 }

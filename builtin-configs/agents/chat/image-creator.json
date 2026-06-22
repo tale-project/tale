@@ -2,7 +2,7 @@
   "slug": "image-creator",
   "metadata": {
     "labels": ["Creative"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "primaryBehavior": "image-generation",
   "supportedModels": [

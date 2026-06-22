@@ -2,7 +2,7 @@
   "slug": "router",
   "metadata": {
     "labels": ["System"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "displayName": "Auto Router",
   "description": "System agent that routes each message to the best assistant. Not user-configurable.",

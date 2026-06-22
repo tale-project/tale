@@ -2,7 +2,7 @@
   "slug": "security-engineer",
   "metadata": {
     "labels": ["Engineering", "Security"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "web",

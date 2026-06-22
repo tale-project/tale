@@ -123,7 +123,7 @@ services/sandbox-runtime/
 !services/sandbox-runtime/daemon/package.json
 packages/shared/
 tools/
-examples/
+builtin-configs/
 
 # `bun install` needs every workspace package.json present at its declared
 # path so the workspace graph resolves. Re-include just the manifests —

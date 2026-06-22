@@ -1,6 +1,6 @@
 /**
  * Mechanical loop-safety assertions over the task-ops default workflow pack
- * (`examples/default/workflows/tasks/*.json`).
+ * (`builtin-configs/workflows/tasks/*.json`).
  *
  * The pack is a set of automations that trigger each other through task
  * events; left unchecked, that is a feedback amplifier. These tests assert —
@@ -32,7 +32,7 @@ import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 
 const PACK_DIR = fileURLToPath(
   new URL(
-    '../../../../examples/default/workflows/projects/tasks',
+    '../../../../builtin-configs/workflows/projects/tasks',
     import.meta.url,
   ),
 );

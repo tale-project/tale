@@ -2,7 +2,7 @@
   "slug": "project-manager",
   "metadata": {
     "labels": ["Operations"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "task_read",

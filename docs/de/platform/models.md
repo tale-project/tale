@@ -3,9 +3,9 @@ title: Modelle out of the box
 description: Welche Provider und Modelle eine frische Tale-Instanz mitbringt — OpenRouter deckt Chat, Vision, Embeddings, Sprache und Bildgenerierung über einen einzigen Key ab.
 ---
 
-Eine frische Tale-Instanz bringt einen konfigurierten Provider mit: **OpenRouter**, der Chat, Vision, Embeddings, Speech-to-Text, Text-to-Speech und Bildgenerierung abdeckt. Die Default-Agents in `examples/default/agents/` greifen auf OpenRouter-Modelle zu, und die meisten Teams bleiben wochenlang bei den Defaults, bevor sie etwas tauschen. Ein Key, ein Rate-Limit, eine Rechnung — und du kannst trotzdem jederzeit einen Direkt-Anbieter (OpenAI, einen lokalen Ollama-/vLLM-Server, einen Bedrock-Proxy) hinzufügen, wenn eine Workload es braucht. Diese Seite listet, was ausgeliefert wird, und verlinkt auf den vollen Katalog.
+Eine frische Tale-Instanz bringt einen konfigurierten Provider mit: **OpenRouter**, der Chat, Vision, Embeddings, Speech-to-Text, Text-to-Speech und Bildgenerierung abdeckt. Die Default-Agents in `builtin-configs/agents/` greifen auf OpenRouter-Modelle zu, und die meisten Teams bleiben wochenlang bei den Defaults, bevor sie etwas tauschen. Ein Key, ein Rate-Limit, eine Rechnung — und du kannst trotzdem jederzeit einen Direkt-Anbieter (OpenAI, einen lokalen Ollama-/vLLM-Server, einen Bedrock-Proxy) hinzufügen, wenn eine Workload es braucht. Diese Seite listet, was ausgeliefert wird, und verlinkt auf den vollen Katalog.
 
-Modelle driften schneller als Docs. Die Listen unten stimmen zum Zeitpunkt, an dem `examples/default/providers/openrouter.json` geschrieben wurde; die kanonische Wahrheit ist die JSON-Datei, und das kanonische „was heute erreichbar ist" zeigt die Seite **Einstellungen > Provider** auf deiner Instanz.
+Modelle driften schneller als Docs. Die Listen unten stimmen zum Zeitpunkt, an dem `builtin-configs/providers/openrouter.json` geschrieben wurde; die kanonische Wahrheit ist die JSON-Datei, und das kanonische „was heute erreichbar ist" zeigt die Seite **Einstellungen > Provider** auf deiner Instanz.
 
 ## Der Default-Provider
 

@@ -13,7 +13,7 @@ import { promptJsonSchema, resolvePromptDisplay } from './prompts';
 const NON_DEFAULT_LOCALES = SUPPORTED_AGENT_LOCALES.filter((l) => l !== 'en');
 
 /**
- * Every prompt JSON in `examples/default/prompts/` ships as part of the
+ * Every prompt JSON in `builtin-configs/prompts/` ships as part of the
  * product — new orgs seed their prompt library by copying + provisioning these
  * files (`prompts/provision_defaults.ts`), which goes around the normal write
  * boundary. If an example drifts into an invalid shape, oversize content, or
@@ -22,10 +22,10 @@ const NON_DEFAULT_LOCALES = SUPPORTED_AGENT_LOCALES.filter((l) => l !== 'en');
 
 const EXAMPLES_DIR = path.resolve(
   __dirname,
-  '../../../../../examples/default/prompts',
+  '../../../../../builtin-configs/prompts',
 );
 
-describe('examples/default/prompts/*.json invariants', () => {
+describe('builtin-configs/prompts/*.json invariants', () => {
   const files = readdirSync(EXAMPLES_DIR).filter((f) => f.endsWith('.json'));
 
   it('discovered at least one default prompt', () => {

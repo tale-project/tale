@@ -3,11 +3,12 @@
 /**
  * Scaffold + cleanup per-org filesystem config under the uniform org-first
  * layout (`$TALE_CONFIG_DIR/<orgSlug>/<domain>/...` for every org incl.
- * `default`). Source of seed data is the immutable builtin catalog baked
- * into the convex image at `$TALE_CONFIG_BUILTIN_DIR/default/<domain>/`
- * (set in services/platform/Dockerfile, propagated via the entrypoint's
- * `convex env set` loop). Falls back to the default org's writable dir
- * when the env is unset, so local `bun dev` (no catalog) still works.
+ * `default`). Source of seed data is the GENERIC builtin catalog baked into
+ * the convex image at `$TALE_CONFIG_BUILTIN_DIR/<domain>/` — its children ARE
+ * the domains, with no org level and no `default` join (set in
+ * services/platform/Dockerfile, propagated via the entrypoint's
+ * `convex env set` loop). There is NO fallback: scaffold refuses to proceed
+ * when `$TALE_CONFIG_BUILTIN_DIR` is unset (dev-engine/prod/E2E all set it).
  *
  * `scaffoldNewOrganization`:
  *   - org-create path (`override:false`, default): idempotent per-domain
@@ -66,10 +67,10 @@ export type DomainResult = {
 
 // The set of domains to seed comes from the single config-domain registry
 // (`lib/shared/config/registry.ts`); their on-disk dirs are resolved via the
-// `'use node'` Layer-B resolver map (`lib/config_store/resolvers.ts`). `default`
-// is the canonical template org in the catalog; the catalog tree at
-// `$TALE_CONFIG_BUILTIN_DIR/default/<domain>/` is the source for every org
-// including default itself. Copy semantics per `domain.scaffoldKind`:
+// `'use node'` Layer-B resolver map (`lib/config_store/resolvers.ts`). The
+// generic catalog tree at `$TALE_CONFIG_BUILTIN_DIR/<domain>/` (no org level)
+// is the source for every org including `default`. Copy semantics per
+// `domain.scaffoldKind`:
 //   - 'flat'   = one file per item, no subdirs (providers/prompts/
 //     governance). override:true overwrites per-file via atomicWrite; user-added
 //     files survive, secrets + .history at the dir level survive. (Governance
@@ -224,9 +225,10 @@ export async function copyTree(
 }
 
 /**
- * Seed a single domain for an org. Source is `<catalogRoot>/default/<domain>`
- * (canonical template) when `TALE_CONFIG_BUILTIN_DIR` is set, falling back
- * to `resolve('default')` for local dev.
+ * Seed a single domain for an org. Source is `<catalogRoot>/<domain>` — the
+ * generic built-in catalog (`TALE_CONFIG_BUILTIN_DIR`), whose children ARE the
+ * domains. There is deliberately no `default`/org level and no fallback to any
+ * org's live dir: every org is seeded only from the built-in catalog.
  *
  * Returns `{ok:true}` on success (including the legitimate
  * "already scaffolded, skipped" case) and `{ok:false, error}` on
@@ -235,39 +237,36 @@ export async function copyTree(
  */
 async function seedDomain(
   domain: ConfigDomain,
-  catalogRoot: string | undefined,
+  catalogRoot: string,
   orgSlug: string,
   override: boolean,
 ): Promise<DomainResult> {
-  const sourceDir = catalogRoot
-    ? path.join(catalogRoot, 'default', domain.name)
-    : resolveDomainDir(domain.name, 'default');
+  const sourceDir = path.join(catalogRoot, domain.name);
   const targetDir = resolveDomainDir(domain.name, orgSlug);
 
-  if (catalogRoot) {
-    // Operator-set catalog path must exist; missing = deploy misconfig
-    // (platform/convex image version skew). Surface in logs AND return
-    // an error so reseed-all-orgs can fail loudly.
-    let statErr: unknown;
-    const sourceExists = await stat(sourceDir)
-      .then(() => true)
-      .catch((err) => {
-        statErr = err;
-        return false;
-      });
-    if (!sourceExists) {
-      const msg =
-        errnoCode(statErr) === 'ENOENT'
-          ? `${BUILTIN_ENV}=${catalogRoot} is set but ${sourceDir} does not exist`
-          : `stat ${sourceDir} failed: ${statErr instanceof Error ? statErr.message : String(statErr)}`;
-      console.error(`[scaffold] ${domain.name}: ${msg}`);
-      return { domain: domain.name, ok: false, error: msg };
-    }
+  // The built-in catalog's domain dir must exist; missing = deploy misconfig
+  // (platform/convex image version skew). Surface in logs AND return an error
+  // so reseed-all-orgs can fail loudly.
+  let statErr: unknown;
+  const sourceExists = await stat(sourceDir)
+    .then(() => true)
+    .catch((err) => {
+      statErr = err;
+      return false;
+    });
+  if (!sourceExists) {
+    const msg =
+      errnoCode(statErr) === 'ENOENT'
+        ? `${BUILTIN_ENV}=${catalogRoot} is set but ${sourceDir} does not exist`
+        : `stat ${sourceDir} failed: ${statErr instanceof Error ? statErr.message : String(statErr)}`;
+    console.error(`[scaffold] ${domain.name}: ${msg}`);
+    return { domain: domain.name, ok: false, error: msg };
   }
 
-  // copy-onto-self guard: realpath-aware. Fires for default-org reseed
-  // in the fallback case (catalog env unset, source = target) and for
-  // any symlinked overlap between catalog and data trees.
+  // copy-onto-self guard: realpath-aware. The catalog and the org data tree
+  // are normally distinct dirs, so this only fires on a symlinked/bind-mount
+  // overlap between the catalog and data trees (defense against wiping live
+  // data via `rm -rf <bundle>` then copy-from-self).
   if (await pathsOverlap(sourceDir, targetDir)) {
     console.warn(
       `[scaffold] ${domain.name}: source and target overlap (${sourceDir} ↔ ${targetDir}); skipping`,
@@ -670,7 +669,17 @@ export const scaffoldNewOrganization = internalAction({
       console.warn('[scaffoldNewOrganization] janitor sweep failed:', err);
     });
 
+    // The built-in catalog is required — there is no fallback to any org's live
+    // dir. Dev (dev-engine), prod (Dockerfile), and E2E (playwright) all set it.
     const catalogRoot = process.env[BUILTIN_ENV];
+    if (!catalogRoot || !path.isAbsolute(catalogRoot)) {
+      const msg = `[scaffoldNewOrganization] ${BUILTIN_ENV} is unset or not absolute; refusing to proceed`;
+      console.error(msg);
+      if (args.strict) {
+        throw new Error(msg);
+      }
+      return { ok: false, skipped: true, results: [] };
+    }
     const override = args.override ?? false;
 
     const results: DomainResult[] = [];

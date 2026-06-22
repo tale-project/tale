@@ -118,6 +118,14 @@ export default createPlaywrightConfig({
               // Hermetic config dir: seeds every new org with the single E2E
               // agent + the mock provider + the trivial `test` workflow.
               TALE_CONFIG_DIR: path.join(dirname, 'tests/e2e/fixtures/config'),
+              // Pin the built-in catalog to the fixture's domain-root so the
+              // dev default (repo/builtin-configs) can't leak the real catalog
+              // into hermetic test orgs. The seeder reads <builtin>/<domain>;
+              // the fixture is org-shaped, so point at its `default/` org dir.
+              TALE_CONFIG_BUILTIN_DIR: path.join(
+                dirname,
+                'tests/e2e/fixtures/config/default',
+              ),
               // Resolved by the fixture provider's `secretsEnv`; pushed into
               // the Convex deployment env by
               // scripts/sync-convex-env-from-dotenv.ts (TALE_PROVIDER_KEY_*

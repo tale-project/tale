@@ -2,7 +2,7 @@
   "slug": "coder",
   "metadata": {
     "labels": ["Engineering"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "skillBindings": [],
   "toolNames": [

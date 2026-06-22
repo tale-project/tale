@@ -7,7 +7,7 @@
  * validating slugs, and parsing prompt JSON. No Convex dependencies — usable
  * in any Node.js context (mirrors workflows/file_utils.ts).
  *
- * The default prompt catalog ships at `examples/default/prompts/*.json` and is
+ * The default prompt catalog ships at `builtin-configs/prompts/*.json` and is
  * copied per-org by the scaffold (`organizations/scaffold.ts`, `prompts` is a
  * `flat` domain) into `${TALE_CONFIG_DIR}/<orgSlug>/prompts/`. The provisioner
  * (`provision_defaults.ts`) then seeds each `autoInstall` file as a global

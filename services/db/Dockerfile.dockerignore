@@ -121,5 +121,5 @@ services/convex/
 services/proxy/
 packages/
 tools/
-examples/
+builtin-configs/
 patches/

@@ -60,13 +60,20 @@ export async function readAppBundleManifest(
   return appManifestSchema.parse(JSON.parse(content));
 }
 
-/** The app's bundle dir in the shared template catalog (read-only source). */
+/**
+ * The app's bundle dir in the built-in catalog (read-only source). The catalog
+ * is the generic built-in dir (`TALE_CONFIG_BUILTIN_DIR`), whose children are
+ * the domains — so apps live at `<catalog>/apps/<slug>`, with no `default`/org
+ * level and no fallback. Required: dev/prod/E2E all set the env.
+ */
 function appBundleTemplateDir(appSlug: string): string {
   const catalogRoot = process.env[BUILTIN_ENV];
-  return catalogRoot
-    ? path.join(catalogRoot, 'default', 'apps', appSlug)
-    : // Local dev (no baked catalog): the `default` org's writable bundle.
-      resolveAppDir('default', appSlug);
+  if (!catalogRoot) {
+    throw new Error(
+      `${BUILTIN_ENV} is not set; cannot resolve the built-in app catalog`,
+    );
+  }
+  return path.join(catalogRoot, 'apps', appSlug);
 }
 
 function skip(name: string): boolean {

@@ -90,13 +90,12 @@ describe('agent installations — app ownership stamp', () => {
   });
 });
 
-// The run-admission gate (`isAgentLiveInternal`) anchors its fail-open on the
-// durable provision ledger (`agentDefaultProvisions`), NOT the count of
-// `agentInstallations` rows: fall open only for a never-provisioned org; once
-// the autoInstall sweep has run, be authoritative. This fixes two defects of
-// the old count-based fallback — resurrecting a deliberately-emptied org, and an
-// app install flipping a never-provisioned org's fallback off.
-describe('agent liveness gate — anchored on the provision ledger', () => {
+// The run-admission gate (`isAgentLiveInternal`) is anchored SOLELY on the
+// `agentInstallations` rows: an agent is live IFF it has an enabled row. There
+// is no provision-ledger fail-open — a row-less org has no live agents (every
+// org is provisioned at create with the default agents). `agentDefaultProvisions`
+// now only feeds `listInstallStatesInternal`'s `provisioned` flag.
+describe('agent liveness gate — installed && enabled, no fail-open', () => {
   const GORG = 'org_livegate';
 
   function seedProvision(t: T, agentSlug: string) {
@@ -133,60 +132,31 @@ describe('agent liveness gate — anchored on the provision ledger', () => {
       agentSlug,
     });
 
-  it('T1 — never-provisioned org: every agent is live (fail-open)', async () => {
+  it('T1 — no install row: NOT live (no fail-open), even for a never-provisioned org', async () => {
     const t = convexTest(schema, modules);
-    expect(await live(t, 'anything')).toBe(true);
+    expect(await live(t, 'anything')).toBe(false);
   });
 
-  it('T2 — provisioned org: authoritative (enabled row live, row-less not)', async () => {
+  it('T2 — enabled install row is live; a row-less agent is not', async () => {
     const t = convexTest(schema, modules);
-    await seedProvision(t, 'a');
     await seedInstall(t, 'a', true);
-    await seedProvision(t, 'b'); // provisioned but no install row
     expect(await live(t, 'a')).toBe(true);
     expect(await live(t, 'b')).toBe(false);
     expect(await live(t, 'unknown')).toBe(false);
   });
 
-  it('T3 — provisioned-then-emptied: row-less agent NOT live (no resurrection)', async () => {
+  it('T3 — disabled install row: NOT live', async () => {
     const t = convexTest(schema, modules);
-    await seedProvision(t, 'a'); // provisioned once...
-    // ...then all install rows removed (none seeded).
+    await seedInstall(t, 'a', false);
     expect(await live(t, 'a')).toBe(false);
   });
 
-  it('T4/T6 — app install never changes the provision-anchored fallback', async () => {
-    // Provisioned org: a row-less global stays authoritative despite an app row.
-    const provisioned = convexTest(schema, modules);
-    await seedProvision(provisioned, 'g');
-    await seedInstall(
-      provisioned,
-      'issue-desk/desk-implementer',
-      true,
-      'issue-desk',
-    );
-    expect(await live(provisioned, 'global-rowless')).toBe(false);
-
-    // Never-provisioned org: installing an app (adds install rows, no provision
-    // rows) keeps the org fail-open — the row-less global is still live.
-    const fresh = convexTest(schema, modules);
-    await fresh.run((ctx) =>
-      ctx.db.insert('agentInstallations', {
-        organizationId: GORG,
-        agentSlug: 'issue-desk/desk-implementer',
-        installedAt: 0,
-        installedBy: 'system',
-        contentHash: 'h',
-        enabled: true,
-        appSlug: 'issue-desk',
-      }),
-    );
-    expect(
-      await fresh.query(internal.agents.installations.isAgentLiveInternal, {
-        organizationId: GORG,
-        agentSlug: 'global-rowless',
-      }),
-    ).toBe(true);
+  it('T4 — an app-scoped enabled row is live like any other install row', async () => {
+    const t = convexTest(schema, modules);
+    await seedInstall(t, 'issue-desk/desk-implementer', true, 'issue-desk');
+    expect(await live(t, 'issue-desk/desk-implementer')).toBe(true);
+    // A row-less global is still not live — install rows are the only signal.
+    expect(await live(t, 'global-rowless')).toBe(false);
   });
 
   it('T5 — listInstallStatesInternal returns { states, provisioned }', async () => {
@@ -208,10 +178,16 @@ describe('agent liveness gate — anchored on the provision ledger', () => {
     expect(after.states.map((s) => s.agentSlug)).toEqual(['a']);
   });
 
-  it('T7 — sweep sentinel alone marks the org provisioned', async () => {
+  it('T7 — sweep sentinel alone marks the org provisioned (listInstallStates flag)', async () => {
     const t = convexTest(schema, modules);
     await seedProvision(t, '__sweep__'); // only the sentinel, no real agents
-    // Provisioned ⇒ authoritative ⇒ a row-less agent is not live.
-    expect(await live(t, 'global-rowless')).toBe(false);
+    // The provision ledger no longer gates liveness; it only sets the
+    // `provisioned` flag the roster/install-state reads expose.
+    const states = await t.query(
+      internal.agents.installations.listInstallStatesInternal,
+      { organizationId: GORG },
+    );
+    expect(states.provisioned).toBe(true);
+    expect(states.states).toEqual([]);
   });
 });

@@ -17,7 +17,7 @@ import { t } from '../helpers/i18n';
  * Requires the hermetic stack (gateway on :4141 + the rewrite env), so the whole
  * file is mock-mode only. The integration catalog is scaffolded per-org from
  * `TALE_CONFIG_DIR/default/integrations/`, which in the e2e fixtures is a symlink
- * to the real shipped `examples/default/integrations/` (no duplicated connectors)
+ * to the real shipped `builtin-configs/integrations/` (no duplicated connectors)
  * — so the actual shipped GitHub/Tavily connectors run here.
  */
 test.skip(

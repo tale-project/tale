@@ -2,7 +2,7 @@
   "slug": "integration-assistant",
   "metadata": {
     "labels": ["Integrations"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": ["integration", "integration_batch", "integration_introspect"],
   "maxSteps": 20,

@@ -2,7 +2,7 @@
   "slug": "software-architect",
   "metadata": {
     "labels": ["Engineering"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "task_read",

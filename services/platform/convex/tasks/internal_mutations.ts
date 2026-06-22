@@ -274,7 +274,7 @@ const SYNC_OPEN_STATUS = 'backlog' as const;
  *  - existing + `open`: reopen to {@link SYNC_OPEN_STATUS} only if currently terminal
  *  - otherwise the local status is left untouched
  *
- * Drives the GitHub issue-sync automation (examples/default/workflows/github/)
+ * Drives the GitHub issue-sync automation (builtin-configs/workflows/github/)
  * through the generic `task` workflow action — there is no GitHub-specific
  * backend code.
  */

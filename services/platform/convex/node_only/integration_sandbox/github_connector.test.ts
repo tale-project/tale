@@ -11,7 +11,7 @@ const connectorCode = transform(
   fs.readFileSync(
     path.resolve(
       __dirname,
-      '../../../../../examples/default/integrations/github/connector.ts',
+      '../../../../../builtin-configs/integrations/github/connector.ts',
     ),
     'utf-8',
   ),

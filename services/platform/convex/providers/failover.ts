@@ -34,8 +34,8 @@ interface FailoverParams {
   fallbackProviderName?: string;
   /**
    * Better Auth org doc id — resolves providers from
-   * `/examples/{orgSlug}/providers/` so each org uses its own API keys / models.
-   * The slug is derived server-side from this id via `resolveOrgSlug`.
+   * `$TALE_CONFIG_DIR/{orgSlug}/providers/` so each org uses its own API keys /
+   * models. The slug is derived server-side from this id via `resolveOrgSlug`.
    */
   organizationId: string;
 }

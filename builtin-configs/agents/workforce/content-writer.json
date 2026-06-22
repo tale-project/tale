@@ -2,7 +2,7 @@
   "slug": "content-writer",
   "metadata": {
     "labels": ["Marketing", "Content"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "document_write",

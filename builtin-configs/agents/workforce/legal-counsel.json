@@ -2,7 +2,7 @@
   "slug": "legal-counsel",
   "metadata": {
     "labels": ["Legal"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "document_find",

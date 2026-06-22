@@ -2,7 +2,7 @@
   "slug": "researcher",
   "metadata": {
     "labels": ["Research"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": ["update_todos", "request_human_input", "web", "pdf"],
   "integrationBindings": ["tavily"],

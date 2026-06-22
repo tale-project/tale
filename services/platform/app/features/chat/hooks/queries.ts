@@ -4,7 +4,10 @@ import { createContext, createElement, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useListAgents } from '@/app/features/agents/hooks/queries';
+import {
+  useAgentInstallations,
+  useListAgents,
+} from '@/app/features/agents/hooks/queries';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -211,14 +214,35 @@ function isComposerModeMeta(value: unknown): value is ComposerModeMeta {
 
 export function useChatAgents(organizationId: string) {
   const { agents: rawAgents, isLoading } = useListAgents(organizationId);
+  // The selectable chat agents are the org's INSTALLED ones (DB install
+  // records), never the raw filesystem roster. The agent config files are the
+  // catalog/source; an agent only appears in chat once it has an enabled
+  // `agentInstallations` row (`a.name` is the slug — see internal_actions).
+  const installs = useAgentInstallations(organizationId);
   const { i18n: i18nCtx } = useTranslation();
   const locale = i18nCtx.language;
+
+  const enabledSlugs = useMemo(() => {
+    const set = new Set<string>();
+    const states = installs.data as
+      | ReadonlyArray<{ agentSlug: string; enabled: boolean }>
+      | undefined;
+    for (const s of states ?? []) {
+      if (s.enabled) set.add(s.agentSlug);
+    }
+    return set;
+  }, [installs.data]);
 
   const agents = useMemo(() => {
     if (!rawAgents) return undefined;
     const chatAgents: ChatAgent[] = [];
     for (const a of rawAgents) {
-      if (a && typeof a.name === 'string' && a.visibleInChat === true) {
+      if (
+        a &&
+        typeof a.name === 'string' &&
+        a.visibleInChat === true &&
+        enabledSlugs.has(a.name)
+      ) {
         const resolved = resolveAgentLocale(a, locale);
         if (!resolved.displayName) continue;
         chatAgents.push({
@@ -257,11 +281,11 @@ export function useChatAgents(organizationId: string) {
       }
     }
     return chatAgents;
-  }, [rawAgents, locale]);
+  }, [rawAgents, locale, enabledSlugs]);
 
   return {
     agents,
-    isLoading,
+    isLoading: isLoading || installs.isLoading,
   };
 }
 

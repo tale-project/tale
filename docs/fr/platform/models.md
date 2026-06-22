@@ -3,9 +3,9 @@ title: Modèles livrés en standard
 description: Quels fournisseurs et modèles une instance Tale toute neuve embarque — OpenRouter couvre le chat, la vision, les embeddings, la voix et la génération d'images via une seule clé.
 ---
 
-Une instance Tale toute neuve embarque un seul fournisseur configuré : **OpenRouter**, couvrant le chat, la vision, les embeddings, la reconnaissance vocale, la synthèse vocale et la génération d'images. Les agents par défaut dans `examples/default/agents/` puisent dans les modèles OpenRouter, et la plupart des équipes restent sur les défauts pendant des semaines avant d'en changer. Une clé, un rate-limit, une facture — et tu peux toujours ajouter un fournisseur direct (OpenAI, un serveur Ollama/vLLM local, un proxy Bedrock) dès qu'une charge de travail l'exige. Cette page liste ce qui est livré et renvoie vers le catalogue complet.
+Une instance Tale toute neuve embarque un seul fournisseur configuré : **OpenRouter**, couvrant le chat, la vision, les embeddings, la reconnaissance vocale, la synthèse vocale et la génération d'images. Les agents par défaut dans `builtin-configs/agents/` puisent dans les modèles OpenRouter, et la plupart des équipes restent sur les défauts pendant des semaines avant d'en changer. Une clé, un rate-limit, une facture — et tu peux toujours ajouter un fournisseur direct (OpenAI, un serveur Ollama/vLLM local, un proxy Bedrock) dès qu'une charge de travail l'exige. Cette page liste ce qui est livré et renvoie vers le catalogue complet.
 
-Les modèles dérivent plus vite que la doc. Les listes ci-dessous sont correctes au moment où `examples/default/providers/openrouter.json` a été écrit ; la vérité canonique, c'est le fichier JSON, et le « ce qui est joignable aujourd'hui » canonique est ce que montre la page **Paramètres > Providers** sur ton instance.
+Les modèles dérivent plus vite que la doc. Les listes ci-dessous sont correctes au moment où `builtin-configs/providers/openrouter.json` a été écrit ; la vérité canonique, c'est le fichier JSON, et le « ce qui est joignable aujourd'hui » canonique est ce que montre la page **Paramètres > Providers** sur ton instance.
 
 ## Le fournisseur par défaut
 

@@ -2,7 +2,7 @@
   "slug": "designer",
   "metadata": {
     "labels": ["Marketing", "Design"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "generate_image",

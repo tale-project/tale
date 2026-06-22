@@ -1,5 +1,5 @@
 /**
- * Proves the on-disk issue-resolution demo APP (examples/default/apps/
+ * Proves the on-disk issue-resolution demo APP (builtin-configs/apps/
  * issue-desk) is well-formed against the platform skeleton — the "new app =
  * data" litmus: the manifest composes the workflow + agents by reference, the
  * workflow validates, the view is a Puck Data document whose bound functions are
@@ -28,7 +28,7 @@ import { validateWorkflowDefinition } from './validate_workflow_definition';
 
 const APP_DIR = fileURLToPath(
   new URL(
-    '../../../../../../examples/default/apps/issue-desk/',
+    '../../../../../../builtin-configs/apps/issue-desk/',
     import.meta.url,
   ),
 );

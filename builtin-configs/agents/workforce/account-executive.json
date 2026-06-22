@@ -2,7 +2,7 @@
   "slug": "account-executive",
   "metadata": {
     "labels": ["Sales"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "customer_read",

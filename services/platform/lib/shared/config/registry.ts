@@ -251,6 +251,20 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
       },
     },
   },
+  // First-class apps: each `apps/<slug>/` is a bundle (manifest + views/
+  // messages/scripts + the app's own app-scoped agents/workflows), copied whole
+  // into every org at create. Read directly from disk by the `listApps` action
+  // (node-direct), so it is NOT mirrored into `configCache`. The DB
+  // `appInstallations` row is the authoritative "installed" signal; the seeded
+  // files are the install SOURCE. Order-independent: an app bundles its own
+  // agents/workflows, so it has no cross-domain seed dependency.
+  {
+    name: 'apps',
+    layout: 'bundle',
+    readContext: 'node-direct',
+    dataModel: 'runtime-state',
+    scaffoldKind: 'bundle',
+  },
 ];
 
 export const CONFIG_DOMAINS_BY_NAME: ReadonlyMap<string, ConfigDomain> =

@@ -202,18 +202,18 @@ deploy_convex_functions() {
 
   # Force TALE_CONFIG_DIR to the convex container's internal mount point.
   # The `.env` file may contain a host-side value (e.g.
-  # `/home/you/tale/examples`) left over from running `bun scripts/dev.ts`
+  # `/home/you/tale/.tale-config`) left over from running `bun scripts/dev.ts`
   # on the host — that path is unreachable inside the convex container.
   #
   # Only TALE_CONFIG_DIR is pushed; AGENTS_DIR/WORKFLOWS_DIR/INTEGRATIONS_DIR/
   # PROVIDERS_DIR are derived inside Convex (`convex/*/file_utils.ts` falls
   # back to `${TALE_CONFIG_DIR}/<subdir>` when the specific var is absent).
   #
-  # For local dev against real `examples/` edits, bind-mount the host
-  # examples dir into the convex container via compose.dev.yml:
+  # For local dev against a real writable config dir, bind-mount the host
+  # config root into the convex container via compose.dev.yml:
   #   convex:
   #     volumes:
-  #       - ./examples:/app/data
+  #       - ./.tale-config:/app/data
   export TALE_CONFIG_DIR=/app/data
 
   # 1. Wait for the convex service to accept HTTP.

@@ -7,8 +7,8 @@
 *.gen.ts
 # Handlebars scaffolding, not real source.
 tools/plop/templates/
-# Seed/example configs are data, not code.
-examples/
+# Built-in seed configs are data, not code.
+builtin-configs/
 # Test scaffolding & fixtures intentionally contain odd inputs (fake API keys,
 # wildcard postMessage, etc.). SAST targets shipped production code.
 **/fixtures/

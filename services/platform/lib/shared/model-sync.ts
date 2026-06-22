@@ -1,6 +1,6 @@
 /**
  * Pure model-catalog sync engine — shared by the weekly GitHub Action (which
- * updates the shipped `examples/default/providers/*.json` and opens a PR) and
+ * updates the shipped `builtin-configs/providers/*.json` and opens a PR) and
  * the in-instance Convex cron (which keeps each org's provider config fresh).
  *
  * Given a provider's CURRENT models, the BASE shipped defaults, and fresh FACTS

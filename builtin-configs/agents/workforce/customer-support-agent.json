@@ -2,7 +2,7 @@
   "slug": "customer-support-agent",
   "metadata": {
     "labels": ["Support"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "customer_read",

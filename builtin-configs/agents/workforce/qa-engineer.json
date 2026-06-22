@@ -2,7 +2,7 @@
   "slug": "qa-engineer",
   "metadata": {
     "labels": ["Engineering", "Quality"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "run_code",

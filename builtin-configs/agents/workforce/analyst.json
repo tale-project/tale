@@ -2,7 +2,7 @@
   "slug": "analyst",
   "metadata": {
     "labels": ["Analytics", "Finance"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "run_code",

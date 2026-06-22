@@ -5,7 +5,7 @@ description: Drittsysteme, aus denen Tale liest und in die es schreibt — Kommu
 
 Integrationen sind die Brücken zwischen Tale und dem Rest deines Stacks. Agents rufen sie als Tools auf, Workflows triggern sie an Schritten, und die Dokumenten-Pipeline zieht Dateien aus ihnen. Jede Integration ist eine einzige JSON-Konfiguration plus eine Credential, die die Org einmal speichert; einmal verbunden, kann alles in Tale sie ohne erneute Authentifizierung nutzen. Diese Übersicht benennt die ausgelieferten Integrationen, gruppiert danach, was sie tun.
 
-Die Form einer Integration ist über jeden Eintrag unten gleich — eine OpenAI-kompatible REST-Oberfläche oder ein OAuth2-Tanz, mit in einer JSON-Konfiguration unter `examples/default/integrations/` deklarierten Operationen. Benutzerdefinierte Integrationen folgen derselben Form; eine Code-Änderung brauchst du nicht, um eine hinzuzufügen.
+Die Form einer Integration ist über jeden Eintrag unten gleich — eine OpenAI-kompatible REST-Oberfläche oder ein OAuth2-Tanz, mit in einer JSON-Konfiguration unter `builtin-configs/integrations/` deklarierten Operationen. Benutzerdefinierte Integrationen folgen derselben Form; eine Code-Änderung brauchst du nicht, um eine hinzuzufügen.
 
 ## Wie Integrationen sich von MCP unterscheiden
 
@@ -63,7 +63,7 @@ Microsoft 365 deckt auch Identität ab. Sie unter **Einstellungen > Integratione
 
 ## Eine eigene Integration hinzufügen
 
-Eigene Integrationen folgen derselben JSON-Form wie die oben. Leg eine Konfiguration in `TALE_CONFIG_DIR/<orgSlug>/integrations/<slug>/config.json` ab, die die Operationen, die Auth-Methode und die erlaubten Hosts deklariert; unter dem org-first Layout ist jeder `integrations/`-Unterbaum der Org unabhängig. Die Integration erscheint in **Einstellungen > Integrationen**, damit User sie verbinden können. Die Form und die Validierungsregeln leben neben den ausgelieferten Konfigurationen in `examples/default/integrations/`.
+Eigene Integrationen folgen derselben JSON-Form wie die oben. Leg eine Konfiguration in `TALE_CONFIG_DIR/<orgSlug>/integrations/<slug>/config.json` ab, die die Operationen, die Auth-Methode und die erlaubten Hosts deklariert; unter dem org-first Layout ist jeder `integrations/`-Unterbaum der Org unabhängig. Die Integration erscheint in **Einstellungen > Integrationen**, damit User sie verbinden können. Die Form und die Validierungsregeln leben neben den ausgelieferten Konfigurationen in `builtin-configs/integrations/`.
 
 Für reichere oder selbst gehostete Brücken sind [MCP-Server](/de/platform/integrations/mcp-servers) die alternative Oberfläche — jeder MCP-Server, den du registrierst, fügt seine Tools dem Agent-Werkzeuggürtel hinzu mit pro-Tool-Genehmigung.
 

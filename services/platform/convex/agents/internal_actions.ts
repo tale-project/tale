@@ -373,12 +373,10 @@ export async function listAgentsForOrg(orgSlug: string): Promise<unknown[]> {
  * enabled. This is what the router (`resolveAutoRoute`) and other roster
  * consumers see, so a disabled/uninstalled agent is never a routing candidate.
  *
- * Fallback: a NEVER-PROVISIONED org (no `agentDefaultProvisions` rows) is not
- * gated (returns the full catalog) — so a legacy/just-upgraded org never loses
- * its roster before the autoInstall sweep runs. Once the org has been
- * provisioned the gate is authoritative (anchored on the durable provision
- * ledger, not install-row count, so draining install rows or installing an app
- * never re-opens it). The system router (`isRouter`) is never gated out.
+ * No fallback: an agent is in the roster IFF it has an enabled install row. A
+ * row-less org has an empty roster (every org is provisioned at create with the
+ * default agents). The system router (`isRouter`) is the one exemption — it is
+ * read from disk on the classify path and never needs an install row.
  */
 export async function listInstalledAgentsForOrg(
   ctx: ActionCtx,
@@ -386,11 +384,10 @@ export async function listInstalledAgentsForOrg(
   orgSlug: string,
 ): Promise<unknown[]> {
   const entries = await listAgentsForOrg(orgSlug);
-  const { states, provisioned } = await ctx.runQuery(
+  const { states } = await ctx.runQuery(
     internal.agents.installations.listInstallStatesInternal,
     { organizationId },
   );
-  if (!provisioned) return entries;
   const bySlug = new Map(states.map((s) => [s.agentSlug, s] as const));
   return entries.filter((e) => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- entries come from buildAgentIndex's v.any() projection; we read only slug/name/isRouter for the gate

@@ -2,7 +2,7 @@
   "slug": "chief-operating-officer",
   "metadata": {
     "labels": ["Executive"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "task_read",

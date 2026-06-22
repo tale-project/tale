@@ -2,7 +2,7 @@
   "slug": "software-developer",
   "metadata": {
     "labels": ["Engineering"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "primaryBehavior": "external-agent",
   "agentKind": "claude-code",

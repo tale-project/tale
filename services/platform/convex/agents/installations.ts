@@ -105,20 +105,15 @@ export const listInstallStatesInternal = internalQuery({
 });
 
 /**
- * Run-admission gate: is this agent allowed to RUN for the org? Mirrors the
- * roster gate's fallback — a never-provisioned org (no `agentDefaultProvisions`
- * rows) is treated as un-gated and everything is live; once the autoInstall
- * sweep has run, an agent is live only when it has an enabled install row.
- * Anchoring on the durable provision ledger (not `agentInstallations` count)
- * means an org that drained its install rows stays authoritative (no
- * resurrection), and installing an app — which only adds install rows — never
- * flips a never-provisioned org's fail-open. Called at task/discussion run
- * admission so a disabled or uninstalled agent can never execute, regardless of
- * trigger. The system router is never run on tasks, so it's not special-cased.
- *
- * Note: the sweep writes rows per agent, so during a first provision there's a
- * brief window where `hasAnyProvision` is true but not every agent has its row
- * yet — those agents read as not-live until their row lands (seconds).
+ * Run-admission gate: is this agent allowed to RUN for the org? An agent is
+ * live IFF it has an enabled `agentInstallations` row — no fallback. An agent
+ * with no row (or a disabled row) is simply not installed for this org. Every
+ * org is provisioned at create (the autoInstall sweep installs the default
+ * agents), so there is no "never-provisioned → everything live" fail-open: a
+ * row-less org has no live agents until something is installed. Called at
+ * task/discussion run admission so a disabled or uninstalled agent can never
+ * execute. The system router is read from disk on the classify path (never
+ * gated here), so it needs no install row.
  */
 export const isAgentLiveInternal = internalQuery({
   args: { organizationId: v.string(), agentSlug: v.string() },
@@ -129,10 +124,7 @@ export const isAgentLiveInternal = internalQuery({
       args.organizationId,
       args.agentSlug,
     );
-    if (row) return row.enabled;
-    // No row for THIS agent → live only if the org has never been provisioned;
-    // once provisioned, an agent without an enabled row is simply not installed.
-    return !(await hasAnyProvision(ctx, args.organizationId));
+    return row?.enabled ?? false;
   },
 });
 

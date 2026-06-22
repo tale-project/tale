@@ -44,9 +44,9 @@ export type BrandingReadResult =
 
 /**
  * Resolve the branding directory for an organization. Org-first:
- * `${TALE_CONFIG_DIR}/<orgSlug>/branding/`. Read-side currently hardcodes
- * `'default'` (see branding/file_actions.ts call sites), so non-default
- * org branding dirs are scaffolded but unread.
+ * `${TALE_CONFIG_DIR}/<orgSlug>/branding/`. Every org reads its OWN branding
+ * (no cross-org fallback); `readBranding` only reads the platform `default`
+ * bucket for the pre-auth shell where no org is in scope yet.
  */
 export function resolveBrandingDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {

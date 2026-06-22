@@ -35,9 +35,9 @@ import {
 } from './retention_floors';
 
 /**
- * Load the per-org retention config, falling back to the `default`
- * org's file when the org-specific file is absent. Returns `null` if
- * neither exists; callers throw a config-missing error then.
+ * Load the per-org retention config — the org's OWN file only, no cross-org
+ * fallback (every org is seeded from the built-in catalog at create). Returns
+ * `null` when absent; callers throw a config-missing error then.
  */
 async function loadOrgRetentionConfig(
   ctx: ActionCtx,
@@ -50,14 +50,7 @@ async function loadOrgRetentionConfig(
     { area: 'retention', orgSlug },
   );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by readConfigArea
-  if (own) return own as RetentionDefaultsConfig;
-  if (orgSlug === 'default') return null;
-  const fallback = await ctx.runAction(
-    internal.lib.config_store.actions.readConfigArea,
-    { area: 'retention', orgSlug: 'default' },
-  );
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by readConfigArea
-  return fallback as RetentionDefaultsConfig | null;
+  return own ? (own as RetentionDefaultsConfig) : null;
 }
 
 /**
@@ -125,8 +118,7 @@ export const getRetentionBoundsAction = action({
     if (!orgConfig) {
       throw new ConvexError({
         code: 'RETENTION_CONFIG_MISSING',
-        message:
-          'Retention config not yet installed. Copy examples/default/governance/retention.json to $TALE_CONFIG_DIR/default/governance/retention.json then reload.',
+        message: `Retention config not yet installed. Copy builtin-configs/governance/retention.json to $TALE_CONFIG_DIR/${orgSlug}/governance/retention.json then reload.`,
       });
     }
 
@@ -195,8 +187,7 @@ export const upsertRetentionPolicyAction = action({
     if (!orgConfig) {
       throw new ConvexError({
         code: 'RETENTION_CONFIG_MISSING',
-        message:
-          'Retention config not yet installed. Copy examples/default/governance/retention.json to $TALE_CONFIG_DIR/default/governance/retention.json.',
+        message: `Retention config not yet installed. Copy builtin-configs/governance/retention.json to $TALE_CONFIG_DIR/${orgSlug}/governance/retention.json.`,
       });
     }
     const boundsByCategory = buildBoundsByCategory(orgConfig);

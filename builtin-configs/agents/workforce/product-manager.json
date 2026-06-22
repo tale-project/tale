@@ -2,7 +2,7 @@
   "slug": "product-manager",
   "metadata": {
     "labels": ["Product"],
-    "autoInstall": true
+    "autoInstall": false
   },
   "toolNames": [
     "task_read",

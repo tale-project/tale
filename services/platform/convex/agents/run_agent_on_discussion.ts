@@ -203,8 +203,9 @@ export const runAgentOnDiscussion = internalAction({
           `Agent "${args.agentSlug}" is disabled or not installed.`,
         );
       }
-      // Self-heal a never-provisioned org so it leaves the gate's fail-open
-      // (no-op once provisioned). This run is already admitted via the gate.
+      // Best-effort: ensure the org's default agents are provisioned (no-op
+      // once provisioned, which every org is at create). This run is already
+      // admitted via the gate above.
       await ensureAgentsProvisioned(ctx, args.organizationId, orgSlug);
       const agentConfig = delegate.agentConfig;
 

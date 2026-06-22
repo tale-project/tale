@@ -83,10 +83,10 @@ async function writeText(filePath: string, content: string): Promise<void> {
   await writeFile(filePath, content, 'utf-8');
 }
 
-// Catalog source path for a given domain — mirrors the org-first builtin
-// layout (`<catalogRoot>/default/<domain>/...`) the scaffold reads from.
+// Catalog source path for a given domain — the GENERIC built-in layout
+// (`<catalogRoot>/<domain>/...`, no org level) the scaffold reads from.
 function catSrc(...parts: string[]): string {
-  return path.join(catalogRoot, 'default', ...parts);
+  return path.join(catalogRoot, ...parts);
 }
 
 // Per-org target path — `<configRoot>/<orgSlug>/<domain>/...`.
@@ -116,6 +116,38 @@ describe('scaffoldNewOrganization (org-first)', () => {
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
     expect(existsSync(orgDst('acme', 'providers', 'shipped.json'))).toBe(true);
+  });
+
+  it('seeds the apps bundle (apps is a first-class config domain)', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    // An app bundle: manifest + a view + an app-scoped agent, all under the slug.
+    await writeText(
+      catSrc('apps', 'issue-desk', 'app.json'),
+      '{"name":"Desk"}',
+    );
+    await writeText(
+      catSrc('apps', 'issue-desk', 'views', 'home.json'),
+      '{"data":{}}',
+    );
+    await writeText(
+      catSrc('apps', 'issue-desk', 'agents', 'implementer.json'),
+      '{"slug":"implementer"}',
+    );
+
+    await scaffoldHandler({} as never, { orgSlug: 'acme' });
+
+    expect(existsSync(orgDst('acme', 'apps', 'issue-desk', 'app.json'))).toBe(
+      true,
+    );
+    // The whole bundle tree copies, including nested views/ and app-scoped agents/.
+    expect(
+      existsSync(orgDst('acme', 'apps', 'issue-desk', 'views', 'home.json')),
+    ).toBe(true);
+    expect(
+      existsSync(
+        orgDst('acme', 'apps', 'issue-desk', 'agents', 'implementer.json'),
+      ),
+    ).toBe(true);
   });
 
   it('flat domains never recurse into catalog subdirs (defense if the catalog ever ships one)', async () => {
@@ -373,25 +405,24 @@ describe('scaffoldNewOrganization (org-first)', () => {
     ).toBe('{"version":"v1","categories":{}}');
   });
 
-  it('copy-onto-self guard fires for default-org reseed in dev fallback (catalog env unset)', async () => {
-    // No TALE_CONFIG_BUILTIN_DIR → fallback source = domain.resolve('default')
-    // = `<root>/default/<domain>`, which is the same dir as the reseed
-    // target. realpath-based guard must catch this even though path strings
-    // are syntactically identical.
+  it('refuses to scaffold when TALE_CONFIG_BUILTIN_DIR is unset (no fallback, no fs writes)', async () => {
+    // beforeEach deletes TALE_CONFIG_BUILTIN_DIR and this test never sets it.
+    // The built-in catalog is REQUIRED — scaffold must refuse rather than fall
+    // back to any org's live dir (the old `resolve('default')` fallback is gone).
     await writeText(
-      orgDst('default', 'workflows', 'shopify', 'sync.json'),
+      orgDst('acme', 'workflows', 'shopify', 'sync.json'),
       '{"name":"existing"}',
     );
 
-    // Should be a no-op (skip with warn), not a destructive copy-onto-self.
-    await scaffoldHandler({} as never, {
-      orgSlug: 'default',
-      override: true,
-    });
+    const result = await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
+    expect(result.ok).toBe(false);
+    expect(result.skipped).toBe(true);
+    expect(result.results).toEqual([]);
+    // Pre-existing org content is untouched — the refusal happens before any seed.
     expect(
       await readFile(
-        orgDst('default', 'workflows', 'shopify', 'sync.json'),
+        orgDst('acme', 'workflows', 'shopify', 'sync.json'),
         'utf-8',
       ),
     ).toBe('{"name":"existing"}');

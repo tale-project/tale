@@ -20,21 +20,21 @@ import { internalAction } from '../_generated/server';
 
 const EXAMPLE_TASKS = [
   {
-    title: 'Welcome — meet your AI workforce',
+    title: 'Welcome — meet your assistant',
     description:
-      'Your organization ships with a full company of AI agents (CEO, CTO, CMO, COO, CFO and their teams). Open the Agents page to see the org chart, then @mention any agent in a task or discussion to put them to work.',
+      'Your workspace comes with a general-purpose chat Assistant ready to go. Open the Agents page to browse the full catalog — a coder, a researcher, and a whole AI workforce (CEO, CTO, CMO and their teams) — and install the ones you want. Then @mention any installed agent in a task or discussion to put them to work.',
     priority: 'p2' as const,
   },
   {
     title: 'Draft a one-page company overview',
     description:
-      'A good first task to delegate: assign this to the Content Writer (or leave it for triage) to produce a concise overview you can edit.',
+      'A good first task to delegate: @mention your Assistant to draft a concise overview you can edit — or install the Content Writer agent from the Agents page and assign it there.',
     priority: 'p3' as const,
   },
   {
     title: 'Connect an integration',
     description:
-      'Connect GitHub, Gmail, or another integration from Settings → Integrations. Connecting GitHub unlocks the Software Developer, PR Reviewer, and Issue Triager agents automatically.',
+      'Connect GitHub, Gmail, or another integration from Settings → Integrations, then install agents like the Software Developer or PR Reviewer from the Agents page to work your repos and inbox.',
     priority: 'p3' as const,
   },
 ];

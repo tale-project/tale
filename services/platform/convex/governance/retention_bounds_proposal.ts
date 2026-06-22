@@ -45,9 +45,9 @@ import {
 } from './retention_floors';
 
 /**
- * Load the per-org retention config, falling back to the `default`
- * org's file. Identical to the helper in `retention_actions.ts`; kept
- * local so this file doesn't depend on the sibling action layer.
+ * Load the per-org retention config — the org's OWN file only, no cross-org
+ * fallback. Identical to the helper in `retention_actions.ts`; kept local so
+ * this file doesn't depend on the sibling action layer.
  */
 async function loadOrgRetentionConfig(
   ctx: ActionCtx,
@@ -60,14 +60,7 @@ async function loadOrgRetentionConfig(
     { area: 'retention', orgSlug },
   );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by readConfigArea
-  if (own) return own as RetentionDefaultsConfig;
-  if (orgSlug === 'default') return null;
-  const fallback = await ctx.runAction(
-    internal.lib.config_store.actions.readConfigArea,
-    { area: 'retention', orgSlug: 'default' },
-  );
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by readConfigArea
-  return fallback as RetentionDefaultsConfig | null;
+  return own ? (own as RetentionDefaultsConfig) : null;
 }
 
 /**
@@ -90,8 +83,7 @@ async function computeEffectiveAppliedBounds(
   if (!orgConfig) {
     throw new ConvexError({
       code: 'RETENTION_CONFIG_MISSING',
-      message:
-        'Retention config not yet installed. Copy examples/default/governance/retention.json to $TALE_CONFIG_DIR/default/governance/retention.json then reload.',
+      message: `Retention config not yet installed. Copy builtin-configs/governance/retention.json to $TALE_CONFIG_DIR/${orgSlug}/governance/retention.json then reload.`,
     });
   }
   let all;

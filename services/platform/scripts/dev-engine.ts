@@ -187,25 +187,26 @@ function envNormalizeCommon() {
     process.env.SANDBOX_HTTP_API_BASE_URL = 'http://host.docker.internal:3211';
   }
 
-  // Root config directory only — Convex derives sub-dirs (agents/workflows/
-  // integrations/providers) from TALE_CONFIG_DIR via `convex/*/file_utils.ts`.
+  // Writable per-org config ROOT (org-first: `<root>/<orgSlug>/<domain>/`).
+  // Convex derives sub-dirs from TALE_CONFIG_DIR via `convex/*/file_utils.ts`.
+  // Default to a gitignored repo-relative dir: each org's files are seeded into
+  // it from the built-in catalog at org-create. NOT the built-in catalog itself
+  // (that is `builtin-configs/`, which is not org-shaped). An explicit env wins
+  // (the user's .env or the E2E fixture point this at their own writable root).
   if (!process.env.TALE_CONFIG_DIR) {
-    process.env.TALE_CONFIG_DIR = join(repoRoot, 'examples');
+    process.env.TALE_CONFIG_DIR = join(repoRoot, '.tale-config');
   }
 
-  // Immutable seed catalog for new-org scaffolding. Prod sets this in the
-  // Docker image (services/convex/Dockerfile copies examples/default →
-  // /app/builtin/default; services/platform/Dockerfile sets the env to
-  // /app/builtin). Dev has no build step, so default it to whatever
-  // TALE_CONFIG_DIR points at — the same tree dev already serves. Without this,
-  // `seedDomain` falls back to seeding new orgs from the LIVE `default` org's
-  // mutable dir, so an agent deleted in `default` wrongly propagates to every
-  // new org. Deriving from TALE_CONFIG_DIR (not a hardcoded `examples`) keeps
-  // hermetic setups intact: the E2E stack points TALE_CONFIG_DIR at its own
-  // fixtures, and the builtin catalog must follow it rather than leaking the
-  // real `examples` agents/providers into freshly scaffolded test orgs.
+  // Built-in config catalog: the single GENERIC template every org is seeded
+  // from. Its children ARE the domains (`builtin-configs/<domain>/`) — there is
+  // no org level, so the seeder reads `<builtin>/<domain>` with no `default`
+  // join. Prod sets this in the image (services/convex/Dockerfile copies
+  // builtin-configs/ → /app/builtin; services/platform/Dockerfile sets the env
+  // to /app/builtin). Dev has no build step, so default it to the repo's
+  // tracked catalog. Hermetic setups (E2E) pin their own builtin explicitly
+  // rather than inheriting this default.
   if (!process.env.TALE_CONFIG_BUILTIN_DIR) {
-    process.env.TALE_CONFIG_BUILTIN_DIR = process.env.TALE_CONFIG_DIR;
+    process.env.TALE_CONFIG_BUILTIN_DIR = join(repoRoot, 'builtin-configs');
   }
 }
 

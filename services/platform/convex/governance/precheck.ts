@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { loadGuardrailsSnapshot, sanitizeMessage } from './sanitize';
 
@@ -78,10 +79,15 @@ export const precheckInput = action({
     // provider cost and produce two audit rows per message.
     const snapshot = { ...fullSnapshot, moderation: null };
 
+    // The real org slug for the audit context (membership is already verified
+    // above) — never a hardcoded `default`, which would mislabel every org's
+    // guardrail events.
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+
     try {
       const result = await sanitizeMessage(ctx, args.text, 'input', snapshot, {
         organizationId: args.organizationId,
-        orgSlug: 'default',
+        orgSlug,
         threadId: 'precheck',
         actorId: authUser.userId,
         actorEmail: authUser.email,
