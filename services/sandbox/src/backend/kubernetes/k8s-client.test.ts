@@ -3,8 +3,14 @@
 // forever-hung execute()) and withRetry's retryability gate.
 
 import { describe, expect, test } from 'bun:test';
+import { writeFileSync, unlinkSync } from 'node:fs';
+import type { AgentOptions } from 'node:https';
 
-import { HttpMethod, RequestContext } from '@kubernetes/client-node';
+import {
+  HttpMethod,
+  KubeConfig,
+  RequestContext,
+} from '@kubernetes/client-node';
 
 import { apiTimeout, httpStatusCode, withRetry } from './k8s-client.ts';
 
@@ -108,5 +114,91 @@ describe('withRetry', () => {
     // Backoff is 200ms + 400ms between attempts; a post-final 600ms sleep
     // would push this past ~1.2s.
     expect(Date.now() - start).toBeLessThan(1_000);
+  });
+});
+
+// Verify that @kubernetes/client-node@1.4.0 TLS knobs are NOT inert under Bun.
+//
+// The library routes every request through node-fetch v2
+// (gen/http/isomorphic-fetch.js: `import fetch from "node-fetch"`), which
+// calls https.request() with the configured https.Agent — NOT Bun's native
+// fetch(). Bun's node:https honours rejectUnauthorized and ca on an
+// https.Agent, so skipTLSVerify and caFile ARE effective and carry real
+// security semantics.
+//
+// The limitation documented in the AUTH NOTE of k8s-client.ts is specific to
+// client-cert auth (cert/key options) — Bun's TLS stack does not support
+// mutual TLS client certificates. skipTLSVerify and caFile are distinct knobs
+// that work as intended.
+describe('kubeconfig TLS knobs under Bun', () => {
+  function makeKc(clusterExtra: Record<string, unknown>) {
+    const kc = new KubeConfig();
+    kc.loadFromOptions({
+      clusters: [
+        { name: 'k', server: 'https://k8s.local:6443', ...clusterExtra },
+      ],
+      users: [{ name: 'sa', token: 'tok' }],
+      contexts: [{ name: 'c', cluster: 'k', user: 'sa' }],
+      currentContext: 'c',
+    });
+    return kc;
+  }
+
+  // applySecurityAuthentication constructs an https.Agent whose constructor
+  // options are stored in agent.options (node:https parity with Node.js).
+  // We extract them via a typed cast to AgentOptions to avoid unsafe any.
+  function getAgentOpts(ctx: RequestContext): AgentOptions | undefined {
+    const agent = ctx.getAgent();
+    if (!agent) return undefined;
+    // https.Agent stores its constructor options in agent.options; the property
+    // is present at runtime but narrower than the union type suggests.
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    return (agent as unknown as { options: AgentOptions }).options;
+  }
+
+  test('skipTLSVerify:true → rejectUnauthorized:false on the per-request https.Agent', async () => {
+    const kc = makeKc({ skipTLSVerify: true });
+    const ctx = new RequestContext(
+      'https://k8s.local:6443/api/v1/pods',
+      HttpMethod.GET,
+    );
+    await kc.applySecurityAuthentication(ctx);
+    // applySecurityAuthentication calls createAgent(cluster, { rejectUnauthorized: false, … })
+    // and sets the resulting https.Agent on the context. The agent stores
+    // constructor options in agent.options (Node.js / Bun node:https parity).
+    expect(getAgentOpts(ctx)?.rejectUnauthorized).toBe(false);
+  });
+
+  test('caFile → ca buffer present on the per-request https.Agent', async () => {
+    const caPath = '/tmp/k8s-client-test-ca.pem';
+    // Content is a placeholder; bufferFromFileOrString reads the bytes as-is.
+    writeFileSync(caPath, 'placeholder-pem-content');
+    try {
+      const kc = makeKc({ caFile: caPath });
+      const ctx = new RequestContext(
+        'https://k8s.local:6443/api/v1/pods',
+        HttpMethod.GET,
+      );
+      await kc.applySecurityAuthentication(ctx);
+      // applyHTTPSOptions calls fs.readFileSync(caFile) and copies the result
+      // to agentOptions.ca before constructing the https.Agent.
+      const agentOpts = getAgentOpts(ctx);
+      expect(agentOpts?.ca).toBeDefined();
+      expect(Buffer.isBuffer(agentOpts?.ca)).toBe(true);
+    } finally {
+      unlinkSync(caPath);
+    }
+  });
+
+  test('neither skipTLSVerify nor caFile → default TLS (no overrides on the agent)', async () => {
+    const kc = makeKc({});
+    const ctx = new RequestContext(
+      'https://k8s.local:6443/api/v1/pods',
+      HttpMethod.GET,
+    );
+    await kc.applySecurityAuthentication(ctx);
+    const agentOpts = getAgentOpts(ctx);
+    expect(agentOpts?.rejectUnauthorized).toBeUndefined();
+    expect(agentOpts?.ca).toBeUndefined();
   });
 });

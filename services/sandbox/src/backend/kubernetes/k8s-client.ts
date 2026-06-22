@@ -6,13 +6,20 @@
 // createNamespacedPod / readNamespacedPodLog / deleteNamespacedPod + presigned-
 // URL I/O done inside the Pod — every primitive below is plain HTTP.
 //
-// AUTH NOTE (Bun): Bun's fetch does NOT apply a kubeconfig's client cert or
-// custom CA, so a client-cert cluster (e.g. kind's default kubeconfig) auths
-// as system:anonymous. The real in-cluster path uses a ServiceAccount BEARER
-// TOKEN (an Authorization header Bun sends fine) + the cluster CA — for Bun to
-// trust that CA, the container must set NODE_EXTRA_CA_CERTS to the SA ca.crt
-// (/var/run/secrets/kubernetes.io/serviceaccount/ca.crt). Local dev needs a
-// token-based kubeconfig, not kind's client-cert one.
+// AUTH NOTE (Bun): @kubernetes/client-node@1.4.0 routes requests through
+// node-fetch v2, which calls https.request() with an https.Agent — NOT Bun's
+// native fetch(). Through node:https, skipTLSVerify (→ rejectUnauthorized:
+// false on the Agent) and caFile (→ ca Buffer on the Agent) ARE honoured by
+// Bun's TLS stack. What is NOT honoured is client-cert auth (cert/key options
+// on the Agent): Bun's TLS layer does not support mutual TLS client
+// certificates, so a client-cert kubeconfig (e.g. kind's default) auths as
+// system:anonymous. Use a ServiceAccount bearer-token kubeconfig instead.
+//
+// In-cluster CA trust: loadFromCluster() sets caFile to the projected SA
+// ca.crt, which is read into the Agent's ca option and works as above. As a
+// belt-and-suspenders measure the container should also set NODE_EXTRA_CA_CERTS
+// to the same path so that any native fetch() calls (e.g. in harvest) trust
+// the apiserver CA without requiring an explicit Agent.
 
 import {
   type ConfigurationOptions,

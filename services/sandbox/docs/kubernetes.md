@@ -83,18 +83,18 @@ stream. Keep it out so a stray exec call fails closed.
 
 ## Environment
 
-| Env                                                               | Required   | Notes                                                                                                                                                                           |
-| ----------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SANDBOX_BACKEND=kubernetes`                                      | yes        | Selects this backend.                                                                                                                                                           |
-| `SANDBOX_SPAWNER_IMAGE`                                           | yes        | The spawner's **own** image ref, used for the `stage`/`harvest` containers. Must match the deployed spawner version.                                                            |
-| `SANDBOX_RUNTIME_IMAGE`                                           | yes        | The `runner` image (`tale-sandbox-runtime:<tag>`).                                                                                                                              |
-| `SANDBOX_K8S_NAMESPACE`                                           | yes        | Namespace the per-exec Pods/Secrets are created in (default `tale-sandbox`).                                                                                                    |
-| `NODE_EXTRA_CA_CERTS`                                             | in-cluster | Point at the SA `ca.crt` (`/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`). **Bun's fetch ignores the kubeconfig CA**, so without this the apiserver TLS isn't trusted.  |
-| `SANDBOX_RUNTIME=runsc`                                           | optional   | Sets the Pod `runtimeClassName` (gVisor) via `SANDBOX_RUNTIME_CLASS` (default `gvisor`).                                                                                        |
-| `SANDBOX_CACHE=pvc`                                               | optional   | Mounts per-org RWX cache PVCs on the runner; needs the PVC RBAC above + an RWX StorageClass. Default `none` (installs fresh each run via the egress proxy).                     |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | `sizeLimit` on the per-exec `/user` emptyDir (default `4Gi`). Bounds deps + temp + outputs; exceeding it evicts the Pod.                                                        |
-| `SANDBOX_EGRESS_PROXY`                                            | optional   | The runner's `HTTPS_PROXY`/`HTTP_PROXY` for `pip`/`npm` (default `http://sandbox-egress:3128`).                                                                                 |
-| `SANDBOX_K8S_SERVER` / `SANDBOX_K8S_TOKEN` / `SANDBOX_K8S_CAFILE` | dev only   | Explicit bearer-token kubeconfig for local Bun dev (kind's client-cert kubeconfig auths as `system:anonymous` under Bun). In-cluster uses the projected SA token automatically. |
+| Env                                                               | Required   | Notes                                                                                                                                                                                                |
+| ----------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SANDBOX_BACKEND=kubernetes`                                      | yes        | Selects this backend.                                                                                                                                                                                |
+| `SANDBOX_SPAWNER_IMAGE`                                           | yes        | The spawner's **own** image ref, used for the `stage`/`harvest` containers. Must match the deployed spawner version.                                                                                 |
+| `SANDBOX_RUNTIME_IMAGE`                                           | yes        | The `runner` image (`tale-sandbox-runtime:<tag>`).                                                                                                                                                   |
+| `SANDBOX_K8S_NAMESPACE`                                           | yes        | Namespace the per-exec Pods/Secrets are created in (default `tale-sandbox`).                                                                                                                         |
+| `NODE_EXTRA_CA_CERTS`                                             | in-cluster | Point at the SA `ca.crt` (`/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`). **Bun's fetch ignores the kubeconfig CA**, so without this the apiserver TLS isn't trusted.                       |
+| `SANDBOX_RUNTIME=runsc`                                           | optional   | Sets the Pod `runtimeClassName` (gVisor) via `SANDBOX_RUNTIME_CLASS` (default `gvisor`).                                                                                                             |
+| `SANDBOX_CACHE=pvc`                                               | optional   | Mounts per-org RWX cache PVCs on the runner; needs the PVC RBAC above + an RWX StorageClass. Default `none` (installs fresh each run via the egress proxy).                                          |
+| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | `sizeLimit` on the per-exec `/user` emptyDir (default `4Gi`). Bounds deps + temp + outputs; exceeding it evicts the Pod.                                                                             |
+| `SANDBOX_EGRESS_PROXY`                                            | optional   | The runner's `HTTPS_PROXY`/`HTTP_PROXY` for `pip`/`npm` (default `http://sandbox-egress:3128`).                                                                                                      |
+| `SANDBOX_K8S_SERVER` / `SANDBOX_K8S_TOKEN` / `SANDBOX_K8S_CAFILE` | dev only   | Explicit bearer-token kubeconfig for local Bun dev (kind's client-cert kubeconfig auths as `system:anonymous` under Bun — see TLS note below). In-cluster uses the projected SA token automatically. |
 
 The Pod sets `automountServiceAccountToken: false` — the runtime never gets an
 SA token.
@@ -121,11 +121,39 @@ process is free to ignore. The proxy itself is open at the hostname layer by
 default (`SANDBOX_EGRESS_ALLOWLIST` opt-in), so this NetworkPolicy is the
 _only_ egress fence on k8s; do not run untrusted workloads without it.
 
+## TLS contract under Bun
+
+`@kubernetes/client-node@1.4.0` routes every API call through **node-fetch v2**
+(`gen/http/isomorphic-fetch.js`), which calls `https.request()` with an
+`https.Agent` — **not** Bun's native `fetch()`. Through `node:https`, Bun
+**does** honour TLS options set on the Agent:
+
+| Kubeconfig knob                      | Effect                                        | Honoured by Bun?                                                                           |
+| ------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `skipTLSVerify: true`                | sets `rejectUnauthorized: false` on the Agent | **Yes** — real security relaxation, not dead code                                          |
+| `caFile` / `caData`                  | reads CA bytes into `agent.options.ca`        | **Yes** — CA is used for server-cert verification                                          |
+| `certFile` / `keyFile` (client cert) | sets `cert` / `key` on the Agent              | **No** — Bun's TLS stack does not support mTLS client certs; use bearer-token auth instead |
+
+**Practical consequences:**
+
+- `SANDBOX_K8S_SERVER` + `SANDBOX_K8S_TOKEN` without `SANDBOX_K8S_CAFILE` falls
+  back to `skipTLSVerify: true`. This **disables TLS certificate verification**
+  for the apiserver — intentional for local dev against self-signed clusters, but
+  must never be used in production.
+- `SANDBOX_K8S_CAFILE` enables proper CA verification through the Agent. Set it
+  to the cluster's CA bundle when the apiserver's cert is issued by a private CA.
+- `NODE_EXTRA_CA_CERTS` should **also** be set in-cluster to the SA `ca.crt`
+  path (`/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`) as a
+  belt-and-suspenders measure: any native `fetch()` calls (e.g. harvest
+  presigned-URL uploads) go through Bun's native TLS stack, which reads this env
+  var but ignores `agent.options.ca`.
+
 ## Verification status
 
 Unit-tested (no cluster): the Pod shape + the security invariant (Secret never
-on the runner), the ExecSpec Secret payload + round-trip, and the
-`__TALE_RESULT__` result-line protocol. The on-cluster reliability bar (50+
-consecutive real executions ~100% pass, 2-replica scale, cancel-across-replicas)
-is **pending a healthy cluster** and must be run before enabling this backend in
-production.
+on the runner), the ExecSpec Secret payload + round-trip, the
+`__TALE_RESULT__` result-line protocol, and the `skipTLSVerify`/`caFile` TLS
+knob propagation through the Agent (see `k8s-client.test.ts`). The on-cluster
+reliability bar (50+ consecutive real executions ~100% pass, 2-replica scale,
+cancel-across-replicas) is **pending a healthy cluster** and must be run before
+enabling this backend in production.
