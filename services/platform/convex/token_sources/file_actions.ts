@@ -24,10 +24,10 @@ import {
 } from '../lib/sops';
 import {
   loadTokenSource,
-  loadTokenSourceSecret,
   resolveTokenSourceFilePath,
   resolveTokenSourceSecretsPath,
   resolveTokenSourcesDir,
+  tokenSourceSecretExists,
 } from './file_utils';
 
 /**
@@ -96,8 +96,16 @@ export const getTokenSource = action({
     );
     const read = await loadTokenSource(orgSlug, args.slug);
     if (!read.ok) return null;
-    const secret = await loadTokenSourceSecret(orgSlug, args.slug);
-    return { config: read.config, hasSecret: secret !== null };
+    // "Configured" = a secret sidecar exists (presence, not decryptability) OR
+    // the auth declares a `secretEnv` env-ref. Never decrypt here — the value
+    // is write-only and a momentary SOPS-key gap must not read as "no secret".
+    const sidecarExists = await tokenSourceSecretExists(orgSlug, args.slug);
+    const auth = read.config.auth;
+    const hasEnvRef =
+      auth.method !== 'none' &&
+      typeof auth.secretEnv === 'string' &&
+      auth.secretEnv.length > 0;
+    return { config: read.config, hasSecret: sidecarExists || hasEnvRef };
   },
 });
 

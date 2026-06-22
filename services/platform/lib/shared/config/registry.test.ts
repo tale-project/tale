@@ -76,6 +76,7 @@ describe('config-domain registry', () => {
           'integrations',
           'providers',
           'skills',
+          'token-sources',
           'workflows',
         ].sort(),
       );

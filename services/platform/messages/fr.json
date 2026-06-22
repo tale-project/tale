@@ -4922,7 +4922,6 @@
       "saved": "Source de jetons enregistrée",
       "saveError": "Impossible d'enregistrer la source de jetons",
       "deleted": "Source de jetons supprimée",
-      "loadError": "Impossible de charger la source de jetons",
       "empty": "Aucune source de jetons pour l'instant. Ajoutes-en une pour donner aux agents un pool d'identifiants rotatif.",
       "edit": "Modifier",
       "delete": "Supprimer",
@@ -4931,7 +4930,9 @@
       "emptyTitle": "Aucune source de jetons pour l'instant",
       "actions": "Actions de la source de jetons",
       "deleteTitle": "Supprimer la source de jetons",
-      "deleteConfirm": "Supprimer la source de jetons « {name} » ? Les agents qui y sont liés perdront leur pool d'identifiants."
+      "deleteConfirm": "Supprimer la source de jetons « {name} » ? Les agents qui y sont liés perdront leur pool d'identifiants.",
+      "secretConfigured": "Secret configuré",
+      "secretReplace": "Remplacer le secret"
     },
     "account": {
       "profile": {
@@ -5408,13 +5409,7 @@
       },
       "env": {
         "title": "Environnement et secrets",
-        "description": "Variables injectées lorsque cet agent s'exécute dans une sandbox — étapes de workflow et exécutions externes. Cochez « Secret » pour chiffrer une valeur ; les secrets sont en écriture seule.",
-        "tokenSource": {
-          "title": "Source de jetons",
-          "description": "Utilise les identifiants LLM de cet agent depuis un pool rotatif récupéré auprès d'un broker externe plutôt qu'un secret statique unique. Un jeton est choisi à chaque exécution et permuté en cas de limitation de débit ou d'expiration. S'applique aux agents qui fournissent leur propre clé (BYO).",
-          "none": "Aucune — utiliser les variables ci-dessus",
-          "empty": "Aucune source de jetons n'est encore configurée pour cette organisation."
-        }
+        "description": "Variables injectées lorsque cet agent s'exécute dans une sandbox — étapes de workflow et exécutions externes. Cochez « Secret » pour chiffrer une valeur ; les secrets sont en écriture seule."
       }
     },
     "skills": {

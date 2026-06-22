@@ -5183,7 +5183,6 @@
       "saved": "Token source saved",
       "saveError": "Couldn't save token source",
       "deleted": "Token source deleted",
-      "loadError": "Couldn't load token source",
       "empty": "No token sources yet. Add one to give agents a rotating credential pool.",
       "edit": "Edit",
       "delete": "Delete",
@@ -5192,7 +5191,9 @@
       "emptyTitle": "No token sources yet",
       "actions": "Token source actions",
       "deleteTitle": "Delete token source",
-      "deleteConfirm": "Delete the token source “{name}”? Agents bound to it will lose their credential pool."
+      "deleteConfirm": "Delete the token source “{name}”? Agents bound to it will lose their credential pool.",
+      "secretConfigured": "Secret configured",
+      "secretReplace": "Replace secret"
     },
     "account": {
       "profile": {
@@ -5669,13 +5670,7 @@
       },
       "env": {
         "title": "Environment & secrets",
-        "description": "Variables injected when this agent runs in a sandbox — workflow steps and external runs. Mark a value as a secret to encrypt it; secrets are write-only.",
-        "tokenSource": {
-          "title": "Token source",
-          "description": "Draw this agent's LLM credential from a rotating pool fetched from an external broker instead of a single static secret. One token is picked per run and rotated on rate-limit or expiry. Applies to bring-your-own-key agents.",
-          "none": "None — use the variables above",
-          "empty": "No token sources are configured for this organization yet."
-        }
+        "description": "Variables injected when this agent runs in a sandbox — workflow steps and external runs. Mark a value as a secret to encrypt it; secrets are write-only."
       }
     },
     "skills": {

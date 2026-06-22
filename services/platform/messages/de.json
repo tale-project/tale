@@ -4921,7 +4921,6 @@
       "saved": "Token-Quelle gespeichert",
       "saveError": "Token-Quelle konnte nicht gespeichert werden",
       "deleted": "Token-Quelle gelöscht",
-      "loadError": "Token-Quelle konnte nicht geladen werden",
       "empty": "Noch keine Token-Quellen. Füge eine hinzu, um Agenten einen rotierenden Anmeldedaten-Pool zu geben.",
       "edit": "Bearbeiten",
       "delete": "Löschen",
@@ -4930,7 +4929,9 @@
       "emptyTitle": "Noch keine Token-Quellen",
       "actions": "Token-Quellen-Aktionen",
       "deleteTitle": "Token-Quelle löschen",
-      "deleteConfirm": "Token-Quelle „{name}“ löschen? Daran gebundene Agenten verlieren ihren Anmeldedaten-Pool."
+      "deleteConfirm": "Token-Quelle „{name}“ löschen? Daran gebundene Agenten verlieren ihren Anmeldedaten-Pool.",
+      "secretConfigured": "Geheimnis konfiguriert",
+      "secretReplace": "Geheimnis ersetzen"
     },
     "account": {
       "profile": {
@@ -5407,13 +5408,7 @@
       },
       "env": {
         "title": "Umgebung & Geheimnisse",
-        "description": "Variablen, die eingespeist werden, wenn dieser Agent in einer Sandbox läuft — Workflow-Schritte und externe Ausführungen. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar.",
-        "tokenSource": {
-          "title": "Token-Quelle",
-          "description": "Bezieht die LLM-Anmeldedaten dieses Agenten aus einem rotierenden Pool, der von einem externen Broker abgerufen wird, statt aus einem einzelnen statischen Geheimnis. Pro Lauf wird ein Token gewählt und bei Ratenbegrenzung oder Ablauf rotiert. Gilt für Agenten mit eigenem Schlüssel (BYO).",
-          "none": "Keine — die Variablen oben verwenden",
-          "empty": "Für diese Organisation sind noch keine Token-Quellen konfiguriert."
-        }
+        "description": "Variablen, die eingespeist werden, wenn dieser Agent in einer Sandbox läuft — Workflow-Schritte und externe Ausführungen. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar."
       }
     },
     "skills": {

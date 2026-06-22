@@ -1,5 +1,6 @@
 'use node';
 
+import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
@@ -95,6 +96,31 @@ export async function loadTokenSourceSecret(
       );
     }
     return null;
+  }
+}
+
+/**
+ * Whether a broker secret sidecar EXISTS on disk — a presence check (stat),
+ * deliberately independent of whether it currently decrypts. Drives the edit
+ * form's "configured" indicator: a stored secret stays reported as configured
+ * even if the SOPS key is momentarily unavailable, so a key hiccup never
+ * mislabels a set secret as absent (unlike decrypting it and treating any
+ * failure as "no secret"). A genuine ENOENT is the only "not configured".
+ */
+export async function tokenSourceSecretExists(
+  orgSlug: string,
+  slug: string,
+): Promise<boolean> {
+  try {
+    await stat(resolveTokenSourceSecretsPath(orgSlug, slug));
+    return true;
+  } catch (err) {
+    if (errnoCode(err) === 'ENOENT') return false;
+    console.warn(
+      `[token-source] stat secrets for "${slug}" failed:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return false;
   }
 }
 

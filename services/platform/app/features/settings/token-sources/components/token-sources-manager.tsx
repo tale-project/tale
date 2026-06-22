@@ -9,6 +9,7 @@
  * up there immediately.
  */
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { IconButton } from '@tale/ui/icon-button';
@@ -564,19 +565,35 @@ function TokenSourceFormSheet({
               />
             )}
             {needsSecret && (
-              <Input
-                label={t('tokenSources.secret')}
-                type="password"
-                value={form.secret}
-                disabled={saving}
-                placeholder={
-                  form.hasSecret
-                    ? t('tokenSources.secretSetPlaceholder')
-                    : t('tokenSources.secretPlaceholder')
-                }
-                className="font-mono"
-                onChange={(e) => set({ secret: e.target.value })}
-              />
+              <Stack gap={2}>
+                {form.hasSecret && (
+                  <HStack gap={3} align="center" className="flex-wrap">
+                    <Badge variant="green" dot>
+                      {t('tokenSources.secretConfigured')}
+                    </Badge>
+                    <Text className="text-muted-foreground font-mono text-sm">
+                      ••••••••••
+                    </Text>
+                  </HStack>
+                )}
+                <Input
+                  label={
+                    form.hasSecret
+                      ? t('tokenSources.secretReplace')
+                      : t('tokenSources.secret')
+                  }
+                  type="password"
+                  value={form.secret}
+                  disabled={saving}
+                  placeholder={
+                    form.hasSecret
+                      ? t('tokenSources.secretSetPlaceholder')
+                      : t('tokenSources.secretPlaceholder')
+                  }
+                  className="font-mono"
+                  onChange={(e) => set({ secret: e.target.value })}
+                />
+              </Stack>
             )}
 
             <Text variant="muted" className="text-xs">
