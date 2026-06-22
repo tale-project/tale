@@ -54,7 +54,6 @@
     "gen:docker-service": "bun run gen docker-service",
     "gen:tool": "bun run gen tool",
     "generate:icons": "bun scripts/generate-integration-icons.ts",
-    "report:layout": "bun tools/ui-sweep/report-layout.ts",
     "prepare": "bunx husky"
   },
   "dependencies": {
